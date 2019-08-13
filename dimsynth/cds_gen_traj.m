@@ -1,12 +1,12 @@
 function Traj = cds_gen_traj(DoF, no, trajset)
-x0 = zeros(6,1);
+x0 = [0.5, 0.5, 0, 0, 0, 0]';
 k=1; XE = x0';
 
 %% Liste der Trajektorien
 
 if all(DoF == [1 1 0 0 0 1])
   if no == 1
-    d1=0.16;
+    d1=0.3;
     k=k+1; XE(k,:) = XE(k-1,:) + [ d1,0,0, 0,0,0];
     k=k+1; XE(k,:) = XE(k-1,:) + [0,-d1,0  0,0,0];
     k=k+1; XE(k,:) = XE(k-1,:) + [-d1,0,0, 0,0,0];
@@ -26,4 +26,4 @@ elseif trajset.profile == 0 % Nur Eckpunkte
 end
 
 %% Ausgabe
-Traj = struct('X', X_ges, 'XD', XD_ges, 'XDD', XDD_ges, 't', T_ges);
+Traj = struct('X', X_ges, 'XD', XD_ges, 'XDD', XDD_ges, 't', T_ges, 'XE', XE);

@@ -1,8 +1,8 @@
 % Standard-Einstellungen für kombinierte Struktur- und Maßsynthese
 
-function settings = cds_example_defaults(input_settings)
+function settings = cds_settings_defaults(input_settings)
 %% Standard-Eingabeeinstellungen setzen
-input_settings_default = struct('DoF', [1 1 1 1 1 1]);
+input_settings_default = struct('DoF', logical([1 1 1 1 1 1]));
 if nargin == 0
   input_settings = input_settings_default;
 end
@@ -11,6 +11,7 @@ for f = fields(input_settings_default)'
     input_settings.(f{1}) = input_settings_default.(f{1});
   end
 end
+input_settings.DoF = logical(input_settings.DoF);
 %% Allgemeine Einstellugen
 general = struct( ...
   'verbosity', 2);
@@ -33,8 +34,15 @@ optimization = struct( ...
   'objective', 'energy', ... % Zielfunktion
   'constraint', '', ... % Nebenbedingungen
   'movebase', true, ... % Position der Roboter-Basis
+  'ee_translation', true, ... % Freie Verschiebung des EE
+  'ee_rotation', true, ... % Freie Rotation des EE
   'rotate_base', true, ... % Orientierung der Roboter-Basis
-  'rotate_coupling', true); % Koppel-Punkt-Orientierung für PKM
+  'rotate_coupling', true, ... % Koppel-Punkt-Orientierung für PKM
+  'NumIndividuals', 50, ...
+  'MaxIter', 10, ...
+  'vartypes', [], ...% Art der Optimierungsparameter
+  'resdir', fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'dimsynth', 'results'), ...
+  'optname', 'unnamed');
 
 %% Einstellungen für Trajektorie
 task = struct( ...
