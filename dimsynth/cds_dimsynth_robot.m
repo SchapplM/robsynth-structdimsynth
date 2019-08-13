@@ -77,9 +77,10 @@ end
 
 % EE-Rotation
 if Set.optimization.ee_rotation
-  if sum(Set.structures.DoF(1:3)) == 1
+  error('EE-Rotation als Parameter noch nicht definert');
+  if sum(Set.structures.DoF(4:6)) == 1
     neerot = 1;
-  elseif sum(Set.structures.DoF(1:3)) == 0
+  elseif sum(Set.structures.DoF(4:6)) == 0
     neerot = 0;
   else
     neerot = 3;
@@ -103,6 +104,7 @@ options.Display='iter';
 options.MaxIter = Set.optimization.MaxIter; %70 100 % in GeneralConfig
 options.StallIterLimit = 2;
 options.SwarmSize = NumIndividuals;
+options.ObjectiveLimit = 10; % Damit es schnell vorbei ist
 % options.ObjectiveLimit = 0; % Kein Limit
 options.InitialSwarmMatrix = InitPop;
 
@@ -115,23 +117,26 @@ f_test = fitnessfcn(InitPop(1,:)'); % Testweise ausführen
 %% PSO-Aufruf starten
 [p_val,fval,exitflag, output] = particleswarm(fitnessfcn,nvars,varlim(:,1),varlim(:,2),options);
 save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat'));
+% Debug:
+% load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat'));
 %% Nachverarbeitung der Ergebnisse
+fval_test = fitnessfcn(p_val');
 % Berechne Inverse Kinematik zu erstem Bahnpunkt
 if Structure.Type == 0 % Seriell
   R = cds_update_robot_parameters(R, Set, p_val);
-  [q, Phi] = R.invkin2(Traj.XE(1,:)', rand(R.NQJ,1));
+  Traj_0 = cds_rotate_traj(Traj, R.T_W_0);
+  [q, Phi] = R.invkin2(Traj_0.XE(1,:)', rand(R.NQJ,1));
   if any(abs(Phi)>1e-8)
     error('PSO-Ergebnis für Startpunkt nicht reproduzierbar');
   end
   % Berechne IK der Bahn (für spätere Visualisierung)
-  [Q, ~, ~, PHI] = R.invkin2_traj(Traj.X, Traj.XD, Traj.XDD, Traj.t, q);
+  [Q, ~, ~, PHI] = R.invkin2_traj(Traj_0.X, Traj.XD, Traj.XDD, Traj.t, q);
   if any(abs(PHI(:))>1e-8)
-    error('PSO-Ergebnis nicht reproduzierbar');
+    error('PSO-Ergebnis für Trajektorie nicht reproduzierbar');
   end
 else
   error('Nicht implementiert');
 end
-
 %% Ausgabe der Ergebnisse
 RobotOptRes = struct( ...
   'fval', fval, ...
