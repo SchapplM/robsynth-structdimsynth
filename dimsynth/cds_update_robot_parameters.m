@@ -5,12 +5,16 @@ function R_neu = cds_update_robot_parameters(R, Set, p)
 R_neu = copy(R);
 
 %% Strukturparameter der Kinematik
-if R_neu.Type == 0 % Seriell
+if R_neu.Type == 0 || R_neu.Type == 2
   % Relevante Parameter sind die, die auch in Opt.Var. sind. TODO: Abspeichern
-  Ipkinrel = R_neu.get_relevant_pkin(Set.structures.DoF);
-  IIpkinrel = find(Ipkinrel);
-  pkin_voll = R_neu.pkin;
-  types = R_neu.get_pkin_parameter_type();
+  if R_neu.Type == 0 % Seriell
+    R_pkin = R_neu;
+  else  % Parallel
+    R_pkin = R_neu.Leg(1);
+  end
+  Ipkinrel = R_pkin.get_relevant_pkin(Set.structures.DoF);
+  pkin_voll = R_pkin.pkin;
+  types = R_pkin.get_pkin_parameter_type();
   j = 0;
   pkin_optvar = p(Set.optimization.vartypes==1);
   for i = 1:length(pkin_voll)
@@ -25,9 +29,15 @@ if R_neu.Type == 0 % Seriell
       pkin_voll(i) = pkin_optvar(j)*p(1);
     end
   end
-  R_neu.update_mdh(pkin_voll);
-elseif R_neu.Type == 2 % Parallel
-  error('TODO: Noch nicht implementiert');
+  if R_neu.Type == 0 % Seriell
+    R_neu.update_mdh(pkin_voll);
+  else  % Parallel
+    for i = 1:R.NLEG
+      R_neu.Leg(i).update_mdh(pkin_voll);
+    end
+  end
+else
+  error('Noch nicht implementiert');
 end
 
 %% Basis-Position

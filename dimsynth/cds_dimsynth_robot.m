@@ -16,12 +16,21 @@ Lref = sum(diff(minmax2(Traj.X(:,1:3)')'));
 %% Roboter-Klasse initialisieren
 if Structure.Type == 0 % Seriell
   R = serroblib_create_robot_class(Structure.Name);
-  R.gen_testsettings(true, true);
+  R.gen_testsettings(true, true); % Setze Parameter auf Zufallswerte
   R.fill_fcn_handles(true, false); % Nutze mex-Funktionen
   R.qlim(R.MDH.sigma==1,:) = repmat([-Lref, Lref],sum(R.MDH.sigma==1),1); % Schubgelenk
   R.qlim(R.MDH.sigma==0,:) = repmat([-pi, pi],    sum(R.MDH.sigma==0),1); % Drehgelenk
-elseif Structure.Type == 1  % Parallel
+elseif Structure.Type == 2 % Parallel
   R = parroblib_create_robot_class(Structure.Name, 2, 1);
+  R.Leg(1).gen_testsettings(true, true); % Setze Parameter auf Zufallswerte
+  for i = 1:R.NLEG
+    R.Leg(i).fill_fcn_handles(true, false); % Nutze mex-Funktionen für Beinketten-Funktionen
+  end
+  R.fill_fcn_handles(true, true); % Nutze mex-Funktionen für PKM-Funktionen
+  for i = 1:R.NLEG
+    R.Leg(i).qlim(R.Leg(i).MDH.sigma==1,:) = repmat([-Lref, Lref],sum(R.Leg(i).MDH.sigma==1),1); % Schubgelenk
+    R.Leg(i).qlim(R.Leg(i).MDH.sigma==0,:) = repmat([-pi, pi],    sum(R.Leg(i).MDH.sigma==0),1); % Drehgelenk
+  end
 else
   error('Typ-Nummer nicht definiert');
 end
@@ -35,16 +44,27 @@ vartypes = [vartypes; 0];
 varlim = [varlim; [-2*Lref, 2*Lref]];
 
 % Strukturparameter der Kinematik
-if Structure.Type == 0 % Seriell
-  Ipkinrel = R.get_relevant_pkin(Set.structures.DoF);
-  pkin_init = R.pkin;
-  pkin_init(~Ipkinrel) = 0; % nicht relevant Parameter Null setzen
-  R.update_mdh(pkin_init);
+if Structure.Type == 0 || Structure.Type == 2
+  if Structure.Type == 0 % Seriell
+    R_pkin = R;
+  else  % Parallel
+    R_pkin = R.Leg(1);
+  end
+  Ipkinrel = R_pkin.get_relevant_pkin(Set.structures.DoF);
+  pkin_init = R_pkin.pkin;
+  pkin_init(~Ipkinrel) = 0; % nicht relevante Parameter Null setzen
+  if Structure.Type == 0
+    R.update_mdh(pkin_init);
+  else
+    for i = 1:R.NLEG
+      R.Leg(i).update_mdh(pkin_init);
+    end
+  end
   nvars = nvars + sum(Ipkinrel);
   vartypes = [vartypes; 1*ones(sum(Ipkinrel),1)];
   % Grenzen für Kinematikparameter anhand der Typen bestimmen
-  types = R.get_pkin_parameter_type();
-  plim = NaN(length(R.pkin),2);
+  types = R_pkin.get_pkin_parameter_type();
+  plim = NaN(length(R_pkin.pkin),2);
   for i = 1:size(plim,1)
     if types(i) == 1 || types(i) == 3 || types(i) == 5
       % Winkel-Parameter
@@ -57,7 +77,7 @@ if Structure.Type == 0 % Seriell
     end
   end
   varlim = [varlim; plim(Ipkinrel,:)];
-elseif Structure.Type == 1  % Parallel
+else
   error('Noch nicht definiert');
 end
 
@@ -111,6 +131,10 @@ options.InitialSwarmMatrix = InitPop;
 %% Fitness-Funktion initialisieren
 if Structure.Type == 0 % Seriell
   fitnessfcn=@(p)cds_dimsynth_fitness_ser_plin(R, Set, Traj, Structure, p);
+elseif Structure.Type == 2 % Parallel
+  fitnessfcn=@(p)cds_dimsynth_fitness_par(R, Set, Traj, Structure, p);
+else
+  error('Noch nicht definiert');
 end
 f_test = fitnessfcn(InitPop(1,:)'); % Testweise ausführen
 
@@ -122,20 +146,25 @@ save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsy
 %% Nachverarbeitung der Ergebnisse
 fval_test = fitnessfcn(p_val');
 % Berechne Inverse Kinematik zu erstem Bahnpunkt
+R = cds_update_robot_parameters(R, Set, p_val);
+Traj_0 = cds_rotate_traj(Traj, R.T_W_0);
 if Structure.Type == 0 % Seriell
-  R = cds_update_robot_parameters(R, Set, p_val);
-  Traj_0 = cds_rotate_traj(Traj, R.T_W_0);
   [q, Phi] = R.invkin2(Traj_0.XE(1,:)', rand(R.NQJ,1));
-  if any(abs(Phi)>1e-8)
-    error('PSO-Ergebnis für Startpunkt nicht reproduzierbar');
-  end
-  % Berechne IK der Bahn (für spätere Visualisierung)
+else % Parallel
+  [q, Phi] = R.invkin_ser(Traj_0.XE(i,:)', rand(R.NJ,1));
+end
+if any(abs(Phi)>1e-8)
+  warning('PSO-Ergebnis für Startpunkt nicht reproduzierbar (ZB-Verletzung)');
+end
+% Berechne IK der Bahn (für spätere Visualisierung)
+if Structure.Type == 0 % Seriell
   [Q, ~, ~, PHI] = R.invkin2_traj(Traj_0.X, Traj.XD, Traj.XDD, Traj.t, q);
-  if any(abs(PHI(:))>1e-8)
-    error('PSO-Ergebnis für Trajektorie nicht reproduzierbar');
-  end
-else
-  error('Nicht implementiert');
+else % Parallel
+  s = struct('debug', true, 'retry_limit', 1);
+  [Q, ~, ~, PHI] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+end
+if any(abs(PHI(:))>1e-8)
+  warning('PSO-Ergebnis für Trajektorie nicht reproduzierbar (ZB-Verletzung)');
 end
 %% Ausgabe der Ergebnisse
 RobotOptRes = struct( ...

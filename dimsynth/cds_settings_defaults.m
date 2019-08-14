@@ -34,7 +34,7 @@ optimization = struct( ...
   'objective', 'energy', ... % Zielfunktion
   'constraint', '', ... % Nebenbedingungen
   'movebase', true, ... % Position der Roboter-Basis
-  'ee_translation', true, ... % Freie Verschiebung des EE
+  'ee_translation', false, ... % Freie Verschiebung des EE
   'ee_rotation', false, ... % Freie Rotation des EE
   'rotate_base', false, ... % Orientierung der Roboter-Basis
   'rotate_coupling', true, ... % Koppel-Punkt-Orientierung für PKM
