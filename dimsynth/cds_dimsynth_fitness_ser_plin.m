@@ -14,13 +14,18 @@ Traj_0 = cds_rotate_traj(Traj_W, R.T_W_0);
 q0 = rand(R.NQJ,1);
 Phi_E = NaN(sum(Set.structures.DoF), size(Traj_0.XE,1));
 for i = size(Traj_0.XE,1):-1:1
-  s = struct('Phit_tol', 1e-3, 'Phir_tol', 1e-3);
+  s = struct('Phit_tol', 1e-3, 'Phir_tol', 1e-3, 'retry_limit', 5);
   [q, Phi] = R.invkin2(Traj_0.XE(i,:)', q0, s);
   q0 = q; % Annahme: Startwert für nächsten Eckwert nahe aktuellem Eckwert
   Phi_E(:,i) = Phi;
+  if any(isnan(q))
+    error('Ergebnis NaN');
+  end
 end
 if any(abs(Phi_E(:)) > 1e-3)
-  fval = 1e5*max(abs(Phi_E(:)));
+  % Nehme die Summe der IK-Abweichung aller Eckpunkte (Translation/Rotation
+  % gemischt)
+  fval = 1e5*max(sum(abs(Phi_E(:))));
   % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
   fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3f. Keine IK-Konvergenz\n', toc(t1), fval);
   return
