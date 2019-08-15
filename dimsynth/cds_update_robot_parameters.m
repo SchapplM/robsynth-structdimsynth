@@ -4,6 +4,9 @@ function R_neu = cds_update_robot_parameters(R, Set, p)
 
 R_neu = copy(R);
 
+if length(Set.optimization.vartypes) ~= length(p)
+  error('Nicht für alle Optimierungsvariablen ist ein Typ definiert');
+end
 %% Strukturparameter der Kinematik
 if R_neu.Type == 0 || R_neu.Type == 2
   % Relevante Parameter sind die, die auch in Opt.Var. sind. TODO: Abspeichern
@@ -63,8 +66,36 @@ if Set.optimization.ee_rotation
   error('Noch nicht implementiert');
 end
 
-
 %% Basis-Rotation
 if Set.optimization.rotate_base
   error('Noch nicht implementiert');
+end
+
+%% Basis-Koppelpunkt Positionsparameter (z.B. Gestelldurchmesser)
+if R_neu.Type == 2 && any(Set.optimization.vartypes == 6)
+  p_basediam = p(Set.optimization.vartypes == 6);
+  if length(p_basediam) ~= 1
+    error('Mehr als ein Fußpunkt-Positionsparameter nicht vorgesehen');
+  end
+  if p_basediam == 0
+    error('Basis-Durchmesser darf nicht Null werden');
+  end
+  % Setze den Fußpunkt-Durchmesser skaliert mit Referenzlänge
+  R_neu.align_base_coupling(1, p_basediam*p(1));
+end
+
+%% Plattform-Koppelpunkt Positionsparameter (z.B. Plattformdurchmesser)
+if R_neu.Type == 2 && any(Set.optimization.vartypes == 7)
+  p_pfdiam = p(Set.optimization.vartypes == 7);
+  if length(p_pfdiam) ~= 1
+    error('Mehr als ein Plattform-Positionsparameter nicht vorgesehen');
+  end
+  if p_pfdiam == 0
+    error('Plattform-Durchmesser darf nicht Null werden');
+  end
+  if ~any(Set.optimization.vartypes == 6)
+    error('Basis-Koppelpunkt muss zusammen mit Plattformkoppelpunkt optimiert werden');
+  end
+  % Setze den Plattform-Durchmesser skaliert mit Gestell-Durchmesser
+  R_neu.align_platform_coupling(1, p_pfdiam*p_basediam);
 end

@@ -25,17 +25,24 @@ end
 if any(abs(Phi_E(:)) > 1e-3)
   % Nehme die Summe der IK-Abweichung aller Eckpunkte (Translation/Rotation
   % gemischt)
-  fval = 1e5*max(sum(abs(Phi_E(:))));
+  f_PhiE = max(sum(abs(Phi_E(:)))) / size(Traj_0.XE,1);
+  f_phiE_norm = 2/pi*atan((f_PhiE)/10); % Normierung auf 0 bis 1
+  fval = 1e5+9e5*f_phiE_norm; % Normierung auf 1e5 bis 1e6
   % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
-  fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3f. Keine IK-Konvergenz\n', toc(t1), fval);
+  fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Keine IK-Konvergenz\n', toc(t1), fval);
   return
 end
 %% Inverse Kinematik der Trajektorie berechnen
 [Q, ~, ~, PHI] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q);
-if any(abs(PHI(:)) > 1e-3)
-  fval = 1e4*max(abs(PHI(:)));
+I_ZBviol = any(abs(PHI) > 1e-3,2) | any(isnan(Q),2);
+if any(I_ZBviol)
+  % Bestimme die erste Verletzung der ZB (je später, desto besser)
+  IdxFirst = find(I_ZBviol, 1 );
+  % Umrechnung in Prozent der Traj.
+  Failratio = 1-IdxFirst/length(Traj_0.t); % Wert zwischen 0 und 1
+  fval = 1e4+9e4*Failratio; % Wert zwischen 1e4 und 1e5 -> IK-Abbruch bei Traj.
   % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
-  fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3f. Keine IK-Konvergenz in Traj.\n', toc(t1), fval);
+  fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Keine IK-Konvergenz in Traj.\n', toc(t1), fval);
   return
 end
 
@@ -47,6 +54,10 @@ if strcmp(Set.optimization.objective, 'condition')
     J_task = J_3T3R(Set.structures.DoF,:);
     Cges(i,:) = cond(J_task);
   end
-  fval = max(Cges); % Schlechtester Wert der Konditionszahl
+  % Schlechtester Wert der Konditionszahl
+  % Nehme Logarithmus, da Konditionszahl oft sehr groß ist.
+  f_cond = log(max(Cges)); 
+  f_cond_norm = 2/pi*atan((f_cond)/20); % Normierung auf 0 bis 1; 150 ist 0.9
+  fval = 1e3*f_cond_norm; % Normiert auf 0 bis 1e3
 end
 fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3f\n', toc(t1), fval);

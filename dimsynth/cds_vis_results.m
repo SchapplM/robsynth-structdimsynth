@@ -1,6 +1,10 @@
 % Visualisierung der Ergebnisse der Maßsynthese für einen Roboter
 
 function cds_vis_results(Set, Traj, Structures)
+% save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_vis_results.mat'));
+% error('Halte hier');
+% load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_vis_results.mat'));
+
 resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
 
 for i = 1:8%:length(Structures)
@@ -10,7 +14,7 @@ for i = 1:8%:length(Structures)
     sprintf('Rob%d_%s', i, Name)), 'RobotOptRes', 'Set', 'Traj');
   RobotOptRes = tmp.RobotOptRes;
   R = RobotOptRes.R;
-  Q = RobotOptRes.Q;
+  Q = RobotOptRes.Traj_Q;
   Traj_0 = cds_rotate_traj(Traj, R.T_W_0);
   
   figure(10*i+1);clf;hold all;

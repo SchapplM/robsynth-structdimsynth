@@ -17,18 +17,18 @@ Lref = sum(diff(minmax2(Traj.X(:,1:3)')'));
 if Structure.Type == 0 % Seriell
   R = serroblib_create_robot_class(Structure.Name);
   R.gen_testsettings(true, true); % Setze Parameter auf Zufallswerte
-  R.fill_fcn_handles(true, false); % Nutze mex-Funktionen
-  R.qlim(R.MDH.sigma==1,:) = repmat([-Lref, Lref],sum(R.MDH.sigma==1),1); % Schubgelenk
+  R.fill_fcn_handles(Set.general.use_mex, false);
+  R.qlim(R.MDH.sigma==1,:) = repmat([-2*Lref, 2*Lref],sum(R.MDH.sigma==1),1); % Schubgelenk
   R.qlim(R.MDH.sigma==0,:) = repmat([-pi, pi],    sum(R.MDH.sigma==0),1); % Drehgelenk
 elseif Structure.Type == 2 % Parallel
   R = parroblib_create_robot_class(Structure.Name, 2, 1);
   R.Leg(1).gen_testsettings(true, true); % Setze Parameter auf Zufallswerte
   for i = 1:R.NLEG
-    R.Leg(i).fill_fcn_handles(true, false); % Nutze mex-Funktionen für Beinketten-Funktionen
+    R.Leg(i).fill_fcn_handles(Set.general.use_mex, true); % Nutze mex-Funktionen für Beinketten-Funktionen
   end
-  R.fill_fcn_handles(true, true); % Nutze mex-Funktionen für PKM-Funktionen
+  R.fill_fcn_handles(Set.general.use_mex, true); % Nutze mex-Funktionen für PKM-Funktionen
   for i = 1:R.NLEG
-    R.Leg(i).qlim(R.Leg(i).MDH.sigma==1,:) = repmat([-Lref, Lref],sum(R.Leg(i).MDH.sigma==1),1); % Schubgelenk
+    R.Leg(i).qlim(R.Leg(i).MDH.sigma==1,:) = repmat([-2*Lref, 2*Lref],sum(R.Leg(i).MDH.sigma==1),1); % Schubgelenk
     R.Leg(i).qlim(R.Leg(i).MDH.sigma==0,:) = repmat([-pi, pi],    sum(R.Leg(i).MDH.sigma==0),1); % Drehgelenk
   end
 else
@@ -39,9 +39,11 @@ end
 nvars = 0; vartypes = []; varlim = [];
 
 % Referenzlänge
+% Referenzlänge für Optimierung ist immer positiv und im Verhältnis zur
+% Aufgaben-/Arbeitsraumgröße. Darf nicht Null werden.
 nvars = nvars + 1;
 vartypes = [vartypes; 0];
-varlim = [varlim; [-2*Lref, 2*Lref]];
+varlim = [varlim; [1e-3*Lref, 2*Lref]];
 
 % Strukturparameter der Kinematik
 if Structure.Type == 0 || Structure.Type == 2
@@ -109,8 +111,30 @@ if Set.optimization.ee_rotation
   vartypes = [vartypes; 4*ones(neerot,1)];
   varlim = [varlim; repmat([0, pi], neerot, 1)];
 end
-Set.optimization.vartypes = vartypes;
 
+% Basis-Koppelpunkt Positionsparameter (z.B. Gestelldurchmesser)
+if Structure.Type == 2
+  % TODO: Die Anzahl der Positionsparameter könnte sich evtl ändern
+  % Eventuell ist eine Abgrenzung verschiedener Basis-Anordnungen sinnvoll
+  nvars = nvars + 1;
+  vartypes = [vartypes; 6];
+  % TODO: Untergrenze muss noch sinnvoll gewählt werden (darf nicht Null
+  % sein)
+  varlim = [varlim; [0.1,5]]; % fünf-fache spezifische Länge als Basis-Durchmesser
+end
+
+% Plattform-Koppelpunkt Positionsparameter (z.B. Plattformdurchmesser)
+% Bezogen auf Gestelldurchmesser
+if Structure.Type == 2
+  nvars = nvars + 1;
+  vartypes = [vartypes; 7];
+  % TODO: Untergrenze muss noch sinnvoll gewählt werden (darf nicht Null
+  % sein)
+  varlim = [varlim; [0.1,2]]; % max. zwei-facher Gestelldurchmesser als Plattformdurchmesser
+end
+
+% Variablen-Typen speichern
+Set.optimization.vartypes = vartypes;
 %% Anfangs-Population generieren
 % TODO: Existierende Roboter einfügen
 
@@ -163,8 +187,8 @@ else % Parallel
   s = struct('debug', true, 'retry_limit', 1);
   [Q, ~, ~, PHI] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
 end
-if any(abs(PHI(:))>1e-8)
-  warning('PSO-Ergebnis für Trajektorie nicht reproduzierbar (ZB-Verletzung)');
+if any(abs(PHI(:))>1e-8) || any(isnan(Q(:)))
+  warning('PSO-Ergebnis für Trajektorie nicht reproduzierbar oder nicht gültig (ZB-Verletzung)');
 end
 %% Ausgabe der Ergebnisse
 RobotOptRes = struct( ...
@@ -172,7 +196,8 @@ RobotOptRes = struct( ...
   'R', R, ...
   'p_val', p_val, ...
   'q0', q, ...
-  'Q', Q, ...
+  'Traj_Q', Q, ...
+  'Traj_PHI', PHI, ...
   'vartypes', vartypes, ...
   'exitflag', exitflag, ...
   'varlim', varlim);
