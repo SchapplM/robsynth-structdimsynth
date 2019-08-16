@@ -1,5 +1,8 @@
 % Erzeuge Listen von Robotern, die für die Optimierung genutzt werden
 
+% Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
+% (C) Institut für Mechatronische Systeme, Universität Hannover
+
 function Structures = cds_gen_robot_list(structset)
 
 % Name der FG für Zugriff auf Listen

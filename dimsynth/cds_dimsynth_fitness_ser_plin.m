@@ -1,9 +1,20 @@
+% Gütefunktion für serielle Roboter unter Ausnutzung der Regressorform
+
+% Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
+% (C) Institut für Mechatronische Systeme, Universität Hannover
+
 function fval = cds_dimsynth_fitness_ser_plin(R_in, Set, Traj_W, Structure, p)
 % Debug: 
 % save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_ser_plin.mat'));
 % error('Halte hier');
 % load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_ser_plin.mat'));
 t1=tic();
+
+%% Parameter prüfen
+if p(1) == 0
+  error('Roboterskalierung kann nicht Null werden');
+end
+
 %% Parameter aktualisieren
 R = cds_update_robot_parameters(R_in, Set, p);
 
@@ -56,8 +67,11 @@ if strcmp(Set.optimization.objective, 'condition')
   end
   % Schlechtester Wert der Konditionszahl
   % Nehme Logarithmus, da Konditionszahl oft sehr groß ist.
-  f_cond = log(max(Cges)); 
+  f_cond1 = max(Cges);
+  f_cond = log(f_cond1); 
   f_cond_norm = 2/pi*atan((f_cond)/20); % Normierung auf 0 bis 1; 150 ist 0.9
   fval = 1e3*f_cond_norm; % Normiert auf 0 bis 1e3
+  fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3f. Konditionszahl %1.3e\n', toc(t1), fval, f_cond1);
+else
+  error('Zielfunktion nicht definiert');
 end
-fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3f\n', toc(t1), fval);

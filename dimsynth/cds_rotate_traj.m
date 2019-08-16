@@ -1,6 +1,9 @@
 % Rotiere die EE-Trajektorie ins Basis-KS des Roboters
 % Die Roboter-Funktionen sind alle mit X in Basis-Koordinaten definiert.
 
+% Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
+% (C) Institut für Mechatronische Systeme, Universität Hannover
+
 function Traj_0 = cds_rotate_traj(Traj_W, T_W_0)
 Traj_0 = Traj_W;
 

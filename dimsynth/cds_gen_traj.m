@@ -1,3 +1,8 @@
+% Auswahl einer Trajektorie für die Roboteroptimierung
+
+% Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
+% (C) Institut für Mechatronische Systeme, Universität Hannover
+
 function Traj = cds_gen_traj(DoF, no, trajset)
 x0 = [0.5, 0.5, 0, 0, 0, 0]';
 k=1; XE = x0';

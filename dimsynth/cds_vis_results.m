@@ -1,5 +1,8 @@
 % Visualisierung der Ergebnisse der Maßsynthese für einen Roboter
 
+% Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
+% (C) Institut für Mechatronische Systeme, Universität Hannover
+
 function cds_vis_results(Set, Traj, Structures)
 % save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_vis_results.mat'));
 % error('Halte hier');
@@ -7,7 +10,7 @@ function cds_vis_results(Set, Traj, Structures)
 
 resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
 
-for i = 1:8%:length(Structures)
+for i = 7%:length(Structures)
   % Ergebnisse laden
   Name = Structures{i}.Name;
   tmp = load(fullfile(resmaindir, ...

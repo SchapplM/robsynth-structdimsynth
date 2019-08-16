@@ -1,10 +1,17 @@
 % Belegen der Roboterparameter für die Optimierung
 
-function R_neu = cds_update_robot_parameters(R, Set, p)
+% Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
+% (C) Institut für Mechatronische Systeme, Universität Hannover
+
+function [R_neu, p_lengthpar] = cds_update_robot_parameters(R, Set, Structure, p)
 
 R_neu = copy(R);
 
-if length(Set.optimization.vartypes) ~= length(p)
+%% Parameter prüfen
+if p(1) == 0
+  error('Roboterskalierung kann nicht Null werden');
+end
+if length(Structure.vartypes) ~= length(p)
   error('Nicht für alle Optimierungsvariablen ist ein Typ definiert');
 end
 %% Strukturparameter der Kinematik
@@ -19,7 +26,8 @@ if R_neu.Type == 0 || R_neu.Type == 2
   pkin_voll = R_pkin.pkin;
   types = R_pkin.get_pkin_parameter_type();
   j = 0;
-  pkin_optvar = p(Set.optimization.vartypes==1);
+  pkin_optvar = p(Structure.vartypes==1);
+  p_lengthpar = [];
   for i = 1:length(pkin_voll)
     if ~Ipkinrel(i)
       continue
@@ -28,8 +36,9 @@ if R_neu.Type == 0 || R_neu.Type == 2
     if types(i) == 1 || types(i) == 3 || types(i) == 5
       pkin_voll(i) = pkin_optvar(j);
     else
-      % Längenparameter skaliert mit Referenzlänge
+      % Längenparameter skaliert mit Roboter-Skalierungsfaktor
       pkin_voll(i) = pkin_optvar(j)*p(1);
+      p_lengthpar = [p_lengthpar; pkin_voll(i)]; %#ok<AGROW> % TODO: Besser
     end
   end
   if R_neu.Type == 0 % Seriell
@@ -45,18 +54,21 @@ end
 
 %% Basis-Position
 if Set.optimization.movebase
-  p_basepos = p(Set.optimization.vartypes == 2);
+  p_basepos = p(Structure.vartypes == 2);
   r_W_0_neu = zeros(3,1);
-  % Punktkoordinaten der Basis skaliert mit Referenzlänge
-  r_W_0_neu(Set.structures.DoF(1:3)) = p_basepos.*p(1);
+  % xy-Punktkoordinaten der Basis skaliert mit Referenzlänge
+  r_W_0_neu(Set.structures.DoF(1:2)) = p_basepos(Set.structures.DoF(1:2))*Structure.Lref;
+  % z-Punktkoordinaten der Basis skaliert mit Roboter-Skalierungsfaktor
+  r_W_0_neu(Set.structures.DoF(3)) = p_basepos(Set.structures.DoF(3))*p(1);
+  
   R_neu.update_base(r_W_0_neu);
 end
 
 %% EE-Verschiebung
 if Set.optimization.ee_translation
-  p_eepos = p(Set.optimization.vartypes == 3);
+  p_eepos = p(Structure.vartypes == 3);
   r_N_E_neu = zeros(3,1);
-  % EE-Versatz skaliert mit Referenzlänge
+  % EE-Versatz skaliert mit Roboter-Skalierungsfaktor
   r_N_E_neu(Set.structures.DoF(1:3)) = p_eepos.*p(1);
   R_neu.update_EE(r_N_E_neu);
 end
@@ -72,8 +84,8 @@ if Set.optimization.rotate_base
 end
 
 %% Basis-Koppelpunkt Positionsparameter (z.B. Gestelldurchmesser)
-if R_neu.Type == 2 && any(Set.optimization.vartypes == 6)
-  p_basediam = p(Set.optimization.vartypes == 6);
+if R_neu.Type == 2 && any(Structure.vartypes == 6)
+  p_basediam = p(Structure.vartypes == 6);
   if length(p_basediam) ~= 1
     error('Mehr als ein Fußpunkt-Positionsparameter nicht vorgesehen');
   end
@@ -85,15 +97,15 @@ if R_neu.Type == 2 && any(Set.optimization.vartypes == 6)
 end
 
 %% Plattform-Koppelpunkt Positionsparameter (z.B. Plattformdurchmesser)
-if R_neu.Type == 2 && any(Set.optimization.vartypes == 7)
-  p_pfdiam = p(Set.optimization.vartypes == 7);
+if R_neu.Type == 2 && any(Structure.vartypes == 7)
+  p_pfdiam = p(Structure.vartypes == 7);
   if length(p_pfdiam) ~= 1
     error('Mehr als ein Plattform-Positionsparameter nicht vorgesehen');
   end
   if p_pfdiam == 0
     error('Plattform-Durchmesser darf nicht Null werden');
   end
-  if ~any(Set.optimization.vartypes == 6)
+  if ~any(Structure.vartypes == 6)
     error('Basis-Koppelpunkt muss zusammen mit Plattformkoppelpunkt optimiert werden');
   end
   % Setze den Plattform-Durchmesser skaliert mit Gestell-Durchmesser

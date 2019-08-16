@@ -1,4 +1,18 @@
 % Standard-Einstellungen für kombinierte Struktur- und Maßsynthese
+% 
+% Eingabe:
+% input_settings
+%   Struktur mit Einstellungen zur Generierung aller
+%   Optimierungseinstellungen
+% 
+% Ausgabe:
+% settings
+%   Struktur mit Feldern für alle Einstellungen der Optimierung
+%   Die Einstellungen sind global und nicht spezifisch für den einzelnen
+%   Roboter
+
+% Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
+% (C) Institut für Mechatronische Systeme, Universität Hannover
 
 function settings = cds_settings_defaults(input_settings)
 %% Standard-Eingabeeinstellungen setzen
@@ -42,7 +56,6 @@ optimization = struct( ...
   'NumIndividuals', 50, ...
   'MaxIter', 10, ...
   'ElectricCoupling', true, ... % Kopplung der Achsen für Energieberechnung. TODO
-  'vartypes', [], ...% Art der Optimierungsparameter
   'resdir', fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'dimsynth', 'results'), ...
   'optname', 'unnamed');
 

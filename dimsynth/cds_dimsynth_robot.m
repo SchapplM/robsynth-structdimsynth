@@ -12,7 +12,7 @@ save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsy
 %% Initialisierung
 % Charakteristische Länge der Aufgabe
 Lref = sum(diff(minmax2(Traj.X(:,1:3)')'));
-
+Structure.Lref = Lref;
 %% Roboter-Klasse initialisieren
 if Structure.Type == 0 % Seriell
   R = serroblib_create_robot_class(Structure.Name);
@@ -38,8 +38,8 @@ end
 %% Optimierungsparameter festlegen
 nvars = 0; vartypes = []; varlim = [];
 
-% Referenzlänge
-% Referenzlänge für Optimierung ist immer positiv und im Verhältnis zur
+% Roboterskalierung
+% Skalierung für Optimierung ist immer positiv und im Verhältnis zur
 % Aufgaben-/Arbeitsraumgröße. Darf nicht Null werden.
 nvars = nvars + 1;
 vartypes = [vartypes; 0];
@@ -83,11 +83,29 @@ else
   error('Noch nicht definiert');
 end
 
-% Basis-Position
+% Basis-Position. Die Komponenten in der Optimierungsvariablen sind nicht
+% bezogen auf die Skalierung. Die Position des Roboters ist nur in einigen
+% Fällen in Bezug zur Roboterskalierung (z.B. z-Komponente bei hängendem
+% Roboter, Entfernung bei seriellem Roboter)
 if Set.optimization.movebase
+  % Berechne Mittelpunkt der Aufgabe
+  xT_mean = mean(minmax2(Traj.X(:,1:3)')');
+  xT_mean_norm = xT_mean/Lref;
+  
   nvars = nvars + sum(Set.structures.DoF(1:3)); % Verschiebung um translatorische FG der Aufgabe
   vartypes = [vartypes; 2*ones(sum(Set.structures.DoF(1:3)),1)];
-  varlim = [varlim; repmat([-1, 1], sum(Set.structures.DoF(1:3)), 1)]; % bezogen auf Lref
+  if Structure.Type == 0 % Seriell
+    % TODO: Stelle den seriellen Roboter vor die Aufgabe
+    varlim = [varlim; repmat([-1, 1], sum(Set.structures.DoF(1:3)), 1)];
+  else % Parallel
+    % Stelle den parallelen Roboter in/über die Aufgabe
+    % Bei Parallelen Robotern ist der Arbeitsraum typischerweise in der
+    % Mitte des Gestells (bezogen auf x-y-Ebene). Daher müssen die Grenzen
+    % nicht so weit definiert werden
+    varlim = [varlim; repmat([-0.2+xT_mean(1), 0.2+xT_mean(2)], sum(Set.structures.DoF(1:2)), 1)];
+    % Die z-Komponente der Basis kann mehr variieren (hängender Roboter)
+    varlim = [varlim; repmat([-1, 1]+xT_mean_norm(3), sum(Set.structures.DoF(3)), 1)];
+  end
 end
 
 % EE-Verschiebung
@@ -134,7 +152,7 @@ if Structure.Type == 2
 end
 
 % Variablen-Typen speichern
-Set.optimization.vartypes = vartypes;
+Structure.vartypes = vartypes;
 %% Anfangs-Population generieren
 % TODO: Existierende Roboter einfügen
 
@@ -170,7 +188,7 @@ save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsy
 %% Nachverarbeitung der Ergebnisse
 fval_test = fitnessfcn(p_val');
 % Berechne Inverse Kinematik zu erstem Bahnpunkt
-R = cds_update_robot_parameters(R, Set, p_val);
+R = cds_update_robot_parameters(R, Set, Structure, p_val);
 Traj_0 = cds_rotate_traj(Traj, R.T_W_0);
 if Structure.Type == 0 % Seriell
   [q, Phi] = R.invkin2(Traj_0.XE(1,:)', rand(R.NQJ,1));
@@ -184,7 +202,7 @@ end
 if Structure.Type == 0 % Seriell
   [Q, ~, ~, PHI] = R.invkin2_traj(Traj_0.X, Traj.XD, Traj.XDD, Traj.t, q);
 else % Parallel
-  s = struct('debug', true, 'retry_limit', 1);
+  s = struct('debug', false, 'retry_limit', 1);
   [Q, ~, ~, PHI] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
 end
 if any(abs(PHI(:))>1e-8) || any(isnan(Q(:)))
@@ -195,9 +213,13 @@ RobotOptRes = struct( ...
   'fval', fval, ...
   'R', R, ...
   'p_val', p_val, ...
+  'p_types', vartypes, ...
+  'p_limits', varlim, ...
+  'options', options, ...
   'q0', q, ...
   'Traj_Q', Q, ...
   'Traj_PHI', PHI, ...
   'vartypes', vartypes, ...
   'exitflag', exitflag, ...
-  'varlim', varlim);
+  'varlim', varlim, ...
+  'fitnessfcn', fitnessfcn);
