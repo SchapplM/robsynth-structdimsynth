@@ -65,13 +65,12 @@ if Structure.Type == 0 || Structure.Type == 2
   nvars = nvars + sum(Ipkinrel);
   vartypes = [vartypes; 1*ones(sum(Ipkinrel),1)];
   % Grenzen für Kinematikparameter anhand der Typen bestimmen
-  types = R_pkin.get_pkin_parameter_type();
   plim = NaN(length(R_pkin.pkin),2);
   for i = 1:size(plim,1)
-    if types(i) == 1 || types(i) == 3 || types(i) == 5
+    if R_pkin.pkin_types(i) == 1 || R_pkin.pkin_types(i) == 3 || R_pkin.pkin_types(i) == 5
       % Winkel-Parameter
       plim(i,:) = [-pi, pi];
-    elseif types(i) == 2 || types(i) == 4 || types(i) == 6
+    elseif R_pkin.pkin_types(i) == 2 || R_pkin.pkin_types(i) == 4 || R_pkin.pkin_types(i) == 6
       % Maximale Länge der einzelnen Segmente
       plim(i,:) = [-1, 1]; % in Optimierung bezogen auf Lref
     else
@@ -172,9 +171,9 @@ options.InitialSwarmMatrix = InitPop;
 
 %% Fitness-Funktion initialisieren
 if Structure.Type == 0 % Seriell
-  fitnessfcn=@(p)cds_dimsynth_fitness_ser_plin(R, Set, Traj, Structure, p);
+  fitnessfcn=@(p)cds_dimsynth_fitness_ser_plin(R, Set, Traj, Structure, p(:));
 elseif Structure.Type == 2 % Parallel
-  fitnessfcn=@(p)cds_dimsynth_fitness_par(R, Set, Traj, Structure, p);
+  fitnessfcn=@(p)cds_dimsynth_fitness_par(R, Set, Traj, Structure, p(:));
 else
   error('Noch nicht definiert');
 end

@@ -3,7 +3,7 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function [R_neu, p_lengthpar] = cds_update_robot_parameters(R, Set, Structure, p)
+function R_neu = cds_update_robot_parameters(R, Set, Structure, p)
 
 R_neu = copy(R);
 
@@ -24,21 +24,18 @@ if R_neu.Type == 0 || R_neu.Type == 2
   end
   Ipkinrel = R_pkin.get_relevant_pkin(Set.structures.DoF);
   pkin_voll = R_pkin.pkin;
-  types = R_pkin.get_pkin_parameter_type();
   j = 0;
   pkin_optvar = p(Structure.vartypes==1);
-  p_lengthpar = [];
   for i = 1:length(pkin_voll)
     if ~Ipkinrel(i)
       continue
     end
     j = j + 1; % Index für Kinematikparameter in den Optimierungsvariablen
-    if types(i) == 1 || types(i) == 3 || types(i) == 5
+    if R_pkin.pkin_types(i) == 1 || R_pkin.pkin_types(i) == 3 || R_pkin.pkin_types(i) == 5
       pkin_voll(i) = pkin_optvar(j);
     else
       % Längenparameter skaliert mit Roboter-Skalierungsfaktor
       pkin_voll(i) = pkin_optvar(j)*p(1);
-      p_lengthpar = [p_lengthpar; pkin_voll(i)]; %#ok<AGROW> % TODO: Besser
     end
   end
   if R_neu.Type == 0 % Seriell
