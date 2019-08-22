@@ -38,7 +38,7 @@ if any(dist_exc_tot < 0)
   %  normiere auf 1e6 bis 1e7
   fval = 1e6+9e6*f_distviol_norm;
   fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Roboter zu kurz.\n', toc(t1), fval);
-  debug_plot_robot(R, zeros(R.NJ,1), Traj_W, Structure, p, fval);
+  debug_plot_robot(R, zeros(R.NJ,1), Traj_W, Set, Structure, p, fval);
   return
 end
 %% Inverse Kinematik für Eckpunkte der Trajektorie berechnen
@@ -61,7 +61,7 @@ if any(abs(Phi_E(:)) > 1e-3)
   fval = 1e5+9e5*f_phiE_norm; % Normierung auf 1e5 bis 1e6
   % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
   fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Keine IK-Konvergenz\n', toc(t1), fval);
-  debug_plot_robot(R, zeros(R.NJ,1), Traj_W, Structure, p, fval);
+  debug_plot_robot(R, zeros(R.NJ,1), Traj_W, Set, Structure, p, fval);
   return
 end
 %% Inverse Kinematik der Trajektorie berechnen
@@ -75,10 +75,11 @@ if any(I_ZBviol)
   fval = 1e4+9e4*Failratio; % Wert zwischen 1e4 und 1e5 -> IK-Abbruch bei Traj.
   % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
   fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Keine IK-Konvergenz in Traj.\n', toc(t1), fval);
-  debug_plot_robot(R, Q(1,:)', Traj_W, Structure, p, fval);
+  debug_plot_robot(R, Q(1,:)', Traj_W, Set, Structure, p, fval);
   return
 end
 
+%% Zielfunktion berechnen
 if strcmp(Set.optimization.objective, 'condition')
   Cges = NaN(length(Traj_0.t), 1);
   % Berechne Konditionszahl für alle Punkte der Bahn
@@ -97,24 +98,26 @@ if strcmp(Set.optimization.objective, 'condition')
 else
   error('Zielfunktion nicht definiert');
 end
-debug_plot_robot(R, Q(1,:)', Traj_W, Structure, p, fval);
+debug_plot_robot(R, Q(1,:)', Traj_W, Set, Structure, p, fval);
 end
 
 
-function debug_plot_robot(R, q, Traj_W, Structure, p, fval)
-%   return
-  %% Debug: Bild zeichnen
-  figure(200);clf;hold all;
-  view(3);
-  axis auto
-  hold on;grid on;
-  xlabel('x in m');ylabel('y in m');zlabel('z in m');
-  plot3(Traj_W.X(:,1), Traj_W.X(:,2),Traj_W.X(:,3), 'k-');
-  set(200,'units','normalized','outerposition',[0 0 1 1])
-  s_plot = struct( 'ks_legs', [], 'straight', 0);
-  R.plot( q, s_plot);
-  title(sprintf('fval=%1.2e; p=[%s]', fval,disp_array(p','%1.3f')));
-  xlim([-1,1]*Structure.Lref*1.5+mean(minmax2(Traj_W.XE(:,1)')'));
-  ylim([-1,1]*Structure.Lref*1.5+mean(minmax2(Traj_W.XE(:,2)')'));
-  zlim([-1,1]*Structure.Lref*1+mean(minmax2(Traj_W.XE(:,3)')'));
+function debug_plot_robot(R, q, Traj_W, Set, Structure, p, fval)
+% Zeichne den Roboter für den aktuellen Parametersatz.
+if ~Set.general.plot_robot_in_fitness
+  return
+end
+figure(200);clf;hold all;
+view(3);
+axis auto
+hold on;grid on;
+xlabel('x in m');ylabel('y in m');zlabel('z in m');
+plot3(Traj_W.X(:,1), Traj_W.X(:,2),Traj_W.X(:,3), 'k-');
+set(200,'units','normalized','outerposition',[0 0 1 1])
+s_plot = struct( 'ks_legs', [], 'straight', 0);
+R.plot( q, s_plot);
+title(sprintf('fval=%1.2e; p=[%s]', fval,disp_array(p','%1.3f')));
+xlim([-1,1]*Structure.Lref*1.5+mean(minmax2(Traj_W.XE(:,1)')'));
+ylim([-1,1]*Structure.Lref*1.5+mean(minmax2(Traj_W.XE(:,2)')'));
+zlim([-1,1]*Structure.Lref*1+mean(minmax2(Traj_W.XE(:,3)')'));
 end

@@ -163,12 +163,14 @@ InitPop = repmat(varlim(:,1)', NumIndividuals,1) + rand(NumIndividuals, nvars) .
 options = optimoptions('particleswarm');
 options.Display='iter';
 options.MaxIter = Set.optimization.MaxIter; %70 100 % in GeneralConfig
-options.StallIterLimit = 2;
+% options.StallIterLimit = 2;
 options.SwarmSize = NumIndividuals;
-options.ObjectiveLimit = 10; % Damit es schnell vorbei ist
+% options.ObjectiveLimit = 10; % Damit es schnell vorbei ist
 % options.ObjectiveLimit = 0; % Kein Limit
 options.InitialSwarmMatrix = InitPop;
-
+options.PlotFcn = {@pswplotbestf};
+cds_save_all_results_anonym = @(optimValues,state)cds_psw_save_all_results(optimValues,state,Set,Structure);
+options.OutputFcn = {cds_save_all_results_anonym};
 %% Fitness-Funktion initialisieren
 if Structure.Type == 0 % Seriell
   fitnessfcn=@(p)cds_dimsynth_fitness_ser_plin(R, Set, Traj, Structure, p(:));

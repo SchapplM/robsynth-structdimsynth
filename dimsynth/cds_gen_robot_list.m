@@ -43,11 +43,15 @@ for j = II'
   if numprismatic > structset.maxnumprismatic
     continue
   end
+
+  if ~isempty(structset.whitelist) && ~any(strcmp(structset.whitelist, SName))
+    % Es gibt eine Liste von Robotern, dieser ist nicht dabei.
+    continue
+  end
   
   ii = ii + 1;
-
-  fprintf('%s\n', SName);
-  Structures{ii} = struct('Name', SName, 'Type', 0);
+  fprintf('%d: %s\n', ii, SName);
+  Structures{ii} = struct('Name', SName, 'Type', 0, 'Number', ii);
 end
 %% Parallele Roboter aus Liste laden
 % parroblibpath=fileparts(which('parroblib_path_init.m'));
@@ -95,12 +99,16 @@ for j = 1:length(PNames_Akt)
     continue
   end
   
+  if ~isempty(structset.whitelist) && ~any(strcmp(structset.whitelist, PNames_Akt{j}))
+    % Es gibt eine Liste von Robotern, dieser ist nicht dabei.
+    continue
+  end
+  
   % TODO: Mögliche Basis-Anordnungen von PKM hier generieren und hinzufügen
   
-  
-  fprintf('%s\n', PNames_Akt{j});
   ii = ii + 1;
-  Structures{ii} = struct('Name', PNames_Akt{j}, 'Type', 2);
+  fprintf('%d: %s\n', ii, PNames_Akt{j});
+  Structures{ii} = struct('Name', PNames_Akt{j}, 'Type', 2, 'Number', ii);
   
 end
 
