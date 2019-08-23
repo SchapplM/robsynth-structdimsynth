@@ -20,12 +20,13 @@ density = 2.7E3; %[kg/m^3] Aluminium
 if R.Type == 0
   R.DesPar.seg_par = repmat([5e-3, 300e-3], R.NL, 1); % dicke Struktur
 elseif R.Type == 2  % Parallel (symmetrisch)
-  R.Leg(1).DesPar.seg_par = repmat([2e-3, 50e-3], R.NL, 1); % dünne Struktur
+  R.Leg(1).DesPar.seg_par = repmat([2e-3, 50e-3], R.Leg(1).NL, 1); % dünne Struktur
+  R.DesPar.platform_par(2) = 5e-3; % Dünne Platte als Plattform
 end
 
 %% Dynamikparameter belegen
 % Parameter des Struktursegmentes
-if R.Type == 0 || R.Type == 2
+if Structure.Type == 0 || Structure.Type == 2
   % Roboterklasse für Parametermodell heraussuchen
   if R.Type == 0 % Seriell
     R_pkin = R;
@@ -33,32 +34,36 @@ if R.Type == 0 || R.Type == 2
     R_pkin = R.Leg(1);
   end
   %% EE-Zusatzlast
-  mges_Zus = zeros(R_pkin.NL,1);
-  mrS_ges_Zus = zeros(R_pkin.NL,3);
-  If_ges_Zus = zeros(R_pkin.NL,6);
+
   if any(Set.task.payload.Ic(4:6)~=0) || any(diff(Set.task.payload.Ic(1:3)))
     error('Nicht symmetrische EE-Last noch nicht definiert');
   end
+  mges_Zus = zeros(R_pkin.NL,1);
+  mrS_ges_Zus = zeros(R_pkin.NL,3);
+  If_ges_Zus = zeros(R_pkin.NL,6);
   if R.Type == 0 % Seriell
     mges_Zus(end) = Set.task.payload.m;
     r_N_N_E = R.T_N_E(1:3,4);
-
     [mrS_ges_Zus(end,:), If_ges_Zus(end,:)] = inertial_parameters_convert_par1_par2( ...
       r_N_N_E(:)', Set.task.payload.Ic(:)', Set.task.payload.m);
   else
-    error('Zusatzlast für PKM noch nicht definiert');
+    r_P_P_E = R.T_P_E(1:3,4);
+    [mrS_ges_Zus(end,:), If_ges_Zus(end,:)] = inertial_parameters_convert_par1_par2( ...
+      r_P_P_E(:)', Set.task.payload.Ic(:)', Set.task.payload.m);
   end
   %% Strukturteile
   % Länge von Schubgelenken herausfinden
-  if R.Type == 0 % Seriell
+  if Structure.Type == 0 % Seriell
     q_range = diff(minmax2(Q')')';
   else  % Parallel (symmetrisch)
-    error('Noch nicht implementiert');
+    q_range = diff(minmax2(Q(:,R.I_qa)')')';
   end
+  % Dynamikparameter initialisieren
   mges_Link = NaN(R_pkin.NL,1);
   mrS_ges_Link = NaN(R_pkin.NL,3);
   If_ges_Link = NaN(R_pkin.NL,6);
-  for i = 1:R_pkin.NL
+
+  for i = 1:length(mges_Link)
     % Wandstärke und Radius der Hohlzylinder aus Robotereigenschaften
     if R_pkin.DesPar.seg_type(i) == 1 % Hohlzylinder
       e_i = R_pkin.DesPar.seg_par(i,1);
@@ -67,7 +72,7 @@ if R.Type == 0 || R.Type == 2
       error('Strukturmodell nicht definiert');
     end
     % Länge des Segments
-    if i < R_pkin.NL
+    if i < size(mges_Link,1)
       % a- und d-Parameter werden zu Segment vor dem Gelenk gezählt (wg.
       % MDH-Notation) -> a1/d1 zählen zum Basis-Segment
       % [A]/(6)
@@ -79,45 +84,82 @@ if R.Type == 0 || R.Type == 2
       
       % Probe: [A]/(10)
       r_i_i_ip1_test = R_i_Si*[L_i;0;0];
-      Tges=R_pkin.jtraf(zeros(R.NJ,1));
+      Tges=R_pkin.jtraf(zeros(R_pkin.NJ,1));
       r_i_i_ip1 = Tges(1:3,4,i);
       if any(abs(r_i_i_ip1_test-r_i_i_ip1) > 1e-10)
         error('Segment-Darstellung stimmt nicht');
       end
     else
-      L_i = norm(R_pkin.T_N_E(1:3,4));
-      % Rotationsmatrix muss noch bestimmt werden. z-Achse muss zum EE
-      % zeigen
-      if any(R_pkin.T_N_E(1:3,4))
-        error('Noch nicht definiert');
+      % Letzter Körper: Flansch->EE bei Seriell; Plattform->EE bei Parallel
+      if Structure.Type == 0 % Seriell
+        L_i = norm(R_pkin.T_N_E(1:3,4));
+        % Rotationsmatrix muss noch bestimmt werden. z-Achse muss zum EE
+        % zeigen
+        if any(R_pkin.T_N_E(1:3,4))
+          error('T_N_E noch nicht definiert');
+        end
+      else % Parallel
+        L_i = norm(R.T_P_E(1:3,4));
       end
     end
     
-    % Modellierung Hohlzylinder. Siehe TM-Formelsammlung
-    m_s = ((pi*(R_i^2)-(pi*((R_i-e_i)^2)))*L_i*density);
-    % Schwerpunktskoordinate  im Segment-KS (nicht: Körper-KS)
-    r_S_Oi_C = [L_i/2;0;0]; % % [A]/(5)
-    % Trägheitstensor im Segment-KS (nicht: Körper-KS)
-    J_S_C_xx=(m_s/2)*((R_i^2 + (R_i-e_i)^2));
-    J_S_C_yy=(m_s/4)*((R_i^2 + (R_i-e_i)^2)+((L_i^2)/3));
-    J_S_C_zz=J_S_C_yy;
-    J_S_C = diag([J_S_C_xx; J_S_C_yy; J_S_C_zz]); % % [A]/(7)
-    % Umrechnen auf Körper-KS;
-    J_i_C = R_i_Si * J_S_C * R_i_Si'; % [A]/(8)
-    r_i_Oi_C = R_i_Si*r_S_Oi_C; % [A]/(3)
+    if Structure.Type == 0 || Structure.Type == 2 && i < size(mges_Link,1)
+      % Hohlzylinder-Segment für Serielle Roboter und PKM
+      
+      % Modellierung Hohlzylinder. Siehe TM-Formelsammlung
+      m_s = ((pi*(R_i^2)-(pi*((R_i-e_i)^2)))*L_i*density);
+      % Schwerpunktskoordinate  im Segment-KS (nicht: Körper-KS)
+      r_S_Oi_C = [L_i/2;0;0]; % % [A]/(5)
+      % Trägheitstensor im Segment-KS (nicht: Körper-KS)
+      J_S_C_xx=(m_s/2)*((R_i^2 + (R_i-e_i)^2)); % Längsrichtung des Zylinders
+      J_S_C_yy=(m_s/4)*((R_i^2 + (R_i-e_i)^2)+((L_i^2)/3));
+      J_S_C_zz=J_S_C_yy;
+      J_S_C = diag([J_S_C_xx; J_S_C_yy; J_S_C_zz]); % % [A]/(7)
+      % Umrechnen auf Körper-KS;
+      J_i_C = R_i_Si * J_S_C * R_i_Si'; % [A]/(8)
+      r_i_Oi_C = R_i_Si*r_S_Oi_C; % [A]/(3)
+      % Eintragen in Dynamik-Parameter (bezogen auf Ursprung)
+      J_i_C_vec= inertiamatrix2vector(J_i_C);
+      mges_Link(i) = m_s;
+      [mrS_ges_Link(i,:), If_ges_Link(i,:)] = inertial_parameters_convert_par1_par2(r_i_Oi_C', J_i_C_vec, m_s);
+    elseif Structure.Type == 2 && i == size(mges_Link,1)
+      % Plattform-Segment bei PKM
+      % Annahme: Kreisscheibe
+      if R.DesPar.platform_method == 1
+        R_P = R.DesPar.platform_par(1) / 2;
+        e_P = R.DesPar.platform_par(2);
+        
+        % Modellierung Kreisscheibe (in Schwerpunkts-KS). Siehe TM-Formelsammlung
+        m_P = density*pi*R_P^2*e_P;
+        J_P_P_zz = 0.5 * m_P * R_P^2; % Normalenrichtung der Kreisscheibe
+        J_P_P_xx = 0.5*J_P_P_zz;
+        J_P_P_yy = 0.5*J_P_P_zz;
+        r_P_P_C = zeros(3,1);
+        J_P_C = diag([J_P_P_xx; J_P_P_yy; J_P_P_zz]);
+        % Umrechnen auf Körper-KS nicht notwendig.
+        J_P_C_vec= inertiamatrix2vector(J_P_C);
+        mges_Link(i) = m_P;
+        [mrS_ges_Link(i,:), If_ges_Link(i,:)] = inertial_parameters_convert_par1_par2(r_P_P_C', J_P_C_vec, m_P);
+      else
+        error('Dieser Fall darf nicht eintreten');
+      end
+    end
     
-    % Eintragen in Dynamik-Parameter (bezogen auf Ursprung)
-    J_i_C_vec= inertiamatrix2vector(J_i_C);
-    mges_Link(i) = m_s;
-    [mrS_ges_Link(i,:), If_ges_Link(i,:)] = inertial_parameters_convert_par1_par2(r_i_Oi_C', J_i_C_vec, m_s);
   end
-  if R.Type == 0
-    % Addition der Dynamikparameter
-    mges = mges_Zus + mges_Link;
-    mrS_ges = mrS_ges_Zus + mrS_ges_Link;
-    If_ges = If_ges_Zus + If_ges_Link;
+  % Addition der Dynamikparameter
+  mges = mges_Zus + mges_Link;
+  mrS_ges = mrS_ges_Zus + mrS_ges_Link;
+  If_ges = If_ges_Zus + If_ges_Link;
+  
+  if R.Type == 0 
+    % Seriell: Parameter direkt eintragen
     R.update_dynpar2(mges, mrS_ges, If_ges)
   else
-    error('Noch nicht definiert');
+    % PKM (symmetrisch): Parameter ohne Basis und ohne Segmente nach
+    % Schnittgelenk; mit Plattform
+    mges_pkm = mges([2:R.NQJ_LEG_bc+1, end]);
+    mrS_ges_pkm = mrS_ges([2:R.NQJ_LEG_bc+1, end],:);
+    If_ges_pkm = If_ges([2:R.NQJ_LEG_bc+1, end],:);
+    R.update_dynpar2(mges_pkm, mrS_ges_pkm, If_ges_pkm)
   end
 end

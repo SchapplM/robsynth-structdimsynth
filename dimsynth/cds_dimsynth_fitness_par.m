@@ -93,13 +93,13 @@ if any(abs(Phi_E(:)) > 1e-2) % Die Toleranz beim IK-Verfahren ist etwas größer
   debug_plot_robot(R, zeros(R.NJ,1), Traj_0, Traj_W, Set, Structure, p, fval);
   return
 end
-% save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par2.mat'));
+save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par2.mat'));
 % Debug:
 % load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par2.mat'));
 %% Inverse Kinematik der Trajektorie berechnen
 % s = struct('debug', true, 'retry_limit', 1);
 s = struct('retry_limit', 1);
-[Q, ~, ~, PHI] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+[Q, QD, ~, PHI] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
 I_ZBviol = any(abs(PHI) > 1e-3,2) | any(isnan(Q),2);
 if any(I_ZBviol)
   % Bestimme die erste Verletzung der ZB (je später, desto besser)
@@ -132,6 +132,117 @@ if strcmp(Set.optimization.objective, 'condition')
   f_cond_norm = 2/pi*atan((f_cond)/20); % Normierung auf 0 bis 1; 150 ist 0.9
   fval = 1e3*f_cond_norm; % Normiert auf 0 bis 1e3
   fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3f. Konditionszahl %1.3e\n', toc(t1),fval,  f_cond1);
+  if Set.general.plot_details_in_fitness
+    % Debug-Werte berechnen
+    det_ges = NaN(length(Traj_0.t), 3);
+    for i = 1:length(Traj_0.t)
+      G_q  = R.constr1grad_q(Q(i,:)', Traj_0.X(i,:)');
+      G_x = R.constr1grad_x(Q(i,:)', Traj_0.X(i,:)');
+      G_d = G_q(:,R.I_qd);
+      G_dx = [G_d, G_x];
+      Jinv_num_voll = -G_q \ G_x;
+      Jinv = Jinv_num_voll(R.I_qa,:);
+      % Debug: Vergleich Jacobi
+      if any(any(abs(Jinv - R.jacobi_qa_x(Q(i,:)', Traj_0.X(i,:)')) > 1e-10))
+        error('Jacobi numerisch vs. symbolisch stimmt nicht');
+      end
+      det_ges(i,:) = [det(G_dx), det(G_q), det(Jinv)];
+    end
+    
+    figure(201);clf;
+    subplot(2,3,1);
+    plot(Traj_0.t, Cges); hold on;
+    ylabel('Konditionszahl'); grid on;
+    subplot(2,3,2);
+    plot(Traj_0.t, Traj_0.XD); hold on;
+    ylabel('EE-Geschw.'); grid on;
+    legend({'r_x', 'r_y', 'r_z', '\phi_1', '\phi_2', '\phi_3'});
+    subplot(2,3,3);
+    plot(Traj_0.t, QD(:,R.I_qa)); hold on;
+    ylabel('Gelenk-Geschw. (aktiv)'); grid on;
+    subplot(2,3,4);
+    plot(Traj_0.t, QD(:,~R.I_qa)); hold on;
+    ylabel('Gelenk-Geschw. (passiv)'); grid on;
+    subplot(2,3,5);
+    plot(Traj_0.t, det_ges); hold on;
+    ylabel('Determinanten'); grid on;
+    legend({'A (dh/dx; DirKin)', 'B (dh/dq; InvKin)', 'Jinv'});
+    subplot(2,3,6);
+    plot(Traj_0.t, log(abs(det_ges))); hold on;
+    ylabel('Log |Determinanten|'); grid on;
+    legend({'A (dh/dx; DirKin)', 'B (dh/dq; InvKin)', 'Jinv'});
+    linkxaxes
+  end
+  
+elseif strcmp(Set.optimization.objective, 'energy')
+  % Dynamik-Parameter aktualisieren
+  R = cds_dimsynth_desopt(R, Q, Set, Structure);
+  % Trajektorie in Plattform-KS umrechnen
+  XP = Traj_0.X;
+  XPD = Traj_0.XD;
+  XPDD = Traj_0.XDD;
+  for i = 1:length(Traj_0.t)
+    [XP(i,:),XPD(i,:),XPDD(i,:)] = xE2xP(R, Traj_0.X(i,:)', Traj_0.XD(i,:)', Traj_0.XDD(i,:)');
+  end
+  % Antriebskräfte berechnen
+  Fx_red_traj = invdyn_platform_traj(R, Q, XP, XPD, XPDD);
+  TAU = NaN(length(Traj_0.t), sum(R.I_qa));
+  for i = 1:length(Traj_0.t)
+    Jinv_xred_i = R.jacobi_qa_x(Q(i,:)', Traj_0.X(i,:)');
+    tauA_i = (Jinv_xred_i') \ Fx_red_traj(i,:)';
+    TAU(i,:) = tauA_i;
+  end
+  % Mechanische Leistung berechnen
+  % Aktuelle mechanische Leistung in allen Gelenken
+  P_ges = NaN(size(Q,1), sum(R.I_qa));
+  II_qa = find(R.I_qa);
+  for j = 1:sum(sum(R.I_qa))
+    P_ges(:,j) = TAU(:,j) .* QD(:,II_qa(j));
+  end
+  % Energie berechnen
+  if Set.optimization.ElectricCoupling
+    % Mit Zwischenkreis: Summe aller Leistungen
+    P_Kreis = sum(P_ges,2);
+    % Negative Leistungen im Kreis abschneiden (keine Rückspeisung ins
+    % Netz)
+    P_Netz = P_Kreis;
+    P_Netz(P_Netz<0) = 0;
+  else
+    % Ohne Zwischenkreis: Negative Leistungen der Antriebe abschneiden
+    P_ges_cut = P_ges;
+    P_ges_cut(P_ges_cut<0) = 0;
+    P_Kreis = sum(P_ges_cut,2);
+    % Kein weiteres Abschneiden notwendig. Kreisleistung kann nicht negativ
+    % sein. Keine Rückspeisung ins Netz möglich.
+    P_Netz = P_Kreis;
+  end
+  E_Netz_res = sum(trapz(Traj_0.t, P_Netz)); % Integral der Leistung am Ende
+  f_en_norm = 2/pi*atan((E_Netz_res)/100); % Normierung auf 0 bis 1; 620 ist 0.9
+  fval = 1e3*f_en_norm; % Normiert auf 0 bis 1e3
+  
+  if Set.general.plot_details_in_fitness
+    E_Netz = cumtrapz(Traj_0.t, P_Netz);
+    figure(202);clf;
+    if Set.optimization.ElectricCoupling, sgtitle('Energieverteilung (mit Zwischenkreis)');
+    else,                                 sgtitle('Energieverteilung (ohne Zwischenkreis'); end
+    subplot(2,2,1);
+    plot(Traj_0.t, P_ges);
+    ylabel('Leistung Achsen'); grid on;
+    subplot(2,2,2); hold on;
+    plot(Traj_0.t, P_Kreis);
+    plot(Traj_0.t, P_Netz, '--');
+    plot(Traj_0.t, E_Netz);
+    plot(Traj_0.t(end), E_Netz_res, 'o');
+    ylabel('Leistung/Energie Gesamt'); legend({'P(Zwischenkreis)', 'P(Netz)', 'E(Netz)'}); grid on;
+    subplot(2,2,3); hold on
+    hdl1=plot(Traj_0.t, QD(:,R.I_qa));
+    hdl2=plot(Traj_0.t, QD(:,~R.I_qa), '--');
+    ylabel('Gelenk-Geschw.'); grid on; legend([hdl1(1), hdl2(1)], {'Antriebe', 'Passive'});
+    subplot(2,2,4); hold on
+    plot(Traj_0.t, TAU);
+    ylabel('Gelenk-Moment.'); grid on;
+    linkxaxes
+  end
 else
   error('Zielfunktion nicht definiert');
 end

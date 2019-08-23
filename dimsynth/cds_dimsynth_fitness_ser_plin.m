@@ -103,7 +103,7 @@ elseif strcmp(Set.optimization.objective, 'energy')
   % Aktuelle mechanische Leistung in allen Gelenken
   P_ges = NaN(size(Q,1), R.NJ);
   for j = 1:R.NJ
-      P_ges(:,j) = TAU(:,j) .* QD(:,j);
+    P_ges(:,j) = TAU(:,j) .* QD(:,j);
   end
   % Energie berechnen
   if Set.optimization.ElectricCoupling
@@ -128,7 +128,7 @@ elseif strcmp(Set.optimization.objective, 'energy')
   
   if Set.general.plot_details_in_fitness
     E_Netz = cumtrapz(Traj_0.t, P_Netz);
-    figure(201);clf;
+    figure(202);clf;
     if Set.optimization.ElectricCoupling, sgtitle('Energieverteilung (mit Zwischenkreis)');
     else,                                 sgtitle('Energieverteilung (ohne Zwischenkreis'); end
     subplot(2,2,1);
