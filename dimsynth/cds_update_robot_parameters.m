@@ -1,4 +1,5 @@
-% Belegen der Roboterparameter für die Optimierung
+% Belegen der Kinematikparameter für die Optimierung
+% Die Dynamikparameter werden in der Entwurfsoptimierung bestimmt.
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Universität Hannover

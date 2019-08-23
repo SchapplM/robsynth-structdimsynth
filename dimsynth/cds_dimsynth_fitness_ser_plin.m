@@ -65,7 +65,7 @@ if any(abs(Phi_E(:)) > 1e-3)
   return
 end
 %% Inverse Kinematik der Trajektorie berechnen
-[Q, ~, ~, PHI] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q);
+[Q, QD, QDD, PHI] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q);
 I_ZBviol = any(abs(PHI) > 1e-3,2) | any(isnan(Q),2);
 if any(I_ZBviol)
   % Bestimme die erste Verletzung der ZB (je später, desto besser)
@@ -95,6 +95,59 @@ if strcmp(Set.optimization.objective, 'condition')
   f_cond_norm = 2/pi*atan((f_cond)/20); % Normierung auf 0 bis 1; 150 ist 0.9
   fval = 1e3*f_cond_norm; % Normiert auf 0 bis 1e3
   fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3f. Konditionszahl %1.3e\n', toc(t1), fval, f_cond1);
+elseif strcmp(Set.optimization.objective, 'energy')
+  % Dynamik-Parameter aktualisieren
+  R = cds_dimsynth_desopt(R, Q, Set, Structure);
+  % Antriebskräfte berechnen
+  TAU = R.invdyn2_traj(Q, QD, QDD);
+  % Aktuelle mechanische Leistung in allen Gelenken
+  P_ges = NaN(size(Q,1), R.NJ);
+  for j = 1:R.NJ
+      P_ges(:,j) = TAU(:,j) .* QD(:,j);
+  end
+  % Energie berechnen
+  if Set.optimization.ElectricCoupling
+    % Mit Zwischenkreis: Summe aller Leistungen
+    P_Kreis = sum(P_ges,2);
+    % Negative Leistungen im Kreis abschneiden (keine Rückspeisung ins
+    % Netz)
+    P_Netz = P_Kreis;
+    P_Netz(P_Netz<0) = 0;
+  else
+    % Ohne Zwischenkreis: Negative Leistungen der Antriebe abschneiden
+    P_ges_cut = P_ges;
+    P_ges_cut(P_ges_cut<0) = 0;
+    P_Kreis = sum(P_ges_cut,2);
+    % Kein weiteres Abschneiden notwendig. Kreisleistung kann nicht negativ
+    % sein. Keine Rückspeisung ins Netz möglich.
+    P_Netz = P_Kreis;
+  end
+  E_Netz_res = sum(trapz(Traj_0.t, P_Netz)); % Integral der Leistung am Ende
+  f_en_norm = 2/pi*atan((E_Netz_res)/100); % Normierung auf 0 bis 1; 620 ist 0.9
+  fval = 1e3*f_en_norm; % Normiert auf 0 bis 1e3
+  
+  if Set.general.plot_details_in_fitness
+    E_Netz = cumtrapz(Traj_0.t, P_Netz);
+    figure(201);clf;
+    if Set.optimization.ElectricCoupling, sgtitle('Energieverteilung (mit Zwischenkreis)');
+    else,                                 sgtitle('Energieverteilung (ohne Zwischenkreis'); end
+    subplot(2,2,1);
+    plot(Traj_0.t, P_ges);
+    ylabel('Leistung Achsen'); grid on;
+    subplot(2,2,2); hold on;
+    plot(Traj_0.t, P_Kreis);
+    plot(Traj_0.t, P_Netz, '--');
+    plot(Traj_0.t, E_Netz);
+    plot(Traj_0.t(end), E_Netz_res, 'o');
+    ylabel('Leistung/Energie Gesamt'); legend({'P(Zwischenkreis)', 'P(Netz)', 'E(Netz)'}); grid on;
+    subplot(2,2,3); hold on
+    plot(Traj_0.t, QD);
+    ylabel('Gelenk-Geschw.'); grid on;
+    subplot(2,2,4); hold on
+    plot(Traj_0.t, TAU);
+    ylabel('Gelenk-Moment.'); grid on;
+    linkxaxes
+  end
 else
   error('Zielfunktion nicht definiert');
 end

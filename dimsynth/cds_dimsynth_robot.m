@@ -17,9 +17,10 @@ Structure.Lref = Lref;
 if Structure.Type == 0 % Seriell
   R = serroblib_create_robot_class(Structure.Name);
   R.gen_testsettings(true, true); % Setze Parameter auf Zufallswerte
-  R.fill_fcn_handles(Set.general.use_mex, false);
+  R.fill_fcn_handles(Set.general.use_mex, true);
   R.qlim(R.MDH.sigma==1,:) = repmat([-2*Lref, 2*Lref],sum(R.MDH.sigma==1),1); % Schubgelenk
   R.qlim(R.MDH.sigma==0,:) = repmat([-pi, pi],    sum(R.MDH.sigma==0),1); % Drehgelenk
+  R.DynPar.mode = 4; % Benutze Minimalparameter-Dynamikfunktionen
 elseif Structure.Type == 2 % Parallel
   R = parroblib_create_robot_class(Structure.Name, 2, 1);
   R.Leg(1).gen_testsettings(true, true); % Setze Parameter auf Zufallswerte
