@@ -36,6 +36,12 @@ else
   error('Typ-Nummer nicht definiert');
 end
 
+% Falls planerer Roboter: Definiere Verschiebung, damit der Roboter von
+% oben angreift. Sieht besser aus, macht die Optimierung aber schwieriger.
+% if all(Set.structures.DoF(1:3) == [1 1 0])
+%   R.update_base([0;0;0.5*Lref]);
+%   R.update_EE([0;0;-0.5*Lref]);
+% end
 %% Optimierungsparameter festlegen
 nvars = 0; vartypes = []; varlim = [];
 

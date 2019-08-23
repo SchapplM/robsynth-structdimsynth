@@ -132,7 +132,8 @@ if strcmp(Set.optimization.objective, 'condition')
   f_cond_norm = 2/pi*atan((f_cond)/20); % Normierung auf 0 bis 1; 150 ist 0.9
   fval = 1e3*f_cond_norm; % Normiert auf 0 bis 1e3
   fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3f. Konditionszahl %1.3e\n', toc(t1),fval,  f_cond1);
-  if Set.general.plot_details_in_fitness
+
+  if fval < Set.general.plot_details_in_fitness
     % Debug-Werte berechnen
     det_ges = NaN(length(Traj_0.t), 3);
     for i = 1:length(Traj_0.t)
@@ -148,8 +149,9 @@ if strcmp(Set.optimization.objective, 'condition')
       end
       det_ges(i,:) = [det(G_dx), det(G_q), det(Jinv)];
     end
-    
+
     figure(201);clf;
+    sgtitle('Auswertung Jacobi-Matrizen')
     subplot(2,3,1);
     plot(Traj_0.t, Cges); hold on;
     ylabel('Konditionszahl'); grid on;
@@ -173,7 +175,6 @@ if strcmp(Set.optimization.objective, 'condition')
     legend({'A (dh/dx; DirKin)', 'B (dh/dq; InvKin)', 'Jinv'});
     linkxaxes
   end
-  
 elseif strcmp(Set.optimization.objective, 'energy')
   % Dynamik-Parameter aktualisieren
   R = cds_dimsynth_desopt(R, Q, Set, Structure);
@@ -220,7 +221,7 @@ elseif strcmp(Set.optimization.objective, 'energy')
   f_en_norm = 2/pi*atan((E_Netz_res)/100); % Normierung auf 0 bis 1; 620 ist 0.9
   fval = 1e3*f_en_norm; % Normiert auf 0 bis 1e3
   
-  if Set.general.plot_details_in_fitness
+  if fval < Set.general.plot_details_in_fitness
     E_Netz = cumtrapz(Traj_0.t, P_Netz);
     figure(202);clf;
     if Set.optimization.ElectricCoupling, sgtitle('Energieverteilung (mit Zwischenkreis)');
@@ -246,13 +247,18 @@ elseif strcmp(Set.optimization.objective, 'energy')
 else
   error('Zielfunktion nicht definiert');
 end
+
+
 debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval);
 end
 
 
 function debug_plot_robot(R, q, Traj_0, Traj_W, Set, Structure, p, fval)
 % Zeichne den Roboter für den aktuellen Parametersatz.
-if ~Set.general.plot_robot_in_fitness
+if Set.general.plot_robot_in_fitness < 0 && fval > abs(Set.general.plot_robot_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
+   Set.general.plot_robot_in_fitness > 0 && fval < abs(Set.general.plot_robot_in_fitness) % Gütefunktion ist besser als Schwellwert: Zeichne
+  % Zeichnen fortsetzen
+else 
   return
 end
 figure(200);clf;hold all;
@@ -261,7 +267,6 @@ axis auto
 hold on;grid on;
 xlabel('x in m');ylabel('y in m');zlabel('z in m');
 plot3(Traj_W.X(:,1), Traj_W.X(:,2),Traj_W.X(:,3), 'k-');
-set(200,'units','normalized','outerposition',[0 0 1 1])
 s_plot = struct( 'ks_legs', [], 'straight', 0);
 R.plot( q, Traj_0.X(1,:)', s_plot);
 title(sprintf('fval=%1.2e; p=[%s]', fval,disp_array(p','%1.3f')));

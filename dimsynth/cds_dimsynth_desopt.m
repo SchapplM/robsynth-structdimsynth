@@ -76,30 +76,44 @@ if Structure.Type == 0 || Structure.Type == 2
       % a- und d-Parameter werden zu Segment vor dem Gelenk gezählt (wg.
       % MDH-Notation) -> a1/d1 zählen zum Basis-Segment
       % [A]/(6)
+      % Berechnet wird die maximale Länge des Segmentes mit Schubgelenk
       L_i = sqrt(R_pkin.MDH.a(i)^2+(R_pkin.MDH.d(i)+R.MDH.sigma(i)*q_range(i))^2);
       
       % Drehung des Segment-KS gegen das Körper-KS
       % [A]/(4)
       R_i_Si = rotx(R_pkin.MDH.alpha(i)) * roty(atan2(R_pkin.MDH.d(i), R_pkin.MDH.a(i)));
       
-      % Probe: [A]/(10)
+      % Probe: [A]/(10) (nur für Drehgelenke; wegen Maximallänge bei
+      % Schubgelenk
       r_i_i_ip1_test = R_i_Si*[L_i;0;0];
       Tges=R_pkin.jtraf(zeros(R_pkin.NJ,1));
       r_i_i_ip1 = Tges(1:3,4,i);
-      if any(abs(r_i_i_ip1_test-r_i_i_ip1) > 1e-10)
+      if R.MDH.sigma(i) == 0 && any(abs(r_i_i_ip1_test-r_i_i_ip1) > 1e-10)
         error('Segment-Darstellung stimmt nicht');
       end
     else
       % Letzter Körper: Flansch->EE bei Seriell; Plattform->EE bei Parallel
       if Structure.Type == 0 % Seriell
         L_i = norm(R_pkin.T_N_E(1:3,4));
-        % Rotationsmatrix muss noch bestimmt werden. z-Achse muss zum EE
-        % zeigen
-        if any(R_pkin.T_N_E(1:3,4))
-          error('T_N_E noch nicht definiert');
+        % Rotationsmatrix für das letzte Segment-KS
+        % Die x-Achse muss zum EE zeigen. Die anderen beiden Achsen sind
+        % willkürlich senkrecht dazu.
+        x_Si = R_pkin.T_N_E(1:3,4) / norm(R_pkin.T_N_E(1:3,4));
+        y_Si = cross(x_Si, R_pkin.T_N_E(1:3,1));
+        y_Si = y_Si/norm(y_Si);
+        z_Si = cross(x_Si, y_Si);
+        R_i_Si = [x_Si, y_Si, z_Si];
+        if abs(det(R_i_Si)-1) > 1e-6
+          error('Letztes Segment-KS stimmt nicht');
         end
       else % Parallel
         L_i = norm(R.T_P_E(1:3,4));
+        % Annahme: Da die Plattform in der Mitte des Roboters ist, muss keine besondere
+        % EE-Transformation berücksichtigt werden.
+        R_i_Si = eye(3);
+        if any(R.T_P_E(1:3,4))
+          error('Der Vergleich zwischen Seriell und Parallel bei vorhandener Trafo P-E ist aktuell nicht möglich');
+        end
       end
     end
     

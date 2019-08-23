@@ -53,7 +53,7 @@ end
 %% Basis-Position
 if Set.optimization.movebase
   p_basepos = p(Structure.vartypes == 2);
-  r_W_0_neu = zeros(3,1);
+  r_W_0_neu = R.T_W_0(1:3,4);
   % xy-Punktkoordinaten der Basis skaliert mit Referenzlänge
   r_W_0_neu(Set.structures.DoF(1:2)) = p_basepos(Set.structures.DoF(1:2))*Structure.Lref;
   % z-Punktkoordinaten der Basis skaliert mit Roboter-Skalierungsfaktor

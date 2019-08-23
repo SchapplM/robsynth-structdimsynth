@@ -126,7 +126,7 @@ elseif strcmp(Set.optimization.objective, 'energy')
   f_en_norm = 2/pi*atan((E_Netz_res)/100); % Normierung auf 0 bis 1; 620 ist 0.9
   fval = 1e3*f_en_norm; % Normiert auf 0 bis 1e3
   
-  if Set.general.plot_details_in_fitness
+  if fval < Set.general.plot_details_in_fitness
     E_Netz = cumtrapz(Traj_0.t, P_Netz);
     figure(202);clf;
     if Set.optimization.ElectricCoupling, sgtitle('Energieverteilung (mit Zwischenkreis)');
@@ -157,7 +157,10 @@ end
 
 function debug_plot_robot(R, q, Traj_W, Set, Structure, p, fval)
 % Zeichne den Roboter für den aktuellen Parametersatz.
-if ~Set.general.plot_robot_in_fitness
+if Set.general.plot_robot_in_fitness < 0 && fval > abs(Set.general.plot_robot_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
+   Set.general.plot_robot_in_fitness > 0 && fval < abs(Set.general.plot_robot_in_fitness) % Gütefunktion ist besser als Schwellwert: Zeichne
+  % Zeichnen fortsetzen
+else 
   return
 end
 figure(200);clf;hold all;
