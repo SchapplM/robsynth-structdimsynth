@@ -19,6 +19,7 @@ density = 2.7E3; %[kg/m^3] Aluminium
 % Vorläufig: Segmenteigenschaften direkt belegen
 if R.Type == 0
   R.DesPar.seg_par = repmat([5e-3, 300e-3], R.NL, 1); % dicke Struktur
+  % R.DesPar.seg_par(end,:) = [5e-3, 300e-3]; % EE anders zum Testen der Visu.
 elseif R.Type == 2  % Parallel (symmetrisch)
   for i = 1:R.NLEG
     % Belege alle Beinketten, damit in Plot-Funktion nutzbar. Es werden
@@ -185,6 +186,6 @@ if Structure.Type == 0 || Structure.Type == 2
     mges_pkm = mges([2:R.NQJ_LEG_bc+1, end]);
     mrS_ges_pkm = mrS_ges([2:R.NQJ_LEG_bc+1, end],:);
     If_ges_pkm = If_ges([2:R.NQJ_LEG_bc+1, end],:);
-    R.update_dynpar2(mges_pkm, mrS_ges_pkm, If_ges_pkm)
+    R.update_dynpar2(mges_pkm, mrS_ges_pkm, If_ges_pkm);
   end
 end

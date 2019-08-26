@@ -23,7 +23,8 @@ for i = 1:length(Structures)
   RobotOptRes = cds_dimsynth_robot(Set, Traj, Structures{i});
   % Ergebnisse speichern
   save(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
-    sprintf('Rob%d_%s_Endergebnis.mat', i, Structures{i}.Name)), 'RobotOptRes', 'Set', 'Traj');
+    sprintf('Rob%d_%s_Endergebnis.mat', i, Structures{i}.Name)), ...
+    'RobotOptRes', 'Set', 'Traj');
 end
 
 % Ergebnisse vergleichen
