@@ -32,7 +32,7 @@ for i = 1:length(Structures)
     Erg_All_Gen(jj,:) = tmp.optimValues.swarmfvals;
   end
   I_zul = Erg_All_Gen(:) < 1e3;
-  Klassengrenzen_Alle = [0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7];
+  Klassengrenzen_Alle = [0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8];
   Klassengrenzen_Alle_Log = log10(Klassengrenzen_Alle);
   Klassengrenzen_Alle_Log(1) = 0;
   % Histogramm erstellen
@@ -88,8 +88,9 @@ for i = 1:length(Structures)
   xlabel('log(Fitness)');
   ylabel('Häufigkeit (abs)');
   title(sprintf('Alle Lösungen (%d)', length(I_zul)));
-  set(gca, 'xtick', [2, 3.5, 4.5, 5.5, 6.5], 'xticklabel', {'Ziel (0-1e3)', 'ND (1e4)', 'IK Traj (1e5)', 'IK Eck (1e6)', 'Reichw (1e7)'});
-    
+  set(gca, 'xtick', [2, 3.5, 4.5, 5.5, 6.5, 7.5], ...
+    'xticklabel', {'Ziel (0-1e3)', 'ND (1e4)', 'IK Tr (1e5)', 'IK AR (1e6)', 'Rw (1e7)', 'G (1e8)'});
+  
   % Histogramm für einzelne Generationen des PSO erstellen
   Erg_All_Gen_Hist = zeros(size(Erg_All_Gen,1), length(Klassengrenzen_Alle)-1);
   for ii = 1:size(Erg_All_Gen_Hist,1)

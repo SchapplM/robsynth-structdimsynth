@@ -23,12 +23,32 @@ cds_update_robot_parameters(R, Set, Structure, p);
 %% Trajektorie anpassen
 Traj_0 = cds_rotate_traj(Traj_W, R.T_W_0);
 
-%% Geometrie auf Plausibilität prüfen
+%% Geometrie auf Plausibilität prüfen (1)
+% Prüfe, ob die Ketten sich überhaupt schließen können (sind die Beine lang
+% genug um sich zu den Koppelpunkten zu verbinden.
+% Dieses Maß ist nur eine Eigenschaft der Kinematik, unabhängig von der
+% gewünschten Trajektorie
+d_base = 2*R.DesPar.base_par(1);
+d_platf = 2*R.DesPar.platform_par(1);
+l_max_leg = R.Leg(1).reach(); % Annahme: Symmetrischer Roboter; alle Beine max. gleich lang
+
+l_legtooshort = abs(d_base - d_platf)/2 - l_max_leg; % Fehlende Länge jedes Beins (in Meter)
+if l_legtooshort > 0
+  f_legtooshort = l_legtooshort/l_max_leg; % fehlende Beinlänge (relativ zu Maximalreichweite)
+  % Verhältnis im Bereich 1 bis 100
+  f_distviol_norm = 2/pi*atan((f_legtooshort)); % 1->0.5; 10->0.94
+  %  normiere auf 1e7 bis 1e8
+  fval = 1e7+9e7*f_distviol_norm;
+  fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Beinkette zu kurz für Plattform.\n', toc(t1), fval);
+  debug_plot_robot(R, zeros(R.NJ,1), Traj_0, Traj_W, Set, Structure, p, fval);
+  return
+end
+
+%% Geometrie auf Plausibilität prüfen (2)
 % Berechne die Position der Koppelpunkte für die vorgesehenen Eckpunkte der
-% Trajektorie.
+% Trajektorie. Dieses Maß wird durch die Trajektorie bestimmt.
 % TODO: Funktioniert noch nicht bei Aufgabenredundanz.
 dist_exc_tot = NaN(size(Traj_0.XE,1),R.NLEG);
-dist_max = R.Leg(1).reach(); % Annahme: Symmetrischer Roboter; alle Beine max. gleich lang
 T_P_P_E = R.T_P_E;
 for i = 1:R.NLEG
   % Transformationen für die Beinkette i
@@ -41,18 +61,18 @@ for i = 1:R.NLEG
     % Bahnpunkt j (und die dafür vorgesehene Orientierung)
     rh_0i_0i_Bij = invtr(T_0_0i)*T_0_Ej*invtr(T_P_P_E)*[r_P_P_Bi;1];
     dist_j = norm(rh_0i_0i_Bij);
-    dist_exc_tot(j,i) = dist_max-dist_j;
+    dist_exc_tot(j,i) = l_max_leg-dist_j;
   end
 end
 if any(dist_exc_tot(:) < 0)
   % Mindestens ein Punkt überschreitet die maximale Reichweite einer Beinkette
-  f_distviol = -min(dist_exc_tot(:))/dist_max; % maximale Abstandsverletzung (relativ zu Maximalreichweite)
+  f_distviol = -min(dist_exc_tot(:))/l_max_leg; % maximale Abstandsverletzung (relativ zu Maximalreichweite)
   % Werte sind typischerweise zwischen 0 und 100. Je kleiner die Beinkette,
   % desto größer der Wert; das regt dann zur Vergrößerung des Roboters an.
   f_distviol_norm = 2/pi*atan((f_distviol)); % 1->0.5; 10->0.94
   %  normiere auf 1e6 bis 1e7
   fval = 1e6+9e6*f_distviol_norm;
-  fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Beinkette zu kurz.\n', toc(t1), fval);
+  fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Beinkette zu kurz für Bahnpunkte.\n', toc(t1), fval);
   debug_plot_robot(R, zeros(R.NJ,1), Traj_0, Traj_W, Set, Structure, p, fval);
   return
 end
