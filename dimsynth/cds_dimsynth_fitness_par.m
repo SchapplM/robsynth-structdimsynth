@@ -10,6 +10,7 @@ function fval = cds_dimsynth_fitness_par(R, Set, Traj_W, Structure, p)
 % load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par1.mat'));
 
 t1=tic();
+debug_info = {};
 %% Parameter prüfen
 if p(1) == 0
   error('Roboterskalierung kann nicht Null werden');
@@ -39,8 +40,8 @@ if l_legtooshort > 0
   f_distviol_norm = 2/pi*atan((f_legtooshort)); % 1->0.5; 10->0.94
   %  normiere auf 1e7 bis 1e8
   fval = 1e7+9e7*f_distviol_norm;
-  fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Beinkette zu kurz für Plattform.\n', toc(t1), fval);
-  debug_plot_robot(R, zeros(R.NJ,1), Traj_0, Traj_W, Set, Structure, p, fval);
+  fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Beinkette zu kurz für Plattform. Es fehlen max. %1.2fm.\n', toc(t1), fval, l_legtooshort);
+  debug_plot_robot(R, zeros(R.NJ,1), Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
   return
 end
 
@@ -72,8 +73,8 @@ if any(dist_exc_tot(:) < 0)
   f_distviol_norm = 2/pi*atan((f_distviol)); % 1->0.5; 10->0.94
   %  normiere auf 1e6 bis 1e7
   fval = 1e6+9e6*f_distviol_norm;
-  fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Beinkette zu kurz für Bahnpunkte.\n', toc(t1), fval);
-  debug_plot_robot(R, zeros(R.NJ,1), Traj_0, Traj_W, Set, Structure, p, fval);
+  fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Beinkette zu kurz für Bahnpunkte. Es fehlen max. %1.2fm.\n', toc(t1), fval, -min(dist_exc_tot(:)));
+  debug_plot_robot(R, zeros(R.NJ,1), Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
   return
 end
 % basediam = 0;
@@ -112,7 +113,7 @@ if any(abs(Phi_E(:)) > 1e-2) % Die Toleranz beim IK-Verfahren ist etwas größer
   fval = 1e5+9e5*f_phiE_norm; % Normierung auf 1e5 bis 1e6
   % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
   fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Keine IK-Konvergenz in Eckwerten\n', toc(t1), fval);
-  debug_plot_robot(R, zeros(R.NJ,1), Traj_0, Traj_W, Set, Structure, p, fval);
+  debug_plot_robot(R, zeros(R.NJ,1), Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
   return
 end
 save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par2.mat'));
@@ -131,7 +132,7 @@ if any(I_ZBviol)
   fval = 1e4+9e4*Failratio; % Wert zwischen 1e4 und 1e5 -> IK-Abbruch bei Traj.
   % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
   fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Keine IK-Konvergenz in Traj.\n', toc(t1), fval);
-  debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval);
+  debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
   return
 end
 
@@ -276,21 +277,27 @@ elseif strcmp(Set.optimization.objective, 'mass')
   m_sum = sum(R.DynPar.mges(1:end-1))*R.NLEG + R.DynPar.mges(end);
   f_mass_norm = 2/pi*atan((m_sum)/100); % Normierung auf 0 bis 1; 620 ist 0.9. TODO: Skalierung ändern
   fval = 1e3*f_mass_norm; % Normiert auf 0 bis 1e3
+  debug_info = {debug_info{:}; sprintf('masses: total %1.2fkg, 1Leg %1.2fkg, Pf %1.2fkg', ...
+    m_sum, sum(sum(R.DynPar.mges(1:end-1))), R.DynPar.mges(end))};
 else
   error('Zielfunktion nicht definiert');
 end
 
-debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval);
+debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
 end
 
 
-function debug_plot_robot(R, q, Traj_0, Traj_W, Set, Structure, p, fval)
+function debug_plot_robot(R, q, Traj_0, Traj_W, Set, Structure, p, fval, debug_info)
 % Zeichne den Roboter für den aktuellen Parametersatz.
 if Set.general.plot_robot_in_fitness < 0 && fval > abs(Set.general.plot_robot_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
    Set.general.plot_robot_in_fitness > 0 && fval < abs(Set.general.plot_robot_in_fitness) % Gütefunktion ist besser als Schwellwert: Zeichne
   % Zeichnen fortsetzen
 else 
   return
+end
+tt = '';
+for i = 1:length(debug_info)
+  tt = [tt, newline(), debug_info{i}];
 end
 figure(200);clf;hold all;
 view(3);
@@ -300,7 +307,7 @@ xlabel('x in m');ylabel('y in m');zlabel('z in m');
 plot3(Traj_W.X(:,1), Traj_W.X(:,2),Traj_W.X(:,3), 'k-');
 s_plot = struct( 'ks_legs', [], 'straight', 0);
 R.plot( q, Traj_0.X(1,:)', s_plot);
-title(sprintf('fval=%1.2e; p=[%s]', fval,disp_array(p','%1.3f')));
+title(sprintf('fval=%1.2e; p=[%s]; %s', fval,disp_array(p','%1.3f'), tt));
 xlim([-1,1]*Structure.Lref*3+mean(minmax2(Traj_W.XE(:,1)')'));
 ylim([-1,1]*Structure.Lref*3+mean(minmax2(Traj_W.XE(:,2)')'));
 zlim([-1,1]*Structure.Lref*1+mean(minmax2(Traj_W.XE(:,3)')'));

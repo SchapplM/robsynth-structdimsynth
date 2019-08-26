@@ -52,18 +52,22 @@ end
 
 %% Basis-Position
 if Set.optimization.movebase
+  % Die Parameter geben den skalierten Abstand des Roboters vom
+  % Aufgabenmittelpunkt an
   p_basepos = p(Structure.vartypes == 2);
   r_W_0_neu = R.T_W_0(1:3,4);
   % xy-Punktkoordinaten der Basis skaliert mit Referenzlänge
-  r_W_0_neu(Set.structures.DoF(1:2)) = p_basepos(Set.structures.DoF(1:2))*Structure.Lref;
+  r_W_0_neu(Set.structures.DoF(1:2)) = Structure.xT_mean(Set.structures.DoF(1:2)) + ...
+    p_basepos(Set.structures.DoF(1:2))*Structure.Lref;
   % z-Punktkoordinaten der Basis skaliert mit Roboter-Skalierungsfaktor
-  r_W_0_neu(Set.structures.DoF(3)) = p_basepos(Set.structures.DoF(3))*p(1);
+  r_W_0_neu(Set.structures.DoF(3)) = Structure.xT_mean(Set.structures.DoF(3)) + ...
+    p_basepos(Set.structures.DoF(3))*p(1);
   
   R_neu.update_base(r_W_0_neu);
 end
 
 %% EE-Verschiebung
-if Set.optimization.ee_translation
+if any(Structure.vartypes == 3) % Set.optimization.ee_translation
   p_eepos = p(Structure.vartypes == 3);
   r_N_E_neu = zeros(3,1);
   % EE-Versatz skaliert mit Roboter-Skalierungsfaktor

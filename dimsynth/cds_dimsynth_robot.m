@@ -51,7 +51,7 @@ nvars = 0; vartypes = []; varlim = [];
 nvars = nvars + 1;
 vartypes = [vartypes; 0];
 varlim = [varlim; [1e-3*Lref, 2*Lref]];
-
+varnames = {'scale'};
 % Strukturparameter der Kinematik
 if Structure.Type == 0 || Structure.Type == 2
   if Structure.Type == 0 % Seriell
@@ -83,6 +83,9 @@ if Structure.Type == 0 || Structure.Type == 2
     else
       error('Parametertyp nicht definiert');
     end
+    if Ipkinrel(i)
+      varnames = {varnames{:}, sprintf('pkin %d: %s', i, R_pkin.pkin_names{i})}; %#ok<CCAT>
+    end
   end
   varlim = [varlim; plim(Ipkinrel,:)];
 else
@@ -93,10 +96,11 @@ end
 % bezogen auf die Skalierung. Die Position des Roboters ist nur in einigen
 % Fällen in Bezug zur Roboterskalierung (z.B. z-Komponente bei hängendem
 % Roboter, Entfernung bei seriellem Roboter)
+Structure.xT_mean = NaN(3,1);
 if Set.optimization.movebase
   % Berechne Mittelpunkt der Aufgabe
-  xT_mean = mean(minmax2(Traj.X(:,1:3)')');
-  xT_mean_norm = xT_mean/Lref;
+  xT_mean = mean(minmax2(Traj.X(:,1:3)')')';
+  Structure.xT_mean = xT_mean;
   
   nvars = nvars + sum(Set.structures.DoF(1:3)); % Verschiebung um translatorische FG der Aufgabe
   vartypes = [vartypes; 2*ones(sum(Set.structures.DoF(1:3)),1)];
@@ -107,18 +111,28 @@ if Set.optimization.movebase
     % Stelle den parallelen Roboter in/über die Aufgabe
     % Bei Parallelen Robotern ist der Arbeitsraum typischerweise in der
     % Mitte des Gestells (bezogen auf x-y-Ebene). Daher müssen die Grenzen
-    % nicht so weit definiert werden
-    varlim = [varlim; repmat([-0.2+xT_mean(1), 0.2+xT_mean(2)], sum(Set.structures.DoF(1:2)), 1)];
+    % nicht so weit definiert werden: 20% der Referenzlänge um Mittelpunkt
+    % der Aufgabe. Annahme: x-/y-Komponente werden immer optimiert.
+    varlim = [varlim; repmat([-0.2, 0.2],2,1)]; % xy-Komponenten
     % Die z-Komponente der Basis kann mehr variieren (hängender Roboter)
-    varlim = [varlim; repmat([-1, 1]+xT_mean_norm(3), sum(Set.structures.DoF(3)), 1)];
+    varlim = [varlim; repmat([-1, 1], sum(Set.structures.DoF(3)), 1)];
+  end
+  for i = find(Set.structures.DoF(1:3))
+    varnames = {varnames{:}, sprintf('base %s', char(119+i))}; %#ok<CCAT>
   end
 end
 
 % EE-Verschiebung
-if Set.optimization.ee_translation
+if Set.optimization.ee_translation && ...
+    (Structure.Type == 0 || Structure.Type == 2 && ~Set.optimization.ee_translation_only_serial)
+  % (bei PKM keine EE-Verschiebung durchführen. Dort soll das EE-KS bei
+  % gesetzter Option immer in der Mitte sein)
   nvars = nvars + sum(Set.structures.DoF(1:3)); % Verschiebung des EE um translatorische FG der Aufgabe
   vartypes = [vartypes; 3*ones(sum(Set.structures.DoF(1:3)),1)];
   varlim = [varlim; repmat([-1, 1], sum(Set.structures.DoF(1:3)), 1)]; % bezogen auf Lref
+  for i = find(Set.structures.DoF(1:3))
+    varnames = {varnames{:}, sprintf('ee %s', char(119+i))}; %#ok<CCAT>
+  end
 end
 
 % EE-Rotation
@@ -134,6 +148,9 @@ if Set.optimization.ee_rotation
   nvars = nvars + neerot; % Verschiebung des EE um translatorische FG der Aufgabe
   vartypes = [vartypes; 4*ones(neerot,1)];
   varlim = [varlim; repmat([0, pi], neerot, 1)];
+  for i = find(Set.structures.DoF(1:3))
+    varnames = {varnames{:}, sprintf('ee rotation %d', i)};
+  end
 end
 
 % Basis-Koppelpunkt Positionsparameter (z.B. Gestelldurchmesser)
@@ -145,6 +162,7 @@ if Structure.Type == 2
   % TODO: Untergrenze muss noch sinnvoll gewählt werden (darf nicht Null
   % sein)
   varlim = [varlim; [0.1,5]]; % fünf-fache spezifische Länge als Basis-Durchmesser
+  varnames = {varnames{:}, 'base param'}; %#ok<CCAT>
 end
 
 % Plattform-Koppelpunkt Positionsparameter (z.B. Plattformdurchmesser)
@@ -155,10 +173,12 @@ if Structure.Type == 2
   % TODO: Untergrenze muss noch sinnvoll gewählt werden (darf nicht Null
   % sein)
   varlim = [varlim; [0.1,2]]; % max. zwei-facher Gestelldurchmesser als Plattformdurchmesser
+  varnames = {varnames{:}, 'platform param'}; %#ok<CCAT>
 end
 
 % Variablen-Typen speichern
 Structure.vartypes = vartypes;
+Structure.varnames = varnames;
 %% Anfangs-Population generieren
 % TODO: Existierende Roboter einfügen
 
@@ -234,4 +254,5 @@ RobotOptRes = struct( ...
   'vartypes', vartypes, ...
   'exitflag', exitflag, ...
   'varlim', varlim, ...
+  'Structure', Structure, ...
   'fitnessfcn', fitnessfcn);
