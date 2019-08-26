@@ -296,9 +296,8 @@ else
   return
 end
 tt = '';
-for i = 1:length(debug_info)
-  tt = [tt, newline(), debug_info{i}];
-end
+for i = 1:length(debug_info), tt = [tt, newline(), debug_info{i}]; end %#ok<AGROW>
+
 figure(200);clf;hold all;
 view(3);
 axis auto

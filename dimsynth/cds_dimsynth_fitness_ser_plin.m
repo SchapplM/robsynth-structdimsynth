@@ -9,7 +9,7 @@ function fval = cds_dimsynth_fitness_ser_plin(R, Set, Traj_W, Structure, p)
 % error('Halte hier');
 % load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_ser_plin.mat'));
 t1=tic();
-
+debug_info = {};
 %% Parameter prüfen
 if p(1) == 0
   error('Roboterskalierung kann nicht Null werden');
@@ -40,7 +40,7 @@ if any(dist_exc_tot < 0)
   %  normiere auf 1e6 bis 1e7
   fval = 1e6+9e6*f_distviol_norm;
   fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Roboter zu kurz.\n', toc(t1), fval);
-  debug_plot_robot(R, zeros(R.NJ,1), Traj_W, Set, Structure, p, fval);
+  debug_plot_robot(R, zeros(R.NJ,1), Traj_W, Set, Structure, p, fval, debug_info);
   return
 end
 %% Inverse Kinematik für Eckpunkte der Trajektorie berechnen
@@ -63,7 +63,7 @@ if any(abs(Phi_E(:)) > 1e-3)
   fval = 1e5+9e5*f_phiE_norm; % Normierung auf 1e5 bis 1e6
   % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
   fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Keine IK-Konvergenz\n', toc(t1), fval);
-  debug_plot_robot(R, zeros(R.NJ,1), Traj_W, Set, Structure, p, fval);
+  debug_plot_robot(R, zeros(R.NJ,1), Traj_W, Set, Structure, p, fval, debug_info);
   return
 end
 %% Inverse Kinematik der Trajektorie berechnen
@@ -77,7 +77,7 @@ if any(I_ZBviol)
   fval = 1e4+9e4*Failratio; % Wert zwischen 1e4 und 1e5 -> IK-Abbruch bei Traj.
   % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
   fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Keine IK-Konvergenz in Traj.\n', toc(t1), fval);
-  debug_plot_robot(R, Q(1,:)', Traj_W, Set, Structure, p, fval);
+  debug_plot_robot(R, Q(1,:)', Traj_W, Set, Structure, p, fval, debug_info);
   return
 end
 %% Dynamik-Parameter
@@ -159,14 +159,16 @@ elseif strcmp(Set.optimization.objective, 'mass')
   m_sum = sum(R.DynPar.mges(2:end));
   f_mass_norm = 2/pi*atan((m_sum)/100); % Normierung auf 0 bis 1; 620 ist 0.9. TODO: Skalierung ändern
   fval = 1e3*f_mass_norm; % Normiert auf 0 bis 1e3
+  debug_info = {debug_info{:}; sprintf('masses: total %1.2fkg, Segments [%s] kg', ...
+    m_sum, disp_array(R.DynPar.mges(2:end)', '%1.2f'))};
 else
   error('Zielfunktion nicht definiert');
 end
-debug_plot_robot(R, Q(1,:)', Traj_W, Set, Structure, p, fval);
+debug_plot_robot(R, Q(1,:)', Traj_W, Set, Structure, p, fval, debug_info);
 end
 
 
-function debug_plot_robot(R, q, Traj_W, Set, Structure, p, fval)
+function debug_plot_robot(R, q, Traj_W, Set, Structure, p, fval, debug_info)
 % Zeichne den Roboter für den aktuellen Parametersatz.
 if Set.general.plot_robot_in_fitness < 0 && fval > abs(Set.general.plot_robot_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
    Set.general.plot_robot_in_fitness > 0 && fval < abs(Set.general.plot_robot_in_fitness) % Gütefunktion ist besser als Schwellwert: Zeichne
@@ -174,6 +176,9 @@ if Set.general.plot_robot_in_fitness < 0 && fval > abs(Set.general.plot_robot_in
 else 
   return
 end
+tt = '';
+for i = 1:length(debug_info), tt = [tt, newline(), debug_info{i}]; end %#ok<AGROW>
+
 figure(200);clf;hold all;
 view(3);
 axis auto
@@ -183,7 +188,7 @@ plot3(Traj_W.X(:,1), Traj_W.X(:,2),Traj_W.X(:,3), 'k-');
 set(200,'units','normalized','outerposition',[0 0 1 1])
 s_plot = struct( 'ks_legs', [], 'straight', 0);
 R.plot( q, s_plot);
-title(sprintf('fval=%1.2e; p=[%s]', fval,disp_array(p','%1.3f')));
+title(sprintf('fval=%1.2e; p=[%s]; %s', fval,disp_array(p','%1.3f'), tt));
 xlim([-1,1]*Structure.Lref*1.5+mean(minmax2(Traj_W.XE(:,1)')'));
 ylim([-1,1]*Structure.Lref*1.5+mean(minmax2(Traj_W.XE(:,2)')'));
 zlim([-1,1]*Structure.Lref*1+mean(minmax2(Traj_W.XE(:,3)')'));
