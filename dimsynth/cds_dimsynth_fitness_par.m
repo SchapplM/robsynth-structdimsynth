@@ -3,7 +3,7 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function fval = cds_dimsynth_fitness_par(R_in, Set, Traj_W, Structure, p)
+function fval = cds_dimsynth_fitness_par(R, Set, Traj_W, Structure, p)
 % Debug: 
 % save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par1.mat'));
 % error('Halte hier');
@@ -16,7 +16,9 @@ if p(1) == 0
 end
 
 %% Parameter aktualisieren
-R = cds_update_robot_parameters(R_in, Set, Structure, p);
+% Keine Verwendung der Ausgabe: Parameter werden direkt in ursprüngliche
+% Funktion geschrieben; R.pkin ist vor/nach dem Aufruf unterschiedlich
+cds_update_robot_parameters(R, Set, Structure, p);
 
 %% Trajektorie anpassen
 Traj_0 = cds_rotate_traj(Traj_W, R.T_W_0);
@@ -115,7 +117,9 @@ end
 
 %% Dynamik-Parameter
 if strcmp(Set.optimization.objective, 'energy') || strcmp(Set.optimization.objective, 'mass')
-  % Dynamik-Parameter aktualisieren
+  % Dynamik-Parameter aktualisieren. Keine Nutzung der Ausgabe der Funktion
+  % (Parameter werden direkt in Klasse geschrieben; R.DesPar.seg_par ist
+  % vor/nach dem Aufruf unterschiedlich)
   R = cds_dimsynth_desopt(R, Q, Set, Structure);
 end
 %% Zielfunktion berechnen

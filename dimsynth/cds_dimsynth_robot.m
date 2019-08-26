@@ -194,9 +194,13 @@ save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsy
 % Debug:
 % load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat'));
 %% Nachverarbeitung der Ergebnisse
+% Fitness-Funktion nochmal mit besten Parametern aufrufen. Dadurch werden
+% die Klassenvariablen (R.pkin, R.DesPar.seg_par, ...) aktualisiert
 fval_test = fitnessfcn(p_val');
+if fval_test~=fval
+  warning('Bei nochmaligem Aufruf der Fitness-Funktion kommt nicht der gleiche Wert heraus.');
+end
 % Berechne Inverse Kinematik zu erstem Bahnpunkt
-R = cds_update_robot_parameters(R, Set, Structure, p_val);
 Traj_0 = cds_rotate_traj(Traj, R.T_W_0);
 if Structure.Type == 0 % Seriell
   [q, Phi] = R.invkin2(Traj_0.XE(1,:)', rand(R.NQJ,1));

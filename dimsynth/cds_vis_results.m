@@ -12,9 +12,16 @@ resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
 
 for i = 1:length(Structures)
   save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_vis_results2.mat'));
+  %% Initialisierung der Ergebnisse dieser Struktur
   % load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_vis_results2.mat'));
   Structure = Structures{i};
   Name = Structures{i}.Name;
+  tmp = load(fullfile(resmaindir, ...
+    sprintf('Rob%d_%s_Endergebnis.mat', i, Name)), 'RobotOptRes', 'Set', 'Traj');
+  RobotOptRes = tmp.RobotOptRes;
+  R = RobotOptRes.R;
+  Q = RobotOptRes.Traj_Q;
+  Traj_0 = cds_rotate_traj(Traj, R.T_W_0);
   %% Statistische Verteilung der Ergebnisse aller Generationen
   resdir_pso = fullfile(resmaindir, ...
     'tmp', sprintf('%d_%s', Structure.Number, Structure.Name));
@@ -119,14 +126,7 @@ for i = 1:length(Structures)
   saveas(10*i+1,     fullfile(resmaindir, sprintf('Rob%d_%s_Histogramm.fig', i, Name)));
   export_fig(10*i+1, fullfile(resmaindir, sprintf('Rob%d_%s_Histogramm.png', i, Name)));
   fprintf('%d/%d: Histogramm für %s gespeichert.\n', i, length(Structures), Name);
-  %% Animation des besten Roboters für die Trajektorie
-  tmp = load(fullfile(resmaindir, ...
-    sprintf('Rob%d_%s_Endergebnis.mat', i, Name)), 'RobotOptRes', 'Set', 'Traj');
-  RobotOptRes = tmp.RobotOptRes;
-  R = RobotOptRes.R;
-  Q = RobotOptRes.Traj_Q;
-  Traj_0 = cds_rotate_traj(Traj, R.T_W_0);
-  
+  %% Animation des besten Roboters für die Trajektorie 
   figure(10*i+2);clf;hold all;
   set(10*i+2, 'Name', sprintf('Rob%d_anim', i), 'NumberTitle', 'off');
   title(sprintf('Rob. %d: fval=%1.3f', i, RobotOptRes.fval));
@@ -148,4 +148,21 @@ for i = 1:length(Structures)
   saveas(10*i+2,     fullfile(resmaindir, sprintf('Rob%d_%s_Skizze.fig', i, Name)));
   export_fig(10*i+2, fullfile(resmaindir, sprintf('Rob%d_%s_Skizze.png', i, Name)));
   fprintf('%d/%d: Animation für %s gespeichert: %s\n', i, length(Structures), Name, s_anim.gif_name);
+  
+  %% Zeichnung der Roboters mit Trägheitsellipsen und Ersatzdarstellung
+  figure(10*i+3);clf;hold all;
+  set(10*i+3, 'Name', sprintf('Rob%d_Visu', i), 'NumberTitle', 'off');
+  sgtitle(sprintf('Rob. %d: fval=%1.3f', i, RobotOptRes.fval));
+  plotmode = [1 3 4];
+  for jj = 1:3
+    subplot(2,2,jj);  hold on;grid on;
+    view(3); axis auto;
+    if Structures{i}.Type == 0 % Seriell
+      s_plot = struct( 'straight', 0, 'mode', plotmode(jj));
+      R.plot(Q(1,:)', s_plot);
+    else
+      s_plot = struct( 'ks_legs', [], 'straight', 0, 'mode', plotmode(jj));
+      R.plot(Q(1,:)', Traj_0.X(1,:)', s_plot);
+    end
+  end
 end

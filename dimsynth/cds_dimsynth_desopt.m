@@ -20,8 +20,13 @@ density = 2.7E3; %[kg/m^3] Aluminium
 if R.Type == 0
   R.DesPar.seg_par = repmat([5e-3, 300e-3], R.NL, 1); % dicke Struktur
 elseif R.Type == 2  % Parallel (symmetrisch)
-  R.Leg(1).DesPar.seg_par = repmat([2e-3, 50e-3], R.Leg(1).NL, 1); % dünne Struktur
-  R.DesPar.platform_par(2) = 5e-3; % Dünne Platte als Plattform
+  for i = 1:R.NLEG
+    % Belege alle Beinketten, damit in Plot-Funktion nutzbar. Es werden
+    % eigentlich nur die Werte der ersten Beinkette für Berechnungen
+    % genutzt
+    R.Leg(i).DesPar.seg_par = repmat([2e-3, 50e-3], R.Leg(1).NL, 1); % dünne Struktur
+  end
+  R.DesPar.platform_par(2) = 10e-3; % Dünne Platte als Plattform
 end
 
 %% Dynamikparameter belegen
@@ -41,8 +46,8 @@ if Structure.Type == 0 || Structure.Type == 2
   mges_Zus = zeros(R_pkin.NL,1);
   mrS_ges_Zus = zeros(R_pkin.NL,3);
   If_ges_Zus = zeros(R_pkin.NL,6);
+  mges_Zus(end) = Set.task.payload.m;
   if R.Type == 0 % Seriell
-    mges_Zus(end) = Set.task.payload.m;
     r_N_N_E = R.T_N_E(1:3,4);
     [mrS_ges_Zus(end,:), If_ges_Zus(end,:)] = inertial_parameters_convert_par1_par2( ...
       r_N_N_E(:)', Set.task.payload.Ic(:)', Set.task.payload.m);
@@ -98,12 +103,16 @@ if Structure.Type == 0 || Structure.Type == 2
         % Rotationsmatrix für das letzte Segment-KS
         % Die x-Achse muss zum EE zeigen. Die anderen beiden Achsen sind
         % willkürlich senkrecht dazu.
-        x_Si = R_pkin.T_N_E(1:3,4) / norm(R_pkin.T_N_E(1:3,4));
-        y_Si = cross(x_Si, R_pkin.T_N_E(1:3,1));
-        y_Si = y_Si/norm(y_Si);
-        z_Si = cross(x_Si, y_Si);
-        R_i_Si = [x_Si, y_Si, z_Si];
-        if abs(det(R_i_Si)-1) > 1e-6
+        if ~all(R_pkin.T_N_E(1:3,4) == 0)
+          x_Si = R_pkin.T_N_E(1:3,4) / norm(R_pkin.T_N_E(1:3,4));
+          y_Si = cross(x_Si, R_pkin.T_N_E(1:3,1));
+          y_Si = y_Si/norm(y_Si);
+          z_Si = cross(x_Si, y_Si);
+          R_i_Si = [x_Si, y_Si, z_Si];
+        else
+          R_i_Si = eye(3); % Es gibt keinen Abstand zum letzten KS. EE hat keine eigene Ausdehnung
+        end
+        if abs(det(R_i_Si)-1) > 1e-6 || any(isnan(R_i_Si(:)))
           error('Letztes Segment-KS stimmt nicht');
         end
       else % Parallel
@@ -125,8 +134,8 @@ if Structure.Type == 0 || Structure.Type == 2
       % Schwerpunktskoordinate  im Segment-KS (nicht: Körper-KS)
       r_S_Oi_C = [L_i/2;0;0]; % % [A]/(5)
       % Trägheitstensor im Segment-KS (nicht: Körper-KS)
-      J_S_C_xx=(m_s/2)*((R_i^2 + (R_i-e_i)^2)); % Längsrichtung des Zylinders
-      J_S_C_yy=(m_s/4)*((R_i^2 + (R_i-e_i)^2)+((L_i^2)/3));
+      J_S_C_xx=m_s/2*(R_i^2 + (R_i-e_i)^2); % Längsrichtung des Zylinders
+      J_S_C_yy=m_s/4*(R_i^2 + (R_i-e_i)^2 + (L_i^2)/3);
       J_S_C_zz=J_S_C_yy;
       J_S_C = diag([J_S_C_xx; J_S_C_yy; J_S_C_zz]); % % [A]/(7)
       % Umrechnen auf Körper-KS;
@@ -164,7 +173,9 @@ if Structure.Type == 0 || Structure.Type == 2
   mges = mges_Zus + mges_Link;
   mrS_ges = mrS_ges_Zus + mrS_ges_Link;
   If_ges = If_ges_Zus + If_ges_Link;
-  
+  if any(isnan([If_ges(:);mrS_ges(:)]))
+    error('Irgendein Dynamik-Parameter ist NaN. Das stört spätere Berechnungen!');
+  end
   if R.Type == 0 
     % Seriell: Parameter direkt eintragen
     R.update_dynpar2(mges, mrS_ges, If_ges)
