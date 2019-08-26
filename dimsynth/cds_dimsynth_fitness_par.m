@@ -113,6 +113,11 @@ if any(I_ZBviol)
   return
 end
 
+%% Dynamik-Parameter
+if strcmp(Set.optimization.objective, 'energy') || strcmp(Set.optimization.objective, 'mass')
+  % Dynamik-Parameter aktualisieren
+  R = cds_dimsynth_desopt(R, Q, Set, Structure);
+end
 %% Zielfunktion berechnen
 if strcmp(Set.optimization.objective, 'condition')
   Cges = NaN(length(Traj_0.t), 1);
@@ -176,8 +181,6 @@ if strcmp(Set.optimization.objective, 'condition')
     linkxaxes
   end
 elseif strcmp(Set.optimization.objective, 'energy')
-  % Dynamik-Parameter aktualisieren
-  R = cds_dimsynth_desopt(R, Q, Set, Structure);
   % Trajektorie in Plattform-KS umrechnen
   XP = Traj_0.X;
   XPD = Traj_0.XD;
@@ -244,10 +247,14 @@ elseif strcmp(Set.optimization.objective, 'energy')
     ylabel('Gelenk-Moment.'); grid on;
     linkxaxes
   end
+elseif strcmp(Set.optimization.objective, 'mass')
+  % Gesamtmasse berechnen
+  m_sum = sum(R.DynPar.mges(1:end-1))*R.NLEG + R.DynPar.mges(end);
+  f_mass_norm = 2/pi*atan((m_sum)/100); % Normierung auf 0 bis 1; 620 ist 0.9. TODO: Skalierung ändern
+  fval = 1e3*f_mass_norm; % Normiert auf 0 bis 1e3
 else
   error('Zielfunktion nicht definiert');
 end
-
 
 debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval);
 end

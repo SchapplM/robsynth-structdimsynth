@@ -78,7 +78,11 @@ if any(I_ZBviol)
   debug_plot_robot(R, Q(1,:)', Traj_W, Set, Structure, p, fval);
   return
 end
-
+%% Dynamik-Parameter
+if strcmp(Set.optimization.objective, 'energy') || strcmp(Set.optimization.objective, 'mass')
+  % Dynamik-Parameter aktualisieren
+  R = cds_dimsynth_desopt(R, Q, Set, Structure);
+end
 %% Zielfunktion berechnen
 if strcmp(Set.optimization.objective, 'condition')
   Cges = NaN(length(Traj_0.t), 1);
@@ -96,8 +100,6 @@ if strcmp(Set.optimization.objective, 'condition')
   fval = 1e3*f_cond_norm; % Normiert auf 0 bis 1e3
   fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3f. Konditionszahl %1.3e\n', toc(t1), fval, f_cond1);
 elseif strcmp(Set.optimization.objective, 'energy')
-  % Dynamik-Parameter aktualisieren
-  R = cds_dimsynth_desopt(R, Q, Set, Structure);
   % Antriebskräfte berechnen
   TAU = R.invdyn2_traj(Q, QD, QDD);
   % Aktuelle mechanische Leistung in allen Gelenken
@@ -148,6 +150,11 @@ elseif strcmp(Set.optimization.objective, 'energy')
     ylabel('Gelenk-Moment.'); grid on;
     linkxaxes
   end
+elseif strcmp(Set.optimization.objective, 'mass')
+  % Gesamtmasse berechnen
+  m_sum = sum(R.DynPar.mges(2:end));
+  f_mass_norm = 2/pi*atan((m_sum)/100); % Normierung auf 0 bis 1; 620 ist 0.9. TODO: Skalierung ändern
+  fval = 1e3*f_mass_norm; % Normiert auf 0 bis 1e3
 else
   error('Zielfunktion nicht definiert');
 end
