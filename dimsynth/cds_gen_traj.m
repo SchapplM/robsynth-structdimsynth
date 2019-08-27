@@ -16,6 +16,13 @@ if all(DoF == [1 1 0 0 0 1])
     k=k+1; XE(k,:) = XE(k-1,:) + [0,-d1,0  0,0,0];
     k=k+1; XE(k,:) = XE(k-1,:) + [-d1,0,0, 0,0,0];
     k=k+1; XE(k,:) = XE(k-1,:) + [0,d1,0  0,0,0];
+  elseif no == 2
+    d1=0.3;
+    phimax = pi/2;
+    k=k+1; XE(k,:) = XE(k-1,:) + [ d1,0,0, 0,0,phimax];
+    k=k+1; XE(k,:) = XE(k-1,:) + [0,-d1,0  0,0,-phimax];
+    k=k+1; XE(k,:) = XE(k-1,:) + [-d1,0,0, 0,0,-phimax];
+    k=k+1; XE(k,:) = XE(k-1,:) + [0,d1,0  0,0, phimax];
   end
 end
 
