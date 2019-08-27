@@ -18,6 +18,7 @@ Set.general.plot_details_in_fitness = 1e3;
 Set.general.plot_robot_in_fitness = 1e3;
 Set.general.save_robot_details_plot_fitness_file_extensions = {'fig'};
 Set.general.save_evolution_video = true;
+Set.general.save_animation_file_extensions = {'avi', 'gif'};
 Set.structures.whitelist = {'P3RRR1A1', 'S3RRR1'};
 for Traj_no = 1:2
   for obj_name = {'mass', 'energy', 'condition'}

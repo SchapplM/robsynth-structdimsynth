@@ -37,8 +37,10 @@ for i = 1:length(Structures)
   Klassengrenzen_Alle_Log(1) = 0;
   % Histogramm erstellen
   figure(10*i+1);clf;hold all;
-  set(10*i+1, 'Name', sprintf('Rob%d_Hist', i), 'NumberTitle', 'off', ...
-    'units','normalized','outerposition',[0 0 1 1], 'color','w');
+  set(10*i+1, 'Name', sprintf('Rob%d_Hist', i), 'NumberTitle', 'off', 'color','w');
+  if ~strcmp(get(10*i+1, 'windowstyle'), 'docked')
+    set(10*i+1,'units','normalized','outerposition',[0 0 1 1]);
+  end
   sgtitle(sprintf('Erg.-Vert. für %s: %d Parametersätze in %d Gen.', Name, length(I_zul), size(Erg_All_Gen,1)));
   subplot(2,2,sprc2no(2,2,1,1)); % Histogramm über zulässige Lösungen
   h_zul = histogram(Erg_All_Gen(I_zul));
@@ -130,15 +132,16 @@ for i = 1:length(Structures)
   fprintf('%d/%d: Histogramm für %s gespeichert.\n', i, length(Structures), Name);
   %% Animation des besten Roboters für die Trajektorie 
   figure(10*i+2);clf;hold all;
-  set(10*i+2, 'Name', sprintf('Rob%d_anim', i), 'NumberTitle', 'off', ...
-    'units','normalized','outerposition',[0 0 1 1],'color','w');
+  set(10*i+2, 'Name', sprintf('Rob%d_anim', i), 'NumberTitle', 'off', 'color','w');
+  if ~strcmp(get(10*i+2, 'windowstyle'), 'docked')
+    set(10*i+2,'units','normalized','outerposition',[0 0 1 1]);
+  end
   title(sprintf('Rob. %d: fval=%1.3f', i, RobotOptRes.fval));
   view(3);
   axis auto
   hold on;grid on;
   xlabel('x in m');ylabel('y in m');zlabel('z in m');
   plot3(Traj.X(:,1), Traj.X(:,2),Traj.X(:,3), 'k-');
-  set(10*i+2,'units','normalized','outerposition',[0 0 1 1])
   s_anim = struct('gif_name', '', 'avi_name', '');
   for file_ext = Set.general.save_animation_file_extensions
     s_anim.(sprintf('%s_name', file_ext{1})) = fullfile(resmaindir, sprintf('Rob%d_%s_Animation.%s', i, Name, file_ext{1}));
@@ -156,8 +159,10 @@ for i = 1:length(Structures)
   
   %% Zeichnung der Roboters mit Trägheitsellipsen und Ersatzdarstellung
   figure(10*i+3);clf;hold all;
-  set(10*i+3, 'Name', sprintf('Rob%d_Visu', i), 'NumberTitle', 'off', ...
-    'units','normalized','outerposition',[0 0 1 1],'color','w');
+  set(10*i+3, 'Name', sprintf('Rob%d_Visu', i), 'NumberTitle', 'off', 'color','w');
+  if ~strcmp(get(10*i+3, 'windowstyle'), 'docked')
+    set(10*i+3,'units','normalized','outerposition',[0 0 1 1]);
+  end
   sgtitle(sprintf('Rob. %d: fval=%1.3f', i, RobotOptRes.fval));
   plotmode = [1 3 4];
   for jj = 1:3

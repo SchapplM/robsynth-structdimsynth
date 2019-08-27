@@ -29,18 +29,20 @@ for j = 1:length(Structures)
   
   % Ergebnis-Bild für Video initialisieren
   figure(1);clf;
-  if exist(videofile_avi, 'file'), delete(videofile_avi); end
-  v = VideoWriter(videofile_avi, 'Uncompressed AVI'); %#ok<TNMLP>
-  open(v);
 
   filedat_detailimg = dir(fullfile(resdir_pso, 'PSO_Gen*_FitEval*_Details.fig'));
   if length(filedat_detailimg) < 10
-    warning('Es liegen nur %d Detailbilder im fig-Format im Ordner %s. Video nicht sinnvoll', length(filedat_detailimg));
+    warning('Es liegen nur %d Detailbilder im fig-Format im Ordner %s. Video nicht sinnvoll', ...
+      length(filedat_detailimg), resdir_pso);
+    continue
   end
+  if exist(videofile_avi, 'file'), delete(videofile_avi); end
+  v = VideoWriter(videofile_avi, 'Uncompressed AVI'); %#ok<TNMLP>
+  open(v);
   fprintf('Schreibe Video-Datei %s\n', videofile_avi);
   t1=tic();
 
-  for i = 1:20%length(filedat_detailimg)
+  for i = 1:length(filedat_detailimg)
     fprintf('%d/%d (%1.1f%%): %s; %1.0fs nach Start. Verbleibend ca. %1.0fs\n', ...
       i, length(filedat_detailimg), i/length(filedat_detailimg), ...
       filedat_detailimg(i).name, toc(t1), toc(t1)/i*(length(filedat_detailimg)-i))
@@ -85,14 +87,13 @@ for j = 1:length(Structures)
   % Schreibe das Video in den Ordner mit Endergebnissen (da es komprimierte
   % Information beinhaltet)
   videofile_mp4 = fullfile(resmaindir, sprintf('Rob%d_%s_Evolution_Video.mp4', Structure.Number, Structure.Name));
-  res = system(sprintf('avconv -i %s %s "%s"', videofile_avi, avsettings, videofile_mp4));
+  res = system(sprintf('avconv -y -i %s %s "%s"', videofile_avi, avsettings, videofile_mp4));
   if res == 0
     finfotmp_mp4 = dir(videofile_mp4);
     finfotmp_avi = dir(videofile_avi);
     % Video erfolgreich erstellt. Lösche avi wieder
-    fprintf('Video-Datei erfolgreich komprimiert (avi->mp4): mit %1.1f MB. Lösche avi-Datei (%1.1f MB)\n', ...
-      videofile_mp4, finfotmp_mp4(1).name, finfotmp_mp4(1).bytes/1e6, finfotmp_avi(1).bytes/1e6);
+    fprintf('Video-Datei %s erfolgreich komprimiert (avi->mp4) (neu: %1.1f MB). Lösche avi-Datei (%1.1f MB)\n', ...
+      finfotmp_mp4(1).name, finfotmp_mp4(1).bytes/1e6, finfotmp_avi(1).bytes/1e6);
     delete(videofile_avi);
   end
-  return
 end
