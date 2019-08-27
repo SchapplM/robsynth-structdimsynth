@@ -31,6 +31,9 @@ general = struct( ...
   'verbosity', 2, ...
   'plot_robot_in_fitness', 0, ... % Schwellwert der Gütefunktion zum Zeichnen von Details.
   'plot_details_in_fitness', 0, ... % Positiv: nur bei besseren; negativ: nur bei schlechteren als ...
+  'save_robot_details_plot_fitness_file_extensions', {''}, ... % Speichern des durch vorherige Einstellung erstellten Bildes
+  'save_animation_file_extensions', {{'gif'}}, ... % Format, in denen die Animationen gespeichert werden
+  'save_evolution_video', false, ... % Video mit Evolution der Roboter
   'use_mex', true);
 
 %% Einstellungen zur Auswahl der verwendeten Strukturen

@@ -174,36 +174,51 @@ if strcmp(Set.optimization.objective, 'condition')
       Jinv_num_voll = -G_q \ G_x;
       Jinv = Jinv_num_voll(R.I_qa,:);
       % Debug: Vergleich Jacobi
-      if any(any(abs(Jinv - R.jacobi_qa_x(Q(i,:)', Traj_0.X(i,:)')) > 1e-10))
-        error('Jacobi numerisch vs. symbolisch stimmt nicht');
+      if any(any(abs(Jinv - R.jacobi_qa_x(Q(i,:)', Traj_0.X(i,:)')) > 1e-6))
+        save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par3.mat'));
+        warning('Jacobi numerisch vs. symbolisch stimmt nicht');
       end
       det_ges(i,:) = [det(G_dx), det(G_q), det(Jinv)];
     end
-
-    figure(201);clf;
-    sgtitle('Auswertung Jacobi-Matrizen')
-    subplot(2,3,1);
-    plot(Traj_0.t, Cges); hold on;
-    ylabel('Konditionszahl'); grid on;
-    subplot(2,3,2);
-    plot(Traj_0.t, Traj_0.XD); hold on;
-    ylabel('EE-Geschw.'); grid on;
-    legend({'r_x', 'r_y', 'r_z', '\phi_1', '\phi_2', '\phi_3'});
-    subplot(2,3,3);
-    plot(Traj_0.t, QD(:,R.I_qa)); hold on;
-    ylabel('Gelenk-Geschw. (aktiv)'); grid on;
-    subplot(2,3,4);
-    plot(Traj_0.t, QD(:,~R.I_qa)); hold on;
-    ylabel('Gelenk-Geschw. (passiv)'); grid on;
-    subplot(2,3,5);
-    plot(Traj_0.t, det_ges); hold on;
-    ylabel('Determinanten'); grid on;
-    legend({'A (dh/dx; DirKin)', 'B (dh/dq; InvKin)', 'Jinv'});
-    subplot(2,3,6);
-    plot(Traj_0.t, log(abs(det_ges))); hold on;
-    ylabel('Log |Determinanten|'); grid on;
-    legend({'A (dh/dx; DirKin)', 'B (dh/dq; InvKin)', 'Jinv'});
-    linkxaxes
+    
+    if Set.general.plot_robot_in_fitness < 0 && fval > abs(Set.general.plot_robot_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
+       Set.general.plot_robot_in_fitness > 0 && fval < abs(Set.general.plot_robot_in_fitness) % Gütefunktion ist besser als Schwellwert: Zeichne
+      change_current_figure(201); clf;
+      if ~strcmp(get(201, 'windowstyle'), 'docked')
+        set(201,'units','normalized','outerposition',[0 0 1 1]);
+      end
+      sgtitle('Auswertung Jacobi-Matrizen')
+      subplot(2,3,1);
+      plot(Traj_0.t, Cges); hold on;
+      ylabel('Konditionszahl'); grid on;
+      subplot(2,3,2);
+      plot(Traj_0.t, Traj_0.XD); hold on;
+      ylabel('EE-Geschw.'); grid on;
+      legend({'r_x', 'r_y', 'r_z', '\phi_1', '\phi_2', '\phi_3'});
+      subplot(2,3,3);
+      plot(Traj_0.t, QD(:,R.I_qa)); hold on;
+      ylabel('Gelenk-Geschw. (aktiv)'); grid on;
+      subplot(2,3,4);
+      plot(Traj_0.t, QD(:,~R.I_qa)); hold on;
+      ylabel('Gelenk-Geschw. (passiv)'); grid on;
+      subplot(2,3,5);
+      plot(Traj_0.t, det_ges); hold on;
+      ylabel('Determinanten'); grid on;
+      legend({'A (dh/dx; DirKin)', 'B (dh/dq; InvKin)', 'Jinv'});
+      subplot(2,3,6);
+      plot(Traj_0.t, log(abs(det_ges))); hold on;
+      ylabel('Log |Determinanten|'); grid on;
+      legend({'A (dh/dx; DirKin)', 'B (dh/dq; InvKin)', 'Jinv'});
+      linkxaxes
+      [currgen,currimg,resdir] = get_new_figure_filenumber(Set, Structure,'ParRobJacobian');
+      for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
+        if strcmp(fileext{1}, 'fig')
+          saveas(201, fullfile(resdir, sprintf('PSO_Gen%02d_FitEval%03d_ParRobJacobian.fig', currgen, currimg)));
+        else
+          export_fig(201, fullfile(resdir, sprintf('PSO_Gen%02d_FitEval%03d_ParRobJacobian.%s', currgen, currimg, fileext{1})));
+        end
+      end
+    end
   end
 elseif strcmp(Set.optimization.objective, 'energy')
   % Trajektorie in Plattform-KS umrechnen
@@ -271,6 +286,14 @@ elseif strcmp(Set.optimization.objective, 'energy')
     plot(Traj_0.t, TAU);
     ylabel('Gelenk-Moment.'); grid on;
     linkxaxes
+    [currgen,currimg,resdir] = get_new_figure_filenumber(Set, Structure,'ParRobEnergy');
+    for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
+      if strcmp(fileext{1}, 'fig')
+        saveas(202, fullfile(resdir, sprintf('PSO_Gen%02d_FitEval%03d_ParRobEnergy.fig', currgen, currimg)));
+      else
+        export_fig(202, fullfile(resdir, sprintf('PSO_Gen%02d_FitEval%03d_ParRobEnergy.%s', currgen, currimg, fileext{1})));
+      end
+    end
   end
 elseif strcmp(Set.optimization.objective, 'mass')
   % Gesamtmasse berechnen
@@ -298,7 +321,10 @@ end
 tt = '';
 for i = 1:length(debug_info), tt = [tt, newline(), debug_info{i}]; end %#ok<AGROW>
 
-figure(200);clf;hold all;
+change_current_figure(200); clf; hold all;
+if ~strcmp(get(200, 'windowstyle'), 'docked')
+  set(200,'units','normalized','outerposition',[0 0 1 1]);
+end
 view(3);
 axis auto
 hold on;grid on;
@@ -310,4 +336,36 @@ title(sprintf('fval=%1.2e; p=[%s]; %s', fval,disp_array(p','%1.3f'), tt));
 xlim([-1,1]*Structure.Lref*3+mean(minmax2(Traj_W.XE(:,1)')'));
 ylim([-1,1]*Structure.Lref*3+mean(minmax2(Traj_W.XE(:,2)')'));
 zlim([-1,1]*Structure.Lref*1+mean(minmax2(Traj_W.XE(:,3)')'));
+if ~isempty(Set.general.save_robot_details_plot_fitness_file_extensions)
+  [currgen,currimg,resdir] = get_new_figure_filenumber(Set, Structure,'Details');
+  for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
+    if strcmp(fileext{1}, 'fig')
+      saveas(200, fullfile(resdir, sprintf('PSO_Gen%02d_FitEval%03d_Details.fig', currgen, currimg)));
+    else
+      export_fig(200, fullfile(resdir, sprintf('PSO_Gen%02d_FitEval%03d_Details.%s', currgen, currimg, fileext{1})));
+    end
+  end
+end
+end
+
+function [currgen,currimg,resdir] = get_new_figure_filenumber(Set, Structure, suffix)
+resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+  'tmp', sprintf('%d_%s', Structure.Number, Structure.Name));
+matfiles = dir(fullfile(resdir, 'PSO_Gen*.mat'));
+if isempty(matfiles)
+  % Es liegen noch keine .mat-Dateien vor. Also wird aktuell die erste
+  % Generation berechnet
+  currgen = 0;
+else
+  [tokens_mat,~] = regexp(matfiles(end).name,'PSO_Gen(\d+)','tokens','match');
+  currgen = str2double(tokens_mat{1}{1})+1; % Es fängt mit Null an
+end
+imgfiles = dir(fullfile(resdir, sprintf('PSO_Gen%02d_FitEval*_%s*',currgen,suffix)));
+if isempty(imgfiles)
+  % Es liegen noch keine Bild-Dateien vor.
+  currimg = 0;
+else
+  [tokens_img,~] = regexp(imgfiles(end).name,sprintf('PSO_Gen%02d_FitEval(\\d+)_%s',currgen,suffix),'tokens','match');
+  currimg = str2double(tokens_img{1}{1})+1;
+end
 end

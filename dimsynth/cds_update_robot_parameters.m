@@ -111,5 +111,5 @@ if R_neu.Type == 2 && any(Structure.vartypes == 7)
     error('Basis-Koppelpunkt muss zusammen mit Plattformkoppelpunkt optimiert werden');
   end
   % Setze den Plattform-Radius skaliert mit Gestell-Radius
-  R_neu.align_platform_coupling(1, p_pfradius*p_baseradius);
+  R_neu.align_platform_coupling(1, R_neu.DesPar.base_par(1)*p_baseradius);
 end

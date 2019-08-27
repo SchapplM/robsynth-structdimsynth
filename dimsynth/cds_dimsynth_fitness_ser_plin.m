@@ -179,17 +179,50 @@ end
 tt = '';
 for i = 1:length(debug_info), tt = [tt, newline(), debug_info{i}]; end %#ok<AGROW>
 
-figure(200);clf;hold all;
+change_current_figure(200); clf; hold all;
+if ~strcmp(get(200, 'windowstyle'), 'docked')
+  set(200,'units','normalized','outerposition',[0 0 1 1]);
+end
 view(3);
 axis auto
 hold on;grid on;
 xlabel('x in m');ylabel('y in m');zlabel('z in m');
 plot3(Traj_W.X(:,1), Traj_W.X(:,2),Traj_W.X(:,3), 'k-');
-set(200,'units','normalized','outerposition',[0 0 1 1])
 s_plot = struct( 'ks_legs', [], 'straight', 0);
 R.plot( q, s_plot);
 title(sprintf('fval=%1.2e; p=[%s]; %s', fval,disp_array(p','%1.3f'), tt));
-xlim([-1,1]*Structure.Lref*1.5+mean(minmax2(Traj_W.XE(:,1)')'));
-ylim([-1,1]*Structure.Lref*1.5+mean(minmax2(Traj_W.XE(:,2)')'));
+xlim([-1,1]*Structure.Lref*2.0+mean(minmax2(Traj_W.XE(:,1)')'));
+ylim([-1,1]*Structure.Lref*2.0+mean(minmax2(Traj_W.XE(:,2)')'));
 zlim([-1,1]*Structure.Lref*1+mean(minmax2(Traj_W.XE(:,3)')'));
+if ~isempty(Set.general.save_robot_details_plot_fitness_file_extensions)
+  [currgen,currimg,resdir] = get_new_figure_filenumber(Set, Structure,'Details');
+  for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
+    if strcmp(fileext{1}, 'fig')
+      saveas(200, fullfile(resdir, sprintf('PSO_Gen%02d_FitEval%03d_Details.fig', currgen, currimg)));
+    else
+      export_fig(200, fullfile(resdir, sprintf('PSO_Gen%02d_FitEval%03d_Details.%s', currgen, currimg, fileext{1})));
+    end
+  end
+end
+end
+function [currgen,currimg,resdir] = get_new_figure_filenumber(Set, Structure, suffix)
+  resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+    'tmp', sprintf('%d_%s', Structure.Number, Structure.Name));
+  matfiles = dir(fullfile(resdir, 'PSO_Gen*.mat'));
+  if isempty(matfiles)
+    % Es liegen noch keine .mat-Dateien vor. Also wird aktuell die erste
+    % Generation berechnet
+    currgen = 0;
+  else
+    [tokens_mat,~] = regexp(matfiles(end).name,'PSO_Gen(\d+)','tokens','match');
+    currgen = str2double(tokens_mat{1}{1})+1; % Es fängt mit Null an
+  end
+  imgfiles = dir(fullfile(resdir, sprintf('PSO_Gen%02d_FitEval*',currgen)));
+  if isempty(imgfiles)
+    % Es liegen noch keine Bild-Dateien vor.
+    currimg = 0;
+  else
+    [tokens_img,~] = regexp(imgfiles(end).name,sprintf('PSO_Gen%02d_FitEval(\\d+)_%s',currgen,suffix),'tokens','match');
+    currimg = str2double(tokens_img{1}{1})+1;
+  end
 end

@@ -198,6 +198,14 @@ options.InitialSwarmMatrix = InitPop;
 options.PlotFcn = {@pswplotbestf};
 cds_save_all_results_anonym = @(optimValues,state)cds_psw_save_all_results(optimValues,state,Set,Structure);
 options.OutputFcn = {cds_save_all_results_anonym};
+%% Tmp-Ordner leeren
+resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+  'tmp', sprintf('%d_%s', Structure.Number, Structure.Name));
+if exist(resdir, 'file')
+  % Leere Verzeichnis
+  rmdir(resdir, 's')
+end
+mkdirs(resdir);
 %% Fitness-Funktion initialisieren
 if Structure.Type == 0 % Seriell
   fitnessfcn=@(p)cds_dimsynth_fitness_ser_plin(R, Set, Traj, Structure, p(:));

@@ -31,3 +31,4 @@ end
 
 % Ergebnisse darstellen
 cds_vis_results(Set, Traj, Structures);
+cds_create_evolution_videos(Set, Traj, Structures)
