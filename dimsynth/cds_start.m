@@ -15,6 +15,7 @@ mkdirs(fullfile(Set.optimization.resdir, Set.optimization.optname));
 % Menge der Roboter laden
 Structures = cds_gen_robot_list(Set.structures);
 
+if ~Set.general.regenerate_summmary_only
 % Optimierung der Strukturen durchführen
 for i = 1:length(Structures)
   % Maßsynthese für diesen Roboter starten
@@ -26,7 +27,7 @@ for i = 1:length(Structures)
     sprintf('Rob%d_%s_Endergebnis.mat', i, Structures{i}.Name)), ...
     'RobotOptRes', 'Set', 'Traj');
 end
-
+end
 % Ergebnisse vergleichen
 
 % Ergebnisse darstellen

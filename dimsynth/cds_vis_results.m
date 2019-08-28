@@ -20,6 +20,11 @@ for i = 1:length(Structures)
     sprintf('Rob%d_%s_Endergebnis.mat', i, Name)), 'RobotOptRes', 'Set', 'Traj');
   RobotOptRes = tmp.RobotOptRes;
   R = RobotOptRes.R;
+  if Structure.Type == 0
+    serroblib_addtopath({Name});
+  else
+    parroblib_addtopath({Name});
+  end
   Q = RobotOptRes.Traj_Q;
   Traj_0 = cds_rotate_traj(Traj, R.T_W_0);
   %% Statistische Verteilung der Ergebnisse aller Generationen

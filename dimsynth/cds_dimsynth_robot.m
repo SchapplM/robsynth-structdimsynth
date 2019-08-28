@@ -217,10 +217,12 @@ end
 f_test = fitnessfcn(InitPop(1,:)'); % Testweise ausführen
 
 %% PSO-Aufruf starten
-[p_val,fval,exitflag, output] = particleswarm(fitnessfcn,nvars,varlim(:,1),varlim(:,2),options);
 save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat'));
+[p_val,fval,exitflag, output] = particleswarm(fitnessfcn,nvars,varlim(:,1),varlim(:,2),options);
+
+save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot3.mat'));
 % Debug:
-% load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat'));
+% load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot3.mat'));
 %% Nachverarbeitung der Ergebnisse
 % Fitness-Funktion nochmal mit besten Parametern aufrufen. Dadurch werden
 % die Klassenvariablen (R.pkin, R.DesPar.seg_par, ...) aktualisiert

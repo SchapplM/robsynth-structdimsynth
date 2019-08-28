@@ -34,6 +34,7 @@ general = struct( ...
   'save_robot_details_plot_fitness_file_extensions', {''}, ... % Speichern des durch vorherige Einstellung erstellten Bildes
   'save_animation_file_extensions', {{'gif'}}, ... % Format, in denen die Animationen gespeichert werden
   'save_evolution_video', false, ... % Video mit Evolution der Roboter
+  'regenerate_summmary_only', false, ... % Nur die Videos und Zusammenfassungsbilder neu generieren. Keine Optimierung durchführen.
   'use_mex', true);
 
 %% Einstellungen zur Auswahl der verwendeten Strukturen
