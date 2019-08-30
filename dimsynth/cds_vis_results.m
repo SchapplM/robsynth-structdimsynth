@@ -135,7 +135,7 @@ for i = 1:length(Structures)
   saveas(10*i+1,     fullfile(resmaindir, sprintf('Rob%d_%s_Histogramm.fig', i, Name)));
   export_fig(10*i+1, fullfile(resmaindir, sprintf('Rob%d_%s_Histogramm.png', i, Name)));
   fprintf('%d/%d: Histogramm für %s gespeichert.\n', i, length(Structures), Name);
-  %% Animation des besten Roboters für die Trajektorie 
+  %% Animation des besten Roboters für die Trajektorie
   figure(10*i+2);clf;hold all;
   set(10*i+2, 'Name', sprintf('Rob%d_anim', i), 'NumberTitle', 'off', 'color','w');
   if ~strcmp(get(10*i+2, 'windowstyle'), 'docked')
@@ -161,7 +161,6 @@ for i = 1:length(Structures)
   saveas(10*i+2,     fullfile(resmaindir, sprintf('Rob%d_%s_Skizze.fig', i, Name)));
   export_fig(10*i+2, fullfile(resmaindir, sprintf('Rob%d_%s_Skizze.png', i, Name)));
   fprintf('%d/%d: Animation für %s gespeichert: %s\n', i, length(Structures), Name, s_anim.gif_name);
-  
   %% Zeichnung der Roboters mit Trägheitsellipsen und Ersatzdarstellung
   figure(10*i+3);clf;hold all;
   set(10*i+3, 'Name', sprintf('Rob%d_Visu', i), 'NumberTitle', 'off', 'color','w');

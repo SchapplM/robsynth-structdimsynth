@@ -16,7 +16,7 @@ Structure.Lref = Lref;
 %% Roboter-Klasse initialisieren
 if Structure.Type == 0 % Seriell
   R = serroblib_create_robot_class(Structure.Name);
-  R.gen_testsettings(true, true); % Setze Parameter auf Zufallswerte
+  R.gen_testsettings(false, true); % Setze Kinematik-Parameter auf Zufallswerte
   R.fill_fcn_handles(Set.general.use_mex, true);
   R.qlim(R.MDH.sigma==1,:) = repmat([-2*Lref, 2*Lref],sum(R.MDH.sigma==1),1); % Schubgelenk
   R.qlim(R.MDH.sigma==0,:) = repmat([-pi, pi],    sum(R.MDH.sigma==0),1); % Drehgelenk
@@ -218,7 +218,20 @@ f_test = fitnessfcn(InitPop(1,:)'); % Testweise ausführen
 
 %% PSO-Aufruf starten
 save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat'));
-[p_val,fval,exitflag, output] = particleswarm(fitnessfcn,nvars,varlim(:,1),varlim(:,2),options);
+if false
+  % Falls der PSO abbricht: Zwischenergebnisse laden und daraus Endergebnis
+  % erzeugen. Dafür ist ein manuelles Eingreifen mit den Befehlen in diesem
+  % Block erforderlich. Danach kann die Funktion zu Ende ausgeführt werden.
+  load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat'));
+  filelist_tmpres = dir(fullfile(resdir, 'PSO_Gen*_AllInd_iter.mat'));
+  lastres = load(fullfile(resdir, filelist_tmpres(end).name));
+  p_val = lastres.optimValues.bestx;
+  fval = lastres.optimValues.bestfval;
+  exitflag = -6;
+else
+  % PSO wird ganz normal ausgeführt.
+  [p_val,fval,exitflag] = particleswarm(fitnessfcn,nvars,varlim(:,1),varlim(:,2),options);
+end
 
 save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot3.mat'));
 % Debug:
@@ -266,3 +279,6 @@ RobotOptRes = struct( ...
   'varlim', varlim, ...
   'Structure', Structure, ...
   'fitnessfcn', fitnessfcn);
+% Debug: Durch laden dieser Ergebnisse kann nach Abbruch des PSO das
+% Ergebnis trotzdem geladen werden
+save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot4.mat'));
