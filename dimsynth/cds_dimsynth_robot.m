@@ -19,7 +19,7 @@ if Structure.Type == 0 % Seriell
   R.gen_testsettings(false, true); % Setze Kinematik-Parameter auf Zufallswerte
   R.fill_fcn_handles(Set.general.use_mex, true);
   R.qlim(R.MDH.sigma==1,:) = repmat([-2*Lref, 2*Lref],sum(R.MDH.sigma==1),1); % Schubgelenk
-  R.qlim(R.MDH.sigma==0,:) = repmat([-pi, pi],    sum(R.MDH.sigma==0),1); % Drehgelenk
+  R.qlim(R.MDH.sigma==0,:) = repmat([-0.5, 0.5]*Set.optimization.max_range_active_revolute, sum(R.MDH.sigma==0),1); % Drehgelenk
   R.DynPar.mode = 4; % Benutze Minimalparameter-Dynamikfunktionen
 elseif Structure.Type == 2 % Parallel
   R = parroblib_create_robot_class(Structure.Name, 2, 1);
@@ -29,8 +29,12 @@ elseif Structure.Type == 2 % Parallel
   end
   R.fill_fcn_handles(Set.general.use_mex, true); % Nutze mex-Funktionen für PKM-Funktionen
   for i = 1:R.NLEG
+    % Grenzen für Dreh- und Schubgelenke auf Standardwerte setzen
     R.Leg(i).qlim(R.Leg(i).MDH.sigma==1,:) = repmat([-2*Lref, 2*Lref],sum(R.Leg(i).MDH.sigma==1),1); % Schubgelenk
     R.Leg(i).qlim(R.Leg(i).MDH.sigma==0,:) = repmat([-pi, pi],    sum(R.Leg(i).MDH.sigma==0),1); % Drehgelenk
+    % Grenzen für aktives Drehgelenk setzen
+    I_actrevol = R.Leg(i).MDH.mu == 2 & R.Leg(i).MDH.sigma==0;
+    R.Leg(i).qlim(I_actrevol,:) = repmat([-0.5, 0.5]*Set.optimization.max_range_active_revolute, sum(I_actrevol),1);
   end
 else
   error('Typ-Nummer nicht definiert');
@@ -255,11 +259,13 @@ if any(abs(Phi)>1e-8)
 end
 % Berechne IK der Bahn (für spätere Visualisierung)
 if Structure.Type == 0 % Seriell
-  [Q, ~, ~, PHI] = R.invkin2_traj(Traj_0.X, Traj.XD, Traj.XDD, Traj.t, q);
+  s = struct('normalize', false, 'retry_limit', 1);
+  [Q, QD, QDD, PHI] = R.invkin2_traj(Traj_0.X, Traj.XD, Traj.XDD, Traj.t, q, s);
 else % Parallel
   s = struct('debug', false, 'retry_limit', 1);
-  [Q, ~, ~, PHI] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+  [Q, QD, QDD, PHI] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
 end
+
 if any(abs(PHI(:))>1e-8) || any(isnan(Q(:)))
   warning('PSO-Ergebnis für Trajektorie nicht reproduzierbar oder nicht gültig (ZB-Verletzung)');
 end
@@ -273,6 +279,8 @@ RobotOptRes = struct( ...
   'options', options, ...
   'q0', q, ...
   'Traj_Q', Q, ...
+  'Traj_QD', QD, ...
+  'Traj_QDD', QDD, ...
   'Traj_PHI', PHI, ...
   'vartypes', vartypes, ...
   'exitflag', exitflag, ...

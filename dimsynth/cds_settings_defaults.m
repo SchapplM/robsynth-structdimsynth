@@ -27,6 +27,8 @@ for f = fields(input_settings_default)'
 end
 input_settings.DoF = logical(input_settings.DoF);
 %% Allgemeine Einstellugen
+% Einstellungen mit Auswirkungen auf vom Benutzer sichtbare Ergebnisse und
+% deren Nachverarbeitung
 general = struct( ...
   'verbosity', 2, ...
   'plot_robot_in_fitness', 0, ... % Schwellwert der Gütefunktion zum Zeichnen von Details.
@@ -52,6 +54,8 @@ structures = struct( ...
   'whitelist', {''}); % Liste, die die Systeme beschränkt
 
 %% Optimierungs-Einstellungen
+% Einstellungen mit Auswirkung auf die Optimierung: Auswahl der
+% Optimierungsvariablen und Annahmen über die Roboter, die getroffen werden
 optimization = struct( ...
   'objective', 'energy', ... % Zielfunktion
   'constraint', '', ... % Nebenbedingungen
@@ -61,6 +65,7 @@ optimization = struct( ...
   'ee_rotation', false, ... % Freie Rotation des EE
   'rotate_base', false, ... % Orientierung der Roboter-Basis
   'rotate_coupling', true, ... % Koppel-Punkt-Orientierung für PKM
+  'max_range_active_revolute', 270*pi/180, ... % Maximaler Drehwinkel aktiver Drehgelenke
   'NumIndividuals', 50, ...
   'MaxIter', 10, ...
   'ElectricCoupling', true, ... % Kopplung der Achsen für Energieberechnung. TODO

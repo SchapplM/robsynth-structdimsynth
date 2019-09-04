@@ -37,46 +37,92 @@ if any(dist_exc_tot < 0)
   % Werte sind typischerweise zwischen 0 und 100. Je kleiner der Roboter,
   % desto größer der Wert; das regt dann zur Vergrößerung des Roboters an.
   f_distviol_norm = 2/pi*atan((f_distviol)); % 1->0.5; 10->0.94
-  %  normiere auf 1e6 bis 1e7
-  fval = 1e6+9e6*f_distviol_norm;
+  %  normiere auf 1e7 bis 1e8
+  fval = 1e7*(1+9*f_distviol_norm);
   fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Roboter zu kurz.\n', toc(t1), fval);
   debug_plot_robot(R, zeros(R.NJ,1), Traj_W, Set, Structure, p, fval, debug_info);
   return
 end
 %% Inverse Kinematik für Eckpunkte der Trajektorie berechnen
-q0 = rand(R.NQJ,1);
+q0 = R.qlim(:,1) + rand(R.NQJ,1).*(R.qlim(:,2)-R.qlim(:,1));
 Phi_E = NaN(sum(Set.structures.DoF), size(Traj_0.XE,1));
+QE = NaN(size(Traj_0.XE,1), R.NQJ);
 for i = size(Traj_0.XE,1):-1:1
-  s = struct('Phit_tol', 1e-3, 'Phir_tol', 1e-3, 'retry_limit', 5);
+  s = struct('Phit_tol', 1e-3, 'Phir_tol', 1e-3, 'retry_limit', 5, ...
+    'normalize', false);
   [q, Phi] = R.invkin2(Traj_0.XE(i,:)', q0, s);
   q0 = q; % Annahme: Startwert für nächsten Eckwert nahe aktuellem Eckwert
   Phi_E(:,i) = Phi;
   if any(isnan(q))
     error('Ergebnis NaN');
   end
+  QE(i,:) = q;
 end
 if any(abs(Phi_E(:)) > 1e-3)
   % Nehme die Summe der IK-Abweichung aller Eckpunkte (Translation/Rotation
   % gemischt)
   f_PhiE = max(sum(abs(Phi_E(:)))) / size(Traj_0.XE,1);
   f_phiE_norm = 2/pi*atan((f_PhiE)/10); % Normierung auf 0 bis 1
-  fval = 1e5+9e5*f_phiE_norm; % Normierung auf 1e5 bis 1e6
+  fval = 1e6*(1+9*f_phiE_norm); % Normierung auf 1e6 bis 1e7
   % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
   fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Keine IK-Konvergenz\n', toc(t1), fval);
   debug_plot_robot(R, zeros(R.NJ,1), Traj_W, Set, Structure, p, fval, debug_info);
   return
 end
+% Bestimme die Spannweite der Gelenkkoordinaten (getrennt Dreh/Schub)
+q_range_E = NaN(1, R.NQJ);
+q_range_E(R.MDH.sigma==1) = diff(minmax2(QE(:,R.MDH.sigma==1)')');
+q_range_E(R.MDH.sigma==0) = angle_range(QE(:,R.MDH.sigma==0));
+% Bestimme ob die maximale Spannweite der Koordinaten überschritten wurde
+qlimviol_E = (R.qlim(:,2)-R.qlim(:,1))' - q_range_E;
+I_qlimviol_E = (qlimviol_E < 0);
+if any(I_qlimviol_E)
+  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_ser_plin_qviolE.mat'));
+  % Bestimme die größte relative Verletzung der Winkelgrenzen
+  fval_qlimv_E = -min(qlimviol_E(I_qlimviol_E)./(R.qlim(I_qlimviol_E,2)-R.qlim(I_qlimviol_E,1))');
+  fval_qlimv_E_norm = 2/pi*atan((fval_qlimv_E)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
+  fval = 1e5*(1+9*fval_qlimv_E_norm); % Normierung auf 1e5 bis 1e6
+  % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Weitere Rechnungen machen keinen Sinn.
+  fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Gelenkgrenzverletzung in AR-Eckwerten.\n', toc(t1), fval);
+  debug_plot_robot(R, QE(1,:)', Traj_W, Set, Structure, p, fval, debug_info);
+  return
+end
 %% Inverse Kinematik der Trajektorie berechnen
-[Q, QD, QDD, PHI] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q);
+% * Normalisierung stört die Prüfung auf Winkelbereich
+% * Kein Neuversuch, damit es schneller geht (ansonsten springt die Konfig.
+%   in der Traj. und das System ist sowieso tendentiell schlecht)
+s = struct('normalize', false, 'retry_limit', 1); 
+[Q, QD, QDD, PHI] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+
 I_ZBviol = any(abs(PHI) > 1e-3,2) | any(isnan(Q),2);
 if any(I_ZBviol)
   % Bestimme die erste Verletzung der ZB (je später, desto besser)
   IdxFirst = find(I_ZBviol, 1 );
   % Umrechnung in Prozent der Traj.
   Failratio = 1-IdxFirst/length(Traj_0.t); % Wert zwischen 0 und 1
-  fval = 1e4+9e4*Failratio; % Wert zwischen 1e4 und 1e5 -> IK-Abbruch bei Traj.
+  fval = 1e4*(1+9*Failratio); % Normierung auf 1e4 und 1e5
   % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
   fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Keine IK-Konvergenz in Traj.\n', toc(t1), fval);
+  debug_plot_robot(R, Q(1,:)', Traj_W, Set, Structure, p, fval, debug_info);
+  return
+end
+% Prüfe, ob die Gelenkwinkelgrenzen verletzt werden
+q_range_T = NaN(1, R.NQJ);
+q_range_T(R.MDH.sigma==1) = diff(minmax2(Q(:,R.MDH.sigma==1)')');
+q_range_T(R.MDH.sigma==0) = angle_range(Q(:,R.MDH.sigma==0));
+qlimviol_T = (R.qlim(:,2)-R.qlim(:,1))' - q_range_T;
+I_qlimviol_T = (qlimviol_T < 0);
+if any(I_qlimviol_E)
+  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_ser_plin_qviolT.mat'));
+  figure(1000);
+  subplot(2,1,1);
+  plot(Traj_0.t, Q-repmat(min(Q), length(Traj_0.t), 1));
+  % Bestimme die größte relative Verletzung der Winkelgrenzen
+  fval_qlimv_T = -min(qlimviol_T(I_qlimviol_T)./(R.qlim(I_qlimviol_T,2)-R.qlim(I_qlimviol_T,1))');
+  fval_qlimv_T_norm = 2/pi*atan((fval_qlimv_T)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
+  fval = 1e3*(1+9*fval_qlimv_T_norm); % Wert zwischen 1e3 und 1e4
+  % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Weitere Rechnungen machen keinen Sinn.
+  fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Gelenkgrenzverletzung in Traj.\n', toc(t1), fval);
   debug_plot_robot(R, Q(1,:)', Traj_W, Set, Structure, p, fval, debug_info);
   return
 end

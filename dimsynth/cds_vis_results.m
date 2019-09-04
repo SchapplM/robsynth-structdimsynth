@@ -27,6 +27,8 @@ for i = 1:length(Structures)
   end
   Q = RobotOptRes.Traj_Q;
   Traj_0 = cds_rotate_traj(Traj, R.T_W_0);
+  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_vis_results3.mat'));
+  % load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_vis_results3.mat'));
   %% Statistische Verteilung der Ergebnisse aller Generationen
   resdir_pso = fullfile(resmaindir, ...
     'tmp', sprintf('%d_%s', Structure.Number, Structure.Name));
@@ -37,7 +39,7 @@ for i = 1:length(Structures)
     Erg_All_Gen(jj,:) = tmp.optimValues.swarmfvals;
   end
   I_zul = Erg_All_Gen(:) < 1e3;
-  Klassengrenzen_Alle = [0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8];
+  Klassengrenzen_Alle = [0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9];
   Klassengrenzen_Alle_Log = log10(Klassengrenzen_Alle);
   Klassengrenzen_Alle_Log(1) = 0;
   % Histogramm erstellen
@@ -96,8 +98,9 @@ for i = 1:length(Structures)
   xlabel('log(Fitness)');
   ylabel('Häufigkeit (abs)');
   title(sprintf('Alle Lösungen (%d)', length(I_zul)));
-  set(gca, 'xtick', [2, 3.5, 4.5, 5.5, 6.5, 7.5], ...
-    'xticklabel', {'Ziel (0-1e3)', 'ND (1e4)', 'IK Tr (1e5)', 'IK AR (1e6)', 'Rw (1e7)', 'G (1e8)'});
+  set(gca, 'xtick', [2, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5], ...
+    'xticklabel', {'Ziel (0-1e3)', 'qlim Tr (1e4)', 'IK Tr (1e5)', 'qlim AR (1e6)', ...
+                   'IK AR (1e7)', 'Rw (1e8)', 'G (1e9)'});
   
   % Histogramm für einzelne Generationen des PSO erstellen
   Erg_All_Gen_Hist = zeros(size(Erg_All_Gen,1), length(Klassengrenzen_Alle)-1);
@@ -181,5 +184,39 @@ for i = 1:length(Structures)
     end
   end
   saveas(10*i+3,     fullfile(resmaindir, sprintf('Rob%d_%s_Skizze_Plausib.fig', i, Name)));
-  export_fig(10*i+3, fullfile(resmaindir, sprintf('Rob%d_%s_Skizze_Plausib.png', i, Name)));  
+  export_fig(10*i+3, fullfile(resmaindir, sprintf('Rob%d_%s_Skizze_Plausib.png', i, Name)));
+  
+  %% Verlauf der Gelenkgrößen für den Roboter
+  figure(10*i+4);clf;hold all;
+  set(10*i+4, 'Name', sprintf('Rob%d_KinematikZeit', i), 'NumberTitle', 'off', 'color','w');
+  if ~strcmp(get(10*i+4, 'windowstyle'), 'docked')
+    set(10*i+4,'units','normalized','outerposition',[0 0 1 1]);
+  end
+  sgtitle(sprintf('Rob. %d: fval=%1.3f', i, RobotOptRes.fval));
+  subplot(2,3,sprc2no(2,3,1,1));
+  plot(Traj.t, RobotOptRes.Traj_Q);
+  grid on; ylabel('q in rad oder m');
+  subplot(2,3,sprc2no(2,3,1,2));
+  plot(Traj.t, RobotOptRes.Traj_QD);
+  grid on; ylabel('qD in rad/s oder m/s');
+  subplot(2,3,sprc2no(2,3,1,3));
+  plot(Traj.t, RobotOptRes.Traj_QDD);
+  grid on; ylabel('qDD in rad/s² oder m/s²');
+  subplot(2,3,sprc2no(2,3,2,1));
+  plot(Traj.t, Traj.X);
+  grid on; ylabel('x in m oder rad');
+  legend({'rx', 'ry', 'rz', 'phix', 'phiy', 'phiz'});
+  subplot(2,3,sprc2no(2,3,2,2));
+  plot(Traj.t, Traj.XD);
+  grid on; ylabel('xD in m/s oder rad/s');
+  subplot(2,3,sprc2no(2,3,2,3));
+  plot(Traj.t, Traj.XDD);
+  grid on; ylabel('xDD in m/s² oder rad/s²');
+  linkxaxes;
+  saveas(10*i+4,     fullfile(resmaindir, sprintf('Rob%d_%s_KinematikZeit.fig', i, Name)));
+  export_fig(10*i+4, fullfile(resmaindir, sprintf('Rob%d_%s_KinematikZeit.png', i, Name)));
+  
+  
+  
+  
 end
