@@ -15,6 +15,18 @@ end
 if length(Structure.vartypes) ~= length(p)
   error('Nicht für alle Optimierungsvariablen ist ein Typ definiert');
 end
+
+%% Gelenkgrenzen
+% Müssen neu hineingeschrieben werden, da die Variable im späteren Verlauf
+% der Optimierung überschrieben wird (z.B. zwecks Plotten)
+if R_neu.Type == 0
+  R_neu.qlim = Structure.qlim;
+else
+  for i = 1:R.NLEG
+    R_neu.Leg(i).qlim = Structure.qlim(R_neu.I1J(i):R_neu.I2J(i),:);
+  end
+end
+
 %% Strukturparameter der Kinematik
 if R_neu.Type == 0 || R_neu.Type == 2
   % Relevante Parameter sind die, die auch in Opt.Var. sind. TODO: Abspeichern

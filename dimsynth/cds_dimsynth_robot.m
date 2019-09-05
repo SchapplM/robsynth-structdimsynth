@@ -16,28 +16,39 @@ Structure.Lref = Lref;
 %% Roboter-Klasse initialisieren
 if Structure.Type == 0 % Seriell
   R = serroblib_create_robot_class(Structure.Name);
-  R.gen_testsettings(false, true); % Setze Kinematik-Parameter auf Zufallswerte
-  R.fill_fcn_handles(Set.general.use_mex, true);
-  R.qlim(R.MDH.sigma==1,:) = repmat([-2*Lref, 2*Lref],sum(R.MDH.sigma==1),1); % Schubgelenk
-  R.qlim(R.MDH.sigma==0,:) = repmat([-0.5, 0.5]*Set.optimization.max_range_active_revolute, sum(R.MDH.sigma==0),1); % Drehgelenk
-  R.DynPar.mode = 4; % Benutze Minimalparameter-Dynamikfunktionen
+  NLEG = 1;
 elseif Structure.Type == 2 % Parallel
   R = parroblib_create_robot_class(Structure.Name, 2, 1);
-  R.Leg(1).gen_testsettings(true, true); % Setze Parameter auf Zufallswerte
-  for i = 1:R.NLEG
-    R.Leg(i).fill_fcn_handles(Set.general.use_mex, true); % Nutze mex-Funktionen für Beinketten-Funktionen
-  end
-  R.fill_fcn_handles(Set.general.use_mex, true); % Nutze mex-Funktionen für PKM-Funktionen
-  for i = 1:R.NLEG
-    % Grenzen für Dreh- und Schubgelenke auf Standardwerte setzen
-    R.Leg(i).qlim(R.Leg(i).MDH.sigma==1,:) = repmat([-2*Lref, 2*Lref],sum(R.Leg(i).MDH.sigma==1),1); % Schubgelenk
-    R.Leg(i).qlim(R.Leg(i).MDH.sigma==0,:) = repmat([-pi, pi],    sum(R.Leg(i).MDH.sigma==0),1); % Drehgelenk
-    % Grenzen für aktives Drehgelenk setzen
-    I_actrevol = R.Leg(i).MDH.mu == 2 & R.Leg(i).MDH.sigma==0;
-    R.Leg(i).qlim(I_actrevol,:) = repmat([-0.5, 0.5]*Set.optimization.max_range_active_revolute, sum(I_actrevol),1);
-  end
+  NLEG = R.NLEG;
 else
   error('Typ-Nummer nicht definiert');
+end
+for i = 1:NLEG
+  if Structure.Type == 0
+    R_init = R;
+  else
+    R_init = R.Leg(i);
+  end
+  R_init.gen_testsettings(false, true); % Setze Kinematik-Parameter auf Zufallswerte
+  R_init.fill_fcn_handles(Set.general.use_mex, true);
+  R_init.qlim(R.MDH.sigma==1,:) = repmat([-2*Lref, 2*Lref],sum(R.MDH.sigma==1),1); % Schubgelenk
+  if Structure.Type == 0
+    % Grenzen für Drehgelenke: Alle sind aktiv
+    R_init.qlim(R.MDH.sigma==0,:) = repmat([-0.5, 0.5]*Set.optimization.max_range_active_revolute, sum(R.MDH.sigma==0),1); % Drehgelenk
+  else
+    % Grenzen für passive Drehgelenke
+    R_init.qlim(R_init.MDH.sigma==0,:) = repmat([-pi, pi],    sum(R_init.MDH.sigma==0),1); % Drehgelenk
+    % Grenzen für aktives Drehgelenk setzen
+    I_actrevol = R_init.MDH.mu == 2 & R_init.MDH.sigma==0;
+    R_init.qlim(I_actrevol,:) = repmat([-0.5, 0.5]*Set.optimization.max_range_active_revolute, sum(I_actrevol),1);
+    if i == NLEG
+      Structure.qlim = cat(1, R.Leg.qlim);
+    end
+  end
+  Structure.qlim = R.qlim;
+  R_init.DynPar.mode = 4; % Benutze Minimalparameter-Dynamikfunktionen
+  R_init.DesPar.joint_type((1:R.NJ)'==1&R.MDH.sigma==1) = 4; % Linearführung erste Achse
+  R_init.DesPar.joint_type((1:R.NJ)'~=1&R.MDH.sigma==1) = 5; % Schubzylinder weitere Achse
 end
 
 % Falls planerer Roboter: Definiere Verschiebung, damit der Roboter von

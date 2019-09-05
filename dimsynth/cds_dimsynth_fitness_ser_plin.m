@@ -128,9 +128,12 @@ if any(I_qlimviol_E)
 end
 %% Dynamik-Parameter
 if strcmp(Set.optimization.objective, 'energy') || strcmp(Set.optimization.objective, 'mass')
+  % Gelenkgrenzen in Roboterklasse neu eintragen
+  R.qlim = minmax2(Q');
   % Dynamik-Parameter aktualisieren. Keine Nutzung der Ausgabe der Funktion
   % (Parameter werden direkt in Klasse geschrieben; R.DesPar.seg_par ist
   % vor/nach dem Aufruf unterschiedlich)
+%   debug_plot_robot(R, Q(1,:)', Traj_W, Set, Structure, p, 0, debug_info);
   cds_dimsynth_desopt(R, Q, Set, Structure);
 end
 %% Zielfunktion berechnen
@@ -234,7 +237,8 @@ axis auto
 hold on;grid on;
 xlabel('x in m');ylabel('y in m');zlabel('z in m');
 plot3(Traj_W.X(:,1), Traj_W.X(:,2),Traj_W.X(:,3), 'k-');
-s_plot = struct( 'ks_legs', [], 'straight', 0);
+s_plot = struct( 'ks', 1:R.NJ+2, 'straight', 0, 'mode', 4);
+% Grenzen neu belegen (für Plot)
 R.plot( q, s_plot);
 title(sprintf('fval=%1.2e; p=[%s]; %s', fval,disp_array(p','%1.3f'), tt));
 xlim([-1,1]*Structure.Lref*2.0+mean(minmax2(Traj_W.XE(:,1)')'));

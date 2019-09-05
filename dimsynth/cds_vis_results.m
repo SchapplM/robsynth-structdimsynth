@@ -186,30 +186,58 @@ for i = 1:length(Structures)
   saveas(10*i+3,     fullfile(resmaindir, sprintf('Rob%d_%s_Skizze_Plausib.fig', i, Name)));
   export_fig(10*i+3, fullfile(resmaindir, sprintf('Rob%d_%s_Skizze_Plausib.png', i, Name)));
   
-  %% Verlauf der Gelenkgrößen für den Roboter
+  %% Verlauf der Gelenkgrößen für den besten Roboter
   figure(10*i+4);clf;hold all;
   set(10*i+4, 'Name', sprintf('Rob%d_KinematikZeit', i), 'NumberTitle', 'off', 'color','w');
   if ~strcmp(get(10*i+4, 'windowstyle'), 'docked')
     set(10*i+4,'units','normalized','outerposition',[0 0 1 1]);
   end
   sgtitle(sprintf('Rob. %d: fval=%1.3f', i, RobotOptRes.fval));
-  subplot(2,3,sprc2no(2,3,1,1));
-  plot(Traj.t, RobotOptRes.Traj_Q);
-  grid on; ylabel('q in rad oder m');
-  subplot(2,3,sprc2no(2,3,1,2));
-  plot(Traj.t, RobotOptRes.Traj_QD);
-  grid on; ylabel('qD in rad/s oder m/s');
-  subplot(2,3,sprc2no(2,3,1,3));
-  plot(Traj.t, RobotOptRes.Traj_QDD);
-  grid on; ylabel('qDD in rad/s² oder m/s²');
-  subplot(2,3,sprc2no(2,3,2,1));
+  if Structure.Type == 0
+    x_row = 2; nrows = 2;
+  else
+    x_row = 3; nrows = 3;
+  end
+  if Structure.Type == 0
+    subplot(2,3,sprc2no(2,3,1,1));
+    plot(Traj.t, RobotOptRes.Traj_Q);
+    grid on; ylabel('q in rad oder m');
+    subplot(2,3,sprc2no(2,3,1,2));
+    plot(Traj.t, RobotOptRes.Traj_QD);
+    grid on; ylabel('qD in rad/s oder m/s');
+    subplot(2,3,sprc2no(2,3,1,3));
+    plot(Traj.t, RobotOptRes.Traj_QDD);
+    grid on; ylabel('qDD in rad/s² oder m/s²');
+  else
+    subplot(3,3,sprc2no(3,3,1,1));
+    plot(Traj.t, RobotOptRes.Traj_Q(:,R.I_qa));
+    grid on; ylabel('q_a in rad oder m');
+    subplot(3,3,sprc2no(3,3,1,2));
+    plot(Traj.t, RobotOptRes.Traj_QD(:,R.I_qa));
+    grid on; ylabel('qD_a in rad/s oder m/s');
+    subplot(3,3,sprc2no(3,3,1,3));
+    plot(Traj.t, RobotOptRes.Traj_QDD(:,R.I_qa));
+    grid on; ylabel('qDD_a in rad/s² oder m/s²');
+    
+    subplot(3,3,sprc2no(3,3,2,1));
+    plot(Traj.t, RobotOptRes.Traj_Q(:,R.I_qd));
+    grid on; ylabel('q_p in rad oder m');
+    subplot(3,3,sprc2no(3,3,2,2));
+    plot(Traj.t, RobotOptRes.Traj_QD(:,R.I_qd));
+    grid on; ylabel('qD_p in rad/s oder m/s');
+    subplot(3,3,sprc2no(3,3,2,3));
+    plot(Traj.t, RobotOptRes.Traj_QDD(:,R.I_qd));
+    grid on; ylabel('qDD_p in rad/s² oder m/s²');
+  end
+  
+  subplot(nrows,3,sprc2no(nrows,3,x_row,1));
   plot(Traj.t, Traj.X);
   grid on; ylabel('x in m oder rad');
   legend({'rx', 'ry', 'rz', 'phix', 'phiy', 'phiz'});
-  subplot(2,3,sprc2no(2,3,2,2));
+  subplot(nrows,3,sprc2no(nrows,3,x_row,2));
   plot(Traj.t, Traj.XD);
   grid on; ylabel('xD in m/s oder rad/s');
-  subplot(2,3,sprc2no(2,3,2,3));
+  subplot(nrows,3,sprc2no(nrows,3,x_row,3));
   plot(Traj.t, Traj.XDD);
   grid on; ylabel('xDD in m/s² oder rad/s²');
   linkxaxes;

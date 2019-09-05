@@ -186,7 +186,7 @@ if strcmp(Set.optimization.objective, 'energy') || strcmp(Set.optimization.objec
   % Dynamik-Parameter aktualisieren. Keine Nutzung der Ausgabe der Funktion
   % (Parameter werden direkt in Klasse geschrieben; R.DesPar.seg_par ist
   % vor/nach dem Aufruf unterschiedlich)
-  R = cds_dimsynth_desopt(R, Q, Set, Structure);
+  cds_dimsynth_desopt(R, Q, Set, Structure);
 end
 %% Zielfunktion berechnen
 if strcmp(Set.optimization.objective, 'condition')
@@ -378,7 +378,7 @@ axis auto
 hold on;grid on;
 xlabel('x in m');ylabel('y in m');zlabel('z in m');
 plot3(Traj_W.X(:,1), Traj_W.X(:,2),Traj_W.X(:,3), 'k-');
-s_plot = struct( 'ks_legs', [], 'straight', 0);
+s_plot = struct( 'ks_legs', [], 'straight', 0, 'mode', 4);
 R.plot( q, Traj_0.X(1,:)', s_plot);
 title(sprintf('fval=%1.2e; p=[%s]; %s', fval,disp_array(p','%1.3f'), tt));
 xlim([-1,1]*Structure.Lref*3+mean(minmax2(Traj_W.XE(:,1)')'));
