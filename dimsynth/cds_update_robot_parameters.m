@@ -88,8 +88,20 @@ if any(Structure.vartypes == 3) % Set.optimization.ee_translation
 end
 
 %% EE-Rotation
-if Set.optimization.ee_rotation
-  error('Noch nicht implementiert');
+if Set.optimization.ee_rotation && any(Structure.vartypes == 4)
+  p_eerot = p(Structure.vartypes == 4);
+  if sum(Set.structures.DoF(4:6)) == 1 % 2T1R -> Drehung um z-Achse
+    % Die Drehung in Structure.R_N_E richtet die z-Achse nach oben
+    if Structure.R_N_E_isset
+      phi_N_E = r2eulxyz(Structure.R_N_E*rotz(p_eerot));
+    else
+      phi_N_E = [0;0;p_eerot];
+    end
+  else % muss 3T3R sein. Andere Fälle können hier nicht vorkommen
+    % Annahme: R_N_E/R_P_E wird von diesem Typ nicht verwendet.
+    phi_N_E = p_eerot(:);
+  end
+  R.update_EE([], phi_N_E);
 end
 
 %% Basis-Rotation

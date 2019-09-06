@@ -21,18 +21,22 @@
 
 function R=cds_dimsynth_desopt(R, Q, Traj_0, Set, Structure)
 save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_desopt.mat'));
+desopt_debug = false;
 % Debug:
 % function R=cds_dimsynth_desopt()
+% desopt_debug = true;
 % load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_desopt.mat'));
 
 %% Definitionen, Konstanten
 density = 2.7E3; %[kg/m^3] Aluminium
 
 %% Debug: Roboter zeichnen; in dieses Bild werden Debug-KS eingezeichnet
-% figure(3000);clf;
-% s = struct('mode', 4, 'ks', 1:R.NJ, 'straight', false);
-% R.plot(Q(1,:)', s); xlabel('x');ylabel('y');zlabel('z');
-% view([0,90])
+if desopt_debug
+  figure(3000);clf;
+  s = struct('mode', 4, 'ks', 1:R.NJ, 'straight', false);
+  R.plot(Q(1,:)', s); xlabel('x');ylabel('y');zlabel('z');
+  view([0,90])
+end
 
 %% Entwurfsparameter ändern
 % TODO: Hier Optimierung durchführen
@@ -320,32 +324,34 @@ else
   R.update_dynpar2(m_ges_pkm, mrS_ges_pkm, If_ges_pkm);
 end
 %% Debug: Bilder der verschiedenen Dynamikparameter
-% figure(2000);clf;
-% sphdl = NaN(2,3);
-% for i = 1:6
-%   sphdl(i) = subplot(2,3,i);
-%   if R.Type == 0
-%     I_pi = 1:R.NL;
-%   else
-%     I_pi = [2:R.NQJ_LEG_bc+1,length(m_ges)];
-%   end
-%   s = struct('mode', 3, 'ks', 1:R.NJ, 'straight', false);
-%   switch i
-%     case 1, R.update_dynpar2(m_ges_Link(I_pi,:), mrS_ges_Link(I_pi,:), If_ges_Link(I_pi,:)); t='Link';
-%     case 2, R.update_dynpar2(m_ges_PStator(I_pi,:), mrS_ges_PStator(I_pi,:), If_ges_PStator(I_pi,:)); t='PStator';
-%     case 3, R.update_dynpar2(m_ges_PAbtrieb(I_pi,:), mrS_ges_PAbtrieb(I_pi,:), If_ges_PAbtrieb(I_pi,:)); t='PAbtrieb';
-%     case 4, R.update_dynpar2(m_ges_Zus(I_pi,:), mrS_ges_Zus(I_pi,:), If_ges_Zus(I_pi,:)); t='Zus';
-%     case 5, R.update_dynpar2(m_ges(I_pi,:), mrS_ges(I_pi,:), If_ges(I_pi,:)); t='Gesamt';
-%     case 6, t='Ersatzgeometrie'; s=struct('mode', 4);
-%   end
-%   if R.Type == 0
-%     R.plot(Q(1,:)', s);
-%   else
-%     R.plot(Q(1,:)', Traj_0.X(1,:)', s);
-%   end
-%   title(t); xlabel('x');ylabel('y');zlabel('z'); view([0,90]);
-% end
-% linkaxes(sphdl);
+if desopt_debug
+  figure(2000);clf;
+  sphdl = NaN(2,3);
+  for i = 1:6
+    sphdl(i) = subplot(2,3,i);
+    if R.Type == 0
+      I_pi = 1:R.NL;
+    else
+      I_pi = [2:R.NQJ_LEG_bc+1,length(m_ges)];
+    end
+    s = struct('mode', 3, 'ks', 1:R.NJ, 'straight', false);
+    switch i
+      case 1, R.update_dynpar2(m_ges_Link(I_pi,:), mrS_ges_Link(I_pi,:), If_ges_Link(I_pi,:)); t='Link';
+      case 2, R.update_dynpar2(m_ges_PStator(I_pi,:), mrS_ges_PStator(I_pi,:), If_ges_PStator(I_pi,:)); t='PStator';
+      case 3, R.update_dynpar2(m_ges_PAbtrieb(I_pi,:), mrS_ges_PAbtrieb(I_pi,:), If_ges_PAbtrieb(I_pi,:)); t='PAbtrieb';
+      case 4, R.update_dynpar2(m_ges_Zus(I_pi,:), mrS_ges_Zus(I_pi,:), If_ges_Zus(I_pi,:)); t='Zus';
+      case 5, R.update_dynpar2(m_ges(I_pi,:), mrS_ges(I_pi,:), If_ges(I_pi,:)); t='Gesamt';
+      case 6, t='Ersatzgeometrie'; s=struct('mode', 4);
+    end
+    if R.Type == 0
+      R.plot(Q(1,:)', s);
+    else
+      R.plot(Q(1,:)', Traj_0.X(1,:)', s);
+    end
+    title(t); xlabel('x');ylabel('y');zlabel('z'); view([0,90]);
+  end
+  linkaxes(sphdl);
+end
 end
 
 function [m_s, J_S_C] = data_hollow_cylinder(R_i, e_i, L_i, density)

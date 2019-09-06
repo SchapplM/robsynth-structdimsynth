@@ -65,7 +65,7 @@ if any(abs(Phi_E(:)) > 1e-3)
   f_phiE_norm = 2/pi*atan((f_PhiE)/10); % Normierung auf 0 bis 1
   fval = 1e6*(1+9*f_phiE_norm); % Normierung auf 1e6 bis 1e7
   % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
-  fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Keine IK-Konvergenz\n', toc(t1), fval);
+  fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Keine IK-Konvergenz für AR-Eckwerte\n', toc(t1), fval);
   debug_plot_robot(R, zeros(R.NJ,1), Traj_W, Set, Structure, p, fval, debug_info);
   return
 end
@@ -93,6 +93,8 @@ end
 %   in der Traj. und das System ist sowieso tendentiell schlecht)
 s = struct('normalize', false, 'retry_limit', 1); 
 [Q, QD, QDD, PHI] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+% Speichere die Anfangs-Winkelstellung in der Roboterklasse für später
+R.qref = q;
 
 I_ZBviol = any(abs(PHI) > 1e-3,2) | any(isnan(Q),2);
 if any(I_ZBviol)
@@ -102,7 +104,8 @@ if any(I_ZBviol)
   Failratio = 1-IdxFirst/length(Traj_0.t); % Wert zwischen 0 und 1
   fval = 1e4*(1+9*Failratio); % Normierung auf 1e4 und 1e5
   % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
-  fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Keine IK-Konvergenz in Traj.\n', toc(t1), fval);
+  fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Keine IK-Konvergenz in Traj. Abbruch bei %1.1f%% der Traj.\n', ...
+    toc(t1), fval, 100*Failratio);
   debug_plot_robot(R, Q(1,:)', Traj_W, Set, Structure, p, fval, debug_info);
   return
 end
@@ -187,7 +190,7 @@ elseif strcmp(Set.optimization.objective, 'energy')
   
   if fval < Set.general.plot_details_in_fitness
     E_Netz = cumtrapz(Traj_0.t, P_Netz);
-    figure(202);clf;
+    change_current_figure(202);clf;
     if Set.optimization.ElectricCoupling, sgtitle('Energieverteilung (mit Zwischenkreis)');
     else,                                 sgtitle('Energieverteilung (ohne Zwischenkreis'); end
     subplot(2,2,1);
@@ -217,6 +220,7 @@ elseif strcmp(Set.optimization.objective, 'mass')
 else
   error('Zielfunktion nicht definiert');
 end
+fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Erfolgreich.\n', toc(t1), fval);
 debug_plot_robot(R, Q(1,:)', Traj_W, Set, Structure, p, fval, debug_info);
 end
 

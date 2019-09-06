@@ -160,6 +160,10 @@ save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsy
 % s = struct('debug', true, 'retry_limit', 1);
 s = struct('normalize', false, 'retry_limit', 1);
 [Q, QD, ~, PHI] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+% Speichere die Anfangs-Winkelstellung in der Roboterklasse für später
+for i = 1:R.NLEG
+  R.Leg(i).qref = q(R.I1J_LEG(i):R.I2J_LEG(i));
+end
 I_ZBviol = any(abs(PHI) > 1e-3,2) | any(isnan(Q),2);
 if any(I_ZBviol)
   % Bestimme die erste Verletzung der ZB (je später, desto besser)

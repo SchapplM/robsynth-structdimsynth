@@ -53,7 +53,19 @@ for i = 1:NLEG
   R_init.DesPar.joint_type((1:R.NJ)'==1&R.MDH.sigma==1) = 4; % Linearführung erste Achse
   R_init.DesPar.joint_type((1:R.NJ)'~=1&R.MDH.sigma==1) = 5; % Schubzylinder weitere Achse
 end
-
+% Merke die ursprünglich aus der Datenbank geladene EE-Rotation. Die in der
+% Optimierung ergänzte Rotation ist zusätzlich dazu. (Bei 2T1R-Robotern
+% wird teilweise die EE-Rotation notwendig, damit das letzte KS planar ist)
+if Structure.Type == 0
+  Structure.R_N_E = R.T_N_E(1:3,1:3);
+else
+  Structure.R_N_E = R.T_P_E(1:3,1:3);
+end
+if any(abs(r2eulxyz(Structure.R_N_E(1:3,1:3))) > 1e-10)
+  Structure.R_N_E_isset = true;
+else
+  Structure.R_N_E_isset = false;
+end
 % Falls planerer Roboter: Definiere Verschiebung, damit der Roboter von
 % oben angreift. Sieht besser aus, macht die Optimierung aber schwieriger.
 % if all(Set.structures.DoF(1:3) == [1 1 0])
@@ -149,13 +161,12 @@ if Set.optimization.ee_translation && ...
   vartypes = [vartypes; 3*ones(sum(Set.structures.DoF(1:3)),1)];
   varlim = [varlim; repmat([-1, 1], sum(Set.structures.DoF(1:3)), 1)]; % bezogen auf Lref
   for i = find(Set.structures.DoF(1:3))
-    varnames = {varnames{:}, sprintf('ee %s', char(119+i))}; %#ok<CCAT>
+    varnames = {varnames{:}, sprintf('ee pos %s', char(119+i))}; %#ok<CCAT>
   end
 end
 
 % EE-Rotation
 if Set.optimization.ee_rotation
-  error('EE-Rotation als Parameter noch nicht definert');
   if sum(Set.structures.DoF(4:6)) == 1
     neerot = 1;
   elseif sum(Set.structures.DoF(4:6)) == 0
@@ -166,8 +177,8 @@ if Set.optimization.ee_rotation
   nvars = nvars + neerot; % Verschiebung des EE um translatorische FG der Aufgabe
   vartypes = [vartypes; 4*ones(neerot,1)];
   varlim = [varlim; repmat([0, pi], neerot, 1)];
-  for i = find(Set.structures.DoF(1:3))
-    varnames = {varnames{:}, sprintf('ee rotation %d', i)};
+  for i = find(Set.structures.DoF(4:6))
+    varnames = [varnames(:)', {sprintf('ee rot %d', i)}];
   end
 end
 
@@ -232,7 +243,7 @@ elseif Structure.Type == 2 % Parallel
 else
   error('Noch nicht definiert');
 end
-f_test = fitnessfcn(InitPop(1,:)'); % Testweise ausführen
+f_test = fitnessfcn(InitPop(1,:)'); %#ok<NASGU> % Testweise ausführen
 
 %% PSO-Aufruf starten
 save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat'));
@@ -240,7 +251,7 @@ if false
   % Falls der PSO abbricht: Zwischenergebnisse laden und daraus Endergebnis
   % erzeugen. Dafür ist ein manuelles Eingreifen mit den Befehlen in diesem
   % Block erforderlich. Danach kann die Funktion zu Ende ausgeführt werden.
-  load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat'));
+  load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat')); %#ok<UNRCH>
   filelist_tmpres = dir(fullfile(resdir, 'PSO_Gen*_AllInd_iter.mat'));
   lastres = load(fullfile(resdir, filelist_tmpres(end).name));
   p_val = lastres.optimValues.bestx;
@@ -257,16 +268,41 @@ save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsy
 %% Nachverarbeitung der Ergebnisse
 % Fitness-Funktion nochmal mit besten Parametern aufrufen. Dadurch werden
 % die Klassenvariablen (R.pkin, R.DesPar.seg_par, ...) aktualisiert
-fval_test = fitnessfcn(p_val');
-if fval_test~=fval
-  warning('Bei nochmaligem Aufruf der Fitness-Funktion kommt nicht der gleiche Wert heraus.');
+for i = 1:10
+  % Mehrere Versuche vornehmen, da beim Umklappen der Roboterkonfiguration
+  % andere Ergebnisse entstehen können
+  fval_test = fitnessfcn(p_val');
+  if fval_test~=fval
+    if fval_test < fval
+      t = sprintf('Der neue Wert (%1.1f) ist besser als der alte (%1.1f).', fval_test, fval);
+    else
+      t = sprintf('Der alte Wert (%1.1f) ist besser als der neue (%1.1f).', fval, fval_test);
+    end
+    warning('Bei nochmaligem Aufruf der Fitness-Funktion kommt nicht der gleiche Wert heraus (Versuch %d). %s', i, t);
+    if fval_test < fval
+      fprintf('Nehme den besseren neuen Wert ...\n');
+      break;
+    end
+  else
+    if i > 1, fprintf('Zielfunktion konnte nach %d Versuchen rekonstruiert werden\n', i); end
+    break;
+  end
 end
+% Grenzen aus diesem letzten Aufruf bestimmen
+if Structure.Type == 0 
+  Structure.qlim = R.qlim;
+else
+  Structure.qlim = cat(1, R.Leg.qlim);
+end
+
 % Berechne Inverse Kinematik zu erstem Bahnpunkt
 Traj_0 = cds_rotate_traj(Traj, R.T_W_0);
+% q0 = Structure.qlim(:,1) + rand(R.NJ,1).*(Structure.qlim(:,2)-Structure.qlim(:,1));
 if Structure.Type == 0 % Seriell
-  [q, Phi] = R.invkin2(Traj_0.XE(1,:)', rand(R.NQJ,1));
+  % Benutze Referenzpose die bei obigen Zielfunktionsaufruf gespeichert wurde
+  [q, Phi] = R.invkin2(Traj_0.XE(1,:)', R.qref);
 else % Parallel
-  [q, Phi] = R.invkin_ser(Traj_0.XE(i,:)', rand(R.NJ,1));
+  [q, Phi] = R.invkin_ser(Traj_0.XE(i,:)', cat(1,R.Leg.qref));
 end
 if any(abs(Phi)>1e-8)
   warning('PSO-Ergebnis für Startpunkt nicht reproduzierbar (ZB-Verletzung)');
@@ -288,7 +324,6 @@ RobotOptRes = struct( ...
   'fval', fval, ...
   'R', R, ...
   'p_val', p_val, ...
-  'p_types', vartypes, ...
   'p_limits', varlim, ...
   'options', options, ...
   'q0', q, ...
@@ -296,9 +331,7 @@ RobotOptRes = struct( ...
   'Traj_QD', QD, ...
   'Traj_QDD', QDD, ...
   'Traj_PHI', PHI, ...
-  'vartypes', vartypes, ...
   'exitflag', exitflag, ...
-  'varlim', varlim, ...
   'Structure', Structure, ...
   'fitnessfcn', fitnessfcn);
 % Debug: Durch laden dieser Ergebnisse kann nach Abbruch des PSO das
