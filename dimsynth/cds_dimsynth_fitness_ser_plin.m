@@ -114,9 +114,6 @@ qlimviol_T = (R.qlim(:,2)-R.qlim(:,1))' - q_range_T;
 I_qlimviol_T = (qlimviol_T < 0);
 if any(I_qlimviol_E)
   save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_ser_plin_qviolT.mat'));
-  figure(1000);
-  subplot(2,1,1);
-  plot(Traj_0.t, Q-repmat(min(Q), length(Traj_0.t), 1));
   % Bestimme die größte relative Verletzung der Winkelgrenzen
   fval_qlimv_T = -min(qlimviol_T(I_qlimviol_T)./(R.qlim(I_qlimviol_T,2)-R.qlim(I_qlimviol_T,1))');
   fval_qlimv_T_norm = 2/pi*atan((fval_qlimv_T)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
@@ -124,6 +121,13 @@ if any(I_qlimviol_E)
   % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Weitere Rechnungen machen keinen Sinn.
   fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Gelenkgrenzverletzung in Traj.\n', toc(t1), fval);
   debug_plot_robot(R, Q(1,:)', Traj_W, Set, Structure, p, fval, debug_info);
+  if fval < Set.general.plot_details_in_fitness
+    change_current_figure(1001); clf; 
+    subplot(2,1,1);
+    plot(Traj_0.t, Q-repmat(min(Q), length(Traj_0.t), 1));
+    subplot(2,1,2);
+    plot(Traj_0.t, Q);
+  end
   return
 end
 %% Dynamik-Parameter

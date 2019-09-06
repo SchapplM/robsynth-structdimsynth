@@ -141,6 +141,15 @@ if any(I_qlimviol_E)
   fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Gelenkgrenzverletzung in AR-Eckwerten. Schlechteste Spannweite: %1.2f/%1.2f\n', ...
     toc(t1), fval, q_range_E(IIw), qlim_PKM(IIw,2)-qlim_PKM(IIw,1) );
   debug_plot_robot(R, QE(1,:)', Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
+  if fval < Set.general.plot_details_in_fitness
+    change_current_figure(1000); clf; hold on;
+    plot(1:size(QE,2), QE-min(QE), 'x');
+    plot(qlim_PKM(:,2)'-qlim_PKM(:,1)', 'r--')
+    plot([1;size(QE,2)], [0;0], 'r--')
+    xlabel('Koordinate Nummer'); ylabel('Koordinate Wert');
+    grid on;
+    sgtitle(sprintf('Auswertung Grenzverletzung AR-Eckwerte. fval=%1.2e', fval));
+  end
   return
 end
 
@@ -171,15 +180,19 @@ qlimviol_T = (qlim_PKM(:,2)-qlim_PKM(:,1))' - q_range_T;
 I_qlimviol_T = (qlimviol_T < 0);
 if any(I_qlimviol_E)
   save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par_qviolT.mat'));
-  change_current_figure(1000); clf;
-  plot(Traj_0.t, Q-repmat(min(Q), length(Traj_0.t), 1));
   % Bestimme die größte relative Verletzung der Winkelgrenzen
-  fval_qlimv_T = -min(qlimviol_T(I_qlimviol_T)./(qlim_PKM(I_qlimviol_T,2)-qlim_PKM(I_qlimviol_T,1))');
-  fval_qlimv_T_norm = 2/pi*atan((fval_qlimv_T)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
+  [fval_qlimv_T, I_worst] = min(qlimviol_T(I_qlimviol_T)./(qlim_PKM(I_qlimviol_T,2)-qlim_PKM(I_qlimviol_T,1))');
+  II_qlimviol_T = find(I_qlimviol_T); IIw = II_qlimviol_T(I_worst);
+  fval_qlimv_T_norm = 2/pi*atan((-fval_qlimv_T)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
   fval = 1e3*(1+9*fval_qlimv_T_norm); % Wert zwischen 1e3 und 1e4
   % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Weitere Rechnungen machen keinen Sinn.
-  fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Gelenkgrenzverletzung in Traj.\n', toc(t1), fval);
+  fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Gelenkgrenzverletzung in Traj. Schlechteste Spannweite: %1.2f/%1.2f\n', ...
+    toc(t1), fval, q_range_T(IIw), qlim_PKM(IIw,2)-qlim_PKM(IIw,1) );
   debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
+  if fval < Set.general.plot_details_in_fitness
+    change_current_figure(1001); clf;
+    plot(Traj_0.t, Q-repmat(min(Q), length(Traj_0.t), 1));
+  end
   return
 end
 %% Dynamik-Parameter
