@@ -131,13 +131,15 @@ q_range_E(R.MDH.sigma==0) = angle_range(QE(:,R.MDH.sigma==0));
 qlimviol_E = (qlim_PKM(:,2)-qlim_PKM(:,1))' - q_range_E;
 I_qlimviol_E = (qlimviol_E < 0);
 if any(I_qlimviol_E)
-  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par_qviolE.mat'));
+  % save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par_qviolE.mat'));
   % Bestimme die größte relative Verletzung der Winkelgrenzen
-  fval_qlimv_E = -min(qlimviol_E(I_qlimviol_E)./(qlim_PKM(I_qlimviol_E,2)-qlim_PKM(I_qlimviol_E,1))');
-  fval_qlimv_E_norm = 2/pi*atan((fval_qlimv_E)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
+  [fval_qlimv_E, I_worst] = min(qlimviol_E(I_qlimviol_E)./(qlim_PKM(I_qlimviol_E,2)-qlim_PKM(I_qlimviol_E,1))');
+  II_qlimviol_E = find(I_qlimviol_E); IIw = II_qlimviol_E(I_worst);
+  fval_qlimv_E_norm = 2/pi*atan((-fval_qlimv_E)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
   fval = 1e5*(1+9*fval_qlimv_E_norm); % Normierung auf 1e5 bis 1e6
   % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Weitere Rechnungen machen keinen Sinn.
-  fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Gelenkgrenzverletzung in AR-Eckwerten.\n', toc(t1), fval);
+  fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Gelenkgrenzverletzung in AR-Eckwerten. Schlechteste Spannweite: %1.2f/%1.2f\n', ...
+    toc(t1), fval, q_range_E(IIw), qlim_PKM(IIw,2)-qlim_PKM(IIw,1) );
   debug_plot_robot(R, QE(1,:)', Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
   return
 end
@@ -169,8 +171,7 @@ qlimviol_T = (qlim_PKM(:,2)-qlim_PKM(:,1))' - q_range_T;
 I_qlimviol_T = (qlimviol_T < 0);
 if any(I_qlimviol_E)
   save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par_qviolT.mat'));
-  figure(1000);
-  subplot(2,1,1);
+  change_current_figure(1000); clf;
   plot(Traj_0.t, Q-repmat(min(Q), length(Traj_0.t), 1));
   % Bestimme die größte relative Verletzung der Winkelgrenzen
   fval_qlimv_T = -min(qlimviol_T(I_qlimviol_T)./(qlim_PKM(I_qlimviol_T,2)-qlim_PKM(I_qlimviol_T,1))');
@@ -183,10 +184,14 @@ if any(I_qlimviol_E)
 end
 %% Dynamik-Parameter
 if strcmp(Set.optimization.objective, 'energy') || strcmp(Set.optimization.objective, 'mass')
+  % Gelenkgrenzen in Roboterklasse neu eintragen
+  for i = 1:R.NLEG
+    R.Leg(i).qlim = minmax2(Q(:,R.I1J_LEG(i):R.I2J_LEG(i))');
+  end
   % Dynamik-Parameter aktualisieren. Keine Nutzung der Ausgabe der Funktion
   % (Parameter werden direkt in Klasse geschrieben; R.DesPar.seg_par ist
   % vor/nach dem Aufruf unterschiedlich)
-  cds_dimsynth_desopt(R, Q, Set, Structure);
+  cds_dimsynth_desopt(R, Q, Traj_0, Set, Structure);
 end
 %% Zielfunktion berechnen
 if strcmp(Set.optimization.objective, 'condition')
@@ -230,7 +235,7 @@ if strcmp(Set.optimization.objective, 'condition')
        Set.general.plot_robot_in_fitness > 0 && fval < abs(Set.general.plot_robot_in_fitness) % Gütefunktion ist besser als Schwellwert: Zeichne
       change_current_figure(201); clf;
       if ~strcmp(get(201, 'windowstyle'), 'docked')
-        set(201,'units','normalized','outerposition',[0 0 1 1]);
+        % set(201,'units','normalized','outerposition',[0 0 1 1]);
       end
       sgtitle('Auswertung Jacobi-Matrizen')
       subplot(2,3,1);
@@ -311,9 +316,9 @@ elseif strcmp(Set.optimization.objective, 'energy')
   
   if fval < Set.general.plot_details_in_fitness
     E_Netz = cumtrapz(Traj_0.t, P_Netz);
-    figure(202);clf;
+    change_current_figure(202); clf;
     if ~strcmp(get(202, 'windowstyle'), 'docked')
-      set(202,'units','normalized','outerposition',[0 0 1 1]);
+      % set(202,'units','normalized','outerposition',[0 0 1 1]);
     end
     if Set.optimization.ElectricCoupling, sgtitle('Energieverteilung (mit Zwischenkreis)');
     else,                                 sgtitle('Energieverteilung (ohne Zwischenkreis'); end
@@ -353,7 +358,7 @@ elseif strcmp(Set.optimization.objective, 'mass')
 else
   error('Zielfunktion nicht definiert');
 end
-
+fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Erfolgreich.\n', toc(t1), fval);
 debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
 end
 
@@ -371,14 +376,14 @@ for i = 1:length(debug_info), tt = [tt, newline(), debug_info{i}]; end %#ok<AGRO
 
 change_current_figure(200); clf; hold all;
 if ~strcmp(get(200, 'windowstyle'), 'docked')
-  set(200,'units','normalized','outerposition',[0 0 1 1]);
+  % set(200,'units','normalized','outerposition',[0 0 1 1]);
 end
 view(3);
 axis auto
 hold on;grid on;
 xlabel('x in m');ylabel('y in m');zlabel('z in m');
 plot3(Traj_W.X(:,1), Traj_W.X(:,2),Traj_W.X(:,3), 'k-');
-s_plot = struct( 'ks_legs', [], 'straight', 0, 'mode', 4);
+s_plot = struct( 'ks_legs', [1,2], 'straight', 0, 'mode', 4);
 R.plot( q, Traj_0.X(1,:)', s_plot);
 title(sprintf('fval=%1.2e; p=[%s]; %s', fval,disp_array(p','%1.3f'), tt));
 xlim([-1,1]*Structure.Lref*3+mean(minmax2(Traj_W.XE(:,1)')'));

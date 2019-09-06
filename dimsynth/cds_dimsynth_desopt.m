@@ -19,7 +19,7 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function R=cds_dimsynth_desopt(R, Q, Set, Structure)
+function R=cds_dimsynth_desopt(R, Q, Traj_0, Set, Structure)
 save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_desopt.mat'));
 % Debug:
 % function R=cds_dimsynth_desopt()
@@ -117,7 +117,7 @@ for i = 1:length(m_ges_Link)
       % [A]/(4); Drehe das Segment-KS so, dass die Längsachse des
       % Segments in x-Richtung dieses KS zeigt
       R_i_Si = rotx(R_pkin.MDH.alpha(i)) * roty(atan2(R_pkin.MDH.d(i), R_pkin.MDH.a(i)));
-    elseif R.DesPar.joint_type(i) == 1 % Schubgelenk ohne spezielles Modell
+    elseif R_pkin.DesPar.joint_type(i) == 1 % Schubgelenk ohne spezielles Modell
       % Dieses Modell ist sehr ungenau und berücksichtigt
       % nicht den Anfangspunkt des Schubgelenks
       r_i_i_D = [R_pkin.MDH.a(i); 0; q_range(i)];
@@ -320,25 +320,32 @@ else
   R.update_dynpar2(m_ges_pkm, mrS_ges_pkm, If_ges_pkm);
 end
 %% Debug: Bilder der verschiedenen Dynamikparameter
-% if R.Type == 0
-%   figure(2000);clf;
-%   sphdl = NaN(2,3);
-%   for i = 1:6
-%     sphdl(i) = subplot(2,3,i);
-%     s = struct('mode', 3, 'ks', 1:R.NJ, 'straight', false);
-%     switch i
-%       case 1, R.update_dynpar2(m_ges_Link, mrS_ges_Link, If_ges_Link); t='Link';
-%       case 2, R.update_dynpar2(m_ges_PStator, mrS_ges_PStator, If_ges_PStator); t='PStator';
-%       case 3, R.update_dynpar2(m_ges_PAbtrieb, mrS_ges_PAbtrieb, If_ges_PAbtrieb); t='PAbtrieb';
-%       case 4, R.update_dynpar2(m_ges_Zus, mrS_ges_Zus, If_ges_Zus); t='Zus';
-%       case 5, R.update_dynpar2(m_ges, mrS_ges, If_ges); t='Gesamt';
-%       case 6, t='Ersatzgeometrie'; s=struct('mode', 4);
-%     end
-%     R.plot(Q(1,:)', s); title(t); xlabel('x');ylabel('y');zlabel('z');
-%     view([0,90])
+% figure(2000);clf;
+% sphdl = NaN(2,3);
+% for i = 1:6
+%   sphdl(i) = subplot(2,3,i);
+%   if R.Type == 0
+%     I_pi = 1:R.NL;
+%   else
+%     I_pi = [2:R.NQJ_LEG_bc+1,length(m_ges)];
 %   end
-%   linkaxes(sphdl);
+%   s = struct('mode', 3, 'ks', 1:R.NJ, 'straight', false);
+%   switch i
+%     case 1, R.update_dynpar2(m_ges_Link(I_pi,:), mrS_ges_Link(I_pi,:), If_ges_Link(I_pi,:)); t='Link';
+%     case 2, R.update_dynpar2(m_ges_PStator(I_pi,:), mrS_ges_PStator(I_pi,:), If_ges_PStator(I_pi,:)); t='PStator';
+%     case 3, R.update_dynpar2(m_ges_PAbtrieb(I_pi,:), mrS_ges_PAbtrieb(I_pi,:), If_ges_PAbtrieb(I_pi,:)); t='PAbtrieb';
+%     case 4, R.update_dynpar2(m_ges_Zus(I_pi,:), mrS_ges_Zus(I_pi,:), If_ges_Zus(I_pi,:)); t='Zus';
+%     case 5, R.update_dynpar2(m_ges(I_pi,:), mrS_ges(I_pi,:), If_ges(I_pi,:)); t='Gesamt';
+%     case 6, t='Ersatzgeometrie'; s=struct('mode', 4);
+%   end
+%   if R.Type == 0
+%     R.plot(Q(1,:)', s);
+%   else
+%     R.plot(Q(1,:)', Traj_0.X(1,:)', s);
+%   end
+%   title(t); xlabel('x');ylabel('y');zlabel('z'); view([0,90]);
 % end
+% linkaxes(sphdl);
 end
 
 function [m_s, J_S_C] = data_hollow_cylinder(R_i, e_i, L_i, density)

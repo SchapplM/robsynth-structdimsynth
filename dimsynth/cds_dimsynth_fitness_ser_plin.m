@@ -134,7 +134,7 @@ if strcmp(Set.optimization.objective, 'energy') || strcmp(Set.optimization.objec
   % (Parameter werden direkt in Klasse geschrieben; R.DesPar.seg_par ist
   % vor/nach dem Aufruf unterschiedlich)
   debug_plot_robot(R, Q(1,:)', Traj_W, Set, Structure, p, 0, debug_info);
-  cds_dimsynth_desopt(R, Q, Set, Structure);
+  cds_dimsynth_desopt(R, Q, Traj_0, Set, Structure);
 end
 %% Zielfunktion berechnen
 if strcmp(Set.optimization.objective, 'condition')

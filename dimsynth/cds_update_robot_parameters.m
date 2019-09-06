@@ -23,7 +23,7 @@ if R_neu.Type == 0
   R_neu.qlim = Structure.qlim;
 else
   for i = 1:R.NLEG
-    R_neu.Leg(i).qlim = Structure.qlim(R_neu.I1J(i):R_neu.I2J(i),:);
+    R_neu.Leg(i).qlim = Structure.qlim(R_neu.I1J_LEG(i):R_neu.I2J_LEG(i),:);
   end
 end
 
