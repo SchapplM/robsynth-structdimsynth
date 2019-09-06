@@ -3,6 +3,8 @@
 % Quelle:
 % [A] Aufzeichnungen Schappler, 23.08.2019
 
+% Siehe auch: SerRob/plot (bezüglich Anfangssegment für Schubgelenke)
+
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
@@ -14,6 +16,12 @@ save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsy
 
 %% Definitionen, Konstanten
 density = 2.7E3; %[kg/m^3] Aluminium
+
+% Debug: Roboter zeichnen
+figure(3000);clf;
+s = struct('mode', 4, 'ks', 1:R.NJ, 'straight', false);
+R.plot(Q(1,:)', s); xlabel('x');ylabel('y');zlabel('z');
+view([0,90])
 
 %% Entwurfsparameter ändern
 % TODO: Hier Optimierung durchführen
@@ -85,60 +93,82 @@ for i = 1:length(m_ges_Link)
   else
     error('Strukturmodell nicht definiert');
   end
-  % Länge des Segments
-  if i < size(m_ges_Link,1)
+
+  if i < size(m_ges_Link,1) % Segmente zu Gelenken
+    %% Länge und Orientierung des Segments bestimmen
     % a- und d-Parameter werden zu Segment vor dem Gelenk gezählt (wg.
     % MDH-Notation) -> a1/d1 zählen zum Basis-Segment
     % [A]/(6)
     if R.MDH.sigma(i) == 0 % Drehgelenk
       % Nehme nur die konstanten a- und d-Parameter als "schräge"
       % Verbindung der Segmente
-      L_i = sqrt(R_pkin.MDH.a(i)^2+R_pkin.MDH.d(i)^2);
-    elseif R.DesPar.joint_type(i) == 1 % Schubgelenk ohne spezielles Modell
-      % TODO: Dieses Modell ist noch sehr ungenau und berücksichtigt
-      % nicht den Anfangspunkt des Schubgelenks
-      L_i = sqrt(R_pkin.MDH.a(i)^2+q_range(i)^2);
-    else % Schubgelenk mit Modell 
-      % Betrachte nur die Verschiebung des a-Parameters als Segment. Der
-      % d-Parameter wird durch ein spezielles Schubgelenkmodell
-      % berücksichtigt
-      L_i = R_pkin.MDH.a(i);
-      % TODO: Es sind noch nicht alle Fallunterscheidungen aus
-      % SerRob/plot.m implementiert. Je nach Start/Ende des Zylinders
-      % sollte das Segment anders aussehen.
-    end
-    % TODO: qmin/qmax bei Schubgelenken müssen weiter differenziert
-    % werden: wenn qmin>>0, gibt es ein Verbindungsstück zum Anfang.
-    % Schubgelenk besteht aus Ständer- und Läufer-Teil
-    % Siehe auch: SerRob/plot
-
-    % Drehung des Segment-KS gegen das Körper-KS
-    % TODO: Das hier nur noch für Drehgelenk. Für Schubgelenk eigene
-    % Berechnen. Dann Rotationsmatrix nur für alpha-Winkel) und das hier
-    % ist nur das a-Segment.
-    if R.MDH.sigma(i) == 0 % Drehgelenk
+      r_i_i_D = [R_pkin.MDH.a(i); 0; R_pkin.MDH.d(i)];
       % [A]/(4); Drehe das Segment-KS so, dass die Längsachse des
       % Segments in x-Richtung dieses KS zeigt
       R_i_Si = rotx(R_pkin.MDH.alpha(i)) * roty(atan2(R_pkin.MDH.d(i), R_pkin.MDH.a(i)));
     elseif R.DesPar.joint_type(i) == 1 % Schubgelenk ohne spezielles Modell
+      % TODO: Dieses Modell ist noch sehr ungenau und berücksichtigt
+      % nicht den Anfangspunkt des Schubgelenks
+      r_i_i_D = [R_pkin.MDH.a(i); 0; q_range(i)];
       R_i_Si = rotx(R_pkin.MDH.alpha(i)) * roty(atan2(q_range(i), R_pkin.MDH.a(i)));
     else % Schubgelenk mit Modell
-      % Nur die a-Verschiebung entspricht dem Segment. Daher nur
-      % alpha-Rotation
-      R_i_Si = rotx(R_pkin.MDH.alpha(i));
+      % Betrachte nur die Verschiebung des a-Parameters als Segment. Der
+      % d-Parameter wird durch ein spezielles Schubgelenkmodell
+      % berücksichtigt. Falls der Start der Linearachse weit weg ist, muss
+      % eine zusätzliche Verbindung dahin modelliert werden
+      if R_pkin.DesPar.joint_type(i) ==  4 % Schubgelenk ist Linearführung
+        if R_pkin.qlim(i,2)*R_pkin.qlim(i,2)< 0 % Führung liegt auf der Höhe
+          r_i_i_D = [R_pkin.MDH.a(i); 0; 0];
+          % Nur die a-Verschiebung entspricht dem Segment. Daher nur
+          % alpha-Rotation. Der a-Parameter wird nur für das VZ benutzt.
+          R_i_Si = rotx(R_pkin.MDH.alpha(i)) * roty(atan2(0, R_pkin.MDH.a(i)));
+        else
+          % Keine senkrechte Verbindung (Schiene fängt woanders an)
+          if R_pkin.qlim(i,2) < 0 % Schiene liegt komplett "links" vom KS. Gehe zum Endpunkt (qmax)
+            r_i_i_D = [R_pkin.MDH.a(i);0;0] + rotx(R_pkin.MDH.alpha(i))*[0;0;R_pkin.qlim(i,2)];
+            R_i_Si = rotx(R_pkin.MDH.alpha(i)) * roty(-atan2(R_pkin.qlim(i,2), R_pkin.MDH.a(i)));
+          else % Schiene liegt "rechts" vom KS. Gehe zum Startpunkt (qmin)
+            r_i_i_D = [R_pkin.MDH.a(i);0;0] + rotx(R_pkin.MDH.alpha(i))*[0;0;R_pkin.qlim(i,1)];
+            R_i_Si = rotx(R_pkin.MDH.alpha(i)) * roty(-atan2(R_pkin.qlim(i,1), R_pkin.MDH.a(i)));
+          end
+        end
+      else % Schubgelenk ist Hubzylinder
+        if R_pkin.qlim(i,2) > 2*R_pkin.qlim(i,1) && R_pkin.qlim(i,2) > 0 % Zylinder liegt auf der Höhe des KS
+          % Als senkrechte Verbindung unter Benutzung des a-Parameters der
+          % DH-Notation für Verschiebung und für Vorzeichen der Rotation.
+          r_i_i_D = [R_pkin.MDH.a(i); 0; 0];
+          R_i_Si = rotx(-R_pkin.MDH.alpha(i)) * roty(atan2(0, R_pkin.MDH.a(i)));
+        else
+          if R_pkin.qlim(i,2) < 0 % Großer Zylinder liegt komplett "links" (von x-Achse schauend)
+            % T
+            r_i_i_D = [R_pkin.MDH.a(i); 0; 0] + rotx(R_pkin.MDH.alpha(i))*[0;0;R_pkin.qlim(i,1)];
+            R_i_Si = rotx(R_pkin.MDH.alpha(i)) * roty(atan2(-R_pkin.qlim(i,1), R_pkin.MDH.a(i)));
+          else % Großer Zylinder liegt komplett "rechts"
+%             r_i_i_D = [R_pkin.MDH.a(i); 0; 0] + rotx(-R_pkin.MDH.alpha(i))*[0;0;R_pkin.qlim(i,1)];
+%             R_i_Si = rotx(R_pkin.MDH.alpha(i)) * roty(atan2((R_pkin.qlim(i,1)), R_pkin.MDH.a(i)));
+            r_i_i_D = [R_pkin.MDH.a(i); 0; 0] + rotx(R_pkin.MDH.alpha(i))*[0;0;2*R_pkin.qlim(i,1)-R_pkin.qlim(i,2)];
+            R_i_Si = rotx(R_pkin.MDH.alpha(i)) * roty(-atan2(2*R_pkin.qlim(i,1)-R_pkin.qlim(i,2), R_pkin.MDH.a(i)));
+%             trplot(Tc(:,:,i), 'frame', sprintf('%d',i-1), 'rgb', 'length', 0.10)
+            trplot(Tc(:,:,i)*transl(r_i_i_D), 'frame', sprintf('D%d',i-1), 'rgb', 'length', 0.10)
+          end
+        end
+      end
+    end
+    % Probe, ob Winkel (R_i_Si) und berechnetes Ende des Segments (r_i_i_D)stimmen
+    if any( abs(r_i_i_D - R_i_Si*[norm(r_i_i_D);0;0] ) > 1e-10)
+      error('Richtung des Segments stimmt nicht');
     end
     % Probe: [A]/(10) (nur für Drehgelenke; wegen Maximallänge bei
     % Schubgelenk
-    r_i_i_ip1_test = R_i_Si*[L_i;0;0];
+    r_i_i_ip1_test = R_i_Si*[norm(r_i_i_D);0;0];
     Tges=R_pkin.jtraf(zeros(R_pkin.NJ,1));
     r_i_i_ip1 = Tges(1:3,4,i);
-    if R.MDH.sigma(i) == 0 && any(abs(r_i_i_ip1_test-r_i_i_ip1) > 1e-10)
+    if R_pkin.MDH.sigma(i) == 0 && any(abs(r_i_i_ip1_test-r_i_i_ip1) > 1e-10)
       error('Segment-Darstellung stimmt nicht');
     end
-
-    if R.MDH.sigma(i) == 1
-      % Bestimme zusätzliche Dynamikparameter für Schubgelenke:
-      if R.DesPar.joint_type(i) ==  5
+    %% Bestimme zusätzliche Dynamikparameter für Schubgelenke:
+    if R_pkin.MDH.sigma(i) == 1
+      if R_pkin.DesPar.joint_type(i) ==  5
         % Bei ausfahrbaren Zylindern gibt es zusätzlich noch einen
         % statischen Teil. Dieser Teil wird dem vorherigen Segment
         % zugeordnet. Ähnlich wie ein Stator beim Motor.
@@ -148,14 +178,14 @@ for i = 1:length(m_ges_Link)
 %         trplot(Tc(:,:,i)*T_i_Si1, 'frame', sprintf('B1,%d',i-1), 'rgb', 'length', 0.20)
 %         trplot(Tc(:,:,i)*T_i_Si2, 'frame', sprintf('B2,%d',i-1), 'rgb', 'length', 0.20)
         l_outercyl = norm(T_i_Si2(1:3,4)-T_i_Si1(1:3,4));
-        [m_s, ~, J_B_C] = data_hollow_cylinder(R_i, e_i, l_outercyl, density);
+        [m_s, J_B_C] = data_hollow_cylinder(R_i, e_i, l_outercyl, density);
         % Umrechnen auf Körper-KS: rotx(alpha) damit z-Achse entlang
         % Zylinder zeigt. roty, weil Längsachse im Geometrie-KS x ist
         % anstatt z
         R_i_B = rotx(R_pkin.MDH.alpha(i))*roty(-pi/2);
         J_i_C = R_i_B * J_B_C * R_i_B';
         r_i_Oi_C = T_i_Si1(1:3,4) + T_i_Si1(1:3,1:3)*[0;0;l_outercyl/2];
-        trplot(Tc(:,:,i)*transl(r_i_Oi_C), 'frame', sprintf('BC,%d',i-1), 'rgb', 'length', 0.20)
+%         trplot(Tc(:,:,i)*transl(r_i_Oi_C), 'frame', sprintf('BC,%d',i-1), 'rgb', 'length', 0.20)
         % Eintragen in Dynamik-Parameter (bezogen auf Ursprung)
         m_ges_PStator(i) = m_s;
         [mrS_ges_PStator(i,:), If_ges_PStator(i,:)] = inertial_parameters_convert_par1_par2( ...
@@ -166,21 +196,41 @@ for i = 1:length(m_ges_Link)
 %         trplot(Tc(:,:,i+1)*T_ip1_L1, 'frame', sprintf('L1,%d',i), 'rgb', 'length', 0.50)
 %         trplot(Tc(:,:,i+1), 'frame', sprintf('%d',i), 'rgb', 'length', 0.30)
         l_innercyl = q_range(i);
-        [m_s, ~, J_S_C] = data_hollow_cylinder(R_i-e_i, e_i*1.5, l_innercyl, density);
+        [m_s, J_S_C] = data_hollow_cylinder(R_i-e_i, e_i*1.5, l_innercyl, density);
         R_i_L = roty(pi/2); % Hier Längsachse z; in Geometrie-KS x-Achse
         J_ip1_C = R_i_L * J_S_C * R_i_L';
         r_ip1_Oip1_C = [0;0;-(q_range(i))/2];
 %         trplot(Tc(:,:,i+1)*transl(r_ip1_Oip1_C), 'frame', sprintf('L1C,%d',i), 'rgb', 'length', 0.50)
-        
         m_ges_PAbtrieb(i+1) = m_s;
         [mrS_ges_PAbtrieb(i+1,:), If_ges_PAbtrieb(i+1,:)] = inertial_parameters_convert_par1_par2( ...
           r_ip1_Oip1_C', inertiamatrix2vector(J_ip1_C), m_s);
+      elseif R_pkin.DesPar.joint_type(i) ==  4
+        % Bei Linearführungen gibt es noch Dynamikparameter für die Führung
+        % und den Schlitten
+        % Benutze Gleiche Hohlzylinderannahme für Dynamikparameter der
+        % Führung
+        l_rail = q_range(i);
+        [m_s, J_B_C] = data_hollow_cylinder(R_i, e_i, l_rail, density);
+        R_i_B = rotx(R_pkin.MDH.alpha(i))*roty(-pi/2);
+        J_i_C = R_i_B * J_B_C * R_i_B';
+        r_i_Oi_C = [R_pkin.MDH.a(i);0;0] + rotx(R_pkin.MDH.alpha(i))*[0;0;R_pkin.qlim(i,1)+0.5*q_range(i)];
+        trplot(Tc(:,:,i)*transl(r_i_Oi_C), 'frame', sprintf('SC,%d',i), 'rgb', 'length', 0.50)
+        % Eintragen in Dynamik-Parameter (bezogen auf Ursprung)
+        m_ges_PStator(i) = m_s;
+        [mrS_ges_PStator(i,:), If_ges_PStator(i,:)] = inertial_parameters_convert_par1_par2( ...
+          r_i_Oi_C', inertiamatrix2vector(J_i_C), m_s);
+        % Benutze Gleiche Hohlzylinderannahme für Dynamikparameter des
+        % Schlittens. Diese Parameter müssen zum nächsten Segment gezählt
+        % werden
+        m_ges_PAbtrieb(i+1) = 0;
+        mrS_ges_PAbtrieb(i+1,:) = 0;
+        If_ges_PAbtrieb(i+1,:) = 0;
       end
     end
   else
     % Letzter Körper: Flansch->EE bei Seriell; Plattform->EE bei Parallel
     if Structure.Type == 0 % Seriell
-      L_i = norm(R_pkin.T_N_E(1:3,4));
+      r_i_i_D = R_pkin.T_N_E(1:3,4);
       % Rotationsmatrix für das letzte Segment-KS
       % Die x-Achse muss zum EE zeigen. Die anderen beiden Achsen sind
       % willkürlich senkrecht dazu.
@@ -197,7 +247,7 @@ for i = 1:length(m_ges_Link)
         error('Letztes Segment-KS stimmt nicht');
       end
     else % Parallel
-      L_i = norm(R.T_P_E(1:3,4));
+      r_i_i_D = R.T_P_E(1:3,4);
       % Annahme: Da die Plattform in der Mitte des Roboters ist, muss keine besondere
       % EE-Transformation berücksichtigt werden.
       R_i_Si = eye(3);
@@ -206,23 +256,16 @@ for i = 1:length(m_ges_Link)
       end
     end
   end
-
+  %% Segment-Geometrie als Dynamikparameter berechnen
   if Structure.Type == 0 || Structure.Type == 2 && i < size(m_ges_Link,1)
     % Hohlzylinder-Segment für Serielle Roboter und PKM
-
+    L_i = norm(r_i_i_D);
     % Modellierung Hohlzylinder. Siehe TM-Formelsammlung
-    [m_s, r_S_Oi_C, J_S_C] = data_hollow_cylinder(R_i, e_i, L_i, density);
-%       m_s = ((pi*(R_i^2)-(pi*((R_i-e_i)^2)))*L_i*density);
-%       % Schwerpunktskoordinate  im Segment-KS (nicht: Körper-KS)
-%       r_S_Oi_C = [L_i/2;0;0]; % % [A]/(5)
-%       % Trägheitstensor im Segment-KS (nicht: Körper-KS)
-%       J_S_C_xx=m_s/2*(R_i^2 + (R_i-e_i)^2); % Längsrichtung des Zylinders
-%       J_S_C_yy=m_s/4*(R_i^2 + (R_i-e_i)^2 + (L_i^2)/3);
-%       J_S_C_zz=J_S_C_yy;
-%       J_S_C = diag([J_S_C_xx; J_S_C_yy; J_S_C_zz]); % [A]/(7)
+    [m_s, J_S_C] = data_hollow_cylinder(R_i, e_i, L_i, density);
+    trplot(Tc(:,:,i)*r2t(R_i_Si)*transl([L_i/2;0;0]), 'frame', sprintf('C,Link,%d',i-1), 'rgb', 'length', 0.10)
     % Umrechnen auf Körper-KS;
     J_i_C = R_i_Si * J_S_C * R_i_Si'; % [A]/(8)
-    r_i_Oi_C = R_i_Si*r_S_Oi_C; % [A]/(3)
+    r_i_Oi_C = 0.5*r_i_i_D;
     % Eintragen in Dynamik-Parameter (bezogen auf Ursprung)
     J_i_C_vec= inertiamatrix2vector(J_i_C);
     m_ges_Link(i) = m_s;
@@ -295,14 +338,12 @@ if R.Type == 0
   linkaxes(sphdl);
 end
 end
-function [m_s, r_S_Oi_C, J_S_C] = data_hollow_cylinder(R_i, e_i, L_i, density)
+function [m_s, J_S_C] = data_hollow_cylinder(R_i, e_i, L_i, density)
   % Berechne die mechanischen Daten des Hohlzylinders (entlang der x-Achse
   % des Geometrie-KS)
 
   % Modellierung Hohlzylinder. Siehe TM-Formelsammlung
   m_s = ((pi*(R_i^2)-(pi*((R_i-e_i)^2)))*abs(L_i)*density);
-  % Schwerpunktskoordinate  im Segment-KS (nicht: Körper-KS)
-  r_S_Oi_C = [L_i/2;0;0]; % % [A]/(5)
   % Trägheitstensor im Segment-KS (nicht: Körper-KS)
   J_S_C_xx=m_s/2*(R_i^2 + (R_i-e_i)^2); % Längsrichtung des Zylinders
   J_S_C_yy=m_s/4*(R_i^2 + (R_i-e_i)^2 + (L_i^2)/3);

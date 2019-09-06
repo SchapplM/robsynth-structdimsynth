@@ -133,7 +133,7 @@ if strcmp(Set.optimization.objective, 'energy') || strcmp(Set.optimization.objec
   % Dynamik-Parameter aktualisieren. Keine Nutzung der Ausgabe der Funktion
   % (Parameter werden direkt in Klasse geschrieben; R.DesPar.seg_par ist
   % vor/nach dem Aufruf unterschiedlich)
-%   debug_plot_robot(R, Q(1,:)', Traj_W, Set, Structure, p, 0, debug_info);
+  debug_plot_robot(R, Q(1,:)', Traj_W, Set, Structure, p, 0, debug_info);
   cds_dimsynth_desopt(R, Q, Set, Structure);
 end
 %% Zielfunktion berechnen
