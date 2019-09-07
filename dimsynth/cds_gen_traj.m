@@ -7,8 +7,7 @@ function Traj = cds_gen_traj(DoF, no, trajset)
 x0 = [0.5, 0.5, 0, 0, 0, 0]';
 k=1; XE = x0';
 
-%% Liste der Trajektorien
-
+%% Liste der Trajektorien: 2T1R
 if all(DoF == [1 1 0 0 0 1])
   if no == 1
     d1=0.3;
@@ -25,7 +24,26 @@ if all(DoF == [1 1 0 0 0 1])
     k=k+1; XE(k,:) = XE(k-1,:) + [0,d1,0  0,0, phimax];
   end
 end
-
+%% Liste der Trajektorien: 3T0R
+if all(DoF == [1 1 1 0 0 0])
+  % Beginn Würfel
+  d1=0.3;
+  h1=0.3;
+  k=k+1; XE(k,:) = XE(k-1,:) + [ d1,0,0, 0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,-d1,0  0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [-d1,0,0, 0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,0,-h1, 0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,0, h1, 0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,d1,0,  0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,0,-h1, 0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [ d1,0,0, 0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,-d1,0  0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,0, h1, 0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,0,-h1, 0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [-d1,0,0, 0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,d1,0,  0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,0, h1, 0,0,0];
+end
 %% Trajektorie generieren
 if trajset.profile == 1
   [X_ges,XD_ges,XDD_ges,T_ges] = traj_trapez2_multipoint(XE, ...

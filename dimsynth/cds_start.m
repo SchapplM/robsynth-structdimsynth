@@ -15,7 +15,7 @@ mkdirs(fullfile(Set.optimization.resdir, Set.optimization.optname));
 
 
 % Menge der Roboter laden
-Structures = cds_gen_robot_list(Set.structures);
+Structures = cds_gen_robot_list(Set);
 
 if ~Set.general.regenerate_summmary_only
 % Optimierung der Strukturen durchführen
