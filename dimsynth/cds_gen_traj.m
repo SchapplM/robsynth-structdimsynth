@@ -86,6 +86,15 @@ if all(DoF == [1 1 1 1 1 1])
   k=k+1; XE(k,:) = XE(k-1,:) + [0,d1,0,  -pi/4,0,-pi/6];
   k=k+1; XE(k,:) = XE(k-1,:) + [0,0, h1, -pi/12,pi/12,pi/3];
 end
+%% Skaliere die Winkel der Trajektorie herunter
+% Relevant, wenn die Dreh- und Schwenkwinkel des Roboters nicht wichtig
+% sind (z.B. bei der FG-Prüfung in der Struktursynthese).
+maxangle_traj = max(max(abs(XE(:,4:6))));
+if maxangle_traj > trajset.maxangle
+  % Skaliere so herunter, dass Maximalwinkel gerade erreicht wird.
+  % Betrachte nur die einzelnen Euler-Komponenten. Ignoriere Kopplung
+  XE(:,4:6) = trajset.maxangle * XE(:,4:6) / maxangle_traj;
+end
 
 %% Trajektorie generieren
 if trajset.profile == 1
