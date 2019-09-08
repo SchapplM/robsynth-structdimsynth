@@ -13,8 +13,6 @@ warning('off', 'MATLAB:nearlySingularMatrix');
 if ~exist('Set', 'var') || ~exist('Traj', 'var')
   error('Eingabevariablen des Startskriptes existieren nicht');
 end
-mkdirs(fullfile(Set.optimization.resdir, Set.optimization.optname));
-
 
 % Menge der Roboter laden
 Structures = cds_gen_robot_list(Set);
