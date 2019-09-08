@@ -312,7 +312,7 @@ if Structure.Type == 0 % Seriell
 else % Parallel
   [q, Phi] = R.invkin_ser(Traj_0.XE(1,:)', cat(1,R.Leg.qref));
 end
-if any(abs(Phi)>1e-8)
+if ~strcmp(Set.optimization.objective, 'valid_act') && any(abs(Phi)>1e-8)
   warning('PSO-Ergebnis für Startpunkt nicht reproduzierbar (ZB-Verletzung)');
 end
 % Berechne IK der Bahn (für spätere Visualisierung)
@@ -324,7 +324,8 @@ else % Parallel
   [Q, QD, QDD, PHI] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
 end
 
-if any(abs(PHI(:))>1e-8) || any(isnan(Q(:)))
+if ~strcmp(Set.optimization.objective, 'valid_act') && ...
+    (any(abs(PHI(:))>1e-8) || any(isnan(Q(:))))
   warning('PSO-Ergebnis für Trajektorie nicht reproduzierbar oder nicht gültig (ZB-Verletzung)');
 end
 %% Ausgabe der Ergebnisse
