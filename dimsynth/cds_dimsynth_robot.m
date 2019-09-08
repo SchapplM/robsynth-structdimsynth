@@ -5,8 +5,10 @@
 
 function RobotOptRes = cds_dimsynth_robot(Set, Traj, Structure)
 %% Debug: 
-save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot1.mat'));
-% error('Halte hier');
+if Set.general.matfile_verbosity > 0
+  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot1.mat'));
+end
+% Zum Debuggen:
 % load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot1.mat'));
 
 %% Initialisierung
@@ -249,7 +251,9 @@ end
 f_test = fitnessfcn(InitPop(1,:)'); %#ok<NASGU> % Testweise ausführen
 
 %% PSO-Aufruf starten
-save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat'));
+if Set.general.matfile_verbosity > 0
+  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat'));
+end
 if false
   % Falls der PSO abbricht: Zwischenergebnisse laden und daraus Endergebnis
   % erzeugen. Dafür ist ein manuelles Eingreifen mit den Befehlen in diesem
@@ -264,8 +268,9 @@ else
   % PSO wird ganz normal ausgeführt.
   [p_val,fval,exitflag] = particleswarm(fitnessfcn,nvars,varlim(:,1),varlim(:,2),options);
 end
-
-save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot3.mat'));
+if Set.general.matfile_verbosity > 0
+  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot3.mat'));
+end
 % Debug:
 % load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot3.mat'));
 %% Nachverarbeitung der Ergebnisse
@@ -339,4 +344,6 @@ RobotOptRes = struct( ...
   'fitnessfcn', fitnessfcn);
 % Debug: Durch laden dieser Ergebnisse kann nach Abbruch des PSO das
 % Ergebnis trotzdem geladen werden
-save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot4.mat'));
+if Set.general.matfile_verbosity > 0
+  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot4.mat'));
+end

@@ -23,6 +23,7 @@ Set.optimization.MaxIter = 5;
 Set.general.plot_details_in_fitness = 1e3;
 Set.general.plot_robot_in_fitness = 1e3;
 Set.general.verbosity = 3;
+Set.general.matfile_verbosity = 3;
 Set.structures.maxnumprismatic = 3; % für Portal-Systeme
 
 cds_start

@@ -4,8 +4,10 @@
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
 function fval = cds_dimsynth_fitness_par(R, Set, Traj_W, Structure, p)
-% Debug: 
-% save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par1.mat'));
+% Debug:
+if Set.general.matfile_verbosity > 2
+  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par1.mat'));
+end
 % error('Halte hier');
 % load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par1.mat'));
 
@@ -131,7 +133,9 @@ q_range_E(R.MDH.sigma==0) = angle_range(QE(:,R.MDH.sigma==0));
 qlimviol_E = (qlim_PKM(:,2)-qlim_PKM(:,1))' - q_range_E;
 I_qlimviol_E = (qlimviol_E < 0);
 if any(I_qlimviol_E)
-  % save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par_qviolE.mat'));
+  if Set.general.matfile_verbosity > 2
+    save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par_qviolE.mat'));
+  end
   % Bestimme die größte relative Verletzung der Winkelgrenzen
   [fval_qlimv_E, I_worst] = min(qlimviol_E(I_qlimviol_E)./(qlim_PKM(I_qlimviol_E,2)-qlim_PKM(I_qlimviol_E,1))');
   II_qlimviol_E = find(I_qlimviol_E); IIw = II_qlimviol_E(I_worst);
@@ -152,8 +156,9 @@ if any(I_qlimviol_E)
   end
   return
 end
-
-save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par2.mat'));
+if Set.general.matfile_verbosity > 2
+  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par2.mat'));
+end
 % Debug:
 % load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par2.mat'));
 %% Inverse Kinematik der Trajektorie berechnen
@@ -183,7 +188,9 @@ q_range_T(R.MDH.sigma==0) = angle_range(Q(:,R.MDH.sigma==0));
 qlimviol_T = (qlim_PKM(:,2)-qlim_PKM(:,1))' - q_range_T;
 I_qlimviol_T = (qlimviol_T < 0);
 if any(I_qlimviol_E)
-  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par_qviolT.mat'));
+  if Set.general.matfile_verbosity > 2
+    save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par_qviolT.mat'));
+  end
   % Bestimme die größte relative Verletzung der Winkelgrenzen
   [fval_qlimv_T, I_worst] = min(qlimviol_T(I_qlimviol_T)./(qlim_PKM(I_qlimviol_T,2)-qlim_PKM(I_qlimviol_T,1))');
   II_qlimviol_T = find(I_qlimviol_T); IIw = II_qlimviol_T(I_worst);
@@ -210,7 +217,9 @@ if any(strcmp(Set.optimization.objective, {'energy', 'mass'}))
   % vor/nach dem Aufruf unterschiedlich)
   cds_dimsynth_desopt(R, Q, Traj_0, Set, Structure);
 end
-save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par3.mat'));
+if Set.general.matfile_verbosity > 1
+  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par3.mat'));
+end
 % Debug:
 % load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par3.mat'));
 
@@ -261,8 +270,10 @@ elseif strcmp(Set.optimization.objective, 'condition')
       Jinv_num_voll = -G_q \ G_x;
       Jinv = Jinv_num_voll(R.I_qa,:);
       % Debug: Vergleich Jacobi
-      if any(any(abs(Jinv - R.jacobi_qa_x(Q(i,:)', Traj_0.X(i,:)')) > 1e-6))
-        save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par3.mat'));
+      if any(any(abs( Jinv - R.jacobi_qa_x(Q(i,:)',Traj_0.X(i,:)') ) > 1e-6))
+        if Set.general.matfile_verbosity > 0
+          save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par3.mat'));
+        end
         warning('Jacobi numerisch vs. symbolisch stimmt nicht');
       end
       det_ges(i,:) = [det(G_dx), det(G_q), det(Jinv)];

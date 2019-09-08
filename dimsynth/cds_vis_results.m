@@ -4,14 +4,18 @@
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
 function cds_vis_results(Set, Traj, Structures)
-save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_vis_results1.mat'));
-% error('Halte hier');
+if Set.general.matfile_verbosity > 0
+  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_vis_results1.mat'));
+end
+% Zum Debuggen
 % load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_vis_results1.mat'));
 
 resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
 
 for i = 1:length(Structures)
-  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_vis_results2.mat'));
+  if Set.general.matfile_verbosity > 0
+    save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_vis_results2.mat'));
+  end
   %% Initialisierung der Ergebnisse dieser Struktur
   % load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_vis_results2.mat'));
   Structure = Structures{i};
@@ -27,7 +31,10 @@ for i = 1:length(Structures)
   end
   Q = RobotOptRes.Traj_Q;
   Traj_0 = cds_rotate_traj(Traj, R.T_W_0);
-  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_vis_results3.mat'));
+  if Set.general.matfile_verbosity > 1
+    save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_vis_results3.mat'));
+  end
+  % Zum Debuggen:
   % load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_vis_results3.mat'));
   %% Statistische Verteilung der Ergebnisse aller Generationen
   resdir_pso = fullfile(resmaindir, ...

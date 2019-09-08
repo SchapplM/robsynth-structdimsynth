@@ -6,8 +6,9 @@
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
 function cds_create_evolution_videos(Set, Traj, Structures)
-save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_create_evolution_videos1.mat'));
-
+if Set.general.matfile_verbosity > 0
+  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_create_evolution_videos1.mat'));
+end
 if ~Set.general.save_evolution_video
   return
 end
@@ -15,8 +16,9 @@ end
 resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
 
 for j = 1:length(Structures)
-  
-  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_create_evolution_videos2.mat'));
+  if Set.general.matfile_verbosity > 1
+    save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_create_evolution_videos2.mat'));
+  end
   %% Initialisierung der Ergebnisse dieser Struktur
   % load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_create_evolution_videos2.mat'));
   Structure = Structures{j};

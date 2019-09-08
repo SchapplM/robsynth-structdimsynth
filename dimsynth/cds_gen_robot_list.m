@@ -4,9 +4,11 @@
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
 function Structures = cds_gen_robot_list(Set)
-%% Debug: 
-save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_gen_robot_list1.mat'));
-% error('Halte hier');
+%% Debug:
+if Set.general.matfile_verbosity > 0
+  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_gen_robot_list1.mat'));
+end
+% Zum Debuggen
 % load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_gen_robot_list1.mat'));
 
 %% Init
