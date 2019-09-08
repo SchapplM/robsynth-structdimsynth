@@ -6,7 +6,9 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
+% Warnungen unterdrücken, die bei der Maßsynthese typischerweise auftreten
 warning('off', 'MATLAB:singularMatrix');
+warning('off', 'MATLAB:nearlySingularMatrix');
 
 if ~exist('Set', 'var') || ~exist('Traj', 'var')
   error('Eingabevariablen des Startskriptes existieren nicht');

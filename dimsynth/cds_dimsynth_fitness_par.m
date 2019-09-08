@@ -200,7 +200,7 @@ if any(I_qlimviol_E)
   return
 end
 %% Dynamik-Parameter
-if strcmp(Set.optimization.objective, 'energy') || strcmp(Set.optimization.objective, 'mass')
+if any(strcmp(Set.optimization.objective, {'energy', 'mass'}))
   % Gelenkgrenzen in Roboterklasse neu eintragen
   for i = 1:R.NLEG
     R.Leg(i).qlim = minmax2(Q(:,R.I1J_LEG(i):R.I2J_LEG(i))');
@@ -210,25 +210,45 @@ if strcmp(Set.optimization.objective, 'energy') || strcmp(Set.optimization.objec
   % vor/nach dem Aufruf unterschiedlich)
   cds_dimsynth_desopt(R, Q, Traj_0, Set, Structure);
 end
+save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par3.mat'));
+% Debug:
+% load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par3.mat'));
+
 %% Zielfunktion berechnen
-if strcmp(Set.optimization.objective, 'condition')
+
+if any(strcmp(Set.optimization.objective, {'valid_act', 'condition'}))
   Cges = NaN(length(Traj_0.t), 1);
   n_qa = sum(R.I_qa);
+  Rges = NaN(length(Traj_0.t), 1);
   % Berechne Konditionszahl für alle Punkte der Bahn
   for i = 1:length(Traj_0.t)
     Jinv_xred = R.jacobi_qa_x(Q(i,:)', Traj_0.X(i,:)');
     Jinv_3T3R = zeros(6, n_qa);
     Jinv_3T3R(R.I_EE,:) = Jinv_xred;
     Jinv_task = Jinv_3T3R(Set.structures.DoF,:);
-    Cges(i,:) = cond(Jinv_task);
+    Cges(i) = cond(Jinv_task);
+    Rges(i) = rank(Jinv_task);
   end
+end
+%% Zielfunktion berechnen
+if strcmp(Set.optimization.objective, 'valid_act')
+  % Zielfunktion ist der Rang. Bei vollem Rang "funktioniert" der Roboter
+  % und der entsprechende Schwellwert wird unterschritten
+  RD = sum(R.I_EE) - max(Rges); % Rangdefizit
+  if RD == 0
+    fval = 10; % Reicht zum aufhören
+  else
+    fval = 100*RD; % Kodiere Rangdefizit in Zielfunktion
+  end
+  fval_debugtext = sprintf('Rangdefizit %d\n', RD);
+elseif strcmp(Set.optimization.objective, 'condition')
   % Schlechtester Wert der Konditionszahl
   % Nehme Logarithmus, da Konditionszahl oft sehr groß ist.
   f_cond1 = max(Cges);
   f_cond = log(f_cond1); 
   f_cond_norm = 2/pi*atan((f_cond)/20); % Normierung auf 0 bis 1; 150 ist 0.9
   fval = 1e3*f_cond_norm; % Normiert auf 0 bis 1e3
-  fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3f. Konditionszahl %1.3e\n', toc(t1),fval,  f_cond1);
+  fval_debugtext = sprintf('Schlechteste Konditionszahl %1.3e\n', f_cond1);
 
   if fval < Set.general.plot_details_in_fitness
     % Debug-Werte berechnen
@@ -330,7 +350,10 @@ elseif strcmp(Set.optimization.objective, 'energy')
   E_Netz_res = sum(trapz(Traj_0.t, P_Netz)); % Integral der Leistung am Ende
   f_en_norm = 2/pi*atan((E_Netz_res)/100); % Normierung auf 0 bis 1; 620 ist 0.9
   fval = 1e3*f_en_norm; % Normiert auf 0 bis 1e3
-  
+  fval_debugtext = sprintf('Energieverbrauch %1.1f', E_Netz_res);
+  % TODO: Falls NaN auftritt, Zeitpunkt innerhalb Gesamt-Traj kodieren
+  % im Bereich 100-1000. Energie-Wert erst bei 0 bis 100
+  if isnan(fval), fval = 1000-eps(1000); end
   if fval < Set.general.plot_details_in_fitness
     E_Netz = cumtrapz(Traj_0.t, P_Netz);
     change_current_figure(202); clf;
@@ -370,12 +393,12 @@ elseif strcmp(Set.optimization.objective, 'mass')
   m_sum = sum(R.DynPar.mges(1:end-1))*R.NLEG + R.DynPar.mges(end);
   f_mass_norm = 2/pi*atan((m_sum)/100); % Normierung auf 0 bis 1; 620 ist 0.9. TODO: Skalierung ändern
   fval = 1e3*f_mass_norm; % Normiert auf 0 bis 1e3
+  fval_debugtext = sprintf('Gesamtmasse %1.1f', m_sum);
   debug_info = {debug_info{:}; sprintf('masses: total %1.2fkg, 1Leg %1.2fkg, Pf %1.2fkg', ...
-    m_sum, sum(sum(R.DynPar.mges(1:end-1))), R.DynPar.mges(end))};
-else
+    m_sum, sum(sum(R.DynPar.mges(1:end-1))), R.DynPar.mges(end))};else
   error('Zielfunktion nicht definiert');
 end
-fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Erfolgreich.\n', toc(t1), fval);
+fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Erfolgreich. %s.\n', toc(t1), fval, fval_debugtext);
 debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
 end
 

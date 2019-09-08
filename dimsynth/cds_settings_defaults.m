@@ -36,6 +36,7 @@ general = struct( ...
   'save_robot_details_plot_fitness_file_extensions', {''}, ... % Speichern des durch vorherige Einstellung erstellten Bildes
   'save_animation_file_extensions', {{'gif'}}, ... % Format, in denen die Animationen gespeichert werden
   'save_evolution_video', false, ... % Video mit Evolution der Roboter
+  'max_retry_bestfitness_reconstruction', 10, ...
   'regenerate_summmary_only', false, ... % Nur die Videos und Zusammenfassungsbilder neu generieren. Keine Optimierung durchführen.
   'use_mex', true);
 
@@ -58,7 +59,7 @@ structures = struct( ...
 % Einstellungen mit Auswirkung auf die Optimierung: Auswahl der
 % Optimierungsvariablen und Annahmen über die Roboter, die getroffen werden
 optimization = struct( ...
-  'objective', 'energy', ... % Zielfunktion
+  'objective', 'energy', ... % Zielfunktion. Möglich: mass, energy, condition, valid_kin, valid_act
   'constraint', '', ... % Nebenbedingungen
   'movebase', true, ... % Position der Roboter-Basis
   'ee_translation', true, ... % Freie Verschiebung des EE

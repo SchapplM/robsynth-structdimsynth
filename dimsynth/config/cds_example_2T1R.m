@@ -18,7 +18,7 @@ Traj = cds_gen_traj(DoF, Traj_no, Set.task);
 
 Set.optimization.objective = 'mass';
 Set.optimization.optname = '2T1R_test';
-Set.optimization.NumIndividuals = 25;
+Set.optimization.NumIndividuals = 5;
 Set.optimization.MaxIter = 5;
 Set.general.plot_details_in_fitness = 1e3;
 Set.general.plot_robot_in_fitness = 1e3;

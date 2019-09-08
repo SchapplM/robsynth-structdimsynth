@@ -221,8 +221,11 @@ options.Display='iter';
 options.MaxIter = Set.optimization.MaxIter; %70 100 % in GeneralConfig
 % options.StallIterLimit = 2;
 options.SwarmSize = NumIndividuals;
-% options.ObjectiveLimit = 10; % Damit es schnell vorbei ist
-% options.ObjectiveLimit = 0; % Kein Limit
+if any(strcmp(Set.optimization.objective, {'valid_act', 'valid_kin'}))
+  % Es soll nur geprüft werden, ob es eine zulässige Lösung gibt.
+  % Breche bei einer erfolgreichen Berechnung der Zulässigkeit ab.
+  options.ObjectiveLimit = 999;
+end
 options.InitialSwarmMatrix = InitPop;
 options.PlotFcn = {@pswplotbestf};
 cds_save_all_results_anonym = @(optimValues,state)cds_psw_save_all_results(optimValues,state,Set,Structure);
@@ -268,7 +271,7 @@ save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsy
 %% Nachverarbeitung der Ergebnisse
 % Fitness-Funktion nochmal mit besten Parametern aufrufen. Dadurch werden
 % die Klassenvariablen (R.pkin, R.DesPar.seg_par, ...) aktualisiert
-for i = 1:10
+for i = 1:Set.general.max_retry_bestfitness_reconstruction
   % Mehrere Versuche vornehmen, da beim Umklappen der Roboterkonfiguration
   % andere Ergebnisse entstehen können
   fval_test = fitnessfcn(p_val');
@@ -302,7 +305,7 @@ if Structure.Type == 0 % Seriell
   % Benutze Referenzpose die bei obigen Zielfunktionsaufruf gespeichert wurde
   [q, Phi] = R.invkin2(Traj_0.XE(1,:)', R.qref);
 else % Parallel
-  [q, Phi] = R.invkin_ser(Traj_0.XE(i,:)', cat(1,R.Leg.qref));
+  [q, Phi] = R.invkin_ser(Traj_0.XE(1,:)', cat(1,R.Leg.qref));
 end
 if any(abs(Phi)>1e-8)
   warning('PSO-Ergebnis für Startpunkt nicht reproduzierbar (ZB-Verletzung)');

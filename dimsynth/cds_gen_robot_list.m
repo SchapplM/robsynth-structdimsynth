@@ -35,7 +35,7 @@ end
 
 EE_FG = structset.DoF;
 EE_FG_Mask = [1 1 1 1 1 1]; % Die FG müssen genauso auch vom Roboter erfüllt werden (0 darf nicht auch 1 sein)
-
+ii = 0; % Laufende Nummer für alle Roboterstrukturen (seriell und parallel)
 
 %% Serielle aus Liste Roboter laden
 % serroblibpath=fileparts(which('serroblib_path_init.m'));
@@ -54,9 +54,14 @@ if structset.use_serial
   I_novar = (l.AdditionalInfo(:,2) == 0);
   I = I_FG & I_novar;
   II = find(I);
-  ii = 0;
+
   for j = II'
     SName = l.Names_Ndof{j};
+    if ~isempty(structset.whitelist) && ~any(strcmp(structset.whitelist, SName))
+      % Es gibt eine Liste von Robotern, dieser ist nicht dabei.
+      continue
+    end
+    
     % Prüfe Anzahl Schubgelenke
     numprismatic = sum(SName == 'P');
     if numprismatic > structset.maxnumprismatic
@@ -64,11 +69,6 @@ if structset.use_serial
       continue
     end
     
-    if ~isempty(structset.whitelist) && ~any(strcmp(structset.whitelist, SName))
-      % Es gibt eine Liste von Robotern, dieser ist nicht dabei.
-      continue
-    end
-
     ii = ii + 1;
     fprintf('%d: %s\n', ii, SName);
     Structures{ii} = struct('Name', SName, 'Type', 0, 'Number', ii);
@@ -82,7 +82,11 @@ if structset.use_parallel
   % Voll-Parallel: So viele Beinketten wie EE-FG, jede Beinkette einfach aktuiert
   [PNames_Kin, PNames_Akt] = parroblib_filter_robots(sum(EE_FG), EE_FG, EE_FG_Mask);
   for j = 1:length(PNames_Akt)
-
+    if ~isempty(structset.whitelist) && ~any(strcmp(structset.whitelist, PNames_Akt{j}))
+      % Es gibt eine Liste von Robotern, dieser ist nicht dabei.
+      continue
+    end
+    
     % Lade Detailierte Informationen des Robotermodells
     [NLEG, LEG_Names, Actuation, ActNr, symrob, EE_dof0, PName_Kin] = parroblib_load_robot(PNames_Akt{j});
 
@@ -118,11 +122,6 @@ if structset.use_parallel
     end
     if structset.activenotlastjoint && LastJointActive
       if verblevel >= 3, fprintf('%s hat aktives letztes Gelenk. Ignoriere\n', PNames_Akt{j}); end
-      continue
-    end
-
-    if ~isempty(structset.whitelist) && ~any(strcmp(structset.whitelist, PNames_Akt{j}))
-      % Es gibt eine Liste von Robotern, dieser ist nicht dabei.
       continue
     end
 
