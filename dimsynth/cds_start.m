@@ -17,6 +17,10 @@ mkdirs(fullfile(Set.optimization.resdir, Set.optimization.optname));
 % Menge der Roboter laden
 Structures = cds_gen_robot_list(Set.structures);
 
+if isempty(Structures)
+  fprintf('Keine Strukturen entsprechen den Filterkriterien\n');
+end
+
 if ~Set.general.regenerate_summmary_only
 % Optimierung der Strukturen durchführen
 for i = 1:length(Structures)
