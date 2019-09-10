@@ -7,8 +7,7 @@ function Traj = cds_gen_traj(DoF, no, trajset)
 x0 = [0.5, 0.5, 0, 0, 0, 0]';
 k=1; XE = x0';
 
-%% Liste der Trajektorien
-
+%% Liste der Trajektorien: 2T1R
 if all(DoF == [1 1 0 0 0 1])
   if no == 1
     d1=0.3;
@@ -24,6 +23,77 @@ if all(DoF == [1 1 0 0 0 1])
     k=k+1; XE(k,:) = XE(k-1,:) + [-d1,0,0, 0,0,-phimax];
     k=k+1; XE(k,:) = XE(k-1,:) + [0,d1,0  0,0, phimax];
   end
+end
+%% Liste der Trajektorien: 3T0R
+if all(DoF == [1 1 1 0 0 0])
+  % Beginn Würfel
+  d1=0.3;
+  h1=0.3;
+  k=k+1; XE(k,:) = XE(k-1,:) + [ d1,0,0, 0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,-d1,0  0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [-d1,0,0, 0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,0,-h1, 0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,0, h1, 0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,d1,0,  0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,0,-h1, 0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [ d1,0,0, 0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,-d1,0  0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,0, h1, 0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,0,-h1, 0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [-d1,0,0, 0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,d1,0,  0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,0, h1, 0,0,0];
+end
+
+%% Liste der Trajektorien: 3T1R
+if all(DoF == [1 1 1 0 0 1])
+  % Beginn Würfel mit zusätzlicher EE-Drehung
+  d1=0.3;
+  h1=0.3;
+  k=k+1; XE(k,:) = XE(k-1,:) + [ d1,0,0, 0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,-d1,0  0,0, pi/4];
+  k=k+1; XE(k,:) = XE(k-1,:) + [-d1,0,0, 0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,0,-h1, 0,0, pi/4];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,0, h1, 0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,d1,0,  0,0,-pi/4];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,0,-h1, 0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [ d1,0,0, 0,0,-pi/4];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,-d1,0  0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,0, h1, 0,0,-pi/3];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,0,-h1, 0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [-d1,0,0, 0,0,pi/2];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,d1,0,  0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,0, h1, 0,0,-pi/6];
+end
+
+%% Liste der Trajektorien: 3T3R
+if all(DoF == [1 1 1 1 1 1])
+  % Beginn Würfel mit zusätzlicher 3D-EE-Drehung
+  d1=0.3;
+  h1=0.3;
+  k=k+1; XE(k,:) = XE(k-1,:) + [ d1,0,0, 0,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,-d1,0  0,0, pi/4];
+  k=k+1; XE(k,:) = XE(k-1,:) + [-d1,0,0, 0,0,-pi/4];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,0,-h1, pi/4,0, 0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,0, h1, -pi/4,0,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,d1,0,  0,pi/4,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,0,-h1, 0,-pi/4,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [ d1,0,0, pi/6,-pi/6,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,-d1,0  -pi/6,pi/6,0];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,0, h1, -pi/4,pi/4,-pi/3];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,0,-h1, pi/2,-pi/6,-pi/3];
+  k=k+1; XE(k,:) = XE(k-1,:) + [-d1,0,0, pi/12,-pi/6,pi/2];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,d1,0,  -pi/4,0,-pi/6];
+  k=k+1; XE(k,:) = XE(k-1,:) + [0,0, h1, -pi/12,pi/12,pi/3];
+end
+%% Skaliere die Winkel der Trajektorie herunter
+% Relevant, wenn die Dreh- und Schwenkwinkel des Roboters nicht wichtig
+% sind (z.B. bei der FG-Prüfung in der Struktursynthese).
+maxangle_traj = max(max(abs(XE(:,4:6))));
+if maxangle_traj > trajset.maxangle
+  % Skaliere so herunter, dass Maximalwinkel gerade erreicht wird.
+  % Betrachte nur die einzelnen Euler-Komponenten. Ignoriere Kopplung
+  XE(:,4:6) = trajset.maxangle * XE(:,4:6) / maxangle_traj;
 end
 
 %% Trajektorie generieren

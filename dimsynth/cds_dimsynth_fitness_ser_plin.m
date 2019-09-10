@@ -5,7 +5,9 @@
 
 function fval = cds_dimsynth_fitness_ser_plin(R, Set, Traj_W, Structure, p)
 % Debug: 
-% save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_ser_plin.mat'));
+if Set.general.matfile_verbosity > 2
+  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_ser_plin.mat'));
+end
 % error('Halte hier');
 % load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_ser_plin.mat'));
 t1=tic();
@@ -77,7 +79,9 @@ q_range_E(R.MDH.sigma==0) = angle_range(QE(:,R.MDH.sigma==0));
 qlimviol_E = (R.qlim(:,2)-R.qlim(:,1))' - q_range_E;
 I_qlimviol_E = (qlimviol_E < 0);
 if any(I_qlimviol_E)
-  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_ser_plin_qviolE.mat'));
+  if Set.general.matfile_verbosity > 2
+    save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_ser_plin_qviolE.mat'));
+  end
   % Bestimme die größte relative Verletzung der Winkelgrenzen
   fval_qlimv_E = -min(qlimviol_E(I_qlimviol_E)./(R.qlim(I_qlimviol_E,2)-R.qlim(I_qlimviol_E,1))');
   fval_qlimv_E_norm = 2/pi*atan((fval_qlimv_E)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
@@ -116,7 +120,9 @@ q_range_T(R.MDH.sigma==0) = angle_range(Q(:,R.MDH.sigma==0));
 qlimviol_T = (R.qlim(:,2)-R.qlim(:,1))' - q_range_T;
 I_qlimviol_T = (qlimviol_T < 0);
 if any(I_qlimviol_E)
-  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_ser_plin_qviolT.mat'));
+  if Set.general.matfile_verbosity > 2
+    save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_fitness_ser_plin_qviolT.mat'));
+  end
   % Bestimme die größte relative Verletzung der Winkelgrenzen
   fval_qlimv_T = -min(qlimviol_T(I_qlimviol_T)./(R.qlim(I_qlimviol_T,2)-R.qlim(I_qlimviol_T,1))');
   fval_qlimv_T_norm = 2/pi*atan((fval_qlimv_T)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9

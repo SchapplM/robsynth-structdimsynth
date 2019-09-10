@@ -6,16 +6,16 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
+% Warnungen unterdrücken, die bei der Maßsynthese typischerweise auftreten
 warning('off', 'MATLAB:singularMatrix');
+warning('off', 'MATLAB:nearlySingularMatrix');
 
 if ~exist('Set', 'var') || ~exist('Traj', 'var')
   error('Eingabevariablen des Startskriptes existieren nicht');
 end
-mkdirs(fullfile(Set.optimization.resdir, Set.optimization.optname));
-
 
 % Menge der Roboter laden
-Structures = cds_gen_robot_list(Set.structures);
+Structures = cds_gen_robot_list(Set);
 
 if isempty(Structures)
   fprintf('Keine Strukturen entsprechen den Filterkriterien\n');

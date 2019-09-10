@@ -20,7 +20,9 @@
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
 function R=cds_dimsynth_desopt(R, Q, Traj_0, Set, Structure)
-save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_desopt.mat'));
+if Set.general.matfile_verbosity > 2
+  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_desopt.mat'));
+end
 desopt_debug = false;
 % Debug:
 % function R=cds_dimsynth_desopt()
@@ -313,7 +315,9 @@ if any(isnan([If_ges(:);mrS_ges(:)]))
 end
 if R.Type == 0 
   % Seriell: Parameter direkt eintragen
-  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_desopt_saveparamserial.mat'));
+  if Set.general.matfile_verbosity > 2
+    save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_desopt_saveparamserial.mat'));
+  end
   R.update_dynpar2(m_ges, mrS_ges, If_ges)
 else
   % PKM (symmetrisch): Parameter ohne Basis und ohne Segmente nach
