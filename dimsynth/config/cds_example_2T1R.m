@@ -24,7 +24,7 @@ Set.general.plot_details_in_fitness = 1e3;
 Set.general.plot_robot_in_fitness = 1e3;
 Set.general.verbosity = 3;
 Set.general.matfile_verbosity = 3;
-Set.structures.whitelist = {'P3RRR1A1'}; % '' S3RRR1
+Set.structures.whitelist = {'P3RRR1G1P1A1'}; % '' S3RRR1
 
 Set.task.payload = struct('m', 0, 'rS', zeros(3,1), 'Ic', zeros(6,1));
 cds_start

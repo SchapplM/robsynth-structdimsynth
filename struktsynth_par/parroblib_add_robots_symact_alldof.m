@@ -15,10 +15,10 @@ EE_FG_ges = [1 1 0 0 0 1; ...
 EE_FG_Mask = [1 1 1 1 1 1]; % Die FG müssen genauso auch vom Roboter erfüllt werden (0 darf nicht auch 1 sein)
 serroblibpath=fileparts(which('serroblib_path_init.m'));
 %% Benutzereingabe / Einstellungen
-check_existing = false; % Falls true: Prüfe existierende Roboter in Datenbank nochmal
+check_existing = true; % Falls true: Prüfe existierende Roboter in Datenbank nochmal
 lfdNr_min = 1; % Auslassen der ersten "x" kinematischer Strukturen (zum Debuggen)
-% EE_FG_ges = EE_FG_ges(1:3,:);  % Reduktion zum Testen
-
+% EE_FG_ges = EE_FG_ges(4,:);  % Reduktion zum Testen
+Coupling = [1 1];
 %% Alle PKM generieren
 for iFG = 1:size(EE_FG_ges, 1)
   EE_FG = EE_FG_ges(iFG,:);
@@ -51,7 +51,7 @@ for iFG = 1:size(EE_FG_ges, 1)
       %% Roboter pauschal zur Datenbank hinzufügen
       % Mit dem dann eindeutigen Robotermodell sind weitere Berechnungen
       % möglich
-      [Name, new] = parroblib_add_robot(N_Legs, LEG_Names, Actuation, EE_FG);
+      [Name, new] = parroblib_add_robot(N_Legs, LEG_Names, Actuation, Coupling, EE_FG);
       if new, fprintf('PKM %s zur Datenbank hinzugefügt.\n', Name);
       else,   fprintf('PKM %s existierte schon in der Datenbank.\n', Name); end
       
@@ -59,6 +59,7 @@ for iFG = 1:size(EE_FG_ges, 1)
         fprintf('Gehe davon aus, dass bereits in Datenbank existierender Roboter korrekt ist. Überspringe nochmalige Prüfung.\n');
         continue
       end
+
       %% Maßsynthese für den Roboter durchführen
       % Damit wird geprüft, ob das System sinnvoll ist
       Set = cds_settings_defaults(struct('DoF', EE_FG));
