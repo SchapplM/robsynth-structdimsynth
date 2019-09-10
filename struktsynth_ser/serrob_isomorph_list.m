@@ -25,12 +25,12 @@ l = load(mdllistfile_Ndof, 'Names_Ndof', 'BitArrays_Ndof', 'BitArrays_EEdof0');
 %% Durchsuche alle Roboterstrukturen nach Isomorphismen
 II = serroblib_filter_robots(NDoF, EE_FG, EE_FG_Mask);
 
-for I = II
+for I = II'
   % Roboter aus Datenbank extrahieren
   l.Names_Ndof{I};
   csvline_J = serroblib_bits2csvline(l.BitArrays_Ndof(I,:));
   csvline_EE = serroblib_bits2csvline_EE(l.BitArrays_EEdof0(I,:));
-  csvline = {csvline_J{:}, csvline_EE{:}}; %#ok<CCAT>
+  csvline = {csvline_J{:}, '0', '0', '0', csvline_EE{:}, '0'}; %#ok<CCAT>
   
   % Vorlage für folgenden Code: serroblib_find_robot
   % [found, index, num] = serroblib_find_robot(csvline);
