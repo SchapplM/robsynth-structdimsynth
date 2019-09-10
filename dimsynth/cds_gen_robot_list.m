@@ -6,10 +6,10 @@
 function Structures = cds_gen_robot_list(Set)
 %% Debug:
 if Set.general.matfile_verbosity > 0
-  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_gen_robot_list1.mat'));
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_gen_robot_list1.mat'));
 end
 % Zum Debuggen
-% load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_gen_robot_list1.mat'));
+% load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_gen_robot_list1.mat'));
 
 %% Init
 structset = Set.structures;

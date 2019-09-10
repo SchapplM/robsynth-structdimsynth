@@ -6,10 +6,10 @@
 function RobotOptRes = cds_dimsynth_robot(Set, Traj, Structure)
 %% Debug: 
 if Set.general.matfile_verbosity > 0
-  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot1.mat'));
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot1.mat'));
 end
 % Zum Debuggen:
-% load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot1.mat'));
+% load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot1.mat'));
 
 %% Initialisierung
 % Charakteristische Länge der Aufgabe
@@ -252,13 +252,13 @@ f_test = fitnessfcn(InitPop(1,:)'); %#ok<NASGU> % Testweise ausführen
 
 %% PSO-Aufruf starten
 if Set.general.matfile_verbosity > 0
-  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat'));
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat'));
 end
 if false
   % Falls der PSO abbricht: Zwischenergebnisse laden und daraus Endergebnis
   % erzeugen. Dafür ist ein manuelles Eingreifen mit den Befehlen in diesem
   % Block erforderlich. Danach kann die Funktion zu Ende ausgeführt werden.
-  load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat')); %#ok<UNRCH>
+  load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat')); %#ok<UNRCH>
   filelist_tmpres = dir(fullfile(resdir, 'PSO_Gen*_AllInd_iter.mat'));
   lastres = load(fullfile(resdir, filelist_tmpres(end).name));
   p_val = lastres.optimValues.bestx;
@@ -269,10 +269,10 @@ else
   [p_val,fval,exitflag] = particleswarm(fitnessfcn,nvars,varlim(:,1),varlim(:,2),options);
 end
 if Set.general.matfile_verbosity > 0
-  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot3.mat'));
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot3.mat'));
 end
 % Debug:
-% load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot3.mat'));
+% load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot3.mat'));
 %% Nachverarbeitung der Ergebnisse
 % Fitness-Funktion nochmal mit besten Parametern aufrufen. Dadurch werden
 % die Klassenvariablen (R.pkin, R.DesPar.seg_par, ...) aktualisiert
@@ -346,5 +346,5 @@ RobotOptRes = struct( ...
 % Debug: Durch laden dieser Ergebnisse kann nach Abbruch des PSO das
 % Ergebnis trotzdem geladen werden
 if Set.general.matfile_verbosity > 0
-  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_robot4.mat'));
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot4.mat'));
 end

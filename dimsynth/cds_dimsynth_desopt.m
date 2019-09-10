@@ -21,13 +21,13 @@
 
 function R=cds_dimsynth_desopt(R, Q, Traj_0, Set, Structure)
 if Set.general.matfile_verbosity > 2
-  save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_desopt.mat'));
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt.mat'));
 end
 desopt_debug = false;
 % Debug:
 % function R=cds_dimsynth_desopt()
 % desopt_debug = true;
-% load(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_desopt.mat'));
+% load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt.mat'));
 
 %% Definitionen, Konstanten
 density = 2.7E3; %[kg/m^3] Aluminium
@@ -316,7 +316,7 @@ end
 if R.Type == 0 
   % Seriell: Parameter direkt eintragen
   if Set.general.matfile_verbosity > 2
-    save(fullfile(fileparts(which('struktsynth_bsp_path_init.m')), 'tmp', 'cds_dimsynth_desopt_saveparamserial.mat'));
+    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt_saveparamserial.mat'));
   end
   R.update_dynpar2(m_ges, mrS_ges, If_ges)
 else
