@@ -25,6 +25,8 @@ elseif Structure.Type == 2 % Parallel
 else
   error('Typ-Nummer nicht definiert');
 end
+R.fill_fcn_handles(Set.general.use_mex, true);
+
 for i = 1:NLEG
   if Structure.Type == 0
     R_init = R;
@@ -32,7 +34,6 @@ for i = 1:NLEG
     R_init = R.Leg(i);
   end
   R_init.gen_testsettings(false, true); % Setze Kinematik-Parameter auf Zufallswerte
-  R_init.fill_fcn_handles(Set.general.use_mex, true);
   % Gelenkgrenzen setzen: Schubgelenke
   R_init.qlim(R_init.MDH.sigma==1,:) = repmat([-2*Lref, 2*Lref],sum(R_init.MDH.sigma==1),1);
   % Gelenkgrenzen setzen: Drehgelenke
