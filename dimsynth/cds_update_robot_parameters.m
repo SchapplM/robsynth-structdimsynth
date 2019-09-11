@@ -110,7 +110,7 @@ if Set.optimization.rotate_base
 end
 
 %% Basis-Koppelpunkt Positionsparameter (z.B. Gestelldurchmesser)
-if R_neu.Type == 2 && any(Structure.vartypes == 6)
+if R_neu.Type == 2 && Set.optimization.base_size && any(Structure.vartypes == 6)
   p_baseradius = p(Structure.vartypes == 6);
   if length(p_baseradius) ~= 1
     error('Mehr als ein Fußpunkt-Positionsparameter nicht vorgesehen');
@@ -123,7 +123,7 @@ if R_neu.Type == 2 && any(Structure.vartypes == 6)
 end
 
 %% Plattform-Koppelpunkt Positionsparameter (z.B. Plattformdurchmesser)
-if R_neu.Type == 2 && any(Structure.vartypes == 7)
+if R_neu.Type == 2 && Set.optimization.platform_size && any(Structure.vartypes == 7)
   p_pfradius = p(Structure.vartypes == 7);
   if length(p_pfradius) ~= 1
     error('Mehr als ein Plattform-Positionsparameter nicht vorgesehen');

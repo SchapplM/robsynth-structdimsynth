@@ -14,6 +14,16 @@ if ~exist('Set', 'var') || ~exist('Traj', 'var')
   error('Eingabevariablen des Startskriptes existieren nicht');
 end
 
+% Eingabe prüfen
+Set_default = cds_settings_defaults(struct('DoF', Set.structures.DoF));
+for subconf = fields(Set_default)'
+  for ftmp = fields(Set.(subconf{1}))'
+    if ~isfield(Set_default.(subconf{1}), ftmp{1})
+      warning('Feld %s in der Eingabestruktur ist nicht vorgesehen', ftmp{1})
+    end
+  end
+end
+
 % Menge der Roboter laden
 Structures = cds_gen_robot_list(Set);
 

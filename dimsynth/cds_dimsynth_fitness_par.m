@@ -224,11 +224,30 @@ end
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par3.mat'));
 
 %% Zielfunktion berechnen
-
-if any(strcmp(Set.optimization.objective, {'valid_act', 'condition'}))
+if strcmp(Set.optimization.objective, 'valid_act')
+  % Zielfunktion ist der Rang. Bei vollem Rang "funktioniert" der Roboter
+  % und der entsprechende Schwellwert wird unterschritten
+  % Berechne Rang der Jacobi nur für ersten Bahnpunkt. Annahme: Keine
+  % Singularität, da Trajektorie und IK lösbar ist.
+  n_qa = sum(R.I_qa);
+  for i = 1
+    Jinv_xred = R.jacobi_qa_x(Q(i,:)', Traj_0.X(i,:)');
+    Jinv_3T3R = zeros(6, n_qa);
+    Jinv_3T3R(R.I_EE,:) = Jinv_xred;
+    Jinv_task = Jinv_3T3R(Set.structures.DoF,:);
+    rankJ = rank(Jinv_task);
+  end
+  RD = sum(R.I_EE) - rankJ; % Rangdefizit
+  if RD == 0
+    fval = 10; % Reicht zum aufhören
+  else
+    fval = 100*RD; % Kodiere Rangdefizit in Zielfunktion
+  end
+  fval_debugtext = sprintf('Rangdefizit %d', RD);
+elseif strcmp(Set.optimization.objective, 'condition')
+  % Berechne Konditionszahl über Trajektorie
   Cges = NaN(length(Traj_0.t), 1);
   n_qa = sum(R.I_qa);
-  Rges = NaN(length(Traj_0.t), 1);
   % Berechne Konditionszahl für alle Punkte der Bahn
   for i = 1:length(Traj_0.t)
     Jinv_xred = R.jacobi_qa_x(Q(i,:)', Traj_0.X(i,:)');
@@ -236,28 +255,14 @@ if any(strcmp(Set.optimization.objective, {'valid_act', 'condition'}))
     Jinv_3T3R(R.I_EE,:) = Jinv_xred;
     Jinv_task = Jinv_3T3R(Set.structures.DoF,:);
     Cges(i) = cond(Jinv_task);
-    Rges(i) = rank(Jinv_task);
   end
-end
-%% Zielfunktion berechnen
-if strcmp(Set.optimization.objective, 'valid_act')
-  % Zielfunktion ist der Rang. Bei vollem Rang "funktioniert" der Roboter
-  % und der entsprechende Schwellwert wird unterschritten
-  RD = sum(R.I_EE) - max(Rges); % Rangdefizit
-  if RD == 0
-    fval = 10; % Reicht zum aufhören
-  else
-    fval = 100*RD; % Kodiere Rangdefizit in Zielfunktion
-  end
-  fval_debugtext = sprintf('Rangdefizit %d\n', RD);
-elseif strcmp(Set.optimization.objective, 'condition')
-  % Schlechtester Wert der Konditionszahl
+  % Schlechtester Wert der Konditionszahl ist Kennzahl
   % Nehme Logarithmus, da Konditionszahl oft sehr groß ist.
   f_cond1 = max(Cges);
   f_cond = log(f_cond1); 
   f_cond_norm = 2/pi*atan((f_cond)/20); % Normierung auf 0 bis 1; 150 ist 0.9
   fval = 1e3*f_cond_norm; % Normiert auf 0 bis 1e3
-  fval_debugtext = sprintf('Schlechteste Konditionszahl %1.3e\n', f_cond1);
+  fval_debugtext = sprintf('Schlechteste Konditionszahl %1.3e', f_cond1);
 
   if fval < Set.general.plot_details_in_fitness
     % Debug-Werte berechnen
@@ -434,7 +439,8 @@ axis auto
 hold on;grid on;
 xlabel('x in m');ylabel('y in m');zlabel('z in m');
 plot3(Traj_W.X(:,1), Traj_W.X(:,2),Traj_W.X(:,3), 'k-');
-s_plot = struct( 'ks_legs', [1,2], 'straight', 0, 'mode', 4);
+plotmode = 1; % Strichzeichnung
+s_plot = struct( 'ks_legs', [1,2], 'straight', 0, 'mode', plotmode);
 R.plot( q, Traj_0.X(1,:)', s_plot);
 title(sprintf('fval=%1.2e; p=[%s]; %s', fval,disp_array(p','%1.3f'), tt));
 xlim([-1,1]*Structure.Lref*3+mean(minmax2(Traj_W.XE(:,1)')'));
@@ -450,6 +456,7 @@ if ~isempty(Set.general.save_robot_details_plot_fitness_file_extensions)
     end
   end
 end
+drawnow();
 end
 
 function [currgen,currimg,resdir] = get_new_figure_filenumber(Set, Structure, suffix)

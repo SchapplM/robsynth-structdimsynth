@@ -66,6 +66,8 @@ optimization = struct( ...
   'ee_translation', true, ... % Freie Verschiebung des EE
   'ee_translation_only_serial', true, ... % ... nur bei seriellen Robotern
   'ee_rotation', true, ... % Freie Rotation des EE
+  'base_size', true, ... % Größe des Gestells
+  'platform_size', true, ... % Größe der Plattform
   'rotate_base', false, ... % Orientierung der Roboter-Basis
   'rotate_coupling', true, ... % Koppel-Punkt-Orientierung für PKM
   'max_range_active_revolute', 270*pi/180, ... % Maximaler Drehwinkel aktiver Drehgelenke

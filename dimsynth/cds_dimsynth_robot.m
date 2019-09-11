@@ -20,7 +20,7 @@ if Structure.Type == 0 % Seriell
   R = serroblib_create_robot_class(Structure.Name);
   NLEG = 1;
 elseif Structure.Type == 2 % Parallel
-  R = parroblib_create_robot_class(Structure.Name, 2, 1);
+  R = parroblib_create_robot_class(Structure.Name, 1.5*Lref, 0.75*Lref);
   NLEG = R.NLEG;
 else
   error('Typ-Nummer nicht definiert');
@@ -35,7 +35,7 @@ for i = 1:NLEG
   end
   R_init.gen_testsettings(false, true); % Setze Kinematik-Parameter auf Zufallswerte
   % Gelenkgrenzen setzen: Schubgelenke
-  R_init.qlim(R_init.MDH.sigma==1,:) = repmat([-2*Lref, 2*Lref],sum(R_init.MDH.sigma==1),1);
+  R_init.qlim(R_init.MDH.sigma==1,:) = repmat([-1*Lref, 4*Lref],sum(R_init.MDH.sigma==1),1);
   % Gelenkgrenzen setzen: Drehgelenke
   if Structure.Type == 0 % Serieller Roboter
     % Grenzen für Drehgelenke: Alle sind aktiv
@@ -153,6 +153,21 @@ if Set.optimization.movebase
   for i = find(Set.structures.DoF(1:3))
     varnames = {varnames{:}, sprintf('base %s', char(119+i))}; %#ok<CCAT>
   end
+else
+  % Setze Standard-Werte für Basis-Position fest
+  if Structure.Type == 0 % Seriell
+    % TODO: Stelle den seriellen Roboter vor die Aufgabe
+    r_W_0 = [-0.25*Lref;-0.25*Lref;0];
+    if Set.structures.DoF(3) == 1
+      r_W_0(3) = -0.5*Lref; % Setze Roboter-Basis etwas unter die Aufgabe
+    end
+  else % Parallel
+    r_W_0 = zeros(3,1);
+    if Set.structures.DoF(3) == 1
+      r_W_0(3) = -0.5*Lref; % Setze Roboter mittig unter die Aufgabe (besser sichtbar)
+    end
+  end
+  R.update_base(r_W_0);
 end
 
 % EE-Verschiebung
@@ -186,7 +201,7 @@ if Set.optimization.ee_rotation
 end
 
 % Basis-Koppelpunkt Positionsparameter (z.B. Gestelldurchmesser)
-if Structure.Type == 2
+if Structure.Type == 2 && Set.optimization.base_size
   % TODO: Die Anzahl der Positionsparameter könnte sich evtl ändern
   % Eventuell ist eine Abgrenzung verschiedener Basis-Anordnungen sinnvoll
   nvars = nvars + 1;
@@ -199,7 +214,7 @@ end
 
 % Plattform-Koppelpunkt Positionsparameter (z.B. Plattformdurchmesser)
 % Bezogen auf Gestelldurchmesser
-if Structure.Type == 2
+if Structure.Type == 2 && Set.optimization.platform_size
   nvars = nvars + 1;
   vartypes = [vartypes; 7];
   % TODO: Untergrenze muss noch sinnvoll gewählt werden (darf nicht Null
