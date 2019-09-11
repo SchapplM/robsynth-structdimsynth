@@ -274,12 +274,15 @@ elseif strcmp(Set.optimization.objective, 'condition')
       G_dx = [G_d, G_x];
       Jinv_num_voll = -G_q \ G_x;
       Jinv = Jinv_num_voll(R.I_qa,:);
-      % Debug: Vergleich Jacobi
-      if any(any(abs( Jinv - R.jacobi_qa_x(Q(i,:)',Traj_0.X(i,:)') ) > 1e-6))
+      % Debug: Vergleich der Jacobi-Matrizen (falls keine Singularität
+      % auftritt)
+      test_Jinv = Jinv - R.jacobi_qa_x(Q(i,:)',Traj_0.X(i,:)');
+      if any(abs(test_Jinv(:)) > 1e-6)%  && Cges(i) < 1e10
         if Set.general.matfile_verbosity > 0
           save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par3.mat'));
         end
-        warning('Jacobi numerisch vs. symbolisch stimmt nicht');
+        error('Jacobi numerisch vs. symbolisch stimmt nicht. Fehler %e, Kondition Jinv %e', ...
+          max(abs(abs(test_Jinv(:)))), Cges(i));
       end
       det_ges(i,:) = [det(G_dx), det(G_q), det(Jinv)];
     end
