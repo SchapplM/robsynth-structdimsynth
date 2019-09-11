@@ -16,6 +16,11 @@ roblibpath=fileparts(which('serroblib_path_init.m'));
 serroblib_gen_bitarrays(1:7);
 
 %% Durchsuche alle Roboter und stelle die korrekte Orientierung des Endeffektors fest
+num_success = 0;
+num_decline_rank = 0;
+num_decline_revolute_end = 0;
+num_new = 0;
+List_SphericalEndChains = {};
 for N = 6
   fprintf('Prüfe Strukturen mit %d FG\n', N);
   % Alle Roboter aus Datenbank laden
@@ -35,6 +40,7 @@ for N = 6
     % ist
     if any(RS.MDH.sigma(4:6) ~= 0)
       % Die letzten drei müssen Drehgelenke sein
+      num_decline_revolute_end = num_decline_revolute_end + 1;
       continue
     end
     % Eigenschaft des Kugelgelenks: Die Achsen aller Drehgelenke schneiden
@@ -52,6 +58,14 @@ for N = 6
     J = RS.jacobig(rand(RS.NQJ,1));
     EE_dof0 = (J*rand(RS.NQJ,1))' ~= 0;
     
+    % Prüfe den Rang der Jacobi-Matrix: Durch Entfernen der a-/d-Parameter
+    % kann es sein, dass die serielle Kette nicht mehr Rang 6 hat
+    if rank(J) < 6
+      fprintf('\tVariante hat einen Rangverlust durch die Kinematikvereinfachung. Überspringe.\n');
+      num_decline_rank = num_decline_rank + 1;
+      continue
+    end
+    
     % Parameter für Variante generieren
     MDH_struct_idx = serroblib_mdh_numparam2indexstruct(RS_var.MDH);
     
@@ -59,11 +73,20 @@ for N = 6
     fprintf('\tVariante mit Kugelgelenk am Ende erzeugt. Füge zu DB hinzu.\n');
     
     serroblib_gen_bitarrays(N);
-    serroblib_add_robot(MDH_struct_idx, EE_dof0);
+    [Name_j,new_j] = serroblib_add_robot(MDH_struct_idx, EE_dof0);
+    num_success = num_success + 1;
+    num_new = num_new + new_j;
+    List_SphericalEndChains = {List_SphericalEndChains{:}, Name_j}; %#ok<CCAT>
   end
 end
-
-%% Beispiel für UPS-Kette erzeugen
+fprintf(['Insgesamt %d Varianten durch den Ansatz erzeugt (davon %d neu). ', ...
+  'Bei %d/%d passte die Gelenkstruktur nicht. Bei den verbliebenen fielen %d wegen Rangverlust heraus\n'], ...
+  num_success, num_new, num_decline_revolute_end, length(I_novar), num_decline_rank);
+fprintf('Folgende PKM wurden generiert:\n');
+disp(List_SphericalEndChains);
+return
+%% Debug: Beispiel für UPS-Kette erzeugen
+% Dieses Beispiel sollte eigentlich schon oben entstehen
 % Zur Definition siehe ParRob_class_example_6UPS.m
 RS = serroblib_create_robot_class('S6RRPRRR14');
 RS.update_mdh(zeros(length(RS.pkin),1))
@@ -73,7 +96,7 @@ pkin(strcmp(RS.pkin_names,'alpha3')) = pi/2;
 RS.update_mdh(pkin);
 MDH_struct_idx = serroblib_mdh_numparam2indexstruct(RS.MDH);
 serroblib_gen_bitarrays(6);
-[mdlname, new] = serroblib_add_robot(MDH_struct_idx, [1 1 1 1 1 1]);
+[mdlname, new_j] = serroblib_add_robot(MDH_struct_idx, [1 1 1 1 1 1]);
 
 % Code für kinematische Kette erstellen
 % serroblib_generate_mapleinput({mdlname})
