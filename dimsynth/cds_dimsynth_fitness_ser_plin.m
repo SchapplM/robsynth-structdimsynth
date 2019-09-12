@@ -140,7 +140,7 @@ if any(I_qlimviol_E)
   return
 end
 %% Dynamik-Parameter
-if strcmp(Set.optimization.objective, 'energy') || strcmp(Set.optimization.objective, 'mass')
+if any(strcmp(Set.optimization.objective, {'energy', 'mass', 'minactforce'}))
   % Gelenkgrenzen in Roboterklasse neu eintragen
   R.qlim = minmax2(Q');
   % Dynamik-Parameter aktualisieren. Keine Nutzung der Ausgabe der Funktion
@@ -148,6 +148,11 @@ if strcmp(Set.optimization.objective, 'energy') || strcmp(Set.optimization.objec
   % vor/nach dem Aufruf unterschiedlich)
   debug_plot_robot(R, Q(1,:)', Traj_W, Set, Structure, p, 0, debug_info);
   cds_dimsynth_desopt(R, Q, Traj_0, Set, Structure);
+end
+%% Berechnungen für Zielfunktionen
+if any(strcmp(Set.optimization.objective, {'energy', 'minactforce'}))
+  % Antriebskräfte berechnen
+  TAU = R.invdyn2_traj(Q, QD, QDD);
 end
 %% Zielfunktion berechnen
 if strcmp(Set.optimization.objective, 'condition')
@@ -164,10 +169,8 @@ if strcmp(Set.optimization.objective, 'condition')
   f_cond = log(f_cond1); 
   f_cond_norm = 2/pi*atan((f_cond)/20); % Normierung auf 0 bis 1; 150 ist 0.9
   fval = 1e3*f_cond_norm; % Normiert auf 0 bis 1e3
-  fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3f. Konditionszahl %1.3e\n', toc(t1), fval, f_cond1);
+  fval_debugtext = sprintf('Schlechteste Konditionszahl %1.3e', f_cond1);
 elseif strcmp(Set.optimization.objective, 'energy')
-  % Antriebskräfte berechnen
-  TAU = R.invdyn2_traj(Q, QD, QDD);
   % Aktuelle mechanische Leistung in allen Gelenken
   P_ges = NaN(size(Q,1), R.NJ);
   for j = 1:R.NJ
@@ -193,7 +196,7 @@ elseif strcmp(Set.optimization.objective, 'energy')
   E_Netz_res = sum(trapz(Traj_0.t, P_Netz)); % Integral der Leistung am Ende
   f_en_norm = 2/pi*atan((E_Netz_res)/100); % Normierung auf 0 bis 1; 620 ist 0.9
   fval = 1e3*f_en_norm; % Normiert auf 0 bis 1e3
-  
+  fval_debugtext = sprintf('Energieverbrauch %1.1f', E_Netz_res);
   if fval < Set.general.plot_details_in_fitness
     E_Netz = cumtrapz(Traj_0.t, P_Netz);
     change_current_figure(202);clf;
@@ -221,12 +224,19 @@ elseif strcmp(Set.optimization.objective, 'mass')
   m_sum = sum(R.DynPar.mges(2:end));
   f_mass_norm = 2/pi*atan((m_sum)/100); % Normierung auf 0 bis 1; 620 ist 0.9. TODO: Skalierung ändern
   fval = 1e3*f_mass_norm; % Normiert auf 0 bis 1e3
+  fval_debugtext = sprintf('Gesamtmasse %1.1f', m_sum);
   debug_info = {debug_info{:}; sprintf('masses: total %1.2fkg, Segments [%s] kg', ...
     m_sum, disp_array(R.DynPar.mges(2:end)', '%1.2f'))};
+elseif strcmp(Set.optimization.objective, 'minactforce')
+  tau_a_max_per_leg = max(abs(TAU));
+  tau_a_max = max(tau_a_max_per_leg);
+  f_actforce_norm = 2/pi*atan((tau_a_max)/100); % Normierung auf 0 bis 1; 620 ist 0.9. TODO: Skalierung ändern
+  fval = 1e3*f_actforce_norm; % Normiert auf 0 bis 1e3
+  fval_debugtext = sprintf('Antriebskräfte max. [%s]', disp_array(tau_a_max_per_leg, '%1.2f'));
 else
-  error('Zielfunktion nicht definiert');
+  error('Zielfunktion %s nicht definiert', Set.optimization.objective);
 end
-fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Erfolgreich.\n', toc(t1), fval);
+fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Erfolgreich. %s.\n', toc(t1), fval, fval_debugtext);
 debug_plot_robot(R, Q(1,:)', Traj_W, Set, Structure, p, fval, debug_info);
 end
 
@@ -258,9 +268,10 @@ title(sprintf('fval=%1.2e; p=[%s]; %s', fval,disp_array(p','%1.3f'), tt));
 xlim([-1,1]*Structure.Lref*2.0+mean(minmax2(Traj_W.XE(:,1)')'));
 ylim([-1,1]*Structure.Lref*2.0+mean(minmax2(Traj_W.XE(:,2)')'));
 zlim([-1,1]*Structure.Lref*1+mean(minmax2(Traj_W.XE(:,3)')'));
+drawnow();
 if ~isempty(Set.general.save_robot_details_plot_fitness_file_extensions)
-  [currgen,currimg,resdir] = get_new_figure_filenumber(Set, Structure,'Details');
   for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
+    [currgen,currimg,resdir] = get_new_figure_filenumber(Set, Structure,'Details');
     if strcmp(fileext{1}, 'fig')
       saveas(200, fullfile(resdir, sprintf('PSO_Gen%02d_FitEval%03d_Details.fig', currgen, currimg)));
     else

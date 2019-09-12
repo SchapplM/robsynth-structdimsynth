@@ -60,7 +60,7 @@ structures = struct( ...
 % Einstellungen mit Auswirkung auf die Optimierung: Auswahl der
 % Optimierungsvariablen und Annahmen über die Roboter, die getroffen werden
 optimization = struct( ...
-  'objective', 'energy', ... % Zielfunktion. Möglich: mass, energy, condition, valid_kin, valid_act
+  'objective', 'energy', ... % Zielfunktion. Möglich: mass, energy, condition, valid_kin, valid_act, minactforce
   'constraint', '', ... % Nebenbedingungen
   'movebase', true, ... % Position der Roboter-Basis
   'ee_translation', true, ... % Freie Verschiebung des EE
