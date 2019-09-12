@@ -72,9 +72,10 @@ if Set.optimization.movebase
   r_W_0_neu(Set.structures.DoF(1:2)) = Structure.xT_mean(Set.structures.DoF(1:2)) + ...
     p_basepos(Set.structures.DoF(1:2))*Structure.Lref;
   % z-Punktkoordinaten der Basis skaliert mit Roboter-Skalierungsfaktor
-  r_W_0_neu(Set.structures.DoF(3)) = Structure.xT_mean(Set.structures.DoF(3)) + ...
-    p_basepos(Set.structures.DoF(3))*p(1);
-  
+  if Set.structures.DoF(3)
+    r_W_0_neu(3) = Structure.xT_mean(Set.structures.DoF(3)) + ...
+      p_basepos(Set.structures.DoF(3))*p(1);
+  end
   R_neu.update_base(r_W_0_neu);
 end
 
