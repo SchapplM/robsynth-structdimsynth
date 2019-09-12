@@ -32,14 +32,6 @@ desopt_debug = false;
 %% Definitionen, Konstanten
 density = 2.7E3; %[kg/m^3] Aluminium
 
-%% Debug: Roboter zeichnen; in dieses Bild werden Debug-KS eingezeichnet
-if desopt_debug
-  figure(3000);clf;
-  s = struct('mode', 4, 'ks', 1:R.NJ, 'straight', false);
-  R.plot(Q(1,:)', s); xlabel('x');ylabel('y');zlabel('z');
-  view([0,90])
-end
-
 %% Entwurfsparameter ändern
 % TODO: Hier Optimierung durchführen
 % Vorläufig: Segmenteigenschaften direkt belegen
@@ -64,6 +56,15 @@ if R.Type == 0 % Seriell
 else  % Parallel (symmetrisch)
   R_pkin = R.Leg(1);
 end
+
+%% Debug: Roboter zeichnen; in dieses Bild werden Debug-KS eingezeichnet
+if desopt_debug
+  figure(3000);clf;
+  s = struct('mode', 1, 'ks', 1:R.NJ, 'straight', false);
+  R_pkin.plot(Q(1,1:R_pkin.NJ)', s); xlabel('x');ylabel('y');zlabel('z');
+  view([0,90])
+end
+
 %% EE-Zusatzlast
 
 if any(Set.task.payload.Ic(4:6)~=0) || any(diff(Set.task.payload.Ic(1:3)))
@@ -116,13 +117,13 @@ for i = 1:length(m_ges_Link)
     %% Länge und Orientierung des Segments bestimmen
     % a- und d-Parameter werden zu Segment vor dem Gelenk gezählt (wg.
     % MDH-Notation) -> a1/d1 zählen zum Basis-Segment;
-    if R.MDH.sigma(i) == 0 % Drehgelenk
+    if R_pkin.MDH.sigma(i) == 0 % Drehgelenk
       % Nehme nur die konstanten a- und d-Parameter als "schräge"
       % Verbindung der Segmente
-      r_i_i_D = [R_pkin.MDH.a(i); 0; R_pkin.MDH.d(i)]; % [A]/(6)
+      r_i_i_D = [R_pkin.MDH.a(i);0;0] + rotx(R_pkin.MDH.alpha(i))*[0;0;R_pkin.MDH.d(i)]; % [B]
       % [A]/(4); Drehe das Segment-KS so, dass die Längsachse des
       % Segments in x-Richtung dieses KS zeigt
-      R_i_Si = rotx(R_pkin.MDH.alpha(i)) * roty(atan2(R_pkin.MDH.d(i), R_pkin.MDH.a(i)));
+      R_i_Si = rotx(R_pkin.MDH.alpha(i)) * roty(-atan2(R_pkin.MDH.d(i), R_pkin.MDH.a(i)));
     elseif R_pkin.DesPar.joint_type(i) == 1 % Schubgelenk ohne spezielles Modell
       % Dieses Modell ist sehr ungenau und berücksichtigt
       % nicht den Anfangspunkt des Schubgelenks
@@ -173,6 +174,7 @@ for i = 1:length(m_ges_Link)
     end
     % Probe, ob Orientierung (R_i_Si) und berechnetes Ende des Segments (r_i_i_D)stimmen
     if any( abs(r_i_i_D - R_i_Si*[norm(r_i_i_D);0;0] ) > 1e-10)
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt_error.mat'));
       error('Richtung des Segments stimmt nicht');
     end
     % Probe: [A]/(10) (nur für Drehgelenke; wegen Maximallänge bei
