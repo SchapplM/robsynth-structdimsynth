@@ -321,19 +321,13 @@ elseif strcmp(Set.optimization.objective, 'condition')
   end
 elseif strcmp(Set.optimization.objective, 'energy')
   % Trajektorie in Plattform-KS umrechnen
-  XP = Traj_0.X;
-  XPD = Traj_0.XD;
-  XPDD = Traj_0.XDD;
-  for i = 1:length(Traj_0.t)
-    [XP(i,:),XPD(i,:),XPDD(i,:)] = xE2xP(R, Traj_0.X(i,:)', Traj_0.XD(i,:)', Traj_0.XDD(i,:)');
-  end
+  [XP,XPD,XPDD] = R.xE2xP_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD);
   % Antriebskräfte berechnen
   Fx_red_traj = invdyn_platform_traj(R, Q, XP, XPD, XPDD);
   TAU = NaN(length(Traj_0.t), sum(R.I_qa));
   for i = 1:length(Traj_0.t)
-    Jinv_xred_i = R.jacobi_qa_x(Q(i,:)', Traj_0.X(i,:)');
-    tauA_i = (Jinv_xred_i') \ Fx_red_traj(i,:)';
-    TAU(i,:) = tauA_i;
+    Jinv_IK = reshape(Jinvges(i,:), sum(R.I_EE), sum(R.I_qa));
+    TAU(i,:) = (Jinv_IK') \ Fx_red_traj(i,:)';
   end
   % Mechanische Leistung berechnen
   % Aktuelle mechanische Leistung in allen Gelenken
