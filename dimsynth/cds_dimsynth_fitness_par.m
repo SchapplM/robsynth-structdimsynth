@@ -164,7 +164,7 @@ end
 %% Inverse Kinematik der Trajektorie berechnen
 % s = struct('debug', true, 'retry_limit', 1);
 s = struct('normalize', false, 'retry_limit', 1);
-[Q, QD, ~, PHI] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+[Q, QD, ~, PHI, Jinvges] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
 % Speichere die Anfangs-Winkelstellung in der Roboterklasse für später
 for i = 1:R.NLEG
   R.Leg(i).qref = q(R.I1J_LEG(i):R.I2J_LEG(i));
@@ -235,7 +235,9 @@ if strcmp(Set.optimization.objective, 'valid_act')
     Jinv_3T3R = zeros(6, n_qa);
     Jinv_3T3R(R.I_EE,:) = Jinv_xred;
     Jinv_task = Jinv_3T3R(Set.structures.DoF,:);
-    rankJ = rank(Jinv_task);
+    % Rangprüfung. Sehr schlecht konditionierte Matrizen sollen auch als
+    % Rangverlust gekennzeichnet werden.
+    rankJ = rank(Jinv_task, 1e-6);
   end
   RD = sum(R.I_EE) - rankJ; % Rangdefizit
   if RD == 0
@@ -247,14 +249,10 @@ if strcmp(Set.optimization.objective, 'valid_act')
 elseif strcmp(Set.optimization.objective, 'condition')
   % Berechne Konditionszahl über Trajektorie
   Cges = NaN(length(Traj_0.t), 1);
-  n_qa = sum(R.I_qa);
   % Berechne Konditionszahl für alle Punkte der Bahn
   for i = 1:length(Traj_0.t)
-    Jinv_xred = R.jacobi_qa_x(Q(i,:)', Traj_0.X(i,:)');
-    Jinv_3T3R = zeros(6, n_qa);
-    Jinv_3T3R(R.I_EE,:) = Jinv_xred;
-    Jinv_task = Jinv_3T3R(Set.structures.DoF,:);
-    Cges(i) = cond(Jinv_task);
+    Jinv_IK = reshape(Jinvges(i,:), sum(R.I_EE), sum(R.I_qa));
+    Cges(i) = cond(Jinv_IK);
   end
   % Schlechtester Wert der Konditionszahl ist Kennzahl
   % Nehme Logarithmus, da Konditionszahl oft sehr groß ist.
@@ -266,17 +264,12 @@ elseif strcmp(Set.optimization.objective, 'condition')
 
   if fval < Set.general.plot_details_in_fitness
     % Debug-Werte berechnen
-    det_ges = NaN(length(Traj_0.t), 3);
+    det_ges = NaN(length(Traj_0.t), 1);
     for i = 1:length(Traj_0.t)
-      G_q  = R.constr1grad_q(Q(i,:)', Traj_0.X(i,:)');
-      G_x = R.constr1grad_x(Q(i,:)', Traj_0.X(i,:)');
-      G_d = G_q(:,R.I_qd);
-      G_dx = [G_d, G_x];
-      Jinv_num_voll = -G_q \ G_x;
-      Jinv = Jinv_num_voll(R.I_qa,:);
+      Jinv_IK = reshape(Jinvges(i,:), sum(R.I_EE), sum(R.I_qa));
       % Debug: Vergleich der Jacobi-Matrizen (falls keine Singularität
       % auftritt)
-      test_Jinv = Jinv - R.jacobi_qa_x(Q(i,:)',Traj_0.X(i,:)');
+      test_Jinv = Jinv_IK - R.jacobi_qa_x(Q(i,:)',Traj_0.X(i,:)');
       if any(abs(test_Jinv(:)) > 1e-6)%  && Cges(i) < 1e10
         if Set.general.matfile_verbosity > 0
           save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par3.mat'));
@@ -284,7 +277,7 @@ elseif strcmp(Set.optimization.objective, 'condition')
         error('Jacobi numerisch vs. symbolisch stimmt nicht. Fehler %e, Kondition Jinv %e', ...
           max(abs(abs(test_Jinv(:)))), Cges(i));
       end
-      det_ges(i,:) = [det(G_dx), det(G_q), det(Jinv)];
+      det_ges(i,:) = det(Jinv_IK);
     end
     
     if Set.general.plot_robot_in_fitness < 0 && fval > abs(Set.general.plot_robot_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
@@ -310,11 +303,11 @@ elseif strcmp(Set.optimization.objective, 'condition')
       subplot(2,3,5);
       plot(Traj_0.t, det_ges); hold on;
       ylabel('Determinanten'); grid on;
-      legend({'A (dh/dx; DirKin)', 'B (dh/dq; InvKin)', 'Jinv'});
+      legend({'Jinv (x->qa)'}); % 'A (dh/dx; DirKin)', 'B (dh/dq; InvKin)', 
       subplot(2,3,6);
       plot(Traj_0.t, log(abs(det_ges))); hold on;
       ylabel('Log |Determinanten|'); grid on;
-      legend({'A (dh/dx; DirKin)', 'B (dh/dq; InvKin)', 'Jinv'});
+      legend({'Jinv (x->qa)'}); % 'A (dh/dx; DirKin)', 'B (dh/dq; InvKin)', 
       linkxaxes
       [currgen,currimg,resdir] = get_new_figure_filenumber(Set, Structure,'ParRobJacobian');
       for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
