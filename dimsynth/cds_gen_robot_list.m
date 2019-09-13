@@ -95,8 +95,12 @@ if structset.use_parallel
     end
     
     % Lade Detailierte Informationen des Robotermodells
-    [NLEG, LEG_Names, Actuation, ~, ~, ~, ~] = parroblib_load_robot(PNames_Akt{j});
-
+    [NLEG, LEG_Names, Actuation, Coupling, ~, ~, ~] = parroblib_load_robot(PNames_Akt{j});
+    % Prüfe Koppelpunkt-Eigenschaften
+    if any(Coupling ~= [1 1])
+      if verblevel >= 3, fprintf('%s hat eine nicht implementierte Koppelpunkt-Variante\n', PNames_Akt{j}); end
+    end
+    
     PassPrisJoint = false;
     TooManyPrisJoints = false;
     LastJointActive = false;
