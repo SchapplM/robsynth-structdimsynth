@@ -82,7 +82,12 @@ end
 %% Parallele Roboter laden
 if structset.use_parallel
   % Voll-Parallel: So viele Beinketten wie EE-FG, jede Beinkette einfach aktuiert
-  [PNames_Kin, PNames_Akt] = parroblib_filter_robots(sum(EE_FG), EE_FG, EE_FG_Mask);
+  if structset.use_parallel_rankdef
+    max_rankdeficit = 6;
+  else
+    max_rankdeficit = 0;
+  end
+  [~, PNames_Akt] = parroblib_filter_robots(sum(EE_FG), EE_FG, EE_FG_Mask, max_rankdeficit);
   for j = 1:length(PNames_Akt)
     if ~isempty(structset.whitelist) && ~any(strcmp(structset.whitelist, PNames_Akt{j}))
       % Es gibt eine Liste von Robotern, dieser ist nicht dabei.
@@ -90,8 +95,12 @@ if structset.use_parallel
     end
     
     % Lade Detailierte Informationen des Robotermodells
-    [NLEG, LEG_Names, Actuation, ActNr, symrob, EE_dof0, PName_Kin] = parroblib_load_robot(PNames_Akt{j});
-
+    [NLEG, LEG_Names, Actuation, Coupling, ~, ~, ~] = parroblib_load_robot(PNames_Akt{j});
+    % Prüfe Koppelpunkt-Eigenschaften
+    if any(Coupling ~= [1 1])
+      if verblevel >= 3, fprintf('%s hat eine nicht implementierte Koppelpunkt-Variante\n', PNames_Akt{j}); end
+    end
+    
     PassPrisJoint = false;
     TooManyPrisJoints = false;
     LastJointActive = false;

@@ -7,6 +7,9 @@ function cds_vis_results(Set, Traj, Structures)
 if Set.general.matfile_verbosity > 0
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_vis_results1.mat'));
 end
+if Set.general.nosummary
+  return
+end
 % Zum Debuggen
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_vis_results1.mat'));
 

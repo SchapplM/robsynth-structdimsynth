@@ -11,10 +11,11 @@ clear
 
 %% Benutzereingabe / Einstellungen
 check_existing = true; % Falls true: Prüfe existierende Roboter in Datenbank nochmal
+check_rankdef_existing = false; % Falls true: Prüfe existierende Roboter, deren Rang vorher als zu niedrig festgestellt wurde
 % Auslassen der ersten "x" kinematischer Strukturen (zum Debuggen):
 set_lfdNr_min = 1;
 % Prüfung ausgewählter Beinketten (zum Debuggen):
-set_whitelist_SerialKin = {}; % {'S6RRPRRR14V3'}; 
+set_whitelist_SerialKin = {}; % 'S6RRPRRR14V2', 'S6RRPRRR14V3' 'S6RRRRRR10V3'
 
 %% Initialisierung
 EE_FG = [1 1 1 1 1 1];
@@ -41,6 +42,11 @@ I = I_FG & I_var & I_spherical;
 II = find(I); % Umwandlung von Binär-Indizes in Nummern
 ii = 0; % Laufende Nummer für aktuierte PKM
 ii_kin = 0; % Laufende Nummer für Kinematik-Struktur der PKM
+num_rankloss = 0;
+num_dimsynthabort = 0;
+num_dimsynthfail = 0;
+num_fullmobility = 0;
+num_checked_dimsynth = 0;
 for iFK = II' % Schleife über serielle Führungsketten
   ii_kin = ii_kin + 1;
   SName = l.Names_Ndof{iFK};
@@ -53,7 +59,8 @@ for iFK = II' % Schleife über serielle Führungsketten
   for jj = 1:3 % Prüfe symmetrische Aktuierung aller Beinketten (bis zum dritten Gelenk)
     ii = ii + 1;
     if ii < set_lfdNr_min, continue; end % Starte erst später
-    fprintf('Untersuchte PKM %d: %s mit symmetrischer Aktuierung Gelenk %d\n', ii, PName, jj);
+    fprintf('Untersuchte PKM %d (Gestell %d, Plattform %d): %s mit symmetrischer Aktuierung Gelenk %d\n', ...
+      ii, Coupling(1), Coupling(2), PName, jj);
     Actuation = cell(1,N_Legs);
     Actuation(:) = {jj};
     LEG_Names = {SName};
@@ -64,6 +71,9 @@ for iFK = II' % Schleife über serielle Führungsketten
     if new, fprintf('PKM %s zur Datenbank hinzugefügt.\n', Name);
     else,   fprintf('PKM %s existierte schon in der Datenbank.\n', Name); end
 
+    [~, ~, ~, ~, ~, ~, ~, ~, ~, AdditionalInfo] = parroblib_load_robot(Name);
+    
+    
     if ~check_existing && ~new
       fprintf(['Gehe davon aus, dass bereits in Datenbank existierender Roboter ', ...
         'korrekt ist. Überspringe nochmalige Prüfung.\n']);
@@ -71,6 +81,7 @@ for iFK = II' % Schleife über serielle Führungsketten
     end
 
     %% Maßsynthese für den Roboter durchführen
+    num_checked_dimsynth = num_checked_dimsynth + 1;
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
       sprintf('parroblib_add_robots_symact_3T3R_spherical_%d_%s.mat', jj, Name)));
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
@@ -93,31 +104,45 @@ for iFK = II' % Schleife über serielle Führungsketten
     Set.optimization.platform_size = false;
     Set.optimization.max_range_active_revolute = 2*pi;
     Set.general.max_retry_bestfitness_reconstruction = 1;
-    Set.general.plot_details_in_fitness = 1e3;
-    Set.general.plot_robot_in_fitness = 1e3;
+    Set.general.plot_details_in_fitness = 0;%1e3;
+    Set.general.plot_robot_in_fitness = 0;%1e3;
     Set.general.verbosity = 3;
     Set.general.matfile_verbosity = 0;
+    Set.general.nosummary = true;
     Set.structures.whitelist = {Name}; % nur diese PKM untersuchen
     Set.structures.use_serial = false; % nur PKM
+    Set.structset.use_parallel_rankdef = 6*check_rankdef_existing;
     cds_start
     %% Ergebnis der Maßsynthese auswerten
-    fail = false;
+    remove = false;
     if isempty(Structures)
       fprintf('PKM %s wurde in der Maßsynthese aufgrund struktureller Eigenschaften nicht in Erwägung gezogen\n', Name);
-      fail = true;
+      remove = true;
+      num_dimsynthabort = num_dimsynthabort + 1;
     elseif RobotOptRes.fval > 50
       fprintf('Für PKM %s konnte in der Maßsynthese keine funktionierende Lösung gefunden werden.\n', Name);
       if RobotOptRes.fval < 1e3
         fprintf('Rangdefizit der Jacobi für Beispiel-Punkte ist %1.0f\n', RobotOptRes.fval/100);
+        parroblib_change_properties(Name, 'rankloss', sprintf('%1.0f', RobotOptRes.fval/100));
+        num_rankloss = num_rankloss + 1;
       else
         fprintf('Der Rang der Jacobi konnte gar nicht erst geprüft werden. Zielfunktion %1.2e\n', RobotOptRes.fval);
+        remove = true;
+        num_dimsynthfail = num_dimsynthfail + 1;
       end
-      fail = true;
+    else
+      fprintf('PKM %s hat laut Maßsynthese volle Mobilität\n', Name);
+      parroblib_change_properties(Name, 'rankloss', '0');
+      num_fullmobility = num_fullmobility + 1;
     end
 
-    if fail
+    if remove
       fprintf('Entferne PKM %s wieder aus der Datenbank (Name wird wieder frei)\n', Name);
       remsuccess = parroblib_remove_robot(Name);
     end
   end
+  fprintf('Fertig mit PKM\n');
 end
+fprintf(['Insgesamt %d PKM mit Maßsynthese geprüft. ', ...
+  'Davon %d strukturell aussortiert, %d nicht prüfbar, %d mit Rangverlust und %d mit voller Mobilität.\n'], ...
+  num_checked_dimsynth, num_dimsynthabort, num_dimsynthfail, num_rankloss, num_fullmobility);
