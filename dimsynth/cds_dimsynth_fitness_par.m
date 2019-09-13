@@ -257,7 +257,8 @@ if strcmp(Set.optimization.objective, 'valid_act')
   else
     fval = 100*RD; % Kodiere Rangdefizit in Zielfunktion
   end
-  fval_debugtext = sprintf('Rangdefizit %d', RD);
+  fval_debugtext = sprintf('Rangdefizit %d (Konditionszahl %e, Determinante %e)', ...
+    RD, cond(Jinv_task), det(Jinv_task));
 elseif strcmp(Set.optimization.objective, 'condition')
   % Berechne Konditionszahl über Trajektorie
   Cges = NaN(length(Traj_0.t), 1);
