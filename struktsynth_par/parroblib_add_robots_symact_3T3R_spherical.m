@@ -16,6 +16,10 @@ check_rankdef_existing = false; % Falls true: Prüfe existierende Roboter, deren
 set_lfdNr_min = 1;
 % Prüfung ausgewählter Beinketten (zum Debuggen):
 set_whitelist_SerialKin = {}; % 'S6RRPRRR14V2', 'S6RRPRRR14V3' 'S6RRRRRR10V3'
+% Alternative 1: Nur Beinketten mit Kugelgelenk-Ende
+set_onlyspherical = false;
+% Alternative 2: Allgemeine 6FG-Beinketten
+set_onlygeneral = true;
 
 %% Initialisierung
 EE_FG = [1 1 1 1 1 1];
@@ -32,13 +36,27 @@ N_LegDoF = sum(EE_FG); % Beinketten mit so vielen Gelenk-FG wie EE-FG
 mdllistfile_Ndof = fullfile(serroblibpath, sprintf('mdl_%ddof', N_LegDoF), sprintf('S%d_list.mat',N_LegDoF));
 l = load(mdllistfile_Ndof, 'Names_Ndof', 'AdditionalInfo');
 [~,I_FG] = serroblib_filter_robots(N_LegDoF, EE_FG, EE_FG_Mask);
-% Nur Modell-Varianten, keine Hauptmodelle (Hauptmodelle haben sowieso
-% nicht die Eigenschaft der Koppelgelenk-Position):
-I_var = (l.AdditionalInfo(:,2) == 1);
-% Nur die ersten drei Gelenke beeinflussen die Koppelgelenk-Position:
-I_spherical = (l.AdditionalInfo(:,1) == 3); 
-% Alle Eigenschaften kombinieren und Beinketten auswählen
-I = I_FG & I_var & I_spherical;
+if set_onlyspherical && ~set_onlygeneral
+  % Nur Modell-Varianten, keine Hauptmodelle (Hauptmodelle haben sowieso
+  % nicht die Eigenschaft der Koppelgelenk-Position):
+  I_var = (l.AdditionalInfo(:,2) == 1);
+  % Nur die ersten drei Gelenke beeinflussen die Koppelgelenk-Position:
+  I_spherical = (l.AdditionalInfo(:,1) == 3); 
+  % Alle Eigenschaften kombinieren und Beinketten auswählen
+  I = I_FG & I_var & I_spherical;
+  % nur die ersten drei Gelenke dürfen aktuiert sein. Die letzten drei sind
+  % das Kugelgelenk
+  Actuation_possib = 1:3;
+elseif ~set_onlyspherical && set_onlygeneral
+  % Nur allgemeine Hauptmodelle, keine abgeleiteten Varianten
+  I_novar = (l.AdditionalInfo(:,2) == 0);
+  % Eigenschaften kombinieren
+  I = I_FG & I_novar;
+  % Die Aktuierung ist sinnvollerweise nur (relativ) gestellnah
+  Actuation_possib = 1:4;
+else
+  error('Kombination von Filtern nicht vorgesehen');
+end
 II = find(I); % Umwandlung von Binär-Indizes in Nummern
 ii = 0; % Laufende Nummer für aktuierte PKM
 ii_kin = 0; % Laufende Nummer für Kinematik-Struktur der PKM
@@ -56,7 +74,8 @@ for iFK = II' % Schleife über serielle Führungsketten
   end
   PName = sprintf('P%d%s', N_Legs, SName(3:3+N_LegDoF));
   fprintf('Kinematik %d/%d: %s, %s\n', ii_kin, length(II), PName, SName);
-  for jj = 1:3 % Prüfe symmetrische Aktuierung aller Beinketten (bis zum dritten Gelenk)
+
+  for jj = Actuation_possib % Prüfe symmetrische Aktuierung aller Beinketten
     ii = ii + 1;
     if ii < set_lfdNr_min, continue; end % Starte erst später
     fprintf('Untersuchte PKM %d (Gestell %d, Plattform %d): %s mit symmetrischer Aktuierung Gelenk %d\n', ...
