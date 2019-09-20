@@ -11,7 +11,8 @@ clear
 
 %% Benutzereingabe / Einstellungen
 check_existing = true; % Falls true: Prüfe existierende Roboter in Datenbank nochmal
-check_rankdef_existing = false; % Falls true: Prüfe existierende Roboter, deren Rang vorher als zu niedrig festgestellt wurde
+check_missing = false; % Falls true: Prüfe auch nicht existierende Roboter
+check_rankdef_existing = true; % Falls true: Prüfe existierende Roboter, deren Rang vorher als zu niedrig festgestellt wurde (zusätzlich zu anderen Optionen notwendig)
 % Auslassen der ersten "x" kinematischer Strukturen (zum Debuggen):
 set_lfdNr_min = 1;
 % Prüfung ausgewählter Beinketten (zum Debuggen):
@@ -20,6 +21,7 @@ set_whitelist_SerialKin = {}; % 'S6RRPRRR14V2', 'S6RRPRRR14V3' 'S6RRRRRR10V3'
 set_onlyspherical = false;
 % Alternative 2: Allgemeine 6FG-Beinketten
 set_onlygeneral = true;
+set_dryrun = false; % Falls true: Nur anzeige, was gemacht werden würde
 
 %% Initialisierung
 EE_FG = [1 1 1 1 1 1];
@@ -83,24 +85,35 @@ for iFK = II' % Schleife über serielle Führungsketten
     Actuation = cell(1,N_Legs);
     Actuation(:) = {jj};
     LEG_Names = {SName};
-    %% Roboter pauschal zur Datenbank hinzufügen
+    
+    % Prüfe, ob PKM in Datenbank ist
+    [found_tmp, Name] = parroblib_find_robot(N_Legs, LEG_Names, Actuation, true);
+    found = found_tmp(2); % Marker, dass Aktuierung der PKM gespeichert war
+    if ~found && ~check_missing
+      % nicht in DB. Soll nicht geprüft werden. Weiter
+      fprintf('PKM %s ist nicht in Datenbank. Keine weitere Untersuchung.\n', Name);
+      continue
+    elseif found && check_existing
+      % in Datenbank. Soll auch geprüft werden.
+      fprintf('PKM %s ist in Datenbank. Führe Untersuchung fort.\n', Name);
+    elseif found && ~check_existing
+      fprintf('PKM %s ist in Datenbank. Überspringe nochmalige Prüfung.\n', Name);
+      continue
+    elseif ~found && check_existing
+      % Nicht in DB. Füge hinzu
+      [Name, new] = parroblib_add_robot(N_Legs, LEG_Names, Actuation, Coupling, EE_FG);
+      if new, fprintf('PKM %s zur Datenbank hinzugefügt. Jetzt weitere Untersuchung\n', Name);
+      else,   error('PKM erst angeblich nicht in DB enthalten, jetzt aber doch'); end
+    else
+      error('Dieser Fall darf nicht eintreten. Nicht-logische Eingabe');
+    end
     % Mit dem dann eindeutigen Robotermodell sind weitere Berechnungen
     % möglich
-    [Name, new] = parroblib_add_robot(N_Legs, LEG_Names, Actuation, Coupling, EE_FG);
-    if new, fprintf('PKM %s zur Datenbank hinzugefügt.\n', Name);
-    else,   fprintf('PKM %s existierte schon in der Datenbank.\n', Name); end
-
     [~, ~, ~, ~, ~, ~, ~, ~, ~, AdditionalInfo] = parroblib_load_robot(Name);
-    
-    
-    if ~check_existing && ~new
-      fprintf(['Gehe davon aus, dass bereits in Datenbank existierender Roboter ', ...
-        'korrekt ist. Überspringe nochmalige Prüfung.\n']);
-      continue
-    end
-
     %% Maßsynthese für den Roboter durchführen
     num_checked_dimsynth = num_checked_dimsynth + 1;
+    fprintf('Starte Mobilitätsprüfung mit Maßsynthese für %s\n', Name);
+    if set_dryrun, continue; end
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
       sprintf('parroblib_add_robots_symact_3T3R_spherical_%d_%s.mat', jj, Name)));
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
@@ -114,7 +127,7 @@ for iFK = II' % Schleife über serielle Führungsketten
     Traj = cds_gen_traj(EE_FG, 1, Set.task);
     Set.optimization.objective = 'valid_act';
     Set.optimization.optname = sprintf('add_robots_sym_%s_%d_%s_tmp', EE_FG_Name, ii, Name);
-    Set.optimization.NumIndividuals = 25;
+    Set.optimization.NumIndividuals = 200;
     Set.optimization.MaxIter = 50;
     Set.optimization.ee_rotation = false;
     Set.optimization.ee_translation = false;
@@ -127,10 +140,10 @@ for iFK = II' % Schleife über serielle Führungsketten
     Set.general.plot_robot_in_fitness = 0;%1e3;
     Set.general.verbosity = 3;
     Set.general.matfile_verbosity = 0;
-    Set.general.nosummary = true;
+    Set.general.nosummary = false;
     Set.structures.whitelist = {Name}; % nur diese PKM untersuchen
-    Set.structures.use_serial = false; % nur PKM
-    Set.structset.use_parallel_rankdef = 6*check_rankdef_existing;
+    Set.structures.use_serial = false; % nur PKM (keine seriellen)
+    Set.structures.use_parallel_rankdef = 6*check_rankdef_existing;
     cds_start
     %% Ergebnis der Maßsynthese auswerten
     remove = false;
@@ -160,7 +173,7 @@ for iFK = II' % Schleife über serielle Führungsketten
       remsuccess = parroblib_remove_robot(Name);
     end
   end
-  fprintf('Fertig mit PKM\n');
+  fprintf('Fertig mit PKM-Kinematik %s\n', PName);
 end
 fprintf(['Insgesamt %d PKM mit Maßsynthese geprüft. ', ...
   'Davon %d strukturell aussortiert, %d nicht prüfbar, %d mit Rangverlust und %d mit voller Mobilität.\n'], ...

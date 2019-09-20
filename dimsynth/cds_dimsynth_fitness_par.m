@@ -249,7 +249,11 @@ if strcmp(Set.optimization.objective, 'valid_act')
     Jinv_task = Jinv_3T3R(Set.structures.DoF,:);
     % Rangprüfung. Sehr schlecht konditionierte Matrizen sollen auch als
     % Rangverlust gekennzeichnet werden.
-    rankJ = rank(Jinv_task, 1e-6);
+    % Mit Toleranz 1e-4 werden Matrizen mit Kond. 1e7 teilweise noch als
+    % voller Rang gewertet. Schlechtere Matrizen werden als Rangverlust
+    % gewertet.
+    tol = 5e10*max(size(Jinv_task)) * eps(norm(Jinv_task)); % ca. 1e-4 bei "normaler" Matrix mit Werten ungefähr 0 bis 1
+    rankJ = rank(Jinv_task, tol);
   end
   RD = sum(R.I_EE) - rankJ; % Rangdefizit
   if RD == 0

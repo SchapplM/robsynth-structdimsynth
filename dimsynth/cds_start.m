@@ -29,6 +29,9 @@ Structures = cds_gen_robot_list(Set);
 
 if isempty(Structures)
   fprintf('Keine Strukturen entsprechen den Filterkriterien\n');
+  if ~isempty(Set.structures.whitelist)
+    error('Es wurde eine Positiv-Liste übergeben, aber keine Strukturen entsprachen den Kriterien. Filter-Liste passt nicht');
+  end
 end
 
 if ~Set.general.regenerate_summmary_only
