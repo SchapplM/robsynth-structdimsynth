@@ -99,6 +99,7 @@ if structset.use_parallel
     % Prüfe Koppelpunkt-Eigenschaften
     if any(Coupling ~= [1 1])
       if verblevel >= 3, fprintf('%s hat eine nicht implementierte Koppelpunkt-Variante\n', PNames_Akt{j}); end
+      continue % Robotermodell kann in Optimierung nicht generiert werden.
     end
     
     PassPrisJoint = false;
