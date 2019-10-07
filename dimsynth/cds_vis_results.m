@@ -164,12 +164,14 @@ for i = 1:length(Structures)
   for file_ext = Set.general.save_animation_file_extensions
     s_anim.(sprintf('%s_name', file_ext{1})) = fullfile(resmaindir, sprintf('Rob%d_%s_Animation.%s', i, Name, file_ext{1}));
   end
+  if Set.task.profile == 0, I_anim = 1:size(Q,1);
+  else,                     I_anim = 1:20:size(Q,1); end
   if Structures{i}.Type == 0 % Seriell
     s_plot = struct( 'straight', 0);
-    R.anim( Q(1:20:end,:), s_anim, s_plot);
+    R.anim( Q(I_anim,:), s_anim, s_plot);
   else % Parallel
     s_plot = struct( 'ks_legs', [], 'straight', 0);
-    R.anim( Q(1:20:end,:), Traj_0.X(1:20:end,:), s_anim, s_plot);
+    R.anim( Q(I_anim,:), Traj_0.X(I_anim,:), s_anim, s_plot);
   end
   saveas(10*i+2,     fullfile(resmaindir, sprintf('Rob%d_%s_Skizze.fig', i, Name)));
   export_fig(10*i+2, fullfile(resmaindir, sprintf('Rob%d_%s_Skizze.png', i, Name)));
