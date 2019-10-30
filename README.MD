@@ -5,7 +5,7 @@ Dieses Repo enthält die kombinierte Struktur- und Maßsynthese für serielle un
 Mit dieser Software werden alle parallelen Roboterstrukturen für eine gegebene Aufgabe gefunden ("Struktursynthese") und diese Strukturen anschließend optimiert ("Maßsynthese"). Die Struktursynthese serieller Roboter erfolgt teilweise mit der Struktursynthese von Daniel Ramirez.
 
 Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-04  
-(C) Institut für mechatronische Systeme, Universität Hannover
+(C) Institut für Mechatronische Systeme, Universität Hannover
 
 ## Benutzung
 
@@ -31,4 +31,22 @@ Für die Struktursynthese paralleler Roboter existiert aktuell nur ein Skript im
 ### Maßsynthese
 
 Die Maßsynthese erfolgt mit den Funktionen aus `dimsynth`. Der komplette Ablauf wird mit den Konfigurationsskripten aus `config` gestartet. Die Skripte bieten entweder Minimalbeispiele für bestimmte Freiheitsgrade oder führen die Maßsynthese für eine größere Menge an Robotern aus.
+Der grobe Ablauf der Maßsynthese erfolgt durch die folgenden Matlab-Skripte und -Funktionen:
 
+ * Start-Skript, z.B. `config/cds_example_2T1R.m` mit allen Einstellungen der Optimierung und Auswahl der Roboter (-Freiheitsgrade)
+ * `cds_start`: Starten des Gesamt-Ablaufs
+ * `cds_gen_robot_list`: Liste aller Roboter erzeugen (aus Datenbanken mit Filterkriterien)
+ * `cds_dimsynth_robot`: Optimierung starten
+ * `cds_fitness`: Diese Fitness-Funktion wird durch wiederholtes Aufrufen optimiert. Dort sind folgende Punkte enthalten:
+   * `cds_update_robot_parameters`: Parameter aktualisieren
+   * `cds_constraints`: Nebenbedingungen prüfen
+   * `cds_dimsynth_desopt`: Entwurfsoptimierung durchführen
+   * `cds_obj_...`: Zielfunktion berechnen (z.B. `..._condition`, `..._energy`, `..._mass`, ...)
+ * `cds_vis_results`: Nach der Optimierung erfolgt eine Darstellung der Ergebnisse
+
+# Quellen
+
+Die kombinierte Struktur- und Maßsynthese wird in folgenden Quellen beschrieben:
+
+* [Ramirez2018] Ramirez, D.: Automatic Generation of Task-specific Mechanisms using Combined Structural and Dimensional Synthesis, Dissertation, Uni Hannover (2018)
+* [SchapplerTapOrt2019] Schappler, M. and Tappe, S., Ortmaier, T.: Exploiting Dynamics Parameter Linearity for Design Optimization in Combined Structural and Dimensional Robot Synthesis (2019)
