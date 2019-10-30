@@ -1,3 +1,32 @@
+% Zielfunktion ("objective function") für Optimierung in der Maßsynthese
+% basierend auf Energieverbrauch des Roboters für gegebene Trajektorie.
+% Die Energie wird in einen normierten Zielfunktionswert übersetzt
+% 
+% Eingabe:
+% R
+%   Matlab-Klasse für zu optimierenden Roboter (SerRob/ParRob)
+% Set
+%   Einstellungen des Optimierungsalgorithmus (aus cds_settings_defaults.m)
+% Structure
+%   Eigenschaften der Roboterstruktur (aus cds_gen_robot_list.m)
+% Traj_0
+%   Endeffektor-Trajektorie (bezogen auf Basis-KS)
+% TAU
+%   Alle Antriebsmomente (in den aktiven Gelenken)
+% QD
+%   Gelenkgeschwindigkeiten des Roboters (für PKM auch passive Gelenke)
+% 
+% Ausgabe:
+% fval [1x1]
+%   Zielfunktionswert, der im PSO-Algorithmus minimiert wird
+% fval_debugtext [char]
+%   Zeile mit Hinweistext, der bei PSO nach Fitness-Berechnung ausgegeben wird
+% debug_info [cell]
+%   Zusatz-Informationen, die im Debug-Bild des Roboters angezeigt werden
+
+% Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-10
+% (C) Institut für Mechatronische Systeme, Universität Hannover
+
 function [fval, fval_debugtext, debug_info] = cds_obj_energy(R, Set, Structure, Traj_0, TAU, QD)
 debug_info = {};
 

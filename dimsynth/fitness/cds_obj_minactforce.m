@@ -1,3 +1,22 @@
+% Zielfunktion ("objective function") für Optimierung in der Maßsynthese
+% basierend auf der maximal notwendigen Antriebskraft des Roboters.
+% Die max. Antriebskraft wird in einen normierten Zielfunktionswert übersetzt
+% 
+% Eingabe:
+% TAU
+%   Alle Antriebsmomente (in den aktiven Gelenken)
+% 
+% Ausgabe:
+% fval [1x1]
+%   Zielfunktionswert, der im PSO-Algorithmus minimiert wird
+% fval_debugtext [char]
+%   Zeile mit Hinweistext, der bei PSO nach Fitness-Berechnung ausgegeben wird
+% debug_info [cell]
+%   Zusatz-Informationen, die im Debug-Bild des Roboters angezeigt werden
+
+% Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-10
+% (C) Institut für Mechatronische Systeme, Universität Hannover
+
 % TODO: Aktuell wird einfach die größte Antriebskraft minimiert. Das
 % funktioniert nur bei symmetrischer Aktuierung. Ansonsten werden Kräfte
 % mit Momenten vergleichen (nicht sinnvoll).

@@ -1,4 +1,12 @@
 % Erzeuge Listen von Robotern, die für die Optimierung genutzt werden
+% 
+% Eingabe:
+% Set
+%   Einstellungen des Optimierungsalgorithmus
+% 
+% Ausgabe:
+% Structures
+%   Liste aller Roboterstrukturen
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Universität Hannover

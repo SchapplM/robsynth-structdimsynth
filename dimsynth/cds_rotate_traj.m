@@ -1,5 +1,14 @@
 % Rotiere die EE-Trajektorie ins Basis-KS des Roboters
 % Die Roboter-Funktionen sind alle mit X in Basis-Koordinaten definiert.
+% 
+% Eingabe:
+% Traj_W
+%   Roboter-Trajektorie (EE) bezogen auf Welt-KS
+% T_W_0 [4x4]
+%   Homogene Transformationsmatrix vom Basis- ins Welt-KS
+% Ausgabe:
+% Traj_0
+%   Roboter-Trajektorie (EE) bezogen auf Basis-KS des Roboters
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Universität Hannover

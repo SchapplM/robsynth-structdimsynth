@@ -1,4 +1,13 @@
 % Visualisierung der Ergebnisse der Maßsynthese für einen Roboter
+% 
+% Eingabe:
+% Set
+%   Einstellungen des Optimierungsalgorithmus
+% Traj
+%   Trajektorie (bezogen auf Welt-KS)
+% Structures
+%   Eigenschaften der Roboterstrukturen (alle an Optimierung beteiligten)
+%   Siehe cds_gen_robot_list.m
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Universität Hannover

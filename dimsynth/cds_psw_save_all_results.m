@@ -1,5 +1,21 @@
 % OutputFcn für den Particle-Swarm-Algorithmus. Speichere den aktuellen
 % Zwischenstand.
+% 
+% Eingabe:
+% optimValues
+%   Standard-Eingabe für PSO-Output-Fcn
+% state
+%   Standard-Eingabe für PSO-Output-Fcn
+% Set
+%   Eingabe zusätzlich zu PSO-Standard.
+%   Einstellungen des Optimierungsalgorithmus (aus cds_settings_defaults.m)
+% Structure
+%   Eingabe zusätzlich zu PSO-Standard.
+%   Eigenschaften der Roboterstruktur (aus cds_gen_robot_list.m)
+% 
+% Ausgabe:
+% stop
+%   Standard-Ausgabe für PSO-Output-Fcn
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Universität Hannover

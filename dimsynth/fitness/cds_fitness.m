@@ -1,4 +1,21 @@
 % Gütefunktion für Maßsynthese von Robotern (allgemein)
+% 
+% Eingabe:
+% R
+%   Matlab-Klasse für Roboter (SerRob/ParRob)
+% Set
+%   Einstellungen des Optimierungsalgorithmus
+% Traj_W
+%   Trajektorie (bezogen auf Welt-KS)
+% Structure
+%   Eigenschaften der Roboterstruktur
+% p
+%   Vektor der Optimierungsvariablen für PSO
+% 
+% Ausgabe:
+% fval
+%   Fitness-Wert für den Parametervektor p. Enthält Strafterme für
+%   Verletzung von Nebenbedingungen oder Wert der Zielfunktion (je nachdem)
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Universität Hannover
@@ -7,10 +24,10 @@ function fval = cds_fitness(R, Set, Traj_W, Structure, p)
 repopath = fileparts(which('structgeomsynth_path_init.m'));
 % Debug:
 if Set.general.matfile_verbosity > 2
-  save(fullfile(repopath, 'tmp', 'cds_fitness1.mat'));
+  save(fullfile(repopath, 'tmp', 'cds_fitness_1.mat'));
 end
 % Debug:
-% load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_fitness1.mat'));
+% load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_fitness_1.mat'));
 
 t1=tic();
 debug_info = {};
@@ -57,10 +74,10 @@ if any(strcmp(Set.optimization.objective, {'energy', 'mass', 'minactforce'}))
   cds_dimsynth_desopt(R, Q, Traj_0, Set, Structure);
 end
 if Set.general.matfile_verbosity > 1
-  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_fitness3.mat'));
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_fitness_3.mat'));
 end
 % Debug:
-% load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_fitness3.mat'));
+% load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_fitness_3.mat'));
 
 %% Berechnungen für Zielfunktionen
 output = cds_obj_dependencies(R, Traj_0, Set, Q, QD, QDD, Jinvges);

@@ -1,4 +1,29 @@
-% Nebenbedingungen für Roboter-Maßsynthese
+% Nebenbedingungen für Roboter-Maßsynthese berechnen (bzw. Strafterm aus
+% Nebenbedingungsverletzung)
+% 
+% Eingabe:
+% R
+%   Matlab-Klasse für zu optimierenden Roboter (SerRob/ParRob)
+% Traj_0, Traj_W
+%   Endeffektor-Trajektorie (bezogen auf Basis-KS und Welt-KS)
+% Set
+%   Einstellungen des Optimierungsalgorithmus (aus cds_settings_defaults.m)
+% Structure
+%   Eigenschaften der Roboterstruktur (aus cds_gen_robot_list.m)
+% 
+% Ausgabe:
+% fval
+%   Zielfunktionswert, der im PSO-Algorithmus minimiert wird. Entspricht
+%   Strafterm in der Fitnessfunktion bei Verletzung der Nebenbedingungen
+% Q,QD,QDD
+%   Gelenkpositionen und -geschwindigkeiten des Roboters (für PKM auch
+%   passive Gelenke)
+% Jinvges
+%   Zeilenweise (inverse) Jacobi-Matrizen des Roboters (für PKM). Wird hier
+%   ausgegeben, da sie bei Berechnung der IK anfällt.
+% constrvioltext [char]
+%   Text mit Zusatzinformationen, die beim Aufruf der Fitness-Funktion
+%   ausgegeben werden
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Universität Hannover

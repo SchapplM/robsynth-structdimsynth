@@ -1,5 +1,20 @@
 % Belegen der Kinematikparameter für die Optimierung
 % Die Dynamikparameter werden in der Entwurfsoptimierung bestimmt.
+% 
+% Eingabe:
+% R
+%   Roboter-Klasse (SerRob oder ParRob) mit allen Eigenschaften des zu
+%   optimierenden Roboters
+% Set
+%   Einstellungen des Optimierungsalgorithmus
+% Structure
+%   Eigenschaften der Roboterstruktur
+% p
+%   Vektor der Optimierungsvariablen für PSO. Werden in Roboter-Klasse ge-
+%   schrieben
+% 
+% Ausgabe:
+%   Roboter-Klasse mit aktualisierten Parametern
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Universität Hannover

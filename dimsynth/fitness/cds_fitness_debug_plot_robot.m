@@ -1,3 +1,28 @@
+% Plot-Funktion zum Debuggen der Fitness-Funktion in der Maßsynthese
+% Zeichnet den zu optimierenden Roboter je nach eingestellten Schwellwerten
+% 
+% Eingabe:
+% R
+%   Matlab-Klasse für zu optimierenden Roboter (SerRob/ParRob)
+% q
+%   Gelenkwinkelstellung zum Zeichnen des Roboters
+% Traj_0, Traj_W
+%   Endeffektor-Trajektorie (bezogen auf Basis- und Welt-KS)
+% Set
+%   Einstellungen des Optimierungsalgorithmus (aus cds_settings_defaults.m)
+% Structure
+%   Eigenschaften der Roboterstruktur (aus cds_gen_robot_list.m)
+% p
+%   Vektor der Optimierungsvariablen für PSO
+% fval
+%   Fitness-Wert für den Parametervektor p.
+% debug_info [cell]
+%   Zusatz-Informationen, die im Debug-Bild des Roboters angezeigt werden
+%   (Zeilenweise als Text)
+
+% Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-10
+% (C) Institut für Mechatronische Systeme, Universität Hannover
+
 function cds_fitness_debug_plot_robot(R, q, Traj_0, Traj_W, Set, Structure, p, fval, debug_info)
 % Zeichne den Roboter für den aktuellen Parametersatz.
 if Set.general.plot_robot_in_fitness < 0 && fval > abs(Set.general.plot_robot_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne

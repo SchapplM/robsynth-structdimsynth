@@ -1,5 +1,17 @@
 % Maßsynthese für eine Roboterstruktur
-
+% 
+% Eingabe:
+% Set
+%   Einstellungen des Optimierungsalgorithmus
+% Traj
+%   Trajektorie (bezogen auf Welt-KS)
+% Structure
+%   Eigenschaften der Roboterstruktur
+% 
+% Ausgabe:
+% RobotOptRes
+%   Ergebnis-Struktur
+% 
 % TODO:
 % * Namen der Optimierungsparameter
 
