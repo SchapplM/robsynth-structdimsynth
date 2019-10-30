@@ -127,7 +127,7 @@ else % PKM
   s = struct('Phit_tol', 1e-4, 'Phir_tol', 1e-3, 'retry_limit', 5, ...
     'normalize', false);
 end
-q0 = qlim(:,1) + rand(R.NQJ,1).*(qlim(:,2)-qlim(:,1));
+q0 = qlim(:,1) + rand(R.NJ,1).*(qlim(:,2)-qlim(:,1));
 % IK für alle Eckpunkte, beginnend beim letzten (dann ist q der richtige
 % Startwert für die Trajektorien-IK)
 for i = size(Traj_0.XE,1):-1:1
