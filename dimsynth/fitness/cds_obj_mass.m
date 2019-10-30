@@ -3,7 +3,9 @@ debug_info = {};
 
 % Gesamtmasse berechnen
 if R.Type == 0
-  error('TODO');
+  m_sum = sum(R.DynPar.mges(2:end));
+  debug_info = {debug_info{:}; sprintf('masses: total %1.2fkg, Segments [%s] kg', ...
+    m_sum, disp_array(R.DynPar.mges(2:end)', '%1.2f'))};
 else
   m_sum = sum(R.DynPar.mges(1:end-1))*R.NLEG + R.DynPar.mges(end);
   debug_info = {debug_info{:}; sprintf('masses: total %1.2fkg, 1Leg %1.2fkg, Pf %1.2fkg', ...

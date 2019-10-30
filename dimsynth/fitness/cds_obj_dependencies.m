@@ -1,8 +1,9 @@
-function output = cds_obj_dependencies(R, Traj_0, Set, Q, Jinvges)
+function output = cds_obj_dependencies(R, Traj_0, Set, Q, QD, QDD, Jinvges)
 output = struct('content', 'cds_obj_dependencies');
 if any(strcmp(Set.optimization.objective, {'energy', 'minactforce'}))
   if R.Type == 0
-    error('TODO');
+    % Antriebskräfte berechnen
+    TAU = R.invdyn2_traj(Q, QD, QDD);
   else
     % Trajektorie in Plattform-KS umrechnen
     [XP,XPD,XPDD] = R.xE2xP_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD);
@@ -13,6 +14,6 @@ if any(strcmp(Set.optimization.objective, {'energy', 'minactforce'}))
       Jinv_IK = reshape(Jinvges(i,:), sum(R.I_EE), sum(R.I_qa));
       TAU(i,:) = (Jinv_IK') \ Fx_red_traj(i,:)';
     end
-    output.TAU = TAU;
   end
+  output.TAU = TAU;
 end

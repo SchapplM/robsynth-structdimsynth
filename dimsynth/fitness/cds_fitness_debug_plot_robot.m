@@ -19,8 +19,13 @@ hold on;grid on;
 xlabel('x in m');ylabel('y in m');zlabel('z in m');
 plot3(Traj_W.X(:,1), Traj_W.X(:,2),Traj_W.X(:,3), 'k-');
 plotmode = 1; % Strichzeichnung
-s_plot = struct( 'ks_legs', [1,2], 'straight', 0, 'mode', plotmode);
-R.plot( q, Traj_0.X(1,:)', s_plot);
+if R.Type == 0 % Seriell
+  s_plot = struct( 'ks', 1:R.NJ+2, 'straight', 0, 'mode', plotmode);
+  R.plot( q, s_plot);
+else % PKM
+  s_plot = struct( 'ks_legs', [1,2], 'straight', 0, 'mode', plotmode);
+  R.plot( q, Traj_0.X(1,:)', s_plot);
+end
 title(sprintf('fval=%1.2e; p=[%s]; %s', fval,disp_array(p','%1.3f'), tt));
 xlim([-1,1]*Structure.Lref*3+mean(minmax2(Traj_W.XE(:,1)')'));
 ylim([-1,1]*Structure.Lref*3+mean(minmax2(Traj_W.XE(:,2)')'));

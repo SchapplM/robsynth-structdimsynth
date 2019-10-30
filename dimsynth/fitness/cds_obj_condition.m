@@ -10,27 +10,23 @@ if R.Type == 0
     J_task = J_3T3R(Set.structures.DoF,:);
     Cges(i,:) = cond(J_task);
   end
-  % Schlechtester Wert der Konditionszahl
-  % Nehme Logarithmus, da Konditionszahl oft sehr groß ist.
-  f_cond1 = max(Cges);
-  f_cond = log(f_cond1); 
-  f_cond_norm = 2/pi*atan((f_cond)/20); % Normierung auf 0 bis 1; 150 ist 0.9
-  fval = 1e3*f_cond_norm; % Normiert auf 0 bis 1e3
-  fval_debugtext = sprintf('Schlechteste Konditionszahl %1.3e', f_cond1);
 else
   % Berechne Konditionszahl für alle Punkte der Bahn
   for i = 1:length(Traj_0.t)
     Jinv_IK = reshape(Jinvges(i,:), sum(R.I_EE), sum(R.I_qa));
     Cges(i) = cond(Jinv_IK);
   end
-  % Schlechtester Wert der Konditionszahl ist Kennzahl
-  % Nehme Logarithmus, da Konditionszahl oft sehr groß ist.
-  f_cond1 = max(Cges);
-  f_cond = log(f_cond1); 
-  f_cond_norm = 2/pi*atan((f_cond)/20); % Normierung auf 0 bis 1; 150 ist 0.9
-  fval = 1e3*f_cond_norm; % Normiert auf 0 bis 1e3
-  fval_debugtext = sprintf('Schlechteste Konditionszahl %1.3e', f_cond1);
+end
+% Schlechtester Wert der Konditionszahl ist Kennzahl
+% Nehme Logarithmus, da Konditionszahl oft sehr groß ist.
+f_cond1 = max(Cges);
+f_cond = log(f_cond1); 
+f_cond_norm = 2/pi*atan((f_cond)/20); % Normierung auf 0 bis 1; 150 ist 0.9
+fval = 1e3*f_cond_norm; % Normiert auf 0 bis 1e3
+fval_debugtext = sprintf('Schlechteste Konditionszahl %1.3e', f_cond1);
 
+%% Debug-Plot (nur für PKM)
+if R.Type == 2
   if fval < Set.general.plot_details_in_fitness
     % Debug-Werte berechnen
     det_ges = NaN(size(Jinvges,1), 1);
