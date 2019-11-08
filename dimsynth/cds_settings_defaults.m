@@ -40,6 +40,7 @@ general = struct( ...
   'max_retry_bestfitness_reconstruction', 10, ...
   'regenerate_summmary_only', false, ... % Nur die Videos und Zusammenfassungsbilder neu generieren. Keine Optimierung durchführen.
   'nosummary', false, ... % Kompletter Verzicht auf die graphische Endauswertung
+  'noprogressfigure', false, ... % Verzicht auf Fortschritts-Bild des PSO
   'use_mex', true);
 
 %% Einstellungen zur Auswahl der verwendeten Strukturen

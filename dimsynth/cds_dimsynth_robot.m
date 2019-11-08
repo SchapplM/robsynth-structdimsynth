@@ -257,7 +257,9 @@ if any(strcmp(Set.optimization.objective, {'valid_act', 'valid_kin'}))
   options.ObjectiveLimit = 999;
 end
 options.InitialSwarmMatrix = InitPop;
-options.PlotFcn = {@pswplotbestf};
+if ~Set.general.noprogressfigure
+  options.PlotFcn = {@pswplotbestf};
+end
 cds_save_all_results_anonym = @(optimValues,state)cds_psw_save_all_results(optimValues,state,Set,Structure);
 options.OutputFcn = {cds_save_all_results_anonym};
 %% Tmp-Ordner leeren
