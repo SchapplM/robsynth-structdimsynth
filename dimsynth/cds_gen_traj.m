@@ -1,4 +1,17 @@
 % Auswahl einer Trajektorie für die Roboteroptimierung
+% 
+% Eingabe:
+% DoF [1x6]
+%   Kennung der EE-FG (bezogen auf EE-Geschwindigkeit)
+% no
+%   Nummer der hinterlegten Beispiel-Trajektorie (für den FG)
+% trajset
+%   Einstellungen für Trajektorie
+%   Siehe cds_settings_defaults.m
+% 
+% Ausgabe:
+% Traj
+%   Struktur mit Trajektorie des Endeffektors (Zeit, Position, Geschw.)
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Universität Hannover

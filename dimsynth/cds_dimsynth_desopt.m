@@ -4,6 +4,21 @@
 % Körper: Den einzelnen Starrkörpern des Robotermodells zugeordnet
 % Geometrie: Einzelnen Ersatzkörpern (z.B. Zylindern) zugeordnet
 % 
+% Eingabe:
+% Q
+%   Gelenkwinkel-Trajektorie
+% Traj_0
+%   Kartesische Trajektorie (bezogen auf Roboter-Basis-KS)
+% Set
+%   Einstellungen des Optimierungsalgorithmus
+% Structure
+%   Eigenschaften der Roboterstruktur
+% Ausgabe:
+% R
+%   Aktualisiertes Klassenobjekt des Roboters (nicht zwangsläufig
+%   benötigt), da die Parameter auch per Handle im Eingabe-Objekt
+%   aktualisiert werden.
+% 
 % Zum Debuggen:
 % * Bilder einkommentieren
 % * Koordinatensysteme von zu prüfenden KS/Vektoren zeichnen (trplot)

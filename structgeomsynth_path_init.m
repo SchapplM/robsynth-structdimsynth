@@ -7,6 +7,7 @@ this_tb_path = fileparts( mfilename('fullpath') );
 addpath(this_tb_path);
 
 addpath(fullfile(this_tb_path, 'dimsynth'));
+addpath(fullfile(this_tb_path, 'dimsynth', 'fitness'));
 mkdirs(fullfile(this_tb_path, 'dimsynth', 'results'));
 
 mkdirs(fullfile(this_tb_path, 'tmp'));

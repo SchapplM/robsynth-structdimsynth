@@ -1,5 +1,17 @@
 % Maßsynthese für eine Roboterstruktur
-
+% 
+% Eingabe:
+% Set
+%   Einstellungen des Optimierungsalgorithmus
+% Traj
+%   Trajektorie (bezogen auf Welt-KS)
+% Structure
+%   Eigenschaften der Roboterstruktur
+% 
+% Ausgabe:
+% RobotOptRes
+%   Ergebnis-Struktur
+% 
 % TODO:
 % * Namen der Optimierungsparameter
 
@@ -256,14 +268,8 @@ if exist(resdir, 'file')
   rmdir(resdir, 's')
 end
 mkdirs(resdir);
-%% Fitness-Funktion initialisieren
-if Structure.Type == 0 % Seriell
-  fitnessfcn=@(p)cds_dimsynth_fitness_ser_plin(R, Set, Traj, Structure, p(:));
-elseif Structure.Type == 2 % Parallel
-  fitnessfcn=@(p)cds_dimsynth_fitness_par(R, Set, Traj, Structure, p(:));
-else
-  error('Noch nicht definiert');
-end
+%% Fitness-Funktion initialisieren (Strukturunabhängig)
+fitnessfcn=@(p)cds_fitness(R, Set, Traj, Structure, p(:));
 f_test = fitnessfcn(InitPop(1,:)'); %#ok<NASGU> % Testweise ausführen
 
 %% PSO-Aufruf starten
