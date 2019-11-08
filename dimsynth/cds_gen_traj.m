@@ -117,7 +117,7 @@ elseif trajset.profile == 0 % Nur Eckpunkte
   X_ges = XE;
   XD_ges = XE*0;
   XDD_ges = XE*0;
-  T_ges = 1:size(XE,1);
+  T_ges = (1:size(XE,1))'; % Muss Spaltenvektor sein
 end
 
 %% Ausgabe
