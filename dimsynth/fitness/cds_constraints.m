@@ -20,7 +20,10 @@
 %   passive Gelenke)
 % Jinvges
 %   Zeilenweise (inverse) Jacobi-Matrizen des Roboters (für PKM). Wird hier
-%   ausgegeben, da sie bei Berechnung der IK anfällt.
+%   ausgegeben, da sie bei Berechnung der IK anfällt. Bezogen auf
+%   Geschwindigkeit aller Gelenke und EE-Geschwindigkeit
+% JinvD_ges
+%   Zeitableitung von Jinvges. Wird für Inverse Dynamik benötigt.
 % constrvioltext [char]
 %   Text mit Zusatzinformationen, die beim Aufruf der Fitness-Funktion
 %   ausgegeben werden
@@ -28,13 +31,14 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function [fval,Q,QD,QDD,Jinvges,constrvioltext] = cds_constraints(R, Traj_0, Traj_W, Set, Structure)
+function [fval,Q,QD,QDD,Jinv_ges,JinvD_ges,constrvioltext] = cds_constraints(R, Traj_0, Traj_W, Set, Structure)
 fval = 1e3;
 constrvioltext = '';
 Q = [];
 QD = [];
 QDD = [];
-Jinvges = [];
+Jinv_ges = [];
+JinvD_ges = [];
 %% Geometrie auf Plausibilität prüfen (1)
 if R.Type == 0 % Seriell
   % Prüfe, ob alle Eckpunkte der Trajektorie im Arbeitsraum des Roboters liegen
@@ -196,9 +200,10 @@ end
 s = struct('normalize', false, 'retry_limit', 1);
 if R.Type == 0 % Seriell
   [Q, QD, QDD, PHI] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
-  Jinvges = NaN; % Platzhalter für gleichartige Funktionsaufrufe. Speicherung nicht sinnvoll für seriell.
+  Jinv_ges = NaN; % Platzhalter für gleichartige Funktionsaufrufe. Speicherung nicht sinnvoll für seriell.
+  JinvD_ges = NaN; 
 else % PKM
-  [Q, QD, QDD, PHI, Jinvges] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+  [Q, QD, QDD, PHI, Jinv_ges, JinvD_ges] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
 end
 % Speichere die Anfangs-Winkelstellung in der Roboterklasse für später
 if R.Type == 0 % Seriell

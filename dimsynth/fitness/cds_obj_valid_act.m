@@ -39,8 +39,8 @@ end
 % Singularität, da Trajektorie und IK lösbar ist.
 n_qa = sum(R.I_qa);
 for i = 1
-  Jinv_IK = reshape(Jinvges(i,:), sum(R.I_EE), sum(R.I_qa));
-  Jinv_xred = Jinv_IK;
+  Jinv_IK = reshape(Jinvges(i,:), R.NJ, sum(R.I_EE));
+  Jinv_xred = Jinv_IK(R.I_qa,:);
   % Jinv_xred = R.jacobi_qa_x(Q(i,:)', Traj_0.X(i,:)');
   Jinv_3T3R = zeros(6, n_qa);
   Jinv_3T3R(R.I_EE,:) = Jinv_xred;
