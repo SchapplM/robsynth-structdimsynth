@@ -39,7 +39,7 @@ if any(strcmp(Set.optimization.objective, {'energy', 'minactforce'}))
     % Antriebskräfte berechnen
     Fx_red_traj = R.invdyn2_platform_traj(Q, QD, XE, XED, XEDD, Jinv_ges, JinvD_ges);
     % Teste Dynamik-Berechnung
-    if all(R.DynPar.mges(R.NQJ_LEG_bc+1:end-1) == 0)
+    if all(R.DynPar.mges(R.NQJ_LEG_bc+1:end-1) == 0) && ~isempty(R.DynPar.mpv_sym)
       % Bedingung für Zulässigkeit der symbolischen Form erfüllt. Teste.
       [XP,XPD,XPDD] = R.xE2xP_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD);
       Fx_red_traj_test = R.invdyn_platform_traj(Q, XP, XPD, XPDD);
