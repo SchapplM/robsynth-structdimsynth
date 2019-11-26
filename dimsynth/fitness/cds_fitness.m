@@ -46,7 +46,7 @@ cds_update_robot_parameters(R, Set, Structure, p);
 Traj_0 = cds_rotate_traj(Traj_W, R.T_W_0);
 
 %% Nebenbedingungen prüfen
-[fval,Q,QD,QDD,Jinvges,constrvioltext] = cds_constraints(R, Traj_0, Traj_W, Set, Structure);
+[fval,Q,QD,QDD,Jinv_ges,JinvD_ges,constrvioltext] = cds_constraints(R, Traj_0, Traj_W, Set, Structure);
 cds_fitness_debug_plot_robot(R, zeros(R.NJ,1), Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
 if fval > 1000 % Nebenbedingungen verletzt.
   fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext);
@@ -80,16 +80,16 @@ end
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_fitness_3.mat'));
 
 %% Berechnungen für Zielfunktionen
-output = cds_obj_dependencies(R, Traj_0, Set, Q, QD, QDD, Jinvges);
+output = cds_obj_dependencies(R, Traj_0, Set, Q, QD, QDD, Jinv_ges,JinvD_ges);
 if any(strcmp(Set.optimization.objective, {'energy', 'minactforce'}))
   TAU = output.TAU;
 end
 
 %% Zielfunktion berechnen
 if strcmp(Set.optimization.objective, 'valid_act')
-  [fval,fval_debugtext, debug_info] = cds_obj_valid_act(R, Set, Jinvges);
+  [fval,fval_debugtext, debug_info] = cds_obj_valid_act(R, Set, Jinv_ges);
 elseif strcmp(Set.optimization.objective, 'condition')
-  [fval,fval_debugtext, debug_info] = cds_obj_condition(R, Set, Structure, Jinvges, Traj_0, Q, QD);
+  [fval,fval_debugtext, debug_info] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
 elseif strcmp(Set.optimization.objective, 'energy')
   [fval,fval_debugtext, debug_info] = cds_obj_energy(R, Set, Structure, Traj_0, TAU, QD);
 elseif strcmp(Set.optimization.objective, 'mass')

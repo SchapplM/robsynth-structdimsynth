@@ -330,18 +330,21 @@ end
 if any(isnan([If_ges(:);mrS_ges(:)]))
   error('Irgendein Dynamik-Parameter ist NaN. Das stört spätere Berechnungen!');
 end
+if Set.general.matfile_verbosity > 2
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt_saveparam.mat'));
+end
 if R.Type == 0 
   % Seriell: Parameter direkt eintragen
-  if Set.general.matfile_verbosity > 2
-    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt_saveparamserial.mat'));
-  end
   R.update_dynpar2(m_ges, mrS_ges, If_ges)
 else
   % PKM (symmetrisch): Parameter ohne Basis und ohne Segmente nach
   % Schnittgelenk; mit Plattform
-  m_ges_pkm = m_ges([2:R.NQJ_LEG_bc+1, end]);
-  mrS_ges_pkm = mrS_ges([2:R.NQJ_LEG_bc+1, end],:);
-  If_ges_pkm = If_ges([2:R.NQJ_LEG_bc+1, end],:);
+  % Als Schnittgelenk wird nur noch das letzte (Dreh-)Gelenk aufgefasst.
+  % Falls das letzte Gelenk ein Kugelgelenk ist, wären die Massenparameter
+  % trotzdem Null (da Segment ohne Länge)
+  m_ges_pkm = [m_ges(2:end-1);0;m_ges(end)]; % m_ges([2:R.NQJ_LEG_bc+1, end])
+  mrS_ges_pkm = [mrS_ges(2:end-1,:);zeros(1,3);mrS_ges(end,:)]; % ([2:R.NQJ_LEG_bc+1, end],:)
+  If_ges_pkm = [If_ges(2:end-1,:);zeros(1,6);If_ges(end,:)]; % ([2:R.NQJ_LEG_bc+1, end],:)
   R.update_dynpar2(m_ges_pkm, mrS_ges_pkm, If_ges_pkm);
 end
 %% Debug: Bilder der verschiedenen Dynamikparameter

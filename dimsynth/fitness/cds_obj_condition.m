@@ -10,7 +10,8 @@
 % Structure
 %   Eigenschaften der Roboterstruktur (aus cds_gen_robot_list.m)
 % Jinvges
-%   Zeilenweise (inverse) Jacobi-Matrizen des Roboters (für PKM).
+%   Zeilenweise (inverse) Jacobi-Matrizen des Roboters (für PKM). Bezogen
+%   auf vollständige Gelenkgeschwindigkeiten und EE-Geschw.
 % Traj_0
 %   Endeffektor-Trajektorie (bezogen auf Basis-KS)
 % Q, QD
@@ -43,8 +44,8 @@ if R.Type == 0
 else
   % Berechne Konditionszahl für alle Punkte der Bahn
   for i = 1:length(Traj_0.t)
-    Jinv_IK = reshape(Jinvges(i,:), sum(R.I_EE), sum(R.I_qa));
-    Cges(i) = cond(Jinv_IK);
+    Jinv_IK = reshape(Jinvges(i,:), sum(R.I_EE), R.NJ);
+    Cges(i) = cond(Jinv_IK(R.I_qa,:));
   end
 end
 % Schlechtester Wert der Konditionszahl ist Kennzahl
@@ -61,7 +62,7 @@ if R.Type == 2
     % Debug-Werte berechnen
     det_ges = NaN(size(Jinvges,1), 1);
     for i = 1:size(Jinvges,1)
-      Jinv_IK = reshape(Jinvges(i,:), sum(R.I_EE), sum(R.I_qa));
+      Jinv_IK = reshape(Jinvges(i,:), sum(R.I_EE), R.NJ);
   %     % Debug: Vergleich der Jacobi-Matrizen (falls keine Singularität
   %     % auftritt). TODO: Nur Optional mit Debug-Schalter
   %     test_Jinv = Jinv_IK - R.jacobi_qa_x(Q(i,:)',Traj_0.X(i,:)');
@@ -72,7 +73,7 @@ if R.Type == 2
   %       error('Jacobi numerisch vs. symbolisch stimmt nicht. Fehler %e, Kondition Jinv %e', ...
   %         max(abs(abs(test_Jinv(:)))), Cges(i));
   %     end
-      det_ges(i,:) = det(Jinv_IK);
+      det_ges(i,:) = det(Jinv_IK(R.I_qa,:));
     end
 
     if Set.general.plot_robot_in_fitness < 0 && fval > abs(Set.general.plot_robot_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
