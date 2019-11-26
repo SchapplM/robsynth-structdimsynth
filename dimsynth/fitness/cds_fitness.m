@@ -48,7 +48,7 @@ Traj_0 = cds_rotate_traj(Traj_W, R.T_W_0);
 %% Nebenbedingungen prüfen
 [fval,Q,QD,QDD,Jinvges,constrvioltext] = cds_constraints(R, Traj_0, Traj_W, Set, Structure);
 cds_fitness_debug_plot_robot(R, zeros(R.NJ,1), Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
-if fval > 0 % Nebenbedingungen verletzt.
+if fval > 1000 % Nebenbedingungen verletzt.
   fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext);
   return
 end

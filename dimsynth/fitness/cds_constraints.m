@@ -29,7 +29,7 @@
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
 function [fval,Q,QD,QDD,Jinvges,constrvioltext] = cds_constraints(R, Traj_0, Traj_W, Set, Structure)
-fval = 0;
+fval = 1e3;
 constrvioltext = '';
 Q = [];
 QD = [];
