@@ -32,7 +32,18 @@ if Structure.Type == 0 % Seriell
   R = serroblib_create_robot_class(Structure.Name);
   NLEG = 1;
 elseif Structure.Type == 2 % Parallel
-  R = parroblib_create_robot_class(Structure.Name, 1.5*Lref, 0.75*Lref);
+  % Parameter für Basis-Kopplung einstellen
+  p_base = 1.5*Lref;
+  if Structure.Coupling(1) == 4
+    p_base(2) = 0.4*p_base(1);
+    p_base(3) = pi/3;
+  end
+  % Parameter für Plattform-Kopplung einstellen
+  p_platform = 0.75*Lref;
+  if Structure.Coupling(2) == 3
+    p_platform(2) = 0.5*p_platform(1);
+  end
+  R = parroblib_create_robot_class(Structure.Name, p_base(:), p_platform(:));
   NLEG = R.NLEG;
 else
   error('Typ-Nummer nicht definiert');

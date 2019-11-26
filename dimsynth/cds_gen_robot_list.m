@@ -105,7 +105,7 @@ if structset.use_parallel
     % Lade Detailierte Informationen des Robotermodells
     [NLEG, LEG_Names, Actuation, Coupling, ~, ~, ~] = parroblib_load_robot(PNames_Akt{j});
     % Prüfe Koppelpunkt-Eigenschaften
-    if any(Coupling ~= [1 1])
+    if ~any(Coupling(1) == [1 4]) || ~any(Coupling(2) == [1 3])
       if verblevel >= 3, fprintf('%s hat eine nicht implementierte Koppelpunkt-Variante\n', PNames_Akt{j}); end
       continue % Robotermodell kann in Optimierung nicht generiert werden.
     end
@@ -149,7 +149,7 @@ if structset.use_parallel
 
     ii = ii + 1;
     if verblevel >= 2, fprintf('%d: %s\n', ii, PNames_Akt{j}); end
-    Structures{ii} = struct('Name', PNames_Akt{j}, 'Type', 2, 'Number', ii);
+    Structures{ii} = struct('Name', PNames_Akt{j}, 'Type', 2, 'Number', ii, 'Coupling', Coupling);
 
   end
 end

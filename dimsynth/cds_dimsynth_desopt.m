@@ -60,7 +60,10 @@ elseif R.Type == 2  % Parallel (symmetrisch)
     % genutzt
     R.Leg(i).DesPar.seg_par = repmat([2e-3, 50e-3], R.Leg(1).NL, 1); % dünne Struktur
   end
-  R.DesPar.platform_par(2) = 10e-3; % Dünne Platte als Plattform
+  if     Structure.Coupling(2) == 1, i_plfthickness = 2; %#ok<ALIGN>
+  elseif Structure.Coupling(2) == 4, i_plfthickness = 3;
+  else,  error('Nicht implementiert'); end
+  R.DesPar.platform_par(i_plfthickness) = 10e-3; % Dünne Platte als Plattform
 end
 
 %% Dynamikparameter belegen
