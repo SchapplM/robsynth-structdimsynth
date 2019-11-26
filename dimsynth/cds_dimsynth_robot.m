@@ -246,6 +246,34 @@ if Structure.Type == 2 && Set.optimization.platform_size
   varnames = {varnames{:}, 'platform param'}; %#ok<CCAT>
 end
 
+% Gestell-Morphologie-Parameter (z.B. Gelenkpaarabstand).
+% Siehe align_base_coupling.m
+if Structure.Type == 2 && Set.optimization.base_morphology
+  if R.DesPar.base_method == 1 % keine Parameter bei Kreis
+  elseif R.DesPar.base_method == 4
+    nvars = nvars + 1;
+    vartypes = [vartypes; 8];
+    varlim = [varlim; [0.2,0.8]]; % Gelenkpaarabstand. Relativ zu Gestell-Radius.
+    nvars = nvars + 1;
+    vartypes = [vartypes; 8];
+    varlim = [varlim; [0,pi/4]]; % Steigung Pyramide; Winkel in rad
+  else
+    error('base_morphology Nicht implementiert');
+  end
+end
+
+% Plattform-Morphologie-Parameter (z.B. Gelenkpaarabstand).
+% Siehe align_platform_coupling.m
+if Structure.Type == 2 && Set.optimization.platform_morphology
+  if R.DesPar.platform_method == 1 % keine Parameter bei Kreis
+  elseif R.DesPar.platform_method == 3
+    nvars = nvars + 1;
+    vartypes = [vartypes; 9];
+    varlim = [varlim; [0.2,0.8]]; % Gelenkpaarabstand. Relativ zu Plattform-Radius.
+  else
+    error('platform_morphology Nicht implementiert');
+  end
+end
 % Variablen-Typen speichern
 Structure.vartypes = vartypes;
 Structure.varnames = varnames;

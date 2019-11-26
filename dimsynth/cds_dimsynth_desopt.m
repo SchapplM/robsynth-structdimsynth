@@ -61,7 +61,7 @@ elseif R.Type == 2  % Parallel (symmetrisch)
     R.Leg(i).DesPar.seg_par = repmat([2e-3, 50e-3], R.Leg(1).NL, 1); % dünne Struktur
   end
   if     Structure.Coupling(2) == 1, i_plfthickness = 2; %#ok<ALIGN>
-  elseif Structure.Coupling(2) == 4, i_plfthickness = 3;
+  elseif Structure.Coupling(2) == 3, i_plfthickness = 3;
   else,  error('Nicht implementiert'); end
   R.DesPar.platform_par(i_plfthickness) = 10e-3; % Dünne Platte als Plattform
 end
@@ -303,9 +303,9 @@ for i = 1:length(m_ges_Link)
   elseif Structure.Type == 2 && i == size(m_ges_Link,1)
     % Plattform-Segment bei PKM
     % Annahme: Kreisscheibe
-    if R.DesPar.platform_method == 1
-      R_P = R.DesPar.platform_par(1) / 2;
-      e_P = R.DesPar.platform_par(2);
+    if R.DesPar.platform_method == 1 || R.DesPar.platform_method == 3
+      R_P = R.DesPar.platform_par(1) / 2; % ist bei Methode 3 eigentlich Dreieck. Rechne aber mit Kreisscheibe
+      e_P = R.DesPar.platform_par(i_plfthickness); % Dicke der Plattform
 
       % Modellierung Kreisscheibe (in Schwerpunkts-KS). Siehe TM-Formelsammlung
       m_P = density*pi*R_P^2*e_P;
@@ -318,7 +318,7 @@ for i = 1:length(m_ges_Link)
       m_ges_Link(i) = m_P;
       [mrS_ges_Link(i,:), If_ges_Link(i,:)] = inertial_parameters_convert_par1_par2(r_P_P_C', J_P_C_vec, m_P);
     else
-      error('Dieser Fall darf nicht eintreten');
+      error('platform_method ist nicht implementiert');
     end
   end
 

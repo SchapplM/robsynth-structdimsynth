@@ -126,6 +126,9 @@ if Set.optimization.rotate_base
 end
 
 %% Basis-Koppelpunkt Positionsparameter (z.B. Gestelldurchmesser)
+p_basepar = R.DesPar.base_par;
+changed_base = false;
+
 if R_neu.Type == 2 && Set.optimization.base_size && any(Structure.vartypes == 6)
   p_baseradius = p(Structure.vartypes == 6);
   if length(p_baseradius) ~= 1
@@ -135,10 +138,27 @@ if R_neu.Type == 2 && Set.optimization.base_size && any(Structure.vartypes == 6)
     error('Basis-Radius darf nicht Null werden');
   end
   % Setze den Fußpunkt-Radius skaliert mit Referenzlänge
-  R_neu.align_base_coupling(1, p_baseradius*p(1));
+  p_basepar(1) = p_baseradius*p(1);
+  changed_base = true;
 end
 
+%% Gestell-Morphologie-Parameter (z.B. Gelenkpaarabstand)
+if R_neu.Type == 2 && Set.optimization.base_morphology && any(Structure.vartypes == 8)
+  % Methoden und Parameter, siehe align_base_coupling
+  if R.DesPar.base_method == 4
+    % Skalierung mit Basis-Radius und Winkel ohne Skalierung
+    p_basepar(2:3) = p(Structure.vartypes == 8).*[p_basepar(1);1];
+    changed_base = true;
+  end
+end
+
+if changed_base
+  R_neu.align_base_coupling(R.DesPar.base_method, p_basepar);
+end
 %% Plattform-Koppelpunkt Positionsparameter (z.B. Plattformdurchmesser)
+p_plfpar = R.DesPar.platform_par(1:end-1);
+changed_plf = false;
+
 if R_neu.Type == 2 && Set.optimization.platform_size && any(Structure.vartypes == 7)
   p_pfradius = p(Structure.vartypes == 7);
   if length(p_pfradius) ~= 1
@@ -150,6 +170,20 @@ if R_neu.Type == 2 && Set.optimization.platform_size && any(Structure.vartypes =
   if ~any(Structure.vartypes == 6)
     error('Basis-Koppelpunkt muss zusammen mit Plattformkoppelpunkt optimiert werden');
   end
-  % Setze den Plattform-Radius skaliert mit Gestell-Radius
-  R_neu.align_platform_coupling(1, R_neu.DesPar.base_par(1)*p_baseradius);
+  % Setze den Plattform-Radius skaliert mit Absolutwert des Gestell-Radius
+  p_plfpar(1) = R_neu.DesPar.base_par(1)*p_pfradius;
+  changed_plf = true;
+end
+
+%% Plattform-Morphologie-Parameter (z.B. Gelenkpaarabstand)
+
+if R_neu.Type == 2 && Set.optimization.platform_morphology && any(Structure.vartypes == 9)
+  % Methoden und Parameter, siehe align_platform_coupling
+  if R.DesPar.platform_method == 3
+    p_plfpar(2) = p(Structure.vartypes == 9)*p_plfpar(1);
+    changed_plf = true;
+  end
+end
+if changed_plf
+  R_neu.align_platform_coupling(R.DesPar.platform_method, p_plfpar);
 end

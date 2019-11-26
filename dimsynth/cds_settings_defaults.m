@@ -71,6 +71,8 @@ optimization = struct( ...
   'ee_rotation', true, ... % Freie Rotation des EE
   'base_size', true, ... % Größe des Gestells
   'platform_size', true, ... % Größe der Plattform
+  'base_morphology', false, ... % Aussehen des Gestells (z.B. Schrägheit, Gelenkpaarabstand)
+  'platform_morphology', false, ... % Aussehen der Plattform (z.B. Gelenkpaarabstand)
   'rotate_base', false, ... % Orientierung der Roboter-Basis
   'rotate_coupling', true, ... % Koppel-Punkt-Orientierung für PKM
   'max_range_active_revolute', 270*pi/180, ... % Maximaler Drehwinkel aktiver Drehgelenke
