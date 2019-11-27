@@ -16,18 +16,18 @@ check_rankdef_existing = true; % Falls true: Prüfe existierende Roboter, deren 
 % Auslassen der ersten "x" kinematischer Strukturen (zum Debuggen):
 set_lfdNr_min = 1;
 % Prüfung ausgewählter Beinketten (zum Debuggen):
-set_whitelist_SerialKin = {}; % 'S6RRPRRR14V2', 'S6RRPRRR14V3' 'S6RRRRRR10V3'
+set_whitelist_SerialKin = {'S6PRRRRR6V2'}; % 'S6RRPRRR14V2', 'S6RRPRRR14V3' 'S6RRRRRR10V3'
 % Alternative 1: Nur Beinketten mit Kugelgelenk-Ende
-set_onlyspherical = false;
+set_onlyspherical = true;
 % Alternative 2: Allgemeine 6FG-Beinketten
-set_onlygeneral = true;
+set_onlygeneral = false;
 set_dryrun = false; % Falls true: Nur anzeige, was gemacht werden würde
 
 %% Initialisierung
 EE_FG = [1 1 1 1 1 1];
 EE_FG_Mask = [1 1 1 1 1 1]; % Die FG müssen genauso auch vom Roboter erfüllt werden (0 darf nicht auch 1 sein)
 serroblibpath=fileparts(which('serroblib_path_init.m'));
-Coupling = [1 1];
+Coupling = [4 1];
 
 %% Alle PKM generieren
 EE_FG_Name = sprintf( '%dT%dR', sum(EE_FG(1:3)), sum(EE_FG(4:6)) );
@@ -87,11 +87,11 @@ for iFK = II' % Schleife über serielle Führungsketten
     LEG_Names = {SName};
     
     % Prüfe, ob PKM in Datenbank ist
-    [found_tmp, Name] = parroblib_find_robot(N_Legs, LEG_Names, Actuation, true);
+    [found_tmp, Name] = parroblib_find_robot(N_Legs, LEG_Names, Actuation, Coupling, true);
     found = found_tmp(2); % Marker, dass Aktuierung der PKM gespeichert war
     if ~found && ~check_missing
       % nicht in DB. Soll nicht geprüft werden. Weiter
-      fprintf('PKM %s ist nicht in Datenbank. Keine weitere Untersuchung.\n', Name);
+      fprintf('PKM %s ist nicht in Datenbank. Keine weitere Untersuchung.\n', PName);
       continue
     elseif found && check_existing
       % in Datenbank. Soll auch geprüft werden.
@@ -99,8 +99,8 @@ for iFK = II' % Schleife über serielle Führungsketten
     elseif found && ~check_existing
       fprintf('PKM %s ist in Datenbank. Überspringe nochmalige Prüfung.\n', Name);
       continue
-    elseif ~found && check_existing
-      % Nicht in DB. Füge hinzu
+    elseif ~found && check_missing
+      % Nicht in DB. Soll geprüft werden. Füge hinzu
       [Name, new] = parroblib_add_robot(N_Legs, LEG_Names, Actuation, Coupling, EE_FG);
       if new, fprintf('PKM %s zur Datenbank hinzugefügt. Jetzt weitere Untersuchung\n', Name);
       else,   error('PKM erst angeblich nicht in DB enthalten, jetzt aber doch'); end
