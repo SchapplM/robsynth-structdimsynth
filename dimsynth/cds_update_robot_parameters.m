@@ -126,9 +126,10 @@ if Set.optimization.rotate_base
 end
 
 %% Basis-Koppelpunkt Positionsparameter (z.B. Gestelldurchmesser)
-p_basepar = R.DesPar.base_par;
-changed_base = false;
-
+if R_neu.Type == 2
+  p_basepar = R.DesPar.base_par;
+  changed_base = false;
+end
 if R_neu.Type == 2 && Set.optimization.base_size && any(Structure.vartypes == 6)
   p_baseradius = p(Structure.vartypes == 6);
   if length(p_baseradius) ~= 1
@@ -152,13 +153,14 @@ if R_neu.Type == 2 && Set.optimization.base_morphology && any(Structure.vartypes
   end
 end
 
-if changed_base
+if R_neu.Type == 2 && changed_base
   R_neu.align_base_coupling(R.DesPar.base_method, p_basepar);
 end
 %% Plattform-Koppelpunkt Positionsparameter (z.B. Plattformdurchmesser)
-p_plfpar = R.DesPar.platform_par(1:end-1);
-changed_plf = false;
-
+if R_neu.Type == 2
+  p_plfpar = R.DesPar.platform_par(1:end-1);
+  changed_plf = false;
+end
 if R_neu.Type == 2 && Set.optimization.platform_size && any(Structure.vartypes == 7)
   p_pfradius = p(Structure.vartypes == 7);
   if length(p_pfradius) ~= 1
@@ -184,6 +186,6 @@ if R_neu.Type == 2 && Set.optimization.platform_morphology && any(Structure.vart
     changed_plf = true;
   end
 end
-if changed_plf
+if R_neu.Type == 2 && changed_plf
   R_neu.align_platform_coupling(R.DesPar.platform_method, p_plfpar);
 end
