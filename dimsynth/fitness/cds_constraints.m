@@ -238,7 +238,7 @@ if any(I_qlimviol_T)
   [fval_qlimv_T, I_worst] = min(qlimviol_T(I_qlimviol_T)./(qlim(I_qlimviol_T,2)-qlim(I_qlimviol_T,1))');
   II_qlimviol_T = find(I_qlimviol_T); IIw = II_qlimviol_T(I_worst);
   fval_qlimv_T_norm = 2/pi*atan((-fval_qlimv_T)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
-  fval = 1e3*(1+9*fval_qlimv_T_norm); % Wert zwischen 1e3 und 1e4
+  fval = 1e3*(5+5*fval_qlimv_T_norm); % Wert zwischen 5e3 und 1e4
   % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Weitere Rechnungen machen keinen Sinn.
   constrvioltext = sprintf('Gelenkgrenzverletzung in Traj. Schlechteste Spannweite: %1.2f/%1.2f', ...
     q_range_T(IIw), qlim(IIw,2)-qlim(IIw,1) );
@@ -246,5 +246,32 @@ if any(I_qlimviol_T)
     change_current_figure(1001); clf;
     plot(Traj_0.t, Q-repmat(min(Q), length(Traj_0.t), 1));
   end
+  return
+end
+
+%% Prüfe, ob die Geschwindigkeitsgrenzen (Antriebe) verletzt werden
+% Diese Prüfung erfolgt zusätzlich zu einer Antriebsauslegung.
+% Gedanke: Wenn die Gelenkgeschwindigkeit zu schnell ist, ist sowieso kein
+% Antrieb auslegbar und die Parameter können schneller verworfen werden.
+% Außerdem liegt wahrscheinlich eine Singularität vor.
+if ~isinf(Set.optimization.max_velocity_active_revolute) && ~isinf(Set.optimization.max_velocity_active_prismatic)
+  if R.Type == 0 % Seriell
+    qaD_max = max(abs(QD));
+    qD_lim = repmat(Set.optimization.max_velocity_active_revolute, 1, R.NJ);
+    qD_lim(R.MDH.sigma==1) = Set.optimization.max_velocity_active_prismatic;
+  else % PKM
+    qaD_max = max(abs(QD(:,R.I_qa)));
+    qD_lim = repmat(Set.optimization.max_velocity_active_revolute, 1, sum(R.I_qa));
+    qD_lim(R.MDH.sigma(R.I_qa)==1) = Set.optimization.max_velocity_active_prismatic;
+  end
+  f_qD_exc = max(qaD_max./qD_lim);
+  if f_qD_exc>1
+    f_qD_exc_norm = 2/pi*atan((f_qD_exc-1)); % Normierung auf 0 bis 1; 1->0.5; 10->0.94
+    fval = 1e3*(1+4*f_qD_exc_norm); % Wert zwischen 1e3 und 5e3
+  end
+  % Weitere Berechnungen voraussichtlich wenig sinnvoll, da vermutlich eine
+  % Singularität vorliegt
+  constrvioltext = sprintf('Geschwindigkeit des Antriebsgelenks zu hoch: max Verletzung %1.1f%%', ...
+    (f_qD_exc-1)*100 );
   return
 end
