@@ -43,9 +43,19 @@ if any(strcmp(Set.optimization.objective, {'energy', 'minactforce'}))
       % Bedingung für Zulässigkeit der symbolischen Form erfüllt. Teste.
       [XP,XPD,XPDD] = R.xE2xP_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD);
       Fx_red_traj_test = R.invdyn_platform_traj(Q, XP, XPD, XPDD);
-      test_Fx = Fx_red_traj(:) - Fx_red_traj_test(:);
-      if any(abs(test_Fx) > 1e-5)
-        error('Dynamik symbolisch/numerisch stimmt nicht. Max. Fehler %1.3e', max(abs(test_Fx)));
+      test_Fx_abs = Fx_red_traj(:) - Fx_red_traj_test(:);
+      % TODO: Test sollte optional mit Debug-Schalter sein
+      if any(abs(test_Fx_abs) > 1e-5) && ~any(abs(Jinv_ges(:))<1e6) % Nur Fehler erkennbar, wenn Jacobi nicht Singulär
+        figure(999);clf; tt = {'fx','fy','fz','mx','my','mz'};
+        for ii = 1:6
+          subplot(4,2,ii);hold on; grid on; plot(Traj_0.t, Fx_red_traj_test(:,ii)); plot(Traj_0.t, Fx_red_traj(:,ii), '--')
+          ylabel(tt{ii});
+        end
+        legend({'sym', 'num'});
+        subplot(4,2,7);plot(Traj_0.t, Traj_0.X(:,1:3));ylabel('x pos'); grid on;
+        subplot(4,2,8);plot(Traj_0.t, Traj_0.X(:,4:6));ylabel('x ori'); grid on;
+        linkxaxes
+        error('Dynamik symbolisch/numerisch stimmt nicht. Max. Fehler %1.3e', max(abs(test_Fx_abs)));
       end
     end
     TAU = NaN(length(Traj_0.t), sum(R.I_qa));
