@@ -25,7 +25,7 @@ end
 
 %% Initialisierung
 % Charakteristische Länge der Aufgabe
-Lref = sum(diff(minmax2(Traj.X(:,1:3)')'));
+Lref = norm(diff(minmax2(Traj.X(:,1:3)')'));
 Structure.Lref = Lref;
 %% Roboter-Klasse initialisieren
 if Structure.Type == 0 % Seriell
@@ -57,8 +57,9 @@ for i = 1:NLEG
     R_init = R.Leg(i);
   end
   R_init.gen_testsettings(false, true); % Setze Kinematik-Parameter auf Zufallswerte
-  % Gelenkgrenzen setzen: Schubgelenke
-  R_init.qlim(R_init.MDH.sigma==1,:) = repmat([-1*Lref, 4*Lref],sum(R_init.MDH.sigma==1),1);
+  % Gelenkgrenzen setzen: Schubgelenke (Verfahrlänge nicht mehr als "zwei
+  % mal schräg durch Arbeitsraum" (char. Länge))
+  R_init.qlim(R_init.MDH.sigma==1,:) = repmat([-0.5*Lref, 1.5*Lref],sum(R_init.MDH.sigma==1),1);
   % Gelenkgrenzen setzen: Drehgelenke
   if Structure.Type == 0 % Serieller Roboter
     % Grenzen für Drehgelenke: Alle sind aktiv
@@ -106,7 +107,7 @@ nvars = 0; vartypes = []; varlim = [];
 % Aufgaben-/Arbeitsraumgröße. Darf nicht Null werden.
 nvars = nvars + 1;
 vartypes = [vartypes; 0];
-varlim = [varlim; [1e-3*Lref, 2*Lref]];
+varlim = [varlim; [1e-3*Lref, 3*Lref]];
 varnames = {'scale'};
 % Strukturparameter der Kinematik
 if Structure.Type == 0 || Structure.Type == 2
@@ -180,14 +181,14 @@ else
   % Setze Standard-Werte für Basis-Position fest
   if Structure.Type == 0 % Seriell
     % TODO: Stelle den seriellen Roboter vor die Aufgabe
-    r_W_0 = [-0.25*Lref;-0.25*Lref;0];
+    r_W_0 = [-0.4*Lref;-0.4*Lref;0];
     if Set.structures.DoF(3) == 1
-      r_W_0(3) = -0.5*Lref; % Setze Roboter-Basis etwas unter die Aufgabe
+      r_W_0(3) = -0.7*Lref; % Setze Roboter-Basis etwas unter die Aufgabe
     end
   else % Parallel
     r_W_0 = zeros(3,1);
     if Set.structures.DoF(3) == 1
-      r_W_0(3) = -0.5*Lref; % Setze Roboter mittig unter die Aufgabe (besser sichtbar)
+      r_W_0(3) = -0.7*Lref; % Setze Roboter mittig unter die Aufgabe (besser sichtbar)
     end
   end
   R.update_base(r_W_0);
@@ -287,6 +288,20 @@ end
 % Variablen-Typen speichern
 Structure.vartypes = vartypes;
 Structure.varnames = varnames;
+%% Weitere Struktureigenschaften abspeichern
+% Bestimme die Indizes der ersten Schubgelenke. Das kann benutzt werden, um
+% Gelenkgrenzen für das erste Schubgelenk anders zu bewerten.
+if R.Type == 0 % Seriell
+  I_firstprismatic = false(R.NJ,1);
+  if R.MDH.sigma(1) == 1, I_firstprismatic(1) = true; end
+else % PKM
+  I_first = false(R.NJ,1);
+  I_first(R.I1J_LEG) = true;
+  I_prismatic = (R.MDH.sigma == 1);
+  I_firstprismatic = I_first & I_prismatic;
+end
+Structure.I_firstprismatic = I_firstprismatic;
+
 %% Anfangs-Population generieren
 % TODO: Existierende Roboter einfügen
 
