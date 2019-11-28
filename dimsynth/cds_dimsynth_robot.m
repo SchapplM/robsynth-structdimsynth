@@ -267,7 +267,9 @@ if Structure.Type == 2 && Set.optimization.base_morphology
     varlim = [varlim; [0.2,0.8]]; % Gelenkpaarabstand. Relativ zu Gestell-Radius.
     nvars = nvars + 1;
     vartypes = [vartypes; 8];
-    varlim = [varlim; [-pi/3,pi/3]]; % Steigung Pyramide; Winkel in rad (Steigung nach unten und oben ergibt Sinn)
+    % Die Steigung wird gegen die Senkrechte gezählt. Damit die erste Achse
+    % nach unten zeigt, muss der Winkel größe 90° sein
+    varlim = [varlim; [pi/4,3*pi/4]]; % Steigung Pyramide; Winkel in rad (Steigung nach unten und oben ergibt Sinn)
   else
     error('base_morphology Nicht implementiert');
   end
