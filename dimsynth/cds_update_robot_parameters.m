@@ -138,8 +138,13 @@ if R_neu.Type == 2 && Set.optimization.base_size && any(Structure.vartypes == 6)
   if p_baseradius == 0
     error('Basis-Radius darf nicht Null werden');
   end
-  % Setze den Fußpunkt-Radius skaliert mit Referenzlänge
-  p_basepar(1) = p_baseradius*p(1);
+  if all(~isnan(Set.optimization.base_size_limits))
+    % Manuell gesetzte Grenzen: Absolute Größenangaben
+    p_basepar(1) = p_baseradius;
+  else
+    % Setze den Fußpunkt-Radius skaliert mit Referenzlänge
+    p_basepar(1) = p_baseradius*p(1);
+  end
   changed_base = true;
 end
 
@@ -172,8 +177,13 @@ if R_neu.Type == 2 && Set.optimization.platform_size && any(Structure.vartypes =
   if ~any(Structure.vartypes == 6)
     error('Basis-Koppelpunkt muss zusammen mit Plattformkoppelpunkt optimiert werden');
   end
-  % Setze den Plattform-Radius skaliert mit Absolutwert des Gestell-Radius
-  p_plfpar(1) = R_neu.DesPar.base_par(1)*p_pfradius;
+  if all(~isnan(Set.optimization.platform_size_limits))
+    % Manuell gesetzte Grenzen: Absolute Größenangaben
+    p_plfpar(1) = p_pfradius;
+  else
+    % Setze den Plattform-Radius skaliert mit Absolutwert des Gestell-Radius
+    p_plfpar(1) = R_neu.DesPar.base_par(1)*p_pfradius;
+  end
   changed_plf = true;
 end
 

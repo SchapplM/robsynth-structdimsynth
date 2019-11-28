@@ -231,19 +231,29 @@ if Structure.Type == 2 && Set.optimization.base_size
   vartypes = [vartypes; 6];
   % TODO: Untergrenze muss noch sinnvoll gewählt werden (darf nicht Null
   % sein)
-  varlim = [varlim; [0.1,5]]; % fünf-fache spezifische Länge als Basis-Durchmesser
+  if all(~isnan(Set.optimization.base_size_limits))
+    % Nehme absolute Werte (vorgegeben durch Benutzer)
+    varlim = [varlim; Set.optimization.base_size_limits];
+  else
+    % Automatische Einstellung: fünf-fache spezifische Länge als Basis-Durchmesser
+    varlim = [varlim; [0.1,5]];
+  end
   varnames = {varnames{:}, 'base param'}; %#ok<CCAT>
 end
 
 % Plattform-Koppelpunkt Positionsparameter (z.B. Plattformdurchmesser)
-% Bezogen auf Gestelldurchmesser
 if Structure.Type == 2 && Set.optimization.platform_size
   nvars = nvars + 1;
   vartypes = [vartypes; 7];
-  % TODO: Untergrenze muss noch sinnvoll gewählt werden (darf nicht Null
-  % sein)
-  varlim = [varlim; [0.1,2]]; % max. zwei-facher Gestelldurchmesser als Plattformdurchmesser
-  varnames = {varnames{:}, 'platform param'}; %#ok<CCAT>
+  if all(~isnan(Set.optimization.platform_size_limits))
+    % Nehme absolute Werte (vorgegeben durch Benutzer)
+    varlim = [varlim; Set.optimization.platform_size_limits];
+  else
+    % Automatische Einstellung: Bezogen auf Gestelldurchmesser
+    % max. zwei-facher Gestelldurchmesser als Plattformdurchmesser
+    varlim = [varlim; [0.1,2]]; 
+    varnames = {varnames{:}, 'platform param'}; %#ok<CCAT>
+  end
 end
 
 % Gestell-Morphologie-Parameter (z.B. Gelenkpaarabstand).
@@ -256,7 +266,7 @@ if Structure.Type == 2 && Set.optimization.base_morphology
     varlim = [varlim; [0.2,0.8]]; % Gelenkpaarabstand. Relativ zu Gestell-Radius.
     nvars = nvars + 1;
     vartypes = [vartypes; 8];
-    varlim = [varlim; [0,pi/4]]; % Steigung Pyramide; Winkel in rad
+    varlim = [varlim; [-pi/3,pi/3]]; % Steigung Pyramide; Winkel in rad (Steigung nach unten und oben ergibt Sinn)
   else
     error('base_morphology Nicht implementiert');
   end
