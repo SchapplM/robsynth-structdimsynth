@@ -145,17 +145,22 @@ for i = size(Traj_0.XE,1):-1:1
     q0 = q; % Annahme: Startwert für nächsten Eckwert nahe aktuellem Eckwert
   end
   QE(i,:) = q;
+  if any(abs(Phi(:)) > 1e-2)
+    break; % Breche Berechnung ab (zur Beschleunigung der Berechnung)
+  end
 end
 QE(isnan(QE)) = 0;
 Phi_E(isnan(Phi_E)) = 1e6;
 if any(abs(Phi_E(:)) > 1e-2) % Die Toleranz beim IK-Verfahren ist etwas größer
   % Nehme die mittlere IK-Abweichung aller Eckpunkte (Translation/Rotation
-  % gemischt). Typische Werte von 1e-2 bis 10
-  f_PhiE = max(sum(abs(Phi_E(:)))) / size(Traj_0.XE,1);
+  % gemischt). Typische Werte von 1e-2 bis 10.
+  % Bei vorzeitigem Abbruch zählt die Anzahl der erfolgreichen Eckpunkte
+  f_PhiE = sum(abs(Phi_E(:))) / size(Traj_0.XE,1);
   f_phiE_norm = 2/pi*atan((f_PhiE)/10); % Normierung auf 0 bis 1
   fval = 1e6*(1+9*f_phiE_norm); % Normierung auf 1e6 bis 1e7
   % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
-  constrvioltext = sprintf('Keine IK-Konvergenz in Eckwerten. Durchschnittliche ZB-Verl. %1.2f', f_PhiE);
+  constrvioltext = sprintf(['Keine IK-Konvergenz in Eckwerten. Untersuchte Eckpunkte: %d/%d. ', ...
+    'Durchschnittliche ZB-Verl. %1.2f'], size(Traj_0.XE,1)-i+1,size(Traj_0.XE,1), f_PhiE);
   return
 end
 
