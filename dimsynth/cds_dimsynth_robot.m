@@ -262,10 +262,10 @@ if Structure.Type == 2 && Set.optimization.platform_size
     % Automatische Einstellung: Bezogen auf Gestelldurchmesser
     % max. zwei-facher Gestelldurchmesser als Plattformdurchmesser
     varlim = [varlim; [0.1,2]]; 
-    varnames = {varnames{:}, 'platform param'}; %#ok<CCAT>
   end
+  varnames = {varnames{:}, 'platform param'}; %#ok<CCAT>
 end
-
+if length(vartypes) ~= length(varnames), error('Abgespeicherte Variablennamen stimmen scheinbar nicht'); end
 % Gestell-Morphologie-Parameter (z.B. Gelenkpaarabstand).
 % Siehe align_base_coupling.m
 if Structure.Type == 2 && Set.optimization.base_morphology
@@ -279,6 +279,7 @@ if Structure.Type == 2 && Set.optimization.base_morphology
     % Die Steigung wird gegen die Senkrechte gezählt. Damit die erste Achse
     % nach unten zeigt, muss der Winkel größe 90° sein
     varlim = [varlim; [pi/4,3*pi/4]]; % Steigung Pyramide; Winkel in rad (Steigung nach unten und oben ergibt Sinn)
+    varnames = {varnames{:}, 'base_morph'}; %#ok<CCAT>
   else
     error('base_morphology Nicht implementiert');
   end
@@ -292,6 +293,7 @@ if Structure.Type == 2 && Set.optimization.platform_morphology
     nvars = nvars + 1;
     vartypes = [vartypes; 9];
     varlim = [varlim; [0.2,0.8]]; % Gelenkpaarabstand. Relativ zu Plattform-Radius.
+    varnames = {varnames{:}, 'platform_morph'}; %#ok<CCAT>
   else
     error('platform_morphology Nicht implementiert');
   end
@@ -299,6 +301,7 @@ end
 % Variablen-Typen speichern
 Structure.vartypes = vartypes;
 Structure.varnames = varnames;
+if length(vartypes) ~= length(varnames), error('Abgespeicherte Variablennamen stimmen scheinbar nicht'); end
 %% Weitere Struktureigenschaften abspeichern
 % Bestimme die Indizes der ersten Schubgelenke. Das kann benutzt werden, um
 % Gelenkgrenzen für das erste Schubgelenk anders zu bewerten.
