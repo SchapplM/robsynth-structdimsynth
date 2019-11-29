@@ -158,10 +158,12 @@ for i = 1:length(Structures)
   export_fig(10*i+1, fullfile(resmaindir, sprintf('Rob%d_%s_Histogramm.png', i, Name)));
   fprintf('%d/%d: Histogramm für %s gespeichert.\n', i, length(Structures), Name);
   %% Animation des besten Roboters für die Trajektorie
-  figure(10*i+2);clf;hold all;
-  set(10*i+2, 'Name', sprintf('Rob%d_anim', i), 'NumberTitle', 'off', 'color','w');
-  if ~strcmp(get(10*i+2, 'windowstyle'), 'docked')
-    set(10*i+2,'units','normalized','outerposition',[0 0 1 1]);
+  for kk = 1:2 % Einmal als Strichzeichnung, einmal als 3D-Modell
+  figure(10*i+1+kk);clf;hold all;
+  if kk == 1, apptxt = ''; else, apptxt = '_3D'; end
+  set(10*i+1+kk, 'Name', sprintf('Rob%d_anim%s', i, apptxt), 'NumberTitle', 'off', 'color','w');
+  if ~strcmp(get(10*i+1+kk, 'windowstyle'), 'docked')
+    set(10*i+1+kk,'units','normalized','outerposition',[0 0 1 1]);
   end
   title(sprintf('Rob. %d: fval=%1.3f', i, RobotOptRes.fval));
   view(3);
@@ -171,25 +173,27 @@ for i = 1:length(Structures)
   plot3(Traj.X(:,1), Traj.X(:,2),Traj.X(:,3), 'k-');
   s_anim = struct('gif_name', '', 'avi_name', '');
   for file_ext = Set.general.save_animation_file_extensions
-    s_anim.(sprintf('%s_name', file_ext{1})) = fullfile(resmaindir, sprintf('Rob%d_%s_Animation.%s', i, Name, file_ext{1}));
+    s_anim.(sprintf('%s_name', file_ext{1})) = fullfile(resmaindir, sprintf('Rob%d_%s_Animation%s.%s', i, Name, apptxt, file_ext{1}));
   end
   if Set.task.profile == 0, I_anim = 1:size(Q,1);
   else,                     I_anim = 1:20:size(Q,1); end
   if Structures{i}.Type == 0 % Seriell
-    s_plot = struct( 'straight', 0);
+    s_plot = struct( 'straight', 1);
     R.anim( Q(I_anim,:), s_anim, s_plot);
   else % Parallel
-    s_plot = struct( 'ks_legs', [], 'straight', 0);
+    s_plot = struct( 'ks_legs', [], 'straight', 1);
+    if kk == 2, s_plot.mode = 4; end
     R.anim( Q(I_anim,:), Traj_0.X(I_anim,:), s_anim, s_plot);
   end
-  saveas(10*i+2,     fullfile(resmaindir, sprintf('Rob%d_%s_Skizze.fig', i, Name)));
-  export_fig(10*i+2, fullfile(resmaindir, sprintf('Rob%d_%s_Skizze.png', i, Name)));
+  saveas(10*i+1+kk,     fullfile(resmaindir, sprintf('Rob%d_%s_Skizze%s.fig', i, Name, apptxt)));
+  export_fig(10*i+1+kk, fullfile(resmaindir, sprintf('Rob%d_%s_Skizze%s.png', i, Name, apptxt)));
   fprintf('%d/%d: Animation für %s gespeichert: %s\n', i, length(Structures), Name, s_anim.gif_name);
+  end
   %% Zeichnung der Roboters mit Trägheitsellipsen und Ersatzdarstellung
-  figure(10*i+3);clf;hold all;
-  set(10*i+3, 'Name', sprintf('Rob%d_Visu', i), 'NumberTitle', 'off', 'color','w');
-  if ~strcmp(get(10*i+3, 'windowstyle'), 'docked')
-    set(10*i+3,'units','normalized','outerposition',[0 0 1 1]);
+  figure(10*i+4);clf;hold all;
+  set(10*i+4, 'Name', sprintf('Rob%d_Visu', i), 'NumberTitle', 'off', 'color','w');
+  if ~strcmp(get(10*i+4, 'windowstyle'), 'docked')
+    set(10*i+4,'units','normalized','outerposition',[0 0 1 1]);
   end
   sgtitle(sprintf('Rob. %d: fval=%1.3f', i, RobotOptRes.fval));
   plotmode = [1 3 4];
@@ -204,14 +208,14 @@ for i = 1:length(Structures)
       R.plot(Q(1,:)', Traj_0.X(1,:)', s_plot);
     end
   end
-  saveas(10*i+3,     fullfile(resmaindir, sprintf('Rob%d_%s_Skizze_Plausib.fig', i, Name)));
-  export_fig(10*i+3, fullfile(resmaindir, sprintf('Rob%d_%s_Skizze_Plausib.png', i, Name)));
+  saveas(10*i+4,     fullfile(resmaindir, sprintf('Rob%d_%s_Skizze_Plausib.fig', i, Name)));
+  export_fig(10*i+4, fullfile(resmaindir, sprintf('Rob%d_%s_Skizze_Plausib.png', i, Name)));
   
   %% Verlauf der Gelenkgrößen für den besten Roboter
-  figure(10*i+4);clf;hold all;
-  set(10*i+4, 'Name', sprintf('Rob%d_KinematikZeit', i), 'NumberTitle', 'off', 'color','w');
-  if ~strcmp(get(10*i+4, 'windowstyle'), 'docked')
-    set(10*i+4,'units','normalized','outerposition',[0 0 1 1]);
+  figure(10*i+5);clf;hold all;
+  set(10*i+5, 'Name', sprintf('Rob%d_KinematikZeit', i), 'NumberTitle', 'off', 'color','w');
+  if ~strcmp(get(10*i+5, 'windowstyle'), 'docked')
+    set(10*i+5,'units','normalized','outerposition',[0 0 1 1]);
   end
   sgtitle(sprintf('Rob. %d: fval=%1.3f', i, RobotOptRes.fval));
   if Structure.Type == 0
@@ -262,8 +266,8 @@ for i = 1:length(Structures)
   plot(Traj.t, Traj.XDD);
   grid on; ylabel('xDD in m/s² oder rad/s²');
   linkxaxes;
-  saveas(10*i+4,     fullfile(resmaindir, sprintf('Rob%d_%s_KinematikZeit.fig', i, Name)));
-  export_fig(10*i+4, fullfile(resmaindir, sprintf('Rob%d_%s_KinematikZeit.png', i, Name)));
+  saveas(10*i+5,     fullfile(resmaindir, sprintf('Rob%d_%s_KinematikZeit.fig', i, Name)));
+  export_fig(10*i+5, fullfile(resmaindir, sprintf('Rob%d_%s_KinematikZeit.png', i, Name)));
   
   
   
