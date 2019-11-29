@@ -117,6 +117,14 @@ if Structure.Type == 0 || Structure.Type == 2
     R_pkin = R.Leg(1);
   end
   Ipkinrel = R_pkin.get_relevant_pkin(Set.structures.DoF);
+  % Setze die a1/d1-Parameter für PKM-Beinketten auf Null. diese sind
+  % redundant zur Einstellung der Basis-Position oder -Größe
+  % (die Parameter werden dann auch nicht optimiert)
+  if Structure.Type == 2 % PKM
+    I_firstpospar = R_pkin.pkin_jointnumber==1 & (R_pkin.pkin_types==4 | R_pkin.pkin_types==6);
+    Ipkinrel = Ipkinrel & ~I_firstpospar; % Nehme die "1" bei d1/a1 weg.
+  end
+
   pkin_init = R_pkin.pkin;
   pkin_init(~Ipkinrel) = 0; % nicht relevante Parameter Null setzen
   if Structure.Type == 0
@@ -148,6 +156,7 @@ if Structure.Type == 0 || Structure.Type == 2
 else
   error('Noch nicht definiert');
 end
+Structure.Ipkinrel = Ipkinrel;
 
 % Basis-Position. Die Komponenten in der Optimierungsvariablen sind nicht
 % bezogen auf die Skalierung. Die Position des Roboters ist nur in einigen

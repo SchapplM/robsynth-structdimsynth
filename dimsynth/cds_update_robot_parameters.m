@@ -44,13 +44,13 @@ end
 
 %% Strukturparameter der Kinematik
 if R_neu.Type == 0 || R_neu.Type == 2
-  % Relevante Parameter sind die, die auch in Opt.Var. sind. TODO: Abspeichern
+  % Relevante Parameter sind die, die auch in Opt.Var. sind.
   if R_neu.Type == 0 % Seriell
     R_pkin = R_neu;
   else  % Parallel
     R_pkin = R_neu.Leg(1);
   end
-  Ipkinrel = R_pkin.get_relevant_pkin(Set.structures.DoF);
+  Ipkinrel = Structure.Ipkinrel; % Lade für Optimierung relevante Parameter aus Eingabe-Struktur
   pkin_voll = R_pkin.pkin;
   j = 0;
   pkin_optvar = p(Structure.vartypes==1);
