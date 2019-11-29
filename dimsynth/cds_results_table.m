@@ -16,7 +16,7 @@ function cds_results_table(Set, Traj, Structures)
 % Initialisierung
 resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
 restabfile = fullfile(resmaindir, sprintf('%s_results_table.csv', Set.optimization.optname));
-ResTab  = cell2table(cell(0,4), 'VariableNames', {'LfdNr', 'Name', 'Typ', 'Fval'});
+ResTab  = cell2table(cell(0,7), 'VariableNames', {'LfdNr', 'Name', 'Typ', 'Fval', 'Masse_Bein', 'Masse_Plattform', 'Masse_Roboter'});
 
 % Alle Ergebnisse durchgehen und Tabelle erstellen
 for i = 1:length(Structures)
@@ -24,7 +24,17 @@ for i = 1:length(Structures)
   Name = Structures{i}.Name;
   tmp = load(fullfile(resmaindir, ...
     sprintf('Rob%d_%s_Endergebnis.mat', i, Name)), 'RobotOptRes', 'Set', 'Traj');
-  ResTab = [ResTab; {i, Name, Structure.Type, tmp.RobotOptRes.fval}]; %#ok<AGROW>
+  % Berechne Masse des Roboters (zur Einordnung)
+  m_plf = 0;
+  if Structure.Type == 0
+    m_leg = sum(tmp.RobotOptRes.R.DynPar.mges(2:end));
+    m_rob = m_leg;
+  else
+    m_leg = sum(tmp.RobotOptRes.R.Leg(1).DynPar.mges(2:end));
+    m_plf = tmp.RobotOptRes.R.DynPar.mges(end);
+    m_rob = tmp.RobotOptRes.R.NLEG * m_leg + m_plf;
+  end
+  ResTab = [ResTab; {i, Name, Structure.Type, tmp.RobotOptRes.fval, m_leg, m_plf, m_rob}]; %#ok<AGROW>
 end
 % Tabelle speichern
 writetable(ResTab, restabfile, 'Delimiter', ';');
