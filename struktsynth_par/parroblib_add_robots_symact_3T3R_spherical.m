@@ -10,24 +10,24 @@ clc
 clear
 
 %% Benutzereingabe / Einstellungen
-check_existing = true; % Falls true: Prüfe existierende Roboter in Datenbank nochmal
-check_missing = false; % Falls true: Prüfe auch nicht existierende Roboter
+check_existing = false; % Falls true: Prüfe existierende Roboter in Datenbank nochmal
+check_missing = true; % Falls true: Prüfe auch nicht existierende Roboter
 check_rankdef_existing = true; % Falls true: Prüfe existierende Roboter, deren Rang vorher als zu niedrig festgestellt wurde (zusätzlich zu anderen Optionen notwendig)
 % Auslassen der ersten "x" kinematischer Strukturen (zum Debuggen):
 set_lfdNr_min = 1;
 % Prüfung ausgewählter Beinketten (zum Debuggen):
-set_whitelist_SerialKin = {'S6PRRRRR6V2'}; % 'S6RRPRRR14V2', 'S6RRPRRR14V3' 'S6RRRRRR10V3'
+set_whitelist_SerialKin = {}; % 'S6RRPRRR14V2', 'S6RRPRRR14V3' 'S6RRRRRR10V3' 'S6PRRRRR6V2'
 % Alternative 1: Nur Beinketten mit Kugelgelenk-Ende
-set_onlyspherical = true;
+set_onlyspherical = false;
 % Alternative 2: Allgemeine 6FG-Beinketten
-set_onlygeneral = false;
-set_dryrun = false; % Falls true: Nur anzeige, was gemacht werden würde
+set_onlygeneral = true;
+set_dryrun = false; % Falls true: Nur Anzeige, was gemacht werden würde
 
 %% Initialisierung
 EE_FG = [1 1 1 1 1 1];
 EE_FG_Mask = [1 1 1 1 1 1]; % Die FG müssen genauso auch vom Roboter erfüllt werden (0 darf nicht auch 1 sein)
 serroblibpath=fileparts(which('serroblib_path_init.m'));
-Coupling = [4 1];
+Coupling_all = [[4 1]; [1 3]; [4 3]; [1 1]];
 
 %% Alle PKM generieren
 EE_FG_Name = sprintf( '%dT%dR', sum(EE_FG(1:3)), sum(EE_FG(4:6)) );
@@ -76,7 +76,8 @@ for iFK = II' % Schleife über serielle Führungsketten
   end
   PName = sprintf('P%d%s', N_Legs, SName(3:3+N_LegDoF));
   fprintf('Kinematik %d/%d: %s, %s\n', ii_kin, length(II), PName, SName);
-
+  for kk = 1:size(Coupling_all,1)
+  Coupling = Coupling_all(kk,:);
   for jj = Actuation_possib % Prüfe symmetrische Aktuierung aller Beinketten
     ii = ii + 1;
     if ii < set_lfdNr_min, continue; end % Starte erst später
@@ -101,19 +102,25 @@ for iFK = II' % Schleife über serielle Führungsketten
       continue
     elseif ~found && check_missing
       % Nicht in DB. Soll geprüft werden. Füge hinzu
-      [Name, new] = parroblib_add_robot(N_Legs, LEG_Names, Actuation, Coupling, EE_FG);
-      if new, fprintf('PKM %s zur Datenbank hinzugefügt. Jetzt weitere Untersuchung\n', Name);
-      else,   error('PKM erst angeblich nicht in DB enthalten, jetzt aber doch'); end
+      if ~set_dryrun
+        [Name, new] = parroblib_add_robot(N_Legs, LEG_Names, Actuation, Coupling, EE_FG);
+        if new, fprintf('PKM %s zur Datenbank hinzugefügt. Jetzt weitere Untersuchung\n', Name);
+        else,   error('PKM erst angeblich nicht in DB enthalten, jetzt aber doch'); end
+        [~, PNames_Akt] = parroblib_filter_robots(sum(EE_FG), EE_FG, EE_FG_Mask, 6);
+        Icheck = find(strcmp(PNames_Akt, Name));
+      else
+        fprintf('Der Roboter %s würde zur Datenbank hinzugefügt werden\n', PName);
+      end
     else
       error('Dieser Fall darf nicht eintreten. Nicht-logische Eingabe');
     end
     % Mit dem dann eindeutigen Robotermodell sind weitere Berechnungen
     % möglich
+    fprintf('Starte Mobilitätsprüfung mit Maßsynthese für %s\n', Name);
+    if set_dryrun, continue; end
     [~, ~, ~, ~, ~, ~, ~, ~, ~, AdditionalInfo] = parroblib_load_robot(Name);
     %% Maßsynthese für den Roboter durchführen
     num_checked_dimsynth = num_checked_dimsynth + 1;
-    fprintf('Starte Mobilitätsprüfung mit Maßsynthese für %s\n', Name);
-    if set_dryrun, continue; end
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
       sprintf('parroblib_add_robots_symact_3T3R_spherical_%d_%s.mat', jj, Name)));
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
@@ -171,10 +178,15 @@ for iFK = II' % Schleife über serielle Führungsketten
     if remove
       fprintf('Entferne PKM %s wieder aus der Datenbank (Name wird wieder frei)\n', Name);
       remsuccess = parroblib_remove_robot(Name);
+      if ~remsuccess
+        error('Löschen der PKM %s nicht erfolgreich', Name);
+      end
     end
   end
   fprintf('Fertig mit PKM-Kinematik %s\n', PName);
+  end
 end
 fprintf(['Insgesamt %d PKM mit Maßsynthese geprüft. ', ...
-  'Davon %d strukturell aussortiert, %d nicht prüfbar, %d mit Rangverlust und %d mit voller Mobilität.\n'], ...
+  'Davon %d strukturell aussortiert, %d nicht prüfbar, %d mit Rangverlust und %d mit gewünschtem Freiheitsgrad und hinzugefügt.\n'], ...
   num_checked_dimsynth, num_dimsynthabort, num_dimsynthfail, num_rankloss, num_fullmobility);
+%% Generiere Code für die neuen PKM
