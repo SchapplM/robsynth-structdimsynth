@@ -145,24 +145,38 @@ for i = size(Traj_0.XE,1):-1:1
     q0 = q; % Annahme: Startwert für nächsten Eckwert nahe aktuellem Eckwert
   end
   QE(i,:) = q;
+  if any(abs(Phi(:)) > 1e-2)
+    break; % Breche Berechnung ab (zur Beschleunigung der Berechnung)
+  end
 end
 QE(isnan(QE)) = 0;
 Phi_E(isnan(Phi_E)) = 1e6;
 if any(abs(Phi_E(:)) > 1e-2) % Die Toleranz beim IK-Verfahren ist etwas größer
   % Nehme die mittlere IK-Abweichung aller Eckpunkte (Translation/Rotation
-  % gemischt). Typische Werte von 1e-2 bis 10
-  f_PhiE = max(sum(abs(Phi_E(:)))) / size(Traj_0.XE,1);
+  % gemischt). Typische Werte von 1e-2 bis 10.
+  % Bei vorzeitigem Abbruch zählt die Anzahl der erfolgreichen Eckpunkte
+  f_PhiE = sum(abs(Phi_E(:))) / size(Traj_0.XE,1);
   f_phiE_norm = 2/pi*atan((f_PhiE)/10); % Normierung auf 0 bis 1
   fval = 1e6*(1+9*f_phiE_norm); % Normierung auf 1e6 bis 1e7
   % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
-  constrvioltext = sprintf('Keine IK-Konvergenz in Eckwerten. Durchschnittliche ZB-Verl. %1.2f', f_PhiE);
+  constrvioltext = sprintf(['Keine IK-Konvergenz in Eckwerten. Untersuchte Eckpunkte: %d/%d. ', ...
+    'Durchschnittliche ZB-Verl. %1.2f'], size(Traj_0.XE,1)-i+1,size(Traj_0.XE,1), f_PhiE);
   return
 end
 
 %% Bestimme die Spannweite der Gelenkkoordinaten (getrennt Dreh/Schub)
+QE_korr = [QE; QE(end,:)];
+% Berücksichtige Sonderfall des erten Schubgelenks bei der Bestimmung der
+% Gelenkposition-Spannweite
+if R.Type == 2
+  % Hänge Null-Koordinate an, damit erstes Schubgelenk keine sehr große
+  % Auslenkung haben kann. Das widerspricht der Anordnung von Basis und
+  % Koppelpunkten.
+  QE_korr(end,Structure.I_firstprismatic) = 0;
+end
 q_range_E = NaN(1, R.NJ);
-q_range_E(R.MDH.sigma==1) = diff(minmax2(QE(:,R.MDH.sigma==1)')');
-q_range_E(R.MDH.sigma==0) = angle_range(QE(:,R.MDH.sigma==0));
+q_range_E(R.MDH.sigma==1) = diff(minmax2(QE_korr(:,R.MDH.sigma==1)')');
+q_range_E(R.MDH.sigma==0) = angle_range( QE(:,R.MDH.sigma==0));
 % Bestimme ob die maximale Spannweite der Koordinaten überschritten wurde
 qlimviol_E = (qlim(:,2)-qlim(:,1))' - q_range_E;
 I_qlimviol_E = (qlimviol_E < 0);
@@ -225,8 +239,14 @@ if any(I_ZBviol)
   return
 end
 %% Prüfe, ob die Gelenkwinkelgrenzen verletzt werden
+Q_korr = [Q; Q(end,:)];
+% Berücksichtige Sonderfall des erten Schubgelenks bei der Bestimmung der
+% Gelenkposition-Spannweite für PKM (s.o.)
+if R.Type == 2
+  Q_korr(end,Structure.I_firstprismatic) = 0;
+end
 q_range_T = NaN(1, R.NJ);
-q_range_T(R.MDH.sigma==1) = diff(minmax2(Q(:,R.MDH.sigma==1)')');
+q_range_T(R.MDH.sigma==1) = diff(minmax2(Q_korr(:,R.MDH.sigma==1)')');
 q_range_T(R.MDH.sigma==0) = angle_range(Q(:,R.MDH.sigma==0));
 qlimviol_T = (qlim(:,2)-qlim(:,1))' - q_range_T;
 I_qlimviol_T = (qlimviol_T < 0);

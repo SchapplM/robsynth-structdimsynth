@@ -11,7 +11,8 @@
 %   passive Gelenke)
 % Jinvges
 %   Zeilenweise (inverse) Jacobi-Matrizen des Roboters (für PKM). Bezogen
-%   auf vollständige Gelenkgeschwindigkeiten und Plattform-Geschw.
+%   auf vollständige Gelenkgeschwindigkeiten und Plattform-Geschw. (in
+%   x-Koordinaten, nicht: Winkelgeschwindigkeit)
 % JinvD_ges
 %   Zeitableitung von Jinvges
 % 
@@ -36,7 +37,7 @@ if any(strcmp(Set.optimization.objective, {'energy', 'minactforce'}))
     XE = Traj_0.X;
     XED = Traj_0.XD;
     XEDD = Traj_0.XDD;
-    % Antriebskräfte berechnen
+    % Antriebskräfte berechnen (Momente im Basis-KS, nicht x-Koord.)
     Fx_red_traj = R.invdyn2_platform_traj(Q, QD, XE, XED, XEDD, Jinv_ges, JinvD_ges);
     % Teste Dynamik-Berechnung
     if all(R.DynPar.mges(R.NQJ_LEG_bc+1:end-1) == 0) && ~isempty(R.DynPar.mpv_sym)
@@ -60,9 +61,14 @@ if any(strcmp(Set.optimization.objective, {'energy', 'minactforce'}))
     end
     TAU = NaN(length(Traj_0.t), sum(R.I_qa));
     for i = 1:length(Traj_0.t)
-      Jinv_IK = reshape(Jinv_ges(i,:), R.NJ, sum(R.I_EE));
-      Jinv_IK_a = Jinv_IK(R.I_qa,:);
-      TAU(i,:) = (Jinv_IK_a') \ Fx_red_traj(i,:)';
+      Jinv_qD_xD = reshape(Jinv_ges(i,:), R.NJ, sum(R.I_EE));
+      Jinv_qaD_xD = Jinv_qD_xD(R.I_qa,:);
+      % Jacobi-Matrix auf Winkelgeschwindigkeiten beziehen. Siehe ParRob/jacobi_qa_x
+      if size(Jinv_qaD_xD,2) == 6
+        T = [eye(3,3), zeros(3,3); zeros(3,3), euljac(XE(i,4:6)', R.phiconv_W_E)];
+        Jinv_qD_sD = Jinv_qaD_xD / T;
+      end
+      TAU(i,:) = (Jinv_qD_sD') \ Fx_red_traj(i,:)';
     end
   end
   output.TAU = TAU;
