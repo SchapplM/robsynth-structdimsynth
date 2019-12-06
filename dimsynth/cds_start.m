@@ -48,7 +48,11 @@ for i = 1:length(Structures)
     'RobotOptRes', 'Set', 'Traj');
 end
 end
-% Ergebnisse vergleichen
+if isempty(Structures)
+  % Aufgrund der Filterkriterien wurden keine Roboter verglichen.
+  % Auswertung ist nicht sinnvoll.
+  return
+end
 
 % Ergebnisse darstellen
 cds_results_table(Set, Traj, Structures)
