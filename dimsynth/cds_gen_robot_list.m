@@ -26,10 +26,12 @@ verblevel = Set.general.verbosity;
 % Name der FG für Zugriff auf Listen
 if all(structset.DoF == [1 1 0 0 0 1])
   task_str = '2T1R';
-elseif all(structset.DoF == [1 1 1 0 0 1])
-  task_str = '3T1R';
 elseif all(structset.DoF == [1 1 1 0 0 0])
   task_str = '3T0R';
+elseif all(structset.DoF == [1 1 1 0 0 1])
+  task_str = '3T1R';
+elseif all(structset.DoF == [1 1 1 1 1 0])
+  task_str = '3T2R';
 elseif all(structset.DoF == [1 1 1 1 1 1])
   task_str = '3T3R';
 end
@@ -45,6 +47,11 @@ end
 
 EE_FG = structset.DoF;
 EE_FG_Mask = [1 1 1 1 1 1]; % Die FG müssen genauso auch vom Roboter erfüllt werden (0 darf nicht auch 1 sein)
+if all(structset.DoF == [1 1 1 1 1 0])
+  EE_FG      = [[1 1 1], [1 1 1], [1 1 1]];
+  EE_FG_Mask = [[1 1 1], [1 1 1], [1 1 0]];
+end
+
 ii = 0; % Laufende Nummer für alle Roboterstrukturen (seriell und parallel)
 
 %% Serielle aus Liste Roboter laden
@@ -56,7 +63,7 @@ ii = 0; % Laufende Nummer für alle Roboterstrukturen (seriell und parallel)
 
 %% Serielle Roboter laden
 if structset.use_serial
-  N_JointDoF = sum(EE_FG); % Beinketten ohne irgendeine Redundanz (so viele Gelenke wie EE FG)
+  N_JointDoF = sum(structset.DoF); % Beinketten ohne irgendeine Redundanz (so viele Gelenke wie EE FG)
   serroblibpath=fileparts(which('serroblib_path_init.m'));
   mdllistfile_Ndof = fullfile(serroblibpath, sprintf('mdl_%ddof', N_JointDoF), sprintf('S%d_list.mat',N_JointDoF));
   l = load(mdllistfile_Ndof, 'Names_Ndof', 'AdditionalInfo');

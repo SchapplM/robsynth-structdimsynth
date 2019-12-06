@@ -79,8 +79,8 @@ if all(DoF == [1 1 1 0 0 1])
   k=k+1; XE(k,:) = XE(k-1,:) + [0,0, h1, 0,0,-pi/6];
 end
 
-%% Liste der Trajektorien: 3T3R
-if all(DoF == [1 1 1 1 1 1])
+%% Liste der Trajektorien: 3T3R und 3T2R
+if all(DoF == [1 1 1 1 1 1]) || all(DoF == [1 1 1 1 1 0])
   % Beginn Würfel mit zusätzlicher 3D-EE-Drehung
   d1=0.3;
   h1=0.3;
@@ -98,6 +98,12 @@ if all(DoF == [1 1 1 1 1 1])
   k=k+1; XE(k,:) = XE(k-1,:) + [-d1,0,0, pi/12,-pi/6,pi/2];
   k=k+1; XE(k,:) = XE(k-1,:) + [0,d1,0,  -pi/4,0,-pi/6];
   k=k+1; XE(k,:) = XE(k-1,:) + [0,0, h1, -pi/12,pi/12,pi/3];
+  
+  % 3T2R: Entferne die letzte Drehung. Der EE soll nur auf die Kanten des
+  % Würfels zeigen
+  if all(DoF == [1 1 1 1 1 0])
+    XE(:,6) = 0;
+  end
 end
 %% Skaliere die Winkel der Trajektorie herunter
 % Relevant, wenn die Dreh- und Schwenkwinkel des Roboters nicht wichtig

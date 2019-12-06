@@ -113,6 +113,10 @@ if Set.optimization.ee_rotation && any(Structure.vartypes == 4)
     else
       phi_N_E = [0;0;p_eerot];
     end
+  elseif sum(Set.structures.DoF(4:6)) == 2
+    % 3T2R. Nehme an, dass die EE-Transformation mit XYZ-Notation
+    % durchgeführt wird. Daher keine Drehung um die letzte z-Achse
+    phi_N_E = [p_eerot(1:2);0];
   else % muss 3T3R sein. Andere Fälle können hier nicht vorkommen
     % Annahme: R_N_E/R_P_E wird von diesem Typ nicht verwendet.
     phi_N_E = p_eerot(:);

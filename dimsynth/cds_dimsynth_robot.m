@@ -50,6 +50,17 @@ else
 end
 R.fill_fcn_handles(Set.general.use_mex, true);
 
+% Aufgaben-FG des Roboters setzen
+if Structure.Type == 0 % Seriell
+  R.I_EE_Task = Set.structures.DoF;
+else % PKM
+  % TODO: R.update_EE_FG()
+  if all(Set.structures.DoF == [1 1 1 1 1 0])
+    error('3T2R-Aufgaben für PKM noch nicht implementiert');
+  end
+end
+
+
 for i = 1:NLEG
   if Structure.Type == 0
     R_init = R;
@@ -222,6 +233,9 @@ if Set.optimization.ee_rotation
     neerot = 1;
   elseif sum(Set.structures.DoF(4:6)) == 0
     neerot = 0;
+  elseif sum(Set.structures.DoF(4:6)) == 2
+    % Bei 3T2R wird die Rotation um die Werkzeugachse nicht optimiert.
+    neerot = 2;
   else
     neerot = 3;
   end
@@ -265,7 +279,7 @@ if Structure.Type == 2 && Set.optimization.platform_size
   end
   varnames = {varnames{:}, 'platform param'}; %#ok<CCAT>
 end
-if length(vartypes) ~= length(varnames), error('Abgespeicherte Variablennamen stimmen scheinbar nicht'); end
+
 % Gestell-Morphologie-Parameter (z.B. Gelenkpaarabstand).
 % Siehe align_base_coupling.m
 if Structure.Type == 2 && Set.optimization.base_morphology
