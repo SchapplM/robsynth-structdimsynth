@@ -23,7 +23,7 @@ usr_RobName_List = {};
 % Zuordnung der Zahlenwerte in der csv-Tabelle zu den physikalischen Werten
 % Die in der mat-Datei abgelegte Binär-Kodierung entspricht der Reihenfolge
 Bad_Robot_List = {};
-for N = 1:7
+for N = 1:6
   fprintf('Prüfe Strukturen mit %d FG\n', N);
   % Alle Roboter aus Datenbank laden
   mdllistfile_Ndof = fullfile(roblibpath, sprintf('mdl_%ddof', N), sprintf('S%d_list.mat',N));
