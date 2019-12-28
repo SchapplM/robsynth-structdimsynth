@@ -15,7 +15,7 @@ serroblib_gen_bitarrays(1:7);
 
 % Einstellungen
 usr_overwrite = true; % Überschreibe auch bestehende Einträge. Sinnvoll, wenn die Spalten vorher leer sind
-usr_abortonerror = true; % Bei irgendeinem Fehler anhalten
+usr_abortonerror = false; % Bei irgendeinem Fehler anhalten
 
 usr_RobName_List = {};
 % usr_RobName_List = {'S6RPRRRR2V2'};
@@ -34,14 +34,18 @@ for N = 1:7
       continue
     end
     fprintf('%d/%d: Prüfe Struktur %s\n', j, length(l.Names_Ndof), RobName);
-    RS = serroblib_create_robot_class(RobName);
     try
-     RS.gen_testsettings(true, true);
+      RS = serroblib_create_robot_class(RobName);
+      RS.gen_testsettings(true, true);
     catch
       warning('Fehler für Modell %s', RobName);
       if usr_abortonerror
         return
       else
+        % Füge den Roboter auf die Liste der zu löschenden Roboter hinzu.
+        % Das ist der Fall, wenn ein bereits gelöschter Roboter neu
+        % eingetragen wurde und kein Code vorliegt.
+        Bad_Robot_List = {Bad_Robot_List{:}, RobName}; %#ok<CCAT>
         continue
       end
     end
@@ -91,11 +95,12 @@ for N = 1:7
   end
 end
 
-fprintf('Entferne folgende Roboter:\n');
+fprintf('Entferne folgende %d Roboter:\n', length(Bad_Robot_List));
 for i = 1:length(Bad_Robot_List)
   fprintf('%s\t', Bad_Robot_List{i});
   if mod(i,10)==0 || i == length(Bad_Robot_List), fprintf('\n');end
 end
+fprintf('Das Entfernen muss händisch erfolgen.\n');
 % Das sollte händisch gemacht geprüft werden. Skript
 return
 for i = 1:length(Bad_Robot_List)
