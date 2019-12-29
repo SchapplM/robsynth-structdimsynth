@@ -56,7 +56,8 @@ for N = 6
     pkin(isnan(pkin)) = rand(sum(isnan(pkin)),1);
     RS.update_mdh(pkin);
     J = RS.jacobig(rand(RS.NQJ,1));
-    EE_dof0 = (J*rand(RS.NQJ,1))' ~= 0;
+    EE_dof0 = '000000';
+    EE_dof0(abs(J*rand(RS.NQJ,1))>1e-9) = '1';
     
     % Prüfe den Rang der Jacobi-Matrix: Durch Entfernen der a-/d-Parameter
     % kann es sein, dass die serielle Kette nicht mehr Rang 6 hat
