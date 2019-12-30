@@ -3,6 +3,9 @@
 % 
 % Notwendige Schritte nach dem Erzeugen dieser Varianten:
 % * generate_variant_pkin_conv_fcns.m
+% * correct_phi_N_E;
+% * determine_ee_dof;
+% * determine_jointnumber_influence_ee_position;
 % * determine_multi_dof_joints.m
 % * write_structsynth_origin.m
 % 
@@ -29,7 +32,8 @@ for N = 4:6
   mdllistfile_Ndof = fullfile(roblibpath, sprintf('mdl_%ddof', N), sprintf('S%d_list.mat',N));
   l = load(mdllistfile_Ndof, 'Names_Ndof', 'AdditionalInfo', 'BitArrays_Origin');
   % Serielle Ketten, die aus Struktursynthese kommen (entweder als Roboter
-  % oder als PKM-Beinkette)
+  % oder als PKM-Beinkette; nicht: Manuell generiert oder aus dieser
+  % Mehr-FG-Gelenk-Generierung) 
   % Reihenfolge der Bits: Siehe serroblib_csvline2bits.m, Variable BAO
   Mask_Origin = uint16(bin2dec('01110')); % Probe: dec2bin(Mask_Origin,16)
   I_synth = bitand(l.BitArrays_Origin, repmat(Mask_Origin, length(l.Names_Ndof),1))~=0;
@@ -45,6 +49,10 @@ for N = 4:6
     joint_string_old = typestring;
     for jj = 2:N % Schleife zum Ignorieren des jeweiligen Gelenks
       % TODO: Diese Anordnung der Schleifen ist noch nicht sehr effizient
+      % Durch diese Schleife wird das letzte Gelenk immer zum Kugelgelenk.
+      % Es entstehen aber auch Varianten, bei denen das erste Gelenk kein
+      % Kugelgelenk wird, wenn es auch ein Kardan-Gelenk werden kann.
+      
       % Roboterklasse erstellen (muss in der Schleife passieren, damit mit
       % NaN belegte freie Parameter wieder zurückgesetzt werden
       RS = serroblib_create_robot_class(RobName);
@@ -102,7 +110,13 @@ for N = 4:6
           joint_string_old, joint_string);
       end
       joint_string_old = joint_string;
+      pkin_orig = RS.pkin;
       pkin = RS.update_pkin(); % Aktualisierte DH-Parameter eintragen
+      if all(isnan(pkin_orig) == isnan(pkin))
+        % Der neue Roboter ist identisch mit dem alten. Es muss nichts
+        % eingetragen werden
+        continue
+      end
       RS_var = copy(RS); % Kopie des Roboters zum Eintragen der Variante
       % Verbliebene Parameter zufällig belegen (nur für Test)
       pkin(isnan(pkin)) = rand(sum(isnan(pkin)),1);
@@ -129,6 +143,10 @@ for N = 4:6
       num_success = num_success + 1;
       num_new = num_new + new_j;
       List_NewMultiDoFChains = {List_NewMultiDoFChains{:}, Name_j}; %#ok<CCAT>
+      % Probe, ob neue Kinematik sinnvoll ist.
+      if ~contains(Name_j, 'V')
+        error('Neu erzeugter Roboter ist keine Variante. Das ergibt keinen Sinn!');
+      end
     end
   end
 end
