@@ -20,6 +20,9 @@ clc
 %% Initialisierung
 roblibpath=fileparts(which('serroblib_path_init.m'));
 serroblib_gen_bitarrays(1:7);
+%% Benutzereingaben
+save_reslist = false; % Nur aktivieren, wenn alle Varianten gesucht werden
+typestring_test = ''; %'RRRRR'; % Prüfe nur diese serielle Kette
 %% Durchsuche alle Roboter und stelle die korrekte Orientierung des Endeffektors fest
 num_success = 0;
 num_decline_rank = 0;
@@ -46,6 +49,9 @@ for N = 4:6
       RobName, j, length(l.Names_Ndof));
     %% Kinematikparameter so ändern, dass das mehrwertige Gelenke möglich sind
     typestring = RobName(3:3+N-1); % Roboterdaten aus Namen extrahieren
+    if ~isempty(typestring_test) && ~strcmp(typestring, typestring_test)
+      continue
+    end
     joint_string_old = typestring;
     for jj = 2:N % Schleife zum Ignorieren des jeweiligen Gelenks
       % TODO: Diese Anordnung der Schleifen ist noch nicht sehr effizient
@@ -157,8 +163,30 @@ fprintf('Folgende PKM-Beinketten wurden generiert:\n');
 disp(List_NewMultiDoFChains);
 
 %% Abspeichern der Ergebnisliste in der Roboterdatenbank
+if save_reslist
 roblibpath=fileparts(which('serroblib_path_init.m'));
 robot_list_dir = fullfile(roblibpath, 'synthesis_result_lists');
 roblist = fullfile(robot_list_dir, ['multi_dof_joints', '.txt']);
 writecell(unique(List_NewMultiDoFChains(:)), roblist);
 fprintf('Ergebnisliste in %s gespeichert\n', roblist);
+end
+
+%% Nachträgliche Prüfung der Datenbank
+% Sind alle Mehr-FG-Gelenk-Varianten, die hier erzeugt wurden auch keine
+% Hauptmodelle in der Datenbank?
+serroblib_gen_bitarrays(1:7);
+for N = 4:6
+  fprintf('Prüfe Strukturen mit %d FG\n', N);
+  % Alle Roboter aus Datenbank laden
+  mdllistfile_Ndof = fullfile(roblibpath, sprintf('mdl_%ddof', N), sprintf('S%d_list.mat',N));
+  l = load(mdllistfile_Ndof, 'Names_Ndof', 'AdditionalInfo', 'BitArrays_Origin');
+  Mask_Origin = uint16(bin2dec('10000')); % Probe: dec2bin(Mask_Origin,16)
+  I_multidofj = bitand(l.BitArrays_Origin, repmat(Mask_Origin, length(l.Names_Ndof),1))~=0;
+  I_novar = (l.AdditionalInfo(:,2)==false); % Auswahl aller Roboter, die keine Variante sind
+  I_check = I_multidofj & I_novar;
+  if any(I_check)
+    warning(['Es sind Hauptmodelle in der Datenbank eingetragen, die aus ', ...
+      'dieser Struktursynthese stammen sollen. Es sollten aber nur Varianten sein']);
+    disp(l.Names_Ndof(I_check));
+  end
+end
