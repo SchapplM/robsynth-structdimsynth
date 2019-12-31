@@ -65,8 +65,17 @@ for j = 1:length(Structures)
       res_1 = size(f.cdata);
     else
       if any(size(f.cdata)~=res_1)
+        if Set.general.matfile_verbosity > 1
+          save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_create_evolution_videos3.mat'));
+        end
         warning('Auflösung des aktuellen Bildes (%d x %d) stimmt nicht mit der des ersten Bildes (%d x %d)', ...
           size(f.cdata,1), size(f.cdata,2), res_1(1), res_1(2));
+        % Prüfe, ob das Video noch zu retten ist. Wenn nicht. Video bis
+        % hier hin erzeugen.
+        if size(f.cdata, 1) < res_1(1) || size(f.cdata, 2) < res_1(2)
+          warning('Das aktuelle Bild ist kleiner. Kein Zuschneiden möglich. Auffüllen nicht implementiert. Abbruch.');
+          break;
+        end
         % Zuschneiden
         f.cdata = f.cdata(1:res_1(1), 1:res_1(2), :);
       end
