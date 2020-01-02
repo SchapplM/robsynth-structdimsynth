@@ -32,14 +32,30 @@ if any(strcmp(Set.optimization.objective, {'energy', 'minactforce'}))
   if R.Type == 0 % Serieller Roboter
     % Antriebskräfte berechnen
     TAU = R.invdyn2_traj(Q, QD, QDD);
+    TAU_reg = R.invdynregmat_traj(Q, QD, QDD);
+    TAU_test = R.invdyn3_traj(TAU_reg);
   else % PKM
     % Trajektorie in Plattform-KS umrechnen
     XE = Traj_0.X;
     XED = Traj_0.XD;
     XEDD = Traj_0.XDD;
     % Antriebskräfte berechnen (Momente im Basis-KS, nicht x-Koord.)
-    Fx_red_traj = R.invdyn2_platform_traj(Q, QD, XE, XED, XEDD, Jinv_ges, JinvD_ges);
-    % Teste Dynamik-Berechnung
+    [Fx_red_traj, Fx_red_traj_reg] = R.invdyn2_platform_traj(Q, QD, XE, XED, XEDD, Jinv_ges, JinvD_ges);
+    % Teste Regressorform in Plattform-Koordinaten
+    Fx_red_traj_test = R.invdyn3_platform_traj(Fx_red_traj_reg);
+    test_Fx_red_traj = Fx_red_traj_test - Fx_red_traj;
+    if any(abs(test_Fx_red_traj(:)) > 1e-10)
+      error('Regressorform Plattform-Dynamik stimmt nicht');
+    end
+    [Fa_red_traj, Fa_red_traj_reg] = R.invdyn2_actjoint_traj(Q, QD, XE, XED, XEDD, Jinv_ges, JinvD_ges);
+    % Teste Regressorform in Antriebs-Koordinaten
+    Fa_red_traj_test = R.invdyn3_actjoint_traj(Fa_red_traj_reg);
+    test_Fa_red_traj = Fa_red_traj_test - Fa_red_traj;
+    if any(abs(test_Fa_red_traj(:)) > 1e-10)
+      error('Regressorform Antriebs-Dynamik stimmt nicht');
+    end
+    TAU_test = Fa_red_traj_test;
+    % Teste Dynamik-Berechnung gegen symbolische Berechnung
     if all(R.DynPar.mges(R.NQJ_LEG_bc+1:end-1) == 0) && ~isempty(R.DynPar.mpv_sym)
       % Bedingung für Zulässigkeit der symbolischen Form erfüllt. Teste.
       [XP,XPD,XPDD] = R.xE2xP_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD);
@@ -66,10 +82,20 @@ if any(strcmp(Set.optimization.objective, {'energy', 'minactforce'}))
       % Jacobi-Matrix auf Winkelgeschwindigkeiten beziehen. Siehe ParRob/jacobi_qa_x
       if size(Jinv_qaD_xD,2) == 6
         T = [eye(3,3), zeros(3,3); zeros(3,3), euljac(XE(i,4:6)', R.phiconv_W_E)];
-        Jinv_qD_sD = Jinv_qaD_xD / T;
+        Jinv_qaD_sD = Jinv_qaD_xD / T;
+      else
+        % Nehme an, dass keine räumliche Drehung vorliegt. TODO: Fall 3T2R
+        % genauer prüfen, wenn Roboter verfügbar sind.
+        Jinv_qaD_sD = Jinv_qaD_xD;
       end
-      TAU(i,:) = (Jinv_qD_sD') \ Fx_red_traj(i,:)';
+      TAU(i,:) = (Jinv_qaD_sD') \ Fx_red_traj(i,:)';
     end
+    TAU_reg = Fa_red_traj_reg;
+  end
+  test_TAU = TAU - TAU_test;
+  if any(abs(test_TAU(:)) > 1e-10)
+    error('Regressorform stimmt nicht');
   end
   output.TAU = TAU;
+  output.TAU_reg = TAU_reg;
 end

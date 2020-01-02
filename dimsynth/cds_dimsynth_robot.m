@@ -45,6 +45,7 @@ elseif Structure.Type == 2 % Parallel
   end
   R = parroblib_create_robot_class(Structure.Name, p_base(:), p_platform(:));
   NLEG = R.NLEG;
+  R.DynPar.mode = 4; % Benutze Minimalparameter-Dynamikfunktionen für die PKM
 else
   error('Typ-Nummer nicht definiert');
 end
