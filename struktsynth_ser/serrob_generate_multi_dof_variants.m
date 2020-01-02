@@ -23,6 +23,7 @@ serroblib_gen_bitarrays(1:7);
 %% Benutzereingaben
 save_reslist = false; % Nur aktivieren, wenn alle Varianten gesucht werden
 typestring_test = ''; %'RRRRR'; % Prüfe nur diese serielle Kette
+serialchain_test = ''; % S6RRRRRR10% Prüfe nur dieses Hauptmodell
 %% Durchsuche alle Roboter und stelle die korrekte Orientierung des Endeffektors fest
 num_success = 0;
 num_decline_rank = 0;
@@ -47,10 +48,13 @@ for N = 4:6
     RobName = l.Names_Ndof{j};
     fprintf('%d/%d: Prüfe Struktur %s (%d/%d gesamt)\n', i, sum(I_synth), ...
       RobName, j, length(l.Names_Ndof));
+    if ~isempty(serialchain_test) && ~strcmp(RobName, serialchain_test)
+      continue % Filterung zu Testzwecken
+    end
     %% Kinematikparameter so ändern, dass das mehrwertige Gelenke möglich sind
     typestring = RobName(3:3+N-1); % Roboterdaten aus Namen extrahieren
     if ~isempty(typestring_test) && ~strcmp(typestring, typestring_test)
-      continue
+      continue % Filterung zu Testzwecken
     end
     joint_string_old = typestring;
     for jj = 2:N % Schleife zum Ignorieren des jeweiligen Gelenks
