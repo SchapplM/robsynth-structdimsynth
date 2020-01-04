@@ -52,9 +52,9 @@ else % PKM
   R.plot( q, Traj_0.X(1,:)', s_plot);
 end
 title(sprintf('fval=%1.2e; p=[%s]; %s', fval,disp_array(p','%1.3f'), tt));
-xlim([-1,1]*Structure.Lref*3+mean(minmax2(Traj_W.XE(:,1)')'));
-ylim([-1,1]*Structure.Lref*3+mean(minmax2(Traj_W.XE(:,2)')'));
-zlim([-1,1]*Structure.Lref*1+mean(minmax2(Traj_W.XE(:,3)')'));
+xlim( 1.0*[-1.0,1.0]*Structure.Lref*3+mean(minmax2(Traj_W.XE(:,1)')) );
+ylim( 1.0*[-1.0,1.0]*Structure.Lref*3+mean(minmax2(Traj_W.XE(:,2)')) );
+zlim( 1.5*[-0.5,1.0]*Structure.Lref*1+mean(minmax2(Traj_W.XE(:,3)')) );
 if ~isempty(Set.general.save_robot_details_plot_fitness_file_extensions)
   [currgen,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'Details');
   for fileext=Set.general.save_robot_details_plot_fitness_file_extensions

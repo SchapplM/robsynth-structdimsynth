@@ -68,9 +68,11 @@ for i = 1:NLEG
     R_init = R.Leg(i);
   end
   R_init.gen_testsettings(false, true); % Setze Kinematik-Parameter auf Zufallswerte
-  % Gelenkgrenzen setzen: Schubgelenke (Verfahrlänge nicht mehr als "zwei
+  % Gelenkgrenzen setzen: Schubgelenke (Verfahrlänge nicht mehr als "vier
   % mal schräg durch Arbeitsraum" (char. Länge))
-  R_init.qlim(R_init.MDH.sigma==1,:) = repmat([-0.5*Lref, 1.5*Lref],sum(R_init.MDH.sigma==1),1);
+  % Muss so hoch gesetzt sein, damit UPS-Kette (ohne sonstige
+  % Kinematikparameter auch funktioniert)
+  R_init.qlim(R_init.MDH.sigma==1,:) = repmat([-0.5*Lref, 3.5*Lref],sum(R_init.MDH.sigma==1),1);
   % Gelenkgrenzen setzen: Drehgelenke
   if Structure.Type == 0 % Serieller Roboter
     % Grenzen für Drehgelenke: Alle sind aktiv

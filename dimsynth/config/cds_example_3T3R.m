@@ -18,8 +18,9 @@ Traj = cds_gen_traj(DoF, Traj_no, Set.task);
 
 Set.optimization.objective = 'mass';
 Set.optimization.optname = '3T3R_test';
-Set.optimization.NumIndividuals = 5;
-Set.optimization.MaxIter = 5;
+Set.optimization.NumIndividuals = 50;
+Set.optimization.MaxIter = 10;
+Set.optimization.ee_rotation = false;
 Set.general.plot_details_in_fitness = 1e3;
 Set.general.plot_robot_in_fitness = 1e3;
 Set.general.max_retry_bestfitness_reconstruction = 1;
