@@ -71,7 +71,7 @@ if any(strcmp(Set.optimization.objective, {'energy', 'mass', 'minactforce'}))
   % Dynamik-Parameter aktualisieren. Keine Nutzung der Ausgabe der Funktion
   % (Parameter werden direkt in Klasse geschrieben; R.DesPar.seg_par ist
   % vor/nach dem Aufruf unterschiedlich)
-  cds_dimsynth_desopt(R, Q, Traj_0, Set, Structure);
+  cds_dimsynth_design(R, Q, Traj_0, Set, Structure);
 end
 if Set.general.matfile_verbosity > 1
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_fitness_3.mat'));
