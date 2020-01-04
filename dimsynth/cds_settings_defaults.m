@@ -30,7 +30,7 @@ input_settings.DoF = logical(input_settings.DoF);
 % Einstellungen mit Auswirkungen auf vom Benutzer sichtbare Ergebnisse und
 % deren Nachverarbeitung
 general = struct( ...
-  'verbosity', 2, ... % Ausgabeleven;0=minimal (Endergebnis), 1=mehr (Generationenweise), 2=noch mehr (Jede Fitness-Eval.), 3=alles
+  'verbosity', 2, ... % Ausgabeleven;0=minimal (Endergebnis), 1=mehr (Generationenweise), 2=noch mehr (Jede Fitness-Eval.), 3=alles, 4=Auch Entwurfsoptimierung
   'matfile_verbosity', 0, ... % Menge an mat-Dateien, die für Debug-Zwecke gespeichert werden; 0=keine, 1=wenige, 2=viele (erfolgreiche Ind.) 3=alle
   'plot_robot_in_fitness', 0, ... % Schwellwert der Gütefunktion zum Zeichnen von Details.
   'plot_details_in_fitness', 0, ... % Positiv: nur bei besseren; negativ: nur bei schlechteren als ...
@@ -64,7 +64,7 @@ structures = struct( ...
 % Optimierungsvariablen und Annahmen über die Roboter, die getroffen werden
 optimization = struct( ...
   'objective', 'energy', ... % Zielfunktion. Möglich: mass, energy, condition, valid_kin, valid_act, minactforce
-  'constraint', '', ... % Nebenbedingungen
+  'constraint_obj', zeros(4,1), ... % Nebenbedingungen, 1=Mass, 2=Energy, 3=Minactforce, 4=Condition; Eintrag entspricht physikalischem Wert
   'movebase', true, ... % Position der Roboter-Basis
   'ee_translation', true, ... % Freie Verschiebung des EE
   'ee_translation_only_serial', true, ... % ... nur bei seriellen Robotern
@@ -81,6 +81,7 @@ optimization = struct( ...
   'max_range_passive_revolute', 360*pi/180, ... % Maximaler Drehwinkel passiver Drehgelenke
   'max_velocity_active_revolute', 8, ... % [rad/s] Maximale Drehzahl (zur Singularitätsvermeidung)
   'max_velocity_active_prismatic', 5, ... % [rad/s] Maximale Geschw. (zur Singularitätsvermeidung)
+  'use_desopt', false, ... % Schalter für eigene Optimierung der Entwurfsparameter
   'NumIndividuals', 50, ...
   'MaxIter', 10, ...
   'ElectricCoupling', true, ... % Kopplung der Achsen für Energieberechnung. TODO

@@ -40,9 +40,20 @@ Der grobe Ablauf der Maßsynthese erfolgt durch die folgenden Matlab-Skripte und
  * `cds_fitness`: Diese Fitness-Funktion wird durch wiederholtes Aufrufen optimiert. Dort sind folgende Punkte enthalten:
    * `cds_update_robot_parameters`: Parameter aktualisieren
    * `cds_constraints`: Nebenbedingungen prüfen
+   * `cds_dimsynth_design`: Entwurfsparameter eintragen
    * `cds_dimsynth_desopt`: Entwurfsoptimierung durchführen
    * `cds_obj_...`: Zielfunktion berechnen (z.B. `..._condition`, `..._energy`, `..._mass`, ...)
  * `cds_vis_results`: Nach der Optimierung erfolgt eine Darstellung der Ergebnisse
+
+#### Entwurfsoptimierung
+
+Optional kann in der Maßsynthese als innere Kaskade eine Optimierung der Entwurfsparameter durchgeführt werden.
+Entwurfsparameter sind dabei Parameter, die nicht die Kinematik des Roboters beeinflussen. Also z.B. der Durchmesser und die Stärke der Segmente (im Gegensatz zu ihrer Länge).
+Der Ablauf erfolgt in diesen Funktionen:
+
+   * `cds_dimsynth_desopt`: Einrichtung und Start der Optimierung in der innersten Kaskaden
+   * `cds_dimsynth_desopt_fitness`: Fitness-Funktion, die durch wiederholten Aufruf optimiert wird
+   * `cds_dimsynth_design`: Aktualisieren des Robotermodells basierend auf den optimierten Entwurfsparametern
 
 # Quellen
 

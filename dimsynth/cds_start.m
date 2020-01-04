@@ -35,6 +35,14 @@ if isempty(Structures)
   end
 end
 
+if Set.optimization.use_desopt ... 
+    && ~any(strcmp(Set.optimization.objective, {'mass', 'energy'})) ...
+    && ~any(Set.optimization.constraint_obj(1))
+  Set.optimization.use_desopt = false;
+  fprintf(['Entwurfsoptimierung wurde verlangt, aber keine dafür notwendigen ', ...
+    'Zielfunktionen oder Nebenbedingungen definiert. Wurde wieder deaktiviert\n']);
+end
+
 if ~Set.general.regenerate_summmary_only
 % Optimierung der Strukturen durchführen
 for i = 1:length(Structures)
