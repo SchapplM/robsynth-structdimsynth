@@ -23,6 +23,9 @@ for subconf = fields(Set_default)'
     end
   end
 end
+if Set.task.profile == 0 && strcmp(Set.optimization.objective, 'energy')
+  error('Energieberechnung ohne Zeitverlauf der Trajektorie nicht sinnvoll');
+end
 
 % Menge der Roboter laden
 Structures = cds_gen_robot_list(Set);
