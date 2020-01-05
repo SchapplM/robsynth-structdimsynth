@@ -30,7 +30,7 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function fval = cds_dimsynth_desopt(R, Traj_0, Q, QD, QDD, Jinv_ges, JinvD_ges, Set, Structure)
+function fval = cds_dimsynth_desopt(R, Traj_0, Q, QD, QDD, Jinv_ges, JinvD_ges, data_dyn, Set, Structure)
 t1 = tic();
 if Set.general.matfile_verbosity > 2
 save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt1.mat'));
@@ -68,18 +68,36 @@ InitPop(1,:) = varlim(:,1); % kleinste Werte
 InitPop(2,:) = varlim(:,2); % größte Werte
 options_desopt.InitialSwarmMatrix = InitPop;
 % Erstelle die Fitness-Funktion und führe sie einmal zu testzwecken aus
-fitnessfcn_desopt=@(p_desopt)cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, JinvD_ges, Structure, p_desopt(:));
+fitnessfcn_desopt=@(p_desopt)cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, JinvD_ges, data_dyn, Structure, p_desopt(:));
+
+% Prüfe, ob eine Entwurfsoptimierung sinnvoll ist
+fval_minpar = fitnessfcn_desopt(InitPop(1,:)');
+avoid_optimization = false;
+if desopt_link_yieldstrength && fval_minpar<1e3
+  % Das schwächste Segment erfüllt alle Nebenbedingungen. Das Ergebnis muss
+  % damit optimal sein (alle Zielfunktionen wollen Stärke minimieren)
+  avoid_optimization = true;
+end
 
 % Für Profiler: `for i=1:10,fitnessfcn_desopt(InitPop(1,:)'); end`
 if Set.general.matfile_verbosity > 3
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt2.mat'));
 end
+% Debug:
+% load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt2.mat'));
 %% Optimierung der Entwurfsparameter durchführen
-[p_val,fval,~,output] = particleswarm(fitnessfcn_desopt,nvars,varlim(:,1),varlim(:,2),options_desopt);
-if fval < 1000
-  detailstring = sprintf('Lösung gefunden (fval=%1.1f)', fval);
+if avoid_optimization
+  [p_val,fval,~,output] = particleswarm(fitnessfcn_desopt,nvars,varlim(:,1),varlim(:,2),options_desopt);
+  if fval < 1000
+    detailstring = sprintf('Lösung gefunden (fval=%1.1f)', fval);
+  else
+    detailstring = sprintf('Keine zulässige Lösung gefunden (fval=%1.1e)', fval);
+  end
 else
-  detailstring = sprintf('Keine zulässige Lösung gefunden (fval=%1.1e)', fval);
+  p_val = InitPop(1,:)';
+  fval = fval_minpar;
+  output = struct('iterations', 0, 'funccount', 0);
+  detailstring = sprintf('Keine Optimierung notwendig aufgrund der Definition des Optimierungsproblems (fval=%1.1f)', fval);
 end
 I_bordersol = any(repmat(p_val(:),1,2) == varlim,2); % Prüfe, ob Endergebnis eine Parameterraumgrenze darstellt
 if any(I_bordersol)

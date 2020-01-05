@@ -78,7 +78,10 @@ if any(strcmp(Set.optimization.objective, {'energy', 'mass', 'minactforce'}))
   if ~Set.optimization.use_desopt
     cds_dimsynth_design(R, Q, Set, Structure);
   else
-    fval_desopt = cds_dimsynth_desopt(R, Traj_0, Q, QD, QDD, Jinv_ges, JinvD_ges, Set, Structure);
+    % Berechne Dynamik-Funktionen als Regressorform für die Entwurfsopt.
+    data_dyn = cds_obj_dependencies(R, Traj_0, Set, Q, QD, QDD, Jinv_ges,JinvD_ges);
+    
+    fval_desopt = cds_dimsynth_desopt(R, Traj_0, Q, QD, QDD, Jinv_ges, JinvD_ges, data_dyn, Set, Structure);
     if fval_desopt > 1e5
       warning('Ein Funktionswert > 1e5 ist nicht für Entwurfsoptimierung vorgesehen');
     end
@@ -97,11 +100,15 @@ end
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_fitness_3.mat'));
 
 %% Berechnungen für Zielfunktionen
-output = cds_obj_dependencies(R, Traj_0, Set, Q, QD, QDD, Jinv_ges,JinvD_ges);
+if ~Set.optimization.use_desopt
+  output = cds_obj_dependencies(R, Traj_0, Set, Q, QD, QDD, Jinv_ges,JinvD_ges);
+else
+  % Dynamik nochmal mit Regressorform mit neuen Dynamikparameter berechnen
+  output = cds_obj_dependencies_regmult(R, Set, data_dyn);
+end
 if any(strcmp(Set.optimization.objective, {'energy', 'minactforce'}))
   TAU = output.TAU;
 end
-
 %% Zielfunktion berechnen
 if strcmp(Set.optimization.objective, 'valid_act')
   [fval,fval_debugtext, debug_info] = cds_obj_valid_act(R, Set, Jinv_ges);

@@ -46,6 +46,7 @@ elseif Structure.Type == 2 % Parallel
   R = parroblib_create_robot_class(Structure.Name, p_base(:), p_platform(:));
   NLEG = R.NLEG;
   R.DynPar.mode = 4; % Benutze Minimalparameter-Dynamikfunktionen für die PKM
+  R.update_dynpar1(R.DynPar.mges, R.DynPar.rSges, R.DynPar.Icges); % Nochmal initialisieren, damit MPV definiert ist
 else
   error('Typ-Nummer nicht definiert');
 end
@@ -93,6 +94,7 @@ for i = 1:NLEG
   R_init.DynPar.mode = 4; % Benutze Minimalparameter-Dynamikfunktionen
   R_init.DesPar.joint_type((1:R.NJ)'==1&R.MDH.sigma==1) = 4; % Linearführung erste Achse
   R_init.DesPar.joint_type((1:R.NJ)'~=1&R.MDH.sigma==1) = 5; % Schubzylinder weitere Achse
+  R_init.update_dynpar1(); % Nochmal initialisieren, damit MPV definiert ist
 end
 % Merke die ursprünglich aus der Datenbank geladene EE-Rotation. Die in der
 % Optimierung ergänzte Rotation ist zusätzlich dazu. (Bei 2T1R-Robotern

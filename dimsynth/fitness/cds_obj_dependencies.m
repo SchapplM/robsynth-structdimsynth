@@ -28,6 +28,8 @@
 %     Alle Schnittkräfte (in allen Gelenken; bei PKM für alle Beinketten)
 %     Indizes: Siehe SerRob/internforce_traj
 %     (1: Zeit, 2:Kraft/Moment)
+%   Wges_reg
+%     Regressormatrix zu Wges.
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-10
 % (C) Institut für Mechatronische Systeme, Universität Hannover
@@ -120,9 +122,11 @@ end
 if Set.optimization.desopt_link_yieldstrength
   % Berechne die Schnittkräfte in allen Segmenten
   if R.Type == 0 % Seriell
-    Wges = R.internforce_traj(Q, QD, QDD);
+    [Wges, Wges_reg] = R.internforce_traj(Q, QD, QDD);
   else % PKM
     Wges = R.internforce_traj(Q, QD, QDD, TAU);
+    Wges_reg = NaN;
   end
   output.Wges = Wges;
+  output.Wges_reg = Wges_reg;
 end

@@ -33,7 +33,7 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function fval = cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, JinvD_ges, Structure, p_desopt)
+function fval = cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, JinvD_ges, data_dyn, Structure, p_desopt)
 t1 = tic();
 % Debug:
 if Set.general.matfile_verbosity > 3
@@ -55,6 +55,23 @@ end
 % Trage die Dynamikparameter
 cds_dimsynth_design(R, Q, Set, Structure, p_desopt);
 
+%% Dynamik neu berechnen
+if Set.optimization.desopt_link_yieldstrength || any(strcmp(Set.optimization.objective, 'energy'))
+  % Abhängigkeiten neu berechnen (Dynamik)
+  output2 = cds_obj_dependencies_regmult(R, Set, data_dyn);
+  if Set.general.debug_calc || R.Type == 2
+    output1 = cds_obj_dependencies(R, Traj_0, Set, Q, QD, QDD, Jinv_ges, JinvD_ges);
+    test_TAU = output1.TAU - output2.TAU;
+    if any(abs(test_TAU(:))>1e-8)
+      error('Regressorform Antriebskraft stimmt nicht');
+    end
+    test_W = output1.Wges - output2.Wges;
+    if any(abs(test_W(:))>1e-8)
+      error('Regressorform Schnittkraft stimmt nicht');
+    end
+  end
+end
+
 %% Nebenbedingungen der Entwurfsvariablen berechnen
 % TODO: Festigkeit der Segmente, Grenzen der Antriebe
 if Set.optimization.desopt_link_yieldstrength
@@ -63,9 +80,7 @@ if Set.optimization.desopt_link_yieldstrength
   % https://de.wikipedia.org/wiki/Streckgrenze
   % https://de.wikipedia.org/wiki/Aluminium-Kupfer-Legierung
   R_e=250e6;
-
-  % Abhängigkeiten neu berechnen (Dynamik)
-  output = cds_obj_dependencies(R, Traj_0, Set, Q, QD, QDD, Jinv_ges, JinvD_ges);
+  
   if R.Type == 0 % Seriell
     NLEG = 1;
   else % PKM
@@ -76,10 +91,10 @@ if Set.optimization.desopt_link_yieldstrength
     % Schnittkräfte dieser Beinkette
     if Structure.Type == 0
       Rob = R;
-      Wges = output.Wges;
+      Wges = output2.Wges;
     else
       Rob = R.Leg(i);
-      Wges_i = output.Wges(i,:,:);
+      Wges_i = output1.Wges(i,:,:);
       Wges = reshape(Wges_i, size(Q,1), 6*Rob.NL); % in gleiches Format wie SerRob bringen
     end
     % Effektivwert von Kraft und Moment im Zeitverlauf bestimmen
@@ -130,11 +145,11 @@ if fval == 0 && any(Set.optimization.constraint_obj)
     if viol_rel > 0
       f_massvio_norm = 2/pi*atan((viol_rel)); % 1->0.5; 10->0.94
       fval = 1e4*(1+9*f_massvio_norm);
-      constrvioltext = sprintf('Masse ist zu groß (%d > %d)', fval, fphys, Set.optimization.constraint_obj(1));
+      constrvioltext = sprintf('Masse ist zu groß (%1.1f > %1.1f)', fphys, Set.optimization.constraint_obj(1));
     elseif Set.general.verbosity > 3
-      fprintf('fval = %1.3e. Masse i.O. (%d < %d)\n', fval, fphys, Set.optimization.constraint_obj(1));
+      fprintf('fval = %1.3e. Masse i.O. (%1.1f < %1.1f)\n', fval, fphys, Set.optimization.constraint_obj(1));
     end
-  elseif any(Set.optimization.constraint_obj(1))
+  elseif any(Set.optimization.constraint_obj)
     error('Grenzen für andere Zielfunktionen als die Masse noch nicht implementiert');
   end
 end
@@ -154,6 +169,13 @@ if strcmp(Set.optimization.objective, 'mass')
     fval_debugtext = fval_debugtext_mass;
   else
     [fval,fval_debugtext] = cds_obj_mass(R);
+  end
+elseif strcmp(Set.optimization.objective, 'energy')
+  if Set.optimization.constraint_obj(2) % Vermeide doppelten Aufruf der Funktion
+    fval = fval_energy; % Nehme Wert von der NB-Berechnung oben
+    fval_debugtext = fval_debugtext_energy;
+  else
+    [fval,fval_debugtext] = cds_obj_energy(R, Set, Structure, Traj_0, output2.TAU, QD);
   end
 else
   error('Andere Zielfunktion als Masse noch nicht implementiert');
