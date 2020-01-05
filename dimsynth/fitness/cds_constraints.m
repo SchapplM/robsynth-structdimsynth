@@ -28,8 +28,6 @@
 %   Zeilenweise (inverse) Jacobi-Matrizen des Roboters (für PKM). Wird hier
 %   ausgegeben, da sie bei Berechnung der IK anfällt. Bezogen auf
 %   Geschwindigkeit aller Gelenke und EE-Geschwindigkeit
-% JinvD_ges
-%   Zeitableitung von Jinvges. Wird für Inverse Dynamik benötigt.
 % constrvioltext [char]
 %   Text mit Zusatzinformationen, die beim Aufruf der Fitness-Funktion
 %   ausgegeben werden
@@ -37,14 +35,13 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function [fval,Q,QD,QDD,Jinv_ges,JinvD_ges,constrvioltext] = cds_constraints(R, Traj_0, Traj_W, Set, Structure)
+function [fval,Q,QD,QDD,Jinv_ges,constrvioltext] = cds_constraints(R, Traj_0, Traj_W, Set, Structure)
 fval = 1e3;
 constrvioltext = '';
 Q = [];
 QD = [];
 QDD = [];
 Jinv_ges = [];
-JinvD_ges = [];
 %% Geometrie auf Plausibilität prüfen (1)
 if R.Type == 0 % Seriell
   % Prüfe, ob alle Eckpunkte der Trajektorie im Arbeitsraum des Roboters liegen
@@ -237,9 +234,8 @@ if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
   if R.Type == 0 % Seriell
     [Q, QD, QDD, PHI] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
     Jinv_ges = NaN; % Platzhalter für gleichartige Funktionsaufrufe. Speicherung nicht sinnvoll für seriell.
-    JinvD_ges = NaN; 
   else % PKM
-    [Q, QD, QDD, PHI, Jinv_ges, JinvD_ges] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+    [Q, QD, QDD, PHI, Jinv_ges] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
   end
   % Speichere die Anfangs-Winkelstellung in der Roboterklasse für später
   if R.Type == 0 % Seriell
@@ -267,14 +263,12 @@ else
   QD = 0*Q; QDD = 0*Q;
   if R.Type == 0 % Seriell
     Jinv_ges = NaN; % Platzhalter
-    JinvD_ges = NaN; 
   else % Parallel
     Jinv_ges = NaN(size(Q,1), sum(R.I_EE)*size(Q,2));
     for i = 1:size(Q,1)
       [~,J_x_inv] = R.jacobi_qa_x(Q(i,:)', Traj_0.X(i,:)');
       Jinv_ges(i,:) = J_x_inv(:);
     end
-    JinvD_ges = zeros(size(Q,1), sum(R.I_EE)*size(Q,2));
   end
 end
 %% Prüfe, ob die Gelenkwinkelgrenzen verletzt werden

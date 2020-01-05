@@ -31,6 +31,7 @@ Set.general.plot_robot_in_fitness = 0*1e3;
 Set.general.max_retry_bestfitness_reconstruction = 1;
 Set.general.verbosity = 4;
 Set.general.matfile_verbosity = 3;
-Set.structures.whitelist = {'P6RRPRRR14V3G1P3A1', 'S6RRRRRR10V3'};
+Set.general.debug_calc = true;
+Set.structures.whitelist = {'P6RRPRRR14V3G1P3A1'}; % , 'S6RRRRRR10V3'
 
 cds_start

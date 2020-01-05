@@ -33,7 +33,7 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function fval = cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, JinvD_ges, Structure, p_desopt)
+function fval = cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, Structure, p_desopt)
 t1 = tic();
 % Debug:
 if Set.general.matfile_verbosity > 3
@@ -65,7 +65,7 @@ if Set.optimization.desopt_link_yieldstrength
   R_e=250e6;
 
   % Abhängigkeiten neu berechnen (Dynamik)
-  output = cds_obj_dependencies(R, Traj_0, Set, Q, QD, QDD, Jinv_ges, JinvD_ges);
+  output = cds_obj_dependencies(R, Traj_0, Set, Q, QD, QDD, Jinv_ges);
   if R.Type == 0 % Seriell
     NLEG = 1;
   else % PKM

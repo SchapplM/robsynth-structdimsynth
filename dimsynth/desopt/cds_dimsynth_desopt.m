@@ -30,7 +30,7 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function fval = cds_dimsynth_desopt(R, Traj_0, Q, QD, QDD, Jinv_ges, JinvD_ges, Set, Structure)
+function fval = cds_dimsynth_desopt(R, Traj_0, Q, QD, QDD, Jinv_ges, Set, Structure)
 t1 = tic();
 if Set.general.matfile_verbosity > 2
 save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt1.mat'));
@@ -68,7 +68,7 @@ InitPop(1,:) = varlim(:,1); % kleinste Werte
 InitPop(2,:) = varlim(:,2); % größte Werte
 options_desopt.InitialSwarmMatrix = InitPop;
 % Erstelle die Fitness-Funktion und führe sie einmal zu testzwecken aus
-fitnessfcn_desopt=@(p_desopt)cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, JinvD_ges, Structure, p_desopt(:));
+fitnessfcn_desopt=@(p_desopt)cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, Structure, p_desopt(:));
 
 % Für Profiler: `for i=1:10,fitnessfcn_desopt(InitPop(1,:)'); end`
 if Set.general.matfile_verbosity > 3
