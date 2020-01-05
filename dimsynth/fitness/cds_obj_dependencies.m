@@ -22,13 +22,20 @@
 %   Zeitverlauf. Felder:
 %   TAU
 %     Alle Antriebsmomente (in den aktiven Gelenken)
+%   TAU_reg
+%     Regressormatrix für TAU
+%   Wges
+%     Alle Schnittkräfte (in allen Gelenken; bei PKM für alle Beinketten)
+%     Indizes: Siehe SerRob/internforce_traj
+%     (1: Zeit, 2:Kraft/Moment)
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-10
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
 function output = cds_obj_dependencies(R, Traj_0, Set, Q, QD, QDD, Jinv_ges, JinvD_ges)
 output = struct('content', 'cds_obj_dependencies');
-if any(strcmp(Set.optimization.objective, {'energy', 'minactforce'}))
+if any(strcmp(Set.optimization.objective, {'energy', 'minactforce'})) ...
+    || Set.optimization.desopt_link_yieldstrength && R.Type == 2
   if R.Type == 0 % Serieller Roboter
     % Antriebskräfte berechnen
     TAU = R.invdyn2_traj(Q, QD, QDD);
@@ -98,4 +105,14 @@ if any(strcmp(Set.optimization.objective, {'energy', 'minactforce'}))
   end
   output.TAU = TAU;
   output.TAU_reg = TAU_reg;
+end
+
+if Set.optimization.desopt_link_yieldstrength
+  % Berechne die Schnittkräfte in allen Segmenten
+  if R.Type == 0 % Seriell
+    Wges = R.internforce_traj(Q, QD, QDD);
+  else % PKM
+    Wges = R.internforce_traj(Q, QD, QDD, TAU);
+  end
+  output.Wges = Wges;
 end

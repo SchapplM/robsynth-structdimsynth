@@ -69,7 +69,13 @@ if structset.use_serial
   l = load(mdllistfile_Ndof, 'Names_Ndof', 'AdditionalInfo');
   [~,I_FG] = serroblib_filter_robots(N_JointDoF, EE_FG, EE_FG_Mask);
   I_novar = (l.AdditionalInfo(:,2) == 0);
-  I = I_FG & I_novar;
+  I = I_FG;
+  % Varianten von Robotern in der Datenbank werden nicht verwendet, außer
+  % es wird explizit eine Variante in der Positiv-Liste genannt
+  if ~any(contains(structset.whitelist, 'V'))
+    I = I & I_novar;
+  end
+    
   II = find(I);
 
   for j = II'

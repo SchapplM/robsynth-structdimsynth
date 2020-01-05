@@ -1,4 +1,4 @@
-% Entwurfsoptimierung des Robotermodells: Bestimmung von Dynamikparametern
+% Entwurfsparameter in Robotermodell einsetzen: Bestimmung von Dynamikparametern
 % 
 % Unterscheidung von Koordinatensystemen:
 % Körper: Den einzelnen Starrkörpern des Robotermodells zugeordnet
@@ -7,12 +7,14 @@
 % Eingabe:
 % Q
 %   Gelenkwinkel-Trajektorie
-% Traj_0
-%   Kartesische Trajektorie (bezogen auf Roboter-Basis-KS)
 % Set
 %   Einstellungen des Optimierungsalgorithmus
 % Structure
 %   Eigenschaften der Roboterstruktur
+% p_desopt
+%   Parameter der Entwurfsvariablen: Wandstärke und Durchmesser der
+%   Segmente (modelliert als Hohlzylinder)
+% 
 % Ausgabe:
 % R
 %   Aktualisiertes Klassenobjekt des Roboters (nicht zwangsläufig
@@ -34,31 +36,47 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function R=cds_dimsynth_desopt(R, Q, Traj_0, Set, Structure)
-if Set.general.matfile_verbosity > 2
-  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt.mat'));
-end
+function R=cds_dimsynth_design(R, Q, Set, Structure, p_desopt)
 desopt_debug = false;
+if nargin < 5 || ~Set.optimization.use_desopt
+  use_default_link_param = true;
+else
+  use_default_link_param = false;
+end
+if Set.general.matfile_verbosity > 2 + (~use_default_link_param) % weniger oft speichern, wenn Aufruf in desopt_fitness
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_design.mat'));
+end
 % Debug:
 % function R=cds_dimsynth_desopt()
 % desopt_debug = true;
-% load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt.mat'));
+% load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_design.mat'));
 
 %% Definitionen, Konstanten
 density = 2.7E3; %[kg/m^3] Aluminium
 
 %% Entwurfsparameter ändern
-% TODO: Hier Optimierung durchführen
-% Vorläufig: Segmenteigenschaften direkt belegen
+% Entweder aus Optimierungsvariable oder konstante Standard-Werte
 if R.Type == 0
-  R.DesPar.seg_par = repmat([5e-3, 300e-3], R.NL, 1); % dicke Struktur
+  if use_default_link_param
+    % Keine Entwurfsoptimierung, nehme die Standardwerte für
+    % Segmentparameter (dicke Struktur für seriell)
+    R.DesPar.seg_par = repmat([5e-3, 300e-3], R.NL, 1);
+  else
+    % Nehme die Segmentparameter aus Eingabeargument
+    R.DesPar.seg_par = repmat([p_desopt(1), p_desopt(2)], R.NL, 1);
+  end
   % R.DesPar.seg_par(end,:) = [5e-3, 300e-3]; % EE anders zum Testen der Visu.
 elseif R.Type == 2  % Parallel (symmetrisch)
   for i = 1:R.NLEG
     % Belege alle Beinketten, damit in Plot-Funktion nutzbar. Es werden
     % eigentlich nur die Werte der ersten Beinkette für Berechnungen
     % genutzt
-    R.Leg(i).DesPar.seg_par = repmat([2e-3, 50e-3], R.Leg(1).NL, 1); % dünne Struktur
+    if use_default_link_param
+      % Standardwerte: Dünne Struktur für PKM-Beine
+      R.Leg(i).DesPar.seg_par = repmat([2e-3, 50e-3], R.Leg(1).NL, 1);
+    else
+      R.Leg(i).DesPar.seg_par = repmat([p_desopt(1), p_desopt(2)], R.Leg(1).NL, 1);
+    end
   end
   if     Structure.Coupling(2) == 1, i_plfthickness = 2; %#ok<ALIGN>
   elseif Structure.Coupling(2) == 3, i_plfthickness = 3;
@@ -192,7 +210,7 @@ for i = 1:length(m_ges_Link)
     end
     % Probe, ob Orientierung (R_i_Si) und berechnetes Ende des Segments (r_i_i_D)stimmen
     if any( abs(r_i_i_D - R_i_Si*[norm(r_i_i_D);0;0] ) > 1e-10)
-      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt_error.mat'));
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_design_error.mat'));
       error('Richtung des Segments stimmt nicht');
     end
     % Probe: [A]/(10) (nur für Drehgelenke; wegen Maximallänge bei
@@ -226,9 +244,9 @@ for i = 1:length(m_ges_Link)
         [mrS_ges_PStator(i,:), If_ges_PStator(i,:)] = inertial_parameters_convert_par1_par2( ...
           r_i_Oi_C', inertiamatrix2vector(J_i_C), m_s);
         % Der ausfahrbare Teil des Zylinders wird dem nächsten Segment
-        % zugeordnet
+        % zugeordnet. Maße müssen konsistent mit Außenzylinder sein.
         l_innercyl = q_range(i);
-        [m_s, J_S_C] = data_hollow_cylinder(R_i-e_i, e_i*1.5, l_innercyl, density);
+        [m_s, J_S_C] = data_hollow_cylinder(R_i-e_i, min(e_i*1.5,R_i-e_i), l_innercyl, density);
         R_i_L = roty(pi/2); % Hier Längsachse z; in Geometrie-KS x-Achse
         J_ip1_C = R_i_L * J_S_C * R_i_L';
         r_ip1_Oip1_C = [0;0;-(q_range(i))/2];
@@ -333,8 +351,8 @@ end
 if any(isnan([If_ges(:);mrS_ges(:)]))
   error('Irgendein Dynamik-Parameter ist NaN. Das stört spätere Berechnungen!');
 end
-if Set.general.matfile_verbosity > 2
-  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt_saveparam.mat'));
+if Set.general.matfile_verbosity > 2 + (~use_default_link_param)
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_design_saveparam.mat'));
 end
 if R.Type == 0 
   % Seriell: Parameter direkt eintragen

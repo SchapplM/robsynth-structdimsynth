@@ -13,11 +13,14 @@
 %   Zeile mit Hinweistext, der bei PSO nach Fitness-Berechnung ausgegeben wird
 % debug_info [cell]
 %   Zusatz-Informationen, die im Debug-Bild des Roboters angezeigt werden
+% fphys [1x1]
+%   Physikalischer Wert, der dem Zielfunktionswert zugrunde liegt
+%   Hier: Summe aller bewegten Massen in kg
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-10
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function [fval, fval_debugtext, debug_info] = cds_obj_mass(R)
+function [fval, fval_debugtext, debug_info, fphys] = cds_obj_mass(R)
 debug_info = {};
 
 % Gesamtmasse berechnen
@@ -33,3 +36,4 @@ end
 fval_debugtext = sprintf('Gesamtmasse %1.1f kg', m_sum);
 f_mass_norm = 2/pi*atan((m_sum)/100); % Normierung auf 0 bis 1; 620 ist 0.9. TODO: Skalierung ändern
 fval = 1e3*f_mass_norm; % Normiert auf 0 bis 1e3
+fphys = m_sum;
