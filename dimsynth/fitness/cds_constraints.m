@@ -127,15 +127,30 @@ if R.Type == 0 % Seriell
   qlim = R.qlim;
   Phi_E = NaN(sum(Set.structures.DoF), size(Traj_0.XE,1));
   QE = NaN(size(Traj_0.XE,1), R.NQJ);
-  s = struct('Phit_tol', 1e-3, 'Phir_tol', 1e-3, 'retry_limit', 5, ...
-    'normalize', false);
+  if Set.task.profile ~= 0
+    % Normale Trajektorie mit stetigem Zeitverlauf. Nur Berechnung der
+    % Eckpunkte zur Prüfung
+    s = struct('Phit_tol', 1e-3, 'Phir_tol', 1e-3, 'retry_limit', 5, ...
+      'normalize', false);
+  else
+    % Eckpunkte haben keinen direkten Bezug zueinander und bilden die
+    % Trajektorie. Da keine Traj. berechnet wird, kann hier mehr Aufwand
+    % betrieben werden (besonders bei seriellen Robotern auch notwendig.
+    s = struct('Phit_tol', 1e-9, 'Phir_tol', 1e-9, 'retry_limit', 10, ...
+      'normalize', false, 'n_max', 5000);
+  end
 else % PKM
   qlim = cat(1,R.Leg(:).qlim);
   nPhi = R.I2constr_red(end);
   Phi_E = NaN(nPhi, size(Traj_0.XE,1));
   QE = NaN(size(Traj_0.XE,1), R.NJ);
-  s = struct('Phit_tol', 1e-4, 'Phir_tol', 1e-3, 'retry_limit', 5, ...
-    'normalize', false);
+  if Set.task.profile ~= 0
+    s = struct('Phit_tol', 1e-4, 'Phir_tol', 1e-3, 'retry_limit', 5, ...
+      'normalize', false);
+  else
+    s = struct('Phit_tol', 1e-9, 'Phir_tol', 1e-9, 'retry_limit', 10, ...
+      'normalize', false, 'n_max', 5000);
+  end
 end
 q0 = qlim(:,1) + rand(R.NJ,1).*(qlim(:,2)-qlim(:,1));
 % IK für alle Eckpunkte, beginnend beim letzten (dann ist q der richtige
@@ -216,33 +231,51 @@ end
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_2.mat'));
 
 %% Inverse Kinematik der Trajektorie berechnen
-% s = struct('debug', true, 'retry_limit', 1);
-s = struct('normalize', false, 'retry_limit', 1);
-if R.Type == 0 % Seriell
-  [Q, QD, QDD, PHI] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
-  Jinv_ges = NaN; % Platzhalter für gleichartige Funktionsaufrufe. Speicherung nicht sinnvoll für seriell.
-  JinvD_ges = NaN; 
-else % PKM
-  [Q, QD, QDD, PHI, Jinv_ges, JinvD_ges] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
-end
-% Speichere die Anfangs-Winkelstellung in der Roboterklasse für später
-if R.Type == 0 % Seriell
-  R.qref = q;
-else
-  for i = 1:R.NLEG
-    R.Leg(i).qref = q(R.I1J_LEG(i):R.I2J_LEG(i));
+if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
+  % s = struct('debug', true, 'retry_limit', 1);
+  s = struct('normalize', false, 'retry_limit', 10, 'n_max', 10000);
+  if R.Type == 0 % Seriell
+    [Q, QD, QDD, PHI] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+    Jinv_ges = NaN; % Platzhalter für gleichartige Funktionsaufrufe. Speicherung nicht sinnvoll für seriell.
+    JinvD_ges = NaN; 
+  else % PKM
+    [Q, QD, QDD, PHI, Jinv_ges, JinvD_ges] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
   end
-end
-I_ZBviol = any(abs(PHI) > 1e-3,2) | any(isnan(Q),2);
-if any(I_ZBviol)
-  % Bestimme die erste Verletzung der ZB (je später, desto besser)
-  IdxFirst = find(I_ZBviol, 1 );
-  % Umrechnung in Prozent der Traj.
-  Failratio = 1-IdxFirst/length(Traj_0.t); % Wert zwischen 0 und 1
-  fval = 1e4*(1+9*Failratio); % Wert zwischen 1e4 und 1e5
-  % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
-  constrvioltext = sprintf('Keine IK-Konvergenz in Traj. Bis %1.0f%% gekommen.', Failratio*100);
-  return
+  % Speichere die Anfangs-Winkelstellung in der Roboterklasse für später
+  if R.Type == 0 % Seriell
+    R.qref = q;
+  else
+    for i = 1:R.NLEG
+      R.Leg(i).qref = q(R.I1J_LEG(i):R.I2J_LEG(i));
+    end
+  end
+  I_ZBviol = any(abs(PHI) > 1e-3,2) | any(isnan(Q),2);
+  if any(I_ZBviol)
+    % Bestimme die erste Verletzung der ZB (je später, desto besser)
+    IdxFirst = find(I_ZBviol, 1 );
+    % Umrechnung in Prozent der Traj.
+    Failratio = 1-IdxFirst/length(Traj_0.t); % Wert zwischen 0 und 1
+    fval = 1e4*(1+9*Failratio); % Wert zwischen 1e4 und 1e5
+    % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
+    constrvioltext = sprintf('Keine IK-Konvergenz in Traj. Bis %1.0f%% gekommen.', Failratio*100);
+    return
+  end
+else
+  % Es liegt keine Trajektorie vor. Es reicht also, das Ergebnis der IK von
+  % der Eckpunkt-Berechnung zu benutzen
+  Q = QE;
+  QD = 0*Q; QDD = 0*Q;
+  if R.Type == 0 % Seriell
+    Jinv_ges = NaN; % Platzhalter
+    JinvD_ges = NaN; 
+  else % Parallel
+    Jinv_ges = NaN(size(Q,1), sum(R.I_EE)*size(Q,2));
+    for i = 1:size(Q,1)
+      [~,J_x_inv] = R.jacobi_qa_x(Q(i,:)', Traj_0.X(i,:)');
+      Jinv_ges(i,:) = J_x_inv(:);
+    end
+    JinvD_ges = zeros(size(Q,1), sum(R.I_EE)*size(Q,2));
+  end
 end
 %% Prüfe, ob die Gelenkwinkelgrenzen verletzt werden
 Q_korr = [Q; Q(end,:)];
