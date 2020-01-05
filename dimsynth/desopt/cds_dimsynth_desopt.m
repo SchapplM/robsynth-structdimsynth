@@ -3,21 +3,34 @@
 % Eingabe:
 % R
 %   Matlab-Klasse für Roboter (SerRob/ParRob)
+% Traj_0
+%   Roboter-Trajektorie (EE) bezogen auf Basis-KS des Roboters
+% Q, QD, QDD
+%   Gelenkwinkel-Trajektorie
+% Jinvges
+%   Zeilenweise (inverse) Jacobi-Matrizen des Roboters (für PKM). Bezogen
+%   auf vollständige Gelenkgeschwindigkeiten und Plattform-Geschw. (in
+%   x-Koordinaten, nicht: Winkelgeschwindigkeit)
+% JinvD_ges
+%   Zeitableitung von Jinvges
 % Set
 %   Einstellungen des Optimierungsalgorithmus
-% Q
-%   Gelenkwinkel-Trajektorie
 % Structure
 %   Eigenschaften der Roboterstruktur
 % 
-% Ausgabe: Keine. Die Ergebnisse werden in Roboterklasse `R` gespeichert
+% Ausgabe:
+% fval
+%   Funktionswert für besten Parametersatz nach Optimierung
+%   Gibt Aufschluss, ob alle Nebenbedingungen erfüllt werden konnten.
+%   Werte: Siehe Ausgabe von cds_dimsynth_desopt_fitness
+% Die anderen Ergebnisse werden in Roboterklasse `R` gespeichert
 
 % Siehe auch: cds_dimsynth_robot.m
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function cds_dimsynth_desopt(R, Q, Set, Structure)
+function fval = cds_dimsynth_desopt(R, Traj_0, Q, QD, QDD, Jinv_ges, JinvD_ges, Set, Structure)
 t1 = tic();
 if Set.general.matfile_verbosity > 2
 save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt1.mat'));
@@ -31,19 +44,20 @@ end
 options_desopt = optimoptions('particleswarm');
 options_desopt.Display = 'off';
 options_desopt.MaxIter = 5;
-options_desopt.MaxStallIterations = 2; % Oft ist das Optimum der Startwert
+NumIndividuals = 20;
+options_desopt.MaxStallIterations = 1; % Oft ist das Optimum der Startwert
 options_desopt.ObjectiveLimit = 1e3; % Erfüllung aller Nebenbedingungen reicht
 nvars = 2; % Variablen: Wandstärke, Durchmesser der Segmente
 
 % Allgemeine Einstellungen (werden für serielle Roboter beibehalten)
-varlim = [ 5e-3,  30e-3; ... % Grenzen für Wandstärke
-          80e-3, 400e-3];  % Grenze für Durchmesser
+varlim = [ 5e-3,  150e-3; ... % Grenzen für Wandstärke
+          80e-3, 600e-3];  % Grenze für Durchmesser
 if R.Type ~= 0 % Parallel
-   % Bei PKM geringere Durchmesser
-  varlim = ceil(1e3*varlim/R.NLEG)*1e-3; % Aufrunden auf ganze Millimeter
+   % Bei PKM geringere Durchmesser (Aufteilung auf Beine, aber auch mehr
+   % interne Verspannung)
+  varlim = ceil(1e3*varlim/R.NLEG/2)*1e-3; % Aufrunden auf ganze Millimeter
 end
 
-NumIndividuals = 20;
 % Erzeuge zufällige Startpopulation
 options_desopt.SwarmSize = NumIndividuals;
 InitPop = repmat(varlim(:,1)', NumIndividuals,1) + rand(NumIndividuals, nvars) .* ...
@@ -54,8 +68,8 @@ InitPop(1,:) = varlim(:,1); % kleinste Werte
 InitPop(2,:) = varlim(:,2); % größte Werte
 options_desopt.InitialSwarmMatrix = InitPop;
 % Erstelle die Fitness-Funktion und führe sie einmal zu testzwecken aus
-fitnessfcn_desopt=@(p_desopt)cds_dimsynth_desopt_fitness(R, Set, Q, Structure, p_desopt(:));
-fitnessfcn_desopt(InitPop(1,:)');
+fitnessfcn_desopt=@(p_desopt)cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, JinvD_ges, Structure, p_desopt(:));
+
 % Für Profiler: `for i=1:10,fitnessfcn_desopt(InitPop(1,:)'); end`
 if Set.general.matfile_verbosity > 3
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt2.mat'));
@@ -84,7 +98,7 @@ return
 %% Debug
 
 % Zeichne Verlauf der Fitness-Funktion
-fval_grid = NaN(20,20);
+fval_grid = NaN(20,20); %#ok<UNRCH>
 p1_grid = linspace(varlim(1,1), varlim(1,2), 20)
 p2_grid = linspace(varlim(2,1), varlim(2,2), 20)
 for i = 1:20
@@ -93,7 +107,7 @@ for i = 1:20
     fval_grid(i,j) = fitnessfcn_desopt(p_ij);
   end
 end
-
+fval_grid(fval_grid==1e8) = NaN; % Damit unzulässiger Bereich im Plot leer bleibt
 figure(10);clf;
 hold on;
 surf(1e3*p1_grid, 1e3*p2_grid, fval_grid, 'FaceAlpha',0.7);

@@ -16,6 +16,10 @@
 % fval
 %   Fitness-Wert für den Parametervektor p. Enthält Strafterme für
 %   Verletzung von Nebenbedingungen oder Wert der Zielfunktion (je nachdem)
+%   Werte:
+%   0...1e3: gewählte Zielfunktion
+%   1e3...1e4: Überschreitung Belastungsgrenze der Segmente (aus cds_dimsynth_desopt_fitness)
+%   1e4...1e9: Siehe cds_constraints. Werte von dort mit Faktor 10 multipliziert
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Universität Hannover
@@ -46,13 +50,13 @@ cds_update_robot_parameters(R, Set, Structure, p);
 Traj_0 = cds_rotate_traj(Traj_W, R.T_W_0);
 
 %% Nebenbedingungen prüfen
-[fval,Q,QD,QDD,Jinv_ges,JinvD_ges,constrvioltext] = cds_constraints(R, Traj_0, Traj_W, Set, Structure);
+[fval_constr,Q,QD,QDD,Jinv_ges,JinvD_ges,constrvioltext] = cds_constraints(R, Traj_0, Traj_W, Set, Structure);
+fval = fval_constr*10; % Erhöhung, damit später kommende Funktionswerte aus Entwurfsoptimierung kleiner sein können
 cds_fitness_debug_plot_robot(R, zeros(R.NJ,1), Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
-if fval > 1000 % Nebenbedingungen verletzt.
+if fval_constr > 1000 % Nebenbedingungen verletzt.
   fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext);
   return
 end
-
 if Set.general.matfile_verbosity > 2
   save(fullfile(repopath, 'tmp', 'cds_fitness_2.mat'));
 end
@@ -74,7 +78,16 @@ if any(strcmp(Set.optimization.objective, {'energy', 'mass', 'minactforce'}))
   if ~Set.optimization.use_desopt
     cds_dimsynth_design(R, Q, Set, Structure);
   else
-    cds_dimsynth_desopt(R, Q, Set, Structure);
+    fval_desopt = cds_dimsynth_desopt(R, Traj_0, Q, QD, QDD, Jinv_ges, JinvD_ges, Set, Structure);
+    if fval_desopt > 1e5
+      warning('Ein Funktionswert > 1e5 ist nicht für Entwurfsoptimierung vorgesehen');
+    end
+    if fval_desopt > 1000 % Nebenbedingungen in Entwurfsoptimierung verletzt.
+      fval = fval_desopt;
+      constrvioltext = 'Verletzung der Nebenbedingungen in Entwurfsoptimierung';
+      fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext);
+      return
+    end
   end
 end
 if Set.general.matfile_verbosity > 1

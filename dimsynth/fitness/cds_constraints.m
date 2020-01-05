@@ -15,6 +15,12 @@
 % fval
 %   Zielfunktionswert, der im PSO-Algorithmus minimiert wird. Entspricht
 %   Strafterm in der Fitnessfunktion bei Verletzung der Nebenbedingungen
+%   Werte:
+%   1e3: Keine Verletzung der Nebenbedingungen
+%   1e3...5e3: Geschwindigkeitsgrenzen
+%   5e3...1e4: Gelenkwinkelgrenzen
+%   1e4...1e5: IK in Trajektorie nicht lösbar
+%   ...: Siehe Quelltext
 % Q,QD,QDD
 %   Gelenkpositionen und -geschwindigkeiten des Roboters (für PKM auch
 %   passive Gelenke)

@@ -37,14 +37,14 @@
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
 function R=cds_dimsynth_design(R, Q, Set, Structure, p_desopt)
-if Set.general.matfile_verbosity > 2
-  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_design.mat'));
-end
 desopt_debug = false;
 if nargin < 5 || ~Set.optimization.use_desopt
   use_default_link_param = true;
 else
   use_default_link_param = false;
+end
+if Set.general.matfile_verbosity > 2 + (~use_default_link_param) % weniger oft speichern, wenn Aufruf in desopt_fitness
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_design.mat'));
 end
 % Debug:
 % function R=cds_dimsynth_desopt()
@@ -351,7 +351,7 @@ end
 if any(isnan([If_ges(:);mrS_ges(:)]))
   error('Irgendein Dynamik-Parameter ist NaN. Das stört spätere Berechnungen!');
 end
-if Set.general.matfile_verbosity > 2
+if Set.general.matfile_verbosity > 2 + (~use_default_link_param)
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_design_saveparam.mat'));
 end
 if R.Type == 0 
