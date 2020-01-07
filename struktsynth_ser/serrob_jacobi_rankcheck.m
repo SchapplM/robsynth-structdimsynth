@@ -22,7 +22,6 @@ usr_plot_robot_only_on_error = true; % Bild nur bei Rangverlust erstellen (zur D
 usr_break_at_rankloss = false; % Abbruch bei Erkennung eines Rangverlusts der Gesamt-Jacobi
 
 usr_RobName_List = {};
-usr_RobName_List = {'S5PRRRR5',	'S5RPRRR3',	'S5RPRRR11',	'S5RRPRR11',	'S5RRRPR6',	'S5RRRRP5',	'S5RRRRR4'};
 % usr_RobName_List = {'S5RRRRP5'};
 %% Durchsuche alle Roboter und prüfe die Kinematikparameter
 % Zuordnung der Zahlenwerte in der csv-Tabelle zu den physikalischen Werten
@@ -54,8 +53,8 @@ for N = 1:6
     try
       RS = serroblib_create_robot_class(RobName);
       RS.gen_testsettings(true, true);
-    catch
-      warning('Fehler für Modell %s', RobName);
+    catch e
+      warning('Fehler für Modell %s: %s', RobName, e.message);
       if usr_abortonerror
         return
       else
@@ -69,7 +68,6 @@ for N = 1:6
     %% Prüfe, welche EE-FG die Struktur hat
     % Prüfe, für jedes Gelenk beginnend von hinten, ob es die EE-Position
     % beeinflusst
-    
     q = rand(N,1);
     qD = rand(N,1);
     % Berechne Kinematik des letzten Gelenks (PKM-Plattform-Koppelpunkt)
