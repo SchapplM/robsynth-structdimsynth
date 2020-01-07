@@ -44,7 +44,7 @@ if R.Type == 0
 else
   % Berechne Konditionszahl für alle Punkte der Bahn
   for i = 1:length(Traj_0.t)
-    Jinv_IK = reshape(Jinvges(i,:), sum(R.I_EE), R.NJ);
+    Jinv_IK = reshape(Jinvges(i,:), R.NJ, sum(R.I_EE));
     Cges(i) = cond(Jinv_IK(R.I_qa,:));
   end
 end
@@ -62,11 +62,11 @@ if R.Type == 2
     % Debug-Werte berechnen
     det_ges = NaN(size(Jinvges,1), 1);
     for i = 1:size(Jinvges,1)
-      Jinv_IK = reshape(Jinvges(i,:), sum(R.I_EE), R.NJ);
+      Jinv_IK = reshape(Jinvges(i,:), R.NJ, sum(R.I_EE));
       if Set.general.debug_calc
         % Debug: Vergleich der Jacobi-Matrizen (falls keine Singularität
         % auftritt). TODO: Nur Optional mit Debug-Schalter
-        test_Jinv = Jinv_IK - R.jacobi_qa_x(Q(i,:)',Traj_0.X(i,:)');
+        test_Jinv = Jinv_IK(R.I_qa,:) - R.jacobi_qa_x(Q(i,:)',Traj_0.X(i,:)');
         if any(abs(test_Jinv(:)) > 1e-6)%  && Cges(i) < 1e10
           if Set.general.matfile_verbosity > 0
             save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_fitness_par3.mat'));
