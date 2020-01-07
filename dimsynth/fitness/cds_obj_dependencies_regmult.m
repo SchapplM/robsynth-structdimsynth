@@ -47,5 +47,5 @@ if Set.optimization.desopt_link_yieldstrength
     % TODO: Schnittkraft-Regressorform implementieren
     Wges = NaN;
   end
+  output.Wges = Wges;
 end
-output.Wges = Wges;

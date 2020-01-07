@@ -17,7 +17,7 @@ Set.task.Tv = 1e-1;
 Set.task.profile = 0; % Nur Eckpunkte / statischer Fall
 
 Traj = cds_gen_traj(DoF, Traj_no, Set.task);
-Set.general.debug_calc = true;
+
 Set.optimization.objective = 'mass';
 Set.optimization.optname = 'linkstrength_3T3R';
 Set.optimization.NumIndividuals = 10;
@@ -28,11 +28,12 @@ Set.optimization.use_desopt = true;
 Set.optimization.desopt_link_yieldstrength = true;
 Set.optimization.max_range_active_revolute = 2*pi;
 Set.general.plot_details_in_fitness = 0*1e3;
-Set.general.plot_robot_in_fitness = 1e7;
+Set.general.plot_robot_in_fitness = 0*1e3;
 Set.general.max_retry_bestfitness_reconstruction = 1;
 Set.general.verbosity = 4;
 Set.general.matfile_verbosity = 4;
 Set.general.nosummary = true;
-Set.structures.whitelist = {'P6RRPRRR14V3G1P3A1'}; % , S6RRPRRR14 'S6RRRRRR10V3'
+Set.general.debug_calc = true;
+Set.structures.whitelist = {'P6RRPRRR14V3G1P3A1'}; % , 'S6RRRRRR10V3'
 
 cds_start

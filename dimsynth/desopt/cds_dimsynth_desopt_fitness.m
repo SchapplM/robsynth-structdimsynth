@@ -13,8 +13,6 @@
 %   Zeilenweise (inverse) Jacobi-Matrizen des Roboters (für PKM). Bezogen
 %   auf vollständige Gelenkgeschwindigkeiten und Plattform-Geschw. (in
 %   x-Koordinaten, nicht: Winkelgeschwindigkeit)
-% JinvD_ges
-%   Zeitableitung von Jinvges
 % Structure
 %   Eigenschaften der Roboterstruktur
 % p_desopt
@@ -33,7 +31,7 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function fval = cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, JinvD_ges, data_dyn, Structure, p_desopt)
+function fval = cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn, Structure, p_desopt)
 t1 = tic();
 % Debug:
 if Set.general.matfile_verbosity > 3
@@ -60,14 +58,16 @@ if Set.optimization.desopt_link_yieldstrength || any(strcmp(Set.optimization.obj
   % Abhängigkeiten neu berechnen (Dynamik)
   output2 = cds_obj_dependencies_regmult(R, Set, data_dyn);
   if Set.general.debug_calc || R.Type == 2
-    output1 = cds_obj_dependencies(R, Traj_0, Set, Q, QD, QDD, Jinv_ges, JinvD_ges);
+    output1 = cds_obj_dependencies(R, Traj_0, Set, Q, QD, QDD, Jinv_ges);
     test_TAU = output1.TAU - output2.TAU;
     if any(abs(test_TAU(:))>1e-8)
       error('Regressorform Antriebskraft stimmt nicht');
     end
-    test_W = output1.Wges - output2.Wges;
-    if any(abs(test_W(:))>1e-8)
-      error('Regressorform Schnittkraft stimmt nicht');
+    if isfield(output2, 'Wges')
+      test_W = output1.Wges - output2.Wges;
+      if any(abs(test_W(:))>1e-8)
+        error('Regressorform Schnittkraft stimmt nicht');
+      end
     end
   end
 end

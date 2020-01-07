@@ -11,8 +11,6 @@
 %   Zeilenweise (inverse) Jacobi-Matrizen des Roboters (für PKM). Bezogen
 %   auf vollständige Gelenkgeschwindigkeiten und Plattform-Geschw. (in
 %   x-Koordinaten, nicht: Winkelgeschwindigkeit)
-% JinvD_ges
-%   Zeitableitung von Jinvges
 % Set
 %   Einstellungen des Optimierungsalgorithmus
 % Structure
@@ -30,7 +28,7 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function fval = cds_dimsynth_desopt(R, Traj_0, Q, QD, QDD, Jinv_ges, JinvD_ges, data_dyn, Set, Structure)
+function fval = cds_dimsynth_desopt(R, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn, Set, Structure)
 t1 = tic();
 if Set.general.matfile_verbosity > 2
 save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt1.mat'));
@@ -68,12 +66,12 @@ InitPop(1,:) = varlim(:,1); % kleinste Werte
 InitPop(2,:) = varlim(:,2); % größte Werte
 options_desopt.InitialSwarmMatrix = InitPop;
 % Erstelle die Fitness-Funktion und führe sie einmal zu testzwecken aus
-fitnessfcn_desopt=@(p_desopt)cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, JinvD_ges, data_dyn, Structure, p_desopt(:));
+fitnessfcn_desopt=@(p_desopt)cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn, Structure, p_desopt(:));
 
 % Prüfe, ob eine Entwurfsoptimierung sinnvoll ist
 fval_minpar = fitnessfcn_desopt(InitPop(1,:)');
 avoid_optimization = false;
-if desopt_link_yieldstrength && fval_minpar<1e3
+if Set.optimization.desopt_link_yieldstrength && fval_minpar<1e3
   % Das schwächste Segment erfüllt alle Nebenbedingungen. Das Ergebnis muss
   % damit optimal sein (alle Zielfunktionen wollen Stärke minimieren)
   avoid_optimization = true;
