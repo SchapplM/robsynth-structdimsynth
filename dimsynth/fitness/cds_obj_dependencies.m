@@ -39,9 +39,13 @@ if any(strcmp(Set.optimization.objective, {'energy', 'minactforce'})) ...
   if R.Type == 0 % Serieller Roboter
     % Antriebskräfte berechnen
     TAU = R.invdyn2_traj(Q, QD, QDD);
-    TAU_reg = R.invdynregmat_traj(Q, QD, QDD);
-    if Set.general.debug_calc
-      TAU_test = R.invdyn3_traj(TAU_reg);
+    % Regressormatrix für Antriebskräfte berechnen (falls
+    % Entwurfsoptimierung durchgeführt wird)
+    if Set.general.debug_calc || Set.optimization.use_desopt
+      TAU_reg = R.invdynregmat_traj(Q, QD, QDD);
+      if Set.general.debug_calc
+        TAU_test = R.invdyn3_traj(TAU_reg);
+      end
     end
   else % PKM
     % Trajektorie in Plattform-KS umrechnen
@@ -49,7 +53,13 @@ if any(strcmp(Set.optimization.objective, {'energy', 'minactforce'})) ...
     XED = Traj_0.XD;
     XEDD = Traj_0.XDD;
     % Antriebskräfte berechnen (Momente im Basis-KS, nicht x-Koord.)
-    [Fa_red_traj, Fa_red_traj_reg] = R.invdyn2_actjoint_traj(Q, QD, QDD, XE, XED, XEDD, Jinv_ges);
+    if Set.general.debug_calc || Set.optimization.use_desopt
+      % Regressorform nur berechnen, falls später benötigt
+      [Fa_red_traj, Fa_red_traj_reg] = R.invdyn2_actjoint_traj(Q, QD, QDD, XE, XED, XEDD, Jinv_ges);
+    else
+      Fa_red_traj = R.invdyn2_actjoint_traj(Q, QD, QDD, XE, XED, XEDD, Jinv_ges);
+      Fa_red_traj_reg = NaN;
+    end
     TAU = Fa_red_traj;
     TAU_reg = Fa_red_traj_reg;
     % Antriebskräfte noch auf andere Wege berechnen. Diese Rechenwege sind
