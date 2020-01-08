@@ -6,3 +6,4 @@ slprj
 *.bak
 *.avi
 tmp
+*.orig
