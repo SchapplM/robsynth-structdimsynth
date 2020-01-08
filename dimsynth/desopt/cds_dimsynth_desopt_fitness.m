@@ -31,7 +31,7 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function fval = cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn, Structure, p_desopt)
+function fval = cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn_reg, Structure, p_desopt)
 t1 = tic();
 % Debug:
 if Set.general.matfile_verbosity > 3
@@ -54,20 +54,20 @@ end
 cds_dimsynth_design(R, Q, Set, Structure, p_desopt);
 
 %% Dynamik neu berechnen
-if Set.optimization.desopt_link_yieldstrength || any(strcmp(Set.optimization.objective, 'energy'))
+if Structure.calc_reg
   % Abhängigkeiten neu berechnen (Dynamik)
-  output2 = cds_obj_dependencies_regmult(R, Set, data_dyn);
-  if Set.general.debug_calc || R.Type == 2
-    output1 = cds_obj_dependencies(R, Traj_0, Set, Q, QD, QDD, Jinv_ges);
-    test_TAU = output1.TAU - output2.TAU;
+  data_dyn = cds_obj_dependencies_regmult(R, Set, data_dyn_reg);
+  if Set.general.debug_calc
+    % Zu Testzwecken die Dynamik neu ohne Regressorform berechnen und mit
+    % Regressor-Berechnung vergleichen
+    data_dyn2 = cds_obj_dependencies(R, Traj_0, Set, Structure, Q, QD, QDD, Jinv_ges);
+    test_TAU = data_dyn2.TAU - data_dyn.TAU;
     if any(abs(test_TAU(:))>1e-8)
-      error('Regressorform Antriebskraft stimmt nicht');
+      error('Antriebskräfte aus Regressorform stimmt nicht');
     end
-    if isfield(output2, 'Wges')
-      test_W = output1.Wges - output2.Wges;
-      if any(abs(test_W(:))>1e-8)
-        error('Regressorform Schnittkraft stimmt nicht');
-      end
+    test_W = data_dyn2.Wges - data_dyn.Wges;
+    if any(abs(test_W(:))>1e-8)
+      error('Schnittkräfte aus Regressorform stimmt nicht');
     end
   end
 end
@@ -91,10 +91,10 @@ if Set.optimization.desopt_link_yieldstrength
     % Schnittkräfte dieser Beinkette
     if Structure.Type == 0
       Rob = R;
-      Wges = output2.Wges;
+      Wges = data_dyn.Wges;
     else
       Rob = R.Leg(i);
-      Wges_i = output1.Wges(i,:,:);
+      Wges_i = data_dyn.Wges(i,:,:);
       Wges = reshape(Wges_i, size(Q,1), 6*Rob.NL); % in gleiches Format wie SerRob bringen
     end
     % Effektivwert von Kraft und Moment im Zeitverlauf bestimmen
@@ -175,7 +175,7 @@ elseif strcmp(Set.optimization.objective, 'energy')
     fval = fval_energy; % Nehme Wert von der NB-Berechnung oben
     fval_debugtext = fval_debugtext_energy;
   else
-    [fval,fval_debugtext] = cds_obj_energy(R, Set, Structure, Traj_0, output2.TAU, QD);
+    [fval,fval_debugtext] = cds_obj_energy(R, Set, Structure, Traj_0, data_dyn.TAU, QD);
   end
 else
   error('Andere Zielfunktion als Masse noch nicht implementiert');

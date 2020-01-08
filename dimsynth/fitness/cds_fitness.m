@@ -79,7 +79,7 @@ if any(strcmp(Set.optimization.objective, {'energy', 'mass', 'minactforce'}))
     cds_dimsynth_design(R, Q, Set, Structure);
   else
     % Berechne Dynamik-Funktionen als Regressorform für die Entwurfsopt.
-    data_dyn = cds_obj_dependencies(R, Traj_0, Set, Q, QD, QDD, Jinv_ges);
+    data_dyn = cds_obj_dependencies(R, Traj_0, Set, Structure, Q, QD, QDD, Jinv_ges);
     
     fval_desopt = cds_dimsynth_desopt(R, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn, Set, Structure);
     if fval_desopt > 1e5
@@ -100,8 +100,8 @@ end
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_fitness_3.mat'));
 
 %% Berechnungen für Zielfunktionen
-if ~Set.optimization.use_desopt
-  output = cds_obj_dependencies(R, Traj_0, Set, Q, QD, QDD, Jinv_ges);
+if ~Structure.calc_reg
+  output = cds_obj_dependencies(R, Traj_0, Set, Structure, Q, QD, QDD, Jinv_ges);
 else
   % Dynamik nochmal mit Regressorform mit neuen Dynamikparameter berechnen
   output = cds_obj_dependencies_regmult(R, Set, data_dyn);
