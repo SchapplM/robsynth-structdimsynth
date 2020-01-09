@@ -95,7 +95,7 @@ if Set.optimization.desopt_link_yieldstrength
     else
       Rob = R.Leg(i);
       Wges_i = data_dyn.Wges(i,:,:);
-      Wges = reshape(Wges_i, size(Q,1), 6*Rob.NL); % in gleiches Format wie SerRob bringen
+      Wges = reshape(Wges_i, 6*Rob.NL, size(Q,1))'; % in gleiches Format wie SerRob bringen
     end
     % Effektivwert von Kraft und Moment im Zeitverlauf bestimmen
     % Alle Segmente durchgehen
