@@ -59,9 +59,15 @@ if Structure.calc_dyn_act
       end
     elseif ~Structure.calc_reg
       % Hole Inverse Dynamik aus den zuvor berechneten Schnittkräften
-      error('Noch nicht implementiert');
+      % Dieser Fall kann aber eigentlich nicht eintreten, da immer, wenn
+      % die Schnittkräfte berechnet werden müssen (für Entwurfsoptimierung), 
+      % auch die Regressorform benutzt wird.
+      error('Dieser Fall sollte eigentlich nicht eintreten');
     elseif Set.general.debug_calc
       TAU = R.invdyn2_traj(Q, QD, QDD);
+    else
+      % Hier ist keine Berechnung der Antriebskräfte notwendig, da dies
+      % später mit der Regressorform (der Schnittkräfte) gemacht wird
     end
   else % PKM
     % Trajektorie in Plattform-KS umrechnen
@@ -71,14 +77,17 @@ if Structure.calc_dyn_act
     % Antriebskräfte berechnen (Momente im Basis-KS, nicht x-Koord.)
     if ~Structure.calc_dyn_cut || Set.general.debug_calc
       % Regressorform nur berechnen, falls später benötigt
-      if ~Structure.calc_reg  || Set.general.debug_calc
+      if Structure.calc_reg  || Set.general.debug_calc
         [TAU, TAU_reg] = R.invdyn2_actjoint_traj(Q, QD, QDD, XE, XED, XEDD, Jinv_ges);
       else
         TAU = R.invdyn2_actjoint_traj(Q, QD, QDD, XE, XED, XEDD, Jinv_ges);
       end
     elseif ~Structure.calc_reg
-      % Hole Inverse Dynamik aus den zuvor berechneten Schnittkräften
-      error('Noch nicht implementiert');
+      error('Dieser Fall sollte eigentlich nicht eintreten'); % Begründung s.o.
+    elseif Set.general.debug_calc
+      TAU = R.invdyn2_actjoint_traj(Q, QD, QDD, XE, XED, XEDD, Jinv_ges);
+    else
+      % Nichts berechnen. Begründung s.o.
     end
   end
 end

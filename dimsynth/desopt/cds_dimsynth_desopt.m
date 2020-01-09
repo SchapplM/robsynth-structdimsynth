@@ -84,7 +84,7 @@ end
 % Debug:
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt2.mat'));
 %% Optimierung der Entwurfsparameter durchführen
-if avoid_optimization
+if ~avoid_optimization
   [p_val,fval,~,output] = particleswarm(fitnessfcn_desopt,nvars,varlim(:,1),varlim(:,2),options_desopt);
   if fval < 1000
     detailstring = sprintf('Lösung gefunden (fval=%1.1f)', fval);
@@ -92,6 +92,9 @@ if avoid_optimization
     detailstring = sprintf('Keine zulässige Lösung gefunden (fval=%1.1e)', fval);
   end
 else
+  % Es wurde oben festgestellt, das die schwächstmögliche Dimensionierung
+  % bereits optimal hinsichtlich der gewählten Zielfunktion+Nebenbedingung
+  % ist
   p_val = InitPop(1,:)';
   fval = fval_minpar;
   output = struct('iterations', 0, 'funccount', 0);
