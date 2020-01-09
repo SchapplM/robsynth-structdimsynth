@@ -82,11 +82,12 @@ if Set.optimization.desopt_link_yieldstrength
   R_e=250e6;
   
   if R.Type == 0 % Seriell
-    NLEG = 1;
+    NLEG = 1; NL = R.NL;
   else % PKM
-    NLEG = R.NLEG;
+    NLEG = R.NLEG; NL = R.Leg(1).NL;
   end
   f_yieldstrength = NaN(7,NLEG);
+  sigma_ges_alle = NaN(NLEG, NL, length(Traj_0.t));
   for i = 1:NLEG
     % Schnittkräfte dieser Beinkette
     if Structure.Type == 0
@@ -124,6 +125,8 @@ if Set.optimization.desopt_link_yieldstrength
       %       Vergleichsspannung z.B. nach von Mises
       % Prüfe, ob Vergleichsspannung größer als Streckgrenze/Dehngrenze ist
       f_yieldstrength(j,i) = sigma_max/R_e;
+      
+      sigma_ges_alle(i,j,:) = sigma_ges;
     end
   end
   % Prüfe, ob für ein Segment die Materialspannung überschritten wurde
@@ -134,6 +137,68 @@ if Set.optimization.desopt_link_yieldstrength
     fval = 1e3*(1+9*f_maxstrengthviol_norm); % Normiere in Bereich 1e3...1e4
     constrvioltext = sprintf('Materialbelastungsgrenze überschritten (%d/%d mal; max Faktor %1.1f)', ...
       sum(f_yieldstrength(:)>1), length(f_yieldstrength(:)), f_maxstrengthviol);
+  end
+  
+  %% Debug-Plot für Schnittkräfte
+  if fval < Set.general.plot_details_in_desopt
+    if R.Type == 0 % Seriell
+    else % PKM
+      change_current_figure(1999);clf;
+      set(1999, 'Name', 'Materialspannung', 'NumberTitle', 'off');
+      sphdl = NaN(NLEG, NL);
+      for i = 1:NLEG
+        for j = 1:NL
+          sphdl(i,j) = subplot(NLEG, NL, sprc2no(NLEG, NL, i, j)); hold on; grid on
+          plot(Traj_0.t, squeeze(sigma_ges_alle(i,j,:)));
+          plot(Traj_0.t([1 end]), R_e*[1;1], 'r-');
+          if i == 1, title(sprintf('Bein %d', j)); end
+          if j == 1, ylabel(sprintf('Segment %d', i)); end
+        end
+      end
+      sgtitle('Materialspannung (N/mm²)');
+      linkxaxes
+      remove_inner_labels(sphdl,1); 
+      for fm = [0 1]
+        change_current_figure(2000+fm);clf;
+        if fm == 0
+          set(2000+fm, 'Name', 'Schnittkräfte_Beine', 'NumberTitle', 'off');
+        else
+          set(2000+fm, 'Name', 'Schnittmoment_Beine', 'NumberTitle', 'off');
+        end
+        sphdl=NaN(R.Leg(1).NL, R.NLEG);
+        for k = 1:R.NLEG % Beine in den Spalten des Bildes
+          % Vektor der Schnittkräfte für aktuelles Bein extrahieren
+          W_k = squeeze(data_dyn.Wges(k,:,:))';
+          for j = 1:R.Leg(1).NL % Beingelenke in den Zeilen des Bildes
+            % Indizes zur Auswahl der Kräfte und Momente in den Gesamtdaten
+            IIfm = ((j-1)*6+1:(j-1)*6+3);
+            if fm ==1, IIfm = IIfm+3; end
+            % Betrag bilden
+            fmnorm_ges_jk = sum(W_k(:,IIfm).^2,2).^0.5;
+            % Plotten
+            sphdl(j,k)=subplot(size(sphdl,1),size(sphdl,2),sprc2no(size(sphdl,1),size(sphdl,2),j,k)); hold on;
+            plot(Traj_0.t, [W_k(:,IIfm), fmnorm_ges_jk]);
+            % Formatierung
+            grid on;
+            if j == 1
+              title(sprintf('Beinkette %d', k));
+            end
+            if k == 1
+              ylabel(sprintf('Seg. %d', j-1));
+            end
+            if k == R.NLEG && j == R.Leg(1).NL
+              if fm == 0
+                legend({'fx', 'fy', 'fz', 'norm'});
+              else
+                legend({'mx', 'my', 'mz', 'norm'});
+              end
+            end
+          end
+        end
+        linkxaxes
+        remove_inner_labels(sphdl,1); 
+      end
+    end
   end
 end
 

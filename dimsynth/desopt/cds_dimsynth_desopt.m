@@ -69,7 +69,9 @@ options_desopt.InitialSwarmMatrix = InitPop;
 fitnessfcn_desopt=@(p_desopt)cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn, Structure, p_desopt(:));
 
 % Prüfe, ob eine Entwurfsoptimierung sinnvoll ist
+tic();
 fval_minpar = fitnessfcn_desopt(InitPop(1,:)');
+T2 = toc();
 avoid_optimization = false;
 if Set.optimization.desopt_link_yieldstrength && fval_minpar<1e3
   % Das schwächste Segment erfüllt alle Nebenbedingungen. Das Ergebnis muss
@@ -85,6 +87,10 @@ end
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt2.mat'));
 %% Optimierung der Entwurfsparameter durchführen
 if ~avoid_optimization
+  if Set.general.verbosity > 2
+    fprintf('Führe Entwurfsoptimierung durch. Dauer für eine Zielfunktionsauswertung: %1.1fs. Max. Dauer für Optimierung: %1.1fs (%d Iterationen, %d Individuen)\n', ...
+      T2, NumIndividuals*(options_desopt.MaxIter+1)*T2, NumIndividuals, options_desopt.MaxIter);
+  end
   [p_val,fval,~,output] = particleswarm(fitnessfcn_desopt,nvars,varlim(:,1),varlim(:,2),options_desopt);
   if fval < 1000
     detailstring = sprintf('Lösung gefunden (fval=%1.1f)', fval);
@@ -117,11 +123,12 @@ return
 %% Debug
 
 % Zeichne Verlauf der Fitness-Funktion
-fval_grid = NaN(20,20); %#ok<UNRCH>
-p1_grid = linspace(varlim(1,1), varlim(1,2), 20)
-p2_grid = linspace(varlim(2,1), varlim(2,2), 20)
-for i = 1:20
-  for j = 1:20
+np1 = 8; np2 = 8; %#ok<UNRCH>
+fval_grid = NaN(np1,np2);
+p1_grid = linspace(varlim(1,1), varlim(1,2), np1)
+p2_grid = linspace(varlim(2,1), varlim(2,2), np2)
+for i = 1:np1
+  for j = 1:np2
     p_ij = [p1_grid(i); p2_grid(j)];
     fval_grid(i,j) = fitnessfcn_desopt(p_ij);
   end
