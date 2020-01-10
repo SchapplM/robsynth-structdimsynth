@@ -22,9 +22,9 @@
 function R_neu = cds_update_robot_parameters(R, Set, Structure, p)
 
 R_neu = R; % ohne copy-Befehl: Parameter werden direkt in Eingang geschrieben
-
+scale = p(1);
 %% Parameter prüfen
-if p(1) == 0
+if scale == 0
   error('Roboterskalierung kann nicht Null werden');
 end
 if length(Structure.vartypes) ~= length(p)
@@ -36,9 +36,15 @@ end
 % der Optimierung überschrieben wird (z.B. zwecks Plotten)
 if R_neu.Type == 0
   R_neu.qlim = Structure.qlim;
+  % Schubgelenkgrenzen mit Skalierungsfaktor setzen. Ansonsten passt die
+  % Proportion zwischen Segmentlängen und Schubgelenkslängen nicht
+  R_neu.qlim(R_neu.MDH.sigma==1,:) = scale * Structure.qlim(R_neu.MDH.sigma==1,:);
 else
   for i = 1:R.NLEG
     R_neu.Leg(i).qlim = Structure.qlim(R_neu.I1J_LEG(i):R_neu.I2J_LEG(i),:);
+    % Skalierungsfaktor, damit Verhältnis zwischen Plattformgröße und Bein-
+    % längen bei Schubgelenken noch stimmt
+    R_neu.Leg(i).qlim(R_neu.Leg(i).MDH.sigma==1,:) = scale * R_neu.Leg(i).qlim(R_neu.Leg(i).MDH.sigma==1,:);
   end
 end
 
@@ -63,7 +69,7 @@ if R_neu.Type == 0 || R_neu.Type == 2
       pkin_voll(i) = pkin_optvar(j);
     else
       % Längenparameter skaliert mit Roboter-Skalierungsfaktor
-      pkin_voll(i) = pkin_optvar(j)*p(1);
+      pkin_voll(i) = pkin_optvar(j)*scale;
     end
   end
   if R_neu.Type == 0 % Seriell
@@ -89,7 +95,7 @@ if Set.optimization.movebase
   % z-Punktkoordinaten der Basis skaliert mit Roboter-Skalierungsfaktor
   if Set.structures.DoF(3)
     r_W_0_neu(3) = Structure.xT_mean(Set.structures.DoF(3)) + ...
-      p_basepos(Set.structures.DoF(3))*p(1);
+      p_basepos(Set.structures.DoF(3))*scale;
   end
   R_neu.update_base(r_W_0_neu);
 end
@@ -99,7 +105,7 @@ if any(Structure.vartypes == 3) % Set.optimization.ee_translation
   p_eepos = p(Structure.vartypes == 3);
   r_N_E_neu = zeros(3,1);
   % EE-Versatz skaliert mit Roboter-Skalierungsfaktor
-  r_N_E_neu(Set.structures.DoF(1:3)) = p_eepos.*p(1);
+  r_N_E_neu(Set.structures.DoF(1:3)) = p_eepos.*scale;
   R_neu.update_EE(r_N_E_neu);
 end
 
@@ -147,7 +153,7 @@ if R_neu.Type == 2 && Set.optimization.base_size && any(Structure.vartypes == 6)
     p_basepar(1) = p_baseradius;
   else
     % Setze den Fußpunkt-Radius skaliert mit Referenzlänge
-    p_basepar(1) = p_baseradius*p(1);
+    p_basepar(1) = p_baseradius*scale;
   end
   changed_base = true;
 end

@@ -29,8 +29,12 @@ end
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot1.mat'));
 
 %% Initialisierung
-% Charakteristische Länge der Aufgabe
-Lref = norm(diff(minmax2(Traj.X(:,1:3)')'));
+% Mittelpunkt der Aufgabe
+Structure.xT_mean = mean(minmax2(Traj.X(:,1:3)'), 2);
+% Charakteristische Länge der Aufgabe (empirisch ermittelt aus der Größe
+% des notwendigen Arbeitsraums und des Abstands der Aufgabe vom Roboter-
+% Basis-KS
+Lref = norm(diff(minmax2(Traj.X(:,1:3)')')) + mean(Structure.xT_mean) / 2;
 Structure.Lref = Lref;
 %% Roboter-Klasse initialisieren
 if Structure.Type == 0 % Seriell
@@ -83,7 +87,7 @@ for i = 1:NLEG
   % mal schräg durch Arbeitsraum" (char. Länge))
   % Muss so hoch gesetzt sein, damit UPS-Kette (ohne sonstige
   % Kinematikparameter auch funktioniert)
-  R_init.qlim(R_init.MDH.sigma==1,:) = repmat([-0.5*Lref, 3.5*Lref],sum(R_init.MDH.sigma==1),1);
+  R_init.qlim(R_init.MDH.sigma==1,:) = repmat([-0.5*Lref, 100*Lref],sum(R_init.MDH.sigma==1),1);
   % Gelenkgrenzen setzen: Drehgelenke
   if Structure.Type == 0 % Serieller Roboter
     % Grenzen für Drehgelenke: Alle sind aktiv
@@ -216,7 +220,6 @@ Structure.Ipkinrel = Ipkinrel;
 % Roboter, Entfernung bei seriellem Roboter)
 
 % Berechne Mittelpunkt der Aufgabe
-Structure.xT_mean = mean(minmax2(Traj.X(:,1:3)'), 2);
 if Set.optimization.movebase
   nvars = nvars + sum(Set.structures.DoF(1:3)); % Verschiebung um translatorische FG der Aufgabe
   vartypes = [vartypes; 2*ones(sum(Set.structures.DoF(1:3)),1)];
