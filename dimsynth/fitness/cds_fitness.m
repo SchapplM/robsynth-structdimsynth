@@ -58,7 +58,7 @@ Traj_0 = cds_rotate_traj(Traj_W, R.T_W_0);
 fval = fval_constr*1e3; % Erhöhung, damit später kommende Funktionswerte aus Entwurfsoptimierung kleiner sein können
 cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
 if fval_constr > 1000 % Nebenbedingungen verletzt.
-  fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext);
+  fprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext);
   return
 end
 if Set.general.matfile_verbosity > 2
@@ -73,7 +73,7 @@ if Set.optimization.constraint_obj(4) % NB für Kondition gesetzt
     fval = 1e5*(1+9*fval_cond/1e3); % normiert auf 1e5 bis 1e6
     cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
     constrvioltext = sprintf('Konditionszahl ist zu schlecht: %1.1e > %1.1e', f_cond1, Set.optimization.constraint_obj(4));
-    fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext);
+    fprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext);
     return
   end
 end
@@ -105,7 +105,7 @@ if any(strcmp(Set.optimization.objective, {'energy', 'mass', 'minactforce'}))
       fval = fval_desopt; % Wert ist bereits im Bereich 1e3...1e5
       cds_fitness_debug_plot_robot(R, zeros(R.NJ,1), Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
       constrvioltext = 'Verletzung der Nebenbedingungen in Entwurfsoptimierung';
-      fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext);
+      fprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext);
       return
     end
   end
@@ -147,5 +147,5 @@ elseif strcmp(Set.optimization.objective, 'minactforce')
 else
   error('Zielfunktion "%s" nicht definiert', Set.optimization.objective{1});
 end
-fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. Erfolgreich. %s.\n', toc(t1), fval, fval_debugtext);
+fprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. Erfolgreich. %s.\n', toc(t1), fval, fval_debugtext);
 cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval, debug_info);

@@ -260,7 +260,7 @@ if fval == 0 && any(Set.optimization.constraint_obj)
 end
 if fval > 1000 % Nebenbedingungen verletzt.
   if Set.general.verbosity > 3
-    fprintf('[desopt] DesOpt-Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext);
+    fprintf('[desopt/fitness] DesOpt-Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext);
   end
   return
 end
@@ -286,6 +286,6 @@ else
   error('Andere Zielfunktion als Masse noch nicht implementiert');
 end
 if Set.general.verbosity >3
-  fprintf('[desopt] DesOpt-Fitness-Evaluation in %1.1fs. Parameter: [%s]. fval=%1.3e. Erfolgreich. %s.\n', ...
+  fprintf('[desopt/fitness] DesOpt-Fitness-Evaluation in %1.1fs. Parameter: [%s]. fval=%1.3e. Erfolgreich. %s.\n', ...
     toc(t1), disp_array(p_desopt', '%1.3f'), fval, fval_debugtext);
 end
