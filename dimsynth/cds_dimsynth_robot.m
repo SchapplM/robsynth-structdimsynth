@@ -15,6 +15,11 @@
 % TODO:
 % * Namen der Optimierungsparameter
 
+% Quellen:
+% [SchapplerTapOrt2019] Schappler, M. and Tappe, S., Ortmaier, T.:
+% Exploiting Dynamics Parameter Linearity for Design Optimization in
+% Combined Structural and Dimensional Robot Synthesis (2019)
+
 function RobotOptRes = cds_dimsynth_robot(Set, Traj, Structure)
 %% Debug: 
 if Set.general.matfile_verbosity > 0
@@ -45,7 +50,12 @@ elseif Structure.Type == 2 % Parallel
   end
   R = parroblib_create_robot_class(Structure.Name, p_base(:), p_platform(:));
   NLEG = R.NLEG;
-  R.DynPar.mode = 4; % Benutze Minimalparameter-Dynamikfunktionen für die PKM
+  if Set.optimization.use_desopt && Set.optimization.desopt_link_yieldstrength
+    R.DynPar.mode = 3; % Benutze Inertialparameter-Dynamik, weil auch Schnittkräfte in Regressorform berechnet werden
+  else
+    R.DynPar.mode = 4; % Benutze Minimalparameter-Dynamikfunktionen für die PKM
+  end
+  R.update_dynpar1(R.DynPar.mges, R.DynPar.rSges, R.DynPar.Icges); % Nochmal initialisieren, damit MPV definiert ist
 else
   error('Typ-Nummer nicht definiert');
 end
@@ -90,9 +100,14 @@ for i = 1:NLEG
     end
   end
   % Dynamikparameter setzen
-  R_init.DynPar.mode = 4; % Benutze Minimalparameter-Dynamikfunktionen
+  if Set.optimization.use_desopt && Set.optimization.desopt_link_yieldstrength
+    R_init.DynPar.mode = 3; % Benutze Inertialparameter-Dynamik, weil auch Schnittkräfte in Regressorform berechnet werden
+  else
+    R_init.DynPar.mode = 4; % Benutze Minimalparameter-Dynamikfunktionen
+  end
   R_init.DesPar.joint_type((1:R.NJ)'==1&R.MDH.sigma==1) = 4; % Linearführung erste Achse
   R_init.DesPar.joint_type((1:R.NJ)'~=1&R.MDH.sigma==1) = 5; % Schubzylinder weitere Achse
+  R_init.update_dynpar1(); % Nochmal initialisieren, damit MPV definiert ist
 end
 % Merke die ursprünglich aus der Datenbank geladene EE-Rotation. Die in der
 % Optimierung ergänzte Rotation ist zusätzlich dazu. (Bei 2T1R-Robotern
@@ -113,6 +128,29 @@ end
 %   R.update_base([0;0;0.5*Lref]);
 %   R.update_EE([0;0;-0.5*Lref]);
 % end
+%% Umfang der Berechnungen prüfen: Schnittkraft / Regressorform / Dynamik
+% Schalter zum Berechnen der Dynamik bezogen auf Antriebe
+calc_dyn_act = false;
+% Schalter zum Berechnen der vollständigen Schnittkräfte
+calc_dyn_cut = false;
+% Schalter zur Berechnung der Regressorform der Dynamik; [SchapplerTapOrt2019]
+calc_reg = false;
+
+if any(strcmp(Set.optimization.objective, {'energy', 'minactforce'}))
+  calc_dyn_act = true; % Antriebskraft für Zielfunktion benötigt
+end
+if any(Set.optimization.constraint_obj(2:3)) % Energie oder Antriebskraft
+  calc_dyn_act = true; % Antriebskraft für Nebenbedingung benötigt
+end
+if Set.optimization.use_desopt
+  calc_reg = true; % Entwurfsoptimierung besser mit Regressor
+end
+if Set.optimization.desopt_link_yieldstrength
+  calc_dyn_cut = true; % Schnittkraft für Segmentauslegung benötigt
+end
+Structure.calc_dyn_act = calc_dyn_act;
+Structure.calc_reg = calc_reg;
+Structure.calc_dyn_cut = calc_dyn_cut;
 %% Optimierungsparameter festlegen
 nvars = 0; vartypes = []; varlim = [];
 

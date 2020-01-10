@@ -50,7 +50,7 @@ cds_update_robot_parameters(R, Set, Structure, p);
 Traj_0 = cds_rotate_traj(Traj_W, R.T_W_0);
 
 %% Nebenbedingungen prüfen
-[fval_constr,Q,QD,QDD,Jinv_ges,JinvD_ges,constrvioltext] = cds_constraints(R, Traj_0, Traj_W, Set, Structure);
+[fval_constr,Q,QD,QDD,Jinv_ges,constrvioltext] = cds_constraints(R, Traj_0, Traj_W, Set, Structure);
 fval = fval_constr*10; % Erhöhung, damit später kommende Funktionswerte aus Entwurfsoptimierung kleiner sein können
 cds_fitness_debug_plot_robot(R, zeros(R.NJ,1), Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
 if fval_constr > 1000 % Nebenbedingungen verletzt.
@@ -78,7 +78,10 @@ if any(strcmp(Set.optimization.objective, {'energy', 'mass', 'minactforce'}))
   if ~Set.optimization.use_desopt
     cds_dimsynth_design(R, Q, Set, Structure);
   else
-    fval_desopt = cds_dimsynth_desopt(R, Traj_0, Q, QD, QDD, Jinv_ges, JinvD_ges, Set, Structure);
+    % Berechne Dynamik-Funktionen als Regressorform für die Entwurfsopt.
+    data_dyn = cds_obj_dependencies(R, Traj_0, Set, Structure, Q, QD, QDD, Jinv_ges);
+    
+    fval_desopt = cds_dimsynth_desopt(R, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn, Set, Structure);
     if fval_desopt > 1e5
       warning('Ein Funktionswert > 1e5 ist nicht für Entwurfsoptimierung vorgesehen');
     end
@@ -97,11 +100,15 @@ end
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_fitness_3.mat'));
 
 %% Berechnungen für Zielfunktionen
-output = cds_obj_dependencies(R, Traj_0, Set, Q, QD, QDD, Jinv_ges,JinvD_ges);
+if ~Structure.calc_reg
+  output = cds_obj_dependencies(R, Traj_0, Set, Structure, Q, QD, QDD, Jinv_ges);
+else
+  % Dynamik nochmal mit Regressorform mit neuen Dynamikparameter berechnen
+  output = cds_obj_dependencies_regmult(R, Set, data_dyn);
+end
 if any(strcmp(Set.optimization.objective, {'energy', 'minactforce'}))
   TAU = output.TAU;
 end
-
 %% Zielfunktion berechnen
 if strcmp(Set.optimization.objective, 'valid_act')
   [fval,fval_debugtext, debug_info] = cds_obj_valid_act(R, Set, Jinv_ges);

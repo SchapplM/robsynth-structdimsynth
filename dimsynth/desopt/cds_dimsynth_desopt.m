@@ -11,8 +11,6 @@
 %   Zeilenweise (inverse) Jacobi-Matrizen des Roboters (für PKM). Bezogen
 %   auf vollständige Gelenkgeschwindigkeiten und Plattform-Geschw. (in
 %   x-Koordinaten, nicht: Winkelgeschwindigkeit)
-% JinvD_ges
-%   Zeitableitung von Jinvges
 % Set
 %   Einstellungen des Optimierungsalgorithmus
 % Structure
@@ -30,7 +28,7 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function fval = cds_dimsynth_desopt(R, Traj_0, Q, QD, QDD, Jinv_ges, JinvD_ges, Set, Structure)
+function fval = cds_dimsynth_desopt(R, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn, Set, Structure)
 t1 = tic();
 if Set.general.matfile_verbosity > 2
 save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt1.mat'));
@@ -68,18 +66,45 @@ InitPop(1,:) = varlim(:,1); % kleinste Werte
 InitPop(2,:) = varlim(:,2); % größte Werte
 options_desopt.InitialSwarmMatrix = InitPop;
 % Erstelle die Fitness-Funktion und führe sie einmal zu testzwecken aus
-fitnessfcn_desopt=@(p_desopt)cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, JinvD_ges, Structure, p_desopt(:));
+fitnessfcn_desopt=@(p_desopt)cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn, Structure, p_desopt(:));
+
+% Prüfe, ob eine Entwurfsoptimierung sinnvoll ist
+tic();
+fval_minpar = fitnessfcn_desopt(InitPop(1,:)');
+T2 = toc();
+avoid_optimization = false;
+if Set.optimization.desopt_link_yieldstrength && fval_minpar<1e3
+  % Das schwächste Segment erfüllt alle Nebenbedingungen. Das Ergebnis muss
+  % damit optimal sein (alle Zielfunktionen wollen Stärke minimieren)
+  avoid_optimization = true;
+end
 
 % Für Profiler: `for i=1:10,fitnessfcn_desopt(InitPop(1,:)'); end`
 if Set.general.matfile_verbosity > 3
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt2.mat'));
 end
+% Debug:
+% load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt2.mat'));
 %% Optimierung der Entwurfsparameter durchführen
-[p_val,fval,~,output] = particleswarm(fitnessfcn_desopt,nvars,varlim(:,1),varlim(:,2),options_desopt);
-if fval < 1000
-  detailstring = sprintf('Lösung gefunden (fval=%1.1f)', fval);
+if ~avoid_optimization
+  if Set.general.verbosity > 2
+    fprintf('Führe Entwurfsoptimierung durch. Dauer für eine Zielfunktionsauswertung: %1.1fs. Max. Dauer für Optimierung: %1.1fs (%d Iterationen, %d Individuen)\n', ...
+      T2, NumIndividuals*(options_desopt.MaxIter+1)*T2, NumIndividuals, options_desopt.MaxIter);
+  end
+  [p_val,fval,~,output] = particleswarm(fitnessfcn_desopt,nvars,varlim(:,1),varlim(:,2),options_desopt);
+  if fval < 1000
+    detailstring = sprintf('Lösung gefunden (fval=%1.1f)', fval);
+  else
+    detailstring = sprintf('Keine zulässige Lösung gefunden (fval=%1.1e)', fval);
+  end
 else
-  detailstring = sprintf('Keine zulässige Lösung gefunden (fval=%1.1e)', fval);
+  % Es wurde oben festgestellt, das die schwächstmögliche Dimensionierung
+  % bereits optimal hinsichtlich der gewählten Zielfunktion+Nebenbedingung
+  % ist
+  p_val = InitPop(1,:)';
+  fval = fval_minpar;
+  output = struct('iterations', 0, 'funccount', 0);
+  detailstring = sprintf('Keine Optimierung notwendig aufgrund der Definition des Optimierungsproblems (fval=%1.1f)', fval);
 end
 I_bordersol = any(repmat(p_val(:),1,2) == varlim,2); % Prüfe, ob Endergebnis eine Parameterraumgrenze darstellt
 if any(I_bordersol)
@@ -98,11 +123,12 @@ return
 %% Debug
 
 % Zeichne Verlauf der Fitness-Funktion
-fval_grid = NaN(20,20); %#ok<UNRCH>
-p1_grid = linspace(varlim(1,1), varlim(1,2), 20)
-p2_grid = linspace(varlim(2,1), varlim(2,2), 20)
-for i = 1:20
-  for j = 1:20
+np1 = 8; np2 = 8; %#ok<UNRCH>
+fval_grid = NaN(np1,np2);
+p1_grid = linspace(varlim(1,1), varlim(1,2), np1)
+p2_grid = linspace(varlim(2,1), varlim(2,2), np2)
+for i = 1:np1
+  for j = 1:np2
     p_ij = [p1_grid(i); p2_grid(j)];
     fval_grid(i,j) = fitnessfcn_desopt(p_ij);
   end
