@@ -78,7 +78,7 @@ else % PKM
     f_distviol_norm = 2/pi*atan((f_legtooshort)); % 1->0.5; 10->0.94
     %  normiere auf 1e8 bis 1e9
     fval = 1e8*(1+9*f_distviol_norm);
-    constrvioltext = sprintf('Beinkette zu kurz für Plattform. Es fehlen max. %1.2fm.', l_legtooshort);
+    constrvioltext = sprintf('Beinkette mit max. Länge %1.2fm zu kurz für Plattform. Es fehlen max. %1.2fm.', l_max_leg, l_legtooshort);
     return
   end
 end
@@ -114,7 +114,8 @@ else % PKM
     f_distviol_norm = 2/pi*atan((f_distviol)); % 1->0.5; 10->0.94
     %  normiere auf 1e7 bis 1e8
     fval = 1e7*(1+9*f_distviol_norm);
-    constrvioltext = sprintf('Beinkette zu kurz für Bahnpunkte. Es fehlen max. %1.2fm.', -min(dist_exc_tot(:)));
+    constrvioltext = sprintf('Beinkette mit max. Länge %1.2fm zu kurz für Bahnpunkte. Es fehlen max. %1.2fm.', ...
+      l_max_leg, -min(dist_exc_tot(:)));
     return
   end
 end

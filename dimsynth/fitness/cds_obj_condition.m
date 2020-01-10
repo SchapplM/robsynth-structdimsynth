@@ -25,11 +25,13 @@
 %   Zeile mit Hinweistext, der bei PSO nach Fitness-Berechnung ausgegeben wird
 % debug_info [cell]
 %   Zusatz-Informationen, die im Debug-Bild des Roboters angezeigt werden
+% f_cond1
+%   Maximale Konditionszahl der Jacobi-Matrix
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-10
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function [fval, fval_debugtext, debug_info] = cds_obj_condition(R, Set, Structure, Jinvges, Traj_0, Q, QD)
+function [fval, fval_debugtext, debug_info, f_cond1] = cds_obj_condition(R, Set, Structure, Jinvges, Traj_0, Q, QD)
 debug_info = {};
 
 % Berechne Konditionszahl über Trajektorie
