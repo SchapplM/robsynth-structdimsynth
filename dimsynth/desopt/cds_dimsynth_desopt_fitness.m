@@ -24,7 +24,9 @@
 %   Verletzung von Nebenbedingungen oder Wert der Zielfunktion (je nachdem)
 %   Werte:
 %   0...1e3: gewählte Zielfunktion
-%   1e3...1e4: Überschreitung Belastungsgrenze der Segmente
+%   1e3...1e4: Nebenbedingung von Zielfunktion überschritten
+%   1e4...1e5: Überschreitung Belastungsgrenze der Segmente
+%   1e8...1e9: Unplausible Eingabe (Radius vs Wandstärke)
 % 
 % Siehe auch: cds_fitness.m
 
@@ -44,17 +46,20 @@ fval = 0;
 
 %% Plausibilität der Eingabe prüfen
 if p_desopt(1) > p_desopt(2)/2 % Wandstärke darf nicht größer als Radius sein
-  p_desopt(1) = p_desopt(2)/2;
-  fval = 1e8;
-  constrvioltext = 'Radius ist kleiner als Wandstärke';
+  f_wall_vs_rad = (p_desopt(1) - p_desopt(2)/2)/p_desopt(2); % Grad der Überschreitung
+  f_wall_vs_rad_norm = 2/pi*atan(f_wall_vs_rad); % 50% -> 0.3
+  fval = 1e8*(1+9*f_wall_vs_rad_norm); % Normierung auf 1e8...1e9
+  constrvioltext = sprintf('Radius (%1.1fmm) ist kleiner als Wandstärke (%1.1fmm)', ...
+    1e3*p_desopt(2)/2, 1e3*p_desopt(1));
 end
 
 %% Dynamikparameter aktualisieren
 % Trage die Dynamikparameter
-cds_dimsynth_design(R, Q, Set, Structure, p_desopt);
-
+if fval == 0
+  cds_dimsynth_design(R, Q, Set, Structure, p_desopt);
+end
 %% Dynamik neu berechnen
-if Structure.calc_reg
+if fval == 0 && Structure.calc_reg
   % Abhängigkeiten neu berechnen (Dynamik)
   data_dyn = cds_obj_dependencies_regmult(R, Set, data_dyn_reg);
   if Set.general.debug_calc
@@ -72,9 +77,8 @@ if Structure.calc_reg
   end
 end
 
-%% Nebenbedingungen der Entwurfsvariablen berechnen
-% TODO: Festigkeit der Segmente, Grenzen der Antriebe
-if Set.optimization.desopt_link_yieldstrength
+%% Nebenbedingungen der Entwurfsvariablen berechnen: Festigkeit der Segmente
+if fval == 0 && Set.optimization.desopt_link_yieldstrength
   % Konstanten, Definitionen
   % Dehngrenze von Aluminium-Legierung. Quellen:
   % https://de.wikipedia.org/wiki/Streckgrenze
@@ -88,6 +92,7 @@ if Set.optimization.desopt_link_yieldstrength
   end
   f_yieldstrength = NaN(7,NLEG);
   sigma_ges_alle = NaN(NLEG, NL, length(Traj_0.t));
+  I_sigma_exc = 0;
   for i = 1:NLEG
     % Schnittkräfte dieser Beinkette
     if Structure.Type == 0
@@ -119,14 +124,16 @@ if Set.optimization.desopt_link_yieldstrength
       sigma_ges = F_eff_ges/A0 + M_eff_ges/W;
       % Maximale Spannung ist maßgeblich für die Festigkeitsuntersuchung
       % Quelle: Gross, Hauger, TM2 (Elastostatik), S. 163
-      sigma_max = max(sigma_ges);
+      [sigma_max, I_max_ij] = max(sigma_ges);
       % TODO: Momente in "Balkenrichtung" umrechnen und komplexere Formel
       %       nehmen (Aufteilung in Biegespannung und Torsionsspannung),
       %       Vergleichsspannung z.B. nach von Mises
       % Prüfe, ob Vergleichsspannung größer als Streckgrenze/Dehngrenze ist
       f_yieldstrength(j,i) = sigma_max/R_e;
       
+      % Speichere zusätzliche Informationen zum Erstellen der Bilder
       sigma_ges_alle(i,j,:) = sigma_ges;
+      if f_yieldstrength(j,i) >= max(f_yieldstrength(:)), I_sigma_exc = I_max_ij; end
     end
   end
   % Prüfe, ob für ein Segment die Materialspannung überschritten wurde
@@ -134,13 +141,14 @@ if Set.optimization.desopt_link_yieldstrength
     f_maxstrengthviol = max(f_yieldstrength(:));
     % Normiere auf Wert zwischen 0 und 1
     f_maxstrengthviol_norm = 2/pi*atan(f_maxstrengthviol-1); % 1->0; 10->0.93
-    fval = 1e3*(1+9*f_maxstrengthviol_norm); % Normiere in Bereich 1e3...1e4
+    fval = 1e4*(1+9*f_maxstrengthviol_norm); % Normiere in Bereich 1e4...1e5
     constrvioltext = sprintf('Materialbelastungsgrenze überschritten (%d/%d mal; max Faktor %1.1f)', ...
       sum(f_yieldstrength(:)>1), length(f_yieldstrength(:)), f_maxstrengthviol);
   end
   
   %% Debug-Plot für Schnittkräfte
-  if fval < Set.general.plot_details_in_desopt
+  if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_details_in_desopt) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
+     Set.general.plot_details_in_desopt > 0 && fval <= abs(Set.general.plot_details_in_desopt) % Gütefunktion ist besser als Schwellwert: Zeichne
     if R.Type == 0 % Seriell
     else % PKM
       % Zeichne Materialspannungen (maßgeblich für Auslegung)
@@ -220,6 +228,17 @@ if Set.optimization.desopt_link_yieldstrength
       ylabel('Kondition Antriebe');
       linkxaxes
       sgtitle('Eigenschaften der Jacobi-Matrix');
+    
+      % Zeichne den Roboter in einer kritischen Konfiguration
+      change_current_figure(1997);clf;
+      set(1997, 'Name', 'Robot_YieldStrength', 'NumberTitle', 'off');
+      view(3);
+      axis auto
+      hold on;grid on;
+      xlabel('x in m');ylabel('y in m');zlabel('z in m');
+      s_plot = struct( 'ks_legs', [1,2], 'straight', 0, 'mode', 4);
+      R.plot( Q(I_sigma_exc,:)', Traj_0.X(I_sigma_exc,:)', s_plot);
+      sgtitle('CAD-Modell bei max. Überschreitung der Belastungsgrenze');
     end
   end
 end
@@ -231,18 +250,17 @@ if fval == 0 && any(Set.optimization.constraint_obj)
     viol_rel = (fphys - Set.optimization.constraint_obj(1))/Set.optimization.constraint_obj(1);
     if viol_rel > 0
       f_massvio_norm = 2/pi*atan((viol_rel)); % 1->0.5; 10->0.94
-      fval = 1e4*(1+9*f_massvio_norm);
+      fval = 1e3*(1+9*f_massvio_norm); % 1e3 ... 1e4
       constrvioltext = sprintf('Masse ist zu groß (%1.1f > %1.1f)', fphys, Set.optimization.constraint_obj(1));
-    elseif Set.general.verbosity > 3
-      fprintf('fval = %1.3e. Masse i.O. (%1.1f < %1.1f)\n', fval, fphys, Set.optimization.constraint_obj(1));
     end
-  elseif any(Set.optimization.constraint_obj)
+  end
+  if any(Set.optimization.constraint_obj([2 3]))
     error('Grenzen für andere Zielfunktionen als die Masse noch nicht implementiert');
   end
 end
 if fval > 1000 % Nebenbedingungen verletzt.
   if Set.general.verbosity > 3
-    fprintf('DesOpt-Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext);
+    fprintf('[desopt] DesOpt-Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext);
   end
   return
 end
@@ -268,6 +286,6 @@ else
   error('Andere Zielfunktion als Masse noch nicht implementiert');
 end
 if Set.general.verbosity >3
-  fprintf('DesOpt-Fitness-Evaluation in %1.1fs. Parameter: [%s]. fval=%1.3e. Erfolgreich. %s.\n', ...
+  fprintf('[desopt] DesOpt-Fitness-Evaluation in %1.1fs. Parameter: [%s]. fval=%1.3e. Erfolgreich. %s.\n', ...
     toc(t1), disp_array(p_desopt', '%1.3f'), fval, fval_debugtext);
 end

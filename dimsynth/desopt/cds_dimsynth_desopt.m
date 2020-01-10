@@ -60,6 +60,9 @@ end
 options_desopt.SwarmSize = NumIndividuals;
 InitPop = repmat(varlim(:,1)', NumIndividuals,1) + rand(NumIndividuals, nvars) .* ...
                         repmat(varlim(:,2)'-varlim(:,1)',NumIndividuals,1);
+% Wähle nur plausible Anfangswerte
+I_unplaus = InitPop(:,1) > InitPop(:,2)/2;
+InitPop(I_unplaus,1) = InitPop(I_unplaus,2)/2; % Setze auf Vollmaterial
 % Setze minimale und maximale Werte direkt ein (da diese oft das Optimum
 % darstellen, wenn keine einschränkenden Nebenbedingungen gesetzt sind)
 InitPop(1,:) = varlim(:,1); % kleinste Werte
@@ -75,7 +78,7 @@ T2 = toc();
 avoid_optimization = false;
 if Set.optimization.desopt_link_yieldstrength && fval_minpar<1e3
   % Das schwächste Segment erfüllt alle Nebenbedingungen. Das Ergebnis muss
-  % damit optimal sein (alle Zielfunktionen wollen Stärke minimieren)
+  % damit optimal sein (alle Zielfunktionen wollen Materialstärke minimieren)
   avoid_optimization = true;
 end
 
