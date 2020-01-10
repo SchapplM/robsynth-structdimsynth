@@ -214,12 +214,10 @@ Structure.Ipkinrel = Ipkinrel;
 % bezogen auf die Skalierung. Die Position des Roboters ist nur in einigen
 % Fällen in Bezug zur Roboterskalierung (z.B. z-Komponente bei hängendem
 % Roboter, Entfernung bei seriellem Roboter)
-Structure.xT_mean = NaN(3,1);
+
+% Berechne Mittelpunkt der Aufgabe
+Structure.xT_mean = mean(minmax2(Traj.X(:,1:3)'), 2);
 if Set.optimization.movebase
-  % Berechne Mittelpunkt der Aufgabe
-  xT_mean = mean(minmax2(Traj.X(:,1:3)')')';
-  Structure.xT_mean = xT_mean;
-  
   nvars = nvars + sum(Set.structures.DoF(1:3)); % Verschiebung um translatorische FG der Aufgabe
   vartypes = [vartypes; 2*ones(sum(Set.structures.DoF(1:3)),1)];
   if Structure.Type == 0 % Seriell
@@ -241,16 +239,18 @@ if Set.optimization.movebase
 else
   % Setze Standard-Werte für Basis-Position fest
   if Structure.Type == 0 % Seriell
-    % TODO: Stelle den seriellen Roboter vor die Aufgabe
-    r_W_0 = [-0.4*Lref;-0.4*Lref;0];
+    % Stelle den seriellen Roboter vor die Aufgabe
+    r_W_0 = Structure.xT_mean + [-0.4*Lref;-0.4*Lref;0];
     if Set.structures.DoF(3) == 1
       r_W_0(3) = -0.7*Lref; % Setze Roboter-Basis etwas unter die Aufgabe
     end
   else % Parallel
     r_W_0 = zeros(3,1);
     if Set.structures.DoF(3) == 1
-      r_W_0(3) = -0.7*Lref; % Setze Roboter mittig unter die Aufgabe (besser sichtbar)
+      r_W_0(3) = Structure.xT_mean(3)-0.7*Lref; % Setze Roboter mittig unter die Aufgabe (besser sichtbar)
     end
+    % In der xy-Ebene liegt der Roboter in der Mitte der Aufgabe
+    r_W_0(1:2) = Structure.xT_mean(1:2);
   end
   R.update_base(r_W_0);
 end
