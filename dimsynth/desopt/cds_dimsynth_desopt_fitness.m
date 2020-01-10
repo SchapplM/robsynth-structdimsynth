@@ -143,6 +143,7 @@ if Set.optimization.desopt_link_yieldstrength
   if fval < Set.general.plot_details_in_desopt
     if R.Type == 0 % Seriell
     else % PKM
+      % Zeichne Materialspannungen (maßgeblich für Auslegung)
       change_current_figure(1999);clf;
       set(1999, 'Name', 'Materialspannung', 'NumberTitle', 'off');
       sphdl = NaN(NLEG, NL);
@@ -158,46 +159,67 @@ if Set.optimization.desopt_link_yieldstrength
       sgtitle('Materialspannung (N/mm²)');
       linkxaxes
       remove_inner_labels(sphdl,1); 
-      for fm = [0 1]
+      
+      % Zeichne Schnittkräfte
+      for fm = [0 1] % Schnittkräfte (0) und -momente (1)
+        % Bild initialisieren
         change_current_figure(2000+fm);clf;
-        if fm == 0
-          set(2000+fm, 'Name', 'Schnittkräfte_Beine', 'NumberTitle', 'off');
-        else
-          set(2000+fm, 'Name', 'Schnittmoment_Beine', 'NumberTitle', 'off');
-        end
+        if fm == 0, set(2000+fm, 'Name', 'Schnittkräfte', 'NumberTitle', 'off');
+        else, set(2000+fm, 'Name', 'Schnittmoment', 'NumberTitle', 'off'); end
         sphdl=NaN(R.Leg(1).NL, R.NLEG);
         for k = 1:R.NLEG % Beine in den Spalten des Bildes
           % Vektor der Schnittkräfte für aktuelles Bein extrahieren
           W_k = squeeze(data_dyn.Wges(k,:,:))';
           for j = 1:R.Leg(1).NL % Beingelenke in den Zeilen des Bildes
-            % Indizes zur Auswahl der Kräfte und Momente in den Gesamtdaten
-            IIfm = ((j-1)*6+1:(j-1)*6+3);
-            if fm ==1, IIfm = IIfm+3; end
-            % Betrag bilden
-            fmnorm_ges_jk = sum(W_k(:,IIfm).^2,2).^0.5;
+            % Kräfte und Momente in den Gesamtdaten extrahieren
+            if fm == 0, fmnorm_ges_jk = sqrt(sum(W_k(:,3*(j-1)+(1:3)).^2,2)); % s.o.
+            else, fmnorm_ges_jk = sqrt(sum(W_k(:,Rob.NL*3+3*(j-1)+(1:3)).^2,2)); end
             % Plotten
             sphdl(j,k)=subplot(size(sphdl,1),size(sphdl,2),sprc2no(size(sphdl,1),size(sphdl,2),j,k)); hold on;
-            plot(Traj_0.t, [W_k(:,IIfm), fmnorm_ges_jk]);
+            plot(Traj_0.t, fmnorm_ges_jk);
             % Formatierung
             grid on;
-            if j == 1
-              title(sprintf('Beinkette %d', k));
-            end
-            if k == 1
-              ylabel(sprintf('Seg. %d', j-1));
-            end
-            if k == R.NLEG && j == R.Leg(1).NL
-              if fm == 0
-                legend({'fx', 'fy', 'fz', 'norm'});
-              else
-                legend({'mx', 'my', 'mz', 'norm'});
-              end
-            end
+            if j == 1, title(sprintf('Beinkette %d', k)); end
+            if k == 1, ylabel(sprintf('Seg. %d', j-1)); end
           end
         end
+        if fm == 0,     sgtitle('Schnittkräfte (Betrag)');
+        elseif fm == 1, sgtitle('Schnittmomente (Betrag)'); end
         linkxaxes
         remove_inner_labels(sphdl,1); 
       end
+      
+      % Zeichne Verlauf der Konditionszahl, zur Einordnung, ob
+      % Überschreitung aufgrund von Singularität auftritt
+      % Berechne Konditionszahl für alle Punkte der Bahn
+      Jdet_all = NaN(length(Traj_0.t), NLEG+1); % Determinanten
+      Jcond_all = Jdet_all; % Konditionszahlen
+      for i = 1:length(Traj_0.t)
+        Jinv_IK = reshape(Jinv_ges(i,:), R.NJ, sum(R.I_EE));
+        for k = 1:NLEG
+          Jinv_IK_k = Jinv_IK(R.I1J_LEG(k):R.I2J_LEG(k),:);
+          Jdet_all(i,k) = log10(abs(det(Jinv_IK_k)));
+          Jcond_all(i,k) = cond(Jinv_IK_k);
+        end
+        Jdet_all(i,end) = log10(abs(det(Jinv_IK(R.I_qa,:))));
+        Jcond_all(i,end) = cond(Jinv_IK(R.I_qa,:));
+      end
+      change_current_figure(1998);clf;
+      set(1998, 'Name', 'Jacobi', 'NumberTitle', 'off');
+      subplot(2,2,1);
+      plot(Traj_0.t, Jdet_all(:,1:NLEG)); grid on;
+      ylabel('Log-Determinante Beinketten');
+      subplot(2,2,2);
+      plot(Traj_0.t, Jdet_all(:,end)); grid on;
+      ylabel('Log-Determinante Antriebe');
+      subplot(2,2,3);
+      plot(Traj_0.t, Jcond_all(:,1:NLEG)); grid on;
+      ylabel('Kondition Beinketten');
+      subplot(2,2,4);
+      plot(Traj_0.t, Jcond_all(:,end)); grid on;
+      ylabel('Kondition Antriebe');
+      linkxaxes
+      sgtitle('Eigenschaften der Jacobi-Matrix');
     end
   end
 end
