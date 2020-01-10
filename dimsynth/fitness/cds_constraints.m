@@ -38,7 +38,7 @@
 function [fval,Q,QD,QDD,Jinv_ges,constrvioltext] = cds_constraints(R, Traj_0, Traj_W, Set, Structure)
 fval = 1e3;
 constrvioltext = '';
-Q = [];
+Q = NaN(1,R.NJ);
 QD = [];
 QDD = [];
 Jinv_ges = [];
@@ -179,6 +179,7 @@ if any(abs(Phi_E(:)) > 1e-2) % Die Toleranz beim IK-Verfahren ist etwas größer
   % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
   constrvioltext = sprintf(['Keine IK-Konvergenz in Eckwerten. Untersuchte Eckpunkte: %d/%d. ', ...
     'Durchschnittliche ZB-Verl. %1.2f'], size(Traj_0.XE,1)-i+1,size(Traj_0.XE,1), f_PhiE);
+  Q = QE; % Ausgabe dient nur zum Zeichnen des Roboters
   return
 end
 
@@ -219,6 +220,7 @@ if any(I_qlimviol_E)
     grid on;
     sgtitle(sprintf('Auswertung Grenzverletzung AR-Eckwerte. fval=%1.2e', fval));
   end
+  Q = QE; % Ausgabe dient nur zum Zeichnen des Roboters
   return
 end
 if Set.general.matfile_verbosity > 2

@@ -52,7 +52,7 @@ Traj_0 = cds_rotate_traj(Traj_W, R.T_W_0);
 %% Nebenbedingungen prüfen
 [fval_constr,Q,QD,QDD,Jinv_ges,constrvioltext] = cds_constraints(R, Traj_0, Traj_W, Set, Structure);
 fval = fval_constr*10; % Erhöhung, damit später kommende Funktionswerte aus Entwurfsoptimierung kleiner sein können
-cds_fitness_debug_plot_robot(R, zeros(R.NJ,1), Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
+cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
 if fval_constr > 1000 % Nebenbedingungen verletzt.
   fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext);
   return
@@ -87,6 +87,7 @@ if any(strcmp(Set.optimization.objective, {'energy', 'mass', 'minactforce'}))
     end
     if fval_desopt > 1000 % Nebenbedingungen in Entwurfsoptimierung verletzt.
       fval = fval_desopt;
+      cds_fitness_debug_plot_robot(R, zeros(R.NJ,1), Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
       constrvioltext = 'Verletzung der Nebenbedingungen in Entwurfsoptimierung';
       fprintf('Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext);
       return

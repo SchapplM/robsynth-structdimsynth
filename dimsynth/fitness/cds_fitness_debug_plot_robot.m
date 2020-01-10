@@ -25,11 +25,14 @@
 
 function cds_fitness_debug_plot_robot(R, q, Traj_0, Traj_W, Set, Structure, p, fval, debug_info)
 % Zeichne den Roboter für den aktuellen Parametersatz.
-if Set.general.plot_robot_in_fitness < 0 && fval > abs(Set.general.plot_robot_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
-   Set.general.plot_robot_in_fitness > 0 && fval < abs(Set.general.plot_robot_in_fitness) % Gütefunktion ist besser als Schwellwert: Zeichne
+if Set.general.plot_robot_in_fitness < 0 && fval >= abs(Set.general.plot_robot_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
+   Set.general.plot_robot_in_fitness > 0 && fval <= abs(Set.general.plot_robot_in_fitness) % Gütefunktion ist besser als Schwellwert: Zeichne
   % Zeichnen fortsetzen
 else 
   return
+end
+if isempty(q) || any(isnan(q))
+  q = zeros(R.NJ,1);
 end
 tt = '';
 for i = 1:length(debug_info), tt = [tt, newline(), debug_info{i}]; end %#ok<AGROW>
