@@ -238,6 +238,9 @@ if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
     [Q, QD, QDD, PHI] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
     Jinv_ges = NaN; % Platzhalter für gleichartige Funktionsaufrufe. Speicherung nicht sinnvoll für seriell.
   else % PKM
+    % Nutze vereinfachte Formel für Beschleunigungsberechnung zur Rechen-
+    % zeitersparnis
+    s.simplify_acc = true;
     [Q, QD, QDD, PHI, Jinv_ges] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
   end
   % Speichere die Anfangs-Winkelstellung in der Roboterklasse für später
