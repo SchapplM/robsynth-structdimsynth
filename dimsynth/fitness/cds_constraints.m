@@ -233,7 +233,7 @@ end
 %% Inverse Kinematik der Trajektorie berechnen
 if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
   % s = struct('debug', true, 'retry_limit', 1);
-  s = struct('normalize', false, 'retry_limit', 10, 'n_max', 10000);
+  s = struct('normalize', false, 'retry_limit', 5, 'n_max', 1000);
   if R.Type == 0 % Seriell
     [Q, QD, QDD, PHI] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
     Jinv_ges = NaN; % Platzhalter für gleichartige Funktionsaufrufe. Speicherung nicht sinnvoll für seriell.
