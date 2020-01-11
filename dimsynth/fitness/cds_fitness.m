@@ -71,6 +71,7 @@ if Set.optimization.constraint_obj(4) % NB für Kondition gesetzt
   [fval_cond,fval_debugtext_cond, debug_info_cond, f_cond1] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
   if f_cond1 > Set.optimization.constraint_obj(4)
     fval = 1e5*(1+9*fval_cond/1e3); % normiert auf 1e5 bis 1e6
+    debug_info = {sprintf('Kondition %1.1e > %1.1e', f_cond1, Set.optimization.constraint_obj(4)); debug_info_cond{1}};
     cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
     constrvioltext = sprintf('Konditionszahl ist zu schlecht: %1.1e > %1.1e', f_cond1, Set.optimization.constraint_obj(4));
     fprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext);

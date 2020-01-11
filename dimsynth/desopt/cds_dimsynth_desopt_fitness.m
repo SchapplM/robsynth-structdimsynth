@@ -142,7 +142,7 @@ if fval == 0 && Set.optimization.desopt_link_yieldstrength
     % Normiere auf Wert zwischen 0 und 1
     f_maxstrengthviol_norm = 2/pi*atan(f_maxstrengthviol-1); % 1->0; 10->0.93
     fval = 1e4*(1+9*f_maxstrengthviol_norm); % Normiere in Bereich 1e4...1e5
-    constrvioltext = sprintf('Materialbelastungsgrenze überschritten (%d/%d mal; max Faktor %1.1f)', ...
+    constrvioltext = sprintf('Materialbelastungsgrenze überschritten (%d/%d Prüfungen; max Faktor %1.1f)', ...
       sum(f_yieldstrength(:)>1), length(f_yieldstrength(:)), f_maxstrengthviol);
   end
   

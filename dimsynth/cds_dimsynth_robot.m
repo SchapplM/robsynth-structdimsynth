@@ -32,9 +32,10 @@ end
 % Mittelpunkt der Aufgabe
 Structure.xT_mean = mean(minmax2(Traj.X(:,1:3)'), 2);
 % Charakteristische Länge der Aufgabe (empirisch ermittelt aus der Größe
-% des notwendigen Arbeitsraums und des Abstands der Aufgabe vom Roboter-
-% Basis-KS
-Lref = norm(diff(minmax2(Traj.X(:,1:3)')')) + mean(Structure.xT_mean) / 2;
+% des notwendigen Arbeitsraums)
+Lref = norm(diff(minmax2(Traj.X(:,1:3)')'));
+% Experimentell: Abstand der Aufgabe vom Roboter-Basis-KS
+% Lref = Lref + mean(Structure.xT_mean) / 2;
 Structure.Lref = Lref;
 %% Roboter-Klasse initialisieren
 if Structure.Type == 0 % Seriell
@@ -328,7 +329,7 @@ end
 % Siehe align_base_coupling.m
 if Structure.Type == 2 && Set.optimization.base_morphology
   if R.DesPar.base_method == 1 % keine Parameter bei Kreis
-  elseif R.DesPar.base_method == 4
+  elseif R.DesPar.base_method == 8
     nvars = nvars + 1;
     vartypes = [vartypes; 8];
     varlim = [varlim; [0.2,0.8]]; % Gelenkpaarabstand. Relativ zu Gestell-Radius.

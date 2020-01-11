@@ -50,6 +50,10 @@ else
     Cges(i) = cond(Jinv_IK(R.I_qa,:));
   end
 end
+if Set.optimization.constraint_obj(4)
+  debug_info = {sprintf('Konditionszahl-Grenzwert %d/%d mal überschritten', ...
+    sum(Cges>Set.optimization.constraint_obj(4)), length(Cges))};
+end
 % Schlechtester Wert der Konditionszahl ist Kennzahl
 % Nehme Logarithmus, da Konditionszahl oft sehr groß ist.
 f_cond1 = max(Cges);
