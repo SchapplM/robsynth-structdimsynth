@@ -119,14 +119,27 @@ end
 
 %% Berechnungen für Zielfunktionen
 if ~Structure.calc_reg
-  output = cds_obj_dependencies(R, Traj_0, Set, Structure, Q, QD, QDD, Jinv_ges);
+  data_dyn2 = cds_obj_dependencies(R, Traj_0, Set, Structure, Q, QD, QDD, Jinv_ges);
 else
   % Dynamik nochmal mit Regressorform mit neuen Dynamikparameter berechnen
-  output = cds_obj_dependencies_regmult(R, Set, data_dyn);
+  data_dyn2 = cds_obj_dependencies_regmult(R, Set, data_dyn);
 end
 if any(strcmp(Set.optimization.objective, {'energy', 'minactforce'}))
-  TAU = output.TAU;
+  TAU = data_dyn2.TAU;
 end
+
+%% Nebenbedingungen der Entwurfsvariablen berechnen: Festigkeit der Segmente
+if Set.optimization.desopt_link_yieldstrength && ~Set.optimization.use_desopt
+  [fval_ys, constrvioltext_ys] = cds_constr_yieldstrength(R, Set, data_dyn2, Jinv_ges, Q, Traj_0);
+  if fval_ys > 1e5
+    error('Dieser Fall ist nicht vorgesehen');
+  elseif fval_ys>1e4
+    fval = fval_ys;
+    fprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext_ys);
+    return
+  end
+end
+
 %% Zielfunktion berechnen
 if strcmp(Set.optimization.objective, 'valid_act')
   [fval,fval_debugtext, debug_info] = cds_obj_valid_act(R, Set, Jinv_ges);

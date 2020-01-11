@@ -42,7 +42,10 @@ if Structure.calc_dyn_cut
     [Wges, Wges_reg] = R.internforce_traj(Q, QD, QDD);
   else % PKM
     if Structure.calc_reg % || Set.general.debug_calc
+      % Berechne nur die Regressormatrizen der Schnittkraft
       Wges_reg = R.internforce_regmat_traj(Q, QD, QDD, Traj_0.X, Traj_0.XD, Traj_0.XDD, Jinv_ges);
+    else
+      % Die Schnittkraft für diesen Fall wird ganz unten berechnet
     end
   end
 end
@@ -59,10 +62,9 @@ if Structure.calc_dyn_act
       end
     elseif ~Structure.calc_reg
       % Hole Inverse Dynamik aus den zuvor berechneten Schnittkräften
-      % Dieser Fall kann aber eigentlich nicht eintreten, da immer, wenn
-      % die Schnittkräfte berechnet werden müssen (für Entwurfsoptimierung), 
-      % auch die Regressorform benutzt wird.
-      error('Dieser Fall sollte eigentlich nicht eintreten');
+      I_actjoint = (R.MDH.sigma==1).*(3+(3:3:3*R.NJ))' + ... % Schubgelenke -> Kräfte
+                   (R.MDH.sigma==0).*(6+3*R.NJ+(3:3:3*R.NJ))';% Drehgelenke -> Momente
+      TAU = Wges(:,I_actjoint);
     elseif Set.general.debug_calc
       TAU = R.invdyn2_traj(Q, QD, QDD);
     else
@@ -82,9 +84,9 @@ if Structure.calc_dyn_act
       else
         TAU = R.invdyn2_actjoint_traj(Q, QD, QDD, XE, XED, XEDD, Jinv_ges);
       end
-    elseif ~Structure.calc_reg
-      error('Dieser Fall sollte eigentlich nicht eintreten'); % Begründung s.o.
-    elseif Set.general.debug_calc
+    elseif ~Structure.calc_reg || Set.general.debug_calc
+      % Die Schnittkräfte werden für PKM mit gegebenen Antriebskräften
+      % berechnet (anderer Rechenweg als bei seriellen Robotern)
       TAU = R.invdyn2_actjoint_traj(Q, QD, QDD, XE, XED, XEDD, Jinv_ges);
     else
       % Nichts berechnen. Begründung s.o.
