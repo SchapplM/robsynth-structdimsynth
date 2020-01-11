@@ -60,7 +60,8 @@ if R.Type == 0
   if use_default_link_param
     % Keine Entwurfsoptimierung, nehme die Standardwerte für
     % Segmentparameter (dicke Struktur für seriell)
-    R.DesPar.seg_par = repmat([5e-3, 300e-3], R.NL, 1);
+    % Sollte konsistent mit cds_dimsynth_desopt sein.
+    R.DesPar.seg_par = repmat([5e-3, 80e-3], R.NL, 1);
   else
     % Nehme die Segmentparameter aus Eingabeargument
     R.DesPar.seg_par = repmat([p_desopt(1), p_desopt(2)], R.NL, 1);
@@ -72,10 +73,11 @@ elseif R.Type == 2  % Parallel (symmetrisch)
     % eigentlich nur die Werte der ersten Beinkette für Berechnungen
     % genutzt
     if use_default_link_param
-      % Standardwerte: Dünne Struktur für PKM-Beine
-      R.Leg(i).DesPar.seg_par = repmat([2e-3, 50e-3], R.Leg(1).NL, 1);
+      % Standardwerte: Dünne Struktur für PKM-Beine. Je mehr Beine, desto
+      % mehr wird die Last aufgeteilt. Siehe cds_dimsynth_desopt
+      R.Leg(i).DesPar.seg_par = repmat([5e-3, 80e-3]/(R.NLEG/2), R.Leg(i).NL, 1);
     else
-      R.Leg(i).DesPar.seg_par = repmat([p_desopt(1), p_desopt(2)], R.Leg(1).NL, 1);
+      R.Leg(i).DesPar.seg_par = repmat([p_desopt(1), p_desopt(2)], R.Leg(i).NL, 1);
     end
   end
   if     Structure.Coupling(2) == 1, i_plfthickness = 2; %#ok<ALIGN>
