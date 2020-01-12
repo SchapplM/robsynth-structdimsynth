@@ -98,7 +98,7 @@ if R.Type ~= 0 && (Structure.calc_dyn_cut && ~Structure.calc_reg || Set.general.
   Wges = R.internforce_traj(Q, QD, QDD, TAU);
 end
 
-if ~Structure.calc_reg || Set.general.debug_calc
+if ~Structure.calc_reg && Structure.calc_dyn_act || Set.general.debug_calc
   data_dyn.TAU = TAU;
   if Structure.calc_dyn_cut
     data_dyn.Wges = Wges;

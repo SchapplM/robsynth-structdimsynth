@@ -76,12 +76,26 @@ tic();
 fval_minpar = fitnessfcn_desopt(InitPop(1,:)');
 T2 = toc();
 avoid_optimization = false;
-if Set.optimization.desopt_link_yieldstrength && fval_minpar<1e3
+if Set.optimization.desopt_link_yieldstrength && fval_minpar<1e3 && ...
+  ~strcmp(Set.optimization.objective, 'stiffness') && Set.optimization.constraint_obj(5) == 0
   % Das schwächste Segment erfüllt alle Nebenbedingungen. Das Ergebnis muss
   % damit optimal sein (alle Zielfunktionen wollen Materialstärke minimieren)
+  % Die Steifigkeit wird nicht betrachtet
   avoid_optimization = true;
+  fval_opt = fval_minpar;
+  p_val_opt = InitPop(1,:)';
 end
-
+if ~Set.optimization.desopt_link_yieldstrength && ...
+  (strcmp(Set.optimization.objective, 'stiffness') || Set.optimization.constraint_obj(5) == 0)
+  % Optimierung der Steifigkeit ohne Prüfung der Materialstärke. Die
+  % stärkste Segmentauslegung könnte das Optimum darstellen.
+  fval_maxpar = fitnessfcn_desopt(InitPop(2,:)');
+  if fval_maxpar < 1e3
+    avoid_optimization = true;
+    fval_opt = fval_maxpar;
+    p_val_opt = InitPop(2,:)';
+  end
+end
 % Für Profiler: `for i=1:10,fitnessfcn_desopt(InitPop(1,:)'); end`
 if Set.general.matfile_verbosity > 3
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt2.mat'));
@@ -104,8 +118,8 @@ else
   % Es wurde oben festgestellt, das die schwächstmögliche Dimensionierung
   % bereits optimal hinsichtlich der gewählten Zielfunktion+Nebenbedingung
   % ist
-  p_val = InitPop(1,:)';
-  fval = fval_minpar;
+  p_val = p_val_opt;
+  fval = fval_opt;
   output = struct('iterations', 0, 'funccount', 0);
   detailstring = sprintf('Keine Optimierung notwendig aufgrund der Definition des Optimierungsproblems (fval=%1.1f)', fval);
 end

@@ -88,16 +88,27 @@ end
 %% Nebenbedingungen der Zielfunktionswerte berechnen
 if fval == 0 && any(Set.optimization.constraint_obj)
   if Set.optimization.constraint_obj(1) % NB für Masse gesetzt
-    [fval_mass, fval_debugtext_mass, ~, fphys] = cds_obj_mass(R);
-    viol_rel = (fphys - Set.optimization.constraint_obj(1))/Set.optimization.constraint_obj(1);
-    if viol_rel > 0
-      f_massvio_norm = 2/pi*atan((viol_rel)); % 1->0.5; 10->0.94
-      fval = 1e3*(1+9*f_massvio_norm); % 1e3 ... 1e4
-      constrvioltext = sprintf('Masse ist zu groß (%1.1f > %1.1f)', fphys, Set.optimization.constraint_obj(1));
+    [fval_mass, fval_debugtext_mass, ~, fphys_m] = cds_obj_mass(R);
+    viol_rel_m = (fphys_m - Set.optimization.constraint_obj(1))/Set.optimization.constraint_obj(1);
+    if viol_rel_m > 0
+      f_massvio_norm = 2/pi*atan((viol_rel_m)); % 1->0.5; 10->0.94
+      fval = 1e3*(1+1*f_massvio_norm); % 1e3 ... 2e3
+      constrvioltext = sprintf('Masse ist zu groß (%1.1f > %1.1f)', ...
+        fphys_m, Set.optimization.constraint_obj(1));
     end
   end
-  if any(Set.optimization.constraint_obj([2 3]))
-    error('Grenzen für andere Zielfunktionen als die Masse noch nicht implementiert');
+  if fval == 0  && any(Set.optimization.constraint_obj([2 3]))
+    error('Grenzen für Zielfunktionen Energie und MinActForce noch nicht implementiert');
+  end
+  if fval == 0  && Set.optimization.constraint_obj(5) % NB für Steifigkeit gesetzt
+    [fval_st, fval_debugtext_st, ~, fphys_st] = cds_obj_stiffness(R);
+    viol_rel_st = (fphys_st - Set.optimization.constraint_obj(5))/Set.optimization.constraint_obj(5);
+    if viol_rel_st > 0
+      f_stvio_norm = 2/pi*atan((viol_rel_st)); % 1->0.5; 10->0.94
+      fval = 1e3*(2+1*f_stvio_norm); % 2e3 ... 3e3
+      constrvioltext = sprintf('Nachgiebigkeit ist zu groß (%1.1f > %1.1f)', ...
+        fphys_st, Set.optimization.constraint_obj(5));
+    end
   end
 end
 if fval > 1000 % Nebenbedingungen verletzt.
@@ -108,8 +119,6 @@ if fval > 1000 % Nebenbedingungen verletzt.
 end
 
 %% Fitness-Wert berechnen
-% TODO: Die gleichen Zielfunktionen wie für die Maßsynthese können auch in
-% der Entwurfsoptimierung berechnet werden
 if strcmp(Set.optimization.objective, 'mass')
   if Set.optimization.constraint_obj(1) % Vermeide doppelten Aufruf der Funktion
     fval = fval_mass; % Nehme Wert von der NB-Berechnung oben
@@ -124,8 +133,15 @@ elseif strcmp(Set.optimization.objective, 'energy')
   else
     [fval,fval_debugtext] = cds_obj_energy(R, Set, Structure, Traj_0, data_dyn.TAU, QD);
   end
+elseif strcmp(Set.optimization.objective, 'stiffness')
+  if Set.optimization.constraint_obj(5) % Vermeide doppelten Aufruf der Funktion
+    fval = fval_st; % Nehme Wert von der NB-Berechnung oben
+    fval_debugtext = fval_debugtext_st;
+  else
+    [fval,fval_debugtext] = cds_obj_stiffness(R, Q);
+  end
 else
-  error('Andere Zielfunktion als Masse noch nicht implementiert');
+  error('Andere Zielfunktion noch nicht implementiert');
 end
 if Set.general.verbosity >3
   fprintf('[desopt/fitness] DesOpt-Fitness-Evaluation in %1.1fs. Parameter: [%s]. fval=%1.3e. Erfolgreich. %s.\n', ...

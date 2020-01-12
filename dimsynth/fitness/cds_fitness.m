@@ -80,7 +80,7 @@ if Set.optimization.constraint_obj(4) % NB für Kondition gesetzt
 end
 
 %% Dynamik-Parameter
-if any(strcmp(Set.optimization.objective, {'energy', 'mass', 'minactforce'}))
+if any(strcmp(Set.optimization.objective, {'energy', 'mass', 'minactforce', 'stiffness'}))
   % Gelenkgrenzen in Roboterklasse neu eintragen
   if R.Type == 0 % Seriell
     R.qlim = minmax2(Q');
@@ -139,7 +139,17 @@ if Set.optimization.desopt_link_yieldstrength && ~Set.optimization.use_desopt
     return
   end
 end
-
+%% Nebenbedingungen der Entwurfsvariablen berechnen: Steifigkeit
+if Set.optimization.constraint_obj(5)
+  [fval_st, ~, ~, fval_phys_st] = cds_obj_stiffness(R, Q);
+  if fval_phys_st > Set.optimization.constraint_obj(5)
+    fval = fval_st*10; % Bringe in Bereich 1e3 ... 1e4
+    constrvioltext_stiffness = sprintf('Die Nachgiebigkeit ist zu groß: %1.1e > %1.1e', ...
+      fval_phys_st, Set.optimization.constraint_obj(5));
+    fprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext_stiffness);
+    return
+  end
+end
 %% Zielfunktion berechnen
 if strcmp(Set.optimization.objective, 'valid_act')
   [fval,fval_debugtext, debug_info] = cds_obj_valid_act(R, Set, Jinv_ges);
@@ -158,6 +168,8 @@ elseif strcmp(Set.optimization.objective, 'mass')
   [fval,fval_debugtext, debug_info] = cds_obj_mass(R);
 elseif strcmp(Set.optimization.objective, 'minactforce')
   [fval,fval_debugtext, debug_info] = cds_obj_minactforce(TAU);
+elseif strcmp(Set.optimization.objective, 'stiffness')
+  [fval,fval_debugtext, debug_info] = cds_obj_stiffness(R, Q);
 else
   error('Zielfunktion "%s" nicht definiert', Set.optimization.objective{1});
 end
