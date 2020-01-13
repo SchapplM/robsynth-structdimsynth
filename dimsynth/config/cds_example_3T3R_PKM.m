@@ -18,7 +18,7 @@ Set.task.maxangle = 5*pi/180;
 Traj = cds_gen_traj(DoF, Traj_no, Set.task);
 
 Set.optimization.objective = 'energy';%'condition';
-Set.optimization.optname = '3T3R_PKM';
+Set.optimization.optname = '3T3R_PKM2';
 Set.optimization.NumIndividuals = 20;
 Set.optimization.MaxIter = 10;
 Set.general.plot_details_in_fitness = 1e3;

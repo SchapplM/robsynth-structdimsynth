@@ -64,7 +64,7 @@ end
 %% Dynamik neu berechnen
 if fval == 0 && Structure.calc_reg
   % Abhängigkeiten neu berechnen (Dynamik)
-  data_dyn = cds_obj_dependencies_regmult(R, Set, data_dyn_reg);
+  data_dyn = cds_obj_dependencies_regmult(R, data_dyn_reg);
   if Set.general.debug_calc
     % Zu Testzwecken die Dynamik neu ohne Regressorform berechnen und mit
     % Regressor-Berechnung vergleichen

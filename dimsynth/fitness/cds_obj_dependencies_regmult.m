@@ -4,8 +4,6 @@
 % Eingabe:
 % R
 %   Matlab-Klasse für zu optimierenden Roboter (SerRob/ParRob)
-% Set
-%   Einstellungen des Optimierungsalgorithmus
 % data_dyn
 %   Ausgabe von cds_obj_dependencies.m; Struktur mit Regressor-Matrizen für
 %   Antriebskräfte und Schnittkräfte
@@ -28,7 +26,7 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function output = cds_obj_dependencies_regmult(R, Set, data_dyn)
+function output = cds_obj_dependencies_regmult(R, data_dyn)
 output = struct('content', 'cds_obj_dependencies_regmult');
 % Berechne Dynamik in Antriebskoordinaten
 if isfield(data_dyn, 'TAU_reg')
@@ -51,7 +49,7 @@ if isfield(data_dyn, 'Wges_reg')
   output.Wges = Wges;
 end
 
-if ~isfield(data_dyn, 'TAU_reg')
+if ~isfield(data_dyn, 'TAU_reg') && isfield(data_dyn, 'Wges_reg')
   % Extrahiere die Dynamik der Antriebe aus den Schnittkräften.
   % Die Schnittkraft in Richtung einer Antriebskoordinate entspricht der
   % Antriebskraft
@@ -73,5 +71,5 @@ if ~isfield(data_dyn, 'TAU_reg')
       TAU(:,j) = squeeze(Wges(j, I_actjoint_j, :));
     end
   end
+  output.TAU = TAU;
 end
-output.TAU = TAU;

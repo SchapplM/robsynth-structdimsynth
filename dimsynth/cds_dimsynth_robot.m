@@ -324,7 +324,6 @@ if Structure.Type == 2 && Set.optimization.platform_size
   end
   varnames = {varnames{:}, 'platform param'}; %#ok<CCAT>
 end
-
 % Gestell-Morphologie-Parameter (z.B. Gelenkpaarabstand).
 % Siehe align_base_coupling.m
 if Structure.Type == 2 && Set.optimization.base_morphology
@@ -333,17 +332,17 @@ if Structure.Type == 2 && Set.optimization.base_morphology
     nvars = nvars + 1;
     vartypes = [vartypes; 8];
     varlim = [varlim; [0.2,0.8]]; % Gelenkpaarabstand. Relativ zu Gestell-Radius.
+    varnames = {varnames{:}, 'base_morph_pairdist'}; %#ok<CCAT>
     nvars = nvars + 1;
     vartypes = [vartypes; 8];
     % Die Steigung wird gegen die Senkrechte gezählt. Damit die erste Achse
     % nach unten zeigt, muss der Winkel größe 90° sein
     varlim = [varlim; [pi/4,3*pi/4]]; % Steigung Pyramide; Winkel in rad (Steigung nach unten und oben ergibt Sinn)
-    varnames = {varnames{:}, 'base_morph'}; %#ok<CCAT>
+    varnames = {varnames{:}, 'base_morph_pyrelev'}; %#ok<CCAT>
   else
     error('base_morphology Nicht implementiert');
   end
 end
-
 % Plattform-Morphologie-Parameter (z.B. Gelenkpaarabstand).
 % Siehe align_platform_coupling.m
 if Structure.Type == 2 && Set.optimization.platform_morphology

@@ -61,8 +61,8 @@ options_desopt.SwarmSize = NumIndividuals;
 InitPop = repmat(varlim(:,1)', NumIndividuals,1) + rand(NumIndividuals, nvars) .* ...
                         repmat(varlim(:,2)'-varlim(:,1)',NumIndividuals,1);
 % Wähle nur plausible Anfangswerte
-I_unplaus = InitPop(:,1) > InitPop(:,2)/2;
-InitPop(I_unplaus,1) = InitPop(I_unplaus,2)/2; % Setze auf Vollmaterial
+I_unplaus = InitPop(:,1) > InitPop(:,2)/2 - 1e-4;
+InitPop(I_unplaus,1) = InitPop(I_unplaus,2)/2 + 1e-4; % Setze auf Vollmaterial und fast maximale Wandstärke
 % Setze minimale und maximale Werte direkt ein (da diese oft das Optimum
 % darstellen, wenn keine einschränkenden Nebenbedingungen gesetzt sind)
 InitPop(1,:) = varlim(:,1); % kleinste Werte
@@ -89,6 +89,8 @@ if ~Set.optimization.desopt_link_yieldstrength && ...
   (strcmp(Set.optimization.objective, 'stiffness') || Set.optimization.constraint_obj(5) == 0)
   % Optimierung der Steifigkeit ohne Prüfung der Materialstärke. Die
   % stärkste Segmentauslegung könnte das Optimum darstellen.
+  % Die Grenze der Masse wird betrachtet, da sie als Nebenbedingung bei
+  % Prüfung der Fitness-Funktion enthalten ist.
   fval_maxpar = fitnessfcn_desopt(InitPop(2,:)');
   if fval_maxpar < 1e3
     avoid_optimization = true;

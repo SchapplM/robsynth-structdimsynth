@@ -122,7 +122,7 @@ if ~Structure.calc_reg
   data_dyn2 = cds_obj_dependencies(R, Traj_0, Set, Structure, Q, QD, QDD, Jinv_ges);
 else
   % Dynamik nochmal mit Regressorform mit neuen Dynamikparameter berechnen
-  data_dyn2 = cds_obj_dependencies_regmult(R, Set, data_dyn);
+  data_dyn2 = cds_obj_dependencies_regmult(R, data_dyn);
 end
 if any(strcmp(Set.optimization.objective, {'energy', 'minactforce'}))
   TAU = data_dyn2.TAU;

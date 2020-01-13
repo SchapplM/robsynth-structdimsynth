@@ -20,10 +20,11 @@ Traj = cds_gen_traj(DoF, Traj_no, Set.task);
 
 Set.optimization.objective = 'stiffness';%'condition';
 Set.optimization.optname = '3T3R_stiffness';
-Set.optimization.NumIndividuals = 70;
-Set.optimization.MaxIter = 30;
+Set.optimization.constraint_obj(1) = 100; % Max. Masse 100kg
+Set.optimization.NumIndividuals = 50;
+Set.optimization.MaxIter = 20;
 Set.general.plot_details_in_fitness = 1e3*0;
-Set.general.plot_robot_in_fitness = 1e3*0;
+Set.general.plot_robot_in_fitness = 1e3;
 Set.optimization.base_size = true;
 Set.optimization.base_size_limits = [1 2];
 Set.optimization.platform_size = true;
@@ -38,7 +39,7 @@ Set.general.matfile_verbosity = 0;
 Set.optimization.ee_rotation = false;
 % Nur Auswahl Kugelgelenk-Ende-PKM
 
-Set.structures.whitelist = {'P6PRRRRR6V2G8P3A1', 'S6RRPRRR14'};
+Set.structures.whitelist = {'P6PRRRRR6V2G8P3A1'}; % '',  S6RRPRRR14
 % Set.structures.whitelist = { ...
 %   'P6PRRRRR68P1A1', 'P6PRRRRR6V2G8P1A1', ...
 %   'P6PRRRRR6G8P3A1', 'P6PRRRRR6V2G8P3A1', ...

@@ -39,27 +39,27 @@ debug_info = {};
 Vges = NaN(size(Q,1), 1);
 % Berechne Steifigkeit für alle Punkte der Bahn
 for i = 1:size(Q,1)
+  % Kartesische Steifigkeitsmatrix (6x6)
   K_ges = R.stiffness(Q(i,:)');
+  % Auswahl der translatorischen Submatrix (3x3), Normierung auf N/mm
+  % (damit Zahlenwerte eher im Bereich 1 liegen)
   K_trans_norm = 1e-3*K_ges(1:3,1:3);
-%   N_trans_norm = 1e3*inv(K_trans); %#ok<MINV>
-%   N_eig = eig(N_trans);
-%   if R.Type == 0  %Serial Robot
-%     N_norm = log(N_eig/1e-10+1);
-%   else %Parallel Robot
-%     N_norm = log(N_eig/1e-9+1);
-%   end
   % [GoerguelueDed2019], Gl. 21
-  % Volumen des Ellipsoids der Nachgiebigkeits-Matrix
+  % Entspricht Volumen des Ellipsoids der Nachgiebigkeits-Matrix
   Vges(i,:) = 1/det(K_trans_norm);%prod(N_eig);
 end
-
+if any(isnan(Vges))
+  warning('Hier stimmt etwas nicht');
+end
 % Schlechtester Wert des Volumens vom Ellipsoid ist Kennzahl
-f_sti = max(Vges);
-f_sti_norm = 2/pi*atan(f_sti/1000); % Nomierung auf 0 bis 1;
+f_sti = max(Vges)^(1/3); % Umrechnung vom Volumen auf den Radius mit ^(1/3)
+f_sti_norm = 2/pi*atan(f_sti); % Nomierung: 1e3 mm/N -> 0.5; 5e3 mm/N -> 0.87
 fval = 1e3*f_sti_norm; % Normiert auf 0 bis 1e3
-fval_debugtext = sprintf('Steifigkeit %1.2f', f_sti);
+fval_debugtext = sprintf('Nachgiebigkeit %1.3e mm/N', f_sti);
 % Entsprechung des physikalischen Wertes: Eine gleichförmige Nachgiebigkeit
 % mit diesem Wert in alle drei Raumrichtungen (für Translation) würde eine
 % Hyper-Kugel mit dem gleichen Volumen wie das Hyper-Ellipsoid erzeugen,
 % das den aktuell schlechtesten Fall darstellt
-fval_phys = 1e3 * f_sti^(1/3); % TODO: Ist das wirklich ein physikalischer Wert?
+fval_phys = 1e3 * f_sti; % Umrechnung in äquivalenten physikalischen Wert
+
+debug_info = {sprintf('max. Nachgiebigkeit: %1.3fs', f_sti)};
