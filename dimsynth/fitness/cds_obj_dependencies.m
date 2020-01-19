@@ -35,6 +35,14 @@
 function data_dyn = cds_obj_dependencies(R, Traj_0, Set, Structure, Q, QD, QDD, Jinv_ges)
 data_dyn = struct('content', 'cds_obj_dependencies');
 
+if ~Structure.calc_reg && ~Set.general.debug_calc && ~Structure.calc_dyn_cut && ~Structure.calc_dyn_act
+  % Es soll nichts berechnet werden.
+  return
+end
+
+XE = Traj_0.X;
+XED = Traj_0.XD;
+XEDD = Traj_0.XDD;
 
 if Structure.calc_dyn_cut
   % Berechne die Schnittkräfte in allen Segmenten
@@ -72,10 +80,6 @@ if Structure.calc_dyn_act
       % später mit der Regressorform (der Schnittkräfte) gemacht wird
     end
   else % PKM
-    % Trajektorie in Plattform-KS umrechnen
-    XE = Traj_0.X;
-    XED = Traj_0.XD;
-    XEDD = Traj_0.XDD;
     % Antriebskräfte berechnen (Momente im Basis-KS, nicht x-Koord.)
     if ~Structure.calc_dyn_cut || Set.general.debug_calc
       % Regressorform nur berechnen, falls später benötigt
@@ -95,6 +99,12 @@ if Structure.calc_dyn_act
 end
 
 if R.Type ~= 0 && (Structure.calc_dyn_cut && ~Structure.calc_reg || Set.general.debug_calc)
+  if Set.general.debug_calc
+    % Für die Test-Rechnungen wird die Schnittkraft benötigt. Für diese
+    % muss aber das Antriebsmoment berechnet sein.
+    % Die Abfrage von oben greift nicht (wegen calc_dyn_act)
+    TAU = R.invdyn2_actjoint_traj(Q, QD, QDD, XE, XED, XEDD, Jinv_ges);
+  end
   Wges = R.internforce_traj(Q, QD, QDD, TAU);
 end
 
