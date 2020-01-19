@@ -37,12 +37,17 @@ function [fval, constrvioltext] = cds_constr_yieldstrength(R, Set, data_dyn, Jin
 fval = 0;
 constrvioltext = '';
 
-% Konstanten, Definitionen
+%% Konstanten, Definitionen
 % Dehngrenze von Aluminium-Legierung. Quellen:
 % https://de.wikipedia.org/wiki/Streckgrenze
 % https://de.wikipedia.org/wiki/Aluminium-Kupfer-Legierung
-R_e=250e6;
+if R.Type == 0
+  R_e=R.DesPar.material(4);
+else
+  R_e=R.Leg(1).DesPar.material(4);
+end
 
+%% Berechnung der Materialspannung
 if R.Type == 0 % Seriell
   NLEG = 1; NL = R.NL;
   % 2D-Matrix mit Zeit als Zeilen
