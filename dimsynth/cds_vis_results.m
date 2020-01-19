@@ -8,6 +8,13 @@
 % Structures
 %   Eigenschaften der Roboterstrukturen (alle an Optimierung beteiligten)
 %   Siehe cds_gen_robot_list.m
+% 
+% Erzeugt Bilder:
+% 1: Statistik der Ergebnisse
+% 2, 3: Animation
+% 4: Trägheitsellipsen
+% 5: Gelenkverläufe
+% 6: Zeitauswertung Fitness-Funktion
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Universität Hannover
@@ -33,8 +40,9 @@ for i = 1:length(Structures)
   Structure = Structures{i};
   Name = Structures{i}.Name;
   tmp = load(fullfile(resmaindir, ...
-    sprintf('Rob%d_%s_Endergebnis.mat', i, Name)), 'RobotOptRes', 'Set', 'Traj');
+    sprintf('Rob%d_%s_Endergebnis.mat', i, Name)), 'RobotOptRes', 'Set', 'Traj', 'PSO_Detail_Data');
   RobotOptRes = tmp.RobotOptRes;
+  PSO_Detail_Data = tmp.PSO_Detail_Data;
   R = RobotOptRes.R;
   if Structure.Type == 0
     serroblib_addtopath({Name});
@@ -155,6 +163,17 @@ for i = 1:length(Structures)
   saveas(10*i+1,     fullfile(resmaindir, sprintf('Rob%d_%s_Histogramm.fig', i, Name)));
   export_fig(10*i+1, fullfile(resmaindir, sprintf('Rob%d_%s_Histogramm.png', i, Name)));
   fprintf('%d/%d: Histogramm für %s gespeichert.\n', i, length(Structures), Name);
+  %% Verteilung der Rechenzeit über die Zielfunktionswerte
+  figure(10*i+6);clf;hold all;
+  % Streudiagramm
+  plot(log10(PSO_Detail_Data.fval), PSO_Detail_Data.comptime, 'kx');
+  xlabel('Zielfunktion (log)');
+  ylabel('Rechenzeit in s');
+  title('Rechenzeit je nach Zielfunktionswert');
+  
+  saveas(10*i+6,     fullfile(resmaindir, sprintf('Rob%d_%s_Rechenzeit_Fitness.fig', i, Name)));
+  export_fig(10*i+6, fullfile(resmaindir, sprintf('Rob%d_%s_Rechenzeit_Fitness.png', i, Name)));
+
   %% Animation des besten Roboters für die Trajektorie
   for kk = 1:2 % Einmal als Strichzeichnung, einmal als 3D-Modell
   figure(10*i+1+kk);clf;hold all;

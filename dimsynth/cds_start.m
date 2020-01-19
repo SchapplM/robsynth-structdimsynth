@@ -10,6 +10,9 @@
 warning('off', 'MATLAB:singularMatrix');
 warning('off', 'MATLAB:nearlySingularMatrix');
 
+% Globale Variable zum Speichern von Ergebnis-Details der Fitness-Funktion
+global PSO_Detail_Data
+
 if ~exist('Set', 'var') || ~exist('Traj', 'var')
   error('Eingabevariablen des Startskriptes existieren nicht');
 end
@@ -51,12 +54,14 @@ if ~Set.general.regenerate_summmary_only
 for i = 1:length(Structures)
   % Maßsynthese für diesen Roboter starten
   fprintf('Starte Maßsynthese für Roboter %d (%s)\n', i, Structures{i}.Name);
-
+  % Globale Ergebnisvariable zurücksetzen
+  Placeholder = NaN(Set.optimization.MaxIter+1, Set.optimization.NumIndividuals);
+  PSO_Detail_Data = struct('comptime', Placeholder, 'fval', Placeholder);
   RobotOptRes = cds_dimsynth_robot(Set, Traj, Structures{i});
   % Ergebnisse speichern
   save(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
     sprintf('Rob%d_%s_Endergebnis.mat', i, Structures{i}.Name)), ...
-    'RobotOptRes', 'Set', 'Traj');
+    'RobotOptRes', 'Set', 'Traj', 'PSO_Detail_Data');
 end
 end
 if isempty(Structures)

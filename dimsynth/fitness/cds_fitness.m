@@ -59,6 +59,8 @@ fval = fval_constr*1e3; % Erhöhung, damit später kommende Funktionswerte aus E
 cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
 if fval_constr > 1000 % Nebenbedingungen verletzt.
   fprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext);
+  cds_save_particle_details(toc(t1), fval);
+  cds_save_particle_details(toc(t1), fval);
   return
 end
 if Set.general.matfile_verbosity > 2
@@ -75,6 +77,7 @@ if Set.optimization.constraint_obj(4) % NB für Kondition gesetzt
     cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
     constrvioltext = sprintf('Konditionszahl ist zu schlecht: %1.1e > %1.1e', f_cond1, Set.optimization.constraint_obj(4));
     fprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext);
+    cds_save_particle_details(toc(t1), fval);
     return
   end
 end
@@ -107,6 +110,7 @@ if any(strcmp(Set.optimization.objective, {'energy', 'mass', 'minactforce'}))
       cds_fitness_debug_plot_robot(R, zeros(R.NJ,1), Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
       constrvioltext = 'Verletzung der Nebenbedingungen in Entwurfsoptimierung';
       fprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext);
+      cds_save_particle_details(toc(t1), fval);
       return
     end
   end
@@ -136,6 +140,7 @@ if Set.optimization.desopt_link_yieldstrength && ~Set.optimization.use_desopt
   elseif fval_ys>1e4
     fval = fval_ys;
     fprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext_ys);
+    cds_save_particle_details(toc(t1), fval);
     return
   end
 end
@@ -163,3 +168,4 @@ else
 end
 fprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. Erfolgreich. %s.\n', toc(t1), fval, fval_debugtext);
 cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
+cds_save_particle_details(toc(t1), fval);
