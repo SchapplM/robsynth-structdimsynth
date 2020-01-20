@@ -1,6 +1,8 @@
 % Zielfunktion ("objective function") für Optimierung in der Maßsynthese
 % basierend auf der Steifigkeit des Roboters.
 % Die Steifigkeit wird in einen normierten Zielfunktionswert übersetzt
+% Damit kleine Zielfunktionen besser sind, wird effektiv die Nachgiebigkeit
+% benutzt.
 % 
 % Eingabe:
 % R
@@ -11,13 +13,16 @@
 % Ausgabe:
 % fval [1x1]
 %   Zielfunktionswert, der im PSO-Algorithmus minimiert wird
+%   Wird aus vergleichbarer Nachgiebigkeit gebildet.
 % fval_debugtext [char]
 %   Zeile mit Hinweistext, der bei PSO nach Fitness-Berechnung ausgegeben wird
 % debug_info [cell]
 %   Zusatz-Informationen, die im Debug-Bild des Roboters angezeigt werden
 % fval_phys [1x1]
 %   Physikalischer Wert, der dem Zielfunktionswert zugrunde liegt
-%   Hier: Summe Schlechtester Wert für die (translatorische) Steifigkeit
+%   Hier: Schlechtester Wert für die (translatorische) Nachgiebigkeit in
+%   m/N. Es wird ein äquivalenter mittlerer Wert für alle Richtungen
+%   benutzt
 %
 % Quellen:
 % [GoerguelueDed2019] A New Stiffness Performance Index: Volumetric
@@ -53,13 +58,14 @@ if any(isnan(Vges))
 end
 % Schlechtester Wert des Volumens vom Ellipsoid ist Kennzahl
 f_sti = max(Vges)^(1/3); % Umrechnung vom Volumen auf den Radius mit ^(1/3)
-f_sti_norm = 2/pi*atan(f_sti); % Nomierung: 1e3 mm/N -> 0.5; 5e3 mm/N -> 0.87
+% fprintf('Mittlere Steifigkeit: %1.3f N/mm; mittlere Nachgiebigkeit: %1.3f mm/N\n', 1/f_sti, f_sti);
+f_sti_norm = 2/pi*atan(f_sti); % Normierung: 1e3 mm/N -> 0.5; 5e3 mm/N -> 0.87
 fval = 1e3*f_sti_norm; % Normiert auf 0 bis 1e3
-fval_debugtext = sprintf('Nachgiebigkeit %1.3e mm/N', f_sti);
+fval_debugtext = sprintf('Nachgiebigkeit %1.3e mm/N; Steifigkeit %1.3e N/mm', f_sti, 1/f_sti);
 % Entsprechung des physikalischen Wertes: Eine gleichförmige Nachgiebigkeit
 % mit diesem Wert in alle drei Raumrichtungen (für Translation) würde eine
 % Hyper-Kugel mit dem gleichen Volumen wie das Hyper-Ellipsoid erzeugen,
 % das den aktuell schlechtesten Fall darstellt
-fval_phys = 1e3 * f_sti; % Umrechnung in äquivalenten physikalischen Wert
+fval_phys = 1e-3 * f_sti; % Umrechnung in äquivalenten physikalischen Wert (mm/N -> m/N)
 
-debug_info = {sprintf('max. Nachgiebigkeit: %1.3fs', f_sti)};
+debug_info = {sprintf('min. äqu. Steifigkeit: %1.3f N/mm', 1/f_sti)};
