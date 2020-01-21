@@ -23,11 +23,14 @@
 %   Zeile mit Hinweistext, der bei PSO nach Fitness-Berechnung ausgegeben wird
 % debug_info [cell]
 %   Zusatz-Informationen, die im Debug-Bild des Roboters angezeigt werden
+% E_Netz_res [1x1]
+%   Physikalischer Wert, der dem Zielfunktionswert zugrunde liegt
+%   Hier: Aus dem Netz aufgenommene elektrische Energie in J
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-10
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function [fval, fval_debugtext, debug_info] = cds_obj_energy(R, Set, Structure, Traj_0, TAU, QD)
+function [fval, fval_debugtext, debug_info, E_Netz_res] = cds_obj_energy(R, Set, Structure, Traj_0, TAU, QD)
 debug_info = {};
 
 % Mechanische Leistung berechnen (in allen angetriebenen Gelenken)

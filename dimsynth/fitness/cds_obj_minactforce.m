@@ -13,6 +13,9 @@
 %   Zeile mit Hinweistext, der bei PSO nach Fitness-Berechnung ausgegeben wird
 % debug_info [cell]
 %   Zusatz-Informationen, die im Debug-Bild des Roboters angezeigt werden
+% tau_a_max [1x1]
+%   Physikalischer Wert, der dem Zielfunktionswert zugrunde liegt
+%   Hier: Maximale Antriebskraft aller Antriebe in N bzw. Nm
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-10
 % (C) Institut für Mechatronische Systeme, Universität Hannover
@@ -21,7 +24,7 @@
 % funktioniert nur bei symmetrischer Aktuierung. Ansonsten werden Kräfte
 % mit Momenten vergleichen (nicht sinnvoll).
 
-function [fval, fval_debugtext, debug_info] = cds_obj_minactforce(TAU)
+function [fval, fval_debugtext, debug_info, tau_a_max] = cds_obj_minactforce(TAU)
 debug_info = {};
 
 tau_a_max_per_actuator = max(abs(TAU));

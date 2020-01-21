@@ -40,6 +40,9 @@ if isempty(Structures)
     return
   end
 end
+if ~isempty(Set.structures.whitelist) && length(Set.structures.whitelist) ~= length(Structures)
+  warning('Es wurde eine Positiv-Liste übergeben, aber nicht alle dieser Strukturen wurden gewählt.');
+end
 
 if Set.optimization.use_desopt ... 
     && ~any(strcmp(Set.optimization.objective, {'mass', 'energy'})) ...

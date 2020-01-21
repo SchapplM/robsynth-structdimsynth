@@ -333,12 +333,14 @@ if Structure.Type == 2 && Set.optimization.base_morphology
     nvars = nvars + 1;
     vartypes = [vartypes; 8];
     varlim = [varlim; [0.2,0.8]]; % Gelenkpaarabstand. Relativ zu Gestell-Radius.
+    varnames = {varnames{:}, 'base_morph_pairdist'}; %#ok<CCAT>
+    
     nvars = nvars + 1;
     vartypes = [vartypes; 8];
     % Die Steigung wird gegen die Senkrechte gezählt. Damit die erste Achse
     % nach unten zeigt, muss der Winkel größe 90° sein
     varlim = [varlim; [pi/4,3*pi/4]]; % Steigung Pyramide; Winkel in rad (Steigung nach unten und oben ergibt Sinn)
-    varnames = {varnames{:}, 'base_morph'}; %#ok<CCAT>
+    varnames = {varnames{:}, 'base_morph_elev'}; %#ok<CCAT>
   else
     error('base_morphology Nicht implementiert');
   end
@@ -480,23 +482,39 @@ end
 if Structure.Type == 0 % Seriell
   s = struct('normalize', false, 'retry_limit', 1);
   [Q, QD, QDD, PHI] = R.invkin2_traj(Traj_0.X, Traj.XD, Traj.XDD, Traj.t, q, s);
+  Jinv_ges = [];
 else % Parallel
   s = struct('debug', false, 'retry_limit', 1);
-  [Q, QD, QDD, PHI] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+  [Q, QD, QDD, PHI, Jinv_ges] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
 end
 
 if ~strcmp(Set.optimization.objective, 'valid_act') && ...
     (any(abs(PHI(:))>1e-8) || any(isnan(Q(:))))
   warning('PSO-Ergebnis für Trajektorie nicht reproduzierbar oder nicht gültig (ZB-Verletzung)');
 end
+%% Berechne andere Zielfunktionen
+Structure_tmp = Structure; % Eingabe um Berechnung der Antriebskräfte zu erzwingen
+Structure_tmp.calc_dyn_act = true;
+Structure_tmp.calc_reg = false;
+data_dyn = cds_obj_dependencies(R, Traj_0, Set, Structure_tmp, Q, QD, QDD, Jinv_ges);
+% Einzelne Zielfunktionen aufrufen
+[fval_energy,~, ~, physval_energy] = cds_obj_energy(R, Set, Structure, Traj_0, data_dyn.TAU, QD);
+[fval_cond,~, ~, physval_cond] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
+[fval_mass,~, ~, physval_mass] = cds_obj_mass(R);
+[fval_minactforce,~, ~, physval_minactforce] = cds_obj_minactforce(data_dyn.TAU);
+% Reihenfolge siehe Variable Set.optimization.constraint_obj aus cds_settings_defaults
+fval_obj_all = [fval_mass, fval_energy, fval_minactforce, fval_cond];
+physval_obj_all = [physval_mass, physval_energy, physval_minactforce, physval_cond];
 %% Ausgabe der Ergebnisse
 RobotOptRes = struct( ...
-  'fval', fval, ...
-  'R', R, ...
-  'p_val', p_val, ...
-  'p_limits', varlim, ...
-  'options', options, ...
-  'q0', q, ...
+  'fval', fval, ... % Zielfunktionswert (nach dem optimiert wurde)
+  'fval_obj_all', fval_obj_all, ... % Werte aller möglicher einzelner Zielf.
+  'physval_obj_all', physval_obj_all, ... % Physikalische Werte aller Zielf.
+  'R', R, ... % Roboter-Klasse
+  'p_val', p_val, ... % Parametervektor der Optimierung
+  'p_limits', varlim, ... % Grenzen für die Parameterwerte
+  'options', options, ... % Optionen des Optimierungs-Algorithmus
+  'q0', q, ... % Anfangs-Gelenkwinkel für Lösung der IK
   'Traj_Q', Q, ...
   'Traj_QD', QD, ...
   'Traj_QDD', QDD, ...

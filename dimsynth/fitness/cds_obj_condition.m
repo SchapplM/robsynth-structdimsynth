@@ -25,8 +25,9 @@
 %   Zeile mit Hinweistext, der bei PSO nach Fitness-Berechnung ausgegeben wird
 % debug_info [cell]
 %   Zusatz-Informationen, die im Debug-Bild des Roboters angezeigt werden
-% f_cond1
-%   Maximale Konditionszahl der Jacobi-Matrix
+% f_cond1 [1x1]
+%   Physikalischer Wert, der dem Zielfunktionswert zugrunde liegt
+%   Hier: Maximale Konditionszahl der Jacobi-Matrix
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-10
 % (C) Institut für Mechatronische Systeme, Universität Hannover
