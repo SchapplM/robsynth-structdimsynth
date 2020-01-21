@@ -21,6 +21,7 @@
 % Combined Structural and Dimensional Robot Synthesis (2019)
 
 function RobotOptRes = cds_dimsynth_robot(Set, Traj, Structure)
+t1 = tic();
 %% Debug: 
 if Set.general.matfile_verbosity > 0
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot1.mat'));
@@ -412,7 +413,8 @@ mkdirs(resdir);
 %% Fitness-Funktion initialisieren (Strukturunabhängig)
 fitnessfcn=@(p)cds_fitness(R, Set, Traj, Structure, p(:));
 f_test = fitnessfcn(InitPop(1,:)'); %#ok<NASGU> % Testweise ausführen
-
+% Zurücksetzen der Detail-Speicherfunktion
+cds_save_particle_details(Set, 0, 0, 'reset');
 %% PSO-Aufruf starten
 if Set.general.matfile_verbosity > 0
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat'));
@@ -436,6 +438,8 @@ if Set.general.matfile_verbosity > 0
 end
 % Debug:
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot3.mat'));
+% Detail-Ergebnisse extrahieren (persistente Variable in Funktion)
+PSO_Detail_Data = cds_save_particle_details(Set, 0, 0, 'output');
 %% Nachverarbeitung der Ergebnisse
 % Fitness-Funktion nochmal mit besten Parametern aufrufen. Dadurch werden
 % die Klassenvariablen (R.pkin, R.DesPar.seg_par, ...) aktualisiert
@@ -527,3 +531,9 @@ RobotOptRes = struct( ...
 if Set.general.matfile_verbosity > 0
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot4.mat'));
 end
+% Gesamtergebnis der Optimierung speichern
+save(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+  sprintf('Rob%d_%s_Endergebnis.mat', Structure.Number, Structure.Name)), ...
+  'RobotOptRes', 'Set', 'Traj', 'PSO_Detail_Data');
+fprintf('Optimierung von Rob. %d (%s) abgeschlossen. Dauer: %1.1fs\n', ...
+  Structure.Number, Structure.Name, toc(t1));

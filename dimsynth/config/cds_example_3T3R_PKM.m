@@ -17,7 +17,7 @@ Set.task.profile = 1;
 Set.task.maxangle = 5*pi/180; 
 Traj = cds_gen_traj(DoF, Traj_no, Set.task);
 
-Set.optimization.objective = 'energy';%'condition';
+Set.optimization.objective = 'energy';
 Set.optimization.optname = '3T3R_PKM';
 Set.optimization.NumIndividuals = 20;
 Set.optimization.MaxIter = 10;
@@ -26,9 +26,12 @@ Set.general.plot_robot_in_fitness = 1e3;
 Set.optimization.base_size = false;
 Set.optimization.platform_size = false;
 % Set.optimization.movebase = false;
+Set.optimization.base_morphology = true;
+Set.optimization.platform_morphology = true;
 Set.general.max_retry_bestfitness_reconstruction = 1;
 Set.general.verbosity = 3;
 Set.general.matfile_verbosity = 3;
+Set.general.parcomp_struct = true; % Parallele Berechnung
 Set.structures.use_serial = false;
 Set.optimization.ee_rotation = false;
 

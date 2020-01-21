@@ -43,6 +43,7 @@ general = struct( ...
   'nosummary', false, ... % Kompletter Verzicht auf die graphische Endauswertung
   'noprogressfigure', false, ... % Verzicht auf Fortschritts-Bild des PSO
   'debug_calc', false, ... % Doppelte Berechnung zur Prüfung von Funktionen
+  'parcomp_struct', 0, ... % Parallele Berechnung unterschiedlicher Roboter. Enthält Anzahl der Worker-Instanzen als Zahl
   'use_mex', true);
 
 %% Einstellungen zur Auswahl der verwendeten Strukturen

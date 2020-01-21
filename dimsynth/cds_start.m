@@ -10,9 +10,6 @@
 warning('off', 'MATLAB:singularMatrix');
 warning('off', 'MATLAB:nearlySingularMatrix');
 
-% Globale Variable zum Speichern von Ergebnis-Details der Fitness-Funktion
-global PSO_Detail_Data
-
 if ~exist('Set', 'var') || ~exist('Traj', 'var')
   error('Eingabevariablen des Startskriptes existieren nicht');
 end
@@ -28,6 +25,23 @@ for subconf = fields(Set_default)'
 end
 if Set.task.profile == 0 && strcmp(Set.optimization.objective, 'energy')
   error('Energieberechnung ohne Zeitverlauf der Trajektorie nicht sinnvoll');
+end
+% Bei paralleler Berechnung dürfen keine Dateien geschrieben werden um
+% Konflikte zu vermeiden
+if Set.general.parcomp_struct
+  % Keine Bilder zeichnen
+  Set.general.plot_details_in_fitness = 0;
+  Set.general.plot_robot_in_fitness = 0;
+  Set.general.noprogressfigure = true;
+  % Keine (allgemeinen) mat-Dateien speichern
+  Set.general.matfile_verbosity = 0;
+  try
+    parpool();
+  end
+  Pool=gcp();
+  parfor_numworkers = Pool.NumWorkers;
+else
+  parfor_numworkers = 0;
 end
 
 % Menge der Roboter laden
@@ -51,21 +65,17 @@ if Set.optimization.use_desopt ...
   fprintf(['Entwurfsoptimierung wurde verlangt, aber keine dafür notwendigen ', ...
     'Zielfunktionen oder Nebenbedingungen definiert. Wurde wieder deaktiviert\n']);
 end
-
-if ~Set.general.regenerate_summmary_only
 % Optimierung der Strukturen durchführen
-for i = 1:length(Structures)
-  % Maßsynthese für diesen Roboter starten
-  fprintf('Starte Maßsynthese für Roboter %d (%s)\n', i, Structures{i}.Name);
-  % Globale Ergebnisvariable zurücksetzen
-  Placeholder = NaN(Set.optimization.MaxIter+1, Set.optimization.NumIndividuals);
-  PSO_Detail_Data = struct('comptime', Placeholder, 'fval', Placeholder);
-  RobotOptRes = cds_dimsynth_robot(Set, Traj, Structures{i});
-  % Ergebnisse speichern
-  save(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
-    sprintf('Rob%d_%s_Endergebnis.mat', i, Structures{i}.Name)), ...
-    'RobotOptRes', 'Set', 'Traj', 'PSO_Detail_Data');
-end
+if ~Set.general.regenerate_summmary_only
+  t1 = tic();
+  parfor (i = 1:length(Structures), parfor_numworkers)
+    % Maßsynthese für diesen Roboter starten
+    fprintf('Starte Maßsynthese für Roboter %d (%s)\n', i, Structures{i}.Name);
+    % Globale Ergebnisvariable zurücksetzen
+    cds_dimsynth_robot(Set, Traj, Structures{i});
+    % Ergebnisse speichern
+  end
+  fprintf('Optimierung von %d Robotern abgeschlossen. Dauer: %1.1fs\n', length(Structures), toc(t1));
 end
 if isempty(Structures)
   % Aufgrund der Filterkriterien wurden keine Roboter verglichen.
