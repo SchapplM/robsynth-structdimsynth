@@ -414,7 +414,7 @@ mkdirs(resdir);
 fitnessfcn=@(p)cds_fitness(R, Set, Traj, Structure, p(:));
 f_test = fitnessfcn(InitPop(1,:)'); %#ok<NASGU> % Testweise ausführen
 % Zurücksetzen der Detail-Speicherfunktion
-cds_save_particle_details(Set, 0, 0, 'reset');
+cds_save_particle_details(Set, 0, 0, 0, 'reset');
 %% PSO-Aufruf starten
 if Set.general.matfile_verbosity > 0
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat'));
@@ -439,7 +439,7 @@ end
 % Debug:
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot3.mat'));
 % Detail-Ergebnisse extrahieren (persistente Variable in Funktion)
-PSO_Detail_Data = cds_save_particle_details(Set, 0, 0, 'output');
+PSO_Detail_Data = cds_save_particle_details(Set, 0, 0, 0, 'output');
 %% Nachverarbeitung der Ergebnisse
 % Fitness-Funktion nochmal mit besten Parametern aufrufen. Dadurch werden
 % die Klassenvariablen (R.pkin, R.DesPar.seg_par, ...) aktualisiert

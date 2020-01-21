@@ -163,16 +163,30 @@ for i = 1:length(Structures)
   saveas(10*i+1,     fullfile(resmaindir, sprintf('Rob%d_%s_Histogramm.fig', i, Name)));
   export_fig(10*i+1, fullfile(resmaindir, sprintf('Rob%d_%s_Histogramm.png', i, Name)));
   fprintf('%d/%d: Histogramm für %s gespeichert.\n', i, length(Structures), Name);
-  %% Verteilung der Rechenzeit über die Zielfunktionswerte
-  figure(10*i+6);clf;hold all;
+  %% Verschiedene Auswertungen
+  figure(10*i+6);clf;
+  sgtitle('Diverse Auswertungsbilder');
+  % Verteilung der Rechenzeit über die Zielfunktionswerte
   % Streudiagramm
+  subplot(2,1,1); hold all;
   plot(log10(PSO_Detail_Data.fval), PSO_Detail_Data.comptime, 'kx');
   xlabel('Zielfunktion (log)');
   ylabel('Rechenzeit in s');
   title('Rechenzeit je nach Zielfunktionswert');
+  grid on;
   
-  saveas(10*i+6,     fullfile(resmaindir, sprintf('Rob%d_%s_Rechenzeit_Fitness.fig', i, Name)));
-  export_fig(10*i+6, fullfile(resmaindir, sprintf('Rob%d_%s_Rechenzeit_Fitness.png', i, Name)));
+  % Verteilung der Konditionszahlen in den Ergebnissen
+  subplot(2,1,2); hold all;
+  h = histogram(log10(PSO_Detail_Data.Jcond(:)));
+  plot(log10(Set.optimization.constraint_obj(4))*[1;1], [0;max(h.Values)], 'k-');
+  xlim(minmax2(h.BinEdges)+h.BinWidth*[-1 1])
+  title('Verteilung der Konditionszahlen über die Optimierung');
+  xlabel('Konditionszahl (log)');
+  ylabel(sprintf('Häufigkeit (Anzahl i.O.: %d/%d)', sum(~isnan(PSO_Detail_Data.Jcond(:))), ...
+    length(PSO_Detail_Data.Jcond(:))));
+  
+  saveas(10*i+6,     fullfile(resmaindir, sprintf('Rob%d_%s_Population_Fitness.fig', i, Name)));
+  export_fig(10*i+6, fullfile(resmaindir, sprintf('Rob%d_%s_Population_Fitness.png', i, Name)));
 
   %% Animation des besten Roboters für die Trajektorie
   for kk = 1:2 % Einmal als Strichzeichnung, einmal als 3D-Modell
