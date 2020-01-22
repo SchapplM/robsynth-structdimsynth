@@ -76,7 +76,7 @@ tic();
 fval_minpar = fitnessfcn_desopt(InitPop(1,:)');
 T2 = toc();
 avoid_optimization = false;
-if Set.optimization.desopt_link_yieldstrength && fval_minpar<1e3
+if Set.optimization.constraint_link_yieldstrength && fval_minpar<1e3
   % Das schwächste Segment erfüllt alle Nebenbedingungen. Das Ergebnis muss
   % damit optimal sein (alle Zielfunktionen wollen Materialstärke minimieren)
   avoid_optimization = true;

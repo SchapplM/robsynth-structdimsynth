@@ -132,7 +132,9 @@ if any(strcmp(Set.optimization.objective, {'energy', 'minactforce'}))
 end
 
 %% Nebenbedingungen der Entwurfsvariablen berechnen: Festigkeit der Segmente
-if Set.optimization.desopt_link_yieldstrength && ~Set.optimization.use_desopt
+if Set.optimization.constraint_link_yieldstrength && ~Set.optimization.use_desopt
+  % Wenn use_desopt gemacht wurde, wurde die Nebenbedingung bereits oben
+  % geprüft und hier ist keine Berechnung notwendig.
   [fval_ys, constrvioltext_ys] = cds_constr_yieldstrength(R, Set, data_dyn2, Jinv_ges, Q, Traj_0);
   if fval_ys > 1e5
     error('Dieser Fall ist nicht vorgesehen');

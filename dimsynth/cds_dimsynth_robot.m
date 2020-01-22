@@ -57,7 +57,7 @@ elseif Structure.Type == 2 % Parallel
   end
   R = parroblib_create_robot_class(Structure.Name, p_base(:), p_platform(:));
   NLEG = R.NLEG;
-  if Set.optimization.use_desopt && Set.optimization.desopt_link_yieldstrength
+  if Set.optimization.use_desopt && Set.optimization.constraint_link_yieldstrength
     R.DynPar.mode = 3; % Benutze Inertialparameter-Dynamik, weil auch Schnittkräfte in Regressorform berechnet werden
   else
     R.DynPar.mode = 4; % Benutze Minimalparameter-Dynamikfunktionen für die PKM
@@ -107,7 +107,7 @@ for i = 1:NLEG
     end
   end
   % Dynamikparameter setzen
-  if Set.optimization.use_desopt && Set.optimization.desopt_link_yieldstrength
+  if Set.optimization.use_desopt && Set.optimization.constraint_link_yieldstrength
     R_init.DynPar.mode = 3; % Benutze Inertialparameter-Dynamik, weil auch Schnittkräfte in Regressorform berechnet werden
   else
     R_init.DynPar.mode = 4; % Benutze Minimalparameter-Dynamikfunktionen
@@ -152,7 +152,7 @@ end
 if Set.optimization.use_desopt
   calc_reg = true; % Entwurfsoptimierung besser mit Regressor
 end
-if Set.optimization.desopt_link_yieldstrength
+if Set.optimization.constraint_link_yieldstrength
   calc_dyn_cut = true; % Schnittkraft für Segmentauslegung benötigt
 end
 Structure.calc_dyn_act = calc_dyn_act;
@@ -501,6 +501,7 @@ end
 %% Berechne andere Zielfunktionen
 Structure_tmp = Structure; % Eingabe um Berechnung der Antriebskräfte zu erzwingen
 Structure_tmp.calc_dyn_act = true;
+Structure_tmp.calc_dyn_cut = true; % ... und der Schnittkräfte
 Structure_tmp.calc_reg = false;
 data_dyn = cds_obj_dependencies(R, Traj_0, Set, Structure_tmp, Q, QD, QDD, Jinv_ges);
 % Einzelne Zielfunktionen aufrufen
@@ -508,8 +509,10 @@ data_dyn = cds_obj_dependencies(R, Traj_0, Set, Structure_tmp, Q, QD, QDD, Jinv_
 [fval_cond,~, ~, physval_cond] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
 [fval_mass,~, ~, physval_mass] = cds_obj_mass(R);
 [fval_minactforce,~, ~, physval_minactforce] = cds_obj_minactforce(data_dyn.TAU);
+[~, ~, f_maxstrengthviol] = cds_constr_yieldstrength(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
 % Reihenfolge siehe Variable Set.optimization.constraint_obj aus cds_settings_defaults
 fval_obj_all = [fval_mass, fval_energy, fval_minactforce, fval_cond];
+fval_constr_all = f_maxstrengthviol;
 physval_obj_all = [physval_mass, physval_energy, physval_minactforce, physval_cond];
 %% Ausgabe der Ergebnisse
 t_end = now(); % End-Zeitstempel der Optimierung dieses Roboters
@@ -517,6 +520,7 @@ RobotOptRes = struct( ...
   'fval', fval, ... % Zielfunktionswert (nach dem optimiert wurde)
   'fval_obj_all', fval_obj_all, ... % Werte aller möglicher einzelner Zielf.
   'physval_obj_all', physval_obj_all, ... % Physikalische Werte aller Zielf.
+  'fval_constr_all', fval_constr_all, ... % Werte der Nebenbedingungen
   'R', R, ... % Roboter-Klasse
   'p_val', p_val, ... % Parametervektor der Optimierung
   'p_limits', varlim, ... % Grenzen für die Parameterwerte

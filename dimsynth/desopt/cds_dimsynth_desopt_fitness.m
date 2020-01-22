@@ -81,7 +81,7 @@ if fval == 0 && Structure.calc_reg
 end
 
 %% Nebenbedingungen der Entwurfsvariablen berechnen: Festigkeit der Segmente
-if fval == 0 && Set.optimization.desopt_link_yieldstrength
+if fval == 0 && Set.optimization.constraint_link_yieldstrength
   [fval, constrvioltext] = cds_constr_yieldstrength(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
 end
 

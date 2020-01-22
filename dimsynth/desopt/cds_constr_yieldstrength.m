@@ -24,16 +24,20 @@
 % 
 % Ausgabe:
 % fval
-%   Grad der Verletzung der Nebenbedingung für Materialspannung
+%   Grad der Verletzung der Nebenbedingung für Materialspannung als
+%   normierte Nebenbedingung
 %   0: Alles i.O.
 %   1e4..1e5: Nebenbedingung nicht erfüllt
 % constrvioltext
 %   Fehlertext
+% f_maxstrengthviol
+%   Grad der Ausnutzung der Materialgrenzen:
+%   1=Grenzwert gerade so erfüllt; 10=Grenzwert zehnfach überschritten.
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function [fval, constrvioltext] = cds_constr_yieldstrength(R, Set, data_dyn, Jinv_ges, Q, Traj_0)
+function [fval, constrvioltext, f_maxstrengthviol] = cds_constr_yieldstrength(R, Set, data_dyn, Jinv_ges, Q, Traj_0)
 fval = 0;
 constrvioltext = '';
 
@@ -99,8 +103,8 @@ for i = 1:NLEG
   end
 end
 % Prüfe, ob für ein Segment die Materialspannung überschritten wurde
-if any(f_yieldstrength(:)>1)
-  f_maxstrengthviol = max(f_yieldstrength(:));
+f_maxstrengthviol = max(f_yieldstrength(:));
+if any(f_maxstrengthviol>1)
   % Normiere auf Wert zwischen 0 und 1
   f_maxstrengthviol_norm = 2/pi*atan(f_maxstrengthviol-1); % 1->0; 10->0.93
   fval = 1e4*(1+9*f_maxstrengthviol_norm); % Normiere in Bereich 1e4...1e5
