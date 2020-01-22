@@ -141,7 +141,7 @@ if Set.optimization.desopt_link_yieldstrength && ~Set.optimization.use_desopt
 end
 %% Nebenbedingungen der Entwurfsvariablen berechnen: Steifigkeit
 if Set.optimization.constraint_obj(5)
-  [fval_st, ~, ~, fval_phys_st] = cds_obj_stiffness(R, Q);
+  [fval_st, ~, ~, fval_phys_st] = cds_obj_stiffness(R, Set, Q);
   if fval_phys_st > Set.optimization.constraint_obj(5)
     fval = fval_st*10; % Bringe in Bereich 1e3 ... 1e4
     constrvioltext_stiffness = sprintf('Die Nachgiebigkeit ist zu groß: %1.1e > %1.1e', ...
@@ -169,7 +169,7 @@ elseif strcmp(Set.optimization.objective, 'mass')
 elseif strcmp(Set.optimization.objective, 'minactforce')
   [fval,fval_debugtext, debug_info] = cds_obj_minactforce(TAU);
 elseif strcmp(Set.optimization.objective, 'stiffness')
-  [fval,fval_debugtext, debug_info] = cds_obj_stiffness(R, Q);
+  [fval,fval_debugtext, debug_info] = cds_obj_stiffness(R, Set, Q);
 else
   error('Zielfunktion "%s" nicht definiert', Set.optimization.objective{1});
 end

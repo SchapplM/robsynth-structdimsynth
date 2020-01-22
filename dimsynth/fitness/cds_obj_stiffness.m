@@ -7,6 +7,8 @@
 % Eingabe:
 % R
 %   Matlab-Klasse für zu optimierenden Roboter (SerRob/ParRob)
+% Set
+%   Einstellungen des Optimierungsalgorithmus (aus cds_settings_defaults.m)
 % Q
 %   Gelenkpositionen des Roboters (für PKM auch passive Gelenke)
 %
@@ -36,12 +38,11 @@
 % Betreuer: Moritz Schappler, moritz.schappler@imes.uni-hannover.de
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function [fval, fval_debugtext, debug_info, fval_phys] = cds_obj_stiffness(R, Q)
+function [fval, fval_debugtext, debug_info, fval_phys] = cds_obj_stiffness(R, Set, Q)
 debug_info = {};
 
-
 % Berechne Steifigkeit über Trajektorie
-Vges = NaN(size(Q,1), 1);
+Keigges = NaN(size(Q,1), 3);
 % Berechne Steifigkeit für alle Punkte der Bahn
 for i = 1:size(Q,1)
   % Kartesische Steifigkeitsmatrix (6x6)
@@ -49,23 +50,51 @@ for i = 1:size(Q,1)
   % Auswahl der translatorischen Submatrix (3x3), Normierung auf N/mm
   % (damit Zahlenwerte eher im Bereich 1 liegen)
   K_trans_norm = 1e-3*K_ges(1:3,1:3);
-  % [GoerguelueDed2019], Gl. 21
-  % Entspricht Volumen des Ellipsoids der Nachgiebigkeits-Matrix
-  Vges(i,:) = 1/det(K_trans_norm);%prod(N_eig);
+  
+  Keigges(i,1:3) = sort(eig(K_trans_norm)); % Eigenwert der transl. St. in N/mm
+  if any(Keigges(i,1:3)<0)
+    error('Die Steifigkeitsmatrix kann keine negativen EW haben!');
+  end
+  
+  % Alternative Berechnung: Volumen des Steifigkeit-Ellipsoids
+%   % [GoerguelueDed2019], Gl. 21
+%   % Entspricht Volumen des Ellipsoids der Nachgiebigkeits-Matrix
+%   V(i,:) = 1/det(K_trans_norm);% 1/prod(eig(K_trans_norm));
 end
-if any(isnan(Vges))
+if any(isnan(Keigges))
   warning('Hier stimmt etwas nicht');
 end
-% Schlechtester Wert des Volumens vom Ellipsoid ist Kennzahl
-f_sti = max(Vges)^(1/3); % Umrechnung vom Volumen auf den Radius mit ^(1/3)
-% fprintf('Mittlere Steifigkeit: %1.3f N/mm; mittlere Nachgiebigkeit: %1.3f mm/N\n', 1/f_sti, f_sti);
-f_sti_norm = 2/pi*atan(f_sti); % Normierung: 1e3 mm/N -> 0.5; 5e3 mm/N -> 0.87
-fval = 1e3*f_sti_norm; % Normiert auf 0 bis 1e3
-fval_debugtext = sprintf('Nachgiebigkeit %1.3e mm/N; Steifigkeit %1.3e N/mm', f_sti, 1/f_sti);
-% Entsprechung des physikalischen Wertes: Eine gleichförmige Nachgiebigkeit
-% mit diesem Wert in alle drei Raumrichtungen (für Translation) würde eine
-% Hyper-Kugel mit dem gleichen Volumen wie das Hyper-Ellipsoid erzeugen,
-% das den aktuell schlechtesten Fall darstellt
-fval_phys = 1e-3 * f_sti; % Umrechnung in äquivalenten physikalischen Wert (mm/N -> m/N)
+[f_sti_min, I_sti_min] = min(Keigges(:,1));
+f_com = 1/f_sti_min; % Größte Nachgiebigkeit in mm/N
 
-debug_info = {sprintf('min. äqu. Steifigkeit: %1.3f N/mm', 1/f_sti)};
+% Alternative Berechnung für Ellipsoid:
+% Schlechtester Wert des Volumens vom Ellipsoid ist Kennzahl
+% f_sti = max(V)^(1/3); % Umrechnung vom Volumen auf den Radius mit ^(1/3)
+
+% fprintf('Niedrigste Steifigkeit: %1.3f N/mm bzw. höchste Nachgiebigkeit: %1.3f mm/N\n', 1/f_com, f_com);
+% Normierung (bezogen auf Nachgiebigkeit bzw. Steifigkeit): 
+% 1e-3 mm/N bzw. 1000 N/mm -> 0.06; (sehr steif; gut)
+% 1e-2 mm/N bzw. 100 N/mm  -> 0.50; (moderate Steifigkeit für einen Roboter)
+% 0.1 mm/N bzw. 10 N/mm    -> 0.94 (eher niedrige Steifigkeit; schlecht)
+% 1 mm/N bzw. 1N/mm        -> 0.99
+f_com_norm = 2/pi*atan(f_com/1e-2); 
+fval = 1e3*f_com_norm; % Normiert auf 0 bis 1e3
+fval_debugtext = sprintf('Nachgiebigkeit %1.3f mm/N; Steifigkeit %1.3f N/mm', f_com, 1/f_com);
+fval_phys = 1e-3 * f_com; % Umrechnung in äquivalenten physikalischen Wert (mm/N -> m/N)
+debug_info = {sprintf('min. Steifigkeit: %1.3f N/mm', 1/f_com)};
+
+%% Debug-Zeichnung erstellen
+if fval < Set.general.plot_details_in_fitness
+  change_current_figure(205); clf; hold all;
+  if ~strcmp(get(205, 'windowstyle'), 'docked')
+    % set(202,'units','normalized','outerposition',[0 0 1 1]);
+  end
+  hdleig=plot(Keigges);
+  hdl=plot([0; size(Q,1)], 1/Set.optimization.constraint_obj(5)*[1;1], 'r--');
+  hdlworst=plot(I_sti_min, f_sti_min, 'ko');
+  xlabel('Datenpunkte');
+  ylabel('Steifigkeit in N/mm (niedriger=schlechter)');
+  grid on;
+  sgtitle('Analyse der Nachgiebigkeit');
+  legend([hdleig;hdl;hdlworst], {'Nmin', 'Nmid', 'Nmax', 'Untergrenze', 'schlechtester'});
+end

@@ -101,7 +101,7 @@ if fval == 0 && any(Set.optimization.constraint_obj)
     error('Grenzen für Zielfunktionen Energie und MinActForce noch nicht implementiert');
   end
   if fval == 0  && Set.optimization.constraint_obj(5) % NB für Steifigkeit gesetzt
-    [fval_st, fval_debugtext_st, ~, fphys_st] = cds_obj_stiffness(R);
+    [fval_st, fval_debugtext_st, ~, fphys_st] = cds_obj_stiffness(R, Set, Q);
     viol_rel_st = (fphys_st - Set.optimization.constraint_obj(5))/Set.optimization.constraint_obj(5);
     if viol_rel_st > 0
       f_stvio_norm = 2/pi*atan((viol_rel_st)); % 1->0.5; 10->0.94
@@ -138,7 +138,7 @@ elseif strcmp(Set.optimization.objective, 'stiffness')
     fval = fval_st; % Nehme Wert von der NB-Berechnung oben
     fval_debugtext = fval_debugtext_st;
   else
-    [fval,fval_debugtext] = cds_obj_stiffness(R, Q);
+    [fval,fval_debugtext] = cds_obj_stiffness(R, Set, Q);
   end
 else
   error('Andere Zielfunktion noch nicht implementiert');
