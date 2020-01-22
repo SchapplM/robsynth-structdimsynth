@@ -300,7 +300,10 @@ for i = 1:length(Structures)
   saveas(10*i+5,     fullfile(resmaindir, sprintf('Rob%d_%s_KinematikZeit.fig', i, Name)));
   export_fig(10*i+5, fullfile(resmaindir, sprintf('Rob%d_%s_KinematikZeit.png', i, Name)));
   
-  
-  
-  
+  %% Finalisierung
+  % Alle Auswertungsbilder wieder schließen. Sonst gibt es eventuell
+  % Probleme mit dem Arbeitsspeicher.
+  if Set.general.only_save_summary_figures
+    close all;
+  end  
 end
