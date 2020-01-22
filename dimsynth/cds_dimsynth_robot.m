@@ -456,7 +456,8 @@ for i = 1:Set.general.max_retry_bestfitness_reconstruction
     end
     warning('Bei nochmaligem Aufruf der Fitness-Funktion kommt nicht der gleiche Wert heraus (Versuch %d). %s', i, t);
     if fval_test < fval
-      fprintf('Nehme den besseren neuen Wert ...\n');
+      fval = fval_test;
+      fprintf('Nehme den besseren neuen Wert als Ergebnis ...\n');
       break;
     end
   else
