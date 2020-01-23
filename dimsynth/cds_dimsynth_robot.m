@@ -450,9 +450,11 @@ for i = 1:Set.general.max_retry_bestfitness_reconstruction
   fval_test = fitnessfcn(p_val');
   if fval_test~=fval
     if fval_test < fval
-      t = sprintf('Der neue Wert (%1.1f) ist besser als der alte (%1.1f).', fval_test, fval);
+      t = sprintf('Der neue Wert (%1.1f) ist um %1.1e besser als der alte (%1.1f).', ...
+        fval_test, fval-fval_test, fval);
     else
-      t = sprintf('Der alte Wert (%1.1f) ist besser als der neue (%1.1f).', fval, fval_test);
+      t = sprintf('Der alte Wert (%1.1f) ist um %1.1e besser als der neue (%1.1f).', ...
+        fval, fval_test-fval, fval_test);
     end
     warning('Bei nochmaligem Aufruf der Fitness-Funktion kommt nicht der gleiche Wert heraus (Versuch %d). %s', i, t);
     if fval_test < fval
@@ -514,7 +516,8 @@ data_dyn = cds_obj_dependencies(R, Traj_0, Set, Structure_tmp, Q, QD, QDD, Jinv_
 fval_obj_all = [fval_mass, fval_energy, fval_minactforce, fval_cond];
 fval_constr_all = f_maxstrengthviol;
 physval_obj_all = [physval_mass, physval_energy, physval_minactforce, physval_cond];
-if any(physval_obj_all(:) > Set.optimization.constraint_obj(:))
+I_fobj_set = Set.optimization.constraint_obj ~= 0;
+if any(physval_obj_all(I_fobj_set) > Set.optimization.constraint_obj(I_fobj_set))
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot_conditionwarning.mat'));
   warning('Konditionszahl beim besten Ergebnis sehr schlecht, obwohl das eigentlich eine Nebenbedingung war.');
 end
