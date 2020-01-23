@@ -57,7 +57,7 @@ elseif Structure.Type == 2 % Parallel
   end
   R = parroblib_create_robot_class(Structure.Name, p_base(:), p_platform(:));
   NLEG = R.NLEG;
-  if Set.optimization.use_desopt && Set.optimization.constraint_link_yieldstrength
+  if Set.optimization.use_desopt && Set.optimization.constraint_link_yieldstrength > 0
     R.DynPar.mode = 3; % Benutze Inertialparameter-Dynamik, weil auch Schnittkräfte in Regressorform berechnet werden
   else
     R.DynPar.mode = 4; % Benutze Minimalparameter-Dynamikfunktionen für die PKM
@@ -107,7 +107,7 @@ for i = 1:NLEG
     end
   end
   % Dynamikparameter setzen
-  if Set.optimization.use_desopt && Set.optimization.constraint_link_yieldstrength
+  if Set.optimization.use_desopt && Set.optimization.constraint_link_yieldstrength > 0
     R_init.DynPar.mode = 3; % Benutze Inertialparameter-Dynamik, weil auch Schnittkräfte in Regressorform berechnet werden
   else
     R_init.DynPar.mode = 4; % Benutze Minimalparameter-Dynamikfunktionen
@@ -152,7 +152,7 @@ end
 if Set.optimization.use_desopt
   calc_reg = true; % Entwurfsoptimierung besser mit Regressor
 end
-if Set.optimization.constraint_link_yieldstrength
+if Set.optimization.constraint_link_yieldstrength > 0
   calc_dyn_cut = true; % Schnittkraft für Segmentauslegung benötigt
 end
 Structure.calc_dyn_act = calc_dyn_act;

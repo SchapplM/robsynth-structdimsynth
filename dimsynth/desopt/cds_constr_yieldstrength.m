@@ -33,6 +33,7 @@
 % f_maxstrengthviol
 %   Grad der Ausnutzung der Materialgrenzen:
 %   1=Grenzwert gerade so erfüllt; 10=Grenzwert zehnfach überschritten.
+%   (Ohne Berücksichtigung des Sicherheitsfaktors)
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
 % (C) Institut für Mechatronische Systeme, Universität Hannover
@@ -41,11 +42,19 @@ function [fval, constrvioltext, f_maxstrengthviol] = cds_constr_yieldstrength(R,
 fval = 0;
 constrvioltext = '';
 
+% Sicherheitsfaktor für Materialspannung
+safety_factor = Set.optimization.constraint_link_yieldstrength;
+
 % Konstanten, Definitionen
 % Dehngrenze von Aluminium-Legierung. Quellen:
 % https://de.wikipedia.org/wiki/Streckgrenze
 % https://de.wikipedia.org/wiki/Aluminium-Kupfer-Legierung
 R_e=250e6;
+
+
+% Reduziere wirksame Materialspannungsgrenze mit Sicherheitsfaktor
+R_e_eff = R_e / safety_factor;
+
 
 if R.Type == 0 % Seriell
   NLEG = 1; NL = R.NL;
@@ -104,12 +113,13 @@ for i = 1:NLEG
 end
 % Prüfe, ob für ein Segment die Materialspannung überschritten wurde
 f_maxstrengthviol = max(f_yieldstrength(:));
-if any(f_maxstrengthviol>1)
+f_maxstrengthviol_safety = f_maxstrengthviol*safety_factor;
+if any(f_maxstrengthviol_safety > 1)
   % Normiere auf Wert zwischen 0 und 1
-  f_maxstrengthviol_norm = 2/pi*atan(f_maxstrengthviol-1); % 1->0; 10->0.93
+  f_maxstrengthviol_norm = 2/pi*atan(f_maxstrengthviol_safety-1); % 1->0; 10->0.93
   fval = 1e4*(1+9*f_maxstrengthviol_norm); % Normiere in Bereich 1e4...1e5
-  constrvioltext = sprintf('Materialbelastungsgrenze überschritten (%d/%d Prüfungen; max Faktor %1.1f)', ...
-    sum(f_yieldstrength(:)>1), length(f_yieldstrength(:)), f_maxstrengthviol);
+  constrvioltext = sprintf('Materialbelastungsgrenze überschritten (%d/%d Prüfungen; max Faktor %1.1f. Sicherheitsfaktor %1.1f)', ...
+    sum(f_yieldstrength(:)>1), length(f_yieldstrength(:)), f_maxstrengthviol_safety, safety_factor);
 end
 
 %% Debug-Plot für Schnittkräfte
@@ -125,7 +135,7 @@ if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_detail
     for j = 1:NL
       sphdl(j) = subplot(3, 3, j); hold on; grid on
       plot(Traj_0.t, squeeze(sigma_ges_alle(i,j,:)));
-      plot(Traj_0.t([1 end]), R_e*[1;1], 'r-');
+      plot(Traj_0.t([1 end]), R_e_eff*[1;1], 'r-');
       if j == 1, ylabel(sprintf('Segment %d', i)); end
     end
   else % PKM
@@ -134,7 +144,7 @@ if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_detail
       for j = 1:NL
         sphdl(i,j) = subplot(NLEG, NL, sprc2no(NLEG, NL, i, j)); hold on; grid on
         plot(Traj_0.t, squeeze(sigma_ges_alle(i,j,:)));
-        plot(Traj_0.t([1 end]), R_e*[1;1], 'r-');
+        plot(Traj_0.t([1 end]), R_e_eff*[1;1], 'r-');
         if i == 1, title(sprintf('Bein %d', j)); end
         if j == 1, ylabel(sprintf('Segment %d', i)); end
       end

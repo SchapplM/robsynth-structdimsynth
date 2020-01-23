@@ -26,7 +26,7 @@ Set.optimization.MaxIter = 10;
 Set.optimization.ee_rotation = false;
 Set.optimization.movebase = false;
 Set.optimization.use_desopt = true;
-Set.optimization.constraint_link_yieldstrength = true;
+Set.optimization.constraint_link_yieldstrength = 1;
 Set.optimization.max_range_active_revolute = 2*pi;
 Set.general.plot_details_in_fitness = 0*1e3;
 Set.general.plot_robot_in_fitness = 0*1e7;
@@ -51,19 +51,19 @@ for dbc = [false, true]
         % Nebenbedingung Masse
         Set.optimization.constraint_obj(1) = 100; % max. 100kg
         % Entwurfsoptimierung
-        Set.optimization.constraint_link_yieldstrength = true;
+        Set.optimization.constraint_link_yieldstrength = 1;
       case 2 % Keine Berechnung der Schnittkräfte, nur Dynamik in Entwurfsoptimierung
         Set.optimization.objective = 'energy';
         % Nebenbedingung Masse
         Set.optimization.constraint_obj(1) = 100; % max. 100kg
         % Entwurfsoptimierung
-        Set.optimization.constraint_link_yieldstrength = false;
+        Set.optimization.constraint_link_yieldstrength = 0;
       case 3 % Berechnung der Schnittkräfte, aber keine Dynamik notwendig
         Set.optimization.objective = 'mass';
         % Nebenbedingung Masse
         Set.optimization.constraint_obj(0) = 0; % keine Nebenbedingung
         % Entwurfsoptimierung
-        Set.optimization.constraint_link_yieldstrength = true;
+        Set.optimization.constraint_link_yieldstrength = 1;
     end
     cds_start
   end
