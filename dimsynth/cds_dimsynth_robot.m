@@ -514,6 +514,10 @@ data_dyn = cds_obj_dependencies(R, Traj_0, Set, Structure_tmp, Q, QD, QDD, Jinv_
 fval_obj_all = [fval_mass, fval_energy, fval_minactforce, fval_cond];
 fval_constr_all = f_maxstrengthviol;
 physval_obj_all = [physval_mass, physval_energy, physval_minactforce, physval_cond];
+if any(physval_obj_all(:) > Set.optimization.constraint_obj(:))
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot_conditionwarning.mat'));
+  warning('Konditionszahl beim besten Ergebnis sehr schlecht, obwohl das eigentlich eine Nebenbedingung war.');
+end
 %% Ausgabe der Ergebnisse
 t_end = now(); % End-Zeitstempel der Optimierung dieses Roboters
 RobotOptRes = struct( ...
