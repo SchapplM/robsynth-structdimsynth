@@ -26,15 +26,19 @@ Descr_Row = {'', '', '', '', '', '', 'Zielfunktion der Optimierung', ...
   '(normiert)', 'in kg', '(normiert)', 'in J', ...
   '(normiert)', 'in N bzw. Nm', '(normiert)', 'in Einheiten der Jacobi', ...
   'Ausnutzung der Materialgrenzen; 1=max', '', '', 'Rechenzeit der Fitness-Auswertungen'};
-ResTab = [ResTab; Descr_Row]; %#ok<AGROW>
+ResTab = [ResTab; Descr_Row];
   
 % Alle Ergebnisse durchgehen und Tabelle erstellen
 for i = 1:length(Structures)
   Structure = Structures{i};
   Name = Structures{i}.Name;
   % Ergebnisse laden. Inhalt der Datei siehe cds_dimsynth_robot.m
-  tmp = load(fullfile(resmaindir, ...
-    sprintf('Rob%d_%s_Endergebnis.mat', i, Name)), 'RobotOptRes', 'Set', 'Traj', 'PSO_Detail_Data');
+  resfile = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', i, Name));
+  if ~exist(resfile, 'file')
+    warning('Ergebnis-Datei für Roboter %d (%s) existiert nicht: %s', i, Name, resfile);
+    continue
+  end
+  tmp = load(resfile, 'RobotOptRes', 'Set', 'Traj', 'PSO_Detail_Data');
   % Allgemeine Daten des Optimierungsergebnisses
   Row_i = {i, Name, Structure.Type, ...
     datestr(tmp.RobotOptRes.timestamps_start_end(1),'dd.mm.yyyy HH:MM:SS'), ...
