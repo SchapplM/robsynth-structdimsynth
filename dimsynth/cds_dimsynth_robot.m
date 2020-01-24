@@ -415,7 +415,7 @@ mkdirs(resdir);
 fitnessfcn=@(p)cds_fitness(R, Set, Traj, Structure, p(:));
 f_test = fitnessfcn(InitPop(1,:)'); %#ok<NASGU> % Testweise ausführen
 % Zurücksetzen der Detail-Speicherfunktion
-cds_save_particle_details(Set, 0, 0, 0, 'reset');
+cds_save_particle_details(Set, R, 0, 0, 0, 'reset');
 %% PSO-Aufruf starten
 if Set.general.matfile_verbosity > 0
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat'));
@@ -440,13 +440,18 @@ end
 % Debug:
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot3.mat'));
 % Detail-Ergebnisse extrahieren (persistente Variable in Funktion)
-PSO_Detail_Data = cds_save_particle_details(Set, 0, 0, 0, 'output');
+PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, 0, 'output');
+% Zurücksetzen, damit Neuberechnungen der Fitness-Funktion nicht fehlschlagen
+cds_save_particle_details(Set, R, 0, 0, 0, 'reset');
 %% Nachverarbeitung der Ergebnisse
+
 % Fitness-Funktion nochmal mit besten Parametern aufrufen. Dadurch werden
 % die Klassenvariablen (R.pkin, R.DesPar.seg_par, ...) aktualisiert
 for i = 1:Set.general.max_retry_bestfitness_reconstruction
   % Mehrere Versuche vornehmen, da beim Umklappen der Roboterkonfiguration
-  % andere Ergebnisse entstehen können
+  % andere Ergebnisse entstehen können.
+  % Eigentlich darf sich das Ergebnis aber nicht ändern (wegen der
+  % Zufallszahlen-Initialisierung in cds_fitness).
   fval_test = fitnessfcn(p_val');
   if fval_test~=fval
     if fval_test < fval
@@ -467,11 +472,26 @@ for i = 1:Set.general.max_retry_bestfitness_reconstruction
     break;
   end
 end
+% Schreibe die Anfangswerte der Gelenkwinkel für das beste Individuum in
+% die Roboterklasse. Suche dafür den besten Funktionswert in den zusätzlich
+% gespeicherten Daten für die Position des Partikels in dem
+% Optimierungsverfahren
+k = find(fval == PSO_Detail_Data.fval', 1, 'first');
+[j,i] = ind2sub(fliplr(size(PSO_Detail_Data.fval)),k); % Umrechnung in 2D-Indizes. i=Generation, j=Individuum
+q0_ik = PSO_Detail_Data.q0_ik(j,:,i)';
+
 % Grenzen aus diesem letzten Aufruf bestimmen
 if Structure.Type == 0 
   Structure.qlim = R.qlim;
 else
   Structure.qlim = cat(1, R.Leg.qlim);
+end
+% Prüfen, ob diese mit den im Optimierungsprozess gespeicherten IK-Anfangs-
+% winkeln übereinstimmen
+if Structure.Type == 0, q0_ik2 = R.qref;
+else,                   q0_ik2 = cat(1,R.Leg.qref); end
+if any(q0_ik ~= q0_ik2)
+  warning('IK-Anfangswinkeln sind bei erneuter Berechnung anders. Darf nicht passieren.');
 end
 
 % Berechne Inverse Kinematik zu erstem Bahnpunkt
@@ -518,9 +538,12 @@ fval_constr_all = f_maxstrengthviol;
 physval_obj_all = [physval_mass, physval_energy, physval_minactforce, physval_cond];
 I_fobj_set = Set.optimization.constraint_obj ~= 0;
 if any(physval_obj_all(I_fobj_set) > Set.optimization.constraint_obj(I_fobj_set))
-  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot_conditionwarning.mat'));
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+    sprintf('%s_Rob%d_%s_cds_dimsynth_robot_conditionwarning.mat', Set.optimization.optname, ...
+    Structure.Number, Structure.Name)));
   warning('Konditionszahl beim besten Ergebnis sehr schlecht, obwohl das eigentlich eine Nebenbedingung war.');
 end
+
 %% Ausgabe der Ergebnisse
 t_end = now(); % End-Zeitstempel der Optimierung dieses Roboters
 RobotOptRes = struct( ...

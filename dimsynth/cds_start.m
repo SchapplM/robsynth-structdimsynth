@@ -9,6 +9,8 @@
 % Warnungen unterdrücken, die bei der Maßsynthese typischerweise auftreten
 warning('off', 'MATLAB:singularMatrix');
 warning('off', 'MATLAB:nearlySingularMatrix');
+% Persistente Variablen zurücksetzen
+clear cds_save_particle_details
 
 if ~exist('Set', 'var') || ~exist('Traj', 'var')
   error('Eingabevariablen des Startskriptes existieren nicht');
@@ -26,16 +28,22 @@ end
 if Set.task.profile == 0 && strcmp(Set.optimization.objective, 'energy')
   error('Energieberechnung ohne Zeitverlauf der Trajektorie nicht sinnvoll');
 end
+
+% Menge der Roboter laden
+Structures = cds_gen_robot_list(Set);
+
 % Bei paralleler Berechnung dürfen keine Dateien geschrieben werden um
 % Konflikte zu vermeiden
-if Set.general.parcomp_struct
+if Set.general.parcomp_struct && ... % Parallele Rechnung ist ausgewählt
+    ~Set.general.regenerate_summmary_only && ... % für Bildgenerierung ParComp nicht benötigt
+    length(Structures) > 1 % für Optimierung eines Roboters keine parallele Rechnung
   % Keine Bilder zeichnen
   Set.general.plot_details_in_fitness = 0;
   Set.general.plot_robot_in_fitness = 0;
   Set.general.noprogressfigure = true;
   % Keine (allgemeinen) mat-Dateien speichern
   Set.general.matfile_verbosity = 0;
-  try
+  try %#ok<TRYNC>
     parpool();
   end
   Pool=gcp();
@@ -43,9 +51,6 @@ if Set.general.parcomp_struct
 else
   parfor_numworkers = 0;
 end
-
-% Menge der Roboter laden
-Structures = cds_gen_robot_list(Set);
 
 if isempty(Structures)
   fprintf('Keine Strukturen entsprechen den Filterkriterien\n');
