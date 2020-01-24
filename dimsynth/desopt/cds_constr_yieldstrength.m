@@ -128,7 +128,6 @@ if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_detail
   % Zeichne Materialspannungen (maßgeblich für Auslegung)
   change_current_figure(1999);clf;
   set(1999, 'Name', 'Materialspannung', 'NumberTitle', 'off');
-
   if R.Type == 0 % Seriell
     sphdl = NaN(3, 3);
     i = 1;
@@ -139,14 +138,16 @@ if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_detail
       if j == 1, ylabel(sprintf('Segment %d', i)); end
     end
   else % PKM
-    sphdl = NaN(NLEG, NL);
-    for i = 1:NLEG
+    sphdl = NaN(NL, NLEG);
+    for k = 1:NLEG % Beine in den Spalten des Bildes
       for j = 1:NL
-        sphdl(i,j) = subplot(NLEG, NL, sprc2no(NLEG, NL, i, j)); hold on; grid on
-        plot(Traj_0.t, squeeze(sigma_ges_alle(i,j,:)));
+        sphdl(j,k)=subplot(size(sphdl,1),size(sphdl,2),sprc2no(size(sphdl,1),size(sphdl,2),j,k)); 
+        hold on; grid on;
+        plot(Traj_0.t, squeeze(sigma_ges_alle(k,j,:)));
         plot(Traj_0.t([1 end]), R_e_eff*[1;1], 'r-');
-        if i == 1, title(sprintf('Bein %d', j)); end
-        if j == 1, ylabel(sprintf('Segment %d', i)); end
+        plot(Traj_0.t([1 end]), R_e*[1;1], 'g-');
+        if j == 1, title(sprintf('Beinkette %d', k)); end
+        if k == 1, ylabel(sprintf('Seg. %d', j-1)); end
       end
     end
     remove_inner_labels(sphdl,1); 
@@ -160,7 +161,6 @@ if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_detail
     change_current_figure(2000+fm);clf;
     if fm == 0, set(2000+fm, 'Name', 'Schnittkräfte', 'NumberTitle', 'off');
     else, set(2000+fm, 'Name', 'Schnittmoment', 'NumberTitle', 'off'); end
-
     if R.Type == 0 % Seriell
       sphdl=NaN(3, 3);
       for j = 1:R.NL
@@ -240,7 +240,7 @@ if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_detail
     s_plot = struct( 'ks', [1, R.NL+1], 'straight', 1, 'mode', 4);
     R.plot( Q(I_sigma_exc,:)', s_plot);
   else % PKM
-    s_plot = struct( 'ks_legs', [1,2], 'straight', 0, 'mode', 4);
+    s_plot = struct( 'ks_legs', Rob.I1L_LEG, 'straight', 1, 'mode', 4);
     R.plot( Q(I_sigma_exc,:)', Traj_0.X(I_sigma_exc,:)', s_plot);
   end
   sgtitle('CAD-Modell bei max. Überschreitung der Belastungsgrenze');
