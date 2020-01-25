@@ -9,6 +9,7 @@
 % Warnungen unterdrücken, die bei der Maßsynthese typischerweise auftreten
 warning('off', 'MATLAB:singularMatrix');
 warning('off', 'MATLAB:nearlySingularMatrix');
+warning('off', 'MATLAB:illConditionedMatrix');
 % Persistente Variablen zurücksetzen
 clear cds_save_particle_details
 
@@ -44,10 +45,18 @@ if Set.general.parcomp_struct && ... % Parallele Rechnung ist ausgewählt
   % Keine (allgemeinen) mat-Dateien speichern
   Set.general.matfile_verbosity = 0;
   try %#ok<TRYNC>
-    parpool();
+    parpool(Set.general.parcomp_maxworkers);
   end
   Pool=gcp();
   parfor_numworkers = Pool.NumWorkers;
+  if ~isinf(Set.general.parcomp_maxworkers) && parfor_numworkers ~= Set.general.parcomp_maxworkers
+    warning('Die gewünschte Zahl von %d Parallelinstanzen konnte nicht erfüllt werden. Es sind jetzt %d.', ...
+      Set.general.parcomp_maxworkers, parfor_numworkers)
+  end
+  % Warnungen auch in ParPool-Workern unterdrücken
+  parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:singularMatrix');
+  parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:nearlySingularMatrix');
+  parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:illConditionedMatrix');
 else
   parfor_numworkers = 0;
 end

@@ -16,6 +16,9 @@
 % fval [1x1]
 %   Zielfunktionswert, der im PSO-Algorithmus minimiert wird
 %   Wird aus vergleichbarer Nachgiebigkeit gebildet.
+%   Werte:
+%   0...1e2: Normierter Wert für Nachgiebigkeit
+%   1e2...1e3: Fehlerhafte Berechnung der Steifigkeit
 % fval_debugtext [char]
 %   Zeile mit Hinweistext, der bei PSO nach Fitness-Berechnung ausgegeben wird
 % debug_info [cell]
@@ -40,7 +43,14 @@
 
 function [fval, fval_debugtext, debug_info, fval_phys] = cds_obj_stiffness(R, Set, Q)
 debug_info = {};
-
+if R.Type == 0 && any(R.DesPar.seg_par(:) == 0) || ...
+   R.Type ~= 0 && any(R.Leg(1).DesPar.seg_par(:) == 0)
+  % Prüfe, ob Segmentparameter gültig gesetzt sind (muss durch
+  % Programmlogik sichergestellt sein)
+  repopath = fileparts(which('structgeomsynth_path_init.m'));
+  save(fullfile(repopath, 'tmp', 'cds_obj_stiffness_structpar_zero.mat'));
+  error('Unphysikalische Strukturparameter!');
+end
 % Berechne Steifigkeit über Trajektorie
 Keigges = NaN(size(Q,1), 3);
 % Berechne Steifigkeit für alle Punkte der Bahn
@@ -50,7 +60,12 @@ for i = 1:size(Q,1)
   % Auswahl der translatorischen Submatrix (3x3), Normierung auf N/mm
   % (damit Zahlenwerte eher im Bereich 1 liegen)
   K_trans_norm = 1e-3*K_ges(1:3,1:3);
-  
+  if any(isnan(K_trans_norm(:))) || any(isinf(K_trans_norm(:)))
+    repopath = fileparts(which('structgeomsynth_path_init.m'));
+    save(fullfile(repopath, 'tmp', 'cds_obj_stiffness_infnan_error.mat'));
+    warning('Matrix ist Inf oder NaN. Darf nicht sein');
+    continue
+  end
   Keigges(i,1:3) = sort(eig(K_trans_norm)); % Eigenwert der transl. St. in N/mm
   if any(Keigges(i,1:3)<0)
     repopath = fileparts(which('structgeomsynth_path_init.m'));
@@ -63,8 +78,15 @@ for i = 1:size(Q,1)
 %   % Entspricht Volumen des Ellipsoids der Nachgiebigkeits-Matrix
 %   V(i,:) = 1/det(K_trans_norm);% 1/prod(eig(K_trans_norm));
 end
-if any(isnan(Keigges))
-  warning('Hier stimmt etwas nicht');
+% Zähle die Vorkommnisse Fehlerhafter Berechnung
+num_invalid = sum(isnan(Keigges(:,1)));
+if num_invalid > 0
+  % Kritierum ist die Anzahl der ungültigen Ergebnisse
+  % Normiere Marker für ungültiges Ergebnis im Bereich 1e2 bis 1e3
+  f_invalid_norm = num_invalid/size(Q,1);
+  fval = 1e2*(1+9*f_invalid_norm);
+  fval_debugtext = sprintf('In %d/%d Fällen keine Steifigkeit bestimmbar', num_invalid, size(Q,1));
+  return
 end
 [f_sti_min, I_sti_min] = min(Keigges(:,1));
 f_com = 1/f_sti_min; % Größte Nachgiebigkeit in mm/N
@@ -80,7 +102,7 @@ f_com = 1/f_sti_min; % Größte Nachgiebigkeit in mm/N
 % 0.1 mm/N bzw. 10 N/mm    -> 0.94 (eher niedrige Steifigkeit; schlecht)
 % 1 mm/N bzw. 1N/mm        -> 0.99
 f_com_norm = 2/pi*atan(f_com/1e-2); 
-fval = 1e3*f_com_norm; % Normiert auf 0 bis 1e3
+fval = 1e2*f_com_norm; % Normiert auf 0 bis 1e2
 fval_debugtext = sprintf('Nachgiebigkeit %1.3f mm/N; Steifigkeit %1.3f N/mm', f_com, 1/f_com);
 fval_phys = 1e-3 * f_com; % Umrechnung in äquivalenten physikalischen Wert (mm/N -> m/N)
 debug_info = {sprintf('min. Steifigkeit: %1.3f N/mm', 1/f_com)};

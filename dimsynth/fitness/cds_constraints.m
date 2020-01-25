@@ -183,7 +183,13 @@ if any(abs(Phi_E(:)) > 1e-2) % Die Toleranz beim IK-Verfahren ist etwas größer
   Q = QE; % Ausgabe dient nur zum Zeichnen des Roboters
   return
 end
-
+% Speichere die Anfangs-Winkelstellung in der Roboterklasse für später.
+% Dient zum Vergleich und zur Reproduktion der Ergebnisse
+if R.Type == 0 % Seriell
+  R.qref = q;
+else
+  for i = 1:R.NLEG, R.Leg(i).qref = q(R.I1J_LEG(i):R.I2J_LEG(i)); end
+end
 %% Bestimme die Spannweite der Gelenkkoordinaten (getrennt Dreh/Schub)
 QE_korr = [QE; QE(end,:)];
 % Berücksichtige Sonderfall des erten Schubgelenks bei der Bestimmung der
@@ -243,14 +249,6 @@ if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
     s.simplify_acc = true;
     [Q, QD, QDD, PHI, Jinv_ges] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
   end
-  % Speichere die Anfangs-Winkelstellung in der Roboterklasse für später
-  if R.Type == 0 % Seriell
-    R.qref = q;
-  else
-    for i = 1:R.NLEG
-      R.Leg(i).qref = q(R.I1J_LEG(i):R.I2J_LEG(i));
-    end
-  end
   I_ZBviol = any(abs(PHI) > 1e-3,2) | any(isnan(Q),2);
   if any(I_ZBviol)
     % Bestimme die erste Verletzung der ZB (je später, desto besser)
@@ -264,7 +262,7 @@ if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
   end
 else
   % Es liegt keine Trajektorie vor. Es reicht also, das Ergebnis der IK von
-  % der Eckpunkt-Berechnung zu benutzen
+  % der Eckpunkt-Berechnung zu benutzen um die Jacobi-Matrix zu berechnen
   Q = QE;
   QD = 0*Q; QDD = 0*Q;
   if R.Type == 0 % Seriell
@@ -273,6 +271,14 @@ else
     Jinv_ges = NaN(size(Q,1), sum(R.I_EE)*size(Q,2));
     for i = 1:size(Q,1)
       [~,J_x_inv] = R.jacobi_qa_x(Q(i,:)', Traj_0.X(i,:)');
+      if any(isnan(J_x_inv(:))) || any(isinf(J_x_inv(:)))
+        % Durch numerische Fehler können Inf- oder NaN-Einträge in der
+        % Jacobi-Matrix entstehen (Singularität)
+        if Set.general.matfile_verbosity > 2
+          save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_J_infnan.mat'));
+        end
+        J_x_inv = zeros(size(J_x_inv));
+      end
       Jinv_ges(i,:) = J_x_inv(:);
     end
   end

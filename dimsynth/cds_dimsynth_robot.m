@@ -434,15 +434,15 @@ else
   % PSO wird ganz normal ausgeführt.
   [p_val,fval,exitflag] = particleswarm(fitnessfcn,nvars,varlim(:,1),varlim(:,2),options);
 end
-if Set.general.matfile_verbosity > 0
-  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot3.mat'));
-end
-% Debug:
-% load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot3.mat'));
 % Detail-Ergebnisse extrahieren (persistente Variable in Funktion)
 PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, 0, 'output');
 % Zurücksetzen, damit Neuberechnungen der Fitness-Funktion nicht fehlschlagen
 cds_save_particle_details(Set, R, 0, 0, 0, 'reset');
+% Debug:
+if Set.general.matfile_verbosity > 0
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot3.mat'));
+end
+% load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot3.mat'));
 %% Nachverarbeitung der Ergebnisse
 
 % Fitness-Funktion nochmal mit besten Parametern aufrufen. Dadurch werden
@@ -490,7 +490,7 @@ end
 % winkeln übereinstimmen
 if Structure.Type == 0, q0_ik2 = R.qref;
 else,                   q0_ik2 = cat(1,R.Leg.qref); end
-if any(q0_ik ~= q0_ik2)
+if any(q0_ik ~= q0_ik2) && fval<1e9 % nur bei erfolgreicher Berechnung der IK ist der gespeicherte Wert sinnvoll
   warning('IK-Anfangswinkeln sind bei erneuter Berechnung anders. Darf nicht passieren.');
 end
 
@@ -515,34 +515,47 @@ else % Parallel
   s = struct('debug', false, 'retry_limit', 1);
   [Q, QD, QDD, PHI, Jinv_ges] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
 end
-
+result_invalid = false;
 if ~strcmp(Set.optimization.objective, 'valid_act') && ...
     (any(abs(PHI(:))>1e-8) || any(isnan(Q(:))))
   warning('PSO-Ergebnis für Trajektorie nicht reproduzierbar oder nicht gültig (ZB-Verletzung)');
+  result_invalid = true;
 end
 %% Berechne andere Zielfunktionen
 Structure_tmp = Structure; % Eingabe um Berechnung der Antriebskräfte zu erzwingen
 Structure_tmp.calc_dyn_act = true;
 Structure_tmp.calc_dyn_cut = true; % ... und der Schnittkräfte
 Structure_tmp.calc_reg = false;
-data_dyn = cds_obj_dependencies(R, Traj_0, Set, Structure_tmp, Q, QD, QDD, Jinv_ges);
-% Einzelne Zielfunktionen aufrufen
-[fval_energy,~, ~, physval_energy] = cds_obj_energy(R, Set, Structure, Traj_0, data_dyn.TAU, QD);
-[fval_cond,~, ~, physval_cond] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
-[fval_mass,~, ~, physval_mass] = cds_obj_mass(R);
-[fval_minactforce,~, ~, physval_minactforce] = cds_obj_minactforce(data_dyn.TAU);
-[fval_stiff,~, ~, physval_stiff] = cds_obj_stiffness(R, Set, Q);
-[~, ~, f_maxstrengthviol] = cds_constr_yieldstrength(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
-% Reihenfolge siehe Variable Set.optimization.constraint_obj aus cds_settings_defaults
-fval_obj_all = [fval_mass, fval_energy, fval_minactforce, fval_cond, fval_stiff];
-fval_constr_all = f_maxstrengthviol;
-physval_obj_all = [physval_mass, physval_energy, physval_minactforce, physval_cond, physval_stiff];
+if ~result_invalid
+  % Masseparameter belegen, falls das nicht vorher passiert ist.
+  if fval > 1e3 % irgendeine Nebenbedingung wurde immer verletzt. Daher wahrscheinlich nie bis ...
+    cds_dimsynth_design(R, Q, Set, Structure); % ... zu diesem Funktionsaufruf gekommen.
+  end
+  data_dyn = cds_obj_dependencies(R, Traj_0, Set, Structure_tmp, Q, QD, QDD, Jinv_ges);
+  % Einzelne Zielfunktionen aufrufen
+  [fval_energy,~, ~, physval_energy] = cds_obj_energy(R, Set, Structure, Traj_0, data_dyn.TAU, QD);
+  [fval_cond,~, ~, physval_cond] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
+  [fval_mass,~, ~, physval_mass] = cds_obj_mass(R);
+  [fval_minactforce,~, ~, physval_minactforce] = cds_obj_minactforce(data_dyn.TAU);
+  [fval_stiff,~, ~, physval_stiff] = cds_obj_stiffness(R, Set, Q);
+  [~, ~, f_maxstrengthviol] = cds_constr_yieldstrength(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
+  % Reihenfolge siehe Variable Set.optimization.constraint_obj aus cds_settings_defaults
+  fval_obj_all = [fval_mass, fval_energy, fval_minactforce, fval_cond, fval_stiff];
+  fval_constr_all = f_maxstrengthviol;
+  physval_obj_all = [physval_mass, physval_energy, physval_minactforce, physval_cond, physval_stiff];
+else
+  % Keine Berechnung der Zielfunktionen möglich, da keine zulässige Lösung
+  % gefunden wurde.
+  fval_obj_all = NaN(1,5);
+  fval_constr_all = NaN(1,1);
+  physval_obj_all = NaN(1,5);
+end
 I_fobj_set = Set.optimization.constraint_obj ~= 0;
 if any(physval_obj_all(I_fobj_set) > Set.optimization.constraint_obj(I_fobj_set))
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
-    sprintf('%s_Rob%d_%s_cds_dimsynth_robot_conditionwarning.mat', Set.optimization.optname, ...
+    sprintf('%s_Rob%d_%s_cds_dimsynth_robot_objconstrwarning.mat', Set.optimization.optname, ...
     Structure.Number, Structure.Name)));
-  warning('Konditionszahl beim besten Ergebnis sehr schlecht, obwohl das eigentlich eine Nebenbedingung war.');
+  warning('Zielfunktions-Nebenbedingung verletzt trotz Berücksichtigung in Optimierung. Keine Lösung gefunden.');
 end
 
 %% Ausgabe der Ergebnisse

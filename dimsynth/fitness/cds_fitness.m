@@ -64,6 +64,10 @@ if fval_constr > 1000 % Nebenbedingungen verletzt.
   cds_save_particle_details(Set, R, toc(t1), fval, Jcond);
   return
 end
+if any(isinf(Jinv_ges(:))) || any(isnan(Jinv_ges(:)))
+  save(fullfile(repopath, 'tmp', 'cds_fitness_J_infnan.mat'));
+  error('Jacobi hat Inf oder NaN. Darf hier eigentlich nicht sein!');
+end
 if Set.general.matfile_verbosity > 2
   save(fullfile(repopath, 'tmp', 'cds_fitness_2.mat'));
 end
