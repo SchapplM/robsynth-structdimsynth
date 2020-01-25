@@ -168,7 +168,7 @@ for i = 1:length(Structures)
   sgtitle('Diverse Auswertungsbilder');
   % Verteilung der Rechenzeit über die Zielfunktionswerte
   % Streudiagramm
-  subplot(2,1,1); hold all;
+  subplot(2,2,1); hold all;
   plot(log10(PSO_Detail_Data.fval), PSO_Detail_Data.comptime, 'kx');
   xlabel('Zielfunktion (log)');
   ylabel('Rechenzeit in s');
@@ -176,14 +176,27 @@ for i = 1:length(Structures)
   grid on;
   
   % Verteilung der Konditionszahlen in den Ergebnissen
-  subplot(2,1,2); hold all;
+  subplot(2,2,2); hold all;
   h = histogram(log10(PSO_Detail_Data.Jcond(:)));
-  plot(log10(Set.optimization.constraint_obj(4))*[1;1], [0;max(h.Values)], 'k-');
+  plot(log10(Set.optimization.constraint_obj(4))*[1;1], [0;1.2*max(h.Values)], 'k-', 'LineWidth', 2);
   xlim(minmax2(h.BinEdges)+h.BinWidth*[-1 1])
   title('Verteilung der Konditionszahlen über die Optimierung');
   xlabel('Konditionszahl (log)');
   ylabel(sprintf('Häufigkeit (Anzahl i.O.: %d/%d)', sum(~isnan(PSO_Detail_Data.Jcond(:))), ...
     length(PSO_Detail_Data.Jcond(:))));
+    
+  % Verteilung der Materialbeanspruchung gegen die Jacobi-Konditionszahl
+  % Streudiagramm
+  subplot(2,2,3); hold all;
+  plot(log10(PSO_Detail_Data.Jcond(:)), 100*PSO_Detail_Data.f_maxstrengthviol(:), 'kx');
+  plot([0;log10(max(PSO_Detail_Data.Jcond(:)))], [100;100], 'g--'); % Grenze Material
+  plot(log10(Set.optimization.constraint_obj(4))*[1;1], [0;100], 'r--'); % Grenze für Jacobi
+  xlim(log10(minmax2(PSO_Detail_Data.Jcond(:)')));
+  ylim(100*minmax2(PSO_Detail_Data.f_maxstrengthviol(:)'));
+  xlabel('Konditionszahl (log)');
+  ylabel('Materialbeanspruchung in Prozent');
+  title('Materialbelastung vs Kondition');
+  grid on;  
   
   saveas(10*i+6,     fullfile(resmaindir, sprintf('Rob%d_%s_Population_Fitness.fig', i, Name)));
   export_fig(10*i+6, fullfile(resmaindir, sprintf('Rob%d_%s_Population_Fitness.png', i, Name)));

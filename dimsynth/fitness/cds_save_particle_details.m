@@ -12,6 +12,9 @@
 %   Güte-Wert für aktuellen Parametersatz
 % Jcond
 %   Schlechteste Konditionszahl des Roboters. Siehe cds_obj_condition.
+% f_maxstrengthviol
+%   Beansprachung der Materialspannung (1=Materialversagen)
+%   Aus cds_constr_yieldstrength.m
 % option
 %   Steuerungsparameter für das Verhalten der Funktion
 %   output: Nur Ausgabe der gespeicherten persistenten Variable
@@ -26,7 +29,7 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function PSO_Detail_Data_output = cds_save_particle_details(Set, R, comptime, fval, Jcond, option)
+function PSO_Detail_Data_output = cds_save_particle_details(Set, R, comptime, fval, Jcond, f_maxstrengthviol, option)
 if isnan(comptime) || isnan(fval)
   error('Rechenzeit darf nicht NaN sein');
 end
@@ -34,7 +37,7 @@ end
 persistent PSO_Detail_Data
 PSO_Detail_Data_output = [];
 % Eingabe verarbeiten
-if nargin < 6
+if nargin < 7
   option = 'iter';
 end
 if strcmp(option, 'output')
@@ -51,6 +54,7 @@ if isempty(PSO_Detail_Data) || strcmp(option, 'reset')
     'comptime', NaN(size_data), ...
     'fval', NaN(size_data), ...
     'Jcond', NaN(size_data), ...
+    'f_maxstrengthviol', NaN(size_data), ...
     'q0_ik', NaN(size_data(2), length(q0), size_data(1)) );
   if strcmp(option, 'reset')
     return
@@ -66,4 +70,5 @@ k=find(isnan(data_transp(:)), 1, 'first'); % 1D-Index in Matrix
 PSO_Detail_Data.comptime(i,j) = comptime;
 PSO_Detail_Data.fval(i,j) = fval;
 PSO_Detail_Data.Jcond(i,j) = Jcond;
+PSO_Detail_Data.f_maxstrengthviol(i,j) = f_maxstrengthviol;
 PSO_Detail_Data.q0_ik(j,:,i) = q0;

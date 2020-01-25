@@ -39,7 +39,8 @@ end
 
 t1=tic();
 debug_info = {};
-Jcond = NaN;
+Jcond = NaN; % Konditionszahl der Jacobi-Matrix (für spätere Auswertung)
+f_maxstrengthviol = NaN; % Überschreitung der Materialspannungsgrenzen (...)
 %% Parameter prüfen
 if p(1) == 0
   error('Roboterskalierung kann nicht Null werden');
@@ -61,7 +62,7 @@ fval = fval_constr*1e3; % Erhöhung, damit später kommende Funktionswerte aus E
 cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
 if fval_constr > 1000 % Nebenbedingungen verletzt.
   fprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext);
-  cds_save_particle_details(Set, R, toc(t1), fval, Jcond);
+  cds_save_particle_details(Set, R, toc(t1), fval, Jcond, f_maxstrengthviol);
   return
 end
 if any(isinf(Jinv_ges(:))) || any(isnan(Jinv_ges(:)))
@@ -82,7 +83,7 @@ if Set.optimization.constraint_obj(4) % NB für Kondition gesetzt
     cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
     constrvioltext = sprintf('Konditionszahl ist zu schlecht: %1.1e > %1.1e', Jcond, Set.optimization.constraint_obj(4));
     fprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext);
-    cds_save_particle_details(Set, R, toc(t1), fval, Jcond);
+    cds_save_particle_details(Set, R, toc(t1), fval, Jcond, f_maxstrengthviol);
     return
   end
 end
@@ -115,7 +116,7 @@ if any(strcmp(Set.optimization.objective, {'energy', 'mass', 'minactforce', 'sti
       cds_fitness_debug_plot_robot(R, zeros(R.NJ,1), Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
       constrvioltext = 'Verletzung der Nebenbedingungen in Entwurfsoptimierung';
       fprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext);
-      cds_save_particle_details(Set, R, toc(t1), fval, Jcond);
+      cds_save_particle_details(Set, R, toc(t1), fval, Jcond, f_maxstrengthviol);
       return
     end
   end
@@ -141,13 +142,13 @@ end
 if Set.optimization.constraint_link_yieldstrength > 0 && ~Set.optimization.use_desopt
   % Wenn use_desopt gemacht wurde, wurde die Nebenbedingung bereits oben
   % geprüft und hier ist keine Berechnung notwendig.
-  [fval_ys, constrvioltext_ys] = cds_constr_yieldstrength(R, Set, data_dyn2, Jinv_ges, Q, Traj_0);
+  [fval_ys, constrvioltext_ys, f_maxstrengthviol] = cds_constr_yieldstrength(R, Set, data_dyn2, Jinv_ges, Q, Traj_0);
   if fval_ys > 1e5
     error('Dieser Fall ist nicht vorgesehen');
   elseif fval_ys>1e4
     fval = fval_ys;
     fprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext_ys);
-    cds_save_particle_details(Set, R, toc(t1), fval, Jcond);
+    cds_save_particle_details(Set, R, toc(t1), fval, Jcond, f_maxstrengthviol);
     return
   end
 end
@@ -187,4 +188,4 @@ else
 end
 fprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. Erfolgreich. %s.\n', toc(t1), fval, fval_debugtext);
 cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
-cds_save_particle_details(Set, R, toc(t1), fval, Jcond);
+cds_save_particle_details(Set, R, toc(t1), fval, Jcond, f_maxstrengthviol);
