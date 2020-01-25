@@ -53,6 +53,8 @@ for i = 1:size(Q,1)
   
   Keigges(i,1:3) = sort(eig(K_trans_norm)); % Eigenwert der transl. St. in N/mm
   if any(Keigges(i,1:3)<0)
+    repopath = fileparts(which('structgeomsynth_path_init.m'));
+    save(fullfile(repopath, 'tmp', 'cds_obj_stiffness_ew_error.mat'));
     error('Die Steifigkeitsmatrix kann keine negativen EW haben!');
   end
   
