@@ -42,20 +42,22 @@ function [fval, constrvioltext, f_maxstrengthviol] = cds_constr_yieldstrength(R,
 fval = 0;
 constrvioltext = '';
 
+%% Konstanten, Definitionen
 % Sicherheitsfaktor für Materialspannung
 safety_factor = Set.optimization.constraint_link_yieldstrength;
-
-% Konstanten, Definitionen
 % Dehngrenze von Aluminium-Legierung. Quellen:
 % https://de.wikipedia.org/wiki/Streckgrenze
 % https://de.wikipedia.org/wiki/Aluminium-Kupfer-Legierung
-R_e=250e6;
-
+if R.Type == 0
+  R_e=R.DesPar.material(4);
+else
+  R_e=R.Leg(1).DesPar.material(4);
+end
 
 % Reduziere wirksame Materialspannungsgrenze mit Sicherheitsfaktor
 R_e_eff = R_e / safety_factor;
 
-
+%% Berechnung der Materialspannung
 if R.Type == 0 % Seriell
   NLEG = 1; NL = R.NL;
   % 2D-Matrix mit Zeit als Zeilen

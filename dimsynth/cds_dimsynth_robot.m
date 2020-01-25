@@ -342,7 +342,7 @@ if Structure.Type == 2 && Set.optimization.base_morphology
     % Die Steigung wird gegen die Senkrechte gezählt. Damit die erste Achse
     % nach unten zeigt, muss der Winkel größe 90° sein
     varlim = [varlim; [pi/4,3*pi/4]]; % Steigung Pyramide; Winkel in rad (Steigung nach unten und oben ergibt Sinn)
-    varnames = {varnames{:}, 'base_morph_elev'}; %#ok<CCAT>
+    varnames = {varnames{:}, 'base_morph_pyrelev'}; %#ok<CCAT>
   else
     error('base_morphology Nicht implementiert');
   end
@@ -531,11 +531,12 @@ data_dyn = cds_obj_dependencies(R, Traj_0, Set, Structure_tmp, Q, QD, QDD, Jinv_
 [fval_cond,~, ~, physval_cond] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
 [fval_mass,~, ~, physval_mass] = cds_obj_mass(R);
 [fval_minactforce,~, ~, physval_minactforce] = cds_obj_minactforce(data_dyn.TAU);
+[fval_stiff,~, ~, physval_stiff] = cds_obj_stiffness(R, Set, Q);
 [~, ~, f_maxstrengthviol] = cds_constr_yieldstrength(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
 % Reihenfolge siehe Variable Set.optimization.constraint_obj aus cds_settings_defaults
-fval_obj_all = [fval_mass, fval_energy, fval_minactforce, fval_cond];
+fval_obj_all = [fval_mass, fval_energy, fval_minactforce, fval_cond, fval_stiff];
 fval_constr_all = f_maxstrengthviol;
-physval_obj_all = [physval_mass, physval_energy, physval_minactforce, physval_cond];
+physval_obj_all = [physval_mass, physval_energy, physval_minactforce, physval_cond, physval_stiff];
 I_fobj_set = Set.optimization.constraint_obj ~= 0;
 if any(physval_obj_all(I_fobj_set) > Set.optimization.constraint_obj(I_fobj_set))
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...

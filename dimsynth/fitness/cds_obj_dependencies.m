@@ -6,6 +6,8 @@
 %   Matlab-Klasse für zu optimierenden Roboter (SerRob/ParRob)
 % Set
 %   Einstellungen des Optimierungsalgorithmus (aus cds_settings_defaults.m)
+% Structure
+%   Eigenschaften der Roboterstruktur
 % Q, QD, QDD
 %   Gelenkpositionen und -geschwindigkeiten des Roboters (für PKM auch
 %   passive Gelenke)
@@ -108,16 +110,16 @@ if R.Type ~= 0 && (Structure.calc_dyn_cut && ~Structure.calc_reg || Set.general.
   Wges = R.internforce_traj(Q, QD, QDD, TAU);
 end
 
-if ~Structure.calc_reg || Set.general.debug_calc
+if ~Structure.calc_reg && Structure.calc_dyn_act || Set.general.debug_calc
   data_dyn.TAU = TAU;
   if Structure.calc_dyn_cut
     data_dyn.Wges = Wges;
   end
 end
 if Structure.calc_reg || Set.general.debug_calc
-  if ~Structure.calc_dyn_cut
+  if ~Structure.calc_dyn_cut && Structure.calc_dyn_act
     data_dyn.TAU_reg = TAU_reg;
-  else
+  elseif Structure.calc_dyn_cut
     data_dyn.Wges_reg = Wges_reg;
   end
 end
