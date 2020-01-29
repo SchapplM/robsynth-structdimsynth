@@ -107,10 +107,8 @@ end
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt2.mat'));
 %% Optimierung der Entwurfsparameter durchführen
 if ~avoid_optimization
-  if Set.general.verbosity > 2
-    fprintf('[desopt] Führe Entwurfsoptimierung durch. Dauer für eine Zielfunktionsauswertung: %1.1fs. Max. Dauer für Optimierung: %1.1fs (%d Iterationen, %d Individuen)\n', ...
-      T2, NumIndividuals*(options_desopt.MaxIter+1)*T2, NumIndividuals, options_desopt.MaxIter);
-  end
+  cds_log(3,sprintf('[desopt] Führe Entwurfsoptimierung durch. Dauer für eine Zielfunktionsauswertung: %1.1fs. Max. Dauer für Optimierung: %1.1fs (%d Iterationen, %d Individuen)', ...
+      T2, NumIndividuals*(options_desopt.MaxIter+1)*T2, NumIndividuals, options_desopt.MaxIter));
   [p_val,fval,~,output] = particleswarm(fitnessfcn_desopt,nvars,varlim(:,1),varlim(:,2),options_desopt);
   if fval < 1000
     detailstring = sprintf('Lösung gefunden (fval=%1.1f)', fval);
@@ -130,10 +128,8 @@ I_bordersol = any(repmat(p_val(:),1,2) == varlim,2); % Prüfe, ob Endergebnis ei
 if any(I_bordersol)
   detailstring = [detailstring, sprintf('. Lösung bei %d/%d Par. an Grenze', sum(I_bordersol), length(I_bordersol))];
 end
-if Set.general.verbosity > 2
-  fprintf('[desopt] Entwurfsoptimierung durchgeführt. Dauer: %1.1fs. %s. %d Iterationen, %d Funktionsauswertungen.\n', ...
-    toc(t1), detailstring, output.iterations, output.funccount);
-end
+cds_log(3,sprintf('[desopt] Entwurfsoptimierung durchgeführt. Dauer: %1.1fs. %s. %d Iterationen, %d Funktionsauswertungen.', ...
+    toc(t1), detailstring, output.iterations, output.funccount));
 
 %% Ausgabe
 % Belege die Robotereigenschaften mit dem Ergebnis der Optimierung

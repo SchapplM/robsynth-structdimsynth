@@ -61,7 +61,7 @@ Traj_0 = cds_rotate_traj(Traj_W, R.T_W_0);
 fval = fval_constr*1e3; % Erhöhung, damit später kommende Funktionswerte aus Entwurfsoptimierung kleiner sein können
 cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
 if fval_constr > 1000 % Nebenbedingungen verletzt.
-  fprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext);
+  cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval, constrvioltext));
   cds_save_particle_details(Set, R, toc(t1), fval, Jcond, f_maxstrengthviol);
   return
 end
@@ -82,7 +82,7 @@ if Set.optimization.constraint_obj(4) % NB für Kondition gesetzt
     debug_info = {sprintf('Kondition %1.1e > %1.1e', Jcond, Set.optimization.constraint_obj(4)); debug_info_cond{1}};
     cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
     constrvioltext = sprintf('Konditionszahl ist zu schlecht: %1.1e > %1.1e', Jcond, Set.optimization.constraint_obj(4));
-    fprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext);
+    cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval, constrvioltext));
     cds_save_particle_details(Set, R, toc(t1), fval, Jcond, f_maxstrengthviol);
     return
   end
@@ -115,7 +115,7 @@ if any(strcmp(Set.optimization.objective, {'energy', 'mass', 'minactforce', 'sti
       fval = fval_desopt; % Wert ist bereits im Bereich 1e3...1e5
       cds_fitness_debug_plot_robot(R, zeros(R.NJ,1), Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
       constrvioltext = 'Verletzung der Nebenbedingungen in Entwurfsoptimierung';
-      fprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext);
+      cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval, constrvioltext));
       cds_save_particle_details(Set, R, toc(t1), fval, Jcond, f_maxstrengthviol);
       return
     end
@@ -147,7 +147,7 @@ if Set.optimization.constraint_link_yieldstrength > 0 && ~Set.optimization.use_d
     error('Dieser Fall ist nicht vorgesehen');
   elseif fval_ys>1e4
     fval = fval_ys;
-    fprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext_ys);
+    cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval, constrvioltext_ys));
     cds_save_particle_details(Set, R, toc(t1), fval, Jcond, f_maxstrengthviol);
     return
   end
@@ -159,7 +159,7 @@ if Set.optimization.constraint_obj(5)
     fval = fval_st*10; % Bringe in Bereich 1e3 ... 1e4
     constrvioltext_stiffness = sprintf('Die Nachgiebigkeit ist zu groß: %1.1e > %1.1e', ...
       fval_phys_st, Set.optimization.constraint_obj(5));
-    fprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s\n', toc(t1), fval, constrvioltext_stiffness);
+    cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval, constrvioltext_stiffness));
     return
   end
 end
@@ -186,6 +186,6 @@ elseif strcmp(Set.optimization.objective, 'stiffness')
 else
   error('Zielfunktion "%s" nicht definiert', Set.optimization.objective{1});
 end
-fprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. Erfolgreich. %s.\n', toc(t1), fval, fval_debugtext);
+cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. Erfolgreich. %s.', toc(t1), fval, fval_debugtext));
 cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
 cds_save_particle_details(Set, R, toc(t1), fval, Jcond, f_maxstrengthviol);

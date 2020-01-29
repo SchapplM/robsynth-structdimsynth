@@ -27,4 +27,4 @@ resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
   'tmp', sprintf('%d_%s', Structure.Number, Structure.Name));
 filename = sprintf('PSO_Gen%02d_AllInd_%s.mat', optimValues.iteration, state);
 save(fullfile(resdir, filename), 'optimValues');
-fprintf('Zwischenergebnisse gespeichert: %s\n', fullfile(resdir, filename));
+cds_log(1,sprintf('[output] Zwischenergebnisse gespeichert: %s', fullfile(resdir, filename)));

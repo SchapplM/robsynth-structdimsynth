@@ -31,6 +31,10 @@ end
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot1.mat'));
 
 %% Initialisierung
+% Log-Datei initialisieren
+resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
+mkdirs(resdir_main);
+cds_log(1, sprintf('[cds_dimsynth_robot] Start der Maßsynthese für %s',  Structure.Name), 'init', Set, Structure)
 % Mittelpunkt der Aufgabe
 Structure.xT_mean = mean(minmax2(Traj.X(:,1:3)'), 2);
 % Charakteristische Länge der Aufgabe (empirisch ermittelt aus der Größe
@@ -464,11 +468,11 @@ for i = 1:Set.general.max_retry_bestfitness_reconstruction
     warning('Bei nochmaligem Aufruf der Fitness-Funktion kommt nicht der gleiche Wert heraus (Versuch %d). %s', i, t);
     if fval_test < fval
       fval = fval_test;
-      fprintf('Nehme den besseren neuen Wert als Ergebnis ...\n');
+      cds_log(1,sprintf('Nehme den besseren neuen Wert als Ergebnis ...'));
       break;
     end
   else
-    if i > 1, fprintf('Zielfunktion konnte nach %d Versuchen rekonstruiert werden\n', i); end
+    if i > 1, cds_log(1,sprintf('Zielfunktion konnte nach %d Versuchen rekonstruiert werden', i)); end
     break;
   end
 end
@@ -587,5 +591,5 @@ end
 save(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
   sprintf('Rob%d_%s_Endergebnis.mat', Structure.Number, Structure.Name)), ...
   'RobotOptRes', 'Set', 'Traj', 'PSO_Detail_Data');
-fprintf('Optimierung von Rob. %d (%s) abgeschlossen. Dauer: %1.1fs\n', ...
-  Structure.Number, Structure.Name, toc(t1));
+cds_log(1,sprintf('Optimierung von Rob. %d (%s) abgeschlossen. Dauer: %1.1fs', ...
+  Structure.Number, Structure.Name, toc(t1)));
