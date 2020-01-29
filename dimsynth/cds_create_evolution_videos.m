@@ -98,7 +98,12 @@ for j = 1:length(Structures)
   % Schreibe das Video in den Ordner mit Endergebnissen (da es komprimierte
   % Information beinhaltet)
   videofile_mp4 = fullfile(resmaindir, sprintf('Rob%d_%s_Evolution_Video.mp4', Structure.Number, Structure.Name));
-  res = system(sprintf('avconv -y -i %s %s "%s"', videofile_avi, avsettings, videofile_mp4));
+  if system('avconv --help > /dev/null') && ~system('ffmpeg --help > /dev/null')
+    avtool = 'ffmpeg'; % Ubuntu 18.04
+  else
+    avtool = 'avconv'; % Ubuntu 16.04
+  end
+  res = system(sprintf('%s -y -i %s %s "%s"', avtool, videofile_avi, avsettings, videofile_mp4));
   if res == 0
     finfotmp_mp4 = dir(videofile_mp4);
     finfotmp_avi = dir(videofile_avi);

@@ -217,6 +217,7 @@ for i = 1:length(Structures)
   plot3(Traj.X(:,1), Traj.X(:,2),Traj.X(:,3), 'k-');
   s_anim = struct('gif_name', '', 'avi_name', '');
   for file_ext = Set.general.save_animation_file_extensions
+    if strcmp(file_ext{1}, 'mp4'), file_ext = {'avi'}; end
     s_anim.(sprintf('%s_name', file_ext{1})) = fullfile(resmaindir, sprintf('Rob%d_%s_Animation%s.%s', i, Name, apptxt, file_ext{1}));
   end
   if Set.task.profile == 0, I_anim = 1:size(Q,1);
@@ -232,6 +233,25 @@ for i = 1:length(Structures)
   saveas(10*i+1+kk,     fullfile(resmaindir, sprintf('Rob%d_%s_Skizze%s.fig', i, Name, apptxt)));
   export_fig(10*i+1+kk, fullfile(resmaindir, sprintf('Rob%d_%s_Skizze%s.png', i, Name, apptxt)));
   fprintf('%d/%d: Animation für %s gespeichert: %s\n', i, length(Structures), Name, s_anim.gif_name);
+  % Animation direkt komprimieren als mp4 (nur unter Unix möglich)
+  if isunix() && any(strcmp(Set.general.save_animation_file_extensions, 'mp4'))
+    avsettings = '-c:v libx264 -preset slower -profile:v high -level 51 -an -vf "format=yuv420p"';
+    videofile_mp4 = strrep(s_anim.avi_name, '.avi', '.mp4');
+    if system('avconv --help > /dev/null') && ~system('ffmpeg --help > /dev/null')
+      avtool = 'ffmpeg'; % Ubuntu 18.04
+    else
+      avtool = 'avconv'; % Ubuntu 16.04
+    end
+    res = system(sprintf('%s -y -i "%s" %s "%s"', avtool, s_anim.avi_name, avsettings, videofile_mp4));
+    if res == 0
+      finfotmp_mp4 = dir(videofile_mp4);
+      finfotmp_avi = dir(s_anim.avi_name);
+      % Video erfolgreich erstellt. Lösche avi wieder
+      fprintf('Video-Datei %s erfolgreich komprimiert (avi->mp4) (neu: %1.1f MB). Lösche avi-Datei (%1.1f MB)\n', ...
+        finfotmp_mp4(1).name, finfotmp_mp4(1).bytes/1e6, finfotmp_avi(1).bytes/1e6);
+      delete(s_anim.avi_name);
+    end
+  end
   end
   %% Zeichnung der Roboters mit Trägheitsellipsen und Ersatzdarstellung
   figure(10*i+4);clf;hold all;
