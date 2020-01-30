@@ -191,8 +191,12 @@ for i = 1:length(Structures)
   plot(log10(PSO_Detail_Data.Jcond(:)), 100*PSO_Detail_Data.f_maxstrengthviol(:), 'kx');
   plot([0;log10(max(PSO_Detail_Data.Jcond(:)))], [100;100], 'g--'); % Grenze Material
   plot(log10(Set.optimization.constraint_obj(4))*[1;1], [0;100], 'r--'); % Grenze für Jacobi
-  xlim(log10(minmax2(PSO_Detail_Data.Jcond(:)')));
-  ylim(100*minmax2(PSO_Detail_Data.f_maxstrengthviol(:)'));
+  if sum(~isnan(unique(PSO_Detail_Data.Jcond))) > 1
+    xlim(log10(minmax2(PSO_Detail_Data.Jcond(:)'))); % geht nur, wenn zwei Werte da sind
+  end
+  if sum(~isnan(unique(PSO_Detail_Data.f_maxstrengthviol))) > 1
+    ylim(100*minmax2(PSO_Detail_Data.f_maxstrengthviol(:)'));
+  end
   xlabel('Konditionszahl (log)');
   ylabel('Materialbeanspruchung in Prozent');
   title('Materialbelastung vs Kondition');

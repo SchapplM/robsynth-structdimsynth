@@ -249,6 +249,15 @@ if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
     s.simplify_acc = true;
     [Q, QD, QDD, PHI, Jinv_ges] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
   end
+  % Anfangswerte nochmal neu speichern, damit man der Anfangswert exakt der
+  % Wert ist, der für die Neuberechnung gebraucht wird. Ansonsten ist die
+  % Reproduzierbarkeit durch die rng-Initialisierung der mex-Funktionen
+  % gefährdet.
+  if R.Type == 0 % Seriell
+    R.qref = Q(1,:)';
+  else
+    for i = 1:R.NLEG, R.Leg(i).qref = Q(1,R.I1J_LEG(i):R.I2J_LEG(i))'; end
+  end
   I_ZBviol = any(abs(PHI) > 1e-3,2) | any(isnan(Q),2);
   if any(I_ZBviol)
     % Bestimme die erste Verletzung der ZB (je später, desto besser)

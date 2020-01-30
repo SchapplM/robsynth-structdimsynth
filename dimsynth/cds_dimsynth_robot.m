@@ -34,7 +34,7 @@ end
 % Log-Datei initialisieren
 resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
 mkdirs(resdir_main);
-cds_log(1, sprintf('[cds_dimsynth_robot] Start der Maßsynthese für %s',  Structure.Name), 'init', Set, Structure)
+cds_log(1, sprintf('[dimsynth] Start der Maßsynthese für %s',  Structure.Name), 'init', Set, Structure)
 % Mittelpunkt der Aufgabe
 Structure.xT_mean = mean(minmax2(Traj.X(:,1:3)'), 2);
 % Charakteristische Länge der Aufgabe (empirisch ermittelt aus der Größe
@@ -428,7 +428,7 @@ if false
   % Falls der PSO abbricht: Zwischenergebnisse laden und daraus Endergebnis
   % erzeugen. Dafür ist ein manuelles Eingreifen mit den Befehlen in diesem
   % Block erforderlich. Danach kann die Funktion zu Ende ausgeführt werden.
-  load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat')); %#ok<UNRCH>
+  load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat')); %#ok<LOAD,UNRCH>
   filelist_tmpres = dir(fullfile(resdir, 'PSO_Gen*_AllInd_iter.mat'));
   lastres = load(fullfile(resdir, filelist_tmpres(end).name));
   p_val = lastres.optimValues.bestx;
@@ -465,14 +465,14 @@ for i = 1:Set.general.max_retry_bestfitness_reconstruction
       t = sprintf('Der alte Wert (%1.1f) ist um %1.1e besser als der neue (%1.1f).', ...
         fval, fval_test-fval, fval_test);
     end
-    cds_log(-1, sprintf('Bei nochmaligem Aufruf der Fitness-Funktion kommt nicht der gleiche Wert heraus (Versuch %d). %s', i, t));
+    cds_log(-1, sprintf('[dimsynth] Bei nochmaligem Aufruf der Fitness-Funktion kommt nicht der gleiche Wert heraus (Versuch %d). %s', i, t));
     if fval_test < fval
       fval = fval_test;
-      cds_log(1,sprintf('Nehme den besseren neuen Wert als Ergebnis ...'));
+      cds_log(1,sprintf('[dimsynth] Nehme den besseren neuen Wert als Ergebnis ...'));
       break;
     end
   else
-    if i > 1, cds_log(1,sprintf('Zielfunktion konnte nach %d Versuchen rekonstruiert werden', i)); end
+    if i > 1, cds_log(1,sprintf('[dimsynth] Zielfunktion konnte nach %d Versuchen rekonstruiert werden', i)); end
     break;
   end
 end
@@ -495,9 +495,8 @@ end
 if Structure.Type == 0, q0_ik2 = R.qref;
 else,                   q0_ik2 = cat(1,R.Leg.qref); end
 if any(q0_ik ~= q0_ik2) && fval<1e9 % nur bei erfolgreicher Berechnung der IK ist der gespeicherte Wert sinnvoll
-  cds_log(-1, 'IK-Anfangswinkeln sind bei erneuter Berechnung anders. Darf nicht passieren.');
+  cds_log(-1, '[dimsynth] IK-Anfangswinkeln sind bei erneuter Berechnung anders. Darf nicht passieren.');
 end
-
 % Berechne Inverse Kinematik zu erstem Bahnpunkt
 Traj_0 = cds_rotate_traj(Traj, R.T_W_0);
 % q0 = Structure.qlim(:,1) + rand(R.NJ,1).*(Structure.qlim(:,2)-Structure.qlim(:,1));
@@ -508,21 +507,26 @@ else % Parallel
   [q, Phi] = R.invkin_ser(Traj_0.XE(1,:)', cat(1,R.Leg.qref));
 end
 if ~strcmp(Set.optimization.objective, 'valid_act') && any(abs(Phi)>1e-8)
-  cds_log(-1, 'PSO-Ergebnis für Startpunkt nicht reproduzierbar (ZB-Verletzung)');
+  cds_log(-1, '[dimsynth] PSO-Ergebnis für Startpunkt nicht reproduzierbar (ZB-Verletzung)');
 end
-% Berechne IK der Bahn (für spätere Visualisierung)
+% Berechne IK der Bahn (für spätere Visualisierung und Neuberechnung der Zielfunktionen)
 if Structure.Type == 0 % Seriell
-  s = struct('normalize', false, 'retry_limit', 1);
+  s = struct('normalize', false, 'retry_limit', 1, 'Phit_tol', 1e-12, 'Phir_tol', 1e-12);
   [Q, QD, QDD, PHI] = R.invkin2_traj(Traj_0.X, Traj.XD, Traj.XDD, Traj.t, q, s);
   Jinv_ges = [];
 else % Parallel
-  s = struct('debug', false, 'retry_limit', 1);
+  s = struct('debug', false, 'retry_limit', 1, 'Phit_tol', 1e-12, 'Phir_tol', 1e-12);
   [Q, QD, QDD, PHI, Jinv_ges] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+end
+test_q = abs(Q(1,:)'-q0_ik);
+if any(test_q > 1e-7)
+  cds_log(-1, sprintf(['[dimsynth] Die Neu berechneten IK-Werte der Trajektorie stimmen nicht ', ...
+    'mehr mit den ursprünglich berechneten überein. Max diff.: %1.4e'], test_q));
 end
 result_invalid = false;
 if ~strcmp(Set.optimization.objective, 'valid_act') && ...
     (any(abs(PHI(:))>1e-8) || any(isnan(Q(:))))
-  cds_log(-1, 'PSO-Ergebnis für Trajektorie nicht reproduzierbar oder nicht gültig (ZB-Verletzung)');
+  cds_log(-1, '[dimsynth] PSO-Ergebnis für Trajektorie nicht reproduzierbar oder nicht gültig (ZB-Verletzung)');
   result_invalid = true;
 end
 %% Berechne andere Zielfunktionen
@@ -547,6 +551,24 @@ if ~result_invalid
   fval_obj_all = [fval_mass, fval_energy, fval_minactforce, fval_cond, fval_stiff];
   fval_constr_all = f_maxstrengthviol;
   physval_obj_all = [physval_mass, physval_energy, physval_minactforce, physval_cond, physval_stiff];
+  % Vergleiche neu berechnete Werte mit den zuvor abgespeicherten (müssen
+  % übereinstimmen)
+  test_Jcond = PSO_Detail_Data.Jcond(dd_optgen, dd_optind) - physval_cond;
+  if abs(test_Jcond) > 1e-6
+    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+      sprintf('%s_Rob%d_%s_cds_dimsynth_robot_condreprowarning.mat', Set.optimization.optname, ...
+      Structure.Number, Structure.Name)));
+    cds_log(-1, sprintf('[dimsynth] Während Optimierung gespeicherte Konditionszahl (%1.5e) stimmt nicht mit erneuter Berechnung (%1.5e) überein. Differenz %1.5e.', ...
+      PSO_Detail_Data.Jcond(dd_optgen, dd_optind), physval_cond, test_Jcond));
+  end
+  test_sv = PSO_Detail_Data.f_maxstrengthviol(dd_optgen, dd_optind) - f_maxstrengthviol;
+  if abs(test_sv) > 1e-5
+    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+      sprintf('%s_Rob%d_%s_cds_dimsynth_robot_svreprowarning.mat', Set.optimization.optname, ...
+      Structure.Number, Structure.Name)));
+    cds_log(-1, sprintf('[dimsynth] Während Optimierung gespeicherte Materialbelastung (%1.5e) stimmt nicht mit erneuter Berechnung (%1.5e) überein. Differenz %1.5e.', ...
+      PSO_Detail_Data.f_maxstrengthviol(dd_optgen, dd_optind), f_maxstrengthviol, test_sv));
+  end
 else
   % Keine Berechnung der Zielfunktionen möglich, da keine zulässige Lösung
   % gefunden wurde.
@@ -559,13 +581,13 @@ if any(physval_obj_all(I_fobj_set) > Set.optimization.constraint_obj(I_fobj_set)
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
     sprintf('%s_Rob%d_%s_cds_dimsynth_robot_objconstrwarning.mat', Set.optimization.optname, ...
     Structure.Number, Structure.Name)));
-  cds_log(-1, sprintf('Zielfunktions-Nebenbedingung verletzt trotz Berücksichtigung in Optimierung. Keine Lösung gefunden.'));
+  cds_log(1, sprintf('[dimsynth] Zielfunktions-Nebenbedingung verletzt trotz Berücksichtigung in Optimierung. Keine Lösung gefunden.'));
 end
 if f_maxstrengthviol > Set.optimization.constraint_link_yieldstrength
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
     sprintf('%s_Rob%d_%s_cds_dimsynth_robot_strengthconstrwarning.mat', Set.optimization.optname, ...
     Structure.Number, Structure.Name)));
-  cds_log(-1, sprintf('Materialbelastungs-Nebenbedingung verletzt trotz Berücksichtigung in Optimierung. Keine Lösung gefunden.'));
+  cds_log(1, sprintf('[dimsynth] Materialbelastungs-Nebenbedingung verletzt trotz Berücksichtigung in Optimierung. Keine Lösung gefunden.'));
 end
 %% Ausgabe der Ergebnisse
 t_end = now(); % End-Zeitstempel der Optimierung dieses Roboters
@@ -596,5 +618,5 @@ end
 save(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
   sprintf('Rob%d_%s_Endergebnis.mat', Structure.Number, Structure.Name)), ...
   'RobotOptRes', 'Set', 'Traj', 'PSO_Detail_Data');
-cds_log(1,sprintf('Optimierung von Rob. %d (%s) abgeschlossen. Dauer: %1.1fs', ...
+cds_log(1,sprintf('[dimsynth] Optimierung von Rob. %d (%s) abgeschlossen. Dauer: %1.1fs', ...
   Structure.Number, Structure.Name, toc(t1)));
