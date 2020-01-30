@@ -333,10 +333,10 @@ if ~isinf(Set.optimization.max_velocity_active_revolute) && ~isinf(Set.optimizat
   if f_qD_exc>1
     f_qD_exc_norm = 2/pi*atan((f_qD_exc-1)); % Normierung auf 0 bis 1; 1->0.5; 10->0.94
     fval = 1e3*(1+4*f_qD_exc_norm); % Wert zwischen 1e3 und 5e3
+    % Weitere Berechnungen voraussichtlich wenig sinnvoll, da vermutlich eine
+    % Singularität vorliegt
+    constrvioltext = sprintf('Geschwindigkeit des Antriebsgelenks zu hoch: max Verletzung %1.1f%%', ...
+      (f_qD_exc-1)*100 );
+    return
   end
-  % Weitere Berechnungen voraussichtlich wenig sinnvoll, da vermutlich eine
-  % Singularität vorliegt
-  constrvioltext = sprintf('Geschwindigkeit des Antriebsgelenks zu hoch: max Verletzung %1.1f%%', ...
-    (f_qD_exc-1)*100 );
-  return
 end

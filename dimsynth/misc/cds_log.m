@@ -1,8 +1,9 @@
-% Log-Funktion für die Maßsynthese
+% Log-Funktion für die Maßsynthese eines einzelnen Roboters
 % Speichert den in Konsole ausgegebenen Text in Datei
 % 
 % Eingabe:
 % level
+%  -1=Warnung (immer anzeigen)
 %   0=minimal (Endergebnis)
 %   1=mehr (Generationenweise)
 %   2=noch mehr (Jede Fitness-Eval.)
@@ -19,9 +20,10 @@
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
 function cds_log(level, msg, option, Set, Structure)
-% Initialisierung
+%% Initialisierung
 persistent logfilepath
 persistent loglevel
+% Initialisierung durch Funktionsaufruf
 if nargin > 2 && strcmp(option, 'init')
   % Initialisiere die persistenten Variablen
   resdir = fullfile(Set.optimization.resdir, Set.optimization.optname);
@@ -32,12 +34,25 @@ if nargin > 2 && strcmp(option, 'init')
       Structure.Number, Structure.Name, datestr(now,'yyyymmdd_HHMMSS'))) );
   end
 end
-% Log-Zeile abspeichern
-timestr = datestr(now,'yyyy-mm-dd HH:MM:SS');
-fid = fopen(logfilepath, 'a');
-fprintf(fid, '[%s] %s\n', timestr, msg);
+% Falls Fitness-Funktion nachträglich aufgerufen wird, ist das Loggen nicht
+% mehr initialisiert. Temporäre Belegung der Variablen in diesem Fall
+if isempty(loglevel)
+  loglevel = 5;
+end
+%% Schreiben in Datei
+if ~isempty(logfilepath) % Bei Aufruf der Funktion aus mat-Datei ohne Init.
+  % Log-Zeile abspeichern
+  timestr = datestr(now,'yyyy-mm-dd HH:MM:SS');
+  fid = fopen(logfilepath, 'a');
+  fprintf(fid, '[%s] %s\n', timestr, msg);
+  fclose(fid);
+end
+%% Schreiben in Konsole
 % Nur in Konsole ausgeben, wenn Nachricht wichtig genug ist
 if level <= loglevel
-  fprintf('%s\n', msg);
+  if level > 0
+    fprintf('%s\n', msg);
+  else
+    warning(msg);
+  end
 end
-fclose(fid);

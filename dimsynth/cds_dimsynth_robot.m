@@ -465,7 +465,7 @@ for i = 1:Set.general.max_retry_bestfitness_reconstruction
       t = sprintf('Der alte Wert (%1.1f) ist um %1.1e besser als der neue (%1.1f).', ...
         fval, fval_test-fval, fval_test);
     end
-    warning('Bei nochmaligem Aufruf der Fitness-Funktion kommt nicht der gleiche Wert heraus (Versuch %d). %s', i, t);
+    cds_log(-1, sprintf('Bei nochmaligem Aufruf der Fitness-Funktion kommt nicht der gleiche Wert heraus (Versuch %d). %s', i, t));
     if fval_test < fval
       fval = fval_test;
       cds_log(1,sprintf('Nehme den besseren neuen Wert als Ergebnis ...'));
@@ -481,8 +481,8 @@ end
 % gespeicherten Daten für die Position des Partikels in dem
 % Optimierungsverfahren
 k = find(fval == PSO_Detail_Data.fval', 1, 'first');
-[j,i] = ind2sub(fliplr(size(PSO_Detail_Data.fval)),k); % Umrechnung in 2D-Indizes. i=Generation, j=Individuum
-q0_ik = PSO_Detail_Data.q0_ik(j,:,i)';
+[dd_optind,dd_optgen] = ind2sub(fliplr(size(PSO_Detail_Data.fval)),k); % Umrechnung in 2D-Indizes: Generation und Individuum
+q0_ik = PSO_Detail_Data.q0_ik(dd_optind,:,dd_optgen)';
 
 % Grenzen aus diesem letzten Aufruf bestimmen
 if Structure.Type == 0 
@@ -495,7 +495,7 @@ end
 if Structure.Type == 0, q0_ik2 = R.qref;
 else,                   q0_ik2 = cat(1,R.Leg.qref); end
 if any(q0_ik ~= q0_ik2) && fval<1e9 % nur bei erfolgreicher Berechnung der IK ist der gespeicherte Wert sinnvoll
-  warning('IK-Anfangswinkeln sind bei erneuter Berechnung anders. Darf nicht passieren.');
+  cds_log(-1, 'IK-Anfangswinkeln sind bei erneuter Berechnung anders. Darf nicht passieren.');
 end
 
 % Berechne Inverse Kinematik zu erstem Bahnpunkt
@@ -508,7 +508,7 @@ else % Parallel
   [q, Phi] = R.invkin_ser(Traj_0.XE(1,:)', cat(1,R.Leg.qref));
 end
 if ~strcmp(Set.optimization.objective, 'valid_act') && any(abs(Phi)>1e-8)
-  warning('PSO-Ergebnis für Startpunkt nicht reproduzierbar (ZB-Verletzung)');
+  cds_log(-1, 'PSO-Ergebnis für Startpunkt nicht reproduzierbar (ZB-Verletzung)');
 end
 % Berechne IK der Bahn (für spätere Visualisierung)
 if Structure.Type == 0 % Seriell
@@ -522,7 +522,7 @@ end
 result_invalid = false;
 if ~strcmp(Set.optimization.objective, 'valid_act') && ...
     (any(abs(PHI(:))>1e-8) || any(isnan(Q(:))))
-  warning('PSO-Ergebnis für Trajektorie nicht reproduzierbar oder nicht gültig (ZB-Verletzung)');
+  cds_log(-1, 'PSO-Ergebnis für Trajektorie nicht reproduzierbar oder nicht gültig (ZB-Verletzung)');
   result_invalid = true;
 end
 %% Berechne andere Zielfunktionen
@@ -559,9 +559,14 @@ if any(physval_obj_all(I_fobj_set) > Set.optimization.constraint_obj(I_fobj_set)
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
     sprintf('%s_Rob%d_%s_cds_dimsynth_robot_objconstrwarning.mat', Set.optimization.optname, ...
     Structure.Number, Structure.Name)));
-  warning('Zielfunktions-Nebenbedingung verletzt trotz Berücksichtigung in Optimierung. Keine Lösung gefunden.');
+  cds_log(-1, sprintf('Zielfunktions-Nebenbedingung verletzt trotz Berücksichtigung in Optimierung. Keine Lösung gefunden.'));
 end
-
+if f_maxstrengthviol > Set.optimization.constraint_link_yieldstrength
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+    sprintf('%s_Rob%d_%s_cds_dimsynth_robot_strengthconstrwarning.mat', Set.optimization.optname, ...
+    Structure.Number, Structure.Name)));
+  cds_log(-1, sprintf('Materialbelastungs-Nebenbedingung verletzt trotz Berücksichtigung in Optimierung. Keine Lösung gefunden.'));
+end
 %% Ausgabe der Ergebnisse
 t_end = now(); % End-Zeitstempel der Optimierung dieses Roboters
 RobotOptRes = struct( ...
