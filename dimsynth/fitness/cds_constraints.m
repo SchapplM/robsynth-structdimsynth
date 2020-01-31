@@ -341,11 +341,74 @@ if ~isinf(Set.optimization.max_velocity_active_revolute) && ~isinf(Set.optimizat
   f_qD_exc = max(qaD_max./qD_lim);
   if f_qD_exc>1
     f_qD_exc_norm = 2/pi*atan((f_qD_exc-1)); % Normierung auf 0 bis 1; 1->0.5; 10->0.94
-    fval = 1e3*(1+4*f_qD_exc_norm); % Wert zwischen 1e3 und 5e3
+    fval = 3e3*(1+2*f_qD_exc_norm); % Wert zwischen 3e3 und 5e3
     % Weitere Berechnungen voraussichtlich wenig sinnvoll, da vermutlich eine
     % Singularität vorliegt
     constrvioltext = sprintf('Geschwindigkeit des Antriebsgelenks zu hoch: max Verletzung %1.1f%%', ...
       (f_qD_exc-1)*100 );
+    return
+  end
+end
+
+%% Prüfe, ob die Konfiguration umklappt während der Trajektorie
+if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
+  % Geschwindigkeit neu mit Differenzenquotient berechnen
+  QD_num = NaN(size(Q));
+  QD_num(1:end-1,R.MDH.sigma==1) = diff(Q(:,R.MDH.sigma==1))./...
+    repmat(diff(Traj_0.t), 1, sum(R.MDH.sigma==1)); % Differenzenquotient
+  QD_num(1:end-1,R.MDH.sigma==0) = (mod(diff(Q(:,R.MDH.sigma==0))+pi, 2*pi)-pi)./...
+    repmat(diff(Traj_0.t), 1, sum(R.MDH.sigma==0)); % Siehe angdiff.m
+  % Fehler zwischen Differenzenquotient und Jacobi-Matrix-Berechnung
+  QD_error = QD_num(1:end,:) - QD(1:end,:);
+  QD_relerror = QD_error./QD(1:end,:);
+  % Keine Wertung von Phasen sehr kleiner Geschwindigkeit
+  QD_relerror(abs(QD)<0.1*max(abs(QD))) = NaN;
+  % Bestimme Fehler als mehr als 50% Abweichung. Ein Umklappen kann auch
+  % fälschlicherweise erkannt werden, wenn die Geschwindigkeit sehr groß
+  % ist und ein spitzer Verlauf falsch diskretisiert wird. Das führt aber
+  % sowieso auch zu anderen Fehlern.
+  I_jump = (QD_relerror > 0.5);
+  if any(I_jump(:))
+    % Erstes Vorkommnis finden und daraus Strafterm bilden. Je später,
+    % desto besser.
+    II_jump = find(any(I_jump,2), 1, 'first');
+    fval_jump_norm = II_jump/length(Traj_0.t); % Zwischen 0 und 1
+    fval = 1e3*(1+2*fval_jump_norm); % Wert zwischen 1e3 und 3e3
+    constrvioltext = sprintf('Konfiguration scheint zu springen. Geschwindigkeitsfehler max. %1.1f%% (zuerst Zeitschritt %d/%d)', ...
+      100*max(abs(QD_relerror(:))), II_jump, length(Traj_0.t));
+    if fval < Set.general.plot_details_in_fitness
+      % I_ol = isoutlier(QD_relerror, 'movmedian', 50); % funktioniert nicht so gut
+      RP = ['R', 'P'];
+      change_current_figure(1001);clf;
+      for i = 1:length(q)
+        subplot(ceil(sqrt(length(q))), ceil(length(q)/ceil(sqrt(length(q)))), i);
+        hold on; grid on;
+        plot(Traj_0.t, QD(:,i), '-');
+        plot(Traj_0.t, QD_num(:,i), '--');
+        title(sprintf('qD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+      end
+      linkxaxes
+      sgtitle('Vergleich Gelenkgeschw.');
+      change_current_figure(1002);clf;
+      for i = 1:length(q)
+        subplot(ceil(sqrt(length(q))), ceil(length(q)/ceil(sqrt(length(q)))), i);
+        hold on; grid on;
+        plot(Traj_0.t, Q(:,i), '-');
+        title(sprintf('q %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+      end
+      linkxaxes
+      sgtitle('Verlauf Gelenkkoordinaten');
+      change_current_figure(1003);clf;
+      for i = 1:length(q)
+        subplot(ceil(sqrt(length(q))), ceil(length(q)/ceil(sqrt(length(q)))), i);
+        hold on; grid on;
+        plot(Traj_0.t(~I_jump(:,i)), QD_relerror(~I_jump(:,i),i), 'go');
+        plot(Traj_0.t(I_jump(:,i)), QD_relerror(I_jump(:,i),i), 'rx');
+        title(sprintf('qD error %d', i));
+      end
+      linkxaxes
+      sgtitle('Relativer Fehler Geschw. in Prozent');
+    end
     return
   end
 end
