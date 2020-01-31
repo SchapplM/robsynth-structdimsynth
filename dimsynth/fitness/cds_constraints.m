@@ -174,8 +174,8 @@ if any(abs(Phi_E(:)) > 1e-2) % Die Toleranz beim IK-Verfahren ist etwas größer
   % Nehme die mittlere IK-Abweichung aller Eckpunkte (Translation/Rotation
   % gemischt). Typische Werte von 1e-2 bis 10.
   % Bei vorzeitigem Abbruch zählt die Anzahl der erfolgreichen Eckpunkte
-  f_PhiE = sum(abs(Phi_E(:))) / size(Traj_0.XE,1);
-  f_phiE_norm = 2/pi*atan((f_PhiE)/10); % Normierung auf 0 bis 1
+  f_PhiE = mean(abs(Phi_E(:)));
+  f_phiE_norm = 2/pi*atan(f_PhiE/0.9e6*35); % Normierung auf 0 bis 1. 0.9e6 -> 0.98
   fval = 1e6*(1+9*f_phiE_norm); % Normierung auf 1e6 bis 1e7
   % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
   constrvioltext = sprintf(['Keine IK-Konvergenz in Eckwerten. Untersuchte Eckpunkte: %d/%d. ', ...
