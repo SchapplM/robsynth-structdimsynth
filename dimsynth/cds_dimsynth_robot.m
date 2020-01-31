@@ -583,7 +583,7 @@ if any(physval_obj_all(I_fobj_set) > Set.optimization.constraint_obj(I_fobj_set)
     Structure.Number, Structure.Name)));
   cds_log(1, sprintf('[dimsynth] Zielfunktions-Nebenbedingung verletzt trotz Berücksichtigung in Optimierung. Keine Lösung gefunden.'));
 end
-if f_maxstrengthviol > Set.optimization.constraint_link_yieldstrength
+if fval_constr_all(1) > Set.optimization.constraint_link_yieldstrength
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
     sprintf('%s_Rob%d_%s_cds_dimsynth_robot_strengthconstrwarning.mat', Set.optimization.optname, ...
     Structure.Number, Structure.Name)));
