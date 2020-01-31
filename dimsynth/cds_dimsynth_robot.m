@@ -494,8 +494,9 @@ end
 % winkeln übereinstimmen
 if Structure.Type == 0, q0_ik2 = R.qref;
 else,                   q0_ik2 = cat(1,R.Leg.qref); end
-if any(q0_ik ~= q0_ik2) && fval<1e9 % nur bei erfolgreicher Berechnung der IK ist der gespeicherte Wert sinnvoll
-  cds_log(-1, '[dimsynth] IK-Anfangswinkeln sind bei erneuter Berechnung anders. Darf nicht passieren.');
+test_q0 = q0_ik - q0_ik2;
+if any(test_q0~=0) && fval<1e9 % nur bei erfolgreicher Berechnung der IK ist der gespeicherte Wert sinnvoll
+  cds_log(-1, sprintf('[dimsynth] IK-Anfangswinkeln sind bei erneuter Berechnung anders. Darf nicht passieren. max. Abweichung: %1.2e.', max(abs(test_q0))));
 end
 % Berechne Inverse Kinematik zu erstem Bahnpunkt
 Traj_0 = cds_rotate_traj(Traj, R.T_W_0);
