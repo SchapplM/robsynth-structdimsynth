@@ -266,7 +266,7 @@ if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
     Failratio = 1-IdxFirst/length(Traj_0.t); % Wert zwischen 0 und 1
     fval = 1e4*(1+9*Failratio); % Wert zwischen 1e4 und 1e5
     % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
-    constrvioltext = sprintf('Keine IK-Konvergenz in Traj. Bis %1.0f%% gekommen.', Failratio*100);
+    constrvioltext = sprintf('Keine IK-Konvergenz in Traj. Bis %1.0f%% gekommen.', (1-Failratio)*100);
     return
   end
 else
