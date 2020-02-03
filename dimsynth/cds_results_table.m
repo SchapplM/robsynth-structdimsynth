@@ -58,7 +58,7 @@ for i = 1:length(Structures)
   % Weitere Daten
   num_succ = sum(tmp.PSO_Detail_Data.fval(:) < 1e3);
   num_fail = sum(tmp.PSO_Detail_Data.fval(:) >= 1e3);
-  comptime_sum = sum(tmp.PSO_Detail_Data.comptime(:));
+  comptime_sum = sum(tmp.PSO_Detail_Data.comptime(~isnan(tmp.PSO_Detail_Data.comptime(:))));
   Row_i = [Row_i, {num_succ, num_fail, comptime_sum}]; %#ok<AGROW>
   % Datenzeile anhängen
   ResTab = [ResTab; Row_i]; %#ok<AGROW>
