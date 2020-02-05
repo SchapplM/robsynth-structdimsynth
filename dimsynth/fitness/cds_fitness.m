@@ -189,3 +189,4 @@ end
 cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. Erfolgreich. %s.', toc(t1), fval, fval_debugtext));
 cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
 cds_save_particle_details(Set, R, toc(t1), fval, Jcond, f_maxstrengthviol);
+rng('shuffle'); % damit Zufallszahlen in anderen Funktionen zufällig bleiben

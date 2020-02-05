@@ -127,27 +127,28 @@ if R.Type == 0 % Seriell
   QE = NaN(size(Traj_0.XE,1), R.NQJ);
   if Set.task.profile ~= 0
     % Normale Trajektorie mit stetigem Zeitverlauf. Nur Berechnung der
-    % Eckpunkte zur Prüfung
+    % Eckpunkte zur Prüfung. Setze die Zufallszahlen-Initialisierung mit
+    % rng_seed, damit die Ergebnisse exakt reproduzierbar werden.
     s = struct('Phit_tol', 1e-3, 'Phir_tol', 1e-3, 'retry_limit', 5, ...
-      'normalize', false);
+      'normalize', false, 'rng_seed', 0);
   else
     % Eckpunkte haben keinen direkten Bezug zueinander und bilden die
     % Trajektorie. Da keine Traj. berechnet wird, kann hier mehr Aufwand
     % betrieben werden (besonders bei seriellen Robotern auch notwendig.
     s = struct('Phit_tol', 1e-9, 'Phir_tol', 1e-9, 'retry_limit', 10, ...
-      'normalize', false, 'n_max', 5000);
+      'normalize', false, 'n_max', 5000, 'rng_seed', 0);
   end
 else % PKM
   qlim = cat(1,R.Leg(:).qlim);
   nPhi = R.I2constr_red(end);
   Phi_E = NaN(nPhi, size(Traj_0.XE,1));
   QE = NaN(size(Traj_0.XE,1), R.NJ);
-  if Set.task.profile ~= 0
+  if Set.task.profile ~= 0 % Normale Trajektorie mit stetigem Zeitverlauf
     s = struct('Phit_tol', 1e-4, 'Phir_tol', 1e-3, 'retry_limit', 5, ...
-      'normalize', false);
-  else
+      'normalize', false, 'rng_seed', 0);
+  else % Nur Eckpunkte
     s = struct('Phit_tol', 1e-9, 'Phir_tol', 1e-9, 'retry_limit', 10, ...
-      'normalize', false, 'n_max', 5000);
+      'normalize', false, 'n_max', 5000, 'rng_seed', 0);
   end
 end
 q0 = qlim(:,1) + rand(R.NJ,1).*(qlim(:,2)-qlim(:,1));
@@ -238,8 +239,7 @@ end
 
 %% Inverse Kinematik der Trajektorie berechnen
 if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
-  % s = struct('debug', true, 'retry_limit', 1);
-  s = struct('normalize', false, 'retry_limit', 5, 'n_max', 1000);
+  s = struct('normalize', false, 'retry_limit', 1, 'n_max', 1000);
   if R.Type == 0 % Seriell
     [Q, QD, QDD, PHI] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
     Jinv_ges = NaN; % Platzhalter für gleichartige Funktionsaufrufe. Speicherung nicht sinnvoll für seriell.
