@@ -323,7 +323,7 @@ for i = 1:length(m_ges_Link)
   elseif Structure.Type == 2 && i == size(m_ges_Link,1)
     % Plattform-Segment bei PKM
     % Annahme: Kreisscheibe
-    if R.DesPar.platform_method == 1 || R.DesPar.platform_method == 3
+    if R.DesPar.platform_method == 1 || R.DesPar.platform_method == 4
       R_P = R.DesPar.platform_par(1) / 2; % ist bei Methode 3 eigentlich Dreieck. Rechne aber mit Kreisscheibe
       e_P = R.DesPar.platform_par(i_plfthickness); % Dicke der Plattform
 

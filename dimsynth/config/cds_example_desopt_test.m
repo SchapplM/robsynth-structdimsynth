@@ -34,7 +34,7 @@ Set.general.max_retry_bestfitness_reconstruction = 1;
 Set.general.verbosity = 4;
 Set.general.matfile_verbosity = 4;
 Set.general.nosummary = true;
-Set.structures.whitelist = {'S6RRPRRR14', 'P6RRPRRR14V3G1P3A1'};
+Set.structures.whitelist = {'S6RRPRRR14', 'P6RRPRRR14V3G1P4A1'};
 
 %% Detail-Einstellungen für Fälle vornehmen und Optimierung starten
 for dbc = [false, true]

@@ -364,7 +364,7 @@ end
 % Siehe align_platform_coupling.m
 if Structure.Type == 2 && Set.optimization.platform_morphology
   if R.DesPar.platform_method == 1 % keine Parameter bei Kreis
-  elseif R.DesPar.platform_method == 3
+  elseif R.DesPar.platform_method == 4
     nvars = nvars + 1;
     vartypes = [vartypes; 9];
     varlim = [varlim; [0.2,0.8]]; % Gelenkpaarabstand. Relativ zu Plattform-Radius.

@@ -201,7 +201,7 @@ end
 
 if R_neu.Type == 2 && Set.optimization.platform_morphology && any(Structure.vartypes == 9)
   % Methoden und Parameter, siehe align_platform_coupling
-  if R.DesPar.platform_method == 3
+  if R.DesPar.platform_method == 4
     p_plfpar(2) = p(Structure.vartypes == 9)*p_plfpar(1);
     changed_plf = true;
   end

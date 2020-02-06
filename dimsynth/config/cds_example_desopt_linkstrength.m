@@ -34,6 +34,6 @@ Set.general.verbosity = 4;
 Set.general.matfile_verbosity = 4;
 Set.general.nosummary = true;
 Set.general.debug_calc = true;
-Set.structures.whitelist = {'P6RRPRRR14V3G1P3A1'}; % , 'S6RRRRRR10V3'
+Set.structures.whitelist = {'P6RRPRRR14V3G1P4A1'}; % , 'S6RRRRRR10V3'
 
 cds_start
