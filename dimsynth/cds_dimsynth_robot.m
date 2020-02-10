@@ -550,9 +550,9 @@ if ~result_invalid && ~strcmp(Set.optimization.objective, 'valid_act')
   [fval_stiff,~, ~, physval_stiff] = cds_obj_stiffness(R, Set, Q);
   [~, ~, f_maxstrengthviol] = cds_constr_yieldstrength(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
   % Reihenfolge siehe Variable Set.optimization.constraint_obj aus cds_settings_defaults
-  fval_obj_all = [fval_mass, fval_energy, fval_minactforce, fval_cond, fval_stiff];
+  fval_obj_all = [fval_mass; fval_energy; fval_minactforce; fval_cond; fval_stiff];
   fval_constr_all = f_maxstrengthviol;
-  physval_obj_all = [physval_mass, physval_energy, physval_minactforce, physval_cond, physval_stiff];
+  physval_obj_all = [physval_mass; physval_energy; physval_minactforce; physval_cond; physval_stiff];
   % Vergleiche neu berechnete Werte mit den zuvor abgespeicherten (müssen
   % übereinstimmen)
   test_Jcond = PSO_Detail_Data.Jcond(dd_optgen, dd_optind) - physval_cond;
@@ -574,12 +574,12 @@ if ~result_invalid && ~strcmp(Set.optimization.objective, 'valid_act')
 else
   % Keine Berechnung der Zielfunktionen möglich, da keine zulässige Lösung
   % gefunden wurde.
-  fval_obj_all = NaN(1,5);
+  fval_obj_all = NaN(5,1);
   fval_constr_all = NaN(1,1);
-  physval_obj_all = NaN(1,5);
+  physval_obj_all = NaN(5,1);
 end
 I_fobj_set = Set.optimization.constraint_obj ~= 0;
-if any(physval_obj_all(I_fobj_set) > Set.optimization.constraint_obj(I_fobj_set))
+if any( physval_obj_all(I_fobj_set) > Set.optimization.constraint_obj(I_fobj_set) )
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
     sprintf('%s_Rob%d_%s_cds_dimsynth_robot_objconstrwarning.mat', Set.optimization.optname, ...
     Structure.Number, Structure.Name)));
