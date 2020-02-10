@@ -522,7 +522,7 @@ end
 test_q = abs(Q(1,:)'-q0_ik);
 if any(test_q > 1e-7)
   cds_log(-1, sprintf(['[dimsynth] Die Neu berechneten IK-Werte der Trajektorie stimmen nicht ', ...
-    'mehr mit den ursprünglich berechneten überein. Max diff.: %1.4e'], test_q));
+    'mehr mit den ursprünglich berechneten überein. Max diff.: %1.4e'], max(test_q)));
 end
 result_invalid = false;
 if ~strcmp(Set.optimization.objective, 'valid_act') && ...
@@ -535,10 +535,11 @@ Structure_tmp = Structure; % Eingabe um Berechnung der Antriebskräfte zu erzwin
 Structure_tmp.calc_dyn_act = true;
 Structure_tmp.calc_dyn_cut = true; % ... und der Schnittkräfte
 Structure_tmp.calc_reg = false;
-if ~result_invalid
+if ~result_invalid && ~strcmp(Set.optimization.objective, 'valid_act')
   % Masseparameter belegen, falls das nicht vorher passiert ist.
-  if fval > 1e3 % irgendeine Nebenbedingung wurde immer verletzt. Daher wahrscheinlich nie bis ...
-    cds_dimsynth_design(R, Q, Set, Structure); % ... zu diesem Funktionsaufruf gekommen.
+  if fval > 1e3 ...% irgendeine Nebenbedingung wurde immer verletzt. ...
+      || strcmp(Set.optimization.objective, 'condition') % ... oder rein kinematische Zielfunktion ...
+    cds_dimsynth_design(R, Q, Set, Structure); % ...  Daher nie bis zu diesem Funktionsaufruf gekommen.
   end
   data_dyn = cds_obj_dependencies(R, Traj_0, Set, Structure_tmp, Q, QD, QDD, Jinv_ges);
   % Einzelne Zielfunktionen aufrufen

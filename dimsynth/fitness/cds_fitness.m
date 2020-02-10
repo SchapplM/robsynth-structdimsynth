@@ -65,7 +65,8 @@ if fval_constr > 1000 % Nebenbedingungen verletzt.
   cds_save_particle_details(Set, R, toc(t1), fval, Jcond, f_maxstrengthviol);
   return
 end
-if any(isinf(Jinv_ges(:))) || any(isnan(Jinv_ges(:)))
+% Prüfe Validität der Jacobi (nur für PKM)
+if any(isinf(Jinv_ges(:))) || Structure.Type~=0 && any(isnan(Jinv_ges(:)))
   save(fullfile(repopath, 'tmp', 'cds_fitness_J_infnan.mat'));
   error('Jacobi hat Inf oder NaN. Darf hier eigentlich nicht sein!');
 end
@@ -75,7 +76,7 @@ end
 % Debug:
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_fitness_2.mat'));
 %% Konditionszahl als Nebenbedingung prüfen
-if Set.optimization.constraint_obj(4) % NB für Kondition gesetzt
+if Set.optimization.constraint_obj(4) > 0 % NB für Kondition gesetzt
   [fval_cond,fval_debugtext_cond, debug_info_cond, Jcond] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
   if Jcond > Set.optimization.constraint_obj(4)
     fval = 1e5*(1+9*fval_cond/1e3); % normiert auf 1e5 bis 1e6
@@ -167,7 +168,7 @@ end
 if strcmp(Set.optimization.objective, 'valid_act')
   [fval,fval_debugtext, debug_info] = cds_obj_valid_act(R, Set, Jinv_ges);
 elseif strcmp(Set.optimization.objective, 'condition')
-  if Set.optimization.constraint_obj(4)
+  if Set.optimization.constraint_obj(4) == 0
     [fval,fval_debugtext, debug_info] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
   else
     % Bereits oben berechnet. Keine Neuberechnung notwendig.
