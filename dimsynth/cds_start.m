@@ -10,8 +10,6 @@
 warning('off', 'MATLAB:singularMatrix');
 warning('off', 'MATLAB:nearlySingularMatrix');
 warning('off', 'MATLAB:illConditionedMatrix');
-% Persistente Variablen zurücksetzen
-clear cds_save_particle_details
 
 if ~exist('Set', 'var') || ~exist('Traj', 'var')
   error('Eingabevariablen des Startskriptes existieren nicht');
@@ -85,9 +83,7 @@ if ~Set.general.regenerate_summmary_only
   parfor (i = 1:length(Structures), parfor_numworkers)
     % Maßsynthese für diesen Roboter starten
     fprintf('Starte Maßsynthese für Roboter %d (%s)\n', i, Structures{i}.Name);
-    % Globale Ergebnisvariable zurücksetzen
     cds_dimsynth_robot(Set, Traj, Structures{i});
-    % Ergebnisse speichern
   end
   fprintf('Optimierung von %d Robotern abgeschlossen. Dauer: %1.1fs\n', length(Structures), toc(t1));
 end

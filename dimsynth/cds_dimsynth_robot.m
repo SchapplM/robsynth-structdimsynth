@@ -35,6 +35,8 @@ end
 resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
 mkdirs(resdir_main);
 cds_log(1, sprintf('[dimsynth] Start der Maßsynthese für %s',  Structure.Name), 'init', Set, Structure)
+% Zurücksetzen der Detail-Speicherfunktion
+clear cds_save_particle_details;
 % Mittelpunkt der Aufgabe
 Structure.xT_mean = mean(minmax2(Traj.X(:,1:3)'), 2);
 % Charakteristische Länge der Aufgabe (empirisch ermittelt aus der Größe
