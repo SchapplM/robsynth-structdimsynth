@@ -189,6 +189,12 @@ if Structure.Type == 0 || Structure.Type == 2
     I_firstpospar = R_pkin.pkin_jointnumber==1 & (R_pkin.pkin_types==4 | R_pkin.pkin_types==6);
     Ipkinrel = Ipkinrel & ~I_firstpospar; % Nehme die "1" bei d1/a1 weg.
   end
+  % Setze den letzten d-Parameter für PKM-Beinketten auf Null. Dieser ist
+  % redundant zur Plattform-Größe
+  if Structure.Type == 2 % PKM
+    I_lastdpar = ((R_pkin.pkin_jointnumber==R_pkin.NJ) & (R_pkin.pkin_types==6));
+    Ipkinrel = Ipkinrel & ~I_lastdpar; % Nehme die "1" bei d6 weg.
+  end
 
   pkin_init = R_pkin.pkin;
   pkin_init(~Ipkinrel) = 0; % nicht relevante Parameter Null setzen
