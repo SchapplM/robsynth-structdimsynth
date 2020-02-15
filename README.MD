@@ -43,7 +43,8 @@ Der grobe Ablauf der Maßsynthese erfolgt durch die folgenden Matlab-Skripte und
    * `cds_dimsynth_design`: Entwurfsparameter eintragen
    * `cds_dimsynth_desopt`: Entwurfsoptimierung durchführen
    * `cds_obj_...`: Zielfunktion berechnen (z.B. `..._condition`, `..._energy`, `..._mass`, ...)
- * `cds_vis_results`: Nach der Optimierung erfolgt eine Darstellung der Ergebnisse
+ * `cds_results_table.m`: Nach der Optimierung werden die Endergebnisse (optimale Parameter) jedes Roboters als Tabelle gespeichert
+ * `cds_vis_results`: Nach der Optimierung erfolgt eine Darstellung der Ergebnisse. Die Bilder werden in einem Unterordner von `dimsynth/results` gespeichert
 
 #### Entwurfsoptimierung
 
@@ -59,5 +60,6 @@ Der Ablauf erfolgt in diesen Funktionen:
 
 Die kombinierte Struktur- und Maßsynthese wird in folgenden Quellen beschrieben:
 
+* [SchapplerOrt2020] Schappler, M., Ortmaier, T.: Dimensional Synthesis of Parallel Robots: Unified Kinematics and Dynamics using Full Kinematic Constraints, IFToMM DACH Konferenz (2020)
+* [SchapplerTapOrt2019] Schappler, M. and Tappe, S., Ortmaier, T.: Exploiting Dynamics Parameter Linearity for Design Optimization in Combined Structural and Dimensional Robot Synthesis, IFToMM World Congress (2019)
 * [Ramirez2018] Ramirez, D.: Automatic Generation of Task-specific Mechanisms using Combined Structural and Dimensional Synthesis, Dissertation, Uni Hannover (2018)
-* [SchapplerTapOrt2019] Schappler, M. and Tappe, S., Ortmaier, T.: Exploiting Dynamics Parameter Linearity for Design Optimization in Combined Structural and Dimensional Robot Synthesis (2019)
