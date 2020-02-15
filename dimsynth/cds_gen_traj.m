@@ -150,7 +150,7 @@ end
 
 %% Ausgabe
 Traj = struct('X', X_ges, 'XD', XD_ges, 'XDD', XDD_ges, 't', T_ges, 'XE', XE);
-% return
+return
 
 %% Debug: Trajektorie anschauen
 % Kippwinkelaus Euler-Winkeln berechnen
