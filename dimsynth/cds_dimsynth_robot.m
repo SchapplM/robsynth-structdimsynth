@@ -53,12 +53,16 @@ elseif Structure.Type == 2 % Parallel
   % Parameter für Basis-Kopplung einstellen
   p_base = 1.5*Lref;
   if Structure.Coupling(1) == 4
+    p_base(2) = pi/3;
+  elseif any(Structure.Coupling(1) == [5,6,7])
+    p_base(2) = 0.4*p_base(1);
+  elseif Structure.Coupling(1) == 8
     p_base(2) = 0.4*p_base(1);
     p_base(3) = pi/3;
   end
   % Parameter für Plattform-Kopplung einstellen
   p_platform = 0.75*Lref;
-  if Structure.Coupling(2) == 3
+  if any(Structure.Coupling(2) == [4,5,6])
     p_platform(2) = 0.5*p_platform(1);
   end
   R = parroblib_create_robot_class(Structure.Name, p_base(:), p_platform(:));
@@ -79,6 +83,7 @@ if Structure.Type == 0 % Seriell
   R.I_EE_Task = Set.structures.DoF;
 else % PKM
   % TODO: R.update_EE_FG()
+  R.update_EE_FG(Set.structures.DoF, Set.structures.DoF, logical(repmat(R.Leg(1).I_EE,R.NLEG,1)));
   if all(Set.structures.DoF == [1 1 1 1 1 0])
     error('3T2R-Aufgaben für PKM noch nicht implementiert');
   end
@@ -364,7 +369,7 @@ end
 % Siehe align_platform_coupling.m
 if Structure.Type == 2 && Set.optimization.platform_morphology
   if R.DesPar.platform_method == 1 % keine Parameter bei Kreis
-  elseif R.DesPar.platform_method == 3
+  elseif R.DesPar.platform_method == 4
     nvars = nvars + 1;
     vartypes = [vartypes; 9];
     varlim = [varlim; [0.2,0.8]]; % Gelenkpaarabstand. Relativ zu Plattform-Radius.

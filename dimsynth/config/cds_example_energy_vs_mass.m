@@ -43,7 +43,7 @@ Set.general.max_retry_bestfitness_reconstruction = 1;
 Set.general.verbosity = 4;
 Set.general.matfile_verbosity = 3;
 Set.general.nosummary = true;
-Set.structures.whitelist = {'P6RRPRRR14V3G1P3A1'}; % , S6RRPRRR14 'S6RRRRRR10V3'
+Set.structures.whitelist = {'P6RRPRRR14V3G1P4A1'}; % , S6RRPRRR14 'S6RRRRRR10V3'
 
 cds_start
 
