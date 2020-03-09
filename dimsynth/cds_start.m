@@ -10,6 +10,7 @@
 warning('off', 'MATLAB:singularMatrix');
 warning('off', 'MATLAB:nearlySingularMatrix');
 warning('off', 'MATLAB:illConditionedMatrix');
+warning('off', 'Coder:MATLAB:rankDeficientMatrix');
 
 if ~exist('Set', 'var') || ~exist('Traj', 'var')
   error('Eingabevariablen des Startskriptes existieren nicht');
@@ -55,6 +56,7 @@ if Set.general.parcomp_struct && ... % Parallele Rechnung ist ausgewählt
   parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:singularMatrix');
   parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:nearlySingularMatrix');
   parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:illConditionedMatrix');
+  parfevalOnAll(gcp(), @warning, 0, 'off', 'Coder:MATLAB:rankDeficientMatrix');
 else
   parfor_numworkers = 0;
 end
