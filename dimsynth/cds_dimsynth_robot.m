@@ -433,6 +433,8 @@ fitnessfcn=@(p)cds_fitness(R, Set, Traj, Structure, p(:));
 f_test = fitnessfcn(InitPop(1,:)'); %#ok<NASGU> % Testweise ausführen
 % Zurücksetzen der Detail-Speicherfunktion
 cds_save_particle_details(Set, R, 0, 0, 0, 0, 'reset');
+% Zurücksetzen der gespeicherten Werte der Fitness-Funktion
+clear cds_fitness
 %% PSO-Aufruf starten
 if Set.general.matfile_verbosity > 0
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat'));
@@ -455,6 +457,7 @@ end
 PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, 0, 0, 'output');
 % Zurücksetzen, damit Neuberechnungen der Fitness-Funktion nicht fehlschlagen
 cds_save_particle_details(Set, R, 0, 0, 0, 0, 'reset');
+clear cds_fitness
 % Debug:
 if Set.general.matfile_verbosity > 0
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot3.mat'));

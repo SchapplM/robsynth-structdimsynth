@@ -41,6 +41,19 @@ t1=tic();
 debug_info = {};
 Jcond = NaN; % Konditionszahl der Jacobi-Matrix (für spätere Auswertung)
 f_maxstrengthviol = NaN; % Überschreitung der Materialspannungsgrenzen (...)
+
+%% Abbruch prüfen
+% Prüfe, ob Berechnung schon abgebrochen werden kann, weil ein anderes
+% Partikel erfolgreich berechnet wurde. Dauert sonst eine ganze Generation.
+persistent abort_fitnesscalc
+if isempty(abort_fitnesscalc)
+  abort_fitnesscalc = false;
+elseif abort_fitnesscalc
+  fval = Inf;
+  cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. Bereits anderes Gut-Partikel berechnet.', toc(t1), fval));
+  cds_save_particle_details(Set, R, toc(t1), fval, Jcond, f_maxstrengthviol);
+  return;
+end
 %% Parameter prüfen
 if p(1) == 0
   error('Roboterskalierung kann nicht Null werden');
@@ -167,6 +180,9 @@ end
 %% Zielfunktion berechnen
 if strcmp(Set.optimization.objective, 'valid_act')
   [fval,fval_debugtext, debug_info] = cds_obj_valid_act(R, Set, Jinv_ges);
+  if fval < 1e3 % Wenn einmal der Freiheitsgrad festgestellt wurde, reicht das 
+    abort_fitnesscalc = true;
+  end
 elseif strcmp(Set.optimization.objective, 'condition')
   if Set.optimization.constraint_obj(4) == 0
     [fval,fval_debugtext, debug_info] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
