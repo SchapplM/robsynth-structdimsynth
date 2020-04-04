@@ -283,6 +283,6 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         end
       end % Aktuierungen
     end % Koppelpunkte
+    fprintf('Fertig mit PKM-Kinematik %s\n', PName);
   end % Führungsketten
-  fprintf('Fertig mit PKM-Kinematik %s\n', PName);
 end % EE-FG
