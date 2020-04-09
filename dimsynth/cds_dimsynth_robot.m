@@ -79,16 +79,9 @@ end
 R.fill_fcn_handles(Set.general.use_mex, true);
 
 % Aufgaben-FG des Roboters setzen
-if Structure.Type == 0 % Seriell
+if Structure.Type == 0 % Seriell (nur hier notwendig. TODO: Prüfen ob obsolet)
   R.I_EE_Task = Set.structures.DoF;
-else % PKM
-  % TODO: R.update_EE_FG()
-  R.update_EE_FG(Set.structures.DoF, Set.structures.DoF, logical(repmat(R.Leg(1).I_EE,R.NLEG,1)));
-  if all(Set.structures.DoF == [1 1 1 1 1 0])
-    error('3T2R-Aufgaben für PKM noch nicht implementiert');
-  end
 end
-
 
 for i = 1:NLEG
   if Structure.Type == 0
