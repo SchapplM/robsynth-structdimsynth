@@ -393,9 +393,8 @@ Structure.I_firstprismatic = I_firstprismatic;
 % TODO: Existierende Roboter einfügen
 
 NumIndividuals = Set.optimization.NumIndividuals;
-InitPop = repmat(varlim(:,1)', NumIndividuals,1) + rand(NumIndividuals, nvars) .* ...
-                        repmat(varlim(:,2)'-varlim(:,1)',NumIndividuals,1);
-InitPop = cds_gen_init_pop(NumIndividuals,nvars,varlim,varnames);
+% Generiere Anfangspopulation aus Funktion mit Annahmen bezüglich Winkel
+InitPop = cds_gen_init_pop(NumIndividuals,nvars,varlim,varnames,vartypes);
 %% PSO-Einstellungen festlegen
 options = optimoptions('particleswarm');
 options.Display='iter';

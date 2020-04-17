@@ -1,54 +1,49 @@
-function InitPop = cds_gen_init_pop(NumIndividuals,nvars,varlim,varnames)
+% Anfangspopulation der zu optimierenden Parameter bestimmen
+% 
+% Eingabe:
+% NumIndividuals
+%   Anzahl Parameter für jede Generation
+% nvars
+%   Anzahl der Parameter
+% varlim [nvars x 2]
+%   Grenzen für alle Parameter (erste Spalte Untergrenze, zweite Obergrenze)
+% varnames {nvars x 1} cell
+%   Namen aller Optimierungsparameter.
+% vartypes [nvars x 1]
+%   Kodierung des Parametertyps als Zahl. Siehe cds_dimsynth_robot
+%   0=Skalierung, 1=pkin, 2=Basis-Position, ...
+% 
+% Ausgabe:
+% InitPop [NumIndividuals x nvars]
+%   Anfangspopulation für PSO-Optimierung
 
-InitPop = rand(NumIndividuals,nvars);
+% Junnan Li, Hiwi bei Moritz Schappler
+% Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
+% (C) Institut für Mechatronische Systeme, Universität Hannover
 
+
+function InitPop = cds_gen_init_pop(NumIndividuals,nvars,varlim,varnames,vartypes)
+
+% Zufällige Werte für alle Optimierungsparameter (normiert mit varlim)
+InitPop = repmat(varlim(:,1)', NumIndividuals,1) + rand(NumIndividuals, nvars) .* ...
+                        repmat(varlim(:,2)'-varlim(:,1)',NumIndividuals,1);
+
+% Alle PSO-Parameter durchgehen
 for i = 1:nvars
-  scale_check = contains(varnames{i},{'scale'}); %cellfun('isempty',strfind(varnames{i},{'scale'}));
-  if scale_check == 1 % nicht pkin parameter
-    InitPop(1:NumIndividuals,i) = 1; 
-    continue
-  end  
-  
-  pkin_check = contains(varnames{i},'pkin'); 
-  if pkin_check == 0 % nicht pkin parameter
+  if vartypes(i) ~= 1
+    % Nur Betrachtung von Kinematikparametern der Beinkette.
+    % Alle anderen werden auf obige Zufallswerte gesetzt
+    continue % nicht pkin parameter
+  end
+  if contains(varnames(i),{'theta'}) % theta parameter
+    % Setze nur auf 0 oder pi/2. Das verspricht eine bessere Lösbarkeit der
+    % Kinematik
+    InitPop(:,i) = pi/2 * round(rand(NumIndividuals,1)); 
     continue
   end
-  pkin_theta = contains(varnames(i),{'theta'});
-  if pkin_theta == 1 % theta parameter
-    InitPop(1:ceil(NumIndividuals/2),i) = pi/2; 
-    InitPop(ceil(NumIndividuals/2)+1:end,i) = 0;
-%     InitPop(ceil(NumIndividuals/2)+1:end,i) = repmat(varlim(i,1)', ceil(NumIndividuals/2)-1,1)...
-%                                               + rand(ceil(NumIndividuals/2)-1,1).*...
-%                                               repmat(varlim(i,2)'-varlim(i,1)',ceil(NumIndividuals/2)-1,1);
+  if contains(varnames(i),{'alpha'}) % alpha parameter
+    % nur 0 oder pi/2
+    InitPop(:,i) = pi/2 * round(rand(NumIndividuals,1)); 
     continue
   end
-  pkin_alpha = contains(varnames(i),{'alpha'});
-  if pkin_alpha == 1 % alpha parameter
-    InitPop(1:ceil(NumIndividuals/4),i) = 0; % alpha Init ist 0
-    InitPop(ceil(NumIndividuals*3/4)+1:end,i) = 0;
-    InitPop(ceil(NumIndividuals/4)+1:ceil(NumIndividuals*3/4),i) = pi/2; 
-    continue
-  end
-  pkin_d = contains(varnames(i),{'d'});
-  if pkin_d == 1 % alpha parameter
-    InitPop(1:ceil(NumIndividuals/2),i) = 0.1*rand(ceil(NumIndividuals/2),1); % alpha Init ist 0
-    if mod(NumIndividuals,2)
-      InitPop(ceil(NumIndividuals/2)+1:end,i) = repmat(varlim(i,1)', ceil(NumIndividuals/2)-1,1)...
-        + rand(ceil(NumIndividuals/2)-1,1).*...
-        repmat(varlim(i,2)'-varlim(i,1)',ceil(NumIndividuals/2)-1,1);
-    else
-      InitPop(ceil(NumIndividuals/2)+1:end,i) = repmat(varlim(i,1)', ceil(NumIndividuals/2),1)...
-        + rand(ceil(NumIndividuals/2),1).*...
-        repmat(varlim(i,2)'-varlim(i,1)',ceil(NumIndividuals/2),1);
-    end
-    continue
-  end  
-  pkin_a = contains(varnames(i),{'a'});
-  if pkin_a == 1 % a parameter
-    init_a = 0.3+rand(NumIndividuals,1)*0.2;
-    InitPop(:,i) = init_a(1:NumIndividuals)';
-%     InitPop(:,i) = repmat(varlim(i,1)', NumIndividuals,1) + rand(NumIndividuals, 1) .* ...
-%                         repmat(varlim(i,2)'-varlim(i,1)',NumIndividuals,1); 
-    continue
-  end 
 end
