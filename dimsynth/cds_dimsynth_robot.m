@@ -209,8 +209,9 @@ if Structure.Type == 0 || Structure.Type == 2
   plim = NaN(length(R_pkin.pkin),2);
   for i = 1:size(plim,1)
     if R_pkin.pkin_types(i) == 1 || R_pkin.pkin_types(i) == 3 || R_pkin.pkin_types(i) == 5
-      % Winkel-Parameter
-      plim(i,:) = [-pi, pi];
+      % Winkel-Parameter. Nur Begrenzung auf [0,pi/2]. Ansonsten sind
+      % negative DH-Längen und negative Winkel redundant
+      plim(i,:) = [0, pi/2];
     elseif R_pkin.pkin_types(i) == 2 || R_pkin.pkin_types(i) == 4 || R_pkin.pkin_types(i) == 6
       % Maximale Länge der einzelnen Segmente
       plim(i,:) = [-1, 1]; % in Optimierung bezogen auf Lref
