@@ -94,7 +94,7 @@ for i = 1:NLEG
   % mal schräg durch Arbeitsraum" (char. Länge))
   % Muss so hoch gesetzt sein, damit UPS-Kette (ohne sonstige
   % Kinematikparameter auch funktioniert)
-  R_init.qlim(R_init.MDH.sigma==1,:) = repmat([-0.5*Lref, 100*Lref],sum(R_init.MDH.sigma==1),1);
+  R_init.qlim(R_init.MDH.sigma==1,:) = repmat([-0.5*Lref, 5*Lref],sum(R_init.MDH.sigma==1),1);
   % Gelenkgrenzen setzen: Drehgelenke
   if Structure.Type == 0 % Serieller Roboter
     % Grenzen für Drehgelenke: Alle sind aktiv
@@ -393,9 +393,8 @@ Structure.I_firstprismatic = I_firstprismatic;
 % TODO: Existierende Roboter einfügen
 
 NumIndividuals = Set.optimization.NumIndividuals;
-InitPop = repmat(varlim(:,1)', NumIndividuals,1) + rand(NumIndividuals, nvars) .* ...
-                        repmat(varlim(:,2)'-varlim(:,1)',NumIndividuals,1);
-
+% Generiere Anfangspopulation aus Funktion mit Annahmen bezüglich Winkel
+InitPop = cds_gen_init_pop(NumIndividuals,nvars,varlim,varnames,vartypes);
 %% PSO-Einstellungen festlegen
 options = optimoptions('particleswarm');
 options.Display='iter';
