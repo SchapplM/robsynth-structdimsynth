@@ -529,6 +529,7 @@ else % Parallel
   [Q, QD, QDD, PHI, Jinv_ges] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
 end
 test_q = abs(Q(1,:)'-q0_ik);
+test_q(abs(abs(test_q)-2*pi)<1e-6) = 0; % entferne 2pi-Fehler
 if any(test_q > 1e-7)
   cds_log(-1, sprintf(['[dimsynth] Die Neu berechneten IK-Werte der Trajektorie stimmen nicht ', ...
     'mehr mit den ursprünglich berechneten überein. Max diff.: %1.4e'], max(test_q)));
@@ -544,6 +545,12 @@ Structure_tmp = Structure; % Eingabe um Berechnung der Antriebskräfte zu erzwin
 Structure_tmp.calc_dyn_act = true;
 Structure_tmp.calc_dyn_cut = true; % ... und der Schnittkräfte
 Structure_tmp.calc_reg = false;
+if R.Type ~= 0 % für PKM
+  % Berechne Dynamik in diesem Abschnitt mit Inertialparametern. Sonst
+  % keine Berechnung der Schnittkräfte möglich (mit Minimalparametern)
+	R.DynPar.mode = 3; 
+  for i = 1:R.NLEG, R.Leg(i).DynPar.mode = 3; end
+end
 if ~result_invalid && ~strcmp(Set.optimization.objective, 'valid_act')
   % Masseparameter belegen, falls das nicht vorher passiert ist.
   if fval > 1e3 ...% irgendeine Nebenbedingung wurde immer verletzt. ...
@@ -594,7 +601,8 @@ if any( physval_obj_all(I_fobj_set) > Set.optimization.constraint_obj(I_fobj_set
     Structure.Number, Structure.Name)));
   cds_log(1, sprintf('[dimsynth] Zielfunktions-Nebenbedingung verletzt trotz Berücksichtigung in Optimierung. Keine Lösung gefunden.'));
 end
-if fval_constr_all(1) > Set.optimization.constraint_link_yieldstrength
+if Set.optimization.constraint_link_yieldstrength~= 0 && ...
+    fval_constr_all(1) > Set.optimization.constraint_link_yieldstrength
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
     sprintf('%s_Rob%d_%s_cds_dimsynth_robot_strengthconstrwarning.mat', Set.optimization.optname, ...
     Structure.Number, Structure.Name)));

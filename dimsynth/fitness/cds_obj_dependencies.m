@@ -51,7 +51,7 @@ if Structure.calc_dyn_cut
   if R.Type == 0 % Seriell
     [Wges, Wges_reg] = R.internforce_traj(Q, QD, QDD);
   else % PKM
-    if Structure.calc_reg % || Set.general.debug_calc
+    if Structure.calc_reg || Set.general.debug_calc
       % Berechne nur die Regressormatrizen der Schnittkraft
       Wges_reg = R.internforce_regmat_traj(Q, QD, QDD, Traj_0.X, Traj_0.XD, Traj_0.XDD, Jinv_ges);
     else
@@ -110,7 +110,7 @@ if R.Type ~= 0 && (Structure.calc_dyn_cut && ~Structure.calc_reg || Set.general.
   Wges = R.internforce_traj(Q, QD, QDD, TAU);
 end
 
-if ~Structure.calc_reg && Structure.calc_dyn_act || Set.general.debug_calc
+if ~Structure.calc_reg && Structure.calc_dyn_act
   data_dyn.TAU = TAU;
   if Structure.calc_dyn_cut
     data_dyn.Wges = Wges;
