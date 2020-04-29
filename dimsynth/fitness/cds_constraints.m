@@ -158,7 +158,24 @@ for i = size(Traj_0.XE,1):-1:1
   if R.Type == 0
     [q, Phi] = R.invkin2(Traj_0.XE(i,:)', q0, s);
   else
-    [q, Phi] = R.invkin_ser(Traj_0.XE(i,:)', q0, s);
+    [q, Phi] = R.invkin2(Traj_0.XE(i,:)', q0, s); % kompilierter Aufruf
+    if Set.general.debug_calc
+      [~, Phi_debug] = R.invkin_ser(Traj_0.XE(i,:)', q0, s); % Klassenmethode
+      ik_res_ik2 = (all(abs(Phi(R.I_constr_t_red))<s.Phit_tol) && ...
+          all(abs(Phi(R.I_constr_r_red))<s.Phir_tol));% IK-Status Funktionsdatei
+      ik_res_iks = (all(abs(Phi_debug(R.I_constr_t_red))<s.Phit_tol) && ... 
+          all(abs(Phi_debug(R.I_constr_r_red))<s.Phir_tol)); % IK-Status Klassenmethode
+      if ik_res_ik2 ~= ik_res_iks % Vergleiche IK-Status (Erfolg / kein Erfolg)
+        if Set.general.matfile_verbosity > 0
+          save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_ik_error_debug.mat'));
+        end
+        % Mögliche Ursache: Mehr Glück mit Zufallszahlen für Anfangswert.
+        % Das darf nicht allzu oft passieren. Die Zufallszahlen sollten
+        % eigentlich gleich gebildet werden.
+        cds_log(-1, sprintf(['IK-Berechnung mit Funktionsdatei hat anderen ', ...
+          'Status (%d) als Klassenmethode (%d).'], ik_res_ik2, ik_res_iks));
+      end
+    end
   end
   Phi_E(:,i) = Phi;
   if ~any(isnan(q))
@@ -239,17 +256,31 @@ end
 
 %% Inverse Kinematik der Trajektorie berechnen
 if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
-  s = struct('normalize', false, 'retry_limit', 1, 'n_max', 1000);
+  s = struct('normalize', false, 'retry_limit', 1, 'n_max', 1000, ...
+    'Phit_tol', 1e-8, 'Phir_tol', 1e-8);
   if R.Type == 0 % Seriell
     [Q, QD, QDD, PHI] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
     Jinv_ges = NaN; % Platzhalter für gleichartige Funktionsaufrufe. Speicherung nicht sinnvoll für seriell.
   else % PKM
-    % Nutze vereinfachte Formel für Beschleunigungsberechnung zur Rechen-
-    % zeitersparnis
-    s.simplify_acc = true;
-    [Q, QD, QDD, PHI, Jinv_ges] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+    [Q, QD, QDD, PHI, Jinv_ges] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, [], s);
+    if Set.general.debug_calc % Rechne nochmal mit Klassenmethode nach
+      [~,  ~, ~, PHI_debug] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+      ik_res_ik2 = (all(max(abs(PHI(:,R.I_constr_t_red)))<s.Phit_tol) && ...
+          all(max(abs(PHI(:,R.I_constr_r_red)))<s.Phir_tol));% IK-Status Funktionsdatei
+      ik_res_iks = (all(max(abs(PHI_debug(:,R.I_constr_t_red)))<s.Phit_tol) && ... 
+          all(max(abs(PHI_debug(:,R.I_constr_r_red)))<s.Phir_tol)); % IK-Status Klassenmethode
+      if ik_res_ik2 ~= ik_res_iks % Vergleiche IK-Status (Erfolg / kein Erfolg)
+        if Set.general.matfile_verbosity > 0
+          save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_trajik_error_debug.mat'));
+        end
+        % Hier keine Warnung wie oben. Traj.-IK darf nicht von Zufall abhängen.
+        % TODO: Wirklich Fehlermeldung einsetzen. Erstmal so gelassen, da
+        % nicht kritisch.
+        warning('Traj.-IK-Berechnung mit Funktionsdatei hat anderen Status (%d) als Klassenmethode (%d).', ik_res_ik2, ik_res_iks);
+      end
+    end
   end
-  % Anfangswerte nochmal neu speichern, damit man der Anfangswert exakt der
+  % Anfangswerte nochmal neu speichern, damit der Anfangswert exakt der
   % Wert ist, der für die Neuberechnung gebraucht wird. Ansonsten ist die
   % Reproduzierbarkeit durch die rng-Initialisierung der mex-Funktionen
   % gefährdet.
