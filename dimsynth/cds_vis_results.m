@@ -15,9 +15,11 @@
 % 4: Trägheitsellipsen
 % 5: Gelenkverläufe
 % 6: Zeitauswertung Fitness-Funktion
+% 
+% Speichert die Bilder für jeden Roboter in einem eigenen Unterordner
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
-% (C) Institut für Mechatronische Systeme, Universität Hannover
+% (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
 function cds_vis_results(Set, Traj, Structures)
 if Set.general.matfile_verbosity > 0
@@ -41,6 +43,8 @@ for i = 1:length(Structures)
   Name = Structures{i}.Name;
   tmp = load(fullfile(resmaindir, ...
     sprintf('Rob%d_%s_Endergebnis.mat', i, Name)), 'RobotOptRes', 'Set', 'Traj', 'PSO_Detail_Data');
+  resrobdir = fullfile(resmaindir, sprintf('Rob%d_%s', i, Name));
+  mkdirs(resrobdir); % Speicherort für Bilder dieses Roboters
   RobotOptRes = tmp.RobotOptRes;
   PSO_Detail_Data = tmp.PSO_Detail_Data;
   R = RobotOptRes.R;
@@ -160,8 +164,8 @@ for i = 1:length(Structures)
 %   ylabel('Häufigkeit (abs)');
   
   
-  saveas(10*i+1,     fullfile(resmaindir, sprintf('Rob%d_%s_Histogramm.fig', i, Name)));
-  export_fig(10*i+1, fullfile(resmaindir, sprintf('Rob%d_%s_Histogramm.png', i, Name)));
+  saveas(10*i+1,     fullfile(resrobdir, sprintf('Rob%d_%s_Histogramm.fig', i, Name)));
+  export_fig(10*i+1, fullfile(resrobdir, sprintf('Rob%d_%s_Histogramm.png', i, Name)));
   fprintf('%d/%d: Histogramm für %s gespeichert.\n', i, length(Structures), Name);
   %% Verschiedene Auswertungen
   figure(10*i+6);clf;
@@ -202,8 +206,8 @@ for i = 1:length(Structures)
   title('Materialbelastung vs Kondition');
   grid on;  
   
-  saveas(10*i+6,     fullfile(resmaindir, sprintf('Rob%d_%s_Population_Fitness.fig', i, Name)));
-  export_fig(10*i+6, fullfile(resmaindir, sprintf('Rob%d_%s_Population_Fitness.png', i, Name)));
+  saveas(10*i+6,     fullfile(resrobdir, sprintf('Rob%d_%s_Population_Fitness.fig', i, Name)));
+  export_fig(10*i+6, fullfile(resrobdir, sprintf('Rob%d_%s_Population_Fitness.png', i, Name)));
 
   %% Animation des besten Roboters für die Trajektorie
   for kk = 1:2 % Einmal als Strichzeichnung, einmal als 3D-Modell
@@ -222,7 +226,7 @@ for i = 1:length(Structures)
   s_anim = struct('gif_name', '', 'avi_name', '');
   for file_ext = Set.general.save_animation_file_extensions
     if strcmp(file_ext{1}, 'mp4'), file_ext = {'avi'}; end
-    s_anim.(sprintf('%s_name', file_ext{1})) = fullfile(resmaindir, sprintf('Rob%d_%s_Animation%s.%s', i, Name, apptxt, file_ext{1}));
+    s_anim.(sprintf('%s_name', file_ext{1})) = fullfile(resrobdir, sprintf('Rob%d_%s_Animation%s.%s', i, Name, apptxt, file_ext{1}));
   end
   if Set.task.profile == 0, I_anim = 1:size(Q,1);
   else,                     I_anim = 1:20:size(Q,1); end
@@ -234,8 +238,8 @@ for i = 1:length(Structures)
     if kk == 2, s_plot.mode = 4; end
     R.anim( Q(I_anim,:), Traj_0.X(I_anim,:), s_anim, s_plot);
   end
-  saveas(10*i+1+kk,     fullfile(resmaindir, sprintf('Rob%d_%s_Skizze%s.fig', i, Name, apptxt)));
-  export_fig(10*i+1+kk, fullfile(resmaindir, sprintf('Rob%d_%s_Skizze%s.png', i, Name, apptxt)));
+  saveas(10*i+1+kk,     fullfile(resrobdir, sprintf('Rob%d_%s_Skizze%s.fig', i, Name, apptxt)));
+  export_fig(10*i+1+kk, fullfile(resrobdir, sprintf('Rob%d_%s_Skizze%s.png', i, Name, apptxt)));
   fprintf('%d/%d: Animation für %s gespeichert: %s\n', i, length(Structures), Name, s_anim.gif_name);
   % Animation direkt komprimieren als mp4 (nur unter Unix möglich)
   if isunix() && any(strcmp(Set.general.save_animation_file_extensions, 'mp4'))
@@ -276,8 +280,8 @@ for i = 1:length(Structures)
       R.plot(Q(1,:)', Traj_0.X(1,:)', s_plot);
     end
   end
-  saveas(10*i+4,     fullfile(resmaindir, sprintf('Rob%d_%s_Skizze_Plausib.fig', i, Name)));
-  export_fig(10*i+4, fullfile(resmaindir, sprintf('Rob%d_%s_Skizze_Plausib.png', i, Name)));
+  saveas(10*i+4,     fullfile(resrobdir, sprintf('Rob%d_%s_Skizze_Plausib.fig', i, Name)));
+  export_fig(10*i+4, fullfile(resrobdir, sprintf('Rob%d_%s_Skizze_Plausib.png', i, Name)));
   
   %% Verlauf der Gelenkgrößen für den besten Roboter
   figure(10*i+5);clf;hold all;
@@ -334,8 +338,12 @@ for i = 1:length(Structures)
   plot(Traj.t, Traj.XDD);
   grid on; ylabel('xDD in m/s² oder rad/s²');
   linkxaxes;
-  saveas(10*i+5,     fullfile(resmaindir, sprintf('Rob%d_%s_KinematikZeit.fig', i, Name)));
-  export_fig(10*i+5, fullfile(resmaindir, sprintf('Rob%d_%s_KinematikZeit.png', i, Name)));
+  saveas(10*i+5,     fullfile(resrobdir, sprintf('Rob%d_%s_KinematikZeit.fig', i, Name)));
+  export_fig(10*i+5, fullfile(resrobdir, sprintf('Rob%d_%s_KinematikZeit.png', i, Name)));
+  
+  if length(Structures) > 3
+    close all; % schließe alle Bilder wieder. Sonst sind Hunderte Bilder am Ende offen
+  end
   
   %% Finalisierung
   % Alle Auswertungsbilder wieder schließen. Sonst gibt es eventuell

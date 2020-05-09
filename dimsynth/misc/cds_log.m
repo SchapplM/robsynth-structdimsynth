@@ -17,7 +17,7 @@
 %   Informationsstrukturen für Optimierung (siehe andere Dateien)
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
-% (C) Institut für Mechatronische Systeme, Universität Hannover
+% (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
 function cds_log(level, msg, option, Set, Structure)
 %% Initialisierung
@@ -27,11 +27,12 @@ persistent loglevel
 if nargin > 2 && strcmp(option, 'init')
   % Initialisiere die persistenten Variablen
   resdir = fullfile(Set.optimization.resdir, Set.optimization.optname);
-  logfilepath = fullfile(resdir, sprintf('Rob%d_%s.log', Structure.Number, Structure.Name));
+  robstr = sprintf('Rob%d_%s.log', Structure.Number, Structure.Name);
+  logfilepath = fullfile(resdir, robstr, sprintf('%s.log', robstr));
   loglevel = Set.general.verbosity;
   if exist(logfilepath, 'file')
-    movefile(logfilepath, fullfile(resdir, sprintf('Rob%d_%s_backup_%s.log', ...
-      Structure.Number, Structure.Name, datestr(now,'yyyymmdd_HHMMSS'))) );
+    movefile(logfilepath, fullfile(resdir, robstr, sprintf('%s_backup_%s.log', ...
+      robstr, datestr(now,'yyyymmdd_HHMMSS'))) );
   end
 end
 % Falls Fitness-Funktion nachträglich aufgerufen wird, ist das Loggen nicht
