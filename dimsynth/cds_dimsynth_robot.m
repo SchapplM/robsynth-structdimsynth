@@ -504,6 +504,7 @@ end
 if Structure.Type == 0, q0_ik2 = R.qref;
 else,                   q0_ik2 = cat(1,R.Leg.qref); end
 test_q0 = q0_ik - q0_ik2;
+test_q0(abs(abs(test_q0)-2*pi)<1e-6) = 0; % entferne 2pi-Fehler
 if any(test_q0~=0) && fval<1e9 % nur bei erfolgreicher Berechnung der IK ist der gespeicherte Wert sinnvoll
   cds_log(-1, sprintf('[dimsynth] IK-Anfangswinkeln sind bei erneuter Berechnung anders. Darf nicht passieren. max. Abweichung: %1.2e.', max(abs(test_q0))));
 end
@@ -520,24 +521,30 @@ if ~strcmp(Set.optimization.objective, 'valid_act') && any(abs(Phi)>1e-8)
   cds_log(-1, '[dimsynth] PSO-Ergebnis für Startpunkt nicht reproduzierbar (ZB-Verletzung)');
 end
 % Berechne IK der Bahn (für spätere Visualisierung und Neuberechnung der Zielfunktionen)
+% Benutze ähnliche Einstellungen wie in cds_constraints.m (aber feinere
+% Toleranz und mehr Rechenaufwand bei der eigentlichen IK-Berechnung)
 if Structure.Type == 0 % Seriell
-  s = struct('normalize', false, 'retry_limit', 1, 'Phit_tol', 1e-12, 'Phir_tol', 1e-12);
+  s = struct('normalize', false, 'retry_limit', 0, 'Phit_tol', 1e-12, ...
+    'Phir_tol', 1e-12, 'n_max', 3000);
   [Q, QD, QDD, PHI] = R.invkin2_traj(Traj_0.X, Traj.XD, Traj.XDD, Traj.t, q, s);
   Jinv_ges = [];
 else % Parallel
-  s = struct('debug', false, 'retry_limit', 1, 'Phit_tol', 1e-12, 'Phir_tol', 1e-12);
-  [Q, QD, QDD, PHI, Jinv_ges] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+  s = struct('retry_limit', 0, 'Phit_tol', 1e-12, ...
+    'Phir_tol', 1e-12, 'n_max', 3000);
+  [Q, QD, QDD, PHI, Jinv_ges] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, [], s);
 end
 test_q = abs(Q(1,:)'-q0_ik);
 test_q(abs(abs(test_q)-2*pi)<1e-6) = 0; % entferne 2pi-Fehler
-if any(test_q > 1e-7)
-  cds_log(-1, sprintf(['[dimsynth] Die Neu berechneten IK-Werte der Trajektorie stimmen nicht ', ...
+if any(test_q > 1e-6)
+  cds_log(-1, sprintf(['[dimsynth] Die Neu berechneten IK-Werte (q0) der Trajektorie stimmen nicht ', ...
     'mehr mit den ursprünglich berechneten überein. Max diff.: %1.4e'], max(test_q)));
 end
 result_invalid = false;
 if ~strcmp(Set.optimization.objective, 'valid_act') && ...
-    (any(abs(PHI(:))>1e-8) || any(isnan(Q(:))))
-  cds_log(-1, '[dimsynth] PSO-Ergebnis für Trajektorie nicht reproduzierbar oder nicht gültig (ZB-Verletzung)');
+    (any(abs(PHI(:))>1e-6) || any(isnan(Q(:)))) % Toleranz wie in cds_constraints
+  cds_log(-1, sprintf(['[dimsynth] PSO-Ergebnis für Trajektorie nicht reproduzierbar ', ...
+    'oder nicht gültig (ZB-Verletzung). Max IK-Fehler: %1.1e. %d Fehler > 1e-6. %d mal NaN.'], ...
+    max(abs(PHI(:))), sum(sum(abs(PHI)>1e-6,2)>0), sum(isnan(Q(:))) ));
   result_invalid = true;
 end
 %% Berechne andere Zielfunktionen
