@@ -152,6 +152,10 @@ else % PKM
   end
 end
 q0 = qlim(:,1) + rand(R.NJ,1).*(qlim(:,2)-qlim(:,1));
+% Normalisiere den Anfangswert (außerhalb [-pi,pi) nicht sinnvoll).
+% (Betrifft nur Fall, falls Winkelgrenzen groß gewählt sind)
+q0(R.MDH.sigma==0) = normalize_angle(q0(R.MDH.sigma==0));
+
 % IK für alle Eckpunkte, beginnend beim letzten (dann ist q der richtige
 % Startwert für die Trajektorien-IK)
 for i = size(Traj_0.XE,1):-1:1
@@ -256,7 +260,10 @@ end
 
 %% Inverse Kinematik der Trajektorie berechnen
 if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
-  s = struct('normalize', false, 'retry_limit', 1, 'n_max', 1000, ...
+  % Einstellungen für IK in Trajektorien
+  s = struct('normalize', false, ... % nicht notwendig, da Prüfen der Winkel-Spannweite. Außerdem sonst Sprung in Traj
+    'retry_limit', 0, ... % keine Zufalls-Zahlen. Würde sowieso einen Sprung erzeugen.
+    'n_max', 1000, ... % moderate Anzahl Iterationen
     'Phit_tol', 1e-8, 'Phir_tol', 1e-8);
   if R.Type == 0 % Seriell
     [Q, QD, QDD, PHI] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
@@ -289,7 +296,9 @@ if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
   else
     for i = 1:R.NLEG, R.Leg(i).qref = Q(1,R.I1J_LEG(i):R.I2J_LEG(i))'; end
   end
-  I_ZBviol = any(abs(PHI) > 1e-3,2) | any(isnan(Q),2);
+  % Erkenne eine valide Trajektorie bereits bei Fehler kleiner als 1e-6 an.
+  % Das ist deutlich großzügiger als die eigentliche IK-Toleranz
+  I_ZBviol = any(abs(PHI) > 1e-6,2) | any(isnan(Q),2);
   if any(I_ZBviol)
     % Bestimme die erste Verletzung der ZB (je später, desto besser)
     IdxFirst = find(I_ZBviol, 1 );
