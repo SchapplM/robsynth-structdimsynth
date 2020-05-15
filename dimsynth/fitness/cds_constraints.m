@@ -138,6 +138,8 @@ if R.Type == 0 % Seriell
     s = struct('Phit_tol', 1e-9, 'Phir_tol', 1e-9, 'retry_limit', 10, ...
       'normalize', false, 'n_max', 5000, 'rng_seed', 0);
   end
+  % Variable zum Speichern der Gelenkpositionen (für Kollisionserkennung)
+  JPE = NaN(size(Traj_0.XE,1), R.NL*3);
 else % PKM
   qlim = cat(1,R.Leg(:).qlim);
   nPhi = R.I2constr_red(end);
@@ -150,6 +152,7 @@ else % PKM
     s = struct('Phit_tol', 1e-9, 'Phir_tol', 1e-9, 'retry_limit', 10, ...
       'normalize', false, 'n_max', 5000, 'rng_seed', 0);
   end
+  JPE = NaN(size(Traj_0.XE,1), (R.NL-2+R.NLEG)*3);
 end
 q0 = qlim(:,1) + rand(R.NJ,1).*(qlim(:,2)-qlim(:,1));
 % Normalisiere den Anfangswert (außerhalb [-pi,pi) nicht sinnvoll).
@@ -160,11 +163,11 @@ q0(R.MDH.sigma==0) = normalize_angle(q0(R.MDH.sigma==0));
 % Startwert für die Trajektorien-IK)
 for i = size(Traj_0.XE,1):-1:1
   if R.Type == 0
-    [q, Phi] = R.invkin2(Traj_0.XE(i,:)', q0, s);
+    [q, Phi, Tc_stack] = R.invkin2(Traj_0.XE(i,:)', q0, s);
   else
-    [q, Phi] = R.invkin2(Traj_0.XE(i,:)', q0, s); % kompilierter Aufruf
+    [q, Phi, Tc_stack] = R.invkin_ser(Traj_0.XE(i,:)', q0, s); % Klassenmethode
     if Set.general.debug_calc
-      [~, Phi_debug] = R.invkin_ser(Traj_0.XE(i,:)', q0, s); % Klassenmethode
+      [~, Phi_debug] = R.invkin2(Traj_0.XE(i,:)', q0, s); % kompilierter Aufruf
       ik_res_ik2 = (all(abs(Phi(R.I_constr_t_red))<s.Phit_tol) && ...
           all(abs(Phi(R.I_constr_r_red))<s.Phir_tol));% IK-Status Funktionsdatei
       ik_res_iks = (all(abs(Phi_debug(R.I_constr_t_red))<s.Phit_tol) && ... 
@@ -189,6 +192,7 @@ for i = size(Traj_0.XE,1):-1:1
   if any(abs(Phi(:)) > 1e-2)
     break; % Breche Berechnung ab (zur Beschleunigung der Berechnung)
   end
+  JPE(i,:) = Tc_stack(:,4); % Vierte Spalte ist Koordinatenursprung der Körper-KS
 end
 QE(isnan(QE)) = 0;
 Phi_E(isnan(Phi_E)) = 1e6;
@@ -258,6 +262,9 @@ end
 % Debug:
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_2.mat'));
 
+%% Kollisionsprüfung für Einzelpunkte
+fval_coll = cds_constr_collisions(R, Set, Structure, QE, JPE);
+
 %% Inverse Kinematik der Trajektorie berechnen
 if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
   % Einstellungen für IK in Trajektorien
@@ -266,12 +273,12 @@ if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
     'n_max', 1000, ... % moderate Anzahl Iterationen
     'Phit_tol', 1e-8, 'Phir_tol', 1e-8);
   if R.Type == 0 % Seriell
-    [Q, QD, QDD, PHI] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+    [Q, QD, QDD, PHI, JP] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
     Jinv_ges = NaN; % Platzhalter für gleichartige Funktionsaufrufe. Speicherung nicht sinnvoll für seriell.
   else % PKM
-    [Q, QD, QDD, PHI, Jinv_ges] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
-    if Set.general.debug_calc % Rechne nochmal mit Klassenmethode nach
-      [~,  ~, ~, PHI_debug] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+    [Q, QD, QDD, PHI, Jinv_ges, ~, JP] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+    if Set.general.debug_calc % Rechne nochmal mit Vorlagen-Funktion nach
+      [~, ~, ~, PHI_debug, ~] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
       ik_res_ik2 = (all(max(abs(PHI(:,R.I_constr_t_red)))<s.Phit_tol) && ...
           all(max(abs(PHI(:,R.I_constr_r_red)))<s.Phir_tol));% IK-Status Funktionsdatei
       ik_res_iks = (all(max(abs(PHI_debug(:,R.I_constr_t_red)))<s.Phit_tol) && ... 
@@ -284,6 +291,25 @@ if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
         % TODO: Wirklich Fehlermeldung einsetzen. Erstmal so gelassen, da
         % nicht kritisch.
         warning('Traj.-IK-Berechnung mit Funktionsdatei hat anderen Status (%d) als Klassenmethode (%d).', ik_res_ik2, ik_res_iks);
+      end
+      % Prüfe, ob die ausgegebenen Gelenk-Positionen auch stimmen
+      for i = 1:size(Q,1)
+        JointPos_all_i_frominvkin = reshape(JP(i,:)',3,R.NJ+R.NLEG);
+        Tc_Lges = R.fkine_legs(Q(i,:)');
+        JointPos_all_i_fromdirkin = squeeze(Tc_Lges(1:3,4,1:end));
+        % Vergleiche die Positionen. In fkine_legs wird zusätzlich ein
+        % virtuelles EE-KS ausgegeben, nicht aber in invkin.
+        for kk = 1:R.NLEG
+          test_JP = JointPos_all_i_frominvkin(:,kk+(-1+R.I1J_LEG(kk):R.I2J_LEG(kk))) - ...
+          JointPos_all_i_fromdirkin(:,kk*2+(-2+R.I1J_LEG(kk):-1+R.I2J_LEG(kk)));
+          if any(abs(test_JP(:)) > 1e-8)
+            if Set.general.matfile_verbosity > 0
+              save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_trajjointpos_error_debug.mat'));
+            end
+            error(['Ausgegebene Gelenkpositionen stimmen nicht gegen direkte ', ...
+              'Kinematik. Zeitpunkt %d, Beinkette %d. Max Fehler %1.1e'], i, kk, max(abs(test_JP(:))));
+          end
+        end
       end
     end
   end
