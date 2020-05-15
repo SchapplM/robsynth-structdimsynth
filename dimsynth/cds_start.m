@@ -81,6 +81,8 @@ if Set.optimization.use_desopt ...
 end
 % Optimierung der Strukturen durchführen
 if ~Set.general.regenerate_summmary_only
+  resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
+  mkdirs(resdir_main); % Ergebnis-Ordner für diese Optimierung erstellen
   t1 = tic();
   parfor (i = 1:length(Structures), parfor_numworkers)
     % Maßsynthese für diesen Roboter starten

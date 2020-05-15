@@ -27,7 +27,7 @@ persistent loglevel
 if nargin > 2 && strcmp(option, 'init')
   % Initialisiere die persistenten Variablen
   resdir = fullfile(Set.optimization.resdir, Set.optimization.optname);
-  robstr = sprintf('Rob%d_%s.log', Structure.Number, Structure.Name);
+  robstr = sprintf('Rob%d_%s', Structure.Number, Structure.Name);
   logfilepath = fullfile(resdir, robstr, sprintf('%s.log', robstr));
   loglevel = Set.general.verbosity;
   if exist(logfilepath, 'file')
