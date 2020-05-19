@@ -1,8 +1,6 @@
-% Testen die Rotationsachse der Beinkette und des Platform
-% vor Ma�synhese
-% TODO: 1. noch mehr Situationen testen
-%       2. 3T2R Parrob inplementieren
-%       3. Funktioniert nicht für 3T3R!
+% Teste die PKM-Freiheitsgrade aufgrund von Plausibilitätsüberlegungen
+% Berücksichtigt Beinketten-FG und Koppelgelenk-Anordnung und einfache
+% geometrische Überlegungen ohne Berechnung von Jacobi-Matrizen o.ä.
 % 
 % Eingabe:
 % SName
