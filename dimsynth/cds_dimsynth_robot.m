@@ -532,7 +532,7 @@ if Structure.Type == 0 % Seriell
 else % Parallel
   s = struct('retry_limit', 0, 'Phit_tol', 1e-12, ...
     'Phir_tol', 1e-12, 'n_max', 3000);
-  [Q, QD, QDD, PHI, Jinv_ges] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, [], s);
+  [Q, QD, QDD, PHI, Jinv_ges] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
 end
 test_q = abs(Q(1,:)'-q0_ik);
 test_q(abs(abs(test_q)-2*pi)<1e-6) = 0; % entferne 2pi-Fehler
