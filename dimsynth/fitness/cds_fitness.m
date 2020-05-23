@@ -83,6 +83,11 @@ if any(isinf(Jinv_ges(:))) || Structure.Type~=0 && any(isnan(Jinv_ges(:)))
   save(fullfile(repopath, 'tmp', 'cds_fitness_J_infnan.mat'));
   error('Jacobi hat Inf oder NaN. Darf hier eigentlich nicht sein!');
 end
+% Prüfe Validität der Geschwindigkeiten
+if isempty(QD) || isempty(QDD)
+  save(fullfile(repopath, 'tmp', 'cds_fitness_QD_empty.mat'));
+  error('Geschwindigkeit ist nicht belegt. Darf hier eigentlich nicht sein!');
+end
 if Set.general.matfile_verbosity > 2
   save(fullfile(repopath, 'tmp', 'cds_fitness_2.mat'));
 end

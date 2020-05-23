@@ -16,11 +16,17 @@
 %   Zielfunktionswert, der im PSO-Algorithmus minimiert wird. Entspricht
 %   Strafterm in der Fitnessfunktion bei Verletzung der Nebenbedingungen
 %   Werte:
-%   1e3: Keine Verletzung der Nebenbedingungen
-%   1e3...5e3: Geschwindigkeitsgrenzen
-%   5e3...1e4: Gelenkwinkelgrenzen
+%   1e3: Keine Verletzung der Nebenbedingungen. Alles i.O.
+%   1e3...2e3: Kollision in Trajektorie
+%   2e3...3e3: Konfiguration springt
+%   3e3...5e3: Geschwindigkeitsgrenzen
+%   5e3...1e4: Gelenkwinkelgrenzen in Trajektorie
 %   1e4...1e5: IK in Trajektorie nicht lösbar
-%   ...: Siehe Quelltext
+%   1e5...5e5: Kollision in Einzelpunkten
+%   5e5...1e6: Gelenkwinkelgrenzen in Einzelpunkten
+%   1e6...1e7: IK in Einzelpunkten nicht lösbar
+%   1e7...1e8: Geometrie nicht plausibel lösbar
+%   1e8...1e9: Geometrie nicht plausibel lösbar
 % Q,QD,QDD
 %   Gelenkpositionen und -geschwindigkeiten des Roboters (für PKM auch
 %   passive Gelenke)
@@ -152,7 +158,7 @@ else % PKM
     s = struct('Phit_tol', 1e-9, 'Phir_tol', 1e-9, 'retry_limit', 10, ...
       'normalize', false, 'n_max', 5000, 'rng_seed', 0);
   end
-  JPE = NaN(size(Traj_0.XE,1), (R.NL-2+R.NLEG)*3);
+  JPE = NaN(size(Traj_0.XE,1), (R.NL-1+R.NLEG)*3);
 end
 q0 = qlim(:,1) + rand(R.NJ,1).*(qlim(:,2)-qlim(:,1));
 % Normalisiere den Anfangswert (außerhalb [-pi,pi) nicht sinnvoll).
@@ -193,6 +199,25 @@ for i = size(Traj_0.XE,1):-1:1
     break; % Breche Berechnung ab (zur Beschleunigung der Berechnung)
   end
   JPE(i,:) = Tc_stack(:,4); % Vierte Spalte ist Koordinatenursprung der Körper-KS
+  if Set.general.debug_calc && R.Type == 2
+    % Prüfe, ob die ausgegebenen Gelenk-Positionen auch stimmen
+    JointPos_all_i_frominvkin = reshape(JPE(i,:)',3,1+R.NLEG+R.NJ);
+    Tc_Lges = R.fkine_legs(QE(i,:)');
+    JointPos_all_i_fromdirkin = [zeros(3,1), squeeze(Tc_Lges(1:3,4,1:end))];
+    % Vergleiche die Positionen. In fkine_legs wird zusätzlich ein
+    % virtuelles EE-KS ausgegeben, nicht aber in invkin_ser.
+    for kk = 1:R.NLEG
+      test_JPE = JointPos_all_i_frominvkin(:,kk+(-1+R.I1J_LEG(kk):R.I2J_LEG(kk))) - ...
+      JointPos_all_i_fromdirkin(:,kk*2+(-2+R.I1J_LEG(kk):-1+R.I2J_LEG(kk)));
+      if any(abs(test_JPE(:)) > 1e-8)
+        if Set.general.matfile_verbosity > 0
+          save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_trajjointpos_error_debug.mat'));
+        end
+        error(['Ausgegebene Gelenkpositionen stimmen nicht gegen direkte ', ...
+          'Kinematik. Zeitpunkt %d, Beinkette %d. Max Fehler %1.1e'], i, kk, max(abs(test_JPE(:))));
+      end
+    end
+  end
 end
 QE(isnan(QE)) = 0;
 Phi_E(isnan(Phi_E)) = 1e6;
@@ -240,7 +265,7 @@ if any(I_qlimviol_E)
   [fval_qlimv_E, I_worst] = min(qlimviol_E(I_qlimviol_E)./(qlim(I_qlimviol_E,2)-qlim(I_qlimviol_E,1))');
   II_qlimviol_E = find(I_qlimviol_E); IIw = II_qlimviol_E(I_worst);
   fval_qlimv_E_norm = 2/pi*atan((-fval_qlimv_E)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
-  fval = 1e5*(1+9*fval_qlimv_E_norm); % Normierung auf 1e5 bis 1e6
+  fval = 1e5*(5+5*fval_qlimv_E_norm); % Normierung auf 5e5 bis 1e6
   % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Weitere Rechnungen machen keinen Sinn.
   constrvioltext = sprintf('Gelenkgrenzverletzung in AR-Eckwerten. Schlechteste Spannweite: %1.2f/%1.2f', ...
     q_range_E(IIw), qlim(IIw,2)-qlim(IIw,1) );
@@ -263,8 +288,16 @@ end
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_2.mat'));
 
 %% Kollisionsprüfung für Einzelpunkte
-fval_coll = cds_constr_collisions(R, Set, Structure, QE, JPE);
-
+if Set.optimization.constraint_collisions
+  [fval_coll, coll] = cds_constr_collisions(R, Traj_0.XE, Set, Structure, JPE, QE, [1e5;4]);
+  if fval_coll > 0
+    fval = fval_coll; % 1e5*(1+4*fval_coll); % Normierung auf 1e5 bis 5e5 -> bereits in Funktion
+    constrvioltext = sprintf('Kollision in %d/%d AR-Eckwerten.', ...
+      sum(any(coll,2)), size(coll,1));
+    Q = QE; % Ausgabe dient nur zum Zeichnen des Roboters
+    return
+  end
+end
 %% Inverse Kinematik der Trajektorie berechnen
 if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
   % Einstellungen für IK in Trajektorien
@@ -294,11 +327,11 @@ if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
       end
       % Prüfe, ob die ausgegebenen Gelenk-Positionen auch stimmen
       for i = 1:size(Q,1)
-        JointPos_all_i_frominvkin = reshape(JP(i,:)',3,R.NJ+R.NLEG);
+        JointPos_all_i_frominvkin = reshape(JP(i,:)',3,1+R.NJ+R.NLEG);
         Tc_Lges = R.fkine_legs(Q(i,:)');
-        JointPos_all_i_fromdirkin = squeeze(Tc_Lges(1:3,4,1:end));
+        JointPos_all_i_fromdirkin = [zeros(3,1), squeeze(Tc_Lges(1:3,4,1:end))];
         % Vergleiche die Positionen. In fkine_legs wird zusätzlich ein
-        % virtuelles EE-KS ausgegeben, nicht aber in invkin.
+        % virtuelles EE-KS ausgegeben, nicht aber in invkin_ser.
         for kk = 1:R.NLEG
           test_JP = JointPos_all_i_frominvkin(:,kk+(-1+R.I1J_LEG(kk):R.I2J_LEG(kk))) - ...
           JointPos_all_i_fromdirkin(:,kk*2+(-2+R.I1J_LEG(kk):-1+R.I2J_LEG(kk)));
@@ -439,7 +472,7 @@ if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
     % desto besser.
     II_jump = find(any(I_jump,2), 1, 'first');
     fval_jump_norm = II_jump/length(Traj_0.t); % Zwischen 0 und 1
-    fval = 1e3*(1+2*fval_jump_norm); % Wert zwischen 1e3 und 3e3
+    fval = 1e3*(2+1*fval_jump_norm); % Wert zwischen 2e3 und 3e3
     constrvioltext = sprintf('Konfiguration scheint zu springen. Geschwindigkeitsfehler max. %1.1f%% (zuerst Zeitschritt %d/%d)', ...
       100*max(abs(QD_relerror(:))), II_jump, length(Traj_0.t));
     if fval < Set.general.plot_details_in_fitness
@@ -475,6 +508,18 @@ if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
       linkxaxes
       sgtitle('Relativer Fehler Geschw. in Prozent');
     end
+    return
+  end
+end
+
+%% Kollisionserkennung für Trajektorie
+if Set.optimization.constraint_collisions
+  [fval_coll, coll] = cds_constr_collisions(R, Traj_0.X, Set, Structure, JP, Q, [1e3; 1]);
+  if fval_coll > 0
+    fval = fval_coll; %1e3*(1+1*fval_coll); % Normierung auf 1e3 bis 2e3 -> bereits in Funktion
+    constrvioltext = sprintf('Kollision in %d/%d Traj.-Punkten.', ...
+      sum(any(coll,2)), size(coll,1));
+    Q = QE; % Ausgabe dient nur zum Zeichnen des Roboters
     return
   end
 end
