@@ -25,7 +25,8 @@ for j = 1:length(Structures)
   Name = Structures{j}.Name;
   resdir_pso = fullfile(resmaindir, ...
     'tmp', sprintf('%d_%s', Structure.Number, Structure.Name));
-  videofile_avi = fullfile(resdir_pso, 'PSO_Evolution_Gesamt.avi');
+  videofile_avi = fullfile(resmaindir, sprintf('Rob%d_%s_Evolution_Video.avi', ...
+    Structure.Number, Structure.Name));
   
   fprintf('Erstelle Evolutions-Video für %s\n', Name);
   
@@ -87,29 +88,5 @@ for j = 1:length(Structures)
   close(v);
   
   %% Video komprimieren
-  if ~isunix()
-    warning('Video-Kompression aus Matlab nur unter Linux unterstützt');
-    continue
-  end
-  % Komprimiere mit avconv (ffmpeg); getestet unter Ubuntu 16.04
-  % Benutze h264 mit guter Qualität zur Wiedergabe unter Powerpoint
-  % Argument für Farb
-  avsettings = '-c:v libx264 -preset slower -profile:v high -level 51 -an -vf "format=yuv420p"';
-  % Schreibe das Video in den Ordner mit Endergebnissen (da es komprimierte
-  % Information beinhaltet)
-  videofile_mp4 = fullfile(resmaindir, sprintf('Rob%d_%s_Evolution_Video.mp4', Structure.Number, Structure.Name));
-  if system('avconv --help > /dev/null') && ~system('ffmpeg --help > /dev/null')
-    avtool = 'ffmpeg'; % Ubuntu 18.04
-  else
-    avtool = 'avconv'; % Ubuntu 16.04
-  end
-  res = system(sprintf('%s -y -i %s %s "%s"', avtool, videofile_avi, avsettings, videofile_mp4));
-  if res == 0
-    finfotmp_mp4 = dir(videofile_mp4);
-    finfotmp_avi = dir(videofile_avi);
-    % Video erfolgreich erstellt. Lösche avi wieder
-    fprintf('Video-Datei %s erfolgreich komprimiert (avi->mp4) (neu: %1.1f MB). Lösche avi-Datei (%1.1f MB)\n', ...
-      finfotmp_mp4(1).name, finfotmp_mp4(1).bytes/1e6, finfotmp_avi(1).bytes/1e6);
-    delete(videofile_avi);
-  end
+  compress_video_file(videofile_avi);
 end
