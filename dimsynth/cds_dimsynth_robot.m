@@ -391,6 +391,137 @@ else % PKM
 end
 Structure.I_firstprismatic = I_firstprismatic;
 
+%% Initialisierung der Kollisionsprüfung
+if Set.optimization.constraint_collisions
+  % Lege die Starrkörper-Indizes fest, für die Kollisionen geprüft werden
+  Structure.selfcollchecks_bodies = [];
+  % Liste für gesamte PKM. 0=PKM-Basis, 1=Beinkette1-Basis, 2=Beinkette1-
+  % erster Körper, usw. Wird für serielle Roboter auch benutzt. Dort aber
+  % nur eine Basis (=0).
+  collbodies_robot = struct('link', [], 'type', [], 'params', []);
+  % Prüfe Selbstkollisionen einer kinematischen Kette.
+  for k = 1:NLEG
+    % Erneute Initialisierung (sonst eventuell doppelte Eintragungen)
+    collbodies = struct('link', [], 'type', [], 'params', []); % Liste für Beinkette
+    if Structure.Type == 0  % Seriell 
+      NLoffset = 0;
+      R_cc = R;
+    else % PKM-Beinkette
+      % Alle bewegten Körper der Beinketten werden als Kollisionskörper
+      % gezählt, aber theoretisch auch (in der Zählung) alle Beinketten- 
+      % Basis-KS. Damit wird die spätere Kollisionsprüfung vereinfacht.
+      % Zusätzlich wird die PKM-Basis selbst gezählt (als erster Eintrag).
+      NLoffset = 1; % Für Basis der Beinkette
+      R_cc = R.Leg(k);
+      if k > 1
+        NLoffset = 1+R.I2L_LEG(k-1)-(k-1); % in I1L wird auch Basis und EE-Link noch mitgezählt. Hier nicht.
+      end
+    end
+
+    for i = 1:R_cc.NJ
+      if R_cc.MDH.a(i) ~= 0 || R_cc.MDH.d(i) ~= 0 || R_cc.MDH.sigma(i) == 1
+        % Es gibt eine Verschiebung in der Koordinatentransformation i
+        % Definiere einen Ersatzkörper dafür
+        collbodies.link =   [collbodies.link; uint8(i)];
+        collbodies.type =   [collbodies.type; uint8(6)]; % Kapsel, direkte Verbindung
+        collbodies.params = [collbodies.params; 20e-3, NaN(1,11)]; % R.DesPar.seg_par ist noch nicht belegt
+        % Füge Prüfung mit allen vorherigen hinzu (außer direktem Vorgänger)
+        % Diese Kollision wird nicht geprüft, da dort keine Kollision
+        % stattfinden können sollte (direkt gegeneinander drehbare Teile
+        % können konstruktiv kollisionsfrei gestaltet werden)
+        % Der Vorgänger bezieht sich auf den Kollisionskörper, nicht auf
+        % die Nummer des Starrkörpers
+        if length(collbodies.link)<3
+          continue
+        end
+        % Bestimme die Starrkörper-Nummer bezogen auf die PKM mit NLoffset
+        for j = collbodies.link(end-2):-1:1 % Kollisionskörper mehr als zwei vorher
+          Structure.selfcollchecks_bodies = [Structure.selfcollchecks_bodies; ...
+            uint8(NLoffset+[collbodies.link(end), j])];
+        end
+      end
+    end
+    R_cc.collbodies = collbodies;
+    % Trage auch in PKM-weite Variable ein
+    if Structure.Type == 0
+      collbodies_robot = collbodies;
+    else
+      collbodies_robot.link = [collbodies_robot.link; collbodies.link + NLoffset];
+      collbodies_robot.type = [collbodies_robot.type; collbodies.type];
+      collbodies_robot.params = [collbodies_robot.params; collbodies.params];
+    end
+  end
+  if Structure.Type == 2  % PKM
+    % Auch Kollisionen aller Beinsegmente mit allen anderen Beinketten
+    % prüfen. Einschränkungen: Nur direkt benachbarte Beinketten prüfen
+    for k = 1:NLEG
+      if k > 1, NLoffset_k = 1+R.I2L_LEG(k-1)-(k-1);
+      else,     NLoffset_k = 1; end
+      for j = k-1 % Beinketten müssen benachbart sein. Prüfe nur linken Nachbarn
+        % Durch Prüfung aller Beinketten sind auch alle Nachbarn abgedeckt
+        % Rechne Beinkette 0-7 um in 1-6 (zur einfachereren Zählung)
+        i = j; % Periodizität der Nummern
+        if i == 0, i = NLEG; end
+        if i == NLEG+1, i = 1; end
+        % Offset der Beinketten-Körper in den PKM-Körpern
+        if i > 1, NLoffset_i = 1+R.I2L_LEG(i-1)-(i-1);
+        else,     NLoffset_i = 1; end
+        % Alle Segmente von Beinkette k können mit allen von Kette j
+        % kollidieren
+        for cb_k = R.Leg(k).collbodies.link'
+          for cb_i = R.Leg(i).collbodies.link'
+            Structure.selfcollchecks_bodies = [Structure.selfcollchecks_bodies; ...
+              uint8([NLoffset_k+cb_k, NLoffset_i+cb_i])];
+            % fprintf('Bein %d Seg. %d vs Bein %d Seg. %d\n', k, cb_k, i, cb_i);
+          end
+        end
+      end
+    end
+    % TODO: Kollision Beinketten mit Plattform und Gestell
+  end
+  if isempty(Structure.selfcollchecks_bodies)
+    error('Es sind keine Kollisionskörpern eingetragen, obwohl Kollisionen geprüft werden sollen.');
+  end
+  if any(Structure.selfcollchecks_bodies(:,1)==Structure.selfcollchecks_bodies(:,2))
+    error('Prüfung eines Körpers mit sich selbst ergibt keinen Sinn');
+  end
+  % Lege die Kollisionskörper-Indizes fest, für die Kollisionen geprüft werden
+  % Der Inhalt sind direkt die Indizes von collbodies. Das muss nicht
+  % online in der Optimierung gemacht werden.
+  Structure.selfcollchecks_collbodies = [];
+  for i = 1:size(Structure.selfcollchecks_bodies,1)
+    % Finde die Indizes aller Ersatzkörper der zu prüfenden Starrkörper
+    % (es kann auch mehrere Ersatzkörper für einen Starrkörper geben)
+    I1 = Structure.selfcollchecks_bodies(i,1) == collbodies_robot.link;
+    I2 = Structure.selfcollchecks_bodies(i,2) == collbodies_robot.link;
+    CheckCombinations = NaN(sum(I1)*sum(I2),2);
+    if sum(I1) == 0 || sum(I2) == 0
+      % Die Kollision der Starrkörper soll geprüft werden, es sind aber gar
+      % keine Ersatzkörper definiert.
+      continue
+    end
+    kk = 0;
+    for ii1 = find(I1)
+      for ii2 = find(I2)
+        kk = kk + 1;
+        CheckCombinations(kk,:) = [ii1,ii2];
+      end
+    end
+    if any(CheckCombinations(:,1)==CheckCombinations(:,2))
+      error('CheckCombinations: Prüfung eines Körpers mit sich selbst ergibt keinen Sinn');
+    end
+    % Eintragen in Gesamt-Liste
+    Structure.selfcollchecks_collbodies = ...
+      uint8([Structure.selfcollchecks_collbodies; CheckCombinations]);
+  end
+  if isempty(Structure.selfcollchecks_collbodies)
+    error('Es sind keine Prüfungen von Kollisionskörpern vorgesehen');
+  end
+  if any(Structure.selfcollchecks_collbodies(:,1)==Structure.selfcollchecks_collbodies(:,2))
+    error('Prüfung eines Körpers mit sich selbst ergibt keinen Sinn');
+  end
+end
+
 %% Anfangs-Population generieren
 % TODO: Existierende Roboter einfügen
 
