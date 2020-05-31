@@ -71,6 +71,7 @@ optimization = struct( ...
   'objective', 'energy', ... % Zielfunktion. Möglich: mass, energy, condition, valid_kin, valid_act, minactforce, stiffness
   'constraint_obj', zeros(5,1), ... % Nebenbedingungen, 1=Mass, 2=Energy, 3=Minactforce, 4=Condition, 5=Stiffness; Eintrag entspricht physikalischem Wert
   'movebase', true, ... % Position der Roboter-Basis
+  'basepos_limits', NaN(3,2), ... % Grenzen für Basis-Position (Absolut, im Welt-KS)
   'ee_translation', true, ... % Freie Verschiebung des EE
   'ee_translation_only_serial', true, ... % ... nur bei seriellen Robotern
   'ee_rotation', true, ... % Freie Rotation des EE
@@ -103,6 +104,12 @@ task = struct( ...
   'Tv', 0.01, ...
   'Ts', 1e-3, ...
   'maxangle', 2*pi, ... % Keine Einschränkung für die maximalen Winkel
+  'installspace', struct( ... % Konfiguration des möglichen Bauraums
+    'type', [], ... % 1=Quader, 2=Zylinder; zeilenweise mehrere Körper
+    'params', []), ... % im Welt-KS. 1: Aufpunkt, 2 Eckpunkte, Länge 3. Kante; 2: Punkt1, Punkt2, Radius
+  'obstacles', struct( ... % Hindernisse im Arbeitsraum zur Kollisionsprüfung
+    'type', [], ... % Nummerierung siehe SerRob.m (collbodies)
+    'params', []), ...% s.o.
   'payload', struct('m', 3, 'rS', zeros(3,1), 'Ic', zeros(6,1)));
 task.payload.Ic(1:3) =  2/5 * task.payload.m * (60e-3)^2; % Kugel Radius 60mm
 %% Rückgabe Gesamt-Einstellungen

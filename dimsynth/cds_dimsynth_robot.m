@@ -251,6 +251,13 @@ if Set.optimization.movebase
     % Die z-Komponente der Basis kann mehr variieren (hängender Roboter)
     varlim = [varlim; repmat([-1, 1], sum(Set.structures.DoF(3)), 1)];
   end
+  % Überschreibe die Grenzen, falls sie explizit als Einstellung gesetzt sind
+  % TODO: Sollte noch in Zusammenhang mit Structure.xT_mean gebracht werden
+  bplim = varlim(end-2:end,:);
+  bplim(~isnan(Set.optimization.basepos_limits)) = 1/Structure.Lref*...
+    Set.optimization.basepos_limits(~isnan(Set.optimization.basepos_limits));
+  varlim(end-2:end,:) = bplim;
+  % Benenne die Variablen
   for i = find(Set.structures.DoF(1:3))
     varnames = {varnames{:}, sprintf('base %s', char(119+i))}; %#ok<CCAT>
   end

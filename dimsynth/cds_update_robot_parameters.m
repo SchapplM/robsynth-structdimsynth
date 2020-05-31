@@ -92,10 +92,11 @@ if Set.optimization.movebase
   % xy-Punktkoordinaten der Basis skaliert mit Referenzlänge
   r_W_0_neu(Set.structures.DoF(1:2)) = Structure.xT_mean(Set.structures.DoF(1:2)) + ...
     p_basepos(Set.structures.DoF(1:2))*Structure.Lref;
-  % z-Punktkoordinaten der Basis skaliert mit Roboter-Skalierungsfaktor
+  % z-Punktkoordinaten der Basis skaliert mit Referenzlänge
+  % TODO: Klären, ob Roboter-Skalierungsfaktor doch besser wäre
   if Set.structures.DoF(3)
     r_W_0_neu(3) = Structure.xT_mean(Set.structures.DoF(3)) + ...
-      p_basepos(Set.structures.DoF(3))*scale;
+      p_basepos(3)*Structure.Lref;
   end
   R_neu.update_base(r_W_0_neu);
 end
