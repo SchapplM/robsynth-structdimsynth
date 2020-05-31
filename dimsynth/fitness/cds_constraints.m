@@ -289,9 +289,9 @@ end
 
 %% Kollisionsprüfung für Einzelpunkte
 if Set.optimization.constraint_collisions
-  [fval_coll, coll] = cds_constr_collisions(R, Traj_0.XE, Set, Structure, JPE, QE, [1e5;4]);
+  [fval_coll, coll] = cds_constr_collisions(R, Traj_0.XE, Set, Structure, JPE, QE, [2e5;5e5]);
   if fval_coll > 0
-    fval = fval_coll; % 1e5*(1+4*fval_coll); % Normierung auf 1e5 bis 5e5 -> bereits in Funktion
+    fval = fval_coll; % 1e5*(2+3*fval_coll); % Normierung auf 2e5 bis 5e5 -> bereits in Funktion
     constrvioltext = sprintf('Kollision in %d/%d AR-Eckwerten.', ...
       sum(any(coll,2)), size(coll,1));
     Q = QE; % Ausgabe dient nur zum Zeichnen des Roboters
@@ -514,7 +514,7 @@ end
 
 %% Kollisionserkennung für Trajektorie
 if Set.optimization.constraint_collisions
-  [fval_coll, coll] = cds_constr_collisions(R, Traj_0.X, Set, Structure, JP, Q, [1e3; 1]);
+  [fval_coll, coll] = cds_constr_collisions(R, Traj_0.X, Set, Structure, JP, Q, [1e3; 2e3]);
   if fval_coll > 0
     fval = fval_coll; %1e3*(1+1*fval_coll); % Normierung auf 1e3 bis 2e3 -> bereits in Funktion
     constrvioltext = sprintf('Kollision in %d/%d Traj.-Punkten.', ...

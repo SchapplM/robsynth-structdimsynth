@@ -16,13 +16,12 @@
 %   Gelenkpositionen(für PKM auch passive Gelenke)
 % scale [2x1]
 %   Skalierung der Ausgabe fval in bestimmten Wertebereich:
-%   1: Untere Grenze,
-%   2: Anzahl der Vielfachen der unteren Grenze minus 1 bis obere Grenze
+%   Untere und obere Grenze. Dazwischen linear
 % 
 % Ausgabe:
 % fval
 %   Strafterm für Kollisionen. 0 falls keine Kollision. Sonst im Bereich
-%   vorgegeben durch Eingabegröße range
+%   vorgegeben durch Eingabegröße scale
 % coll
 %   Binärmatrix mit Kollision ja/nein für alle Zeitschritte aus Q und
 %   Kollisionspaare aus Structure
@@ -48,7 +47,7 @@ end
 if Structure.Type == 0  % Seriell 
   collbodies = R.collbodies;
   collbodies.params = R.collbodies.params(:,1); % Aktuell nur Kapseln implementiert
-  v = uint8(R.MDH.v);
+  v = uint8([0;R.MDH.v]); % zusätzlicher Dummy-Eintrag für Basis
 else % PKM
   collbodies = struct('link', [], 'type', [], 'params', []);
   for k = 1:R.NLEG
@@ -63,15 +62,16 @@ else % PKM
   end
   % Vorgänger-Indizes zusammenstellen. Jede Beinkette hat zusätzliches
   % Basis-KS
-  v = uint8(zeros(R.NJ+R.NLEG,1));
+  v = uint8(zeros(1+R.NJ+R.NLEG,1));
   for k = 1:R.NLEG
     if k > 1, NLoffset = R.I2L_LEG(k-1)-k+2;
     else, NLoffset = 1; end
-    v(R.I1J_LEG(k)+k-1:R.I2J_LEG(k)+k) = [0; NLoffset+R.Leg(k).MDH.v];
+    v(R.I1J_LEG(k)+k:R.I2J_LEG(k)+k+1) = [0; NLoffset+R.Leg(k).MDH.v];
   end
 end
 %% Kollisionen und Strafterm berechnen
-[coll, colldepth] = check_collisionset_simplegeom_mex(v, collbodies, Structure.selfcollchecks_collbodies, JP);
+CollSet = struct('collsearch', true);
+[coll, ~, colldepth] = check_collisionset_simplegeom(v, collbodies, Structure.selfcollchecks_collbodies, JP, CollSet);
 
 if any(abs(colldepth(:))>1) || any(abs(colldepth(:))<0)
   error('Relative Eindringtiefe ist außerhalb des erwarteten Bereichs');
@@ -85,7 +85,7 @@ f_constr_norm = 2/pi*atan(100*f_constr);
 if f_constr_norm > 0
   % Skaliere auf Wertebereich. Dadurch Anpassung an doppelte Nutzung
   % (Eckwerte und Trajektorie möglich)
-  fval = scale(1)*(1+scale(2)*f_constr_norm);
+  fval = scale(1)+(scale(2)-scale(1))*f_constr_norm;
 else
   % Als Rückgabe, dass es keine Kollision gibt
   fval = 0;
@@ -119,11 +119,11 @@ for i = 1:size(collbodies.link,1)
   r = collbodies.params(i,1)*3; % Vergrößere den Radius für den Plot
   % Nummer der Starrkörper in mathematischer Notation: 0=Basis
   jj2 = collbodies.link(i);
-  jj1 = v(collbodies.link(i)); % 0=PKM-Basis, 1=Beinkette-1-Basis, 2=Beinkette-1-Körper-1
+  jj1 = v(1+collbodies.link(i)); % 0=PKM-Basis, 1=Beinkette-1-Basis, 2=Beinkette-1-Körper-1
   % Nummer in Matlab-Notation (1=Basis)
   ii2 = jj2+1;
   ii1 = jj1+1;
-  pts = JP(1,[3*(ii1-1)+1:3*ii1, 3*(ii2-1)+1:3*ii2]); % bezogen auf Basis-KS
+  pts = JP(j,[3*(ii1-1)+1:3*ii1, 3*(ii2-1)+1:3*ii2]); % bezogen auf Basis-KS
   if all(pts(1:3) == pts(4:6))
     warning('Kollisionskörper %d/%d hat Länge Null. Verbindet Körper %d und %d.', ...
       i, size(collbodies.link,1), jj1, jj2);
