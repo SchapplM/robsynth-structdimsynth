@@ -287,6 +287,17 @@ end
 % Debug:
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_2.mat'));
 
+%% Bauraumprüfung für Einzelpunkte
+if ~isempty(Set.task.installspace.type)
+  [fval_instspc, f_constrinstspc] = cds_constr_installspace(R, Traj_0.XE, Set, Structure, JPE, QE, [1e5;2e5]);
+  if fval_instspc > 0
+    fval = fval_instspc; % 1e5*(1+4*fval_coll); % Normierung auf 1e5 bis 2e5 -> bereits in Funktion
+    constrvioltext = sprintf(['Verletzung des zulässigen Bauraums in AR-', ...
+      'Eckpunkten. Schlimmstenfalls %1.1f mm draußen.'], 1e3*f_constrinstspc);
+    Q = QE; % Ausgabe dient nur zum Zeichnen des Roboters
+    return
+  end
+end
 %% Kollisionsprüfung für Einzelpunkte
 if Set.optimization.constraint_collisions
   [fval_coll, coll] = cds_constr_collisions(R, Traj_0.XE, Set, Structure, JPE, QE, [2e5;5e5]);
