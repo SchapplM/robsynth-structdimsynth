@@ -673,7 +673,7 @@ else % Parallel
   [Q, QD, QDD, PHI, Jinv_ges] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
 end
 test_q = abs(Q(1,:)'-q0_ik);
-test_q(abs(abs(test_q)-2*pi)<1e-6) = 0; % entferne 2pi-Fehler
+test_q(abs(abs(test_q)-2*pi)<1e-2) = 0; % entferne 2pi-Fehler, großzügige Toleranz
 if any(test_q > 1e-6)
   cds_log(-1, sprintf(['[dimsynth] Die Neu berechneten IK-Werte (q0) der Trajektorie stimmen nicht ', ...
     'mehr mit den ursprünglich berechneten überein. Max diff.: %1.4e'], max(test_q)));
