@@ -219,7 +219,7 @@ for i = 1:size(collbodies.link,1)
       % Umrechnen in Format der plot-Funktion
       cubpar_c = q_W(:)+(u1_W(:)+u2_W(:)+u3_W(:))/2; % Mittelpunkt des Quaders
       cubpar_l = [norm(u1_W); norm(u2_W); norm(u3_W)]; % Dimension des Quaders
-      cubpar_a = 180/pi*r2eulzyx([u1_W(:)/norm(u1_W), u2_W(:)/norm(u2_W), u3_W(:)/norm(u3_W)]); % Orientierung des Quaders
+      cubpar_a = 180/pi*tr2rpy([u1_W(:)/norm(u1_W), u2_W(:)/norm(u2_W), u3_W(:)/norm(u3_W)],'zyx')'; % Orientierung des Quaders
       drawCuboid([cubpar_c', cubpar_l', cubpar_a'], ...
         'FaceColor', color, 'FaceAlpha', 0.1);
     case 12
