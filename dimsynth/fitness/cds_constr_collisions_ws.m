@@ -155,6 +155,7 @@ else % PKM
   s_plot = struct( 'ks_legs', [], 'straight', 1, 'mode', 1);
   R.plot( Q(j,:)', X(j,:)', s_plot);
 end
+num_coll_plot = 0; % zum Debuggen, s.u.
 for i = 1:size(collbodies.link,1)
   % Anfangs- und Endpunkt des Ersatzkörpers bestimmen
   if all(collbodies.type(i) ~= [6 9 10 12 13])
@@ -177,7 +178,7 @@ for i = 1:size(collbodies.link,1)
     I = collchecks(:,1) == i | collchecks(:,2) == i;
     collstate_i = coll(j,I);
     if any(collstate_i) % Es gibt eine Kollision
-      color = 'r';
+      color = 'r'; num_coll_plot = num_coll_plot + 1;
     else
       % Das Roboterobjekt hat keine Kollision im Arbeitsraum -> gut
       color = 'g';
@@ -233,6 +234,10 @@ for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
   else
     export_fig(869, fullfile(resdir, sprintf('PSO_Gen%02d_FitEval%03d_CollisionsWS.%s', currgen, currimg, fileext{1})));
   end
+end
+if num_coll_plot == 0
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constr_collisions_self_1_errplot.mat'));
+  error('Anzahl der geplotteten Kollisionen stimmt nicht mit vorab berechneten überein');
 end
 return
 end

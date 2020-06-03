@@ -17,16 +17,20 @@
 %   Strafterm in der Fitnessfunktion bei Verletzung der Nebenbedingungen
 %   Werte:
 %   1e3: Keine Verletzung der Nebenbedingungen. Alles i.O.
-%   1e3...2e3: Kollision in Trajektorie
-%   2e3...3e3: Konfiguration springt
-%   3e3...5e3: Geschwindigkeitsgrenzen
-%   5e3...1e4: Gelenkwinkelgrenzen in Trajektorie
+%   1e3...2e3: Arbeitsraum-Hindernis-Kollision in Trajektorie
+%   2e3...3e3: Bauraumverletzung in Trajektorie
+%   3e3...4e3: Selbstkollision in Trajektorie
+%   4e3...5e3: Konfiguration springt
+%   5e3...6e3: Geschwindigkeitsgrenzen
+%   6e3...1e4: Gelenkwinkelgrenzen in Trajektorie
 %   1e4...1e5: IK in Trajektorie nicht lösbar
-%   1e5...5e5: Kollision in Einzelpunkten
+%   1e5...3e5: Arbeitsraum-Hindernis-Kollision in Einzelpunkten
+%   3e5...4e5: Bauraumverletzung in Einzelpunkten
+%   4e5...5e5: Selbstkollision in Einzelpunkten
 %   5e5...1e6: Gelenkwinkelgrenzen in Einzelpunkten
 %   1e6...1e7: IK in Einzelpunkten nicht lösbar
-%   1e7...1e8: Geometrie nicht plausibel lösbar
-%   1e8...1e9: Geometrie nicht plausibel lösbar
+%   1e7...1e8: Geometrie nicht plausibel lösbar (2: Reichweite PKM-Koppelpunkte)
+%   1e8...1e9: Geometrie nicht plausibel lösbar (1: Schließen PKM-Ketten)
 % Q,QD,QDD
 %   Gelenkpositionen und -geschwindigkeiten des Roboters (für PKM auch
 %   passive Gelenke)
@@ -435,7 +439,7 @@ if any(I_qlimviol_T)
   [fval_qlimv_T, I_worst] = min(qlimviol_T(I_qlimviol_T)./(qlim(I_qlimviol_T,2)-qlim(I_qlimviol_T,1))');
   II_qlimviol_T = find(I_qlimviol_T); IIw = II_qlimviol_T(I_worst);
   fval_qlimv_T_norm = 2/pi*atan((-fval_qlimv_T)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
-  fval = 1e3*(5+5*fval_qlimv_T_norm); % Wert zwischen 5e3 und 1e4
+  fval = 1e3*(6+4*fval_qlimv_T_norm); % Wert zwischen 6e3 und 1e4
   % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Weitere Rechnungen machen keinen Sinn.
   constrvioltext = sprintf('Gelenkgrenzverletzung in Traj. Schlechteste Spannweite: %1.2f/%1.2f', ...
     q_range_T(IIw), qlim(IIw,2)-qlim(IIw,1) );
@@ -464,7 +468,7 @@ if ~isinf(Set.optimization.max_velocity_active_revolute) && ~isinf(Set.optimizat
   f_qD_exc = max(qaD_max./qD_lim);
   if f_qD_exc>1
     f_qD_exc_norm = 2/pi*atan((f_qD_exc-1)); % Normierung auf 0 bis 1; 1->0.5; 10->0.94
-    fval = 3e3*(1+2*f_qD_exc_norm); % Wert zwischen 3e3 und 5e3
+    fval = 3e3*(5+1*f_qD_exc_norm); % Wert zwischen 5e3 und 6e3
     % Weitere Berechnungen voraussichtlich wenig sinnvoll, da vermutlich eine
     % Singularität vorliegt
     constrvioltext = sprintf('Geschwindigkeit des Antriebsgelenks zu hoch: max Verletzung %1.1f%%', ...
@@ -496,7 +500,7 @@ if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
     % desto besser.
     II_jump = find(any(I_jump,2), 1, 'first');
     fval_jump_norm = II_jump/length(Traj_0.t); % Zwischen 0 und 1
-    fval = 1e3*(2+1*fval_jump_norm); % Wert zwischen 2e3 und 3e3
+    fval = 1e3*(4+1*fval_jump_norm); % Wert zwischen 4e3 und 5e3
     constrvioltext = sprintf('Konfiguration scheint zu springen. Geschwindigkeitsfehler max. %1.1f%% (zuerst Zeitschritt %d/%d)', ...
       100*max(abs(QD_relerror(:))), II_jump, length(Traj_0.t));
     if fval < Set.general.plot_details_in_fitness
@@ -536,13 +540,40 @@ if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
   end
 end
 
-%% Kollisionserkennung für Trajektorie
+%% Selbstkollisionserkennung für Trajektorie
 if Set.optimization.constraint_collisions
-  [fval_coll, coll] = cds_constr_collisions_self(R, Traj_0.X, Set, Structure, JP, Q, [1e3; 2e3]);
-  if fval_coll > 0
-    fval = fval_coll; %1e3*(1+1*fval_coll); % Normierung auf 1e3 bis 2e3 -> bereits in Funktion
+  [fval_coll_traj, coll_traj] = cds_constr_collisions_self(R, Traj_0.X, ...
+    Set, Structure, JP, Q, [3e3; 4e3]);
+  if fval_coll_traj > 0
+    fval = fval_coll_traj; % Normierung auf 3e3 bis 4e3 -> bereits in Funktion
     constrvioltext = sprintf('Kollision in %d/%d Traj.-Punkten.', ...
-      sum(any(coll,2)), size(coll,1));
+      sum(any(coll_traj,2)), size(coll_traj,1));
+    Q = QE; % Ausgabe dient nur zum Zeichnen des Roboters
+    return
+  end
+end
+
+%% Bauraumprüfung für Trajektorie
+if ~isempty(Set.task.installspace.type)
+  [fval_instspc_traj, f_constrinstspc_traj] = cds_constr_installspace( ...
+    R, Traj_0.X, Set, Structure, JP, Q, [2e3;3e3]);
+  if fval_instspc_traj > 0
+    fval = fval_instspc_traj; % Normierung auf 2e3 bis 3e3 -> bereits in Funktion
+    constrvioltext = sprintf(['Verletzung des zulässigen Bauraums in Traj.', ...
+      'Schlimmstenfalls %1.1f mm draußen.'], 1e3*f_constrinstspc_traj);
+    Q = QE; % Ausgabe dient nur zum Zeichnen des Roboters
+    return
+  end
+end
+%% Arbeitsraum-Hindernis-Kollisionsprüfung für Einzelpunkte
+if ~isempty(Set.task.obstacles.type)
+  [fval_obstcoll_traj, coll_obst_traj, f_constr_obstcoll_traj] = cds_constr_collisions_ws( ...
+    R, Traj_0.X, Set, Structure, JP, Q, [1e3;2e3]);
+  if fval_obstcoll_traj > 0
+    fval = fval_obstcoll_traj; % Normierung auf 1e3 bis 2e3 -> bereits in Funktion
+    constrvioltext = sprintf(['Arbeitsraum-Kollision in %d/%d Traj.-Punkten. ', ...
+      'Schlimmstenfalls %1.1f mm in Kollision.'], sum(any(coll_obst_traj,2)), ...
+      size(coll_obst,1), f_constr_obstcoll_traj);
     Q = QE; % Ausgabe dient nur zum Zeichnen des Roboters
     return
   end

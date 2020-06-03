@@ -116,12 +116,19 @@ for i = 1:n_cb_robot
   end
   % Indizes aller Zeitschritte, bei denen Roboter-Objekt i außerhalb des
   % Bauraums liegt
-  I_i_out = ~any(coll(:,I),2);
+  I_i_out = ~any(coll(:,I),2); % Binär-Indizes
+  II_i_out = find(I_i_out); % Zähl-Indizes zum besseren abspeichern
+  % Da es mehrere Bauraumobjekte geben kann, zählt immer das am nächsten
+  % gelegene für die Prüfung
   mindist_i = min(absdist(I_i_out,I),[],2);
-  % Bestimme den Zeitschritt, an denen das Roboter-Objekt i am weitesten
+  % Bestimme den Zeitschritt, an dem das Roboter-Objekt i am weitesten
   % vom Bauraum entfernt ist. Das entspricht dem maximalen Minimalabstand
   % zu allen Bauraum-Geometrien
-  [mindist_all(i),idx_timestep_worst(i)] = max(mindist_i);
+  [mindist_all(i),idx_tmp] = max(mindist_i);
+  % finde den Index des oben gefundenen Objektes in der Variable I_i_out.
+  % Das wird dann auf die Zeitindizes der Eingabevariablen (JP,...) um-
+  % gerechnet.
+  idx_timestep_worst(i) = II_i_out(idx_tmp);
 end
 
 % Strafterm für Bauraumprüfung:
@@ -162,6 +169,7 @@ else % PKM
   s_plot = struct( 'ks_legs', [], 'straight', 1, 'mode', 1);
   R.plot( Q(j,:)', X(j,:)', s_plot);
 end
+num_outside_plot = 0; % zum Debuggen, s.u.
 for i = 1:size(collbodies.link,1)
   % Anfangs- und Endpunkt des Ersatzkörpers bestimmen
   if all(collbodies.type(i) ~= [6 9 10 12 13])
@@ -184,7 +192,7 @@ for i = 1:size(collbodies.link,1)
     I = collchecks(:,1) == i | collchecks(:,2) == i;
     collstate_i = coll(j,I);
     if ~any(collstate_i) % Das Roboterobjekt ist in keinem einzigen Bauraum-Objekt
-      color = 'r';
+      color = 'r'; num_outside_plot = num_outside_plot + 1;
     else
       % Das Roboterobjekt ist im Bauraum -> gut
       color = 'g';
@@ -240,6 +248,10 @@ for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
   else
     export_fig(868, fullfile(resdir, sprintf('PSO_Gen%02d_FitEval%03d_InstallSpace.%s', currgen, currimg, fileext{1})));
   end
+end
+if num_outside_plot == 0
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constr_installspace_1_errplot.mat'));
+  error('Anzahl der geplotteten Bauraumverletzungen stimmt nicht mit vorab berechneten überein');
 end
 return
 end
