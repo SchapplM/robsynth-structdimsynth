@@ -41,37 +41,14 @@ if Set.general.matfile_verbosity > 1
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constr_collisions_self_0.mat'));
   % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constr_collisions_self_0.mat'));
 end
-
-%% Daten der Roboterstruktur aufbereiten
-% TODO: Sollte das einmalig zu Beginn gemacht werden?
-if Structure.Type == 0  % Seriell 
-  collbodies = R.collbodies;
-  collbodies.params = R.collbodies.params(:,1); % Aktuell nur Kapseln implementiert
-  v = uint8([0;R.MDH.v]); % zusätzlicher Dummy-Eintrag für Basis
-else % PKM
-  collbodies = struct('link', [], 'type', [], 'params', []);
-  for k = 1:R.NLEG
-    % Hänge die Kollisionskörper der Beinkette an
-    % in I1L wird auch EE-Link noch mitgezählt. Hier nicht. Die Basis der
-    % Beinkette muss gezählt werden
-    if k > 1, NLoffset = 1+R.I2L_LEG(k-1)-(k-1)*1;
-    else, NLoffset = 1; end % Offset für PKM-Basis (entspricht "nulltem" Eintrag)
-    collbodies.link = [collbodies.link; R.Leg(k).collbodies.link + NLoffset];
-    collbodies.type = [collbodies.type; R.Leg(k).collbodies.type];
-    collbodies.params = [collbodies.params; R.Leg(k).collbodies.params(:,1)]; % nehme nur ersten Parameter (Radius)
-  end
-  % Vorgänger-Indizes zusammenstellen. Jede Beinkette hat zusätzliches
-  % Basis-KS
-  v = uint8(zeros(1+R.NJ+R.NLEG,1));
-  for k = 1:R.NLEG
-    if k > 1, NLoffset = R.I2L_LEG(k-1)-k+2;
-    else, NLoffset = 1; end
-    v(R.I1J_LEG(k)+k:R.I2J_LEG(k)+k+1) = [0; NLoffset+R.Leg(k).MDH.v];
-  end
-end
+%% Daten der Roboterstruktur laden
+% Wird bereits in cds_dimsynth_robot vorbereitet
+v = Structure.MDH_ante_collcheck;
+collbodies = Structure.collbodies_robot;
 %% Kollisionen und Strafterm berechnen
 CollSet = struct('collsearch', true);
-[coll, ~, colldepth] = check_collisionset_simplegeom(v, collbodies, Structure.selfcollchecks_collbodies, JP, CollSet);
+[coll, ~, colldepth] = check_collisionset_simplegeom_mex(v, ...
+  collbodies, Structure.selfcollchecks_collbodies, JP, CollSet);
 
 if any(abs(colldepth(:))>1) || any(abs(colldepth(:))<0)
   error('Relative Eindringtiefe ist außerhalb des erwarteten Bereichs');

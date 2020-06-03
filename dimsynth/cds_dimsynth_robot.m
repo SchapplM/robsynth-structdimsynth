@@ -399,7 +399,8 @@ end
 Structure.I_firstprismatic = I_firstprismatic;
 
 %% Initialisierung der Kollisionsprüfung
-if Set.optimization.constraint_collisions
+if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) || ...
+    ~isempty(Set.task.installspace.type)
   % Lege die Starrkörper-Indizes fest, für die Kollisionen geprüft werden
   Structure.selfcollchecks_bodies = [];
   % Liste für gesamte PKM. 0=PKM-Basis, 1=Beinkette1-Basis, 2=Beinkette1-
@@ -431,7 +432,9 @@ if Set.optimization.constraint_collisions
         % Definiere einen Ersatzkörper dafür
         collbodies.link =   [collbodies.link; uint8(i)];
         collbodies.type =   [collbodies.type; uint8(6)]; % Kapsel, direkte Verbindung
-        collbodies.params = [collbodies.params; 20e-3, NaN(1,11)]; % R.DesPar.seg_par ist noch nicht belegt
+        % Wähle Kapseln mit Radius 20mm. R.DesPar.seg_par ist noch nicht belegt
+        % (passiert erst in Entwurfsoptimierung).
+        collbodies.params = [collbodies.params; 20e-3, NaN(1,9)];
         % Füge Prüfung mit allen vorherigen hinzu (außer direktem Vorgänger)
         % Diese Kollision wird nicht geprüft, da dort keine Kollision
         % stattfinden können sollte (direkt gegeneinander drehbare Teile
@@ -450,7 +453,7 @@ if Set.optimization.constraint_collisions
     end
     R_cc.collbodies = collbodies;
     % Trage auch in PKM-weite Variable ein
-    if Structure.Type == 0
+    if Structure.Type == 0 % Seriell
       collbodies_robot = collbodies;
     else
       collbodies_robot.link = [collbodies_robot.link; collbodies.link + NLoffset];
@@ -458,6 +461,32 @@ if Set.optimization.constraint_collisions
       collbodies_robot.params = [collbodies_robot.params; collbodies.params];
     end
   end
+  % Parameter-Array auf 10 Spalten erhöhen, falls nicht schon der Fall.
+  % Wird von check_collisionset_simplegeom so erwartet.
+  collbodies_robot.params = [collbodies_robot.params, ...
+    NaN(size(collbodies_robot.params,1), 10-size(collbodies_robot.params,2))];
+  assert(size(collbodies_robot.params,2)==10);
+  % Roboter-Kollisionsobjekte in Struktur abspeichern (zum Abruf in den
+  % Funktionen cds_constr_collisions_... und cds_constr_installspace
+  Structure.collbodies_robot = collbodies_robot;
+  % Vorgänger-Indizes für Segmente für die Kollisionsprüfung abspeichern.
+  % Unterscheidet sich von normaler MDH-Notation dadurch, dass alle
+  % Beinketten-Basis-KS enthalten sind und die Basis ihr eigener Vorgänger
+  % ist (vereinfacht spätere Implementierung)
+  if Structure.Type == 0  % Seriell 
+    v = uint8([0;R.MDH.v]); % zusätzlicher Dummy-Eintrag für Basis
+  else % PKM
+    % Jede Beinkette hat zusätzliches Basis-KS
+    v = uint8(zeros(1+R.NJ+R.NLEG,1));
+    for k = 1:R.NLEG
+      if k > 1, NLoffset = 1+R.I2L_LEG(k-1)-(k-1);
+      else, NLoffset = 1; end
+      v(R.I1J_LEG(k)+k:R.I2J_LEG(k)+k+1) = [0; NLoffset+R.Leg(k).MDH.v];
+    end
+  end
+  Structure.MDH_ante_collcheck = v;
+  
+  % Starrkörper-Kollisionsprüfung für PKM erweitern
   if Structure.Type == 2  % PKM
     % Auch Kollisionen aller Beinsegmente mit allen anderen Beinketten
     % prüfen. Einschränkungen: Nur direkt benachbarte Beinketten prüfen
@@ -495,6 +524,7 @@ if Set.optimization.constraint_collisions
   % Lege die Kollisionskörper-Indizes fest, für die Kollisionen geprüft werden
   % Der Inhalt sind direkt die Indizes von collbodies. Das muss nicht
   % online in der Optimierung gemacht werden.
+  % Abgrenzung von "bodies" (oben) und "collbodies" (ab hier) beachten.
   Structure.selfcollchecks_collbodies = [];
   for i = 1:size(Structure.selfcollchecks_bodies,1)
     % Finde die Indizes aller Ersatzkörper der zu prüfenden Starrkörper

@@ -38,69 +38,42 @@ if Set.general.matfile_verbosity > 1
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constr_installspace_0.mat'));
   % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constr_installspace_0.mat'));
 end
-%% Daten der Roboterstruktur aufbereiten
-% TODO: Sollte das einmalig zu Beginn gemacht werden?
-if Structure.Type == 0  % Seriell 
-  collbodies = R.collbodies;
-  collbodies.params = R.collbodies.params(:,1); % Aktuell nur Kapseln implementiert
-  v = uint8([0;R.MDH.v]); % zusätzlicher Dummy-Eintrag für Basis
-else % PKM
-  collbodies = struct('link', [], 'type', [], 'params', []);
-  for k = 1:R.NLEG
-    % Hänge die Kollisionskörper der Beinkette an
-    % in I1L wird auch EE-Link noch mitgezählt. Hier nicht. Die Basis der
-    % Beinkette muss gezählt werden
-    if k > 1, NLoffset = 1+R.I2L_LEG(k-1)-(k-1)*1;
-    else, NLoffset = 1; end % Offset für PKM-Basis (entspricht "nulltem" Eintrag)
-    collbodies.link = [collbodies.link; R.Leg(k).collbodies.link + NLoffset];
-    collbodies.type = [collbodies.type; R.Leg(k).collbodies.type];
-    collbodies.params = [collbodies.params; R.Leg(k).collbodies.params(:,1)]; % nehme nur ersten Parameter (Radius)
-  end
-  % Vorgänger-Indizes zusammenstellen. Jede Beinkette hat zusätzliches
-  % Basis-KS. Erster Eintrag ist Dummy-Eintrag für Basis
-  v = uint8(zeros(1+R.NJ+R.NLEG,1));
-  for k = 1:R.NLEG
-    if k > 1, NLoffset = R.I2L_LEG(k-1)-k+2;
-    else, NLoffset = 1; end
-    v(R.I1J_LEG(k)+k:R.I2J_LEG(k)+k+1) = [0; NLoffset+R.Leg(k).MDH.v];
-  end
-end
-
-% Typ der Kollisionsobjekte wieder zurückändern: Prüfe nur Punkte ohne
-% Ausdehnung (Sicherheitsabstand müsste bei Definition des Bauraums
-% berücksichtigt werden)
-collbodies.type = repmat(uint8(9), size(collbodies.type,1), 1);
-
-% Parameter-Array auf 10 Spalten erhöhen, falls nicht schon der Fall
-collbodies.params = [collbodies.params, ...
-  NaN(size(collbodies.params,1), 10-size(collbodies.params,2))];
+%% Daten der Roboterstruktur laden
+% Wird bereits in cds_dimsynth_robot vorbereitet
+v = Structure.MDH_ante_collcheck;
+collbodies = Structure.collbodies_robot;
+% Passe Kollisionsobjekte an. Prüfe nur Punkte, keine Volumina.
+% Für alles andere wird die Übergabe der vollständigen Transformations-
+% matrizen benötigt anstatt nur der Gelenkpositionen JP
+collbodies.type(:) = uint8(9);
 % Merke, bis wohin die Kollisionsobjekte zum Roboter gehören
 n_cb_robot = size(collbodies.type,1);
 
-% Liste der Kollisionsprüfungen
-collchecks = [];
+%% Bauraum-Geometrie als Kollisionsobjekte eintragen
+T_0_W = invtr(R.T_W_0);
+collchecks = []; % Liste der Kollisionsprüfungen
 
 % Füge Geometrien des Bauraums als virtuelle Kollisionsobjekte hinzu.
 % Transformiere ins Basis-KS des Roboters
-for i = 1:size(Set.task.installspace.type)
-  % Hinzufügen
+for i = 1:size(Set.task.installspace.type,1)
   type_i = Set.task.installspace.type(i);
   % Umrechnung der Parameter ins Basis-KS
   params_W = Set.task.installspace.params(i,:);
   if type_i == 1 % Quader
-    params_0 = [eye(3,4)*invtr(R.T_W_0)*[params_W(1:3)';1]; ... % Aufpunkt
-               R.T_W_0(1:3,1:3)'*params_W(4:6)'; ... % Richtungsvektoren
-               R.T_W_0(1:3,1:3)'*params_W(7:9)'; params_W(10)]';
+    params_0 = transform_box(params_W, T_0_W);
     % Setze Typ auf "Quader im Basis-KS". Information ist notwendig für
     % automatische Verarbeitung (im Gegensatz zu "körperfester Quader").
     type_i = uint8(10);
   elseif type_i == 2 % Zylinder
-    params_0 = [eye(3,4)*invtr(R.T_W_0)*[params_W(1:3)';1]; ... % Punkt 1
-                eye(3,4)*invtr(R.T_W_0)*[params_W(4:6)';1]; ... % Punkt 2
-                params_W(7); NaN(3,1)]'; % Radius, auffüllen auf Array-Größe
+    params_0 = transform_cylinder(params_W, T_0_W);
     % Setze Typ auf "Zylinder im Basis-KS". Information ist notwendig für
     % automatische Verarbeitung (im Gegensatz zu "körperfester Zylinder").
     type_i = uint8(12);
+  elseif type_i == 3 % Kapsel
+    params_0 = transform_capsule(params_W, T_0_W);
+    % Setze Typ auf "Kapsel im Basis-KS". Information ist notwendig für
+    % automatische Verarbeitung (im Gegensatz zu "körperfeste Kapsel").
+    type_i = uint8(13);
   else
     error('Fall %d nicht definiert', type_i);
   end
@@ -117,10 +90,12 @@ for i = 1:size(Set.task.installspace.type)
     uint8(1:n_cb_robot)', repmat(uint8(size(collbodies.type,1)),n_cb_robot,1)]; %#ok<AGROW>
 end
 % Dummy-Spalten für Variable JP anhängen: Verdoppele ersten Eintrag (für
-% Basis) bis die Dimension passt.
+% Basis) bis die Dimension passt. Neue Objekte werden alle der Basis
+% zugeordnet (da fest im Welt-KS)
 JP_ext = [JP, repmat(JP(:,1:3),1,size(Set.task.installspace.type,1))];
 
-%% Bestimme Geomtrieübereinstimmung mit Bauraum
+
+%% Bestimme Geometrieübereinstimmung mit Bauraum
 % Nehme Funktion für Kollisionsprüfung mit geänderter Einstellung.
 % Eine "Kollision" des Roboters mit der Bauraum-Geometrie erfüllt die
 % Nebenbedingung, dass der Roboter im Bauraum enthalten ist
@@ -194,7 +169,7 @@ else % PKM
 end
 for i = 1:size(collbodies.link,1)
   % Anfangs- und Endpunkt des Ersatzkörpers bestimmen
-  if all(collbodies.type(i) ~= [6 9 10 12])
+  if all(collbodies.type(i) ~= [6 9 10 12 13])
     warning('Methode %d nicht implementiert', collbodies.type(i));
     continue
   end
@@ -214,7 +189,7 @@ for i = 1:size(collbodies.link,1)
     I = collchecks(:,1) == i | collchecks(:,2) == i;
     collstate_i = coll(j,I);
     if ~any(collstate_i) % Das Roboterobjekt ist in keinem einzigen Bauraum-Objekt
-      color = 'r'; 
+      color = 'r';
     else
       % Das Roboterobjekt ist im Bauraum -> gut
       color = 'g';
@@ -250,6 +225,12 @@ for i = 1:size(collbodies.link,1)
       p2 = eye(3,4)*R.T_W_0*[collbodies.params(i,4:6)';1];
       drawCylinder([p1', p2', collbodies.params(i,7)], ...
         'FaceColor', color, 'FaceAlpha', 0.2);
+    case 13
+      % Transformation ins Welt-KS
+      p1 = eye(3,4)*R.T_W_0*[collbodies.params(i,1:3)';1];
+      p2 = eye(3,4)*R.T_W_0*[collbodies.params(i,4:6)';1];
+      drawCapsule([p1', p2', collbodies.params(i,7)], ...
+        'FaceColor', color, 'FaceAlpha', 0.2);
     otherwise
       error('Dieser Fall darf nicht auftreten');
   end
@@ -258,3 +239,20 @@ sgtitle(sprintf('Bauraumprüfung. Schritt %d/%d: Weitester Abstand: %1.2f', ...
   j, size(Q,1), f_constr));
 drawnow();
 return
+end
+
+function params_0 = transform_box(params_W, T_0_W)
+params_0 = [eye(3,4)*T_0_W*[params_W(1:3)';1]; ... % Aufpunkt
+            T_0_W(1:3,1:3)*params_W(4:6)'; ... % Richtungsvektoren
+            T_0_W(1:3,1:3)*params_W(7:9)'; params_W(10)]';
+end
+
+function params_0 = transform_cylinder(params_W, T_0_W)
+params_0 = [eye(3,4)*T_0_W*[params_W(1:3)';1]; ... % Punkt 1
+            eye(3,4)*T_0_W*[params_W(4:6)';1]; ... % Punkt 2
+            params_W(7); NaN(3,1)]'; % Radius, auffüllen auf Array-Größe
+end
+function params_0 = transform_capsule(params_W, T_0_W)
+% identische Funktion wie für Zylinder
+params_0 = transform_cylinder(params_W, T_0_W);
+end
