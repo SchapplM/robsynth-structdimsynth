@@ -223,6 +223,33 @@ for i = 1:length(Structures)
   hold on;grid on;
   xlabel('x in m');ylabel('y in m');zlabel('z in m');
   plot3(Traj.X(:,1), Traj.X(:,2),Traj.X(:,3), 'k-');
+  % Arbeitsraum-Objekte einzeichnen
+  for co_sets = 1:2 % einmal Bauraum-Begrenzung, einmal Störkulissen
+    if co_sets == 1, color = 'c'; collobjset = Set.task.installspace;
+    else,            color = 'm'; collobjset = Set.task.obstacles; end
+    for jj = 1:size(collobjset.type,1)
+      switch collobjset.type(jj)
+        case 1 % Quader
+          q_W = collobjset.params(jj,1:3)';
+          u1_W = collobjset.params(jj,4:6)';
+          u2_W = collobjset.params(jj,7:9)';
+          u3_W = cross(u1_W,u2_W); u3_W = u3_W/norm(u3_W)*collobjset.params(jj,10);
+          % Umrechnen in Format der plot-Funktion
+          cubpar_c = q_W(:)+(u1_W(:)+u2_W(:)+u3_W(:))/2; % Mittelpunkt des Quaders
+          cubpar_l = [norm(u1_W); norm(u2_W); norm(u3_W)]; % Dimension des Quaders
+          cubpar_a = 180/pi*r2eulzyx([u1_W(:)/norm(u1_W), u2_W(:)/norm(u2_W), u3_W(:)/norm(u3_W)]); % Orientierung des Quaders
+          drawCuboid([cubpar_c', cubpar_l', cubpar_a'], ...
+            'FaceColor', color, 'FaceAlpha', 0.1);
+        case 2 % Zylinder
+          drawCylinder(collobjset.params(jj,1:7), ...
+            'FaceColor', color, 'FaceAlpha', 0.1);
+        case 3 % Kapsel
+          drawCapsule(collobjset.params(jj,1:7),'FaceColor', color, 'FaceAlpha', 0.1);
+        otherwise
+          warning('Geometrie mit Nummer %d kann nicht gezeichnet werden', collobjset.type(jj));
+      end
+    end % for collobjset.type
+  end % for co_sets
   s_anim = struct('gif_name', '', 'avi_name', '', 'mp4_name', '');
   for file_ext = Set.general.save_animation_file_extensions
     s_anim.(sprintf('%s_name', file_ext{1})) = fullfile(resrobdir, sprintf('Rob%d_%s_Animation%s.%s', i, Name, apptxt, file_ext{1}));
