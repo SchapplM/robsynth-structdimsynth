@@ -300,7 +300,7 @@ if ~isempty(Set.task.installspace.type)
 end
 %% Kollisionsprüfung für Einzelpunkte
 if Set.optimization.constraint_collisions
-  [fval_coll, coll] = cds_constr_collisions(R, Traj_0.XE, Set, Structure, JPE, QE, [2e5;5e5]);
+  [fval_coll, coll] = cds_constr_collisions_self(R, Traj_0.XE, Set, Structure, JPE, QE, [2e5;5e5]);
   if fval_coll > 0
     fval = fval_coll; % 1e5*(2+3*fval_coll); % Normierung auf 2e5 bis 5e5 -> bereits in Funktion
     constrvioltext = sprintf('Kollision in %d/%d AR-Eckwerten.', ...
@@ -525,7 +525,7 @@ end
 
 %% Kollisionserkennung für Trajektorie
 if Set.optimization.constraint_collisions
-  [fval_coll, coll] = cds_constr_collisions(R, Traj_0.X, Set, Structure, JP, Q, [1e3; 2e3]);
+  [fval_coll, coll] = cds_constr_collisions_self(R, Traj_0.X, Set, Structure, JP, Q, [1e3; 2e3]);
   if fval_coll > 0
     fval = fval_coll; %1e3*(1+1*fval_coll); % Normierung auf 1e3 bis 2e3 -> bereits in Funktion
     constrvioltext = sprintf('Kollision in %d/%d Traj.-Punkten.', ...

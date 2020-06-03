@@ -35,11 +35,11 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-05
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function [fval, coll] = cds_constr_collisions(R, X, Set, Structure, JP, Q, scale)
+function [fval, coll] = cds_constr_collisions_self(R, X, Set, Structure, JP, Q, scale)
 
 if Set.general.matfile_verbosity > 1
-  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constr_collisions_0.mat'));
-  % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constr_collisions_0.mat'));
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constr_collisions_self_0.mat'));
+  % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constr_collisions_self_0.mat'));
 end
 
 %% Daten der Roboterstruktur aufbereiten
@@ -147,6 +147,6 @@ sgtitle(sprintf('Kollisionsprüfung. Schritt %d/%d: %d/%d Koll. Sum. rel. Tiefe:
 drawnow();
 if fval > 0 && ~collfound
   warning('Vorher Kollision erkannt, aber jetzt nicht gezeichnet. Logik-Fehler.');
-  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constr_collisions_wrongplot.mat'));
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constr_collisions_self_wrongplot.mat'));
 end
 
