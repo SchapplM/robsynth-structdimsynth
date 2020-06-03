@@ -31,6 +31,8 @@
 % Nur zu testende Kollisionspaare werden auch angezeigt.
 % Werden nur benachbarte Beinketten einer PKM getestet, können
 % gegenüberliegende Beinketten als Kollisionsfrei angezeigt werden.
+% 
+% Siehe auch: cds_constr_installspace, cds_constr_collisions_ws
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-05
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
@@ -45,10 +47,11 @@ end
 % Wird bereits in cds_dimsynth_robot vorbereitet
 v = Structure.MDH_ante_collcheck;
 collbodies = Structure.collbodies_robot;
+collchecks = Structure.selfcollchecks_collbodies;
 %% Kollisionen und Strafterm berechnen
 CollSet = struct('collsearch', true);
 [coll, ~, colldepth] = check_collisionset_simplegeom_mex(v, ...
-  collbodies, Structure.selfcollchecks_collbodies, JP, CollSet);
+  collbodies, collchecks, JP, CollSet);
 
 if any(abs(colldepth(:))>1) || any(abs(colldepth(:))<0)
   error('Relative Eindringtiefe ist außerhalb des erwarteten Bereichs');
@@ -86,7 +89,6 @@ else % PKM
   s_plot = struct( 'ks_legs', [], 'straight', 1, 'mode', 1);
   R.plot( Q(j,:)', X(j,:)', s_plot);
 end
-collfound = false; % Prüf-Variable (s.u.)
 for i = 1:size(collbodies.link,1)
   % Anfangs- und Endpunkt des Ersatzkörpers bestimmen
   if collbodies.type(i) ~= 6
@@ -108,22 +110,23 @@ for i = 1:size(collbodies.link,1)
   % Umrechnung ins Welt-KS
   pts_W = repmat(R.T_W_0(1:3,4),2,1) + rotate_wrench(pts', R.T_W_0(1:3,1:3));
   % Kollisions-Ergebnis für diesen Kollisionskörper herausfinden
-  I = Structure.selfcollchecks_collbodies(:,1) == i | ...
-      Structure.selfcollchecks_collbodies(:,2) == i;
+  I = collchecks(:,1) == i | collchecks(:,2) == i;
   collstate_i = coll(j,I);
   if any(collstate_i) % Es gibt eine Kollision
     color = 'r'; 
-    collfound = true;
   else
     color = 'b';
   end
   drawCapsule([pts_W(1:3)',pts_W(4:6)',r],'FaceColor', color, 'FaceAlpha', 0.3);
 end
-sgtitle(sprintf('Kollisionsprüfung. Schritt %d/%d: %d/%d Koll. Sum. rel. Tiefe: %1.2f', ...
+sgtitle(sprintf('Selbstkollisionsprüfung. Schritt %d/%d: %d/%d Koll. Sum. rel. Tiefe: %1.2f', ...
   j, size(Q,1), sum(coll(j,:)), size(coll, 2), colldepth_t(j)));
 drawnow();
-if fval > 0 && ~collfound
-  warning('Vorher Kollision erkannt, aber jetzt nicht gezeichnet. Logik-Fehler.');
-  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constr_collisions_self_wrongplot.mat'));
+for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
+  [currgen,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'CollisionsSelf');
+  if strcmp(fileext{1}, 'fig')
+    saveas(867, fullfile(resdir, sprintf('PSO_Gen%02d_FitEval%03d_CollisionsSelf.fig', currgen, currimg)));
+  else
+    export_fig(867, fullfile(resdir, sprintf('PSO_Gen%02d_FitEval%03d_CollisionsSelf.%s', currgen, currimg, fileext{1})));
+  end
 end
-

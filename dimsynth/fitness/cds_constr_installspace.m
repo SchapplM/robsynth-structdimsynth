@@ -28,6 +28,8 @@
 % 
 % Erzeugt Bild:
 % Visualisierung der Baumraumverletzung am Roboter (schlimmster Fall)
+% 
+% Siehe auch: cds_constr_collisions_self, cds_constr_collisions_ws
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-05
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
@@ -231,6 +233,14 @@ end
 sgtitle(sprintf('Bauraumprüfung. Schritt %d/%d: Weitester Abstand: %1.2f', ...
   j, size(Q,1), f_constr));
 drawnow();
+for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
+  [currgen,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'InstallSpace');
+  if strcmp(fileext{1}, 'fig')
+    saveas(868, fullfile(resdir, sprintf('PSO_Gen%02d_FitEval%03d_InstallSpace.fig', currgen, currimg)));
+  else
+    export_fig(868, fullfile(resdir, sprintf('PSO_Gen%02d_FitEval%03d_InstallSpace.%s', currgen, currimg, fileext{1})));
+  end
+end
 return
 end
 
