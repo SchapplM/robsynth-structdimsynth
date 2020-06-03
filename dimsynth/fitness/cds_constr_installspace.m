@@ -82,25 +82,18 @@ for i = 1:size(Set.task.installspace.type,1)
   collbodies.type = [collbodies.type; type_i];
   % Bauraum wird zur Basis (=0) gezählt (ortsfest)
   collbodies.link = [collbodies.link; uint8(0)];
-  % Das Objekt hat kein Gelenk (Vorgänger-Index 0 ist nur Platzhalter)
-  v = [v; uint8(0)]; %#ok<AGROW>
   % Generiere Liste der Kollisionspaare: Teste Kollision jedes Roboter-KS
   % mit dem Geometrieobjekt für den Bauraum
   collchecks = [collchecks; ...
     uint8(1:n_cb_robot)', repmat(uint8(size(collbodies.type,1)),n_cb_robot,1)]; %#ok<AGROW>
 end
-% Dummy-Spalten für Variable JP anhängen: Verdoppele ersten Eintrag (für
-% Basis) bis die Dimension passt. Neue Objekte werden alle der Basis
-% zugeordnet (da fest im Welt-KS)
-JP_ext = [JP, repmat(JP(:,1:3),1,size(Set.task.installspace.type,1))];
-
 
 %% Bestimme Geometrieübereinstimmung mit Bauraum
 % Nehme Funktion für Kollisionsprüfung mit geänderter Einstellung.
 % Eine "Kollision" des Roboters mit der Bauraum-Geometrie erfüllt die
 % Nebenbedingung, dass der Roboter im Bauraum enthalten ist
 CollSet = struct('collsearch', false);
-[coll, absdist] = check_collisionset_simplegeom_mex(v, collbodies, collchecks, JP_ext, CollSet);
+[coll, absdist] = check_collisionset_simplegeom_mex(v, collbodies, collchecks, JP, CollSet);
 % Ergebnisse nachverarbeiten
 ininstallspace_all = false(n_cb_robot,1); % ist Roboterobjekt im Bauraum?
 mindist_all = zeros(n_cb_robot,1); % Wie ist der minimale Abstand zum Bauraum?
