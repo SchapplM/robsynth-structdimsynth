@@ -41,8 +41,12 @@ for i = 1:length(Structures)
   % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_vis_results2.mat'));
   Structure = Structures{i};
   Name = Structures{i}.Name;
-  tmp = load(fullfile(resmaindir, ...
-    sprintf('Rob%d_%s_Endergebnis.mat', i, Name)), 'RobotOptRes', 'Set', 'Traj', 'PSO_Detail_Data');
+  resfile = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', i, Name));
+  if ~exist(resfile, 'file')
+    warning('Ergebnis-Datei für Roboter %d (%s) existiert nicht: %s', i, Name, resfile);
+    continue
+  end
+  tmp = load(resfile, 'RobotOptRes', 'Set', 'Traj', 'PSO_Detail_Data');
   resrobdir = fullfile(resmaindir, sprintf('Rob%d_%s', i, Name));
   mkdirs(resrobdir); % Speicherort für Bilder dieses Roboters
   RobotOptRes = tmp.RobotOptRes;
