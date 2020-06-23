@@ -175,9 +175,9 @@ for i = size(Traj_0.XE,1):-1:1
   if R.Type == 0
     [q, Phi, Tc_stack] = R.invkin2(Traj_0.XE(i,:)', q0, s);
   else
-    [q, Phi, Tc_stack] = R.invkin_ser(Traj_0.XE(i,:)', q0, s); % Klassenmethode
+    [q, Phi, Tc_stack] = R.invkin2(Traj_0.XE(i,:)', q0, s); % kompilierter Aufruf
     if Set.general.debug_calc
-      [~, Phi_debug] = R.invkin2(Traj_0.XE(i,:)', q0, s); % kompilierter Aufruf
+      [~, Phi_debug, Tc_stack_debug] = R.invkin_ser(Traj_0.XE(i,:)', q0, s); % Klassenmethode
       ik_res_ik2 = (all(abs(Phi(R.I_constr_t_red))<s.Phit_tol) && ...
           all(abs(Phi(R.I_constr_r_red))<s.Phir_tol));% IK-Status Funktionsdatei
       ik_res_iks = (all(abs(Phi_debug(R.I_constr_t_red))<s.Phit_tol) && ... 
@@ -191,6 +191,11 @@ for i = size(Traj_0.XE,1):-1:1
         % eigentlich gleich gebildet werden.
         cds_log(-1, sprintf(['IK-Berechnung mit Funktionsdatei hat anderen ', ...
           'Status (%d) als Klassenmethode (%d).'], ik_res_ik2, ik_res_iks));
+      elseif ik_res_iks % beide IK erfolgreich
+        ik_test_koll = Tc_stack - Tc_stack_debug;
+        if max(abs(ik_test_koll(:))) > 1e-3
+          error('Tc_stack Teil nicht passen');
+        end
       end
     end
   end
@@ -337,9 +342,9 @@ if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
     [Q, QD, QDD, PHI, JP] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
     Jinv_ges = NaN; % Platzhalter für gleichartige Funktionsaufrufe. Speicherung nicht sinnvoll für seriell.
   else % PKM
-    [Q, QD, QDD, PHI, Jinv_ges, ~, JP] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
-    if Set.general.debug_calc % Rechne nochmal mit Vorlagen-Funktion nach
-      [~, ~, ~, PHI_debug, ~] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+    [Q, QD, QDD, PHI, Jinv_ges, ~, JP] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+    if Set.general.debug_calc % Rechne nochmal mit Klassenmethode nach
+      [~, ~, ~, PHI_debug, ~, JP_debug] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
       ik_res_ik2 = (all(max(abs(PHI(:,R.I_constr_t_red)))<s.Phit_tol) && ...
           all(max(abs(PHI(:,R.I_constr_r_red)))<s.Phir_tol));% IK-Status Funktionsdatei
       ik_res_iks = (all(max(abs(PHI_debug(:,R.I_constr_t_red)))<s.Phit_tol) && ... 
@@ -371,6 +376,11 @@ if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
               'Kinematik. Zeitpunkt %d, Beinkette %d. Max Fehler %1.1e'], i, kk, max(abs(test_JP(:))));
           end
         end
+      end
+      % Prüfe ob die Gelenk-Positionen aus Klasse und Vorlage stimmen
+      test_JPtraj = JP-JP_debug;
+      if any(abs(test_JPtraj(:))>1e-6)
+        error('Ausgabevariable JP aus invkin_traj vs invkin2_traj stimmt nicht');
       end
     end
   end
