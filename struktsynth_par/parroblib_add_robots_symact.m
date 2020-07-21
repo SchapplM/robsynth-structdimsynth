@@ -170,7 +170,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       if sum(SName=='P')>1
         % Hat mehr als ein Schubgelenk. Kommt nicht für PKM in Frage.
         % (es muss dann zwangsläufig ein Schubgelenk passiv sein)
-        parroblib_update_csv({SName}, Coupling, N_Legs, 1, 0);
+        parroblib_update_csv({SName}, Coupling, logical(EE_FG), 1, 0);
         continue
       end
       % TODO: Öffnen der csv-Datei mit allen Ergebnissen und Abgleich, ob
@@ -189,7 +189,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       if ~leg_success
         fprintf('Beinkette %s mit Koppelpunkt-Nr. %d-%d wird aufgrund geometrischer Überlegungen verworfen.\n', ...
           SName, Coupling(1), Coupling(2));
-        parroblib_update_csv({SName}, Coupling, N_Legs, 2, 0);
+        parroblib_update_csv({SName}, Coupling, logical(EE_FG), 2, 0);
         continue
       end
       for jj = Actuation_possib % Schleife über mögliche Aktuierungen
@@ -232,7 +232,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           else
             fprintf('Der Roboter %s würde zur Datenbank hinzugefügt werden\n', PName);
             Name = '<Neuer Name>';
-            parroblib_update_csv({SName}, Coupling, N_Legs, 4, 0);
+            parroblib_update_csv({SName}, Coupling, logical(EE_FG), 4, 0);
           end
         else
           error('Dieser Fall darf nicht eintreten. Nicht-logische Eingabe');
@@ -244,6 +244,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       fprintf('Für FG %s und G%dP%d gibt es keine PKM.\n', EE_FG_Name, Coupling(1), Coupling(2));
       continue
     end
+    if settings.dryrun, continue; end
     %% Alle Matlab-Funktionen generieren
     % TODO: Nicht machen, wenn Roboter schon in Datenbank war. Also vorher
     % prüfen, ob existient
@@ -269,7 +270,6 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       RP.fill_fcn_handles(true, true);
     end
     %% Maßsynthese für Liste von Robotern durchführen
-    if settings.dryrun, continue; end
     % Mit dem dann eindeutigen Robotermodell sind weitere Berechnungen
     % möglich
     fprintf('Starte Prüfung des Laufgrads der PKM mit Maßsynthese für %d Roboter\n', length(Whitelist_PKM));
@@ -353,31 +353,31 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         if RobotOptRes.fval < 1e3
           fprintf('Rangdefizit der Jacobi für Beispiel-Punkte ist %1.0f\n', RobotOptRes.fval/100);
           parroblib_change_properties(Name, 'rankloss', sprintf('%1.0f', RobotOptRes.fval/100));
-          parroblib_update_csv(LEG_Names_array(1), Coupling, N_Legs, 0, 0);
+          parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 0, 0);
           num_rankloss = num_rankloss + 1;
         elseif RobotOptRes.fval > 1e9
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
             'Zielfunktion %1.2e\n'], RobotOptRes.fval);
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
-          parroblib_update_csv(LEG_Names_array(1), Coupling, N_Legs, 3);
+          parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 3);
         elseif RobotOptRes.fval > 1e7
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
             'Zielfunktion %1.2e\n'], RobotOptRes.fval);
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
-          parroblib_update_csv(LEG_Names_array(1), Coupling, N_Legs, 4);
+          parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 4);
         else
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
             'Zielfunktion %1.2e\n'], RobotOptRes.fval);
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
-          parroblib_update_csv(LEG_Names_array(1), Coupling, N_Legs, 5);
+          parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 5);
         end
       else
         fprintf('PKM %s hat laut Maßsynthese vollen Laufgrad\n', Name);
         parroblib_change_properties(Name, 'rankloss', '0');
-        parroblib_update_csv(LEG_Names_array(1), Coupling, N_Legs, 0, 1);
+        parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 0, 1);
         num_fullmobility = num_fullmobility + 1;
       end
 
