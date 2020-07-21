@@ -232,7 +232,8 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           else
             fprintf('Der Roboter %s würde zur Datenbank hinzugefügt werden\n', PName);
             Name = '<Neuer Name>';
-            parroblib_update_csv({SName}, Coupling, logical(EE_FG), 4, 0);
+            % Setze Status 6 ("noch nicht geprüft").
+            parroblib_update_csv({SName}, Coupling, logical(EE_FG), 6, 0);
           end
         else
           error('Dieser Fall darf nicht eintreten. Nicht-logische Eingabe');
@@ -357,22 +358,28 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           num_rankloss = num_rankloss + 1;
         elseif RobotOptRes.fval > 1e9
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
-            'Zielfunktion %1.2e\n'], RobotOptRes.fval);
+            'Zielfunktion (Einzelpunkt-IK) %1.2e\n'], RobotOptRes.fval);
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
           parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 3);
         elseif RobotOptRes.fval > 1e7
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
-            'Zielfunktion %1.2e\n'], RobotOptRes.fval);
+            'Zielfunktion (Traj.-IK) %1.2e\n'], RobotOptRes.fval);
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
           parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 4);
-        else
+        elseif RobotOptRes.fval == 1e7
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
-            'Zielfunktion %1.2e\n'], RobotOptRes.fval);
+            'Zielfunktion (Parasitäre Bewegung) %1.2e\n'], RobotOptRes.fval);
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
           parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 5);
+        else
+          fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
+            'Zielfunktion (Nicht behandelte Ausnahme) %1.2e\n'], RobotOptRes.fval);
+          remove = true;
+          num_dimsynthfail = num_dimsynthfail + 1;
+          parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 7);
         end
       else
         fprintf('PKM %s hat laut Maßsynthese vollen Laufgrad\n', Name);
