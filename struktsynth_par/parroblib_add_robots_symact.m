@@ -69,11 +69,19 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
   
   % Bestimme Möglichkeiten für Koppelpunkte
   [Cpl1_grid,Cpl2_grid] = ndgrid(settings.base_couplings,settings.plf_couplings);
-  if any(settings.EE_FG_Nr==[2 3]) % 3T0R oder 3T1R
-    Cpl1_grid(Cpl1_grid>4) = []; % nur Methode 1 bis 4 ist sinnvoll
-    Cpl2_grid(Cpl2_grid>3) = []; % nur Methode 1 bis 3 ist sinnvoll
+  % Binär-Matrix zum Entfernen von Koppelpunkt-Kombinationen
+  I1del = false(size(Cpl1_grid)); I2del = I1del;
+  if settings.EE_FG_Nr==1 % 2T1R: Nur G1P1 ist sinnvoll.
+    I1del(Cpl1_grid>1) = true;
+    I2del(Cpl2_grid>1) = true;
   end
-  Coupling_all = [Cpl1_grid(:),Cpl2_grid(:)];
+  if any(settings.EE_FG_Nr==[2 3]) % 3T0R oder 3T1R
+    I1del(Cpl1_grid>4) = true; % nur Methode 1 bis 4 ist sinnvoll
+    I2del(Cpl2_grid>3) = true; % nur Methode 1 bis 3 ist sinnvoll
+  end
+  Cpl1_grid_filt = Cpl1_grid(~I1del&~I2del);
+  Cpl2_grid_filt = Cpl2_grid(~I1del&~I2del);
+  Coupling_all = [Cpl1_grid_filt(:),Cpl2_grid_filt(:)];
   Coupling_all = unique(Coupling_all,'row');
   for kk = 1:size(Coupling_all,1) % Schleife über Koppelpunkt-Möglichkeiten
     Coupling = Coupling_all(kk,:);
@@ -132,12 +140,12 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       I = I_FG & I_var & I_spherical;
       % nur die ersten drei Gelenke dürfen aktuiert sein. Die letzten drei sind
       % das Kugelgelenk
-      Actuation_possib = 1:min(3, settings.max_actuation_idx);
+      Actuation_possib = 1:min([3, settings.max_actuation_idx, LegDoF_allowed-1]);
     elseif ~settings.onlyspherical && settings.onlygeneral
       % Eigenschaften kombinieren
       I = I_FG & I_novar;
       % Die Aktuierung ist sinnvollerweise nur (relativ) gestellnah
-      Actuation_possib = 1:min(4, settings.max_actuation_idx);
+      Actuation_possib = 1:min([4, settings.max_actuation_idx, LegDoF_allowed-1]);
     else
       error('Kombination von Filtern nicht vorgesehen');
     end
@@ -152,7 +160,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     num_fullmobility = 0;
     num_checked_dimsynth = 0;
     fprintf('G%dP%d: Beginne Schleife über %d (prinzipiell) mögliche Beinketten-Kinematiken\n', ...
-      Coupling_all(1), Coupling_all(2), length(II));
+      Coupling(1), Coupling(2), length(II));
     
     Whitelist_PKM = {};
     tlm_iFKloop = tic(); % zur Speicherung des Zeitpunkts der letzten Meldung
