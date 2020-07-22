@@ -173,10 +173,18 @@ q0(R.MDH.sigma==0) = normalize_angle(q0(R.MDH.sigma==0));
 % IK für alle Eckpunkte, beginnend beim letzten (dann ist q der richtige
 % Startwert für die Trajektorien-IK)
 for i = size(Traj_0.XE,1):-1:1
-  if Set.task.profile ~= 0 && i == 1
-    % Setze die Toleranz für diesen Punkt wieder herunter. Der Startpunkt
-    % der Trajektorie muss exakt bestimmt werden
-    s.Phit_tol = 1e-9; s.Phir_tol = 1e-9;
+  s.retry_limit=1;
+  if Set.task.profile ~= 0 % Trajektorie wird weiter unten berechnet
+    if i == size(Traj_0.XE,1)-1
+      % Annahme: Kein Neuversuch der IK. Wenn die Gelenkwinkel zufällig neu
+      % gewählt werden, springt die Konfiguration voraussichtlich. Dann ist
+      % die Durchführung der Trajektorie unrealistisch.
+      s.retry_limit = 0;
+    elseif i == 1
+      % Setze die Toleranz für diesen Punkt wieder herunter. Der Startpunkt
+      % der Trajektorie muss exakt bestimmt werden
+      s.Phit_tol = 1e-9; s.Phir_tol = 1e-9;
+    end
   end
   if R.Type == 0
     [q, Phi, Tc_stack] = R.invkin2(Traj_0.XE(i,:)', q0, s);
@@ -508,39 +516,34 @@ end
 %% Prüfe, ob die Konfiguration umklappt während der Trajektorie
 if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
   % Geschwindigkeit neu mit Differenzenquotient berechnen
-  QD_num = NaN(size(Q));
-  QD_num(1:end-1,R.MDH.sigma==1) = diff(Q(:,R.MDH.sigma==1))./...
+  QD_num = zeros(size(Q));
+  QD_num(2:end,R.MDH.sigma==1) = diff(Q(:,R.MDH.sigma==1))./...
     repmat(diff(Traj_0.t), 1, sum(R.MDH.sigma==1)); % Differenzenquotient
-  QD_num(1:end-1,R.MDH.sigma==0) = (mod(diff(Q(:,R.MDH.sigma==0))+pi, 2*pi)-pi)./...
+  QD_num(2:end,R.MDH.sigma==0) = (mod(diff(Q(:,R.MDH.sigma==0))+pi, 2*pi)-pi)./...
     repmat(diff(Traj_0.t), 1, sum(R.MDH.sigma==0)); % Siehe angdiff.m
-  % Fehler zwischen Differenzenquotient und Jacobi-Matrix-Berechnung
-  QD_error = QD_num(1:end,:) - QD(1:end,:);
-  QD_relerror = QD_error./QD(1:end,:);
-  % Keine Wertung von Phasen sehr kleiner Geschwindigkeit
-  QD_relerror(abs(QD)<0.1*max(abs(QD))) = NaN;
-  % Bestimme Fehler als mehr als 50% Abweichung. Ein Umklappen kann auch
-  % fälschlicherweise erkannt werden, wenn die Geschwindigkeit sehr groß
-  % ist und ein spitzer Verlauf falsch diskretisiert wird. Das führt aber
-  % sowieso auch zu anderen Fehlern.
-  I_jump = (QD_relerror > 0.5);
-  if any(I_jump(:))
-    % Erstes Vorkommnis finden und daraus Strafterm bilden. Je später,
-    % desto besser.
-    II_jump = find(any(I_jump,2), 1, 'first');
-    fval_jump_norm = II_jump/length(Traj_0.t); % Zwischen 0 und 1
+  % Position neu mit Trapezregel berechnen (Integration)
+  Q_num = repmat(Q(1,:),size(Q,1),1)+cumtrapz(Traj_0.t, QD);
+  % Bestimme Korrelation zwischen den Verläufen (1 ist identisch)
+  corrQD = diag(corr(QD_num, QD));
+  corrQ = diag(corr(Q_num, Q));
+  if any(corrQD < 0.95) || any(corrQ < 0.98)
+    % Bilde normierten Strafterm aus Korrelationskoeffizienten (zwischen -1
+    % und 1).
+    fval_jump_norm = 0.5*(mean(1-corrQ) + mean(1-corrQD));
     fval = 1e3*(4+1*fval_jump_norm); % Wert zwischen 4e3 und 5e3
-    constrvioltext = sprintf('Konfiguration scheint zu springen. Geschwindigkeitsfehler max. %1.1f%% (zuerst Zeitschritt %d/%d)', ...
-      100*max(abs(QD_relerror(:))), II_jump, length(Traj_0.t));
+    constrvioltext = sprintf('Konfiguration scheint zu springen. Korrelation Geschw. min. %1.2f, Position %1.2f', ...
+      min(corrQD), min(corrQ));
     if fval < Set.general.plot_details_in_fitness
-      % I_ol = isoutlier(QD_relerror, 'movmedian', 50); % funktioniert nicht so gut
       RP = ['R', 'P'];
       change_current_figure(1001);clf;
       for i = 1:length(q)
+        legnum = find(i>=R.I1J_LEG, 1, 'last');
+        legjointnum = i-(R.I1J_LEG(legnum)-1);
         subplot(ceil(sqrt(length(q))), ceil(length(q)/ceil(sqrt(length(q)))), i);
         hold on; grid on;
         plot(Traj_0.t, QD(:,i), '-');
         plot(Traj_0.t, QD_num(:,i), '--');
-        title(sprintf('qD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+        title(sprintf('qD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
       end
       linkxaxes
       sgtitle('Vergleich Gelenkgeschw.');
@@ -549,17 +552,20 @@ if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
         subplot(ceil(sqrt(length(q))), ceil(length(q)/ceil(sqrt(length(q)))), i);
         hold on; grid on;
         plot(Traj_0.t, Q(:,i), '-');
-        title(sprintf('q %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+        plot(Traj_0.t, Q_num(:,i), '--');
+        title(sprintf('q %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
       end
       linkxaxes
       sgtitle('Verlauf Gelenkkoordinaten');
       change_current_figure(1003);clf;
       for i = 1:length(q)
+        legnum = find(i>=R.I1J_LEG, 1, 'last');
+        legjointnum = i-(R.I1J_LEG(legnum)-1);
         subplot(ceil(sqrt(length(q))), ceil(length(q)/ceil(sqrt(length(q)))), i);
         hold on; grid on;
         plot(Traj_0.t(~I_jump(:,i)), QD_relerror(~I_jump(:,i),i), 'go');
         plot(Traj_0.t(I_jump(:,i)), QD_relerror(I_jump(:,i),i), 'rx');
-        title(sprintf('qD error %d', i));
+        title(sprintf('qD error %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
       end
       linkxaxes
       sgtitle('Relativer Fehler Geschw. in Prozent');
