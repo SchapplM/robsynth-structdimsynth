@@ -76,9 +76,9 @@ optimization = struct( ...
   'ee_translation_only_serial', true, ... % ... nur bei seriellen Robotern
   'ee_rotation', true, ... % Freie Rotation des EE
   'base_size', true, ... % Größe des Gestells
-  'base_size_limits', [NaN, NaN], ... % Grenzen für Gestell-Größe (Absolut)
+  'base_size_limits', [NaN, NaN], ... % Grenzen für Gestell-Größe (Radius; Absolut)
   'platform_size', true, ... % Größe der Plattform
-  'platform_size_limits', [NaN, NaN], ... % Grenzen für Plattform-Größe (Absolut)
+  'platform_size_limits', [NaN, NaN], ... % Grenzen für Plattform-Größe (Radius; Absolut)
   'base_morphology', false, ... % Aussehen des Gestells (z.B. Schrägheit, Gelenkpaarabstand)
   'platform_morphology', false, ... % Aussehen der Plattform (z.B. Gelenkpaarabstand)
   'rotate_base', false, ... % Orientierung der Roboter-Basis

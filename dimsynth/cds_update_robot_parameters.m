@@ -136,7 +136,7 @@ if Set.optimization.rotate_base
   error('Noch nicht implementiert');
 end
 
-%% Basis-Koppelpunkt Positionsparameter (z.B. Gestelldurchmesser)
+%% Basis-Koppelpunkt Positionsparameter (z.B. Gestell-Radius)
 if R_neu.Type == 2
   p_basepar = R.DesPar.base_par;
   changed_base = false;
@@ -172,7 +172,7 @@ end
 if R_neu.Type == 2 && changed_base
   R_neu.align_base_coupling(R.DesPar.base_method, p_basepar);
 end
-%% Plattform-Koppelpunkt Positionsparameter (z.B. Plattformdurchmesser)
+%% Plattform-Koppelpunkt Positionsparameter (z.B. Plattform-Radius)
 if R_neu.Type == 2
   p_plfpar = R.DesPar.platform_par(1:end-1);
   changed_plf = false;

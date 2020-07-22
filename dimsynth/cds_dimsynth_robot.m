@@ -313,7 +313,7 @@ if Set.optimization.ee_rotation
   end
 end
 
-% Basis-Koppelpunkt Positionsparameter (z.B. Gestelldurchmesser)
+% Basis-Koppelpunkt Positionsparameter (z.B. Gestell-Radius)
 if Structure.Type == 2 && Set.optimization.base_size
   % TODO: Die Anzahl der Positionsparameter könnte sich evtl ändern
   % Eventuell ist eine Abgrenzung verschiedener Basis-Anordnungen sinnvoll
@@ -325,13 +325,13 @@ if Structure.Type == 2 && Set.optimization.base_size
     % Nehme absolute Werte (vorgegeben durch Benutzer)
     varlim = [varlim; Set.optimization.base_size_limits];
   else
-    % Automatische Einstellung: fünf-fache spezifische Länge als Basis-Durchmesser
+    % Automatische Einstellung: fünf-fache spezifische Länge als Basis-Radius
     varlim = [varlim; [0.1,5]];
   end
-  varnames = {varnames{:}, 'base param'}; %#ok<CCAT>
+  varnames = {varnames{:}, 'base radius'}; %#ok<CCAT>
 end
 
-% Plattform-Koppelpunkt Positionsparameter (z.B. Plattformdurchmesser)
+% Plattform-Koppelpunkt Positionsparameter (z.B. Plattform-Radius)
 if Structure.Type == 2 && Set.optimization.platform_size
   nvars = nvars + 1;
   vartypes = [vartypes; 7];
@@ -339,11 +339,11 @@ if Structure.Type == 2 && Set.optimization.platform_size
     % Nehme absolute Werte (vorgegeben durch Benutzer)
     varlim = [varlim; Set.optimization.platform_size_limits];
   else
-    % Automatische Einstellung: Bezogen auf Gestelldurchmesser
-    % max. zwei-facher Gestelldurchmesser als Plattformdurchmesser
+    % Automatische Einstellung: Bezogen auf Gestell-Radius
+    % max. zwei-facher Gestell-Radius als Plattform-Radius
     varlim = [varlim; [0.1,2]]; 
   end
-  varnames = {varnames{:}, 'platform param'}; %#ok<CCAT>
+  varnames = {varnames{:}, 'platform radius'}; %#ok<CCAT>
 end
 
 % Gestell-Morphologie-Parameter (z.B. Gelenkpaarabstand).
