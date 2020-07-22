@@ -92,6 +92,17 @@ if structset.use_serial
       continue
     end
     
+    % Prüfe, ob die Gelenkreihenfolge zum Filter passt
+    if any(~strcmp(structset.joint_filter, '*'))
+      Filter = structset.joint_filter(1:N_JointDoF);
+      ChainJoints_filt = SName(3:3+N_JointDoF-1);
+      ChainJoints_filt(Filter=='*') = '*';
+      if ~strcmp(ChainJoints_filt, structset.joint_filter(1:N_JointDoF))
+        if verblevel >= 3, fprintf('%s passt nicht zum Filter %s. Ignoriere\n', SName, structset.joint_filter); end
+        continue
+      end
+    end
+    
     ii = ii + 1;
     fprintf('%d: %s\n', ii, SName);
     Structures{ii} = struct('Name', SName, 'Type', 0, 'Number', ii);
@@ -126,9 +137,12 @@ if structset.use_parallel
     PassPrisJoint = false;
     TooManyPrisJoints = false;
     LastJointActive = false;
+    DistalJointActive = false;
+    FilterMatch = true;
     for k = 1:NLEG % Gehe alle Beinketten durch (für den Fall asymmetrischer PKM)
       LegChainName = LEG_Names{k};
       NLegDoF = str2double(LegChainName(2));
+      ChainJoints = LegChainName(3:3+NLegDoF-1); % enthält nur noch "R" und "P"
       % Prüfe, ob passive Schubgelenke vorliegen
       for l = 1:NLegDoF % Gehe alle Beingelenke
         if strcmp(LegChainName(2+l), 'P') && ~any(Actuation{k} == l)
@@ -136,13 +150,26 @@ if structset.use_parallel
         end
       end
       % Prüfe die Anzahl der Schubgelenke
-      numprismatic = sum(LegChainName == 'P');
+      numprismatic = sum(ChainJoints == 'P');
       if numprismatic > structset.maxnumprismatic
         TooManyPrisJoints = true;
       end
       % Prüfe, ob letztes Gelenk aktiv ist
       if any(Actuation{k} == NLegDoF)
         LastJointActive = true;
+      end
+      % Prüfe, ob das aktive Gelenk zu nah an der Plattform ist
+      if any(Actuation{k} > Set.structures.max_index_active)
+        DistalJointActive = true;
+      end
+      % Prüfe, ob die Gelenkreihenfolge zum Filter passt
+      if any(~strcmp(structset.joint_filter, '*'))
+        Filter_k = structset.joint_filter(1:NLegDoF);
+        ChainJoints_filt = ChainJoints;
+        ChainJoints_filt(Filter_k=='*') = '*';
+        if ~strcmp(ChainJoints_filt, structset.joint_filter(1:NLegDoF))
+          FilterMatch = false;
+        end
       end
     end
     if structset.nopassiveprismatic && PassPrisJoint % PKM enthält passive Schubgelenke. Nicht auswählen
@@ -157,7 +184,14 @@ if structset.use_parallel
       if verblevel >= 3, fprintf('%s hat aktives letztes Gelenk. Ignoriere\n', PNames_Akt{j}); end
       continue
     end
-
+    if DistalJointActive
+      if verblevel >= 3, fprintf('%s hat aktives Gelenk nach Position %d. Ignoriere\n', PNames_Akt{j}, Set.structures.max_index_active); end
+      continue
+    end
+    if ~FilterMatch
+      if verblevel >= 3, fprintf('%s passt nicht zum Filter %s. Ignoriere\n', PNames_Akt{j}, structset.joint_filter); end
+      continue
+    end
     % TODO: Mögliche Basis-Anordnungen von PKM hier generieren und hinzufügen
 
     ii = ii + 1;
