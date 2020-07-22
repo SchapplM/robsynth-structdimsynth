@@ -173,6 +173,11 @@ q0(R.MDH.sigma==0) = normalize_angle(q0(R.MDH.sigma==0));
 % IK für alle Eckpunkte, beginnend beim letzten (dann ist q der richtige
 % Startwert für die Trajektorien-IK)
 for i = size(Traj_0.XE,1):-1:1
+  if Set.task.profile ~= 0 && i == 1
+    % Setze die Toleranz für diesen Punkt wieder herunter. Der Startpunkt
+    % der Trajektorie muss exakt bestimmt werden
+    s.Phit_tol = 1e-9; s.Phir_tol = 1e-9;
+  end
   if R.Type == 0
     [q, Phi, Tc_stack] = R.invkin2(Traj_0.XE(i,:)', q0, s);
   else
@@ -404,7 +409,8 @@ if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
     Failratio = 1-IdxFirst/length(Traj_0.t); % Wert zwischen 0 und 1
     fval = 1e4*(1+9*Failratio); % Wert zwischen 1e4 und 1e5
     % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
-    constrvioltext = sprintf('Keine IK-Konvergenz in Traj. Bis %1.0f%% gekommen.', (1-Failratio)*100);
+    constrvioltext = sprintf('Keine IK-Konvergenz in Traj. Bis %1.0f%% (%d/%d) gekommen.', ...
+      (1-Failratio)*100, IdxFirst, length(Traj_0.t));
     return
   end
 else
