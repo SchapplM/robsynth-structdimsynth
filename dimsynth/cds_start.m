@@ -81,6 +81,21 @@ if Set.optimization.use_desopt ...
 end
 % Optimierung der Strukturen durchführen
 if ~Set.general.regenerate_summmary_only
+  % Vorlagen-Funktionen neu generieren (falls dort Änderungen gemacht
+  % wurden). Die automatische Neugenerierung in der parfor-Schleife
+  % funktioniert nicht.
+  if Set.general.create_template_functions
+    for i = 1:length(Structures)
+      Structure = Structures{i};
+      if Structure.Type == 1 % Serieller Roboter
+        serroblib_create_template_functions({Structure.Name}, false, false);
+      else % PKM
+        parroblib_create_template_functions({Structure.Name}, false, false);
+      end
+      continue
+    end
+  end
+  
   resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
   mkdirs(resdir_main); % Ergebnis-Ordner für diese Optimierung erstellen
   t1 = tic();
