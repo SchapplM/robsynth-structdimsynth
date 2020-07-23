@@ -17,6 +17,7 @@ settings_default = struct( ...
   'check_existing', false, ... % Falls true: Prüfe existierende Roboter in Datenbank nochmal
   'check_missing', true, ... % Falls true: Prüfe auch nicht existierende Roboter
   'check_rankdef_existing', true, ... % Falls true: Prüfe existierende Roboter, deren Rang vorher als zu niedrig festgestellt wurde (zusätzlich zu anderen Optionen notwendig)
+  'check_resstatus', 1:6, ... % Filter für PKM, die einen bestimmten Status in synthesis_result_lists/xTyR.csv haben
   'lfdNr_min', 1, ... % Auslassen der ersten "x" kinematischer Strukturen (zum Debuggen)
   ... % Prüfung ausgewählter Beinketten (zum Debuggen):
   'whitelist_SerialKin', {''}, ... % z.B. 'S6RRPRRR14V2', 'S6RRPRRR14V3' 'S6RRRRRR10V3' 'S6PRRRRR6V2'
@@ -53,8 +54,6 @@ for f = fields(settings)'
 end
 settings = settings_new;
 
-% Coupling_all = [[4 3]; [2 2]; [3 1]; [1 2]];% zum testen
-
 %% Initialisierung
 EE_FG_ges = [1 1 0 0 0 1; ...
   1 1 1 0 0 0; ...
@@ -62,11 +61,17 @@ EE_FG_ges = [1 1 0 0 0 1; ...
   1 1 1 1 1 1];
 EE_FG_Mask = [1 1 1 1 1 1]; % Die FG müssen genauso auch vom Roboter erfüllt werden (0 darf nicht auch 1 sein)
 serroblibpath=fileparts(which('serroblib_path_init.m'));
-
+parroblibpath=fileparts(which('parroblib_path_init.m'));
 %% Alle PKM generieren
 fprintf('Beginne Schleife über %d verschiedene EE-FG\n', length(settings.EE_FG_Nr));
 for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
-  
+  EE_FG = EE_FG_ges(iFG,:);
+  EE_FG_Name = sprintf( '%dT%dR', sum(EE_FG(1:3)), sum(EE_FG(4:6)) );
+  % Pfad mit vollständigen Ergebnissen der Struktursynthese
+  synthrestable = readtable( ...
+    fullfile(parroblibpath,'synthesis_result_lists',[EE_FG_Name,'.csv']), ...
+    'ReadVariableNames', true);
+  fprintf('Prüfe PKM mit %s Plattform-FG\n', EE_FG_Name);
   % Bestimme Möglichkeiten für Koppelpunkte
   [Cpl1_grid,Cpl2_grid] = ndgrid(settings.base_couplings,settings.plf_couplings);
   % Binär-Matrix zum Entfernen von Koppelpunkt-Kombinationen
@@ -85,9 +90,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
   Coupling_all = unique(Coupling_all,'row');
   for kk = 1:size(Coupling_all,1) % Schleife über Koppelpunkt-Möglichkeiten
     Coupling = Coupling_all(kk,:);
-    EE_FG = EE_FG_ges(iFG,:);
-    EE_FG_Name = sprintf( '%dT%dR', sum(EE_FG(1:3)), sum(EE_FG(4:6)) );
-    fprintf('Prüfe PKM mit %s Plattform-FG\n', EE_FG_Name);
+
     %% Serielle Beinketten auswählen
     N_Legs = sum(EE_FG); % Voll-Parallel: So viele Beine wie EE-FG
     if all(EE_FG == [1 1 1 0 0 0]) || all(EE_FG == [1 1 1 0 0 1])
@@ -175,17 +178,39 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         % Aktuelle Roboterstruktur für Beinketten nicht in Positivliste
         continue
       end
+      
+      % Öffnen der csv-Datei mit allen Ergebnissen und Abgleich, ob
+      % schon geprüft ist. Nur wenn Filter-Option aktiviert ist.
+      if length(settings.check_resstatus) ~= 6 && ~all(settings.check_resstatus==1:6)
+        % Tabelle nach der gesuchten PKM filtern
+        I_name = strcmp(table2cell(synthrestable(:,1)), SName);
+        I_coupl = table2array(synthrestable(:,3))==Coupling(1) & ...
+                  table2array(synthrestable(:,4))==Coupling(2);
+        i_restab = find(I_name & I_coupl);
+        % aktuellen Status feststellen
+        if isempty(i_restab)
+          Status_restab = 6; % Werte als "nicht geprüft"
+        elseif length(i_restab) > 1
+          error('Doppelter Eintrag in CSV-Tabelle für %sG%dP%d', PName, Coupling(1), Coupling(2));
+        else
+          Status_restab = table2array(synthrestable(i_restab,5));
+        end
+        % Vergleichen von Liste zu prüfender Status-Werte
+        if ~any(Status_restab == settings.check_resstatus)
+          continue
+        end
+      end
+
       if sum(SName=='P')>1
         % Hat mehr als ein Schubgelenk. Kommt nicht für PKM in Frage.
         % (es muss dann zwangsläufig ein Schubgelenk passiv sein)
         parroblib_update_csv({SName}, Coupling, logical(EE_FG), 1, 0);
         continue
       end
-      % TODO: Öffnen der csv-Datei mit allen Ergebnissen und Abgleich, ob
-      % schon geprüft ist. Optional mit zusätzlichem Argument.
-
       N_LegDoF = str2double(SName(2));% Beinkette FHG
       PName = sprintf('P%d%s', N_Legs, SName(3:end));
+
+
       fprintf('Kinematik %d/%d: %s, %s\n', ii_kin, length(II), PName, SName);
 
       % Beinketten-FG aus Datenbank auslesen:
