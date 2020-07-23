@@ -188,6 +188,17 @@ if Structure.Type == 0 || Structure.Type == 2
     I_firstpospar = R_pkin.pkin_jointnumber==1 & (R_pkin.pkin_types==4 | R_pkin.pkin_types==6);
     Ipkinrel = Ipkinrel & ~I_firstpospar; % Nehme die "1" bei d1/a1 weg.
   end
+  % Setzen den a2-Parameter zu Null, wenn das erste Gelenk ein Schubgelenk
+  % ist. Aus kinematischer Sicht ist dieser Parameter redundant zur PKM-Platt-
+  % formgröße (bei senkrechter Anbringung) bzw. auch der Basis-Position
+  % (bei schräger Anbringung der Schubgelenke). Der Parameter entspricht
+  % keinem Hebelarm eines Drehgelenks.
+  if ((Structure.Type == 0 && Set.optimization.movebase) || ... % Seriell mit verschieblicher Basis
+      (Structure.Type == 2 && Set.optimization.base_size)) && ... % PKM mit variabler Gestellgröße
+     R_pkin.MDH.sigma(1) == 1 % erstes Gelenk ist Schubgelenk
+    I_a2 = R_pkin.pkin_jointnumber==2 & R_pkin.pkin_types == 4;
+    Ipkinrel = Ipkinrel & ~I_a2; % Nehme die "1" bei a2 weg.
+  end
   % Setze den letzten d-Parameter für PKM-Beinketten auf Null. Dieser ist
   % redundant zur Plattform-Größe
   if Structure.Type == 2 % PKM
