@@ -258,8 +258,21 @@ for i = 1:length(Structures)
   for file_ext = Set.general.save_animation_file_extensions
     s_anim.(sprintf('%s_name', file_ext{1})) = fullfile(resrobdir, sprintf('Rob%d_%s_Animation%s.%s', i, Name, apptxt, file_ext{1}));
   end
-  if Set.task.profile == 0, I_anim = 1:size(Q,1);
-  else,                     I_anim = 1:20:size(Q,1); end
+  if Set.task.profile == 0
+    I_anim = 1:size(Q,1); % Zeichne jeden Zeitschritt
+  else
+    if Traj.t(end) > isinf(Set.general.maxduration_animation)
+      % Reduziere das Video auf die maximale Länge. Die Abtastrate ist 30Hz
+      % Nehme das Verhältnis von Ist- und Soll-Zeit als Beschleunigungsfaktor
+      % dieser vorgegebenen Abtastrate des Videos
+      t_Vid = (0:1/30*(Traj.t(end)/Set.general.maxduration_animation):Traj.t(end))';
+    else
+      % Stelle so ein, dass eine Abtastrate von 30Hz erreicht wird. Das Video
+      % läuft dann genauso schnell wie die Trajektorie.
+      t_Vid = (0:1/30:Traj.t(end))'; % Zeitstempel des Videos
+    end
+    I_anim = knnsearch( Traj.t , t_Vid ); % Berechne Indizes in Traj.-Zeitstempeln
+  end
   if Structures{i}.Type == 0 % Seriell
     s_plot = struct( 'straight', 1);
     R.anim( Q(I_anim,:), [], s_anim, s_plot);
