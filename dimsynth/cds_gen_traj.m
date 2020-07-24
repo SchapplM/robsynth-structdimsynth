@@ -56,6 +56,9 @@ if all(DoF == [1 1 1 0 0 0])
   k=k+1; XE(k,:) = XE(k-1,:) + [-d1,0,0, 0,0,0];
   k=k+1; XE(k,:) = XE(k-1,:) + [0,d1,0,  0,0,0];
   k=k+1; XE(k,:) = XE(k-1,:) + [0,0, h1, 0,0,0];
+  % Fahrt in die Mitte (nur Eckpunkte reicht nicht für Struktursynthese.
+  % Dann können Umklapp-Lagen bereits die Punkte erfüllen).
+  k=k+1; XE(k,:) = XE(k-1,:) + [d1/2,-d1/2, -h1/2, 0,0,0];
 end
 
 %% Liste der Trajektorien: 3T1R
@@ -77,6 +80,8 @@ if all(DoF == [1 1 1 0 0 1])
   k=k+1; XE(k,:) = XE(k-1,:) + [-d1,0,0, 0,0,pi/2];
   k=k+1; XE(k,:) = XE(k-1,:) + [0,d1,0,  0,0,0];
   k=k+1; XE(k,:) = XE(k-1,:) + [0,0, h1, 0,0,-pi/6];
+  % Fahrt in die Mitte.
+  k=k+1; XE(k,:) = XE(k-1,:) + [d1/2,-d1/2, -h1/2, 0,0,0];
 end
 
 %% Liste der Trajektorien: 3T3R und 3T2R
