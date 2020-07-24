@@ -294,7 +294,9 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     fprintf('Generiere Template-Funktionen für %d Roboter und kompiliere anschließend.\n', length(Whitelist_Kin));
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
       sprintf('parroblib_add_robots_symact_%s_1.mat', EE_FG_Name)));
-    parroblib_create_template_functions(Whitelist_Kin,true,false);
+    % Erzeuge alle Template-Dateien neu (ohne Kompilierung). Dadurch wird
+    % sichergestellt, dass sie die richtige Version haben.
+    parroblib_create_template_functions(Whitelist_Kin,false,false);
     % Benötigte Funktionen kompilieren
     parfor i = 1:length(Whitelist_Kin)
       % Erzeuge Klasse. Dafür Aktuierung A1 angenommen. Ist aber für
