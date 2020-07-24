@@ -181,7 +181,8 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       
       % Öffnen der csv-Datei mit allen Ergebnissen und Abgleich, ob
       % schon geprüft ist. Nur wenn Filter-Option aktiviert ist.
-      if length(settings.check_resstatus) ~= 6 && ~all(settings.check_resstatus==1:6)
+      % (Bei Standard-Einstellung "1:6" gibt es nichts zu filtern
+      if ~(length(settings.check_resstatus) == 6 && all(settings.check_resstatus==1:6))
         % Tabelle nach der gesuchten PKM filtern
         I_name = strcmp(table2cell(synthrestable(:,1)), SName);
         I_coupl = table2array(synthrestable(:,3))==Coupling(1) & ...
