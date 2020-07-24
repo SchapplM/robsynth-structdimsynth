@@ -16,14 +16,14 @@ function cds_results_table(Set, Traj, Structures)
 % Initialisierung
 resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
 restabfile = fullfile(resmaindir, sprintf('%s_results_table.csv', Set.optimization.optname));
-ResTab  = cell2table(cell(0,22), 'VariableNames', {'LfdNr', 'Name', 'Typ', ...
-  'Startzeit', 'Endzeit', 'Dauer', 'Fval_Opt', ...
+ResTab  = cell2table(cell(0,23), 'VariableNames', {'LfdNr', 'Name', 'Typ', ...
+  'Startzeit', 'Endzeit', 'Dauer', 'Fval_Opt', 'Fval_Text', ...
   'Masse_fval', 'Masse_phys', 'Energie_fval', 'Energie_phys', ...
   'Antriebskraft_fval', 'Antriebskraft_phys','Kondition_fval', 'Kondition_phys', ...
   'Nachgiebigk_fval', 'Nachgiebigk_phys', 'Steifigk_phys', ...
   'Materialspannung', 'num_succ', 'num_fail', 'comptime_sum'});
 % Zeile mit erklärenden Kommentaren zu Überschriften anhängen
-Descr_Row = {'', '', '', '', '', '', 'Zielfunktion der Optimierung', ...
+Descr_Row = {'', '', '', '', '', '', 'Zielfunktion der Optimierung', '', ...
   '(normiert)', 'in kg', '(normiert)', 'in J', ...
   '(normiert)', 'in N bzw. Nm', '(normiert)', 'in Einheiten der Jacobi', ...
   'transl., normiert',  'in mm/N',  'in N/mm', ...
@@ -41,11 +41,35 @@ for i = 1:length(Structures)
     continue
   end
   tmp = load(resfile, 'RobotOptRes', 'Set', 'Traj', 'PSO_Detail_Data');
+  % Text zu Optimierungsergebnis (insbes. Ausschlussgrund). Siehe
+  % cds_vis_results, cds_constraints, cds_fitness
+  f = tmp.RobotOptRes.fval;
+  if f < 1e3,     fval_text = 'i.O.';
+  elseif f < 1e4, fval_text = 'NB-Verl. Zielf. EO';
+  elseif f < 1e5, fval_text = 'Festigkeit Segmente';
+  elseif f < 1e6, fval_text = 'Kinematik-NB (Kond.)';
+  elseif f < 1e3*2e3, fval_text = 'AR-Hindernis Traj.'; % ab hier aus cds_constraints
+  elseif f < 1e3*3e3, fval_text = 'Bauraum-verl. Traj.';
+  elseif f < 1e3*4e3, fval_text = 'Selbstkoll. Traj.';
+  elseif f < 1e3*5e3, fval_text = 'Konfig. springt.';
+  elseif f < 1e3*6e3, fval_text = 'Gel.-Geschw. Grenze Traj.';
+  elseif f < 1e3*9e3, fval_text = 'Gel.-Pos.-Grenze Traj.';
+  elseif f < 1e3*1e4, fval_text = 'Parasitäre Bew.';
+  elseif f < 1e3*1e5, fval_text = 'Traj.-IK Fehler';
+  elseif f < 1e3*3e5, fval_text = 'AR-Hindernis Eckpkt.';
+  elseif f < 1e3*4e5, fval_text = 'Bauraum-verl. Eckpkt.';
+  elseif f < 1e3*5e5, fval_text = 'Selbstkoll. Eckpkt.';
+  elseif f < 1e3*1e6, fval_text = 'Gel.-Pos.-Grenze Eckpkt.';
+  elseif f < 1e3*1e7, fval_text = 'Eckpkt.-IK Fehler';
+  elseif f < 1e3*1e8, fval_text = 'Geom. Plausib.-Fehler 2.';
+  elseif f < 1e3*1e9, fval_text = 'Geom. Plausib.-Fehler 1.';
+  end
+  
   % Allgemeine Daten des Optimierungsergebnisses
   Row_i = {i, Name, Structure.Type, ...
     datestr(tmp.RobotOptRes.timestamps_start_end(1),'dd.mm.yyyy HH:MM:SS'), ...
     datestr(tmp.RobotOptRes.timestamps_start_end(2),'dd.mm.yyyy HH:MM:SS'), ...
-    tmp.RobotOptRes.timestamps_start_end(3), tmp.RobotOptRes.fval};
+    tmp.RobotOptRes.timestamps_start_end(3), tmp.RobotOptRes.fval, fval_text};
   % Hole andere Zielfunktionen aus den Ergebnissen
   for ii = 1:5
     Row_i = [Row_i, {tmp.RobotOptRes.fval_obj_all(ii), tmp.RobotOptRes.physval_obj_all(ii)}]; %#ok<AGROW>
