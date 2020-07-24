@@ -218,12 +218,23 @@ if Structure.Type == 0 || Structure.Type == 2
   nvars = nvars + sum(Ipkinrel);
   vartypes = [vartypes; 1*ones(sum(Ipkinrel),1)];
   % Grenzen für Kinematikparameter anhand der Typen bestimmen
+  % Nummern, siehe SerRob/get_pkin_parameter_type
   plim = NaN(length(R_pkin.pkin),2);
   for i = 1:size(plim,1)
-    if R_pkin.pkin_types(i) == 1 || R_pkin.pkin_types(i) == 3 || R_pkin.pkin_types(i) == 5
-      % Winkel-Parameter. Nur Begrenzung auf [0,pi/2]. Ansonsten sind
-      % negative DH-Längen und negative Winkel redundant
+    if R_pkin.pkin_types(i) == 1
+      % Winkel-Parameter beta. Darf eigentlich gar nicht auftreten bei
+      % seriellen Robotern. Ginge aber auch mit 0 bis pi/2.
+      error('Die Optimierung des Parameters beta ist nicht vorgesehen');
+    elseif R_pkin.pkin_types(i) == 3
+      % Winkel-Parameter alpha. Nur Begrenzung auf [0,pi/2]. Ansonsten sind
+      % negative DH-Längen und negative Winkel redundant. Es wird nur die
+      % Parallelität der Gelenke eingestellt
       plim(i,:) = [0, pi/2];
+    elseif R_pkin.pkin_types(i) == 5
+      % Winkel-Parameter theta. Nur Begrenzung auf [-pi/2,pi/2].
+      % Durch Möglichkeit negativer DH-Längen ist jede beliebige
+      % Ausrichtung des folgenden Gelenks möglich.
+      plim(i,:) = [-pi/2, pi/2];
     elseif R_pkin.pkin_types(i) == 2 || R_pkin.pkin_types(i) == 4 || R_pkin.pkin_types(i) == 6
       % Maximale Länge der einzelnen Segmente
       plim(i,:) = [-1, 1]; % in Optimierung bezogen auf Lref
