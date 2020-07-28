@@ -27,6 +27,8 @@ settings_default = struct( ...
   'onlygeneral', true, ...
   'dryrun', false, ... % Falls true: Nur Anzeige, was gemacht werden würde
   'EE_FG_Nr', 2:3, ... % nur 3T0R, 3T1R
+  'parcomp_structsynth', 1, ... % parfor-Struktursynthese (schneller, aber mehr Speicher notwendig)
+  'parcomp_mexcompile', 1, ... % parfor-Mex-Kompilierung (schneller, aber Dateikonflikt möglich)
   'max_actuation_idx', 4, ... % Aktuierung bis zum vierten Gelenk-FG zulassen
   'base_couplings', 1:8, ... % nur Methode 1 bis 4; siehe ParRob/align_base_coupling
   'plf_couplings', 1:6 ... % nur Methode 1 bis 3; siehe ParRob/align_platform_coupling
@@ -299,7 +301,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     % sichergestellt, dass sie die richtige Version haben.
     parroblib_create_template_functions(Whitelist_Kin,false,false);
     % Benötigte Funktionen kompilieren
-    parfor i = 1:length(Whitelist_Kin)
+    parfor (i = 1:length(Whitelist_Kin), settings.parcomp_mexcompile*12)
       % Erzeuge Klasse. Dafür Aktuierung A1 angenommen. Ist aber für
       % Generierung der Funktionen egal.
       RP = parroblib_create_robot_class([Whitelist_Kin{i},'A1'],1,1);
@@ -341,7 +343,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.structures.use_serial = false; % nur PKM (keine seriellen)
     Set.structures.use_parallel_rankdef = 6*settings.check_rankdef_existing;
     Set.general.save_animation_file_extensions = {'gif'};
-    Set.general.parcomp_struct = 1;
+    Set.general.parcomp_struct = settings.parcomp_structsynth;
     Set.general.use_mex = true;
     cds_start
     % Ergebnisse der Struktursynthese (bzw. als solcher durchgeführten
