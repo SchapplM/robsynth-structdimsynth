@@ -418,7 +418,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 7);
         end
       else
-        fprintf('PKM %s hat laut Maßsynthese vollen Laufgrad\n', Name);
+        fprintf('%d/%d: PKM %s hat laut Maßsynthese vollen Laufgrad\n', jjj, length(Structures), Name);
         parroblib_change_properties(Name, 'rankloss', '0');
         parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 0, 1);
         num_fullmobility = num_fullmobility + 1;
