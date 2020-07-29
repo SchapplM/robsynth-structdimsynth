@@ -557,18 +557,6 @@ if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
       end
       linkxaxes
       sgtitle('Verlauf Gelenkkoordinaten');
-      change_current_figure(1003);clf;
-      for i = 1:length(q)
-        legnum = find(i>=R.I1J_LEG, 1, 'last');
-        legjointnum = i-(R.I1J_LEG(legnum)-1);
-        subplot(ceil(sqrt(length(q))), ceil(length(q)/ceil(sqrt(length(q)))), i);
-        hold on; grid on;
-        plot(Traj_0.t(~I_jump(:,i)), QD_relerror(~I_jump(:,i),i), 'go');
-        plot(Traj_0.t(I_jump(:,i)), QD_relerror(I_jump(:,i),i), 'rx');
-        title(sprintf('qD error %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
-      end
-      linkxaxes
-      sgtitle('Relativer Fehler Geschw. in Prozent');
     end
     return
   end
