@@ -318,6 +318,11 @@ end
 % Debug:
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_2.mat'));
 
+%% Aktualisiere Roboter für Kollisionsprüfung (geänderte Winkelgrenzen aus IK)
+if Set.optimization.constraint_collisions || ...
+    ~isempty(Set.task.installspace.type) || ~isempty(Set.task.obstacles.type)
+  Structure.collbodies_robot = cds_update_collbodies(R, Set, QE);
+end
 %% Selbst-Kollisionsprüfung für Einzelpunkte
 if Set.optimization.constraint_collisions
   [fval_coll, coll_self] = cds_constr_collisions_self(R, Traj_0.XE, Set, Structure, JPE, QE, [4e5;5e5]);
@@ -569,7 +574,11 @@ if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
     return
   end
 end
-
+%% Aktualisiere Roboter für Kollisionsprüfung (geänderte Grenzen aus Traj.-IK)
+if Set.optimization.constraint_collisions || ...
+    ~isempty(Set.task.installspace.type) || ~isempty(Set.task.obstacles.type)
+  Structure.collbodies_robot = cds_update_collbodies(R, Set, Q);
+end
 %% Selbstkollisionserkennung für Trajektorie
 if Set.optimization.constraint_collisions
   [fval_coll_traj, coll_traj] = cds_constr_collisions_self(R, Traj_0.X, ...

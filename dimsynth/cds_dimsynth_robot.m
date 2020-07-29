@@ -117,8 +117,8 @@ for i = 1:NLEG
   else
     R_init.DynPar.mode = 4; % Benutze Minimalparameter-Dynamikfunktionen
   end
-  R_init.DesPar.joint_type((1:R.NJ)'==1&R.MDH.sigma==1) = 4; % Linearführung erste Achse
-  R_init.DesPar.joint_type((1:R.NJ)'~=1&R.MDH.sigma==1) = 5; % Schubzylinder weitere Achse
+  R_init.DesPar.joint_type((1:R_init.NJ)'==1&R_init.MDH.sigma==1) = 4; % Linearführung erste Achse
+  R_init.DesPar.joint_type((1:R_init.NJ)'~=1&R_init.MDH.sigma==1) = 5; % Schubzylinder weitere Achse
   R_init.update_dynpar1(); % Nochmal initialisieren, damit MPV definiert ist
 end
 % Merke die ursprünglich aus der Datenbank geladene EE-Rotation. Die in der
@@ -424,11 +424,7 @@ Structure.I_firstprismatic = I_firstprismatic;
 if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) || ...
     ~isempty(Set.task.installspace.type)
   % Lege die Starrkörper-Indizes fest, für die Kollisionen geprüft werden
-  Structure.selfcollchecks_bodies = [];
-  % Liste für gesamte PKM. 0=PKM-Basis, 1=Beinkette1-Basis, 2=Beinkette1-
-  % erster Körper, usw. Wird für serielle Roboter auch benutzt. Dort aber
-  % nur eine Basis (=0).
-  collbodies_robot = struct('link', [], 'type', [], 'params', []);
+  selfcollchecks_bodies = [];
   % Prüfe Selbstkollisionen einer kinematischen Kette.
   for k = 1:NLEG
     % Erneute Initialisierung (sonst eventuell doppelte Eintragungen)
@@ -447,7 +443,44 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         NLoffset = 1+R.I2L_LEG(k-1)-(k-1); % in I1L wird auch Basis und EE-Link noch mitgezählt. Hier nicht.
       end
     end
-
+    % Erzeuge Kollisionskörper für den statischen Teil von Schub- 
+    % gelenken (z.B. Linearachsen). Siehe: SerRob/plot
+    for i = find(R_cc.MDH.sigma==1)
+      % MDH-Trafo (konstanter Teil; bezogen auf Basis-KS)
+      T_mdh1 = trotz(R_cc.MDH.beta(i))*transl([0;0;R_cc.MDH.b(i)]) * ...
+               trotx(R_cc.MDH.alpha(i))*transl([R_cc.MDH.a(i);0;0]);
+      T_qmin = T_mdh1 * transl([0;0;R_cc.qlim(i,1)]);
+      T_qmax = T_qmin * transl([0;0;R_cc.qlim(i,2)-R_cc.qlim(i,1)]);
+      % Prüfe Art des Schubgelenks
+      if R_cc.DesPar.joint_type(i) == 4 % Führungsschiene
+        % Füge die Führungsschiene der Linearachse als Körper hinzu.
+        % Wird als Kapsel durch Anfang und Ende gekennzeichnet.
+        % Bilde die MDH-Transformation nach. Das führt zu min-max für q
+        cbi_par = [T_qmin(1:3,4)', T_qmax(1:3,4)', 20e-3]; % Radius 20mm
+      elseif R_cc.DesPar.joint_type(i) == 5 % Hubzylinder
+        % Der äußere Zylinder muss so lang sein wie der innere (bzw. der
+        % innere Zylinder muss so lang sein wie der Hub).
+        T_grozyl_start = T_qmin * transl([0;0;-(R_cc.qlim(i,2)-R_cc.qlim(i,1))]);
+        T_grozyl_end = T_qmax;
+        cbi_par = [T_grozyl_start(1:3,4)', T_grozyl_end(1:3,4)', 20e-3];
+      else
+        error('Fall %d für Schubgelenk nicht vorgesehen', R_cc.DesPar.joint_type(i));
+      end
+      if i == 1 % erstes Gelenk der Kette ist Schubgelenk. Führungsschiene basisfest.
+        % Kapsel, zwei Punkte (im weltfesten Basis-KS der Kette)
+        collbodies.type = [collbodies.type; uint8(3)];
+        % Umrechnung der Parameter ins Welt-KS: Notwendig. Aber hier
+        % ignoriert.
+      else
+        % Kapsel, zwei Punkte (im mitbewegten Körper-KS)
+        collbodies.type = [collbodies.type; uint8(3)];
+      end
+      collbodies.params = [collbodies.params; cbi_par, NaN(1,3)];
+      % Führungsschiene/Führungszylinder ist vorherigem Segment zugeordnet
+      collbodies.link = [collbodies.link; uint8(i-1)];
+    end
+    
+    % Erzeuge Ersatzkörper für die kinematische Kette (aus Gelenk-Trafo)
     for i = 1:R_cc.NJ
       if R_cc.MDH.a(i) ~= 0 || R_cc.MDH.d(i) ~= 0 || R_cc.MDH.sigma(i) == 1
         % Es gibt eine Verschiebung in der Koordinatentransformation i
@@ -457,40 +490,32 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         % Wähle Kapseln mit Radius 20mm. R.DesPar.seg_par ist noch nicht belegt
         % (passiert erst in Entwurfsoptimierung).
         collbodies.params = [collbodies.params; 20e-3, NaN(1,9)];
-        % Füge Prüfung mit allen vorherigen hinzu (außer direktem Vorgänger)
-        % Diese Kollision wird nicht geprüft, da dort keine Kollision
-        % stattfinden können sollte (direkt gegeneinander drehbare Teile
-        % können konstruktiv kollisionsfrei gestaltet werden)
-        % Der Vorgänger bezieht sich auf den Kollisionskörper, nicht auf
-        % die Nummer des Starrkörpers
-        if length(collbodies.link)<3
-          continue
-        end
-        % Bestimme die Starrkörper-Nummer bezogen auf die PKM mit NLoffset
-        for j = collbodies.link(end-2):-1:1 % Kollisionskörper mehr als zwei vorher
-          Structure.selfcollchecks_bodies = [Structure.selfcollchecks_bodies; ...
-            uint8(NLoffset+[collbodies.link(end), j])];
-        end
       end
     end
     R_cc.collbodies = collbodies;
-    % Trage auch in PKM-weite Variable ein
-    if Structure.Type == 0 % Seriell
-      collbodies_robot = collbodies;
-    else
-      collbodies_robot.link = [collbodies_robot.link; collbodies.link + NLoffset];
-      collbodies_robot.type = [collbodies_robot.type; collbodies.type];
-      collbodies_robot.params = [collbodies_robot.params; collbodies.params];
+    % Trage die Kollisionsprüfungen ein
+    for i = 3:R_cc.NJ
+      % Füge Prüfung mit allen vorherigen hinzu (außer direktem Vorgänger)
+      % Diese Kollision wird nicht geprüft, da dort keine Kollision
+      % stattfinden können sollte (direkt gegeneinander drehbare Teile
+      % können konstruktiv kollisionsfrei gestaltet werden).
+      % Der Vorgänger bezieht sich auf den Kollisionskörper, nicht auf
+      % die Nummer des Starrkörpers. Ansonsten würden zwei durch Kugel-
+      % oder Kardan-Gelenk verbundene Körper in Kollision stehen.
+      j_hascollbody = collbodies.link(collbodies.link<i);
+      % Bestimme die Starrkörper-Nummer bezogen auf die PKM mit NLoffset
+      for j = j_hascollbody(1:end-1)' % Kollisionskörper mehr als zwei vorher
+        % Füge zur Prüfliste hinzu. Durch obige Erstellung der Indizes j
+        % wird sichergestellt, dass es hierzu einen Koll.-körper gibt.        
+        selfcollchecks_bodies = [selfcollchecks_bodies; ...
+          uint8(NLoffset+[i, j])]; %#ok<AGROW>
+      end
     end
-  end
-  % Parameter-Array auf 10 Spalten erhöhen, falls nicht schon der Fall.
-  % Wird von check_collisionset_simplegeom so erwartet.
-  collbodies_robot.params = [collbodies_robot.params, ...
-    NaN(size(collbodies_robot.params,1), 10-size(collbodies_robot.params,2))];
-  assert(size(collbodies_robot.params,2)==10);
+  end % k-loop (NLEG)
   % Roboter-Kollisionsobjekte in Struktur abspeichern (zum Abruf in den
   % Funktionen cds_constr_collisions_... und cds_constr_installspace
-  Structure.collbodies_robot = collbodies_robot;
+  % Ist erstmal nur Platzhalter. Wird zur Laufzeit noch aktualisiert.
+  Structure.collbodies_robot = cds_update_collbodies(R, Set, cat(1,R.Leg(:).qlim)');
   % Vorgänger-Indizes für Segmente für die Kollisionsprüfung abspeichern.
   % Unterscheidet sich von normaler MDH-Notation dadurch, dass alle
   % Beinketten-Basis-KS enthalten sind und die Basis ihr eigener Vorgänger
@@ -528,8 +553,8 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         % kollidieren
         for cb_k = R.Leg(k).collbodies.link'
           for cb_i = R.Leg(i).collbodies.link'
-            Structure.selfcollchecks_bodies = [Structure.selfcollchecks_bodies; ...
-              uint8([NLoffset_k+cb_k, NLoffset_i+cb_i])];
+            selfcollchecks_bodies = [selfcollchecks_bodies; ...
+              uint8([NLoffset_k+cb_k, NLoffset_i+cb_i])]; %#ok<AGROW>
             % fprintf('Bein %d Seg. %d vs Bein %d Seg. %d\n', k, cb_k, i, cb_i);
           end
         end
@@ -537,10 +562,10 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     end
     % TODO: Kollision Beinketten mit Plattform und Gestell
   end
-  if isempty(Structure.selfcollchecks_bodies)
+  if isempty(selfcollchecks_bodies)
     error('Es sind keine Kollisionskörpern eingetragen, obwohl Kollisionen geprüft werden sollen.');
   end
-  if any(Structure.selfcollchecks_bodies(:,1)==Structure.selfcollchecks_bodies(:,2))
+  if any(selfcollchecks_bodies(:,1)==selfcollchecks_bodies(:,2))
     error('Prüfung eines Körpers mit sich selbst ergibt keinen Sinn');
   end
   % Lege die Kollisionskörper-Indizes fest, für die Kollisionen geprüft werden
@@ -548,11 +573,11 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   % online in der Optimierung gemacht werden.
   % Abgrenzung von "bodies" (oben) und "collbodies" (ab hier) beachten.
   Structure.selfcollchecks_collbodies = [];
-  for i = 1:size(Structure.selfcollchecks_bodies,1)
+  for i = 1:size(selfcollchecks_bodies,1)
     % Finde die Indizes aller Ersatzkörper der zu prüfenden Starrkörper
     % (es kann auch mehrere Ersatzkörper für einen Starrkörper geben)
-    I1 = Structure.selfcollchecks_bodies(i,1) == collbodies_robot.link;
-    I2 = Structure.selfcollchecks_bodies(i,2) == collbodies_robot.link;
+    I1 = selfcollchecks_bodies(i,1) == Structure.collbodies_robot.link;
+    I2 = selfcollchecks_bodies(i,2) == Structure.collbodies_robot.link;
     CheckCombinations = NaN(sum(I1)*sum(I2),2);
     if sum(I1) == 0 || sum(I2) == 0
       % Die Kollision der Starrkörper soll geprüft werden, es sind aber gar
