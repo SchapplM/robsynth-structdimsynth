@@ -73,6 +73,17 @@ Traj_0 = cds_rotate_traj(Traj_W, R.T_W_0);
 [fval_constr,Q,QD,QDD,Jinv_ges,constrvioltext] = cds_constraints(R, Traj_0, Traj_W, Set, Structure);
 fval = fval_constr*1e3; % Erhöhung, damit später kommende Funktionswerte aus Entwurfsoptimierung kleiner sein können
 cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
+% Normalisieren der Winkel (erst hier durchführen, da einige Prüfungen oben
+% davon beeinflusst werden).
+Q(:,R.MDH.sigma==0) = wrapToPi(Q(:,R.MDH.sigma==0));
+if R.Type == 0
+  R.qref(R.MDH.sigma==0) = wrapToPi(R.qref(R.MDH.sigma==0));
+else
+  for k = 1:R.NLEG
+    R.Leg(k).qref(R.Leg(k).MDH.sigma==0) = wrapToPi(R.Leg(k).qref(R.Leg(k).MDH.sigma==0));
+  end
+end
+
 if fval_constr > 1000 % Nebenbedingungen verletzt.
   cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval, constrvioltext));
   cds_save_particle_details(Set, R, toc(t1), fval, Jcond, f_maxstrengthviol);

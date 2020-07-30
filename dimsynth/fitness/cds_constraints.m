@@ -173,7 +173,6 @@ q0(R.MDH.sigma==0) = normalize_angle(q0(R.MDH.sigma==0));
 % IK für alle Eckpunkte, beginnend beim letzten (dann ist q der richtige
 % Startwert für die Trajektorien-IK)
 for i = size(Traj_0.XE,1):-1:1
-  s.retry_limit=1;
   if Set.task.profile ~= 0 % Trajektorie wird weiter unten berechnet
     if i == size(Traj_0.XE,1)-1
       % Annahme: Kein Neuversuch der IK. Wenn die Gelenkwinkel zufällig neu
@@ -191,7 +190,7 @@ for i = size(Traj_0.XE,1):-1:1
   else
     [q, Phi, Tc_stack] = R.invkin2(Traj_0.XE(i,:)', q0, s); % kompilierter Aufruf
     if Set.general.debug_calc
-      [~, Phi_debug, Tc_stack_debug] = R.invkin_ser(Traj_0.XE(i,:)', q0, s); % Klassenmethode
+      [q_debug, Phi_debug, Tc_stack_debug] = R.invkin_ser(Traj_0.XE(i,:)', q0, s); % Klassenmethode
       ik_res_ik2 = (all(abs(Phi(R.I_constr_t_red))<s.Phit_tol) && ...
           all(abs(Phi(R.I_constr_r_red))<s.Phir_tol));% IK-Status Funktionsdatei
       ik_res_iks = (all(abs(Phi_debug(R.I_constr_t_red))<s.Phit_tol) && ... 
@@ -206,10 +205,19 @@ for i = size(Traj_0.XE,1):-1:1
         cds_log(-1, sprintf(['IK-Berechnung mit Funktionsdatei hat anderen ', ...
           'Status (%d) als Klassenmethode (%d).'], ik_res_ik2, ik_res_iks));
       elseif ik_res_iks % beide IK erfolgreich
-        ik_test_koll = Tc_stack - Tc_stack_debug;
-        if max(abs(ik_test_koll(:))) > 1e-3
-          error('Tc_stack Teil nicht passen');
-        end
+        % Dieser Test wird vorerst nicht weiter verfolgt (Ergebnisse nicht
+        % identisch wegen unterschiedlicher Zufallszahlen)
+%         ik_test_q = q - q_debug;
+%         ik_test_Tcstack = Tc_stack - Tc_stack_debug;
+%         if Set.general.matfile_verbosity > 0
+%           save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_ikfkin_error_debug.mat'));
+%         end
+%         if max(abs(ik_test_Tcstack(:))) > 1e-2
+%           warning('Tc_stack zwischen invkin2 und invkin_ser passen nicht. Max. Fehler: %1.1e', max(abs(ik_test_Tcstack(:))));
+%         end
+%         if max(abs(ik_test_q(:))) > 1e-2
+%           warning('q zwischen invkin2 und invkin_ser passen nicht. Max. Fehler: %1.1e', max(abs(ik_test_q(:))));
+%         end
       end
     end
   end
@@ -587,7 +595,7 @@ if ~isempty(Set.task.installspace.type)
     return
   end
 end
-%% Arbeitsraum-Hindernis-Kollisionsprüfung für Einzelpunkte
+%% Arbeitsraum-Hindernis-Kollisionsprüfung für Trajektorie
 if ~isempty(Set.task.obstacles.type)
   [fval_obstcoll_traj, coll_obst_traj, f_constr_obstcoll_traj] = cds_constr_collisions_ws( ...
     R, Traj_0.X, Set, Structure, JP, Q, [1e3;2e3]);

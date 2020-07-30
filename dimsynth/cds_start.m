@@ -10,6 +10,8 @@
 warning('off', 'MATLAB:singularMatrix');
 warning('off', 'MATLAB:nearlySingularMatrix');
 warning('off', 'MATLAB:illConditionedMatrix');
+warning('off', 'Coder:MATLAB:singularMatrix');
+warning('off', 'Coder:MATLAB:nearlySingularMatrix');
 warning('off', 'Coder:MATLAB:rankDeficientMatrix');
 
 if ~exist('Set', 'var') || ~exist('Traj', 'var')
@@ -87,7 +89,7 @@ if ~Set.general.regenerate_summmary_only
   if Set.general.create_template_functions
     for i = 1:length(Structures)
       Structure = Structures{i};
-      if Structure.Type == 1 % Serieller Roboter
+      if Structure.Type == 0 % Serieller Roboter
         serroblib_create_template_functions({Structure.Name}, false, false);
       else % PKM
         parroblib_create_template_functions({Structure.Name}, false, false);
