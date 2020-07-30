@@ -515,7 +515,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   % Roboter-Kollisionsobjekte in Struktur abspeichern (zum Abruf in den
   % Funktionen cds_constr_collisions_... und cds_constr_installspace
   % Ist erstmal nur Platzhalter. Wird zur Laufzeit noch aktualisiert.
-  Structure.collbodies_robot = cds_update_collbodies(R, Set, cat(1,R.Leg(:).qlim)');
+  Structure.collbodies_robot = cds_update_collbodies(R, Set, Structure.qlim');
   % Vorgänger-Indizes für Segmente für die Kollisionsprüfung abspeichern.
   % Unterscheidet sich von normaler MDH-Notation dadurch, dass alle
   % Beinketten-Basis-KS enthalten sind und die Basis ihr eigener Vorgänger

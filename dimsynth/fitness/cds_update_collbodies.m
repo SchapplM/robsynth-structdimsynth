@@ -146,11 +146,7 @@ for k = 1:NLEG
     end
   end
   % Trage in PKM-weite Variable ein
-  if R.Type == 0 % Seriell
-    collbodies_robot = R_cc.collbodies;
-  else
-    collbodies_robot.link = [collbodies_robot.link; R_cc.collbodies.link + NLoffset];
-    collbodies_robot.type = [collbodies_robot.type; collbodies_type_mod];
-    collbodies_robot.params = [collbodies_robot.params; collbodies_params_mod];
-  end
+  collbodies_robot.link = [collbodies_robot.link; R_cc.collbodies.link + NLoffset];
+  collbodies_robot.type = [collbodies_robot.type; collbodies_type_mod];
+  collbodies_robot.params = [collbodies_robot.params; collbodies_params_mod];
 end
