@@ -53,7 +53,8 @@ if update_collbodies
     end
     % Alle Schubgelenke der seriellen Kette durchgehen
     cbidx = 0; % Index für R_cc.collbodies
-    for i = find(R_cc.MDH.sigma==1)
+    for i = find(R_cc.MDH.sigma'==1)
+      if i > 1, continue; end % Führungsschiene hier noch nicht modellbierbar. Konsistent mit Initialisierung.
       cbidx = cbidx + 1;
       % Bestimme Anfangs- und Endposition der Führungsschiene (entsprechend
       % der MDH-Notation der Kinematik)

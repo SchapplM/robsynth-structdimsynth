@@ -445,7 +445,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     end
     % Erzeuge Kollisionskörper für den statischen Teil von Schub- 
     % gelenken (z.B. Linearachsen). Siehe: SerRob/plot
-    for i = find(R_cc.MDH.sigma==1)
+    for i = find(R_cc.MDH.sigma'==1)
       % MDH-Trafo (konstanter Teil; bezogen auf Basis-KS)
       T_mdh1 = trotz(R_cc.MDH.beta(i))*transl([0;0;R_cc.MDH.b(i)]) * ...
                trotx(R_cc.MDH.alpha(i))*transl([R_cc.MDH.a(i);0;0]);
@@ -472,6 +472,9 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         % Umrechnung der Parameter ins Welt-KS: Notwendig. Aber hier
         % ignoriert.
       else
+        warning(['Die Kollisionsprüfung für die Führungsschiene des P-Gelenks ', ...
+          'an Stelle %d ist nicht definiert. Wird vorerst ignoriert.'], i);
+        continue
         % Kapsel, zwei Punkte (im mitbewegten Körper-KS)
         collbodies.type = [collbodies.type; uint8(3)];
       end
@@ -502,9 +505,17 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       % Der Vorgänger bezieht sich auf den Kollisionskörper, nicht auf
       % die Nummer des Starrkörpers. Ansonsten würden zwei durch Kugel-
       % oder Kardan-Gelenk verbundene Körper in Kollision stehen.
-      j_hascollbody = collbodies.link(collbodies.link<i);
+      j_hascollbody = collbodies.link(collbodies.link<i)';
+      % Sonderfall Portal-System: Abstand zwischen Kollisionskörpern noch
+      % um eins vergrößern. TODO: Ist so noch nicht allgemeingültig.
+      % Dadurch wird die Kollisionsprüfung effektiv deaktiviert.
+      if sum(R_cc.MDH.sigma(i-2:i) == 1) == 3
+        cbdist = 3;
+      else
+        cbdist = 1;
+      end
       % Bestimme die Starrkörper-Nummer bezogen auf die PKM mit NLoffset
-      for j = j_hascollbody(1:end-1)' % Kollisionskörper mehr als zwei vorher
+      for j = j_hascollbody(1:end-cbdist) % Kollisionskörper mehr als zwei vorher
         % Füge zur Prüfliste hinzu. Durch obige Erstellung der Indizes j
         % wird sichergestellt, dass es hierzu einen Koll.-körper gibt.        
         selfcollchecks_bodies = [selfcollchecks_bodies; ...
@@ -516,6 +527,10 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   % Funktionen cds_constr_collisions_... und cds_constr_installspace
   % Ist erstmal nur Platzhalter. Wird zur Laufzeit noch aktualisiert.
   Structure.collbodies_robot = cds_update_collbodies(R, Set, Structure.qlim');
+  % Probe: Sind Daten konsistent? Inkonsistenz durch obigem Aufruf möglich.
+  if any(any(~isnan(Structure.collbodies_robot.params(Structure.collbodies_robot.type==6,2:end))))
+    error('Inkonsistente Kollisionsdaten: Kapsel-Direktverbindung hat zu viele Parameter');
+  end
   % Vorgänger-Indizes für Segmente für die Kollisionsprüfung abspeichern.
   % Unterscheidet sich von normaler MDH-Notation dadurch, dass alle
   % Beinketten-Basis-KS enthalten sind und die Basis ihr eigener Vorgänger
@@ -563,9 +578,8 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     % TODO: Kollision Beinketten mit Plattform und Gestell
   end
   if isempty(selfcollchecks_bodies)
-    error('Es sind keine Kollisionskörpern eingetragen, obwohl Kollisionen geprüft werden sollen.');
-  end
-  if any(selfcollchecks_bodies(:,1)==selfcollchecks_bodies(:,2))
+    warning('Es sind keine Kollisionskörpern eingetragen, obwohl Kollisionen geprüft werden sollen.');
+  elseif any(selfcollchecks_bodies(:,1)==selfcollchecks_bodies(:,2))
     error('Prüfung eines Körpers mit sich selbst ergibt keinen Sinn');
   end
   % Lege die Kollisionskörper-Indizes fest, für die Kollisionen geprüft werden
@@ -585,8 +599,8 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       continue
     end
     kk = 0;
-    for ii1 = find(I1)
-      for ii2 = find(I2)
+    for ii1 = find(I1)'
+      for ii2 = find(I2)'
         kk = kk + 1;
         CheckCombinations(kk,:) = [ii1,ii2];
       end
@@ -599,9 +613,11 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       uint8([Structure.selfcollchecks_collbodies; CheckCombinations]);
   end
   if isempty(Structure.selfcollchecks_collbodies)
-    error('Es sind keine Prüfungen von Kollisionskörpern vorgesehen');
-  end
-  if any(Structure.selfcollchecks_collbodies(:,1)==Structure.selfcollchecks_collbodies(:,2))
+    warning('Es sind keine Prüfungen von Kollisionskörpern vorgesehen');
+    % Deaktiviere die Kollisionsprüfungen wieder
+    Set.optimization.constraint_collisions = false;
+    Set.task.obstacles.type = [];
+  elseif any(Structure.selfcollchecks_collbodies(:,1)==Structure.selfcollchecks_collbodies(:,2))
     error('Prüfung eines Körpers mit sich selbst ergibt keinen Sinn');
   end
 end
