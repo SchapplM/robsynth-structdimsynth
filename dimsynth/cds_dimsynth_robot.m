@@ -810,7 +810,7 @@ end
 if ~result_invalid && ~strcmp(Set.optimization.objective, 'valid_act')
   % Masseparameter belegen, falls das nicht vorher passiert ist.
   if fval > 1e3 ...% irgendeine Nebenbedingung wurde immer verletzt. ...
-      || strcmp(Set.optimization.objective, 'condition') % ... oder rein kinematische Zielfunktion ...
+      || any(strcmp(Set.optimization.objective, {'condition', 'jointrange'})) % ... oder rein kinematische Zielfunktion ...
     cds_dimsynth_design(R, Q, Set, Structure); % ...  Daher nie bis zu diesem Funktionsaufruf gekommen.
   end
   data_dyn = cds_obj_dependencies(R, Traj_0, Set, Structure_tmp, Q, QD, QDD, Jinv_ges);
@@ -819,12 +819,13 @@ if ~result_invalid && ~strcmp(Set.optimization.objective, 'valid_act')
   [fval_cond,~, ~, physval_cond] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
   [fval_mass,~, ~, physval_mass] = cds_obj_mass(R);
   [fval_minactforce,~, ~, physval_minactforce] = cds_obj_minactforce(data_dyn.TAU);
+  [fval_jrange,~, ~, physval_jrange] = cds_obj_jointrange(R, Set, Structure, Q);
   [fval_stiff,~, ~, physval_stiff] = cds_obj_stiffness(R, Set, Q);
   [~, ~, f_maxstrengthviol] = cds_constr_yieldstrength(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
   % Reihenfolge siehe Variable Set.optimization.constraint_obj aus cds_settings_defaults
-  fval_obj_all = [fval_mass; fval_energy; fval_minactforce; fval_cond; fval_stiff];
+  fval_obj_all = [fval_mass; fval_energy; fval_minactforce; fval_cond; fval_jrange; fval_stiff];
   fval_constr_all = f_maxstrengthviol;
-  physval_obj_all = [physval_mass; physval_energy; physval_minactforce; physval_cond; physval_stiff];
+  physval_obj_all = [physval_mass; physval_energy; physval_minactforce; physval_cond; physval_jrange; physval_stiff];
   % Vergleiche neu berechnete Werte mit den zuvor abgespeicherten (müssen
   % übereinstimmen)
   test_Jcond = PSO_Detail_Data.Jcond(dd_optgen, dd_optind) - physval_cond;
@@ -846,9 +847,9 @@ if ~result_invalid && ~strcmp(Set.optimization.objective, 'valid_act')
 else
   % Keine Berechnung der Zielfunktionen möglich, da keine zulässige Lösung
   % gefunden wurde.
-  fval_obj_all = NaN(5,1);
+  fval_obj_all = NaN(6,1);
   fval_constr_all = NaN(1,1);
-  physval_obj_all = NaN(5,1);
+  physval_obj_all = NaN(6,1);
 end
 I_fobj_set = Set.optimization.constraint_obj ~= 0;
 if any( physval_obj_all(I_fobj_set) > Set.optimization.constraint_obj(I_fobj_set) )

@@ -214,6 +214,8 @@ elseif strcmp(Set.optimization.objective, 'mass')
   [fval,fval_debugtext, debug_info] = cds_obj_mass(R);
 elseif strcmp(Set.optimization.objective, 'minactforce')
   [fval,fval_debugtext, debug_info] = cds_obj_minactforce(TAU);
+elseif strcmp(Set.optimization.objective, 'jointrange')
+  [fval,fval_debugtext, debug_info] = cds_obj_jointrange(R, Set, Structure, Q);
 elseif strcmp(Set.optimization.objective, 'stiffness')
   [fval,fval_debugtext, debug_info] = cds_obj_stiffness(R, Set, Q);
 else

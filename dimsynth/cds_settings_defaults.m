@@ -73,7 +73,10 @@ structures = struct( ...
 % Einstellungen mit Auswirkung auf die Optimierung: Auswahl der
 % Optimierungsvariablen und Annahmen über die Roboter, die getroffen werden
 optimization = struct( ...
-  'objective', 'energy', ... % Zielfunktion. Möglich: mass, energy, condition, valid_kin, valid_act, minactforce, stiffness
+  'objective', 'energy', ... % Zielfunktion. Möglich: mass, energy, condition, valid_kin, valid_act, minactforce, stiffness, jointrange
+  'obj_jointrange', ... % Zusatzeinstellungen für die Zielfunktion "jointrange"
+    struct( 'only_revolute', true, ... % Minimiere nur Wertebereich von Drehgelenken
+            'only_passive', true), ... % Minimiere nur Wertebereich passiver Gelenke
   'constraint_obj', zeros(5,1), ... % Nebenbedingungen, 1=Mass, 2=Energy, 3=Minactforce, 4=Condition, 5=Stiffness; Eintrag entspricht physikalischem Wert
   'movebase', true, ... % Position der Roboter-Basis
   'basepos_limits', NaN(3,2), ... % Grenzen für Basis-Position (Absolut, im Welt-KS)
