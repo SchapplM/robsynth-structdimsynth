@@ -279,7 +279,7 @@ QE_korr = [QE; QE(end,:)];
 if R.Type == 2
   % Hänge Null-Koordinate an, damit erstes Schubgelenk keine sehr große
   % Auslenkung haben kann. Das widerspricht der Anordnung von Basis und
-  % Koppelpunkten.
+  % Koppelpunkten. TODO: Bessere Methode dafür finden.
   QE_korr(end,Structure.I_firstprismatic) = 0;
 end
 q_range_E = NaN(1, R.NJ);
@@ -302,11 +302,13 @@ if any(I_qlimviol_E)
     q_range_E(IIw), qlim(IIw,2)-qlim(IIw,1) );
   if fval < Set.general.plot_details_in_fitness
     change_current_figure(1000); clf; hold on;
-    plot(1:size(QE,2), QE-min(QE), 'x');
-    plot(qlim(:,2)'-qlim(:,1)', 'r--')
-    plot([1;size(QE,2)], [0;0], 'r--')
+    hdl_iO= plot(find(~I_qlimviol_E), QE_korr(:,~I_qlimviol_E)-min(QE_korr(:,~I_qlimviol_E)), 'co');
+    hdl_niO=plot(find( I_qlimviol_E), QE_korr(:, I_qlimviol_E)-min(QE_korr(:, I_qlimviol_E)), 'bx');
+    hdl1=plot(qlim(:,2)'-qlim(:,1)', 'r--');
+    hdl2=plot([1;size(QE,2)], [0;0], 'm--');
     xlabel('Koordinate Nummer'); ylabel('Koordinate Wert');
     grid on;
+    legend([hdl_iO(1);hdl_niO(1);hdl1;hdl2], {'iO-Gelenke', 'niO-Gelenke', 'qmax''', 'qmin''=0'});
     sgtitle(sprintf('Auswertung Grenzverletzung AR-Eckwerte. fval=%1.2e', fval));
   end
   Q = QE; % Ausgabe dient nur zum Zeichnen des Roboters
