@@ -90,6 +90,7 @@ optimization = struct( ...
   'rotate_coupling', true, ... % Koppel-Punkt-Orientierung für PKM
   'max_range_active_revolute', 270*pi/180, ... % Maximaler Drehwinkel aktiver Drehgelenke
   'max_range_passive_revolute', 360*pi/180, ... % Maximaler Drehwinkel passiver Drehgelenke
+  'max_velocity_passive_revolute', 20, ... % [rad/s] Maximale Drehgeschw. (zur Singularitätsvermeidung)
   'max_velocity_active_revolute', 8, ... % [rad/s] Maximale Drehgeschw. (zur Singularitätsvermeidung)
   'max_velocity_active_prismatic', 5, ... % [m/s] Maximale Geschw. (zur Singularitätsvermeidung)
   'use_desopt', false, ... % Schalter für eigene Optimierung der Entwurfsparameter

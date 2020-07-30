@@ -499,29 +499,22 @@ if any(I_qlimviol_T)
   return
 end
 
-%% Prüfe, ob die Geschwindigkeitsgrenzen (Antriebe) verletzt werden
+%% Prüfe, ob die Geschwindigkeitsgrenzen verletzt werden
 % Diese Prüfung erfolgt zusätzlich zu einer Antriebsauslegung.
 % Gedanke: Wenn die Gelenkgeschwindigkeit zu schnell ist, ist sowieso kein
 % Antrieb auslegbar und die Parameter können schneller verworfen werden.
 % Außerdem liegt wahrscheinlich eine Singularität vor.
-if ~isinf(Set.optimization.max_velocity_active_revolute) && ~isinf(Set.optimization.max_velocity_active_prismatic)
-  if R.Type == 0 % Seriell
-    qaD_max = max(abs(QD));
-    qD_lim = repmat(Set.optimization.max_velocity_active_revolute, 1, R.NJ);
-    qD_lim(R.MDH.sigma==1) = Set.optimization.max_velocity_active_prismatic;
-  else % PKM
-    qaD_max = max(abs(QD(:,R.I_qa)));
-    qD_lim = repmat(Set.optimization.max_velocity_active_revolute, 1, sum(R.I_qa));
-    qD_lim(R.MDH.sigma(R.I_qa)==1) = Set.optimization.max_velocity_active_prismatic;
-  end
-  f_qD_exc = max(qaD_max./qD_lim);
+if any(~isinf(Structure.qDlim(:)))
+  qD_max = max(abs(QD))';
+  qD_lim = Structure.qDlim(:,2); % Annahme symmetrischer Geschw.-Grenzen
+  [f_qD_exc,ifmax] = max(qD_max./qD_lim);
   if f_qD_exc>1
     f_qD_exc_norm = 2/pi*atan((f_qD_exc-1)); % Normierung auf 0 bis 1; 1->0.5; 10->0.94
     fval = 3e3*(5+1*f_qD_exc_norm); % Wert zwischen 5e3 und 6e3
     % Weitere Berechnungen voraussichtlich wenig sinnvoll, da vermutlich eine
     % Singularität vorliegt
-    constrvioltext = sprintf('Geschwindigkeit des Antriebsgelenks zu hoch: max Verletzung %1.1f%%', ...
-      (f_qD_exc-1)*100 );
+    constrvioltext = sprintf('Geschwindigkeit eines Gelenks zu hoch: max Verletzung %1.1f%% (Gelenk %d)', ...
+      (f_qD_exc-1)*100, ifmax);
     return
   end
 end
@@ -556,6 +549,8 @@ if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
         hold on; grid on;
         plot(Traj_0.t, QD(:,i), '-');
         plot(Traj_0.t, QD_num(:,i), '--');
+        plot(Traj_0.t([1,end]), repmat(Structure.qDlim(i,:),2,1), 'r--');
+        ylim(minmax2([QD_num(:,i);QD_num(:,i)]'));
         title(sprintf('qD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
       end
       linkxaxes

@@ -111,6 +111,21 @@ for i = 1:NLEG
       Structure.qlim = cat(1, R.Leg.qlim);
     end
   end
+  % Gelenkgeschwindigkeiten setzen
+  R_init.qDlim = repmat([-1,1]*Set.optimization.max_velocity_active_revolute, R_init.NJ, 1);
+  R_init.qDlim(R_init.MDH.sigma==1,:) = repmat([-1,1]*Set.optimization.max_velocity_active_prismatic, sum(R_init.MDH.sigma==1), 1);
+  if Structure.Type == 2 % Paralleler Roboter
+    I_passrevol = R_init.MDH.mu == 1 & R_init.MDH.sigma==0;
+    R_init.qDlim(I_passrevol,:) = repmat([-1,1]*Set.optimization.max_velocity_passive_revolute,sum(I_passrevol),1);
+  end
+  if Structure.Type == 0 % Serieller Roboter
+    Structure.qDlim = R_init.qDlim;
+  else % Paralleler Roboter
+    if i == NLEG % Grenzen aller Gelenke aller Beinketten eintragen
+      Structure.qDlim = cat(1, R.Leg.qDlim);
+    end
+  end
+  
   % Dynamikparameter setzen
   if Set.optimization.use_desopt && Set.optimization.constraint_link_yieldstrength > 0
     R_init.DynPar.mode = 3; % Benutze Inertialparameter-Dynamik, weil auch Schnittkräfte in Regressorform berechnet werden
