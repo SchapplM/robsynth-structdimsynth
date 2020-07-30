@@ -32,6 +32,9 @@ end
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_vis_results1.mat'));
 
 resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
+% Ergebnistabelle laden
+restabfile = fullfile(resmaindir, sprintf('%s_results_table.csv', Set.optimization.optname));
+ResTab = readtable(restabfile, 'Delimiter', ';');
 
 for i = 1:length(Structures)
   if Set.general.matfile_verbosity > 0
@@ -214,6 +217,8 @@ for i = 1:length(Structures)
   export_fig(10*i+6, fullfile(resrobdir, sprintf('Rob%d_%s_Population_Fitness.png', i, Name)));
 
   %% Animation des besten Roboters für die Trajektorie
+  % Hole Erklärungstext zum Fitness-Wert aus Tabelle
+  fval_text = ResTab.Fval_Text{strcmp(ResTab.Name, Name)};
   for kk = 1:2 % Einmal als Strichzeichnung, einmal als 3D-Modell
   figure(10*i+1+kk);clf;hold all;
   if kk == 1, apptxt = ''; else, apptxt = '_3D'; end
@@ -221,7 +226,7 @@ for i = 1:length(Structures)
   if ~strcmp(get(10*i+1+kk, 'windowstyle'), 'docked')
     set(10*i+1+kk,'units','normalized','outerposition',[0 0 1 1]);
   end
-  title(sprintf('Rob. %d: fval=%1.3f', i, RobotOptRes.fval));
+  title(sprintf('Rob. %d: fval=%1.3e (%s)', i, RobotOptRes.fval, fval_text));
   view(3);
   axis auto
   hold on;grid on;
