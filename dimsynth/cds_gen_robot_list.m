@@ -139,6 +139,7 @@ if structset.use_parallel
     DistalJointActive = false;
     FilterMatch = true;
     WrongLegChainOrigin = false;
+    IsInWhiteList = any(strcmp(structset.whitelist, PNames_Akt{j}));
     for k = 1:NLEG % Gehe alle Beinketten durch (für den Fall asymmetrischer PKM)
       LegChainName = LEG_Names{k};
       NLegDoF = str2double(LegChainName(2));
@@ -187,7 +188,8 @@ if structset.use_parallel
         elseif all(structset.DoF == [1 1 1 0 0 1])
           Mask_Origin = uint16(bin2dec('00010')); % Vierte Spalte (in S5RPRPR.csv o.ä.)
         else
-          % Keine Einschränkung
+          % Keine Einschränkung (außer manuell eingefügte Ketten)
+          Mask_Origin = uint16(bin2dec('01111'));
         end
         if bitand(Mask_Origin, l.BitArrays_Origin(ilc,:)) == 0
           WrongLegChainOrigin = true;
@@ -195,29 +197,38 @@ if structset.use_parallel
         end
       end
     end
+    SkipRobot = false;
     if structset.nopassiveprismatic && PassPrisJoint % PKM enthält passive Schubgelenke. Nicht auswählen
-      if verblevel >= 3, fprintf('%s hat passives Schubgelenk. Ignoriere\n', PNames_Akt{j}); end
-      continue
+      if verblevel >= 3, fprintf('%s hat passives Schubgelenk.', PNames_Akt{j}); end
+      SkipRobot = true;
     end
-    if TooManyPrisJoints
-      if verblevel >= 3, fprintf('%s hat zu viele Schubgelenke. Ignoriere\n', PNames_Akt{j}); end
-      continue
+    if ~SkipRobot && TooManyPrisJoints
+      if verblevel >= 3, fprintf('%s hat zu viele Schubgelenke.', PNames_Akt{j}); end
+      SkipRobot = true;
     end
-    if structset.activenotlastjoint && LastJointActive
-      if verblevel >= 3, fprintf('%s hat aktives letztes Gelenk. Ignoriere\n', PNames_Akt{j}); end
-      continue
+    if ~SkipRobot && structset.activenotlastjoint && LastJointActive
+      if verblevel >= 3, fprintf('%s hat aktives letztes Gelenk.', PNames_Akt{j}); end
+      SkipRobot = true;
     end
-    if DistalJointActive
-      if verblevel >= 3, fprintf('%s hat aktives Gelenk nach Position %d. Ignoriere\n', PNames_Akt{j}, Set.structures.max_index_active); end
-      continue
+    if ~SkipRobot && DistalJointActive
+      if verblevel >= 3, fprintf('%s hat aktives Gelenk nach Position %d.', PNames_Akt{j}, Set.structures.max_index_active); end
+      SkipRobot = true;
     end
-    if ~FilterMatch
-      if verblevel >= 3, fprintf('%s passt nicht zum Filter %s. Ignoriere\n', PNames_Akt{j}, structset.joint_filter); end
-      continue
+    if ~SkipRobot && ~FilterMatch
+      if verblevel >= 3, fprintf('%s passt nicht zum Filter %s.', PNames_Akt{j}, structset.joint_filter); end
+      SkipRobot = true;
     end
-    if WrongLegChainOrigin
-      if verblevel >= 3, fprintf('%s hat keine Beinkette aus %s-PKM-Synthese (%s). Ignoriere\n', PNames_Akt{j}, task_str, LegChainName); end
-      continue
+    if ~SkipRobot && WrongLegChainOrigin
+      if verblevel >= 3, fprintf('%s hat keine Beinkette aus %s-PKM-Synthese (%s).', PNames_Akt{j}, task_str, LegChainName); end
+      SkipRobot = true;
+    end
+    if SkipRobot % Einer der Ausschlussgründe oben wurde getroffen.
+      if IsInWhiteList % Positiv-Liste wird trotzdem genommen.
+        fprintf(' Füge trotzdem hinzu, da auf Positiv-Liste.\n');
+      else
+        fprintf(' Ignoriere.\n');
+        continue
+      end
     end
     % TODO: Mögliche Basis-Anordnungen von PKM hier generieren und hinzufügen
 
