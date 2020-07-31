@@ -55,7 +55,9 @@ for f = fields(settings)'
   end
 end
 settings = settings_new;
-
+% Eingaben prüfen
+assert(isscalar(settings.max_actuation_idx), 'max_actuation_idx muss Skalar sein');
+  
 %% Initialisierung
 EE_FG_ges = [1 1 0 0 0 1; ...
   1 1 1 0 0 0; ...
@@ -143,18 +145,17 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       % nicht die Eigenschaft der Koppelgelenk-Position):
       % Alle Eigenschaften kombinieren und Beinketten auswählen
       I = I_FG & I_var & I_spherical;
-      % nur die ersten drei Gelenke dürfen aktuiert sein. Die letzten drei sind
-      % das Kugelgelenk
-      Actuation_possib = 1:min([3, settings.max_actuation_idx, LegDoF_allowed-1]);
     elseif ~settings.onlyspherical && settings.onlygeneral
       % Eigenschaften kombinieren
       I = I_FG & I_novar;
-      % Die Aktuierung ist sinnvollerweise nur (relativ) gestellnah
-      Actuation_possib = 1:min([4, settings.max_actuation_idx, LegDoF_allowed-1]);
+    elseif ~settings.onlygeneral % Nur Modell-Varianten
+      % Eigenschaften kombinieren
+      I = I_FG & I_var;
     else
       error('Kombination von Filtern nicht vorgesehen');
     end
-    
+    % Indizes der möglichen aktuierten Gelenke (wird später noch gefiltert)
+    Actuation_possib = 1:settings.max_actuation_idx;
     II = find(I); % Umwandlung von Binär-Indizes in Nummern
     ii = 0; % Laufende Nummer für aktuierte PKM
     ii_kin = 0; % Laufende Nummer für Kinematik-Struktur der PKM
@@ -172,8 +173,10 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     for iFK = II' % Schleife über serielle Führungsketten
       ii_kin = ii_kin + 1;
       SName = l.Names_Ndof{iFK};
+      SName_TechJoint = fliplr(regexprep(num2str(l.AdditionalInfo(iFK,7)), ...
+        {'1','2','3','4','5'}, {'R','P','C','U','S'}));
       if toc(tlm_iFKloop) > 10 % nach 10s neue Meldung ausgeben
-        fprintf('Kinematik %d/%d: Beinkette %s\n', ii_kin, length(II), SName);
+        fprintf('Kinematik %d/%d: Beinkette %s (%s)\n', ii_kin, length(II), SName, SName_TechJoint);
         tlm_iFKloop = tic(); % Zeitpunkt der letzten Meldung abspeichern
       end
       if ~isempty(settings.whitelist_SerialKin) && ~any(strcmp(settings.whitelist_SerialKin, SName))
@@ -235,6 +238,13 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         IdxP = (SName(3:3+N_LegDoF-1)=='P'); % Nummer des Schubgelenks finden
         if any(IdxP) && find(IdxP)~=jj
           continue % Es gibt ein Schubgelenk und es ist nicht das aktuierte Gelenk
+        end
+        % Prüfe, ob ein Teil eines technischen Gelenks (Kardan, Kugel
+        % aktuiert werden würde). Das letzte positionsbeeinflussende Gelenk
+        % ist das letzte aktuierte Gelenk. Danach kommt nur noch das
+        % Koppelgelenk (Kardan/Kugel)
+        if jj > l.AdditionalInfo(iFK,1) % siehe serroblib_gen_bitarrays.
+          continue
         end
 
         fprintf('Untersuchte PKM %d (Gestell %d, Plattform %d): %s mit symmetrischer Aktuierung Gelenk %d\n', ...
