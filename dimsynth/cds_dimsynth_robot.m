@@ -491,7 +491,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
           'an Stelle %d ist nicht definiert. Wird vorerst ignoriert.'], i);
         continue
         % Kapsel, zwei Punkte (im mitbewegten Körper-KS)
-        collbodies.type = [collbodies.type; uint8(3)];
+        collbodies.type = [collbodies.type; uint8(3)]; %#ok<UNRCH>
       end
       collbodies.params = [collbodies.params; cbi_par, NaN(1,3)];
       % Führungsschiene/Führungszylinder ist vorherigem Segment zugeordnet
