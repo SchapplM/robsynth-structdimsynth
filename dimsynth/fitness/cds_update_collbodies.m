@@ -43,14 +43,28 @@ if update_collbodies
   % Führungsschiene bzw. des Führungszylinders
   q_minmax = NaN(R.NJ, 2);
   q_minmax(R.MDH.sigma==1,:) = minmax2(Q(:,R.MDH.sigma==1)');
+  % Wähle die symmetrischen Gelenkgrenzen aus: Bei symmetrischem Roboter
+  % sind die Führungsschienen von Schubgelenken der Beinketten gleich.
+  % Wenn eine Schubache eine große Auslenkung hat, müssen bei allen Schub-
+  % achsen die Schienen lang gewählt werden.
+  if R.Type == 0  % Seriell 
+    q_minmax_sym = q_minmax;
+  elseif R.Type == 2  % Symmetrische PKM
+    q_minmax_sym = q_minmax(R.I1J_LEG(1):R.I2J_LEG(1),:);
+    % Grenzen durch Min-/Max-Werte aller Beinketten finden
+    for i = 2:R.NLEG
+      q_minmax_sym = minmax2([q_minmax_sym, q_minmax(R.I1J_LEG(i):R.I2J_LEG(i),:)]);
+    end
+  else % noch undefinierte Fälle (z.B Asymmetrisch, passive Zwangsführung)
+    error('Fall %d für Robotertyp explizit noch nicht vorgesehen');
+  end
   for k = 1:NLEG % Siehe cds_dimsynth_robot.m
     if R.Type == 0  % Seriell 
       R_cc = R;
-      q_minmax_k = q_minmax;
     else % PKM-Beinkette
       R_cc = R.Leg(k);
-      q_minmax_k = q_minmax(R.I1J_LEG(k):R.I2J_LEG(k),:);
     end
+    q_minmax_k = q_minmax_sym;
     % Alle Schubgelenke der seriellen Kette durchgehen
     cbidx = 0; % Index für R_cc.collbodies
     for i = find(R_cc.MDH.sigma'==1)

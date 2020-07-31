@@ -118,16 +118,18 @@ if Set.optimization.constraint_obj(4) > 0 % NB für Kondition gesetzt
   end
 end
 
+%% Gelenkgrenzen in Roboterklasse neu eintragen
+% Nutzen: Berechnung der Masse von Führungsschienen und Hubzylindern,
+% Anpassung der Kollisionskörper (für nachgelagerte Prüfung und Plots)
+if R.Type == 0 % Seriell
+  R.qlim = minmax2(Q');
+else % PKM
+  for i = 1:R.NLEG
+    R.Leg(i).qlim = minmax2(Q(:,R.I1J_LEG(i):R.I2J_LEG(i))');
+  end
+end
 %% Dynamik-Parameter
 if any(strcmp(Set.optimization.objective, {'energy', 'mass', 'minactforce', 'stiffness'}))
-  % Gelenkgrenzen in Roboterklasse neu eintragen
-  if R.Type == 0 % Seriell
-    R.qlim = minmax2(Q');
-  else % PKM
-    for i = 1:R.NLEG
-      R.Leg(i).qlim = minmax2(Q(:,R.I1J_LEG(i):R.I2J_LEG(i))');
-    end
-  end
   % Dynamik-Parameter aktualisieren. Keine Nutzung der Ausgabe der Funktion
   % (Parameter werden direkt in Klasse geschrieben; R.DesPar.seg_par ist
   % vor/nach dem Aufruf unterschiedlich)
