@@ -532,9 +532,11 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       % Bestimme die Starrkörper-Nummer bezogen auf die PKM mit NLoffset
       for j = j_hascollbody(1:end-cbdist) % Kollisionskörper mehr als zwei vorher
         % Füge zur Prüfliste hinzu. Durch obige Erstellung der Indizes j
-        % wird sichergestellt, dass es hierzu einen Koll.-körper gibt.        
+        % wird sichergestellt, dass es hierzu einen Koll.-körper gibt.  
         selfcollchecks_bodies = [selfcollchecks_bodies; ...
           uint8(NLoffset+[i, j])]; %#ok<AGROW>
+        % fprintf('Kollisionsprüfung (%d): Beinkette %d Seg. %d Seg. %d. Zeile [%d,%d]\n', ...
+        %   size(selfcollchecks_bodies,1), k, i, j, selfcollchecks_bodies(end,1), selfcollchecks_bodies(end,2));
       end
     end
   end % k-loop (NLEG)
@@ -585,7 +587,9 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
           for cb_i = R.Leg(i).collbodies.link'
             selfcollchecks_bodies = [selfcollchecks_bodies; ...
               uint8([NLoffset_k+cb_k, NLoffset_i+cb_i])]; %#ok<AGROW>
-            % fprintf('Bein %d Seg. %d vs Bein %d Seg. %d\n', k, cb_k, i, cb_i);
+            % fprintf(['Kollisionsprüfung (%d): Bein %d Seg. %d vs Bein %d Seg. %d. ', ...
+            %   'Zeile [%d,%d]\n'], size(selfcollchecks_bodies,1), k, cb_k, i, ...
+            %   cb_i, selfcollchecks_bodies(end,1), selfcollchecks_bodies(end,2));
           end
         end
       end
@@ -618,6 +622,8 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       for ii2 = find(I2)'
         kk = kk + 1;
         CheckCombinations(kk,:) = [ii1,ii2];
+        % fprintf('Kollisionsprüfung (%d): Koll.-körper %d (Seg. %d) vs Koll.-körper %d (Seg. %d).\n', ...
+        %   i, ii1, Structure.collbodies_robot.link(ii1), ii2, Structure.collbodies_robot.link(ii2));
       end
     end
     if any(CheckCombinations(:,1)==CheckCombinations(:,2))

@@ -59,6 +59,8 @@ if Set.general.parcomp_struct && ... % Parallele Rechnung ist ausgewählt
   parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:nearlySingularMatrix');
   parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:illConditionedMatrix');
   parfevalOnAll(gcp(), @warning, 0, 'off', 'Coder:MATLAB:rankDeficientMatrix');
+  parfevalOnAll(gcp(), @warning, 0, 'off', 'Coder:MATLAB:nearlySingularMatrix');
+  parfevalOnAll(gcp(), @warning, 0, 'off', 'Coder:MATLAB:illConditionedMatrix');
 else
   parfor_numworkers = 0;
 end
