@@ -219,10 +219,11 @@ for i = 1:length(Structures)
   %% Animation des besten Roboters für die Trajektorie
   % Hole Erklärungstext zum Fitness-Wert aus Tabelle
   fval_text = ResTab.Fval_Text{strcmp(ResTab.Name, Name)};
-  for kk = 1:2 % Einmal als Strichzeichnung, einmal als 3D-Modell
+  kk = 0;
+  for anim_mode_cell = Set.general.animation_styles % Strichzeichnung, 3D-Modell, Kollisionskörper
+  kk = kk + 1; anim_mode = anim_mode_cell{1}; % Zur Anpassung an cell-Eingabe.
   figure(10*i+1+kk);clf;hold all;
-  if kk == 1, apptxt = ''; else, apptxt = '_3D'; end
-  set(10*i+1+kk, 'Name', sprintf('Rob%d_anim%s', i, apptxt), 'NumberTitle', 'off', 'color','w');
+  set(10*i+1+kk, 'Name', sprintf('Rob%d_anim_%s', i, anim_mode), 'NumberTitle', 'off', 'color','w');
   if ~strcmp(get(10*i+1+kk, 'windowstyle'), 'docked')
     set(10*i+1+kk,'units','normalized','outerposition',[0 0 1 1]);
   end
@@ -261,7 +262,7 @@ for i = 1:length(Structures)
   end % for co_sets
   s_anim = struct('gif_name', '', 'avi_name', '', 'mp4_name', '');
   for file_ext = Set.general.save_animation_file_extensions
-    s_anim.(sprintf('%s_name', file_ext{1})) = fullfile(resrobdir, sprintf('Rob%d_%s_Animation%s.%s', i, Name, apptxt, file_ext{1}));
+    s_anim.(sprintf('%s_name', file_ext{1})) = fullfile(resrobdir, sprintf('Rob%d_%s_Animation_%s.%s', i, Name, anim_mode, file_ext{1}));
   end
   if Set.task.profile == 0
     I_anim = 1:size(Q,1); % Zeichne jeden Zeitschritt
@@ -280,15 +281,23 @@ for i = 1:length(Structures)
   end
   if Structures{i}.Type == 0 % Seriell
     s_plot = struct( 'straight', 1);
-    R.anim( Q(I_anim,:), [], s_anim, s_plot);
   else % Parallel
     s_plot = struct( 'ks_legs', [], 'straight', 1);
     if kk == 2, s_plot.mode = 4; end
-    R.anim( Q(I_anim,:), Traj_0.X(I_anim,:), s_anim, s_plot);
   end
-  saveas(10*i+1+kk,     fullfile(resrobdir, sprintf('Rob%d_%s_Skizze%s.fig', i, Name, apptxt)));
-  export_fig(10*i+1+kk, fullfile(resrobdir, sprintf('Rob%d_%s_Skizze%s.png', i, Name, apptxt)));
-  fprintf('%d/%d: Animation für %s gespeichert: %s\n', i, length(Structures), Name, s_anim.gif_name);
+  if strcmp(anim_mode, 'stick')
+    s_plot.mode = 1;
+  elseif strcmp(anim_mode, '3D')
+    s_plot.mode = 4;
+  elseif strcmp(anim_mode, 'collision')
+    s_plot.mode = 5;
+  else
+    error('Modus %s für Animation nicht definiert', anim_mode);
+  end
+  R.anim( Q(I_anim,:), Traj_0.X(I_anim,:), s_anim, s_plot);
+  saveas(10*i+1+kk,     fullfile(resrobdir, sprintf('Rob%d_%s_Skizze_%s.fig', i, Name, anim_mode)));
+  export_fig(10*i+1+kk, fullfile(resrobdir, sprintf('Rob%d_%s_Skizze_%s.png', i, Name, anim_mode)));
+  fprintf('%d/%d: Animation für %s gespeichert nach %s\n', i, length(Structures), Name, resrobdir);
   end
   %% Zeichnung der Roboters mit Trägheitsellipsen und Ersatzdarstellung
   figure(10*i+4);clf;hold all;
