@@ -69,14 +69,17 @@ if structset.use_serial
   [~,I_FG] = serroblib_filter_robots(N_JointDoF, EE_FG, EE_FG_Mask);
   I_novar = (l.AdditionalInfo(:,2) == 0);
   I = I_FG;
-  % Varianten von Robotern in der Datenbank werden nicht verwendet, außer
-  % es wird explizit eine Variante in der Positiv-Liste genannt
-  if ~any(contains(structset.whitelist, 'V'))
+  % Varianten von Robotern in der Datenbank
+  if ~structset.use_kinematic_variants
     I = I & I_novar;
   end
-    
+  % Nehme alle Roboter, die explizit genannt wurden
+  for i = 1:length(I)
+    if any(strcmp(structset.whitelist, l.Names_Ndof{i}))
+      I(i) = true; % wieder aktivieren, da explizit gefordert
+    end
+  end
   II = find(I);
-
   for j = II'
     SName = l.Names_Ndof{j};
     if ~isempty(structset.whitelist) && ~any(strcmp(structset.whitelist, SName))
@@ -176,7 +179,7 @@ if structset.use_parallel
       % bank eingetragen wurde und das nicht erwünscht ist
       if structset.onlylegchain_from_synthesis
         mdllistfile_Ndof = fullfile(serroblibpath, sprintf('mdl_%ddof', NLegDoF), sprintf('S%d_list.mat',NLegDoF));
-        l = load(mdllistfile_Ndof, 'Names_Ndof', 'BitArrays_Origin');
+        l = load(mdllistfile_Ndof, 'Names_Ndof', 'BitArrays_Origin', 'AdditionalInfo');
         % Beinkette in Daten finden
         ilc = find(strcmp(l.Names_Ndof, LegChainName));
         if isempty(ilc) || length(ilc)>1, error('Unerwarteter Eintrag in Datenbank für Beinkette %s', LegChainName); end
@@ -191,9 +194,26 @@ if structset.use_parallel
           % Keine Einschränkung (außer manuell eingefügte Ketten)
           Mask_Origin = uint16(bin2dec('01111'));
         end
+        % Maske für die Beinkette erstellen. Bei allgemeinen Hauptmodellen
+        % direkt ablesen. Bei Varianten die Maske des Hauptmodells nehmen.
         if bitand(Mask_Origin, l.BitArrays_Origin(ilc,:)) == 0
-          WrongLegChainOrigin = true;
-          break;
+          % Beinkette kommt selbst schon aus der richtigen Synthese. Nichts
+          % tun. Hierdurch werden auch Varianten aus Beinketten-
+          % Struktursynthese genommen (noch ungeklärt, woher die kommen).
+        elseif l.AdditionalInfo(ilc,2) == 1 % ist Variante
+           % Beinkette ist so direkt nicht richtig
+          if ~bitand(uint16(bin2dec('10000')), l.BitArrays_Origin(ilc))
+             % Variante soll zumindest aus Generierung der mehrwertigen
+             % Gelenke kommen. Keine manuell eingefügten Varianten oder
+             % Varianten aus direkter Struktursynthese.
+             WrongLegChainOrigin = true;
+             break;
+          end
+          ilc_genmdl = l.AdditionalInfo(ilc,3); % Hauptmodell zu der Variante
+          if bitand(Mask_Origin, l.BitArrays_Origin(ilc_genmdl,:)) == 0
+            WrongLegChainOrigin = true; % Serielle Kette hat falsche Modellherkunft.
+            break;
+          end
         end
       end
     end
