@@ -336,8 +336,8 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.task.maxangle = 5*pi/180; % Reduzierung der Winkel auf 5 Grad (ist für FG-Untersuchung ausreichend)
     Traj = cds_gen_traj(EE_FG, 1, Set.task);
     Set.optimization.objective = 'valid_act';
-    Set.optimization.optname = sprintf('add_robots_sym_%s_G%dP%d_tmp', ...
-      EE_FG_Name, Coupling(1), Coupling(2));
+    Set.optimization.optname = sprintf('add_robots_sym_%s_G%dP%d_tmp_%s', ...
+      EE_FG_Name, Coupling(1), Coupling(2), datestr(now,'yyyymmdd_HHMMSS'));
     Set.optimization.NumIndividuals = 200;
     Set.optimization.MaxIter = 50;
     Set.optimization.ee_rotation = false;
