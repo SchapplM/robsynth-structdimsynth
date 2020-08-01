@@ -173,17 +173,24 @@ q0(R.MDH.sigma==0) = normalize_angle(q0(R.MDH.sigma==0));
 % IK für alle Eckpunkte, beginnend beim letzten (dann ist q der richtige
 % Startwert für die Trajektorien-IK)
 for i = size(Traj_0.XE,1):-1:1
-  if Set.task.profile ~= 0 && i == 1
-    % Setze die Toleranz für diesen Punkt wieder herunter. Der Startpunkt
-    % der Trajektorie muss exakt bestimmt werden
-    s.Phit_tol = 1e-9; s.Phir_tol = 1e-9;
+  if Set.task.profile ~= 0 % Trajektorie wird weiter unten berechnet
+    if i == size(Traj_0.XE,1)-1
+      % Annahme: Kein Neuversuch der IK. Wenn die Gelenkwinkel zufällig neu
+      % gewählt werden, springt die Konfiguration voraussichtlich. Dann ist
+      % die Durchführung der Trajektorie unrealistisch.
+      s.retry_limit = 0;
+    elseif i == 1
+      % Setze die Toleranz für diesen Punkt wieder herunter. Der Startpunkt
+      % der Trajektorie muss exakt bestimmt werden
+      s.Phit_tol = 1e-9; s.Phir_tol = 1e-9;
+    end
   end
   if R.Type == 0
     [q, Phi, Tc_stack] = R.invkin2(Traj_0.XE(i,:)', q0, s);
   else
     [q, Phi, Tc_stack] = R.invkin2(Traj_0.XE(i,:)', q0, s); % kompilierter Aufruf
     if Set.general.debug_calc
-      [~, Phi_debug, Tc_stack_debug] = R.invkin_ser(Traj_0.XE(i,:)', q0, s); % Klassenmethode
+      [q_debug, Phi_debug, Tc_stack_debug] = R.invkin_ser(Traj_0.XE(i,:)', q0, s); % Klassenmethode
       ik_res_ik2 = (all(abs(Phi(R.I_constr_t_red))<s.Phit_tol) && ...
           all(abs(Phi(R.I_constr_r_red))<s.Phir_tol));% IK-Status Funktionsdatei
       ik_res_iks = (all(abs(Phi_debug(R.I_constr_t_red))<s.Phit_tol) && ... 
@@ -198,10 +205,19 @@ for i = size(Traj_0.XE,1):-1:1
         cds_log(-1, sprintf(['IK-Berechnung mit Funktionsdatei hat anderen ', ...
           'Status (%d) als Klassenmethode (%d).'], ik_res_ik2, ik_res_iks));
       elseif ik_res_iks % beide IK erfolgreich
-        ik_test_koll = Tc_stack - Tc_stack_debug;
-        if max(abs(ik_test_koll(:))) > 1e-3
-          error('Tc_stack Teil nicht passen');
-        end
+        % Dieser Test wird vorerst nicht weiter verfolgt (Ergebnisse nicht
+        % identisch wegen unterschiedlicher Zufallszahlen)
+%         ik_test_q = q - q_debug;
+%         ik_test_Tcstack = Tc_stack - Tc_stack_debug;
+%         if Set.general.matfile_verbosity > 0
+%           save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_ikfkin_error_debug.mat'));
+%         end
+%         if max(abs(ik_test_Tcstack(:))) > 1e-2
+%           warning('Tc_stack zwischen invkin2 und invkin_ser passen nicht. Max. Fehler: %1.1e', max(abs(ik_test_Tcstack(:))));
+%         end
+%         if max(abs(ik_test_q(:))) > 1e-2
+%           warning('q zwischen invkin2 und invkin_ser passen nicht. Max. Fehler: %1.1e', max(abs(ik_test_q(:))));
+%         end
       end
     end
   end
@@ -263,7 +279,7 @@ QE_korr = [QE; QE(end,:)];
 if R.Type == 2
   % Hänge Null-Koordinate an, damit erstes Schubgelenk keine sehr große
   % Auslenkung haben kann. Das widerspricht der Anordnung von Basis und
-  % Koppelpunkten.
+  % Koppelpunkten. TODO: Bessere Methode dafür finden.
   QE_korr(end,Structure.I_firstprismatic) = 0;
 end
 q_range_E = NaN(1, R.NJ);
@@ -286,11 +302,13 @@ if any(I_qlimviol_E)
     q_range_E(IIw), qlim(IIw,2)-qlim(IIw,1) );
   if fval < Set.general.plot_details_in_fitness
     change_current_figure(1000); clf; hold on;
-    plot(1:size(QE,2), QE-min(QE), 'x');
-    plot(qlim(:,2)'-qlim(:,1)', 'r--')
-    plot([1;size(QE,2)], [0;0], 'r--')
+    hdl_iO= plot(find(~I_qlimviol_E), QE_korr(:,~I_qlimviol_E)-min(QE_korr(:,~I_qlimviol_E)), 'co');
+    hdl_niO=plot(find( I_qlimviol_E), QE_korr(:, I_qlimviol_E)-min(QE_korr(:, I_qlimviol_E)), 'bx');
+    hdl1=plot(qlim(:,2)'-qlim(:,1)', 'r--');
+    hdl2=plot([1;size(QE,2)], [0;0], 'm--');
     xlabel('Koordinate Nummer'); ylabel('Koordinate Wert');
     grid on;
+    legend([hdl_iO(1);hdl_niO(1);hdl1;hdl2], {'iO-Gelenke', 'niO-Gelenke', 'qmax''', 'qmin''=0'});
     sgtitle(sprintf('Auswertung Grenzverletzung AR-Eckwerte. fval=%1.2e', fval));
   end
   Q = QE; % Ausgabe dient nur zum Zeichnen des Roboters
@@ -302,6 +320,11 @@ end
 % Debug:
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_2.mat'));
 
+%% Aktualisiere Roboter für Kollisionsprüfung (geänderte Winkelgrenzen aus IK)
+if Set.optimization.constraint_collisions || ...
+    ~isempty(Set.task.installspace.type) || ~isempty(Set.task.obstacles.type)
+  Structure.collbodies_robot = cds_update_collbodies(R, Set, QE);
+end
 %% Selbst-Kollisionsprüfung für Einzelpunkte
 if Set.optimization.constraint_collisions
   [fval_coll, coll_self] = cds_constr_collisions_self(R, Traj_0.XE, Set, Structure, JPE, QE, [4e5;5e5]);
@@ -350,7 +373,7 @@ if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
   else % PKM
     [Q, QD, QDD, PHI, Jinv_ges, ~, JP] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
     if Set.general.debug_calc % Rechne nochmal mit Klassenmethode nach
-      [~, ~, ~, PHI_debug, ~, JP_debug] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+      [~, ~, ~, PHI_debug, ~, ~, JP_debug] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
       ik_res_ik2 = (all(max(abs(PHI(:,R.I_constr_t_red)))<s.Phit_tol) && ...
           all(max(abs(PHI(:,R.I_constr_r_red)))<s.Phir_tol));% IK-Status Funktionsdatei
       ik_res_iks = (all(max(abs(PHI_debug(:,R.I_constr_t_red)))<s.Phit_tol) && ... 
@@ -478,29 +501,22 @@ if any(I_qlimviol_T)
   return
 end
 
-%% Prüfe, ob die Geschwindigkeitsgrenzen (Antriebe) verletzt werden
+%% Prüfe, ob die Geschwindigkeitsgrenzen verletzt werden
 % Diese Prüfung erfolgt zusätzlich zu einer Antriebsauslegung.
 % Gedanke: Wenn die Gelenkgeschwindigkeit zu schnell ist, ist sowieso kein
 % Antrieb auslegbar und die Parameter können schneller verworfen werden.
 % Außerdem liegt wahrscheinlich eine Singularität vor.
-if ~isinf(Set.optimization.max_velocity_active_revolute) && ~isinf(Set.optimization.max_velocity_active_prismatic)
-  if R.Type == 0 % Seriell
-    qaD_max = max(abs(QD));
-    qD_lim = repmat(Set.optimization.max_velocity_active_revolute, 1, R.NJ);
-    qD_lim(R.MDH.sigma==1) = Set.optimization.max_velocity_active_prismatic;
-  else % PKM
-    qaD_max = max(abs(QD(:,R.I_qa)));
-    qD_lim = repmat(Set.optimization.max_velocity_active_revolute, 1, sum(R.I_qa));
-    qD_lim(R.MDH.sigma(R.I_qa)==1) = Set.optimization.max_velocity_active_prismatic;
-  end
-  f_qD_exc = max(qaD_max./qD_lim);
+if any(~isinf(Structure.qDlim(:)))
+  qD_max = max(abs(QD))';
+  qD_lim = Structure.qDlim(:,2); % Annahme symmetrischer Geschw.-Grenzen
+  [f_qD_exc,ifmax] = max(qD_max./qD_lim);
   if f_qD_exc>1
     f_qD_exc_norm = 2/pi*atan((f_qD_exc-1)); % Normierung auf 0 bis 1; 1->0.5; 10->0.94
     fval = 3e3*(5+1*f_qD_exc_norm); % Wert zwischen 5e3 und 6e3
     % Weitere Berechnungen voraussichtlich wenig sinnvoll, da vermutlich eine
     % Singularität vorliegt
-    constrvioltext = sprintf('Geschwindigkeit des Antriebsgelenks zu hoch: max Verletzung %1.1f%%', ...
-      (f_qD_exc-1)*100 );
+    constrvioltext = sprintf('Geschwindigkeit eines Gelenks zu hoch: max Verletzung %1.1f%% (Gelenk %d)', ...
+      (f_qD_exc-1)*100, ifmax);
     return
   end
 end
@@ -508,39 +524,36 @@ end
 %% Prüfe, ob die Konfiguration umklappt während der Trajektorie
 if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
   % Geschwindigkeit neu mit Differenzenquotient berechnen
-  QD_num = NaN(size(Q));
-  QD_num(1:end-1,R.MDH.sigma==1) = diff(Q(:,R.MDH.sigma==1))./...
+  QD_num = zeros(size(Q));
+  QD_num(2:end,R.MDH.sigma==1) = diff(Q(:,R.MDH.sigma==1))./...
     repmat(diff(Traj_0.t), 1, sum(R.MDH.sigma==1)); % Differenzenquotient
-  QD_num(1:end-1,R.MDH.sigma==0) = (mod(diff(Q(:,R.MDH.sigma==0))+pi, 2*pi)-pi)./...
+  QD_num(2:end,R.MDH.sigma==0) = (mod(diff(Q(:,R.MDH.sigma==0))+pi, 2*pi)-pi)./...
     repmat(diff(Traj_0.t), 1, sum(R.MDH.sigma==0)); % Siehe angdiff.m
-  % Fehler zwischen Differenzenquotient und Jacobi-Matrix-Berechnung
-  QD_error = QD_num(1:end,:) - QD(1:end,:);
-  QD_relerror = QD_error./QD(1:end,:);
-  % Keine Wertung von Phasen sehr kleiner Geschwindigkeit
-  QD_relerror(abs(QD)<0.1*max(abs(QD))) = NaN;
-  % Bestimme Fehler als mehr als 50% Abweichung. Ein Umklappen kann auch
-  % fälschlicherweise erkannt werden, wenn die Geschwindigkeit sehr groß
-  % ist und ein spitzer Verlauf falsch diskretisiert wird. Das führt aber
-  % sowieso auch zu anderen Fehlern.
-  I_jump = (QD_relerror > 0.5);
-  if any(I_jump(:))
-    % Erstes Vorkommnis finden und daraus Strafterm bilden. Je später,
-    % desto besser.
-    II_jump = find(any(I_jump,2), 1, 'first');
-    fval_jump_norm = II_jump/length(Traj_0.t); % Zwischen 0 und 1
+  % Position neu mit Trapezregel berechnen (Integration)
+  Q_num = repmat(Q(1,:),size(Q,1),1)+cumtrapz(Traj_0.t, QD);
+  % Bestimme Korrelation zwischen den Verläufen (1 ist identisch)
+  corrQD = diag(corr(QD_num, QD));
+  corrQ = diag(corr(Q_num, Q));
+  if any(corrQD < 0.95) || any(corrQ < 0.98)
+    % Bilde normierten Strafterm aus Korrelationskoeffizienten (zwischen -1
+    % und 1).
+    fval_jump_norm = 0.5*(mean(1-corrQ) + mean(1-corrQD));
     fval = 1e3*(4+1*fval_jump_norm); % Wert zwischen 4e3 und 5e3
-    constrvioltext = sprintf('Konfiguration scheint zu springen. Geschwindigkeitsfehler max. %1.1f%% (zuerst Zeitschritt %d/%d)', ...
-      100*max(abs(QD_relerror(:))), II_jump, length(Traj_0.t));
+    constrvioltext = sprintf('Konfiguration scheint zu springen. Korrelation Geschw. min. %1.2f, Position %1.2f', ...
+      min(corrQD), min(corrQ));
     if fval < Set.general.plot_details_in_fitness
-      % I_ol = isoutlier(QD_relerror, 'movmedian', 50); % funktioniert nicht so gut
       RP = ['R', 'P'];
       change_current_figure(1001);clf;
       for i = 1:length(q)
+        legnum = find(i>=R.I1J_LEG, 1, 'last');
+        legjointnum = i-(R.I1J_LEG(legnum)-1);
         subplot(ceil(sqrt(length(q))), ceil(length(q)/ceil(sqrt(length(q)))), i);
         hold on; grid on;
         plot(Traj_0.t, QD(:,i), '-');
         plot(Traj_0.t, QD_num(:,i), '--');
-        title(sprintf('qD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+        plot(Traj_0.t([1,end]), repmat(Structure.qDlim(i,:),2,1), 'r--');
+        ylim(minmax2([QD_num(:,i);QD_num(:,i)]'));
+        title(sprintf('qD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
       end
       linkxaxes
       sgtitle('Vergleich Gelenkgeschw.');
@@ -549,25 +562,20 @@ if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
         subplot(ceil(sqrt(length(q))), ceil(length(q)/ceil(sqrt(length(q)))), i);
         hold on; grid on;
         plot(Traj_0.t, Q(:,i), '-');
-        title(sprintf('q %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+        plot(Traj_0.t, Q_num(:,i), '--');
+        title(sprintf('q %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
       end
       linkxaxes
       sgtitle('Verlauf Gelenkkoordinaten');
-      change_current_figure(1003);clf;
-      for i = 1:length(q)
-        subplot(ceil(sqrt(length(q))), ceil(length(q)/ceil(sqrt(length(q)))), i);
-        hold on; grid on;
-        plot(Traj_0.t(~I_jump(:,i)), QD_relerror(~I_jump(:,i),i), 'go');
-        plot(Traj_0.t(I_jump(:,i)), QD_relerror(I_jump(:,i),i), 'rx');
-        title(sprintf('qD error %d', i));
-      end
-      linkxaxes
-      sgtitle('Relativer Fehler Geschw. in Prozent');
     end
     return
   end
 end
-
+%% Aktualisiere Roboter für Kollisionsprüfung (geänderte Grenzen aus Traj.-IK)
+if Set.optimization.constraint_collisions || ...
+    ~isempty(Set.task.installspace.type) || ~isempty(Set.task.obstacles.type)
+  Structure.collbodies_robot = cds_update_collbodies(R, Set, Q);
+end
 %% Selbstkollisionserkennung für Trajektorie
 if Set.optimization.constraint_collisions
   [fval_coll_traj, coll_traj] = cds_constr_collisions_self(R, Traj_0.X, ...
@@ -593,7 +601,7 @@ if ~isempty(Set.task.installspace.type)
     return
   end
 end
-%% Arbeitsraum-Hindernis-Kollisionsprüfung für Einzelpunkte
+%% Arbeitsraum-Hindernis-Kollisionsprüfung für Trajektorie
 if ~isempty(Set.task.obstacles.type)
   [fval_obstcoll_traj, coll_obst_traj, f_constr_obstcoll_traj] = cds_constr_collisions_ws( ...
     R, Traj_0.X, Set, Structure, JP, Q, [1e3;2e3]);

@@ -92,21 +92,28 @@ end
 num_coll_plot = 0; % zum Debuggen, s.u.
 for i = 1:size(collbodies.link,1)
   % Anfangs- und Endpunkt des Ersatzkörpers bestimmen
-  if collbodies.type(i) ~= 6
-    warning('Andere Methoden als Kapsel-Direktverbindung nicht implementiert');
+  if ~any(collbodies.type(i) == [6 13])
+    warning('Andere Methoden als Kapsel-Direktverbindung und Kapsel im Basis-KS nicht implementiert');
     continue
   end
-  r = collbodies.params(i,1)*3; % Vergrößere den Radius für den Plot
-  % Nummer der Starrkörper in mathematischer Notation: 0=Basis
-  jj2 = collbodies.link(i);
-  jj1 = v(1+collbodies.link(i)); % 0=PKM-Basis, 1=Beinkette-1-Basis, 2=Beinkette-1-Körper-1
-  % Nummer in Matlab-Notation (1=Basis)
-  ii2 = jj2+1;
-  ii1 = jj1+1;
-  pts = JP(j,[3*(ii1-1)+1:3*ii1, 3*(ii2-1)+1:3*ii2]); % bezogen auf Basis-KS
-  if all(pts(1:3) == pts(4:6))
-    warning('Kollisionskörper %d/%d hat Länge Null. Verbindet Körper %d und %d.', ...
-      i, size(collbodies.link,1), jj1, jj2);
+  if collbodies.type(i) == 6 % Kapsel zum vorherigen KS
+    r = collbodies.params(i,1)*3; % Vergrößere den Radius für den Plot
+    % Nummer der Starrkörper in mathematischer Notation: 0=Basis
+    jj2 = collbodies.link(i);
+    jj1 = v(1+collbodies.link(i)); % 0=PKM-Basis, 1=Beinkette-1-Basis, 2=Beinkette-1-Körper-1
+    % Nummer in Matlab-Notation (1=Basis)
+    ii2 = jj2+1;
+    ii1 = jj1+1;
+    pts = JP(j,[3*(ii1-1)+1:3*ii1, 3*(ii2-1)+1:3*ii2]); % bezogen auf Basis-KS
+    if all(pts(1:3) == pts(4:6))
+      warning('Kollisionskörper %d/%d hat Länge Null. Verbindet Körper %d und %d.', ...
+        i, size(collbodies.link,1), jj1, jj2);
+    end
+  elseif collbodies.type(i) == 13 % Kapsel mit 2 angegebenen Punkten im Basis-KS
+    r = collbodies.params(i,7)*3;
+    pts = collbodies.params(i,1:6);
+  else
+    error('Fall nicht implementiert');
   end
   % Umrechnung ins Welt-KS
   pts_W = repmat(R.T_W_0(1:3,4),2,1) + rotate_wrench(pts', R.T_W_0(1:3,1:3));
@@ -133,5 +140,7 @@ for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
 end
 if num_coll_plot == 0
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constr_collisions_self_1_errplot.mat'));
-  error('Anzahl der geplotteten Kollisionen stimmt nicht mit vorab berechneten überein');
+  error(['Anzahl der geplotteten Kollisionen (%d) stimmt nicht mit vorab ', ...
+    'berechneten (%d) überein'], num_coll_plot, sum(coll(j,:)));
 end
+

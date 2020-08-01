@@ -111,14 +111,29 @@ for i = 1:NLEG
       Structure.qlim = cat(1, R.Leg.qlim);
     end
   end
+  % Gelenkgeschwindigkeiten setzen
+  R_init.qDlim = repmat([-1,1]*Set.optimization.max_velocity_active_revolute, R_init.NJ, 1);
+  R_init.qDlim(R_init.MDH.sigma==1,:) = repmat([-1,1]*Set.optimization.max_velocity_active_prismatic, sum(R_init.MDH.sigma==1), 1);
+  if Structure.Type == 2 % Paralleler Roboter
+    I_passrevol = R_init.MDH.mu == 1 & R_init.MDH.sigma==0;
+    R_init.qDlim(I_passrevol,:) = repmat([-1,1]*Set.optimization.max_velocity_passive_revolute,sum(I_passrevol),1);
+  end
+  if Structure.Type == 0 % Serieller Roboter
+    Structure.qDlim = R_init.qDlim;
+  else % Paralleler Roboter
+    if i == NLEG % Grenzen aller Gelenke aller Beinketten eintragen
+      Structure.qDlim = cat(1, R.Leg.qDlim);
+    end
+  end
+  
   % Dynamikparameter setzen
   if Set.optimization.use_desopt && Set.optimization.constraint_link_yieldstrength > 0
     R_init.DynPar.mode = 3; % Benutze Inertialparameter-Dynamik, weil auch Schnittkräfte in Regressorform berechnet werden
   else
     R_init.DynPar.mode = 4; % Benutze Minimalparameter-Dynamikfunktionen
   end
-  R_init.DesPar.joint_type((1:R.NJ)'==1&R.MDH.sigma==1) = 4; % Linearführung erste Achse
-  R_init.DesPar.joint_type((1:R.NJ)'~=1&R.MDH.sigma==1) = 5; % Schubzylinder weitere Achse
+  R_init.DesPar.joint_type((1:R_init.NJ)'==1&R_init.MDH.sigma==1) = 4; % Linearführung erste Achse
+  R_init.DesPar.joint_type((1:R_init.NJ)'~=1&R_init.MDH.sigma==1) = 5; % Schubzylinder weitere Achse
   R_init.update_dynpar1(); % Nochmal initialisieren, damit MPV definiert ist
 end
 % Merke die ursprünglich aus der Datenbank geladene EE-Rotation. Die in der
@@ -188,6 +203,17 @@ if Structure.Type == 0 || Structure.Type == 2
     I_firstpospar = R_pkin.pkin_jointnumber==1 & (R_pkin.pkin_types==4 | R_pkin.pkin_types==6);
     Ipkinrel = Ipkinrel & ~I_firstpospar; % Nehme die "1" bei d1/a1 weg.
   end
+  % Setzen den a2-Parameter zu Null, wenn das erste Gelenk ein Schubgelenk
+  % ist. Aus kinematischer Sicht ist dieser Parameter redundant zur PKM-Platt-
+  % formgröße (bei senkrechter Anbringung) bzw. auch der Basis-Position
+  % (bei schräger Anbringung der Schubgelenke). Der Parameter entspricht
+  % keinem Hebelarm eines Drehgelenks.
+  if ((Structure.Type == 0 && Set.optimization.movebase) || ... % Seriell mit verschieblicher Basis
+      (Structure.Type == 2 && Set.optimization.base_size)) && ... % PKM mit variabler Gestellgröße
+     R_pkin.MDH.sigma(1) == 1 % erstes Gelenk ist Schubgelenk
+    I_a2 = R_pkin.pkin_jointnumber==2 & R_pkin.pkin_types == 4;
+    Ipkinrel = Ipkinrel & ~I_a2; % Nehme die "1" bei a2 weg.
+  end
   % Setze den letzten d-Parameter für PKM-Beinketten auf Null. Dieser ist
   % redundant zur Plattform-Größe
   if Structure.Type == 2 % PKM
@@ -207,12 +233,23 @@ if Structure.Type == 0 || Structure.Type == 2
   nvars = nvars + sum(Ipkinrel);
   vartypes = [vartypes; 1*ones(sum(Ipkinrel),1)];
   % Grenzen für Kinematikparameter anhand der Typen bestimmen
+  % Nummern, siehe SerRob/get_pkin_parameter_type
   plim = NaN(length(R_pkin.pkin),2);
   for i = 1:size(plim,1)
-    if R_pkin.pkin_types(i) == 1 || R_pkin.pkin_types(i) == 3 || R_pkin.pkin_types(i) == 5
-      % Winkel-Parameter. Nur Begrenzung auf [0,pi/2]. Ansonsten sind
-      % negative DH-Längen und negative Winkel redundant
+    if R_pkin.pkin_types(i) == 1
+      % Winkel-Parameter beta. Darf eigentlich gar nicht auftreten bei
+      % seriellen Robotern. Ginge aber auch mit 0 bis pi/2.
+      error('Die Optimierung des Parameters beta ist nicht vorgesehen');
+    elseif R_pkin.pkin_types(i) == 3
+      % Winkel-Parameter alpha. Nur Begrenzung auf [0,pi/2]. Ansonsten sind
+      % negative DH-Längen und negative Winkel redundant. Es wird nur die
+      % Parallelität der Gelenke eingestellt
       plim(i,:) = [0, pi/2];
+    elseif R_pkin.pkin_types(i) == 5
+      % Winkel-Parameter theta. Nur Begrenzung auf [-pi/2,pi/2].
+      % Durch Möglichkeit negativer DH-Längen ist jede beliebige
+      % Ausrichtung des folgenden Gelenks möglich.
+      plim(i,:) = [-pi/2, pi/2];
     elseif R_pkin.pkin_types(i) == 2 || R_pkin.pkin_types(i) == 4 || R_pkin.pkin_types(i) == 6
       % Maximale Länge der einzelnen Segmente
       plim(i,:) = [-1, 1]; % in Optimierung bezogen auf Lref
@@ -402,11 +439,7 @@ Structure.I_firstprismatic = I_firstprismatic;
 if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) || ...
     ~isempty(Set.task.installspace.type)
   % Lege die Starrkörper-Indizes fest, für die Kollisionen geprüft werden
-  Structure.selfcollchecks_bodies = [];
-  % Liste für gesamte PKM. 0=PKM-Basis, 1=Beinkette1-Basis, 2=Beinkette1-
-  % erster Körper, usw. Wird für serielle Roboter auch benutzt. Dort aber
-  % nur eine Basis (=0).
-  collbodies_robot = struct('link', [], 'type', [], 'params', []);
+  selfcollchecks_bodies = [];
   % Prüfe Selbstkollisionen einer kinematischen Kette.
   for k = 1:NLEG
     % Erneute Initialisierung (sonst eventuell doppelte Eintragungen)
@@ -425,7 +458,47 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         NLoffset = 1+R.I2L_LEG(k-1)-(k-1); % in I1L wird auch Basis und EE-Link noch mitgezählt. Hier nicht.
       end
     end
-
+    % Erzeuge Kollisionskörper für den statischen Teil von Schub- 
+    % gelenken (z.B. Linearachsen). Siehe: SerRob/plot
+    for i = find(R_cc.MDH.sigma'==1)
+      % MDH-Trafo (konstanter Teil; bezogen auf Basis-KS)
+      T_mdh1 = trotz(R_cc.MDH.beta(i))*transl([0;0;R_cc.MDH.b(i)]) * ...
+               trotx(R_cc.MDH.alpha(i))*transl([R_cc.MDH.a(i);0;0]);
+      T_qmin = T_mdh1 * transl([0;0;R_cc.qlim(i,1)]);
+      T_qmax = T_qmin * transl([0;0;R_cc.qlim(i,2)-R_cc.qlim(i,1)]);
+      % Prüfe Art des Schubgelenks
+      if R_cc.DesPar.joint_type(i) == 4 % Führungsschiene
+        % Füge die Führungsschiene der Linearachse als Körper hinzu.
+        % Wird als Kapsel durch Anfang und Ende gekennzeichnet.
+        % Bilde die MDH-Transformation nach. Das führt zu min-max für q
+        cbi_par = [T_qmin(1:3,4)', T_qmax(1:3,4)', 20e-3]; % Radius 20mm
+      elseif R_cc.DesPar.joint_type(i) == 5 % Hubzylinder
+        % Der äußere Zylinder muss so lang sein wie der innere (bzw. der
+        % innere Zylinder muss so lang sein wie der Hub).
+        T_grozyl_start = T_qmin * transl([0;0;-(R_cc.qlim(i,2)-R_cc.qlim(i,1))]);
+        T_grozyl_end = T_qmax;
+        cbi_par = [T_grozyl_start(1:3,4)', T_grozyl_end(1:3,4)', 20e-3];
+      else
+        error('Fall %d für Schubgelenk nicht vorgesehen', R_cc.DesPar.joint_type(i));
+      end
+      if i == 1 % erstes Gelenk der Kette ist Schubgelenk. Führungsschiene basisfest.
+        % Kapsel, zwei Punkte (im weltfesten Basis-KS der Kette)
+        collbodies.type = [collbodies.type; uint8(3)];
+        % Umrechnung der Parameter ins Welt-KS: Notwendig. Aber hier
+        % ignoriert.
+      else
+        warning(['Die Kollisionsprüfung für die Führungsschiene des P-Gelenks ', ...
+          'an Stelle %d ist nicht definiert. Wird vorerst ignoriert.'], i);
+        continue
+        % Kapsel, zwei Punkte (im mitbewegten Körper-KS)
+        collbodies.type = [collbodies.type; uint8(3)]; %#ok<UNRCH>
+      end
+      collbodies.params = [collbodies.params; cbi_par, NaN(1,3)];
+      % Führungsschiene/Führungszylinder ist vorherigem Segment zugeordnet
+      collbodies.link = [collbodies.link; uint8(i-1)];
+    end
+    
+    % Erzeuge Ersatzkörper für die kinematische Kette (aus Gelenk-Trafo)
     for i = 1:R_cc.NJ
       if R_cc.MDH.a(i) ~= 0 || R_cc.MDH.d(i) ~= 0 || R_cc.MDH.sigma(i) == 1
         % Es gibt eine Verschiebung in der Koordinatentransformation i
@@ -435,40 +508,46 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         % Wähle Kapseln mit Radius 20mm. R.DesPar.seg_par ist noch nicht belegt
         % (passiert erst in Entwurfsoptimierung).
         collbodies.params = [collbodies.params; 20e-3, NaN(1,9)];
-        % Füge Prüfung mit allen vorherigen hinzu (außer direktem Vorgänger)
-        % Diese Kollision wird nicht geprüft, da dort keine Kollision
-        % stattfinden können sollte (direkt gegeneinander drehbare Teile
-        % können konstruktiv kollisionsfrei gestaltet werden)
-        % Der Vorgänger bezieht sich auf den Kollisionskörper, nicht auf
-        % die Nummer des Starrkörpers
-        if length(collbodies.link)<3
-          continue
-        end
-        % Bestimme die Starrkörper-Nummer bezogen auf die PKM mit NLoffset
-        for j = collbodies.link(end-2):-1:1 % Kollisionskörper mehr als zwei vorher
-          Structure.selfcollchecks_bodies = [Structure.selfcollchecks_bodies; ...
-            uint8(NLoffset+[collbodies.link(end), j])];
-        end
       end
     end
     R_cc.collbodies = collbodies;
-    % Trage auch in PKM-weite Variable ein
-    if Structure.Type == 0 % Seriell
-      collbodies_robot = collbodies;
-    else
-      collbodies_robot.link = [collbodies_robot.link; collbodies.link + NLoffset];
-      collbodies_robot.type = [collbodies_robot.type; collbodies.type];
-      collbodies_robot.params = [collbodies_robot.params; collbodies.params];
+    % Trage die Kollisionsprüfungen ein
+    for i = 3:R_cc.NJ
+      % Füge Prüfung mit allen vorherigen hinzu (außer direktem Vorgänger)
+      % Diese Kollision wird nicht geprüft, da dort keine Kollision
+      % stattfinden können sollte (direkt gegeneinander drehbare Teile
+      % können konstruktiv kollisionsfrei gestaltet werden).
+      % Der Vorgänger bezieht sich auf den Kollisionskörper, nicht auf
+      % die Nummer des Starrkörpers. Ansonsten würden zwei durch Kugel-
+      % oder Kardan-Gelenk verbundene Körper in Kollision stehen.
+      j_hascollbody = collbodies.link(collbodies.link<i)';
+      % Sonderfall Portal-System: Abstand zwischen Kollisionskörpern noch
+      % um eins vergrößern. TODO: Ist so noch nicht allgemeingültig.
+      % Dadurch wird die Kollisionsprüfung effektiv deaktiviert.
+      if sum(R_cc.MDH.sigma(i-2:i) == 1) == 3
+        cbdist = 3;
+      else
+        cbdist = 1;
+      end
+      % Bestimme die Starrkörper-Nummer bezogen auf die PKM mit NLoffset
+      for j = j_hascollbody(1:end-cbdist) % Kollisionskörper mehr als zwei vorher
+        % Füge zur Prüfliste hinzu. Durch obige Erstellung der Indizes j
+        % wird sichergestellt, dass es hierzu einen Koll.-körper gibt.  
+        selfcollchecks_bodies = [selfcollchecks_bodies; ...
+          uint8(NLoffset+[i, j])]; %#ok<AGROW>
+        % fprintf('Kollisionsprüfung (%d): Beinkette %d Seg. %d Seg. %d. Zeile [%d,%d]\n', ...
+        %   size(selfcollchecks_bodies,1), k, i, j, selfcollchecks_bodies(end,1), selfcollchecks_bodies(end,2));
+      end
     end
-  end
-  % Parameter-Array auf 10 Spalten erhöhen, falls nicht schon der Fall.
-  % Wird von check_collisionset_simplegeom so erwartet.
-  collbodies_robot.params = [collbodies_robot.params, ...
-    NaN(size(collbodies_robot.params,1), 10-size(collbodies_robot.params,2))];
-  assert(size(collbodies_robot.params,2)==10);
+  end % k-loop (NLEG)
   % Roboter-Kollisionsobjekte in Struktur abspeichern (zum Abruf in den
   % Funktionen cds_constr_collisions_... und cds_constr_installspace
-  Structure.collbodies_robot = collbodies_robot;
+  % Ist erstmal nur Platzhalter. Wird zur Laufzeit noch aktualisiert.
+  Structure.collbodies_robot = cds_update_collbodies(R, Set, Structure.qlim');
+  % Probe: Sind Daten konsistent? Inkonsistenz durch obigem Aufruf möglich.
+  if any(any(~isnan(Structure.collbodies_robot.params(Structure.collbodies_robot.type==6,2:end))))
+    error('Inkonsistente Kollisionsdaten: Kapsel-Direktverbindung hat zu viele Parameter');
+  end
   % Vorgänger-Indizes für Segmente für die Kollisionsprüfung abspeichern.
   % Unterscheidet sich von normaler MDH-Notation dadurch, dass alle
   % Beinketten-Basis-KS enthalten sind und die Basis ihr eigener Vorgänger
@@ -506,19 +585,20 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         % kollidieren
         for cb_k = R.Leg(k).collbodies.link'
           for cb_i = R.Leg(i).collbodies.link'
-            Structure.selfcollchecks_bodies = [Structure.selfcollchecks_bodies; ...
-              uint8([NLoffset_k+cb_k, NLoffset_i+cb_i])];
-            % fprintf('Bein %d Seg. %d vs Bein %d Seg. %d\n', k, cb_k, i, cb_i);
+            selfcollchecks_bodies = [selfcollchecks_bodies; ...
+              uint8([NLoffset_k+cb_k, NLoffset_i+cb_i])]; %#ok<AGROW>
+            % fprintf(['Kollisionsprüfung (%d): Bein %d Seg. %d vs Bein %d Seg. %d. ', ...
+            %   'Zeile [%d,%d]\n'], size(selfcollchecks_bodies,1), k, cb_k, i, ...
+            %   cb_i, selfcollchecks_bodies(end,1), selfcollchecks_bodies(end,2));
           end
         end
       end
     end
     % TODO: Kollision Beinketten mit Plattform und Gestell
   end
-  if isempty(Structure.selfcollchecks_bodies)
-    error('Es sind keine Kollisionskörpern eingetragen, obwohl Kollisionen geprüft werden sollen.');
-  end
-  if any(Structure.selfcollchecks_bodies(:,1)==Structure.selfcollchecks_bodies(:,2))
+  if isempty(selfcollchecks_bodies)
+    warning('Es sind keine Kollisionskörpern eingetragen, obwohl Kollisionen geprüft werden sollen.');
+  elseif any(selfcollchecks_bodies(:,1)==selfcollchecks_bodies(:,2))
     error('Prüfung eines Körpers mit sich selbst ergibt keinen Sinn');
   end
   % Lege die Kollisionskörper-Indizes fest, für die Kollisionen geprüft werden
@@ -526,11 +606,11 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   % online in der Optimierung gemacht werden.
   % Abgrenzung von "bodies" (oben) und "collbodies" (ab hier) beachten.
   Structure.selfcollchecks_collbodies = [];
-  for i = 1:size(Structure.selfcollchecks_bodies,1)
+  for i = 1:size(selfcollchecks_bodies,1)
     % Finde die Indizes aller Ersatzkörper der zu prüfenden Starrkörper
     % (es kann auch mehrere Ersatzkörper für einen Starrkörper geben)
-    I1 = Structure.selfcollchecks_bodies(i,1) == collbodies_robot.link;
-    I2 = Structure.selfcollchecks_bodies(i,2) == collbodies_robot.link;
+    I1 = selfcollchecks_bodies(i,1) == Structure.collbodies_robot.link;
+    I2 = selfcollchecks_bodies(i,2) == Structure.collbodies_robot.link;
     CheckCombinations = NaN(sum(I1)*sum(I2),2);
     if sum(I1) == 0 || sum(I2) == 0
       % Die Kollision der Starrkörper soll geprüft werden, es sind aber gar
@@ -538,10 +618,12 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       continue
     end
     kk = 0;
-    for ii1 = find(I1)
-      for ii2 = find(I2)
+    for ii1 = find(I1)'
+      for ii2 = find(I2)'
         kk = kk + 1;
         CheckCombinations(kk,:) = [ii1,ii2];
+        % fprintf('Kollisionsprüfung (%d): Koll.-körper %d (Seg. %d) vs Koll.-körper %d (Seg. %d).\n', ...
+        %   i, ii1, Structure.collbodies_robot.link(ii1), ii2, Structure.collbodies_robot.link(ii2));
       end
     end
     if any(CheckCombinations(:,1)==CheckCombinations(:,2))
@@ -552,9 +634,11 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       uint8([Structure.selfcollchecks_collbodies; CheckCombinations]);
   end
   if isempty(Structure.selfcollchecks_collbodies)
-    error('Es sind keine Prüfungen von Kollisionskörpern vorgesehen');
-  end
-  if any(Structure.selfcollchecks_collbodies(:,1)==Structure.selfcollchecks_collbodies(:,2))
+    warning('Es sind keine Prüfungen von Kollisionskörpern vorgesehen');
+    % Deaktiviere die Kollisionsprüfungen wieder
+    Set.optimization.constraint_collisions = false;
+    Set.task.obstacles.type = [];
+  elseif any(Structure.selfcollchecks_collbodies(:,1)==Structure.selfcollchecks_collbodies(:,2))
     error('Prüfung eines Körpers mit sich selbst ergibt keinen Sinn');
   end
 end
@@ -692,14 +776,16 @@ end
 % Berechne IK der Bahn (für spätere Visualisierung und Neuberechnung der Zielfunktionen)
 % Benutze ähnliche Einstellungen wie in cds_constraints.m (aber feinere
 % Toleranz und mehr Rechenaufwand bei der eigentlichen IK-Berechnung)
+% Hier auch Weglassen der Beachtung der Winkelgrenzen (führt teilweise zu
+% Abbruch, obwohl die Spannweite in Ordnung ist.)
 if Structure.Type == 0 % Seriell
   s = struct('normalize', false, 'retry_limit', 0, 'Phit_tol', 1e-12, ...
-    'Phir_tol', 1e-12, 'n_max', 3000);
+    'Phir_tol', 1e-12, 'n_max', 5000, 'scale_lim', 0);
   [Q, QD, QDD, PHI] = R.invkin2_traj(Traj_0.X, Traj.XD, Traj.XDD, Traj.t, q, s);
   Jinv_ges = [];
 else % Parallel
   s = struct('retry_limit', 0, 'Phit_tol', 1e-12, ...
-    'Phir_tol', 1e-12, 'n_max', 3000);
+    'Phir_tol', 1e-12, 'n_max', 5000, 'scale_lim', 0);
   [Q, QD, QDD, PHI, Jinv_ges] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
 end
 test_q = abs(Q(1,:)'-q0_ik);
@@ -730,7 +816,7 @@ end
 if ~result_invalid && ~strcmp(Set.optimization.objective, 'valid_act')
   % Masseparameter belegen, falls das nicht vorher passiert ist.
   if fval > 1e3 ...% irgendeine Nebenbedingung wurde immer verletzt. ...
-      || strcmp(Set.optimization.objective, 'condition') % ... oder rein kinematische Zielfunktion ...
+      || any(strcmp(Set.optimization.objective, {'condition', 'jointrange'})) % ... oder rein kinematische Zielfunktion ...
     cds_dimsynth_design(R, Q, Set, Structure); % ...  Daher nie bis zu diesem Funktionsaufruf gekommen.
   end
   data_dyn = cds_obj_dependencies(R, Traj_0, Set, Structure_tmp, Q, QD, QDD, Jinv_ges);
@@ -739,12 +825,13 @@ if ~result_invalid && ~strcmp(Set.optimization.objective, 'valid_act')
   [fval_cond,~, ~, physval_cond] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
   [fval_mass,~, ~, physval_mass] = cds_obj_mass(R);
   [fval_minactforce,~, ~, physval_minactforce] = cds_obj_minactforce(data_dyn.TAU);
+  [fval_jrange,~, ~, physval_jrange] = cds_obj_jointrange(R, Set, Structure, Q);
   [fval_stiff,~, ~, physval_stiff] = cds_obj_stiffness(R, Set, Q);
   [~, ~, f_maxstrengthviol] = cds_constr_yieldstrength(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
   % Reihenfolge siehe Variable Set.optimization.constraint_obj aus cds_settings_defaults
-  fval_obj_all = [fval_mass; fval_energy; fval_minactforce; fval_cond; fval_stiff];
+  fval_obj_all = [fval_mass; fval_energy; fval_minactforce; fval_cond; fval_jrange; fval_stiff];
   fval_constr_all = f_maxstrengthviol;
-  physval_obj_all = [physval_mass; physval_energy; physval_minactforce; physval_cond; physval_stiff];
+  physval_obj_all = [physval_mass; physval_energy; physval_minactforce; physval_cond; physval_jrange; physval_stiff];
   % Vergleiche neu berechnete Werte mit den zuvor abgespeicherten (müssen
   % übereinstimmen)
   test_Jcond = PSO_Detail_Data.Jcond(dd_optgen, dd_optind) - physval_cond;
@@ -766,9 +853,9 @@ if ~result_invalid && ~strcmp(Set.optimization.objective, 'valid_act')
 else
   % Keine Berechnung der Zielfunktionen möglich, da keine zulässige Lösung
   % gefunden wurde.
-  fval_obj_all = NaN(5,1);
+  fval_obj_all = NaN(6,1);
   fval_constr_all = NaN(1,1);
-  physval_obj_all = NaN(5,1);
+  physval_obj_all = NaN(6,1);
 end
 I_fobj_set = Set.optimization.constraint_obj ~= 0;
 if any( physval_obj_all(I_fobj_set) > Set.optimization.constraint_obj(I_fobj_set) )

@@ -73,6 +73,17 @@ Traj_0 = cds_rotate_traj(Traj_W, R.T_W_0);
 [fval_constr,Q,QD,QDD,Jinv_ges,constrvioltext] = cds_constraints(R, Traj_0, Traj_W, Set, Structure);
 fval = fval_constr*1e3; % Erhöhung, damit später kommende Funktionswerte aus Entwurfsoptimierung kleiner sein können
 cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
+% Normalisieren der Winkel (erst hier durchführen, da einige Prüfungen oben
+% davon beeinflusst werden).
+Q(:,R.MDH.sigma==0) = wrapToPi(Q(:,R.MDH.sigma==0));
+if R.Type == 0
+  R.qref(R.MDH.sigma==0) = wrapToPi(R.qref(R.MDH.sigma==0));
+else
+  for k = 1:R.NLEG
+    R.Leg(k).qref(R.Leg(k).MDH.sigma==0) = wrapToPi(R.Leg(k).qref(R.Leg(k).MDH.sigma==0));
+  end
+end
+
 if fval_constr > 1000 % Nebenbedingungen verletzt.
   cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval, constrvioltext));
   cds_save_particle_details(Set, R, toc(t1), fval, Jcond, f_maxstrengthviol);
@@ -107,16 +118,18 @@ if Set.optimization.constraint_obj(4) > 0 % NB für Kondition gesetzt
   end
 end
 
+%% Gelenkgrenzen in Roboterklasse neu eintragen
+% Nutzen: Berechnung der Masse von Führungsschienen und Hubzylindern,
+% Anpassung der Kollisionskörper (für nachgelagerte Prüfung und Plots)
+if R.Type == 0 % Seriell
+  R.qlim = minmax2(Q');
+else % PKM
+  for i = 1:R.NLEG
+    R.Leg(i).qlim = minmax2(Q(:,R.I1J_LEG(i):R.I2J_LEG(i))');
+  end
+end
 %% Dynamik-Parameter
 if any(strcmp(Set.optimization.objective, {'energy', 'mass', 'minactforce', 'stiffness'}))
-  % Gelenkgrenzen in Roboterklasse neu eintragen
-  if R.Type == 0 % Seriell
-    R.qlim = minmax2(Q');
-  else % PKM
-    for i = 1:R.NLEG
-      R.Leg(i).qlim = minmax2(Q(:,R.I1J_LEG(i):R.I2J_LEG(i))');
-    end
-  end
   % Dynamik-Parameter aktualisieren. Keine Nutzung der Ausgabe der Funktion
   % (Parameter werden direkt in Klasse geschrieben; R.DesPar.seg_par ist
   % vor/nach dem Aufruf unterschiedlich)
@@ -203,6 +216,8 @@ elseif strcmp(Set.optimization.objective, 'mass')
   [fval,fval_debugtext, debug_info] = cds_obj_mass(R);
 elseif strcmp(Set.optimization.objective, 'minactforce')
   [fval,fval_debugtext, debug_info] = cds_obj_minactforce(TAU);
+elseif strcmp(Set.optimization.objective, 'jointrange')
+  [fval,fval_debugtext, debug_info] = cds_obj_jointrange(R, Set, Structure, Q);
 elseif strcmp(Set.optimization.objective, 'stiffness')
   [fval,fval_debugtext, debug_info] = cds_obj_stiffness(R, Set, Q);
 else

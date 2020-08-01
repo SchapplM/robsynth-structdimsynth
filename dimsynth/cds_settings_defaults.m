@@ -37,6 +37,8 @@ general = struct( ...
   'plot_details_in_desopt' , 0, ... % Wie vorheriges Argument, aber für die Gütefunktion der Entwurfsoptimierung
   'save_robot_details_plot_fitness_file_extensions', {''}, ... % Speichern des durch vorherige Einstellung erstellten Bildes
   'save_animation_file_extensions', {{'gif', 'mp4'}}, ... % Format, in denen die Animationen gespeichert werden
+  'animation_styles', {'stick'}, ... % Visualisierungsarten im Video: stick,3D,collision; bei mehr als einem: Syntax {{'1.','2.'}}
+  'maxduration_animation', 10, ... % Die Animation soll max. 30s dauern (als Videodatei)
   'save_evolution_video', false, ... % Video mit Evolution der Roboter
   'max_retry_bestfitness_reconstruction', 10, ...
   'regenerate_summmary_only', false, ... % Nur die Videos und Zusammenfassungsbilder neu generieren. Keine Optimierung durchführen.
@@ -56,6 +58,8 @@ structures = struct( ...
   'use_serial', true, ...
   'use_parallel', true, ...
   'use_parallel_rankdef', false, ... Nehme auch parallele Roboter, die mit Rangverlust in der Datenbank stehen
+  'onlylegchain_from_synthesis', true, ... % Nehme keine seriellen Ketten als Beinkette, die nur manuell in die SerRobLib eingetragen wurden
+  'use_kinematic_variants', true, ... % Nehme auch serielle Ketten, die eine Variante eines allgemeinen Modells sind
   'maxnumprismatic', 1, ...
   'max_overconstraint', 3, ...
   'max_task_redundancy', 0, ... % Zulässiger Grad der Aufgabenredundanz
@@ -71,7 +75,10 @@ structures = struct( ...
 % Einstellungen mit Auswirkung auf die Optimierung: Auswahl der
 % Optimierungsvariablen und Annahmen über die Roboter, die getroffen werden
 optimization = struct( ...
-  'objective', 'energy', ... % Zielfunktion. Möglich: mass, energy, condition, valid_kin, valid_act, minactforce, stiffness
+  'objective', 'energy', ... % Zielfunktion. Möglich: mass, energy, condition, valid_kin, valid_act, minactforce, stiffness, jointrange
+  'obj_jointrange', ... % Zusatzeinstellungen für die Zielfunktion "jointrange"
+    struct( 'only_revolute', true, ... % Minimiere nur Wertebereich von Drehgelenken
+            'only_passive', true), ... % Minimiere nur Wertebereich passiver Gelenke
   'constraint_obj', zeros(5,1), ... % Nebenbedingungen, 1=Mass, 2=Energy, 3=Minactforce, 4=Condition, 5=Stiffness; Eintrag entspricht physikalischem Wert
   'movebase', true, ... % Position der Roboter-Basis
   'basepos_limits', NaN(3,2), ... % Grenzen für Basis-Position (Absolut, im Welt-KS)
@@ -88,6 +95,7 @@ optimization = struct( ...
   'rotate_coupling', true, ... % Koppel-Punkt-Orientierung für PKM
   'max_range_active_revolute', 270*pi/180, ... % Maximaler Drehwinkel aktiver Drehgelenke
   'max_range_passive_revolute', 360*pi/180, ... % Maximaler Drehwinkel passiver Drehgelenke
+  'max_velocity_passive_revolute', 20, ... % [rad/s] Maximale Drehgeschw. (zur Singularitätsvermeidung)
   'max_velocity_active_revolute', 8, ... % [rad/s] Maximale Drehgeschw. (zur Singularitätsvermeidung)
   'max_velocity_active_prismatic', 5, ... % [m/s] Maximale Geschw. (zur Singularitätsvermeidung)
   'use_desopt', false, ... % Schalter für eigene Optimierung der Entwurfsparameter

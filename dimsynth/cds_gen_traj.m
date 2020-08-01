@@ -155,35 +155,3 @@ end
 
 %% Ausgabe
 Traj = struct('X', X_ges, 'XD', XD_ges, 'XDD', XDD_ges, 't', T_ges, 'XE', XE);
-return
-
-%% Debug: Trajektorie anschauen
-% Kippwinkelaus Euler-Winkeln berechnen
-phiK_ges = NaN(length(T_ges),1);
-for i = 1:length(phiK_ges)
-  % Berechne z-Achse
-  R = eulxyz2r(X_ges(i,4:6)');
-  % Kippwinkel aus 
-  phiK_ges(i) = acos(R(:,3)' * [0;0;1]);
-end
-figure(1);clf;
-subplot(2,2,1);view(3);
-plot3(1e3*X_ges(:,1), 1e3*X_ges(:,2), 1e3*X_ges(:,3));
-xlabel('x in mm');ylabel('y in mm');zlabel('z in mm');
-for i = 1:size(XE,1)
-  text(1e3*XE(i,1), 1e3*XE(i,2), 1e3*XE(i,3)+3*i, sprintf('%d', i));
-end
-grid on;
-subplot(2,2,2);
-plot(T_ges, 1e3*X_ges(:,1:3));
-ylabel('pos in mm');
-grid on;
-subplot(2,2,3);
-plot(T_ges, 180/pi*X_ges(:,4:6));
-legend({'Eul X', 'Eul Y', 'Eul Z'});
-ylabel('Euler-Winkel in Grad');
-grid on;
-subplot(2,2,4);
-plot(T_ges, 180/pi*phiK_ges);
-ylabel('Schwenk-Winkel in Grad');
-grid on;
