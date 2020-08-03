@@ -642,6 +642,52 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     error('Prüfung eines Körpers mit sich selbst ergibt keinen Sinn');
   end
 end
+%% Initialisierung der Bauraumprüfung
+% Erstelle Liste der Kollisionsprüfungen für cds_constr_installspace.m
+% Die Geometrie-Objekte werden erst dort ins Basis-KS des Roboters trans-
+% formiert.
+if ~isempty(Set.task.installspace.type)
+  instspc_collchecks_collbodies = []; % Liste der Bauraum-Kollisionsprüfungen
+  n_cb_robot = size(Structure.collbodies_robot.type,1);
+  % Stelle äquivalente Gelenknummer von PKM zusammen (als  Übersetzungs- 
+  % tabelle). Zeile 1 ursprünglich, Zeile 2 Übersetzung. Siehe oben.
+  % Seriell: 0=Basis, 1=erstes bewegtes Segment, ...
+  equiv_link = repmat(0:Structure.collbodies_robot.link(end),2,1);
+  if Structure.Type == 2 % PKM
+    % Kollisionskörper-Zählung: 0=Basis, 1=Beinkette1-Basis, 2=Beinkette1-1.Seg., ...
+    % Zählung für äquivalente Indizes: PKM-Basis und Beinketten-Basis ist
+    % alles Körper 0. Ansonsten ist der erste bewegte Körper nach der Basis
+    % 1, usw.
+    for k = 1:R.NLEG
+      NLoffset = 1; % Für Basis der Beinkette
+      if k > 1
+        NLoffset = 1+R.I2L_LEG(k-1)-(k-1); % siehe andere Vorkommnisse oben
+      end
+      for jj = 0:R.Leg(1).NL-1
+        % Segment-Nummer in Gesamt-PKM nach Kollisionskörper-Zählung
+        iil = NLoffset+jj;
+        equiv_link(2,iil+1) = jj;
+      end
+    end
+  end
+  for i = 1:size(Set.task.installspace.type,1)
+    % Prüfe, für welches Robotersegment das Bauraum-Geometrieobjekt i
+    % definiert ist
+    links_i = Set.task.installspace.links{i}; % erlaubte Segmente
+    % Gehe alle Kollisionskörper j des Roboters durch und prüfe, ob passend
+    for j = 1:size(Structure.collbodies_robot.type,1)
+      % Nehme nicht die Segmentnummer selbst, sondern die des äquivalenten
+      % Segments (jew. von der Basis aus gesehen, egal ob PKM oder seriell)
+      iii = equiv_link(1,:) == Structure.collbodies_robot.link(j);
+      equiv_link_j = equiv_link(2,iii); % 0=Basis, 1=erstes bewegtes,...
+      if any(links_i == equiv_link_j)
+        instspc_collchecks_collbodies = [instspc_collchecks_collbodies; ...
+          uint8([j, n_cb_robot+i])]; %#ok<AGROW> % Prüfe "Kollision" Roboter-Segment j mit Bauraum-Begrenzung i
+      end
+    end
+  end
+  Structure.installspace_collchecks_collbodies = instspc_collchecks_collbodies;
+end
 
 %% Anfangs-Population generieren
 % TODO: Existierende Roboter einfügen

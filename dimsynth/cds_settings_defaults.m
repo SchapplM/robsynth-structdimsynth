@@ -107,7 +107,7 @@ optimization = struct( ...
   'resdir', fullfile(fileparts(which('structgeomsynth_path_init.m')), 'dimsynth', 'results'), ...
   'optname', 'unnamed');
 
-%% Einstellungen für Trajektorie
+%% Einstellungen für Aufgabe (Trajektorie, Bauraum, Hindernisse)
 task = struct( ...
   'profile', 1, ... % Beschleunigungs-Trapez
   'vmax', 1, ...
@@ -116,8 +116,9 @@ task = struct( ...
   'Ts', 1e-3, ...
   'maxangle', 2*pi, ... % Keine Einschränkung für die maximalen Winkel
   'installspace', struct( ... % Konfiguration des möglichen Bauraums
+    'links', {}, ... % jew. Liste der von der Basis gezählten Segmente (Bsp.: alle erlaubt ist 0:6)
     'type', [], ... % 1=Quader, 2=Zylinder; zeilenweise mehrere Körper
-    'params', []), ... % im Welt-KS. 1: Aufpunkt, 2 Eckpunkte, Länge 3. Kante; 2: Punkt1, Punkt2, Radius
+    'params', []), ... % im Welt-KS. Jeweils die geometrie-beschreibenden Parameter
   'obstacles', struct( ... % Hindernisse im Arbeitsraum zur Kollisionsprüfung
     'type', [], ... % Nummerierung siehe SerRob.m (collbodies)
     'params', []), ...% s.o.

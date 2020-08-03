@@ -53,8 +53,8 @@ n_cb_robot = size(collbodies.type,1);
 
 %% Bauraum-Geometrie als Kollisionsobjekte eintragen
 T_0_W = invtr(R.T_W_0);
-collchecks = []; % Liste der Kollisionsprüfungen
-
+ % Liste der Kollisionsprüfungen: Schon vorab bestimmt.
+collchecks = Structure.installspace_collchecks_collbodies;
 % Füge Geometrien des Bauraums als virtuelle Kollisionsobjekte hinzu.
 % Transformiere ins Basis-KS des Roboters
 for i = 1:size(Set.task.installspace.type,1)
@@ -84,10 +84,6 @@ for i = 1:size(Set.task.installspace.type,1)
   collbodies.type = [collbodies.type; type_i];
   % Bauraum wird zur Basis (=0) gezählt (ortsfest)
   collbodies.link = [collbodies.link; uint8(0)];
-  % Generiere Liste der Kollisionspaare: Teste Kollision jedes Roboter-KS
-  % mit dem Geometrieobjekt für den Bauraum
-  collchecks = [collchecks; ...
-    uint8(1:n_cb_robot)', repmat(uint8(size(collbodies.type,1)),n_cb_robot,1)]; %#ok<AGROW>
 end
 
 %% Bestimme Geometrieübereinstimmung mit Bauraum

@@ -21,7 +21,8 @@ Set.task.Tv = 1e-1;
 Set.task.installspace = struct( ...
   'type', uint8([1; 2]), ...
   'params', [[[-1.0, -1.0, 0.5], [2.0,0,0], [0,2.0,0], 2.0]; ... % Quader oberhalb der Aufgabe
-             [[0,0,-0.1], [0,0,0.5], 0.5, NaN(1,3)]]); % Zylinder Höhe 600mm, Radius 500mm
+             [[0,0,-0.1], [0,0,0.5], 0.5, NaN(1,3)]], ... % Zylinder Höhe 600mm, Radius 500mm
+  'links', {{0:1; 1:6}});  % Im Quader dürfen nur die Basis und das erste bewegte Segment sein. Im Zylinder müssen alle bewegten Segmente sein.
 % Hindernisse definieren: Objekte für Übergang zwischen Zylinder und Quader
 % (damit der Roboter nicht schräg vom Quader zum Zylinder durchgreift)
 % Erzeuge quadratische Sperre aus Kapseln
@@ -47,7 +48,7 @@ Set.general.plot_robot_in_fitness = 1e3;
 Set.general.verbosity = 3;
 Set.general.matfile_verbosity = 3;
 Set.general.save_robot_details_plot_fitness_file_extensions = {'fig'};
-Set.optimization.constraint_collisions = true;
+Set.optimization.constraint_collisions = false;
 % Das Gestell sollte nicht größer als die Bauraumgrenze (Quader) sein
 Set.optimization.base_size_limits = [0.1, 1.0*sqrt(2)];
 % Die Plattform sollte nicht größer als die Bauraumgrenze (Zylinder) sein
@@ -57,5 +58,5 @@ Set.optimization.basepos_limits = [[NaN, NaN]; [NaN, NaN]; [0.5 1.5]]; % nur z-K
 Set.structures.maxnumprismatic = 3; % für Portal-Systeme (trotzdem ohne passive Schubgelenke)
 % Mögliche Kandidaten, die halbwegs gut für obigen Aufgabe funktionieren:
 % P3RRRRR6G2P2A1, P3RRRRR7G3P3A1, P3RRRRR10G3P3A1, P3RRRRR10G2P2A2, S3PPP1
-Set.structures.whitelist = {'P3RRRRR10G3P3A1'};
+Set.structures.whitelist = {'P3PRRRR6G4P2A1'};
 cds_start
