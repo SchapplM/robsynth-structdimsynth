@@ -196,7 +196,7 @@ if structset.use_parallel
         end
         % Maske für die Beinkette erstellen. Bei allgemeinen Hauptmodellen
         % direkt ablesen. Bei Varianten die Maske des Hauptmodells nehmen.
-        if bitand(Mask_Origin, l.BitArrays_Origin(ilc,:)) == 0
+        if bitand(Mask_Origin, l.BitArrays_Origin(ilc,:)) ~= 0
           % Beinkette kommt selbst schon aus der richtigen Synthese. Nichts
           % tun. Hierdurch werden auch Varianten aus Beinketten-
           % Struktursynthese genommen (noch ungeklärt, woher die kommen).
@@ -214,6 +214,11 @@ if structset.use_parallel
             WrongLegChainOrigin = true; % Serielle Kette hat falsche Modellherkunft.
             break;
           end
+        else
+          % Beinkette ist keine Variante. Obige Prüfung ist fehlgeschlagen.
+          % Daher Modellherkunft nicht aus passender Struktursynthese.
+          WrongLegChainOrigin = true;
+          break;
         end
       end
     end
