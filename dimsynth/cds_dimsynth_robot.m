@@ -213,6 +213,10 @@ if Structure.Type == 0 || Structure.Type == 2
      R_pkin.MDH.sigma(1) == 1 % erstes Gelenk ist Schubgelenk
     I_a2 = R_pkin.pkin_jointnumber==2 & R_pkin.pkin_types == 4;
     Ipkinrel = Ipkinrel & ~I_a2; % Nehme die "1" bei a2 weg.
+    % Setze den d2-Parameter zu Null, wenn a2 Null ist. Der Parameter ist
+    % dann redundant zum vorherigen d1-Parameter (Schubgelenk).
+    I_d2 = R_pkin.pkin_jointnumber==2 & R_pkin.pkin_types == 6;
+    Ipkinrel = Ipkinrel & ~I_d2; % Nehme die "1" bei d2 weg.
   end
   % Setze den letzten d-Parameter für PKM-Beinketten auf Null. Dieser ist
   % redundant zur Plattform-Größe
