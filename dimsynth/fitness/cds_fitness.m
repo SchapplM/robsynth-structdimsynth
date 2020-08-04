@@ -84,6 +84,18 @@ else
   end
 end
 
+% Gelenkgrenzen in Roboterklasse neu eintragen
+% Nutzen: Berechnung der Masse von Führungsschienen und Hubzylindern,
+% Anpassung der Kollisionskörper (für nachgelagerte Prüfung und Plots)
+% Bereits hier, damit Ergebnis-Visualisierung konsistent ist.
+if R.Type == 0 % Seriell
+  R.qlim = minmax2(Q');
+else % PKM
+  for i = 1:R.NLEG
+    R.Leg(i).qlim = minmax2(Q(:,R.I1J_LEG(i):R.I2J_LEG(i))');
+  end
+end
+
 if fval_constr > 1000 % Nebenbedingungen verletzt.
   cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval, constrvioltext));
   cds_save_particle_details(Set, R, toc(t1), fval, Jcond, f_maxstrengthviol);
@@ -118,16 +130,6 @@ if Set.optimization.constraint_obj(4) > 0 % NB für Kondition gesetzt
   end
 end
 
-%% Gelenkgrenzen in Roboterklasse neu eintragen
-% Nutzen: Berechnung der Masse von Führungsschienen und Hubzylindern,
-% Anpassung der Kollisionskörper (für nachgelagerte Prüfung und Plots)
-if R.Type == 0 % Seriell
-  R.qlim = minmax2(Q');
-else % PKM
-  for i = 1:R.NLEG
-    R.Leg(i).qlim = minmax2(Q(:,R.I1J_LEG(i):R.I2J_LEG(i))');
-  end
-end
 %% Dynamik-Parameter
 if any(strcmp(Set.optimization.objective, {'energy', 'mass', 'minactforce', 'stiffness'}))
   % Dynamik-Parameter aktualisieren. Keine Nutzung der Ausgabe der Funktion
