@@ -169,6 +169,10 @@ q0 = qlim(:,1) + rand(R.NJ,1).*(qlim(:,2)-qlim(:,1));
 % Normalisiere den Anfangswert (außerhalb [-pi,pi) nicht sinnvoll).
 % (Betrifft nur Fall, falls Winkelgrenzen groß gewählt sind)
 q0(R.MDH.sigma==0) = normalize_angle(q0(R.MDH.sigma==0));
+% Setze bei PKM die Anfangswerte für alle Beinketten identisch
+if R.Type == 2
+  q0(R.I1J_LEG(2):end) = NaN; % Dadurch in invkin_ser Werte der ersten Beinkette genommen
+end
 
 % IK für alle Eckpunkte, beginnend beim letzten (dann ist q der richtige
 % Startwert für die Trajektorien-IK)
@@ -188,6 +192,7 @@ for i = size(Traj_0.XE,1):-1:1
   if R.Type == 0
     [q, Phi, Tc_stack] = R.invkin2(Traj_0.XE(i,:)', q0, s);
   else
+    q0(R.I1J_LEG(2):end) = NaN; % Für Beinkette 2 Ergebnis von BK 1 nehmen
     [q, Phi, Tc_stack] = R.invkin2(Traj_0.XE(i,:)', q0, s); % kompilierter Aufruf
     if Set.general.debug_calc
       [q_debug, Phi_debug, Tc_stack_debug] = R.invkin_ser(Traj_0.XE(i,:)', q0, s); % Klassenmethode
