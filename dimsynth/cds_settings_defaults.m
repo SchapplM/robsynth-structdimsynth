@@ -116,7 +116,7 @@ task = struct( ...
   'Ts', 1e-3, ...
   'maxangle', 2*pi, ... % Keine Einschränkung für die maximalen Winkel
   'installspace', struct( ... % Konfiguration des möglichen Bauraums
-    'links', {}, ... % jew. Liste der von der Basis gezählten Segmente (Bsp.: alle erlaubt ist 0:6)
+    'links', {{}}, ... % jew. Liste der von der Basis gezählten Segmente (Bsp.: alle erlaubt ist 0:6)
     'type', [], ... % 1=Quader, 2=Zylinder; zeilenweise mehrere Körper
     'params', []), ... % im Welt-KS. Jeweils die geometrie-beschreibenden Parameter
   'obstacles', struct( ... % Hindernisse im Arbeitsraum zur Kollisionsprüfung
