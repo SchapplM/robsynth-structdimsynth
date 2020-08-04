@@ -796,12 +796,6 @@ k = find(fval == PSO_Detail_Data.fval', 1, 'first');
 [dd_optind,dd_optgen] = ind2sub(fliplr(size(PSO_Detail_Data.fval)),k); % Umrechnung in 2D-Indizes: Generation und Individuum
 q0_ik = PSO_Detail_Data.q0_ik(dd_optind,:,dd_optgen)';
 
-% Grenzen aus diesem letzten Aufruf bestimmen
-if Structure.Type == 0 
-  Structure.qlim = R.qlim;
-else
-  Structure.qlim = cat(1, R.Leg.qlim);
-end
 % Prüfen, ob diese mit den im Optimierungsprozess gespeicherten IK-Anfangs-
 % winkeln übereinstimmen
 if Structure.Type == 0, q0_ik2 = R.qref;
@@ -813,7 +807,6 @@ if any(test_q0~=0) && fval<1e9 % nur bei erfolgreicher Berechnung der IK ist der
 end
 % Berechne Inverse Kinematik zu erstem Bahnpunkt
 Traj_0 = cds_rotate_traj(Traj, R.T_W_0);
-% q0 = Structure.qlim(:,1) + rand(R.NJ,1).*(Structure.qlim(:,2)-Structure.qlim(:,1));
 if Structure.Type == 0 % Seriell
   % Benutze Referenzpose die bei obigen Zielfunktionsaufruf gespeichert wurde
   [q, Phi] = R.invkin2(Traj_0.XE(1,:)', R.qref);

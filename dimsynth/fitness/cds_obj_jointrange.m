@@ -38,8 +38,10 @@ q_range(R.MDH.sigma==0) = angle_range( Q(:,R.MDH.sigma==0));
 % Indizes zur Auswahl der Gelenke
 if Structure.Type == 2 % Paralleler Roboter
   I_active = R.I_qa;
+  qlim = cat(1, R.Leg.qlim);
 else
   I_active = R.MDH.mu;
+  qlim = R.qlim;
 end
 I_prismatic = R.MDH.sigma==1;
 
@@ -57,7 +59,7 @@ if ~any(I_sel)
 end
 % Normiere die Gelenkwinkel. Grundlage: Gelenkwinkelgrenzen. Diese sind von
 % den Einstellungen beeinflusst.
-qrange_ref = Structure.qlim(:,2)-Structure.qlim(:,1);
+qrange_ref = qlim(:,2)-qlim(:,1);
 qrange_norm = q_range./qrange_ref;
 % Berechne die normierte Spannweite des kritischen Gelenks. Muss bereits
 % kleiner als 1 sein, da ansonsten vorher ein Fehler aufgeworfen worden
