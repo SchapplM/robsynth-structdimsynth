@@ -38,10 +38,8 @@ q_range(R.MDH.sigma==0) = angle_range( Q(:,R.MDH.sigma==0));
 % Indizes zur Auswahl der Gelenke
 if Structure.Type == 2 % Paralleler Roboter
   I_active = R.I_qa;
-  qlim = cat(1, R.Leg.qlim);
 else
   I_active = R.MDH.mu;
-  qlim = R.qlim;
 end
 I_prismatic = R.MDH.sigma==1;
 
@@ -52,27 +50,39 @@ end
 if Set.optimization.obj_jointrange.only_passive
   I_sel(I_active) = false; % aktive deaktivieren
 end
+II_sel = find(I_sel);
 if ~any(I_sel)
   % Wenn bei seriellen Robotern die falschen Einstellungen gesetzt sind,
   % gibt es keine Lösung
   return
 end
 % Normiere die Gelenkwinkel. Grundlage: Gelenkwinkelgrenzen. Diese sind von
-% den Einstellungen beeinflusst.
-qrange_ref = qlim(:,2)-qlim(:,1);
+% den Einstellungen beeinflusst (nehme die nicht modifizierten
+qrange_ref = Structure.qlim(:,2)-Structure.qlim(:,1);
 qrange_norm = q_range./qrange_ref;
 % Berechne die normierte Spannweite des kritischen Gelenks. Muss bereits
 % kleiner als 1 sein, da ansonsten vorher ein Fehler aufgeworfen worden
 % wäre
 [q_rn_crit, Icrit] = max(qrange_norm(I_sel));
 if q_rn_crit > 1
-  if q_rn_crit > 1.01 % Rundungsfehler mehr als 1% gibt Warnung. Sonst nicht.
-    cds_log(-1, sprintf('[cds_obj_jointrange] Normierte Gelenkwinkelspanne %1.2f>1. Darf nicht sein.', q_rn_crit));
-  end
+  cds_log(-1, sprintf('[cds_obj_jointrange] Normierte Gelenkwinkelspanne %1.2f>1. Darf nicht sein.', q_rn_crit));
   q_rn_crit = 1;
 end
+iijoint = II_sel(Icrit); % Nummer des kritischen Gelenks in allen Gelenken
 % Nehme das direkt als Fitness-Wert
 fval = 1e3*q_rn_crit; % Normiert auf 0 bis 1e3
-f_jrange = q_range(Icrit); % Physikalischer Wert ist die nicht normierte kritische Spannweite
-fval_debugtext = sprintf('Größte rel. Gelenkspannweite: %1.2f (Gel.-Nr. %d; abs. %1.2f)', ...
-  q_rn_crit, Icrit, f_jrange);
+f_jrange = q_range(iijoint); % Physikalischer Wert ist die nicht normierte kritische Spannweite
+% Stelle lesbare Textausgabe zusammen
+if Structure.Type == 2 % Paralleler Roboter
+  iileg = find(iijoint >= R.I1J_LEG,1,'last'); % Nummer der Beinkette
+  iilegj = iijoint - R.I1J_LEG(iileg) + 1; % Nummer des Beingelenks
+  f_jrange_str = sprintf('%1.1f %s', f_jrange/R.Leg(iileg).qunitmult_eng_sci(iilegj), ...
+    R.Leg(iileg).qunit_eng{iilegj});
+  legstr = sprintf(' (Bein %d, Gel. %d)', iileg, iilegj);
+else % Serieller Roboter
+  f_jrange_str = sprintf('%1.1f %s', f_jrange/R.qunitmult_eng_sci(iijoint), ...
+    R.qunit_eng{iijoint});
+  legstr = '';
+end
+fval_debugtext = sprintf('Größte rel. Gelenkspannweite %1.1f%%. In Gel. %d%s; abs. %s.', ...
+  100*q_rn_crit, iijoint, legstr, f_jrange_str);
