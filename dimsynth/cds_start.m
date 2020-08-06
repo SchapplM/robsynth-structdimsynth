@@ -99,6 +99,21 @@ if ~Set.general.regenerate_summmary_only
       continue
     end
   end
+  if Set.general.use_mex && Set.general.compile_missing_functions
+    % Benötigte Funktionen kompilieren (serielle statt parallele Ausführung)
+    % (es wird automatisch der codegen-Ordner gelöscht. Kann bei paralleler
+    % Rechnung zu Konflikten führen)
+    for i = 1:length(Structures)
+      Structure = Structures{i};
+      if Structure.Type == 0 % Serieller Roboter
+        R = serroblib_create_robot_class(Structure.Name);
+      else % PKM
+        R = parroblib_create_robot_class(Structure.Name,1,1);
+      end
+      % Hierdurch werden fehlende mex-Funktionen kompiliert.
+      R.fill_fcn_handles(true, true);
+    end
+  end
   
   resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
   mkdirs(resdir_main); % Ergebnis-Ordner für diese Optimierung erstellen

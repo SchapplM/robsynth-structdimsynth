@@ -48,6 +48,7 @@ general = struct( ...
   'debug_calc', false, ... % Doppelte Berechnung zur Prüfung von Funktionen
   'parcomp_struct', 0, ... % Parallele Berechnung unterschiedlicher Roboter. Enthält Anzahl der Worker-Instanzen als Zahl
   'parcomp_maxworkers', inf, ... % Beschränkung der Anzahl paralleler Instanzen
+  'compile_missing_functions', true, ... % Bei Start alle mex-Funktionen kompilieren
   'create_template_functions', false, ... % Erzeuge Funktionen neu aus Vorlagen-Dateien
   'use_mex', true);
 
