@@ -165,28 +165,24 @@ else % PKM
   end
   JPE = NaN(size(Traj_0.XE,1), (R.NL-1+R.NLEG)*3);
 end
-fval_jic = NaN(1,3);
-constrvioltext_jic = cell(1,3);
-Q_jic = NaN(size(Traj_0.XE,1), R.NJ, 3);
-for jic = 1:3 % Schleife über IK-Konfigurationen
-q0 = qlim(:,1) + rand(R.NJ,1).*(qlim(:,2)-qlim(:,1));
+fval_jic = NaN(1,9);
+constrvioltext_jic = cell(9,1);
+Q_jic = NaN(size(Traj_0.XE,1), R.NJ, 9);
+for jic = 1:9 % Schleife über IK-Konfigurationen (9 Versuche)
+Phi_E(:) = NaN; QE(:) = NaN; % erneut initialisieren wegen jic-Schleife.
+q0 = qlim(:,1) + rand(R.NJ,1).*(qlim(:,2)-qlim(:,1)); % Zufällige Anfangswerte geben vielleicht neue Konfiguration.
 % Anpassung der IK-Anfangswerte für diesen Durchlauf der IK-Konfigurationen.
 % Versuche damit eine andere Konfiguration zu erzwingen
 if fval_jic(1) > 1e6
   % IK hat beim ersten Mal schon nicht funktioniert (dort werden aber
   % zufällige Neuversuche gemacht). Andere Anfangswerte sind zwecklos.
-  continue
+  break;
 end
   
-if jic > 1 && ~any(R.MDH.sigma==1)
-  % Die Wahl einer anderen Konfiguration ist aktuell nur für Schubgelenke
-  % definiert.
-  continue
-end
-if jic == 2
+if any(jic == [4 5 6])
   % Setze die Anfangswerte (für Schubgelene) ganz weit nach "links"
   q0(R.MDH.sigma==1) = q0(R.MDH.sigma==1)-1.5*(qlim(R.MDH.sigma==1,2)-qlim(R.MDH.sigma==1,1));
-elseif jic == 3
+elseif any(jic == [7 8 9])
   % Anfangswerte weit nach rechts
   q0(R.MDH.sigma==1) = q0(R.MDH.sigma==1)+1.5*(qlim(R.MDH.sigma==1,2)-qlim(R.MDH.sigma==1,1));
 end
@@ -276,6 +272,16 @@ for i = size(Traj_0.XE,1):-1:1
         error(['Ausgegebene Gelenkpositionen stimmen nicht gegen direkte ', ...
           'Kinematik. Zeitpunkt %d, Beinkette %d. Max Fehler %1.1e'], i, kk, max(abs(test_JPE(:))));
       end
+    end
+  end
+  % Prüfe, ob für die Berechnung der neuen Konfiguration das gleiche
+  % rauskommt. Dann könnte man aufhören
+  if jic > 1 && i == size(Traj_0.XE,1) % Erster Eckpunkt
+    test_vs_all_prev = repmat(q,1,jic-1)-reshape(squeeze(Q_jic(1,:,1:jic-1)),R.NJ,jic-1);
+    % 2pi-Fehler entfernen
+    test_vs_all_prev(abs(abs(test_vs_all_prev)-2*pi)<1e-3) = 0;
+    if any(all(abs(test_vs_all_prev)<1e-6,1)) % Prüfe ob eine Spalte gleich ist wie die aktuellen Gelenkwinkel
+      break;  % Das IK-Ergebnisse für den ersten Eckpunkt gibt es schon. Nicht weiter rechnen.
     end
   end
 end
