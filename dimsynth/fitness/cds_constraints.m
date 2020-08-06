@@ -328,7 +328,8 @@ end
 %% Aktualisiere Roboter für Kollisionsprüfung (geänderte Winkelgrenzen aus IK)
 if Set.optimization.constraint_collisions || ...
     ~isempty(Set.task.installspace.type) || ~isempty(Set.task.obstacles.type)
-  Structure.collbodies_robot = cds_update_collbodies(R, Set, QE);
+  [Structure.collbodies_robot, Structure.installspace_collbodies] = ...
+    cds_update_collbodies(R, Set, Structure, QE);
 end
 %% Selbst-Kollisionsprüfung für Einzelpunkte
 if Set.optimization.constraint_collisions
@@ -579,7 +580,8 @@ end
 %% Aktualisiere Roboter für Kollisionsprüfung (geänderte Grenzen aus Traj.-IK)
 if Set.optimization.constraint_collisions || ...
     ~isempty(Set.task.installspace.type) || ~isempty(Set.task.obstacles.type)
-  Structure.collbodies_robot = cds_update_collbodies(R, Set, Q);
+  [Structure.collbodies_robot, Structure.installspace_collbodies] = ...
+    cds_update_collbodies(R, Set, Structure, Q);
 end
 %% Selbstkollisionserkennung für Trajektorie
 if Set.optimization.constraint_collisions

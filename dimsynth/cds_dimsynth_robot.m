@@ -135,6 +135,10 @@ for i = 1:NLEG
   R_init.DesPar.joint_type((1:R_init.NJ)'==1&R_init.MDH.sigma==1) = 4; % Linearführung erste Achse
   R_init.DesPar.joint_type((1:R_init.NJ)'~=1&R_init.MDH.sigma==1) = 5; % Schubzylinder weitere Achse
   R_init.update_dynpar1(); % Nochmal initialisieren, damit MPV definiert ist
+  
+  % Platzhalter-Werte für Segment-Parameter setzen (nur für Plotten)
+  R_init.DesPar.seg_par(:,1) = 50e-3;
+  R_init.DesPar.seg_par(:,2) = 5e-3;
 end
 % Merke die ursprünglich aus der Datenbank geladene EE-Rotation. Die in der
 % Optimierung ergänzte Rotation ist zusätzlich dazu. (Bei 2T1R-Robotern
@@ -547,7 +551,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   % Roboter-Kollisionsobjekte in Struktur abspeichern (zum Abruf in den
   % Funktionen cds_constr_collisions_... und cds_constr_installspace
   % Ist erstmal nur Platzhalter. Wird zur Laufzeit noch aktualisiert.
-  Structure.collbodies_robot = cds_update_collbodies(R, Set, Structure.qlim');
+  Structure.collbodies_robot = cds_update_collbodies(R, Set, Structure, Structure.qlim');
   % Probe: Sind Daten konsistent? Inkonsistenz durch obigem Aufruf möglich.
   if any(any(~isnan(Structure.collbodies_robot.params(Structure.collbodies_robot.type==6,2:end))))
     error('Inkonsistente Kollisionsdaten: Kapsel-Direktverbindung hat zu viele Parameter');
@@ -651,12 +655,43 @@ end
 % Die Geometrie-Objekte werden erst dort ins Basis-KS des Roboters trans-
 % formiert.
 if ~isempty(Set.task.installspace.type)
-  instspc_collchecks_collbodies = []; % Liste der Bauraum-Kollisionsprüfungen
-  n_cb_robot = size(Structure.collbodies_robot.type,1);
+  % Liste für alle Kollisionskörper des Roboters bei Bauraumprüfung.
+  % Es werden nur Punkte anstatt der Ersatz-Volumen benutzt.
+  % Das Format der Struktur ist genauso wie oben.
+  collbodies_instspc = struct('link', [], 'type', [], 'params', []);
+  instspc_collchecks_collbodies = []; % Liste der Bauraum-Kollisionsprüfungen (bezogen auf obige Variable)
+  % Stelle Ersatz-Punkte für alle Robotergelenke zusammen
+  for k = 1:NLEG
+    % Offset für PKM-Beinketten bestimmen, s.o.
+    if Structure.Type == 0  % Seriell 
+      NLoffset = 0;
+      R_cc = R;
+    else % PKM-Beinkette
+      NLoffset = 1;
+      R_cc = R.Leg(k);
+      if k > 1
+        NLoffset = 1+R.I2L_LEG(k-1)-(k-1); % in I1L wird auch Basis und EE-Link noch mitgezählt. Hier nicht.
+      end
+    end
+    % Erzeuge Kollisionskörper für den statischen Teil von Schub- 
+    % gelenken (z.B. Linearachsen). Siehe: SerRob/plot
+    for i = find(R_cc.MDH.sigma'==1)
+      % Hänge zwei Punkte für Anfang und Ende jeder Linearführung an
+      % Setze als Körper Nr. 14 (Punkt im Basis-KS)
+      collbodies_instspc.type = [collbodies_instspc.type; repmat(uint8(14),2,1)];
+      collbodies_instspc.params = [collbodies_instspc.params; NaN(2,10)];
+      % Führungsschiene/Führungszylinder ist vorherigem Segment zugeordnet
+      collbodies_instspc.link = [collbodies_instspc.link; repmat(NLoffset+uint8(i-1),2,1)];
+    end
+    % Hänge einen Punkt (Nr. 9) für jedes Gelenk an. Unabhängig, ob 3D-Körper dafür
+    collbodies_instspc.type = [collbodies_instspc.type; repmat(uint8(9),R_cc.NJ,1)];
+    collbodies_instspc.params = [collbodies_instspc.params; NaN(R_cc.NJ,10)];
+    collbodies_instspc.link = [collbodies_instspc.link; uint8(NLoffset+(1:R_cc.NJ)')];
+  end
   % Stelle äquivalente Gelenknummer von PKM zusammen (als  Übersetzungs- 
   % tabelle). Zeile 1 ursprünglich, Zeile 2 Übersetzung. Siehe oben.
   % Seriell: 0=Basis, 1=erstes bewegtes Segment, ...
-  equiv_link = repmat(0:Structure.collbodies_robot.link(end),2,1);
+  equiv_link = repmat(0:collbodies_instspc.link(end),2,1);
   if Structure.Type == 2 % PKM
     % Kollisionskörper-Zählung: 0=Basis, 1=Beinkette1-Basis, 2=Beinkette1-1.Seg., ...
     % Zählung für äquivalente Indizes: PKM-Basis und Beinketten-Basis ist
@@ -674,15 +709,16 @@ if ~isempty(Set.task.installspace.type)
       end
     end
   end
+  n_cb_robot = size(collbodies_instspc.type,1);
   for i = 1:size(Set.task.installspace.type,1)
     % Prüfe, für welches Robotersegment das Bauraum-Geometrieobjekt i
     % definiert ist
     links_i = Set.task.installspace.links{i}; % erlaubte Segmente
     % Gehe alle Kollisionskörper j des Roboters durch und prüfe, ob passend
-    for j = 1:size(Structure.collbodies_robot.type,1)
+    for j = 1:size(collbodies_instspc.type,1)
       % Nehme nicht die Segmentnummer selbst, sondern die des äquivalenten
       % Segments (jew. von der Basis aus gesehen, egal ob PKM oder seriell)
-      iii = equiv_link(1,:) == Structure.collbodies_robot.link(j);
+      iii = equiv_link(1,:) == collbodies_instspc.link(j);
       equiv_link_j = equiv_link(2,iii); % 0=Basis, 1=erstes bewegtes,...
       if any(links_i == equiv_link_j)
         instspc_collchecks_collbodies = [instspc_collchecks_collbodies; ...
@@ -690,6 +726,9 @@ if ~isempty(Set.task.installspace.type)
       end
     end
   end
+  Structure.installspace_collbodies = collbodies_instspc; % Eingabe vorbereiten
+  [~,collbodies_instspc] = cds_update_collbodies(R, Set, Structure, Structure.qlim');
+  Structure.installspace_collbodies = collbodies_instspc; % modifizerte Struktur abspeichern
   Structure.installspace_collchecks_collbodies = instspc_collchecks_collbodies;
 end
 

@@ -15,6 +15,10 @@
 % collbodies_robot
 %   Struktur mit allen Kollisionskörpern des Roboters. Für PKM müssen die
 %   Indizes umgerechnet werden. Daher hier ausgelagert.
+% collbodies_instspc
+%   Struktur mit Ersatz-Kollisionskörpern für die Prüfungs des Bauraums.
+%   Enthält Punkte für jedes Gelenk und Anfangs- und Endpunkt von
+%   Linearführungen von Schubachsen.
 % 
 % Siehe auch: cds_dimsynth_robot.m (Code teilweise identisch), 
 % cds_constr_collisions_self
@@ -22,7 +26,7 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-07
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function collbodies_robot = cds_update_collbodies(R, Set, Q)
+function [collbodies_robot, collbodies_instspc] = cds_update_collbodies(R, Set, Structure, Q)
 if Set.general.matfile_verbosity > 2
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_update_collbodies_0.mat'));
   % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_update_collbodies_0.mat'));
@@ -32,10 +36,16 @@ if R.Type == 0 % Seriell
 elseif R.Type == 2 % Parallel
   NLEG = R.NLEG;
 end
-if nargin == 3
+if nargin == 4
   update_collbodies = true;
 else
   update_collbodies = false;
+end
+if isfield(Structure, 'installspace_collbodies')
+  collbodies_instspc = Structure.installspace_collbodies;
+  update_installspcbodies = true;
+else
+  update_installspcbodies = false;
 end
 %% Kollisionskörper aktualisieren
 if update_collbodies
@@ -68,7 +78,7 @@ if update_collbodies
     % Alle Schubgelenke der seriellen Kette durchgehen
     cbidx = 0; % Index für R_cc.collbodies
     for i = find(R_cc.MDH.sigma'==1)
-      if i > 1, continue; end % Führungsschiene hier noch nicht modellbierbar. Konsistent mit Initialisierung.
+      if i > 1, continue; end % Führungsschiene hier noch nicht modellierbar. Konsistent mit Initialisierung.
       cbidx = cbidx + 1;
       % Bestimme Anfangs- und Endposition der Führungsschiene (entsprechend
       % der MDH-Notation der Kinematik)
@@ -104,11 +114,6 @@ end
 %% Debug: Kollisionskörper zeichnen
 if false
   change_current_figure(2301); clf; hold all %#ok<UNRCH>
-  % Debug: Zum Zeichnen der 3D-Körper
-%   for i = 1:R.NLEG
-%     R.Leg(i).DesPar.seg_par(:,1) = 50e-3;
-%     R.Leg(i).DesPar.seg_par(:,2) = 5e-3;
-%   end
   view(3); axis auto; grid on;
   xlabel('x in m');ylabel('y in m');zlabel('z in m');
   if R.Type == 0 % Seriell
@@ -125,6 +130,7 @@ end
 % erster Körper, usw. Wird für serielle Roboter auch benutzt. Dort aber
 % nur eine Basis (=0).
 collbodies_robot = struct('link', [], 'type', [], 'params', []);
+isidx = 1; % Index für collbodies_instspc
 for k = 1:NLEG
   if R.Type == 0  % Seriell 
     NLoffset = 0;
@@ -159,9 +165,48 @@ for k = 1:NLEG
     else
       error('Fall noch nicht vorhergesehen');
     end
+    if ~update_installspcbodies, continue; end
+    % Ändere den Eintrag in der Liste der Bauraum-Objekte: Trage Anfangs-
+    % und Endpunkt des Kapsel-Objekts als zwei Punkte ein.
+    collbodies_instspc.params(isidx:isidx+1,1:3) = reshape(pts_0(1:6), 3, 2)';
+    isidx = isidx + 2;
   end
   % Trage in PKM-weite Variable ein
   collbodies_robot.link = [collbodies_robot.link; R_cc.collbodies.link + NLoffset];
   collbodies_robot.type = [collbodies_robot.type; collbodies_type_mod];
   collbodies_robot.params = [collbodies_robot.params; collbodies_params_mod];
+  if ~update_installspcbodies, continue; end
+  % Überspringe die Indizes der Bauraum-Kollisionsobjekte für die Gelenke
+  % Die übrigen Punktkoordinaten wurden schon vorher auf Null gesetzt.
+  % (Entspricht Ursprung des jeweiligen Körper-KS)
+  isidx = isidx + R_cc.NJ;
+end
+% Ausgabe der aktualisierten Liste der Bauraum-Kollisionsprüfungen
+if update_installspcbodies
+  Structure.installspace_collbodies = collbodies_instspc;
+end
+% collbodies_instspc.params
+%% Debug: Bauraum-Ersatzpunkte zeichnen
+% Hiermit kann geprüft werden, ob die Punkt-Transformation korrekt ist.
+% Die Führungsschienen sind im Plot länger, da sie aus qlim bestimmt werden
+% und nicht aus minmax(q).
+if false
+  change_current_figure(2302); clf; hold all %#ok<UNRCH>
+  view(3); axis auto; grid on;
+  xlabel('x in m');ylabel('y in m');zlabel('z in m');
+  if R.Type == 0 % Seriell
+    s_plot = struct( 'ks', 1:R.NJ+2, 'straight', 1, 'mode', 4);
+    R.plot( Q(1,:)', s_plot);
+  else % PKM
+    s_plot = struct( 'ks_legs', [], 'ks_platform', [], 'straight', 1, 'mode', 4);
+    R.plot( Q(1,:)', NaN(6,1), s_plot);
+  end
+  % Bauraum-Prüfpunkte einzeichnen (nur Führungsschienen)
+  for i = 1:size(collbodies_instspc.type, 1)
+    if collbodies_instspc.type(i) == 14
+      p_0 = collbodies_instspc.params(i,1:3)';
+      p_W = R.T_W_0 * [p_0;1];
+      plot3(p_W(1), p_W(2), p_W(3), 'mx', 'MarkerSize', 20);
+    end
+  end
 end
