@@ -11,9 +11,6 @@
 % Ausgabe:
 % RobotOptRes
 %   Ergebnis-Struktur
-% 
-% TODO:
-% * Namen der Optimierungsparameter
 
 % Quellen:
 % [SchapplerTapOrt2019] Schappler, M. and Tappe, S., Ortmaier, T.:
@@ -281,31 +278,45 @@ Structure.Ipkinrel = Ipkinrel;
 
 % Berechne Mittelpunkt der Aufgabe
 if Set.optimization.movebase
-  nvars = nvars + sum(Set.structures.DoF(1:3)); % Verschiebung um translatorische FG der Aufgabe
-  vartypes = [vartypes; 2*ones(sum(Set.structures.DoF(1:3)),1)];
+  % Auswahl der Indizes für die zu optimierenden Basis-Koordinaten
+  I_DoF_basepos = Set.structures.DoF(1:3); % nur die FG der Aufgabe nehmen
+  I_DoF_setfix = Set.optimization.basepos_limits(:,1)==...
+                 Set.optimization.basepos_limits(:,2); 
+  for i = 1:3
+    % Wenn identische Grenzen vorgegeben werden, diesen FG nicht optimieren
+    I_DoF_basepos(i) = I_DoF_basepos(i) & ~I_DoF_setfix(i);
+  end
+  nvars = nvars + sum(I_DoF_basepos); % Verschiebung um translatorische FG der Aufgabe
+  vartypes = [vartypes; 2*ones(sum(I_DoF_basepos),1)];
   if Structure.Type == 0 % Seriell
     % TODO: Stelle den seriellen Roboter vor die Aufgabe
-    varlim = [varlim; repmat([-1, 1], sum(Set.structures.DoF(1:3)), 1)];
+    varlim = [varlim; repmat([-1, 1], sum(I_DoF_basepos), 1)];
   else % Parallel
     % Stelle den parallelen Roboter in/über die Aufgabe
     % Bei Parallelen Robotern ist der Arbeitsraum typischerweise in der
     % Mitte des Gestells (bezogen auf x-y-Ebene). Daher müssen die Grenzen
     % nicht so weit definiert werden: 20% der Referenzlänge um Mittelpunkt
     % der Aufgabe. Annahme: x-/y-Komponente werden immer optimiert.
-    varlim = [varlim; repmat([-0.2, 0.2],2,1)]; % xy-Komponenten
+    varlim = [varlim; repmat([-0.2, 0.2],sum(I_DoF_basepos(1:2)),1)]; % xy-Komponenten
     % Die z-Komponente der Basis kann mehr variieren (hängender Roboter)
-    varlim = [varlim; repmat([-1, 1], sum(Set.structures.DoF(3)), 1)];
+    varlim = [varlim; repmat([-1, 1], sum(I_DoF_basepos(3)), 1)];
   end
   % Überschreibe die Grenzen, falls sie explizit als Einstellung gesetzt sind
-  % TODO: Sollte noch in Zusammenhang mit Structure.xT_mean gebracht werden
-  bplim = varlim(end-2:end,:);
-  bplim(~isnan(Set.optimization.basepos_limits)) = 1/Structure.Lref*...
+  bplim = NaN(3,2); % Grenzen für xyz-Koordinaten
+  % Nur Koordinaten von oben eintragen, die auch optimiert werden
+  bplim(I_DoF_basepos,:) = varlim(end-(sum(I_DoF_basepos)-1):end,:);
+  % Einstellungen eintragen, sobald Einstellungen gesetzt sind
+  bplim(~isnan(Set.optimization.basepos_limits)) = ...
     Set.optimization.basepos_limits(~isnan(Set.optimization.basepos_limits));
-  varlim(end-2:end,:) = bplim;
+  % Grenzen in Variable für PSO-Parametergrenzen eintragen
+  varlim(end-(sum(I_DoF_basepos)-1):end,:) = bplim(I_DoF_basepos,:);
   % Benenne die Variablen
-  for i = find(Set.structures.DoF(1:3))
+  for i = find(I_DoF_basepos)
     varnames = {varnames{:}, sprintf('base %s', char(119+i))}; %#ok<CCAT>
   end
+  % Trage konstante Variablen schon ein (werden später nicht mehr geändert.
+  r_W_0 = zeros(3,1);
+  r_W_0(I_DoF_setfix) = Set.optimization.basepos_limits(I_DoF_setfix);
 else
   % Setze Standard-Werte für Basis-Position fest
   if Structure.Type == 0 % Seriell
@@ -322,9 +333,8 @@ else
     % In der xy-Ebene liegt der Roboter in der Mitte der Aufgabe
     r_W_0(1:2) = Structure.xT_mean(1:2);
   end
-  R.update_base(r_W_0);
 end
-
+R.update_base(r_W_0);
 % EE-Verschiebung
 if Set.optimization.ee_translation && ...
     (Structure.Type == 0 || Structure.Type == 2 && ~Set.optimization.ee_translation_only_serial)
@@ -437,7 +447,9 @@ end
 % Variablen-Typen speichern
 Structure.vartypes = vartypes;
 Structure.varnames = varnames;
-if length(vartypes) ~= length(varnames), error('Abgespeicherte Variablennamen stimmen scheinbar nicht'); end
+assert(length(vartypes)==size(varlim,1), 'Anzahl der Variablen muss konsistent zur Anzahl der gesetzten Grenzen sein');
+assert(length(vartypes)==length(varnames), 'Abgespeicherte Variablennamen stimmen scheinbar nicht');
+assert(all(varlim(:,1)~=varlim(:,2)), 'Obere und untere Parametergrenze identisch. Optimierung nicht sinnvoll.')
 %% Weitere Struktureigenschaften abspeichern
 % Bestimme die Indizes der ersten Schubgelenke. Das kann benutzt werden, um
 % Gelenkgrenzen für das erste Schubgelenk anders zu bewerten.

@@ -85,18 +85,27 @@ end
 
 %% Basis-Position
 if Set.optimization.movebase
-  % Die Parameter geben den skalierten Abstand des Roboters vom
-  % Aufgabenmittelpunkt an
+  % Die Parameter sind entweder relativ zur Aufgabe oder absolut definiert.
   p_basepos = p(Structure.vartypes == 2);
   r_W_0_neu = R.T_W_0(1:3,4);
-  % xy-Punktkoordinaten der Basis skaliert mit Referenzlänge
-  r_W_0_neu(Set.structures.DoF(1:2)) = Structure.xT_mean(Set.structures.DoF(1:2)) + ...
-    p_basepos(Set.structures.DoF(1:2))*Structure.Lref;
-  % z-Punktkoordinaten der Basis skaliert mit Referenzlänge
-  % TODO: Klären, ob Roboter-Skalierungsfaktor doch besser wäre
-  if Set.structures.DoF(3)
-    r_W_0_neu(3) = Structure.xT_mean(Set.structures.DoF(3)) + ...
-      p_basepos(3)*Structure.Lref;
+  % xyz-Punktkoordinaten der Basis skaliert mit Referenzlänge
+  % TODO: Klären, ob Roboter-Skalierungsfaktor für z-Koordinate doch besser wäre
+  p_idx = 0;
+  for i_xyz = 1:3
+    if ~Set.structures.DoF(i_xyz) || ...  % FG ist nicht Teil der Aufgabe (z.B. bei 2T1R). Ignorieren.
+        Set.optimization.basepos_limits(i_xyz,1)==Set.optimization.basepos_limits(i_xyz,2) % nur ein Wert vorgegeben
+      continue
+    end
+    p_idx = p_idx + 1;
+    if all(~isnan(Set.optimization.basepos_limits(1,:)))
+      % Grenzen explizit vorgegeben. Nehme den Wert direkt (ohne Skalierung)
+      r_W_0_neu(i_xyz) = p_basepos(p_idx);
+    else
+      % Skaliere den Wert und rechne eine Position relativ zum Mittelpunkt
+      % der Aufgabe aus.
+      r_W_0_neu(i_xyz) = Structure.xT_mean(i_xyz) + ...
+        p_basepos(p_idx)*Structure.Lref;
+    end
   end
   R_neu.update_base(r_W_0_neu);
 end
