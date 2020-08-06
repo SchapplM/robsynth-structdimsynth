@@ -535,7 +535,17 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       if sum(R_cc.MDH.sigma(i-2:i) == 1) == 3
         cbdist = 3;
       else
-        cbdist = 1;
+        if j_hascollbody(end-1) == 0
+          % Der übernächste Kollisionskörper wäre die Basis (und damit
+          % vermutlich eine Führungsschiene).
+          % Überspringe diese Prüfung. Nehme die Führungsschiene nur, wenn
+          % es zwei weiter ist. Ansonsten wird bei PUU-Ketten immer eine
+          % Selbstkollision erkannt.
+          cbdist = 2;
+        else
+          % Standardfall: Ab dem übernächsten Körper wird geprüft
+          cbdist = 1;
+        end
       end
       % Bestimme die Starrkörper-Nummer bezogen auf die PKM mit NLoffset
       for j = j_hascollbody(1:end-cbdist) % Kollisionskörper mehr als zwei vorher
