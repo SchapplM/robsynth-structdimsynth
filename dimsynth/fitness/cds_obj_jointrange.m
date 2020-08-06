@@ -66,7 +66,9 @@ qrange_norm = q_range./qrange_ref;
 % wäre
 [q_rn_crit, Icrit] = max(qrange_norm(I_sel));
 if q_rn_crit > 1
-  warning('Normierte Gelenkwinkelspanne ist größer als 1. Darf nicht sein.');
+  if q_rn_crit > 1.01 % Rundungsfehler mehr als 1% gibt Warnung. Sonst nicht.
+    cds_log(-1, sprintf('[cds_obj_jointrange] Normierte Gelenkwinkelspanne %1.2f>1. Darf nicht sein.', q_rn_crit));
+  end
   q_rn_crit = 1;
 end
 % Nehme das direkt als Fitness-Wert

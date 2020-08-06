@@ -322,8 +322,8 @@ if any(I_qlimviol_E)
   fval = 1e5*(5+5*fval_qlimv_E_norm); % Normierung auf 5e5 bis 1e6
   fval_jic(jic) = fval;
   % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Weitere Rechnungen machen keinen Sinn.
-  constrvioltext_jic{jic} = sprintf('Gelenkgrenzverletzung in AR-Eckwerten. Schlechteste Spannweite: %1.2f/%1.2f', ...
-    q_range_E(IIw), qlim(IIw,2)-qlim(IIw,1) );
+  constrvioltext_jic{jic} = sprintf(['Gelenkgrenzverletzung in AR-Eckwerten. ', ...
+    'Schlechteste Spannweite: %1.2f/%1.2f (Gelenk %d)'], q_range_E(IIw), qlim(IIw,2)-qlim(IIw,1), IIw);
   if fval < Set.general.plot_details_in_fitness
     change_current_figure(1000); clf; hold on;
     hdl_iO= plot(find(~I_qlimviol_E), QE_korr(:,~I_qlimviol_E)-min(QE_korr(:,~I_qlimviol_E)), 'co');

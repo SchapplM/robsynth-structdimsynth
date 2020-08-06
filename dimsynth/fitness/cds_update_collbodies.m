@@ -165,17 +165,17 @@ for k = 1:NLEG
     else
       error('Fall noch nicht vorhergesehen');
     end
-    if ~update_installspcbodies, continue; end
-    % Ändere den Eintrag in der Liste der Bauraum-Objekte: Trage Anfangs-
-    % und Endpunkt des Kapsel-Objekts als zwei Punkte ein.
-    collbodies_instspc.params(isidx:isidx+1,1:3) = reshape(pts_0(1:6), 3, 2)';
-    isidx = isidx + 2;
+    if update_installspcbodies
+      % Ändere den Eintrag in der Liste der Bauraum-Objekte: Trage Anfangs-
+      % und Endpunkt des Kapsel-Objekts als zwei Punkte ein.
+      collbodies_instspc.params(isidx:isidx+1,1:3) = reshape(pts_0(1:6), 3, 2)';
+      isidx = isidx + 2;
+    end
   end
   % Trage in PKM-weite Variable ein
   collbodies_robot.link = [collbodies_robot.link; R_cc.collbodies.link + NLoffset];
   collbodies_robot.type = [collbodies_robot.type; collbodies_type_mod];
   collbodies_robot.params = [collbodies_robot.params; collbodies_params_mod];
-  if ~update_installspcbodies, continue; end
   % Überspringe die Indizes der Bauraum-Kollisionsobjekte für die Gelenke
   % Die übrigen Punktkoordinaten wurden schon vorher auf Null gesetzt.
   % (Entspricht Ursprung des jeweiligen Körper-KS)
