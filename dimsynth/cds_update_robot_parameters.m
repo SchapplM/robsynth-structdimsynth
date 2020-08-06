@@ -162,11 +162,19 @@ end
 %% Gestell-Morphologie-Parameter (z.B. Gelenkpaarabstand)
 if R_neu.Type == 2 && Set.optimization.base_morphology && any(Structure.vartypes == 8)
   % Methoden und Parameter, siehe align_base_coupling
-  if R.DesPar.base_method == 4
+  if any(R.DesPar.base_method == 1:3)
+    % Modi haben keine Morphologieparameter
+  elseif R.DesPar.base_method == 4
+    % Nur der Winkel der Kegel-Steigung ist der Morphologieparameter.
+    p_basepar(2) = p(Structure.vartypes == 8);
+  elseif any(R.DesPar.base_method == 5:7)
+    % Parameter ist der Paarabstand. Skaliert mit Robotergröße.
+    p_basepar(2) = p(Structure.vartypes == 8).*p_basepar(1);
+  elseif R.DesPar.base_method == 8
     % Skalierung mit Basis-Radius und Winkel ohne Skalierung
     p_basepar(2:3) = p(Structure.vartypes == 8).*[p_basepar(1);1];
-    changed_base = true;
   end
+  changed_base = true;
 end
 
 if R_neu.Type == 2 && changed_base

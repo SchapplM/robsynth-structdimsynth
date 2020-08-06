@@ -394,21 +394,30 @@ end
 % Gestell-Morphologie-Parameter (z.B. Gelenkpaarabstand).
 % Siehe align_base_coupling.m
 if Structure.Type == 2 && Set.optimization.base_morphology
-  if R.DesPar.base_method == 1 % keine Parameter bei Kreis
-  elseif R.DesPar.base_method == 8
+  if any(R.DesPar.base_method == 5:8) % Paarweise Anordnung der Beinketten
     nvars = nvars + 1;
     vartypes = [vartypes; 8];
     varlim = [varlim; [0.2,0.8]]; % Gelenkpaarabstand. Relativ zu Gestell-Radius.
     varnames = {varnames{:}, 'base_morph_pairdist'}; %#ok<CCAT>
-    
+  end
+  if any(R.DesPar.base_method == [4 8]) % Erste Achse hat eine Steigung gegen die Mitte
     nvars = nvars + 1;
     vartypes = [vartypes; 8];
-    % Die Steigung wird gegen die Senkrechte gezählt. Damit die erste Achse
-    % nach unten zeigt, muss der Winkel größe 90° sein
-    varlim = [varlim; [pi/4,3*pi/4]]; % Steigung Pyramide; Winkel in rad (Steigung nach unten und oben ergibt Sinn)
-    varnames = {varnames{:}, 'base_morph_pyrelev'}; %#ok<CCAT>
-  else
-    error('base_morphology Nicht implementiert');
+    % Die Steigung wird gegen die Senkrechte "nach innen kippend" gezählt. 
+    % Damit die erste Achse nach unten zeigt, muss der Winkel größer 90° sein. 
+    % Als Sonderfall ist Steigung 90° (bleibt in der Ebene) und Steigung 0°
+    % (senkrechte Anordnung nach oben) und 180° (senkrecht nach unten) ent- 
+    % halten. Das ist der Übergang zu anderen Gestell-Varianten.
+    % Der Bereich 0-180° ist notwendig, damit bei Schubachsen ein zusammen-
+    % laufen unter- oder oberhalb des Gestells möglich ist.
+    varlim = [varlim; [0, pi]]; % Steigung; Winkel in rad
+    if R.DesPar.base_method == 4
+      % Pyramide
+      varnames = {varnames{:}, 'base_morph_coneelev'}; %#ok<CCAT>
+    else
+      % Kegel
+      varnames = {varnames{:}, 'base_morph_pyrelev'}; %#ok<CCAT>
+    end
   end
 end
 
