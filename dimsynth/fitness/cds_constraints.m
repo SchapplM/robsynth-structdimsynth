@@ -294,13 +294,7 @@ if any(abs(Phi_E(:)) > 1e-2) % Die Toleranz beim IK-Verfahren ist etwas größer
   Q_jic(:,:,jic) = QE; % Ausgabe dient nur zum Zeichnen des Roboters
   if jic<length(fval_jic), continue; else, break; end
 end
-% Speichere die Anfangs-Winkelstellung in der Roboterklasse für später.
-% Dient zum Vergleich und zur Reproduktion der Ergebnisse
-if R.Type == 0 % Seriell
-  R.qref = q;
-else
-  for i = 1:R.NLEG, R.Leg(i).qref = q(R.I1J_LEG(i):R.I2J_LEG(i)); end
-end
+
 %% Bestimme die Spannweite der Gelenkkoordinaten (getrennt Dreh/Schub)
 QE_korr = [QE; QE(end,:)];
 % Berücksichtige Sonderfall des erten Schubgelenks bei der Bestimmung der
@@ -395,9 +389,17 @@ end % Schleife über IK-Konfigurationen
 [fval, jic_best] = min(fval_jic);
 constrvioltext = constrvioltext_jic{jic_best};
 Q = Q_jic(:,:,jic_best);
+% Speichere die Anfangs-Winkelstellung in der Roboterklasse für später.
+% Dient zum Vergleich und zur Reproduktion der Ergebnisse
+if R.Type == 0 % Seriell
+  R.qref = Q(1,:)';
+else
+  for i = 1:R.NLEG, R.Leg(i).qref = Q(1,R.I1J_LEG(i):R.I2J_LEG(i))'; end
+end
 if fval > 1e3
   return % für keine IK-Konfiguration gültige Lösung. Abbruch.
 end
+QE = Q_jic(:,:,jic_best);
 %% Inverse Kinematik der Trajektorie berechnen
 if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
   % Einstellungen für IK in Trajektorien
@@ -582,10 +584,10 @@ if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
     if fval < Set.general.plot_details_in_fitness
       RP = ['R', 'P'];
       change_current_figure(1001);clf;
-      for i = 1:length(q)
+      for i = 1:R.NJ
         legnum = find(i>=R.I1J_LEG, 1, 'last');
         legjointnum = i-(R.I1J_LEG(legnum)-1);
-        subplot(ceil(sqrt(length(q))), ceil(length(q)/ceil(sqrt(length(q)))), i);
+        subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
         hold on; grid on;
         plot(Traj_0.t, QD(:,i), '-');
         plot(Traj_0.t, QD_num(:,i), '--');
@@ -596,8 +598,8 @@ if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
       linkxaxes
       sgtitle('Vergleich Gelenkgeschw.');
       change_current_figure(1002);clf;
-      for i = 1:length(q)
-        subplot(ceil(sqrt(length(q))), ceil(length(q)/ceil(sqrt(length(q)))), i);
+      for i = 1:R.NJ
+        subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
         hold on; grid on;
         plot(Traj_0.t, Q(:,i), '-');
         plot(Traj_0.t, Q_num(:,i), '--');
