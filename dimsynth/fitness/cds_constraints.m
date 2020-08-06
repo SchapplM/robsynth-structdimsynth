@@ -286,6 +286,7 @@ for i = size(Traj_0.XE,1):-1:1
   end
 end
 QE(isnan(QE)) = 0;
+Q_jic(:,:,jic) = QE;
 Phi_E(isnan(Phi_E)) = 1e6;
 if any(abs(Phi_E(:)) > 1e-2) % Die Toleranz beim IK-Verfahren ist etwas größer
   % Nehme die mittlere IK-Abweichung aller Eckpunkte (Translation/Rotation
@@ -297,7 +298,6 @@ if any(abs(Phi_E(:)) > 1e-2) % Die Toleranz beim IK-Verfahren ist etwas größer
   % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
   constrvioltext_jic{jic} = sprintf(['Keine IK-Konvergenz in Eckwerten. Untersuchte Eckpunkte: %d/%d. ', ...
     'Durchschnittliche ZB-Verl. %1.2f'], size(Traj_0.XE,1)-i+1,size(Traj_0.XE,1), f_PhiE);
-  Q_jic(:,:,jic) = QE; % Ausgabe dient nur zum Zeichnen des Roboters
   if jic<length(fval_jic), continue; else, break; end
 end
 
@@ -341,7 +341,6 @@ if any(I_qlimviol_E)
     legend([hdl_iO(1);hdl_niO(1);hdl1;hdl2], {'iO-Gelenke', 'niO-Gelenke', 'qmax''', 'qmin''=0'});
     sgtitle(sprintf('Auswertung Grenzverletzung AR-Eckwerte. fval=%1.2e', fval));
   end
-  Q_jic(:,:,jic) = QE; % Ausgabe dient nur zum Zeichnen des Roboters
   if jic<length(fval_jic), continue; else, break; end
 end
 if Set.general.matfile_verbosity > 2
@@ -363,7 +362,6 @@ if Set.optimization.constraint_collisions
     fval_jic(jic) = fval_coll; % Normierung auf 4e5 bis 5e5 bereits in Funktion
     constrvioltext_jic{jic} = sprintf('Selbstkollision in %d/%d AR-Eckwerten.', ...
       sum(any(coll_self,2)), size(coll_self,1));
-    Q_jic(:,:,jic) = QE; % Ausgabe dient nur zum Zeichnen des Roboters
     if jic<length(fval_jic), continue; else, break; end
   end
 end
@@ -375,7 +373,6 @@ if ~isempty(Set.task.installspace.type)
     fval_jic(jic) = fval_instspc; % Normierung auf 3e5 bis 4e5 -> bereits in Funktion
     constrvioltext_jic{jic} = sprintf(['Verletzung des zulässigen Bauraums in AR-', ...
       'Eckpunkten. Schlimmstenfalls %1.1f mm draußen.'], 1e3*f_constrinstspc);
-    Q_jic(:,:,jic) = QE; % Ausgabe dient nur zum Zeichnen des Roboters
     if jic<length(fval_jic), continue; else, break; end
   end
 end
@@ -386,10 +383,10 @@ if ~isempty(Set.task.obstacles.type)
     fval_jic(jic) = fval_obstcoll; % Normierung auf 1e5 bis 3e5 -> bereits in Funktion
     constrvioltext_jic{jic} = sprintf(['Arbeitsraum-Kollision in %d/%d AR-Eckwerten. ', ...
       'Schlimmstenfalls %1.1f mm in Kollision.'], sum(any(coll_obst,2)), size(coll_obst,1), f_constr_obstcoll);
-    Q_jic(:,:,jic) = QE; % Ausgabe dient nur zum Zeichnen des Roboters
     if jic<length(fval_jic), continue; else, break; end
   end
 end
+fval_jic(jic) = 1e3; % Bis hier hin gekommen. Also erfolgreich.
 end % Schleife über IK-Konfigurationen
 %% IK-Konfigurationen für Eckpunkte auswerten. Nehme besten.
 [fval, jic_best] = min(fval_jic);
@@ -406,6 +403,7 @@ if fval > 1e3
   return % für keine IK-Konfiguration gültige Lösung. Abbruch.
 end
 QE = Q_jic(:,:,jic_best);
+q = Q(1,:)'; % Als Anfangswert für die Traj.-IK
 %% Inverse Kinematik der Trajektorie berechnen
 if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
   % Einstellungen für IK in Trajektorien
