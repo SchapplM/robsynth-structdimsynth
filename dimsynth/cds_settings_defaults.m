@@ -37,7 +37,7 @@ general = struct( ...
   'plot_details_in_desopt' , 0, ... % Wie vorheriges Argument, aber für die Gütefunktion der Entwurfsoptimierung
   'save_robot_details_plot_fitness_file_extensions', {''}, ... % Speichern des durch vorherige Einstellung erstellten Bildes
   'save_animation_file_extensions', {{'gif', 'mp4'}}, ... % Format, in denen die Animationen gespeichert werden
-  'animation_styles', {'stick'}, ... % Visualisierungsarten im Video: stick,3D,collision; bei mehr als einem: Syntax {{'1.','2.'}}
+  'animation_styles', {{'stick'}}, ... % Visualisierungsarten im Video: stick,3D,collision; bei mehr als einem: Syntax {{'1.','2.'}}
   'maxduration_animation', 10, ... % Die Animation soll max. 30s dauern (als Videodatei)
   'save_evolution_video', false, ... % Video mit Evolution der Roboter
   'max_retry_bestfitness_reconstruction', 10, ...
@@ -48,6 +48,7 @@ general = struct( ...
   'debug_calc', false, ... % Doppelte Berechnung zur Prüfung von Funktionen
   'parcomp_struct', 0, ... % Parallele Berechnung unterschiedlicher Roboter. Enthält Anzahl der Worker-Instanzen als Zahl
   'parcomp_maxworkers', inf, ... % Beschränkung der Anzahl paralleler Instanzen
+  'compile_missing_functions', true, ... % Bei Start alle mex-Funktionen kompilieren
   'create_template_functions', false, ... % Erzeuge Funktionen neu aus Vorlagen-Dateien
   'use_mex', true);
 
@@ -66,6 +67,7 @@ structures = struct( ...
   'max_kin_redundancy', 0, ... % Zulässiger Grad der kinematischen Redundanz
   'DoF', input_settings.DoF, ...
   'joint_filter', '******', ... % Vorgabe von Gelenktypen ("R", "P", "*").
+  'parrob_basejointfilter', 1:8, ... % Vorgabe zum Gestell-Koppelgelenktyp einer PKM
   'nopassiveprismatic', true, ...
   'activenotlastjoint', true, ... % Verhindert ein aktives Plattform-Koppelgelenk
   'max_index_active', 6, ... % Setzt den maximalen Index aktuierter Gelenke fest (nachrrangig gegen vorherige Option)
@@ -75,11 +77,11 @@ structures = struct( ...
 % Einstellungen mit Auswirkung auf die Optimierung: Auswahl der
 % Optimierungsvariablen und Annahmen über die Roboter, die getroffen werden
 optimization = struct( ...
-  'objective', 'energy', ... % Zielfunktion. Möglich: mass, energy, condition, valid_kin, valid_act, minactforce, stiffness, jointrange
+  'objective', 'energy', ... % Zielfunktion. Möglich: mass, energy, condition, valid_kin, valid_act, actforce, stiffness, jointrange
   'obj_jointrange', ... % Zusatzeinstellungen für die Zielfunktion "jointrange"
     struct( 'only_revolute', true, ... % Minimiere nur Wertebereich von Drehgelenken
             'only_passive', true), ... % Minimiere nur Wertebereich passiver Gelenke
-  'constraint_obj', zeros(5,1), ... % Nebenbedingungen, 1=Mass, 2=Energy, 3=Minactforce, 4=Condition, 5=Stiffness; Eintrag entspricht physikalischem Wert
+  'constraint_obj', zeros(5,1), ... % Nebenbedingungen, 1=Mass, 2=Energy, 3=Actforce, 4=Condition, 5=Stiffness; Eintrag entspricht physikalischem Wert
   'movebase', true, ... % Position der Roboter-Basis
   'basepos_limits', NaN(3,2), ... % Grenzen für Basis-Position (Absolut, im Welt-KS)
   'ee_translation', true, ... % Freie Verschiebung des EE
@@ -107,7 +109,7 @@ optimization = struct( ...
   'resdir', fullfile(fileparts(which('structgeomsynth_path_init.m')), 'dimsynth', 'results'), ...
   'optname', 'unnamed');
 
-%% Einstellungen für Trajektorie
+%% Einstellungen für Aufgabe (Trajektorie, Bauraum, Hindernisse)
 task = struct( ...
   'profile', 1, ... % Beschleunigungs-Trapez
   'vmax', 1, ...
@@ -116,8 +118,9 @@ task = struct( ...
   'Ts', 1e-3, ...
   'maxangle', 2*pi, ... % Keine Einschränkung für die maximalen Winkel
   'installspace', struct( ... % Konfiguration des möglichen Bauraums
+    'links', {{}}, ... % jew. Liste der von der Basis gezählten Segmente (Bsp.: alle erlaubt ist 0:6)
     'type', [], ... % 1=Quader, 2=Zylinder; zeilenweise mehrere Körper
-    'params', []), ... % im Welt-KS. 1: Aufpunkt, 2 Eckpunkte, Länge 3. Kante; 2: Punkt1, Punkt2, Radius
+    'params', []), ... % im Welt-KS. Jeweils die geometrie-beschreibenden Parameter
   'obstacles', struct( ... % Hindernisse im Arbeitsraum zur Kollisionsprüfung
     'type', [], ... % Nummerierung siehe SerRob.m (collbodies)
     'params', []), ...% s.o.

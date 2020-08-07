@@ -165,10 +165,34 @@ else % PKM
   end
   JPE = NaN(size(Traj_0.XE,1), (R.NL-1+R.NLEG)*3);
 end
-q0 = qlim(:,1) + rand(R.NJ,1).*(qlim(:,2)-qlim(:,1));
+fval_jic = NaN(1,9);
+constrvioltext_jic = cell(9,1);
+Q_jic = NaN(size(Traj_0.XE,1), R.NJ, 9);
+for jic = 1:9 % Schleife über IK-Konfigurationen (9 Versuche)
+Phi_E(:) = NaN; QE(:) = NaN; % erneut initialisieren wegen jic-Schleife.
+q0 = qlim(:,1) + rand(R.NJ,1).*(qlim(:,2)-qlim(:,1)); % Zufällige Anfangswerte geben vielleicht neue Konfiguration.
+% Anpassung der IK-Anfangswerte für diesen Durchlauf der IK-Konfigurationen.
+% Versuche damit eine andere Konfiguration zu erzwingen
+if fval_jic(1) > 1e6
+  % IK hat beim ersten Mal schon nicht funktioniert (dort werden aber
+  % zufällige Neuversuche gemacht). Andere Anfangswerte sind zwecklos.
+  break;
+end
+  
+if any(jic == [4 5 6])
+  % Setze die Anfangswerte (für Schubgelene) ganz weit nach "links"
+  q0(R.MDH.sigma==1) = q0(R.MDH.sigma==1)-1.5*(qlim(R.MDH.sigma==1,2)-qlim(R.MDH.sigma==1,1));
+elseif any(jic == [7 8 9])
+  % Anfangswerte weit nach rechts
+  q0(R.MDH.sigma==1) = q0(R.MDH.sigma==1)+1.5*(qlim(R.MDH.sigma==1,2)-qlim(R.MDH.sigma==1,1));
+end
 % Normalisiere den Anfangswert (außerhalb [-pi,pi) nicht sinnvoll).
 % (Betrifft nur Fall, falls Winkelgrenzen groß gewählt sind)
 q0(R.MDH.sigma==0) = normalize_angle(q0(R.MDH.sigma==0));
+% Setze bei PKM die Anfangswerte für alle Beinketten identisch
+if R.Type == 2
+  q0(R.I1J_LEG(2):end) = NaN; % Dadurch in invkin_ser Werte der ersten Beinkette genommen
+end
 
 % IK für alle Eckpunkte, beginnend beim letzten (dann ist q der richtige
 % Startwert für die Trajektorien-IK)
@@ -188,6 +212,7 @@ for i = size(Traj_0.XE,1):-1:1
   if R.Type == 0
     [q, Phi, Tc_stack] = R.invkin2(Traj_0.XE(i,:)', q0, s);
   else
+    q0(R.I1J_LEG(2):end) = NaN; % Für Beinkette 2 Ergebnis von BK 1 nehmen
     [q, Phi, Tc_stack] = R.invkin2(Traj_0.XE(i,:)', q0, s); % kompilierter Aufruf
     if Set.general.debug_calc
       [q_debug, Phi_debug, Tc_stack_debug] = R.invkin_ser(Traj_0.XE(i,:)', q0, s); % Klassenmethode
@@ -249,8 +274,19 @@ for i = size(Traj_0.XE,1):-1:1
       end
     end
   end
+  % Prüfe, ob für die Berechnung der neuen Konfiguration das gleiche
+  % rauskommt. Dann könnte man aufhören
+  if jic > 1 && i == size(Traj_0.XE,1) % Erster Eckpunkt
+    test_vs_all_prev = repmat(q,1,jic-1)-reshape(squeeze(Q_jic(1,:,1:jic-1)),R.NJ,jic-1);
+    % 2pi-Fehler entfernen
+    test_vs_all_prev(abs(abs(test_vs_all_prev)-2*pi)<1e-3) = 0;
+    if any(all(abs(test_vs_all_prev)<1e-6,1)) % Prüfe ob eine Spalte gleich ist wie die aktuellen Gelenkwinkel
+      break;  % Das IK-Ergebnisse für den ersten Eckpunkt gibt es schon. Nicht weiter rechnen.
+    end
+  end
 end
 QE(isnan(QE)) = 0;
+Q_jic(:,:,jic) = QE;
 Phi_E(isnan(Phi_E)) = 1e6;
 if any(abs(Phi_E(:)) > 1e-2) % Die Toleranz beim IK-Verfahren ist etwas größer
   % Nehme die mittlere IK-Abweichung aller Eckpunkte (Translation/Rotation
@@ -258,20 +294,13 @@ if any(abs(Phi_E(:)) > 1e-2) % Die Toleranz beim IK-Verfahren ist etwas größer
   % Bei vorzeitigem Abbruch zählt die Anzahl der erfolgreichen Eckpunkte
   f_PhiE = mean(abs(Phi_E(:)));
   f_phiE_norm = 2/pi*atan(f_PhiE/0.9e6*35); % Normierung auf 0 bis 1. 0.9e6 -> 0.98
-  fval = 1e6*(1+9*f_phiE_norm); % Normierung auf 1e6 bis 1e7
+  fval_jic(jic) = 1e6*(1+9*f_phiE_norm); % Normierung auf 1e6 bis 1e7
   % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
-  constrvioltext = sprintf(['Keine IK-Konvergenz in Eckwerten. Untersuchte Eckpunkte: %d/%d. ', ...
+  constrvioltext_jic{jic} = sprintf(['Keine IK-Konvergenz in Eckwerten. Untersuchte Eckpunkte: %d/%d. ', ...
     'Durchschnittliche ZB-Verl. %1.2f'], size(Traj_0.XE,1)-i+1,size(Traj_0.XE,1), f_PhiE);
-  Q = QE; % Ausgabe dient nur zum Zeichnen des Roboters
-  return
+  if jic<length(fval_jic), continue; else, break; end
 end
-% Speichere die Anfangs-Winkelstellung in der Roboterklasse für später.
-% Dient zum Vergleich und zur Reproduktion der Ergebnisse
-if R.Type == 0 % Seriell
-  R.qref = q;
-else
-  for i = 1:R.NLEG, R.Leg(i).qref = q(R.I1J_LEG(i):R.I2J_LEG(i)); end
-end
+
 %% Bestimme die Spannweite der Gelenkkoordinaten (getrennt Dreh/Schub)
 QE_korr = [QE; QE(end,:)];
 % Berücksichtige Sonderfall des erten Schubgelenks bei der Bestimmung der
@@ -297,9 +326,10 @@ if any(I_qlimviol_E)
   II_qlimviol_E = find(I_qlimviol_E); IIw = II_qlimviol_E(I_worst);
   fval_qlimv_E_norm = 2/pi*atan((-fval_qlimv_E)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
   fval = 1e5*(5+5*fval_qlimv_E_norm); % Normierung auf 5e5 bis 1e6
+  fval_jic(jic) = fval;
   % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Weitere Rechnungen machen keinen Sinn.
-  constrvioltext = sprintf('Gelenkgrenzverletzung in AR-Eckwerten. Schlechteste Spannweite: %1.2f/%1.2f', ...
-    q_range_E(IIw), qlim(IIw,2)-qlim(IIw,1) );
+  constrvioltext_jic{jic} = sprintf(['Gelenkgrenzverletzung in AR-Eckwerten. ', ...
+    'Schlechteste Spannweite: %1.2f/%1.2f (Gelenk %d)'], q_range_E(IIw), qlim(IIw,2)-qlim(IIw,1), IIw);
   if fval < Set.general.plot_details_in_fitness
     change_current_figure(1000); clf; hold on;
     hdl_iO= plot(find(~I_qlimviol_E), QE_korr(:,~I_qlimviol_E)-min(QE_korr(:,~I_qlimviol_E)), 'co');
@@ -311,8 +341,7 @@ if any(I_qlimviol_E)
     legend([hdl_iO(1);hdl_niO(1);hdl1;hdl2], {'iO-Gelenke', 'niO-Gelenke', 'qmax''', 'qmin''=0'});
     sgtitle(sprintf('Auswertung Grenzverletzung AR-Eckwerte. fval=%1.2e', fval));
   end
-  Q = QE; % Ausgabe dient nur zum Zeichnen des Roboters
-  return
+  if jic<length(fval_jic), continue; else, break; end
 end
 if Set.general.matfile_verbosity > 2
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_2.mat'));
@@ -323,17 +352,17 @@ end
 %% Aktualisiere Roboter für Kollisionsprüfung (geänderte Winkelgrenzen aus IK)
 if Set.optimization.constraint_collisions || ...
     ~isempty(Set.task.installspace.type) || ~isempty(Set.task.obstacles.type)
-  Structure.collbodies_robot = cds_update_collbodies(R, Set, QE);
+  [Structure.collbodies_robot, Structure.installspace_collbodies] = ...
+    cds_update_collbodies(R, Set, Structure, QE);
 end
 %% Selbst-Kollisionsprüfung für Einzelpunkte
 if Set.optimization.constraint_collisions
   [fval_coll, coll_self] = cds_constr_collisions_self(R, Traj_0.XE, Set, Structure, JPE, QE, [4e5;5e5]);
   if fval_coll > 0
-    fval = fval_coll; % Normierung auf 4e5 bis 5e5 bereits in Funktion
-    constrvioltext = sprintf('Selbstkollision in %d/%d AR-Eckwerten.', ...
+    fval_jic(jic) = fval_coll; % Normierung auf 4e5 bis 5e5 bereits in Funktion
+    constrvioltext_jic{jic} = sprintf('Selbstkollision in %d/%d AR-Eckwerten.', ...
       sum(any(coll_self,2)), size(coll_self,1));
-    Q = QE; % Ausgabe dient nur zum Zeichnen des Roboters
-    return
+    if jic<length(fval_jic), continue; else, break; end
   end
 end
 
@@ -341,25 +370,40 @@ end
 if ~isempty(Set.task.installspace.type)
   [fval_instspc, f_constrinstspc] = cds_constr_installspace(R, Traj_0.XE, Set, Structure, JPE, QE, [3e5;4e5]);
   if fval_instspc > 0
-    fval = fval_instspc; % Normierung auf 3e5 bis 4e5 -> bereits in Funktion
-    constrvioltext = sprintf(['Verletzung des zulässigen Bauraums in AR-', ...
+    fval_jic(jic) = fval_instspc; % Normierung auf 3e5 bis 4e5 -> bereits in Funktion
+    constrvioltext_jic{jic} = sprintf(['Verletzung des zulässigen Bauraums in AR-', ...
       'Eckpunkten. Schlimmstenfalls %1.1f mm draußen.'], 1e3*f_constrinstspc);
-    Q = QE; % Ausgabe dient nur zum Zeichnen des Roboters
-    return
+    if jic<length(fval_jic), continue; else, break; end
   end
 end
 %% Arbeitsraum-Hindernis-Kollisionsprüfung für Einzelpunkte
 if ~isempty(Set.task.obstacles.type)
   [fval_obstcoll, coll_obst, f_constr_obstcoll] = cds_constr_collisions_ws(R, Traj_0.XE, Set, Structure, JPE, QE, [1e5;3e5]);
   if fval_obstcoll > 0
-    fval = fval_obstcoll; % Normierung auf 1e5 bis 3e5 -> bereits in Funktion
-    constrvioltext = sprintf(['Arbeitsraum-Kollision in %d/%d AR-Eckwerten. ', ...
+    fval_jic(jic) = fval_obstcoll; % Normierung auf 1e5 bis 3e5 -> bereits in Funktion
+    constrvioltext_jic{jic} = sprintf(['Arbeitsraum-Kollision in %d/%d AR-Eckwerten. ', ...
       'Schlimmstenfalls %1.1f mm in Kollision.'], sum(any(coll_obst,2)), size(coll_obst,1), f_constr_obstcoll);
-    Q = QE; % Ausgabe dient nur zum Zeichnen des Roboters
-    return
+    if jic<length(fval_jic), continue; else, break; end
   end
 end
-
+fval_jic(jic) = 1e3; % Bis hier hin gekommen. Also erfolgreich.
+end % Schleife über IK-Konfigurationen
+%% IK-Konfigurationen für Eckpunkte auswerten. Nehme besten.
+[fval, jic_best] = min(fval_jic);
+constrvioltext = constrvioltext_jic{jic_best};
+Q = Q_jic(:,:,jic_best);
+% Speichere die Anfangs-Winkelstellung in der Roboterklasse für später.
+% Dient zum Vergleich und zur Reproduktion der Ergebnisse
+if R.Type == 0 % Seriell
+  R.qref = Q(1,:)';
+else
+  for i = 1:R.NLEG, R.Leg(i).qref = Q(1,R.I1J_LEG(i):R.I2J_LEG(i))'; end
+end
+if fval > 1e3
+  return % für keine IK-Konfiguration gültige Lösung. Abbruch.
+end
+QE = Q_jic(:,:,jic_best);
+q = Q(1,:)'; % Als Anfangswert für die Traj.-IK
 %% Inverse Kinematik der Trajektorie berechnen
 if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
   % Einstellungen für IK in Trajektorien
@@ -544,10 +588,10 @@ if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
     if fval < Set.general.plot_details_in_fitness
       RP = ['R', 'P'];
       change_current_figure(1001);clf;
-      for i = 1:length(q)
+      for i = 1:R.NJ
         legnum = find(i>=R.I1J_LEG, 1, 'last');
         legjointnum = i-(R.I1J_LEG(legnum)-1);
-        subplot(ceil(sqrt(length(q))), ceil(length(q)/ceil(sqrt(length(q)))), i);
+        subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
         hold on; grid on;
         plot(Traj_0.t, QD(:,i), '-');
         plot(Traj_0.t, QD_num(:,i), '--');
@@ -558,8 +602,8 @@ if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
       linkxaxes
       sgtitle('Vergleich Gelenkgeschw.');
       change_current_figure(1002);clf;
-      for i = 1:length(q)
-        subplot(ceil(sqrt(length(q))), ceil(length(q)/ceil(sqrt(length(q)))), i);
+      for i = 1:R.NJ
+        subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
         hold on; grid on;
         plot(Traj_0.t, Q(:,i), '-');
         plot(Traj_0.t, Q_num(:,i), '--');
@@ -574,7 +618,8 @@ end
 %% Aktualisiere Roboter für Kollisionsprüfung (geänderte Grenzen aus Traj.-IK)
 if Set.optimization.constraint_collisions || ...
     ~isempty(Set.task.installspace.type) || ~isempty(Set.task.obstacles.type)
-  Structure.collbodies_robot = cds_update_collbodies(R, Set, Q);
+  [Structure.collbodies_robot, Structure.installspace_collbodies] = ...
+    cds_update_collbodies(R, Set, Structure, Q);
 end
 %% Selbstkollisionserkennung für Trajektorie
 if Set.optimization.constraint_collisions

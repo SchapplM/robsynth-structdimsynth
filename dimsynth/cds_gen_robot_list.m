@@ -131,11 +131,17 @@ if structset.use_parallel
     % Lade Detailierte Informationen des Robotermodells
     [NLEG, LEG_Names, Actuation, Coupling, ~, ~, ~] = parroblib_load_robot(PNames_Akt{j});
     % Prüfe Koppelpunkt-Eigenschaften
-    if ~any(Coupling(1) == [1:8]) || ~any(Coupling(2) == [1:6])
+    if ~any(Coupling(1) == 1:8) || ~any(Coupling(2) == 1:6)
       if verblevel >= 3, fprintf('%s hat eine nicht implementierte Koppelpunkt-Variante\n', PNames_Akt{j}); end
       continue % Robotermodell kann in Optimierung nicht generiert werden.
     end
-    
+    if ~any(Coupling(1) == Set.structures.parrob_basejointfilter)
+      if verblevel >= 3
+        fprintf( '%s hat nicht die gewünschte Gestell-Koppelgelenk-Variante (%s). Ignoriere.\n', ...
+          PNames_Akt{j}, disp_array(Set.structures.parrob_basejointfilter,'%d') );
+      end
+      continue
+    end
     PassPrisJoint = false;
     TooManyPrisJoints = false;
     LastJointActive = false;
@@ -143,7 +149,7 @@ if structset.use_parallel
     FilterMatch = true;
     WrongLegChainOrigin = false;
     IsInWhiteList = any(strcmp(structset.whitelist, PNames_Akt{j}));
-    for k = 1:NLEG % Gehe alle Beinketten durch (für den Fall asymmetrischer PKM)
+    for k = 1 % Betrachte erste der symmetrischen Beinketten (für den Fall asymmetrischer PKM auch alle möglich)
       LegChainName = LEG_Names{k};
       NLegDoF = str2double(LegChainName(2));
       ChainJoints = LegChainName(3:3+NLegDoF-1); % enthält nur noch "R" und "P"
@@ -196,7 +202,7 @@ if structset.use_parallel
         end
         % Maske für die Beinkette erstellen. Bei allgemeinen Hauptmodellen
         % direkt ablesen. Bei Varianten die Maske des Hauptmodells nehmen.
-        if bitand(Mask_Origin, l.BitArrays_Origin(ilc,:)) == 0
+        if bitand(Mask_Origin, l.BitArrays_Origin(ilc,:)) ~= 0
           % Beinkette kommt selbst schon aus der richtigen Synthese. Nichts
           % tun. Hierdurch werden auch Varianten aus Beinketten-
           % Struktursynthese genommen (noch ungeklärt, woher die kommen).
@@ -214,6 +220,11 @@ if structset.use_parallel
             WrongLegChainOrigin = true; % Serielle Kette hat falsche Modellherkunft.
             break;
           end
+        else
+          % Beinkette ist keine Variante. Obige Prüfung ist fehlgeschlagen.
+          % Daher Modellherkunft nicht aus passender Struktursynthese.
+          WrongLegChainOrigin = true;
+          break;
         end
       end
     end

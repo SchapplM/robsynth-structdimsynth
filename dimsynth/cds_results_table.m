@@ -45,24 +45,25 @@ for i = 1:length(Structures)
   % cds_vis_results, cds_constraints, cds_fitness
   f = tmp.RobotOptRes.fval;
   if f < 1e3,     fval_text = 'i.O.';
-  elseif f < 1e4, fval_text = 'NB-Verl. Zielf. EO';
-  elseif f < 1e5, fval_text = 'Festigkeit Segmente';
-  elseif f < 1e6, fval_text = 'Kinematik-NB (Kond.)';
-  elseif f < 1e3*2e3, fval_text = 'AR-Hindernis Traj.'; % ab hier aus cds_constraints
-  elseif f < 1e3*3e3, fval_text = 'Bauraum-verl. Traj.';
-  elseif f < 1e3*4e3, fval_text = 'Selbstkoll. Traj.';
-  elseif f < 1e3*5e3, fval_text = 'Konfig. springt.';
-  elseif f < 1e3*6e3, fval_text = 'Gel.-Geschw. Grenze Traj.';
-  elseif f < 1e3*9e3, fval_text = 'Gel.-Pos.-Grenze Traj.';
-  elseif f < 1e3*1e4, fval_text = 'Parasitäre Bew.';
-  elseif f < 1e3*1e5, fval_text = 'Traj.-IK Fehler';
-  elseif f < 1e3*3e5, fval_text = 'AR-Hindernis Eckpkt.';
-  elseif f < 1e3*4e5, fval_text = 'Bauraum-verl. Eckpkt.';
-  elseif f < 1e3*5e5, fval_text = 'Selbstkoll. Eckpkt.';
-  elseif f < 1e3*1e6, fval_text = 'Gel.-Pos.-Grenze Eckpkt.';
-  elseif f < 1e3*1e7, fval_text = 'Eckpkt.-IK Fehler';
-  elseif f < 1e3*1e8, fval_text = 'Geom. Plausib.-Fehler 2.';
-  elseif f < 1e3*1e9, fval_text = 'Geom. Plausib.-Fehler 1.';
+  elseif f < 1e4, fval_text = 'NB-Verl. Zielf.';
+  elseif f < 1e5, fval_text = 'NB-Verl. Zielf. EO';
+  elseif f < 1e6, fval_text = 'Festigkeit Segmente';
+  elseif f < 1e7, fval_text = 'Kinematik-NB (Kond.)';
+  elseif f < 1e4*2e3, fval_text = 'AR-Hindernis Traj.'; % ab hier aus cds_constraints
+  elseif f < 1e4*3e3, fval_text = 'Bauraum-verl. Traj.';
+  elseif f < 1e4*4e3, fval_text = 'Selbstkoll. Traj.';
+  elseif f < 1e4*5e3, fval_text = 'Konfig. springt.';
+  elseif f < 1e4*6e3, fval_text = 'Gel.-Geschw. Grenze Traj.';
+  elseif f < 1e4*9e3, fval_text = 'Gel.-Pos.-Grenze Traj.';
+  elseif f < 1e4*1e4, fval_text = 'Parasitäre Bew.';
+  elseif f < 1e4*1e5, fval_text = 'Traj.-IK Fehler';
+  elseif f < 1e4*3e5, fval_text = 'AR-Hindernis Eckpkt.';
+  elseif f < 1e4*4e5, fval_text = 'Bauraum-verl. Eckpkt.';
+  elseif f < 1e4*5e5, fval_text = 'Selbstkoll. Eckpkt.';
+  elseif f < 1e4*1e6, fval_text = 'Gel.-Pos.-Grenze Eckpkt.';
+  elseif f < 1e4*1e7, fval_text = 'Eckpkt.-IK Fehler';
+  elseif f < 1e4*1e8, fval_text = 'Geom. Plausib.-Fehler 2.';
+  elseif f < 1e4*1e9, fval_text = 'Geom. Plausib.-Fehler 1.';
   end
   
   % Allgemeine Daten des Optimierungsergebnisses

@@ -43,18 +43,15 @@ end
 %% Daten der Roboterstruktur laden
 % Wird bereits in cds_dimsynth_robot vorbereitet
 v = Structure.MDH_ante_collcheck;
-collbodies = Structure.collbodies_robot;
-% Passe Kollisionsobjekte an. Prüfe nur Punkte, keine Volumina.
-% Für alles andere wird die Übergabe der vollständigen Transformations-
-% matrizen benötigt anstatt nur der Gelenkpositionen JP
-collbodies.type(:) = uint8(9);
+% Lade die vorab initialisierten Ersatzpunkte für die Bauraumprüfung
+collbodies = Structure.installspace_collbodies;
 % Merke, bis wohin die Kollisionsobjekte zum Roboter gehören
 n_cb_robot = size(collbodies.type,1);
 
 %% Bauraum-Geometrie als Kollisionsobjekte eintragen
 T_0_W = invtr(R.T_W_0);
-collchecks = []; % Liste der Kollisionsprüfungen
-
+ % Liste der Kollisionsprüfungen: Schon vorab bestimmt.
+collchecks = Structure.installspace_collchecks_collbodies;
 % Füge Geometrien des Bauraums als virtuelle Kollisionsobjekte hinzu.
 % Transformiere ins Basis-KS des Roboters
 for i = 1:size(Set.task.installspace.type,1)
@@ -84,10 +81,6 @@ for i = 1:size(Set.task.installspace.type,1)
   collbodies.type = [collbodies.type; type_i];
   % Bauraum wird zur Basis (=0) gezählt (ortsfest)
   collbodies.link = [collbodies.link; uint8(0)];
-  % Generiere Liste der Kollisionspaare: Teste Kollision jedes Roboter-KS
-  % mit dem Geometrieobjekt für den Bauraum
-  collchecks = [collchecks; ...
-    uint8(1:n_cb_robot)', repmat(uint8(size(collbodies.type,1)),n_cb_robot,1)]; %#ok<AGROW>
 end
 
 %% Bestimme Geometrieübereinstimmung mit Bauraum
@@ -172,7 +165,7 @@ end
 num_outside_plot = 0; % zum Debuggen, s.u.
 for i = 1:size(collbodies.link,1)
   % Anfangs- und Endpunkt des Ersatzkörpers bestimmen
-  if all(collbodies.type(i) ~= [6 9 10 12 13])
+  if all(collbodies.type(i) ~= [6 9 10 12 13 14])
     warning('Methode %d nicht implementiert', collbodies.type(i));
     continue
   end
@@ -193,6 +186,9 @@ for i = 1:size(collbodies.link,1)
     collstate_i = coll(j,I);
     if ~any(collstate_i) % Das Roboterobjekt ist in keinem einzigen Bauraum-Objekt
       color = 'r'; num_outside_plot = num_outside_plot + 1;
+      % Zusätzliche Diagnose
+      % fprintf('Koll.-Körper %d (Rob.-Seg. %d): In keinem zugeordneten Bauraum-Volumen.\n', i, ...
+      %   collbodies.link(i));
     else
       % Das Roboterobjekt ist im Bauraum -> gut
       color = 'g';
@@ -201,15 +197,15 @@ for i = 1:size(collbodies.link,1)
     % Das Objekt ist eine Bauraumbegrenzung und muss nur gezeichnet werden
     color = 'b'; 
   end
-  switch collbodies.type(i)
-    case 6
+  switch collbodies.type(i) % Siehe check_collisionset_simplegeom für Nummern
+    case 6 % Kapsel im Körper-KS
       r = collbodies.params(i,1)*3; % Vergrößere den Radius für den Plot
       drawCapsule([pts_W(1:3)',pts_W(4:6)',r],'FaceColor', color, 'FaceAlpha', 0.3);
-    case 9
+    case 9 % Punkt im Körper-KS
       % Zweiter Punkt des Punktepaars, das für den Kollisionskörper aus den
       % KS-Ursprüngen gespeichert wurde. (erster ist Vorgänger).
       plot3(pts_W(4), pts_W(5), pts_W(6), [color,'x'], 'markersize', 20);
-    case 10
+    case 10 % Quader im Basis-KS
       % Parameter auslesen. Transformation ins Welt-KS für Plot
       q_W = eye(3,4)*R.T_W_0*[collbodies.params(i,1:3)';1];
       u1_W = R.T_W_0(1:3,1:3)*collbodies.params(i,4:6)';
@@ -222,18 +218,21 @@ for i = 1:size(collbodies.link,1)
       cubpar_a = 180/pi*tr2rpy([u1_W(:)/norm(u1_W), u2_W(:)/norm(u2_W), u3_W(:)/norm(u3_W)],'zyx')'; % Orientierung des Quaders
       drawCuboid([cubpar_c', cubpar_l', cubpar_a'], ...
         'FaceColor', color, 'FaceAlpha', 0.1);
-    case 12
+    case 12 % Zylinder im Basis-KS
       % Transformation ins Welt-KS
       p1 = eye(3,4)*R.T_W_0*[collbodies.params(i,1:3)';1];
       p2 = eye(3,4)*R.T_W_0*[collbodies.params(i,4:6)';1];
       drawCylinder([p1', p2', collbodies.params(i,7)], ...
         'FaceColor', color, 'FaceAlpha', 0.2);
-    case 13
+    case 13 % Kapsel im Basis-KS
       % Transformation ins Welt-KS
       p1 = eye(3,4)*R.T_W_0*[collbodies.params(i,1:3)';1];
       p2 = eye(3,4)*R.T_W_0*[collbodies.params(i,4:6)';1];
       drawCapsule([p1', p2', collbodies.params(i,7)], ...
         'FaceColor', color, 'FaceAlpha', 0.2);
+    case 14 % Punkt im Basis-KS
+      p = eye(3,4)*R.T_W_0*[collbodies.params(i,1:3)';1];
+      plot3(p(1), p(2), p(3), [color,'*'], 'markersize', 15);
     otherwise
       error('Dieser Fall darf nicht auftreten');
   end

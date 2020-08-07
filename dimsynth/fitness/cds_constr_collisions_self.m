@@ -122,6 +122,13 @@ for i = 1:size(collbodies.link,1)
   collstate_i = coll(j,I);
   if any(collstate_i) % Es gibt eine Kollision
     color = 'r'; num_coll_plot = num_coll_plot + 1;
+    % Zusätzliche Diagnose:
+    % collchecks_i = collchecks(I,:);
+    % collpairs_i = collchecks_i(collstate_i,:);
+    % collpartners_i = unique(collpairs_i(:));
+    % collpartners_i(collpartners_i==i) = []; % Entferne Element selbst
+    % fprintf('Koll.-Körper %d (Rob.-Seg. %d): Kollision mit KK [%s]\n', i, ...
+    %   collbodies.link(i), disp_array(collpartners_i', '%d'));
   else
     color = 'b';
   end

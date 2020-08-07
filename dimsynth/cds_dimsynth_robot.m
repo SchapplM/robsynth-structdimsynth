@@ -11,9 +11,6 @@
 % Ausgabe:
 % RobotOptRes
 %   Ergebnis-Struktur
-% 
-% TODO:
-% * Namen der Optimierungsparameter
 
 % Quellen:
 % [SchapplerTapOrt2019] Schappler, M. and Tappe, S., Ortmaier, T.:
@@ -135,6 +132,10 @@ for i = 1:NLEG
   R_init.DesPar.joint_type((1:R_init.NJ)'==1&R_init.MDH.sigma==1) = 4; % Linearführung erste Achse
   R_init.DesPar.joint_type((1:R_init.NJ)'~=1&R_init.MDH.sigma==1) = 5; % Schubzylinder weitere Achse
   R_init.update_dynpar1(); % Nochmal initialisieren, damit MPV definiert ist
+  
+  % Platzhalter-Werte für Segment-Parameter setzen (nur für Plotten)
+  R_init.DesPar.seg_par(:,1) = 50e-3;
+  R_init.DesPar.seg_par(:,2) = 5e-3;
 end
 % Merke die ursprünglich aus der Datenbank geladene EE-Rotation. Die in der
 % Optimierung ergänzte Rotation ist zusätzlich dazu. (Bei 2T1R-Robotern
@@ -163,7 +164,7 @@ calc_dyn_cut = false;
 % Schalter zur Berechnung der Regressorform der Dynamik; [SchapplerTapOrt2019]
 calc_reg = false;
 
-if any(strcmp(Set.optimization.objective, {'energy', 'minactforce'}))
+if any(strcmp(Set.optimization.objective, {'energy', 'actforce'}))
   calc_dyn_act = true; % Antriebskraft für Zielfunktion benötigt
 end
 if any(Set.optimization.constraint_obj(2:3)) % Energie oder Antriebskraft
@@ -213,6 +214,10 @@ if Structure.Type == 0 || Structure.Type == 2
      R_pkin.MDH.sigma(1) == 1 % erstes Gelenk ist Schubgelenk
     I_a2 = R_pkin.pkin_jointnumber==2 & R_pkin.pkin_types == 4;
     Ipkinrel = Ipkinrel & ~I_a2; % Nehme die "1" bei a2 weg.
+    % Setze den d2-Parameter zu Null, wenn a2 Null ist. Der Parameter ist
+    % dann redundant zum vorherigen d1-Parameter (Schubgelenk).
+    I_d2 = R_pkin.pkin_jointnumber==2 & R_pkin.pkin_types == 6;
+    Ipkinrel = Ipkinrel & ~I_d2; % Nehme die "1" bei d2 weg.
   end
   % Setze den letzten d-Parameter für PKM-Beinketten auf Null. Dieser ist
   % redundant zur Plattform-Größe
@@ -273,31 +278,45 @@ Structure.Ipkinrel = Ipkinrel;
 
 % Berechne Mittelpunkt der Aufgabe
 if Set.optimization.movebase
-  nvars = nvars + sum(Set.structures.DoF(1:3)); % Verschiebung um translatorische FG der Aufgabe
-  vartypes = [vartypes; 2*ones(sum(Set.structures.DoF(1:3)),1)];
+  % Auswahl der Indizes für die zu optimierenden Basis-Koordinaten
+  I_DoF_basepos = Set.structures.DoF(1:3); % nur die FG der Aufgabe nehmen
+  I_DoF_setfix = Set.optimization.basepos_limits(:,1)==...
+                 Set.optimization.basepos_limits(:,2); 
+  for i = 1:3
+    % Wenn identische Grenzen vorgegeben werden, diesen FG nicht optimieren
+    I_DoF_basepos(i) = I_DoF_basepos(i) & ~I_DoF_setfix(i);
+  end
+  nvars = nvars + sum(I_DoF_basepos); % Verschiebung um translatorische FG der Aufgabe
+  vartypes = [vartypes; 2*ones(sum(I_DoF_basepos),1)];
   if Structure.Type == 0 % Seriell
     % TODO: Stelle den seriellen Roboter vor die Aufgabe
-    varlim = [varlim; repmat([-1, 1], sum(Set.structures.DoF(1:3)), 1)];
+    varlim = [varlim; repmat([-1, 1], sum(I_DoF_basepos), 1)];
   else % Parallel
     % Stelle den parallelen Roboter in/über die Aufgabe
     % Bei Parallelen Robotern ist der Arbeitsraum typischerweise in der
     % Mitte des Gestells (bezogen auf x-y-Ebene). Daher müssen die Grenzen
     % nicht so weit definiert werden: 20% der Referenzlänge um Mittelpunkt
     % der Aufgabe. Annahme: x-/y-Komponente werden immer optimiert.
-    varlim = [varlim; repmat([-0.2, 0.2],2,1)]; % xy-Komponenten
+    varlim = [varlim; repmat([-0.2, 0.2],sum(I_DoF_basepos(1:2)),1)]; % xy-Komponenten
     % Die z-Komponente der Basis kann mehr variieren (hängender Roboter)
-    varlim = [varlim; repmat([-1, 1], sum(Set.structures.DoF(3)), 1)];
+    varlim = [varlim; repmat([-1, 1], sum(I_DoF_basepos(3)), 1)];
   end
   % Überschreibe die Grenzen, falls sie explizit als Einstellung gesetzt sind
-  % TODO: Sollte noch in Zusammenhang mit Structure.xT_mean gebracht werden
-  bplim = varlim(end-2:end,:);
-  bplim(~isnan(Set.optimization.basepos_limits)) = 1/Structure.Lref*...
+  bplim = NaN(3,2); % Grenzen für xyz-Koordinaten
+  % Nur Koordinaten von oben eintragen, die auch optimiert werden
+  bplim(I_DoF_basepos,:) = varlim(end-(sum(I_DoF_basepos)-1):end,:);
+  % Einstellungen eintragen, sobald Einstellungen gesetzt sind
+  bplim(~isnan(Set.optimization.basepos_limits)) = ...
     Set.optimization.basepos_limits(~isnan(Set.optimization.basepos_limits));
-  varlim(end-2:end,:) = bplim;
+  % Grenzen in Variable für PSO-Parametergrenzen eintragen
+  varlim(end-(sum(I_DoF_basepos)-1):end,:) = bplim(I_DoF_basepos,:);
   % Benenne die Variablen
-  for i = find(Set.structures.DoF(1:3))
+  for i = find(I_DoF_basepos)
     varnames = {varnames{:}, sprintf('base %s', char(119+i))}; %#ok<CCAT>
   end
+  % Trage konstante Variablen schon ein (werden später nicht mehr geändert.
+  r_W_0 = zeros(3,1);
+  r_W_0(I_DoF_setfix) = Set.optimization.basepos_limits(I_DoF_setfix);
 else
   % Setze Standard-Werte für Basis-Position fest
   if Structure.Type == 0 % Seriell
@@ -314,9 +333,8 @@ else
     % In der xy-Ebene liegt der Roboter in der Mitte der Aufgabe
     r_W_0(1:2) = Structure.xT_mean(1:2);
   end
-  R.update_base(r_W_0);
 end
-
+R.update_base(r_W_0);
 % EE-Verschiebung
 if Set.optimization.ee_translation && ...
     (Structure.Type == 0 || Structure.Type == 2 && ~Set.optimization.ee_translation_only_serial)
@@ -386,21 +404,30 @@ end
 % Gestell-Morphologie-Parameter (z.B. Gelenkpaarabstand).
 % Siehe align_base_coupling.m
 if Structure.Type == 2 && Set.optimization.base_morphology
-  if R.DesPar.base_method == 1 % keine Parameter bei Kreis
-  elseif R.DesPar.base_method == 8
+  if any(R.DesPar.base_method == 5:8) % Paarweise Anordnung der Beinketten
     nvars = nvars + 1;
     vartypes = [vartypes; 8];
     varlim = [varlim; [0.2,0.8]]; % Gelenkpaarabstand. Relativ zu Gestell-Radius.
     varnames = {varnames{:}, 'base_morph_pairdist'}; %#ok<CCAT>
-    
+  end
+  if any(R.DesPar.base_method == [4 8]) % Erste Achse hat eine Steigung gegen die Mitte
     nvars = nvars + 1;
     vartypes = [vartypes; 8];
-    % Die Steigung wird gegen die Senkrechte gezählt. Damit die erste Achse
-    % nach unten zeigt, muss der Winkel größe 90° sein
-    varlim = [varlim; [pi/4,3*pi/4]]; % Steigung Pyramide; Winkel in rad (Steigung nach unten und oben ergibt Sinn)
-    varnames = {varnames{:}, 'base_morph_pyrelev'}; %#ok<CCAT>
-  else
-    error('base_morphology Nicht implementiert');
+    % Die Steigung wird gegen die Senkrechte "nach innen kippend" gezählt. 
+    % Damit die erste Achse nach unten zeigt, muss der Winkel größer 90° sein. 
+    % Als Sonderfall ist Steigung 90° (bleibt in der Ebene) und Steigung 0°
+    % (senkrechte Anordnung nach oben) und 180° (senkrecht nach unten) ent- 
+    % halten. Das ist der Übergang zu anderen Gestell-Varianten.
+    % Der Bereich 0-180° ist notwendig, damit bei Schubachsen ein zusammen-
+    % laufen unter- oder oberhalb des Gestells möglich ist.
+    varlim = [varlim; [0, pi]]; % Steigung; Winkel in rad
+    if R.DesPar.base_method == 4
+      % Pyramide
+      varnames = {varnames{:}, 'base_morph_coneelev'}; %#ok<CCAT>
+    else
+      % Kegel
+      varnames = {varnames{:}, 'base_morph_pyrelev'}; %#ok<CCAT>
+    end
   end
 end
 
@@ -420,7 +447,9 @@ end
 % Variablen-Typen speichern
 Structure.vartypes = vartypes;
 Structure.varnames = varnames;
-if length(vartypes) ~= length(varnames), error('Abgespeicherte Variablennamen stimmen scheinbar nicht'); end
+assert(length(vartypes)==size(varlim,1), 'Anzahl der Variablen muss konsistent zur Anzahl der gesetzten Grenzen sein');
+assert(length(vartypes)==length(varnames), 'Abgespeicherte Variablennamen stimmen scheinbar nicht');
+assert(all(varlim(:,1)~=varlim(:,2)), 'Obere und untere Parametergrenze identisch. Optimierung nicht sinnvoll.')
 %% Weitere Struktureigenschaften abspeichern
 % Bestimme die Indizes der ersten Schubgelenke. Das kann benutzt werden, um
 % Gelenkgrenzen für das erste Schubgelenk anders zu bewerten.
@@ -527,7 +556,17 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       if sum(R_cc.MDH.sigma(i-2:i) == 1) == 3
         cbdist = 3;
       else
-        cbdist = 1;
+        if j_hascollbody(end-1) == 0
+          % Der übernächste Kollisionskörper wäre die Basis (und damit
+          % vermutlich eine Führungsschiene).
+          % Überspringe diese Prüfung. Nehme die Führungsschiene nur, wenn
+          % es zwei weiter ist. Ansonsten wird bei PUU-Ketten immer eine
+          % Selbstkollision erkannt.
+          cbdist = 2;
+        else
+          % Standardfall: Ab dem übernächsten Körper wird geprüft
+          cbdist = 1;
+        end
       end
       % Bestimme die Starrkörper-Nummer bezogen auf die PKM mit NLoffset
       for j = j_hascollbody(1:end-cbdist) % Kollisionskörper mehr als zwei vorher
@@ -543,7 +582,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   % Roboter-Kollisionsobjekte in Struktur abspeichern (zum Abruf in den
   % Funktionen cds_constr_collisions_... und cds_constr_installspace
   % Ist erstmal nur Platzhalter. Wird zur Laufzeit noch aktualisiert.
-  Structure.collbodies_robot = cds_update_collbodies(R, Set, Structure.qlim');
+  Structure.collbodies_robot = cds_update_collbodies(R, Set, Structure, Structure.qlim');
   % Probe: Sind Daten konsistent? Inkonsistenz durch obigem Aufruf möglich.
   if any(any(~isnan(Structure.collbodies_robot.params(Structure.collbodies_robot.type==6,2:end))))
     error('Inkonsistente Kollisionsdaten: Kapsel-Direktverbindung hat zu viele Parameter');
@@ -641,6 +680,87 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   elseif any(Structure.selfcollchecks_collbodies(:,1)==Structure.selfcollchecks_collbodies(:,2))
     error('Prüfung eines Körpers mit sich selbst ergibt keinen Sinn');
   end
+end
+%% Initialisierung der Bauraumprüfung
+% Erstelle Liste der Kollisionsprüfungen für cds_constr_installspace.m
+% Die Geometrie-Objekte werden erst dort ins Basis-KS des Roboters trans-
+% formiert.
+if ~isempty(Set.task.installspace.type)
+  % Liste für alle Kollisionskörper des Roboters bei Bauraumprüfung.
+  % Es werden nur Punkte anstatt der Ersatz-Volumen benutzt.
+  % Das Format der Struktur ist genauso wie oben.
+  collbodies_instspc = struct('link', [], 'type', [], 'params', []);
+  instspc_collchecks_collbodies = []; % Liste der Bauraum-Kollisionsprüfungen (bezogen auf obige Variable)
+  % Stelle Ersatz-Punkte für alle Robotergelenke zusammen
+  for k = 1:NLEG
+    % Offset für PKM-Beinketten bestimmen, s.o.
+    if Structure.Type == 0  % Seriell 
+      NLoffset = 0;
+      R_cc = R;
+    else % PKM-Beinkette
+      NLoffset = 1;
+      R_cc = R.Leg(k);
+      if k > 1
+        NLoffset = 1+R.I2L_LEG(k-1)-(k-1); % in I1L wird auch Basis und EE-Link noch mitgezählt. Hier nicht.
+      end
+    end
+    % Erzeuge Kollisionskörper für den statischen Teil von Schub- 
+    % gelenken (z.B. Linearachsen). Siehe: SerRob/plot
+    for i = find(R_cc.MDH.sigma'==1)
+      % Hänge zwei Punkte für Anfang und Ende jeder Linearführung an
+      % Setze als Körper Nr. 14 (Punkt im Basis-KS)
+      collbodies_instspc.type = [collbodies_instspc.type; repmat(uint8(14),2,1)];
+      collbodies_instspc.params = [collbodies_instspc.params; NaN(2,10)];
+      % Führungsschiene/Führungszylinder ist vorherigem Segment zugeordnet
+      collbodies_instspc.link = [collbodies_instspc.link; repmat(NLoffset+uint8(i-1),2,1)];
+    end
+    % Hänge einen Punkt (Nr. 9) für jedes Gelenk an. Unabhängig, ob 3D-Körper dafür
+    collbodies_instspc.type = [collbodies_instspc.type; repmat(uint8(9),R_cc.NJ,1)];
+    collbodies_instspc.params = [collbodies_instspc.params; NaN(R_cc.NJ,10)];
+    collbodies_instspc.link = [collbodies_instspc.link; uint8(NLoffset+(1:R_cc.NJ)')];
+  end
+  % Stelle äquivalente Gelenknummer von PKM zusammen (als  Übersetzungs- 
+  % tabelle). Zeile 1 ursprünglich, Zeile 2 Übersetzung. Siehe oben.
+  % Seriell: 0=Basis, 1=erstes bewegtes Segment, ...
+  equiv_link = repmat(0:collbodies_instspc.link(end),2,1);
+  if Structure.Type == 2 % PKM
+    % Kollisionskörper-Zählung: 0=Basis, 1=Beinkette1-Basis, 2=Beinkette1-1.Seg., ...
+    % Zählung für äquivalente Indizes: PKM-Basis und Beinketten-Basis ist
+    % alles Körper 0. Ansonsten ist der erste bewegte Körper nach der Basis
+    % 1, usw.
+    for k = 1:R.NLEG
+      NLoffset = 1; % Für Basis der Beinkette
+      if k > 1
+        NLoffset = 1+R.I2L_LEG(k-1)-(k-1); % siehe andere Vorkommnisse oben
+      end
+      for jj = 0:R.Leg(1).NL-1
+        % Segment-Nummer in Gesamt-PKM nach Kollisionskörper-Zählung
+        iil = NLoffset+jj;
+        equiv_link(2,iil+1) = jj;
+      end
+    end
+  end
+  n_cb_robot = size(collbodies_instspc.type,1);
+  for i = 1:size(Set.task.installspace.type,1)
+    % Prüfe, für welches Robotersegment das Bauraum-Geometrieobjekt i
+    % definiert ist
+    links_i = Set.task.installspace.links{i}; % erlaubte Segmente
+    % Gehe alle Kollisionskörper j des Roboters durch und prüfe, ob passend
+    for j = 1:size(collbodies_instspc.type,1)
+      % Nehme nicht die Segmentnummer selbst, sondern die des äquivalenten
+      % Segments (jew. von der Basis aus gesehen, egal ob PKM oder seriell)
+      iii = equiv_link(1,:) == collbodies_instspc.link(j);
+      equiv_link_j = equiv_link(2,iii); % 0=Basis, 1=erstes bewegtes,...
+      if any(links_i == equiv_link_j)
+        instspc_collchecks_collbodies = [instspc_collchecks_collbodies; ...
+          uint8([j, n_cb_robot+i])]; %#ok<AGROW> % Prüfe "Kollision" Roboter-Segment j mit Bauraum-Begrenzung i
+      end
+    end
+  end
+  Structure.installspace_collbodies = collbodies_instspc; % Eingabe vorbereiten
+  [~,collbodies_instspc] = cds_update_collbodies(R, Set, Structure, Structure.qlim');
+  Structure.installspace_collbodies = collbodies_instspc; % modifizerte Struktur abspeichern
+  Structure.installspace_collchecks_collbodies = instspc_collchecks_collbodies;
 end
 
 %% Anfangs-Population generieren
@@ -746,12 +866,6 @@ k = find(fval == PSO_Detail_Data.fval', 1, 'first');
 [dd_optind,dd_optgen] = ind2sub(fliplr(size(PSO_Detail_Data.fval)),k); % Umrechnung in 2D-Indizes: Generation und Individuum
 q0_ik = PSO_Detail_Data.q0_ik(dd_optind,:,dd_optgen)';
 
-% Grenzen aus diesem letzten Aufruf bestimmen
-if Structure.Type == 0 
-  Structure.qlim = R.qlim;
-else
-  Structure.qlim = cat(1, R.Leg.qlim);
-end
 % Prüfen, ob diese mit den im Optimierungsprozess gespeicherten IK-Anfangs-
 % winkeln übereinstimmen
 if Structure.Type == 0, q0_ik2 = R.qref;
@@ -763,7 +877,6 @@ if any(test_q0~=0) && fval<1e9 % nur bei erfolgreicher Berechnung der IK ist der
 end
 % Berechne Inverse Kinematik zu erstem Bahnpunkt
 Traj_0 = cds_rotate_traj(Traj, R.T_W_0);
-% q0 = Structure.qlim(:,1) + rand(R.NJ,1).*(Structure.qlim(:,2)-Structure.qlim(:,1));
 if Structure.Type == 0 % Seriell
   % Benutze Referenzpose die bei obigen Zielfunktionsaufruf gespeichert wurde
   [q, Phi] = R.invkin2(Traj_0.XE(1,:)', R.qref);
@@ -824,14 +937,14 @@ if ~result_invalid && ~strcmp(Set.optimization.objective, 'valid_act')
   [fval_energy,~, ~, physval_energy] = cds_obj_energy(R, Set, Structure, Traj_0, data_dyn.TAU, QD);
   [fval_cond,~, ~, physval_cond] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
   [fval_mass,~, ~, physval_mass] = cds_obj_mass(R);
-  [fval_minactforce,~, ~, physval_minactforce] = cds_obj_minactforce(data_dyn.TAU);
+  [fval_actforce,~, ~, physval_actforce] = cds_obj_actforce(data_dyn.TAU);
   [fval_jrange,~, ~, physval_jrange] = cds_obj_jointrange(R, Set, Structure, Q);
   [fval_stiff,~, ~, physval_stiff] = cds_obj_stiffness(R, Set, Q);
   [~, ~, f_maxstrengthviol] = cds_constr_yieldstrength(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
   % Reihenfolge siehe Variable Set.optimization.constraint_obj aus cds_settings_defaults
-  fval_obj_all = [fval_mass; fval_energy; fval_minactforce; fval_cond; fval_jrange; fval_stiff];
+  fval_obj_all = [fval_mass; fval_energy; fval_actforce; fval_cond; fval_jrange; fval_stiff];
   fval_constr_all = f_maxstrengthviol;
-  physval_obj_all = [physval_mass; physval_energy; physval_minactforce; physval_cond; physval_jrange; physval_stiff];
+  physval_obj_all = [physval_mass; physval_energy; physval_actforce; physval_cond; physval_jrange; physval_stiff];
   % Vergleiche neu berechnete Werte mit den zuvor abgespeicherten (müssen
   % übereinstimmen)
   test_Jcond = PSO_Detail_Data.Jcond(dd_optgen, dd_optind) - physval_cond;

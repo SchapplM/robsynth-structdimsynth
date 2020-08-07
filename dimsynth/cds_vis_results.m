@@ -77,7 +77,7 @@ for i = 1:length(Structures)
     Erg_All_Gen(jj,:) = tmp.optimValues.swarmfvals;
   end
   I_zul = Erg_All_Gen(:) < 1e3;
-  Klassengrenzen_Alle = [0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12];
+  Klassengrenzen_Alle = [0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13];
   Klassengrenzen_Alle_Log = log10(Klassengrenzen_Alle);
   Klassengrenzen_Alle_Log(1) = 0;
   % Histogramm erstellen
