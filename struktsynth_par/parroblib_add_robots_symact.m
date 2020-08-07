@@ -407,19 +407,25 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           parroblib_change_properties(Name, 'rankloss', sprintf('%1.0f', RobotOptRes.fval/100));
           parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 0, 0);
           num_rankloss = num_rankloss + 1;
-        elseif RobotOptRes.fval > 1e9
+        elseif RobotOptRes.fval > 1e10
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
             'Zielfunktion (Einzelpunkt-IK) %1.2e\n'], RobotOptRes.fval);
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
           parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 3);
-        elseif RobotOptRes.fval > 1e7
+        elseif RobotOptRes.fval > 1e9
+          fprintf(['Erweiterte Prüfung (Kollision etc.) fehlgeschlagen. Sollte ', ...
+            'eigentlich nicht geprüft werden! Zielfkt. %1.2e\n'], RobotOptRes.fval);
+          remove = true;
+          num_dimsynthfail = num_dimsynthfail + 1;
+          parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 7);
+        elseif RobotOptRes.fval > 1e8
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
             'Zielfunktion (Traj.-IK) %1.2e\n'], RobotOptRes.fval);
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
           parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 4);
-        elseif RobotOptRes.fval == 1e7
+        elseif RobotOptRes.fval == 1e8
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
             'Zielfunktion (Parasitäre Bewegung) %1.2e\n'], RobotOptRes.fval);
           remove = true;
