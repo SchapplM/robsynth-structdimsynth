@@ -24,7 +24,7 @@
 % funktioniert nur bei symmetrischer Aktuierung. Ansonsten werden Kräfte
 % mit Momenten vergleichen (nicht sinnvoll).
 
-function [fval, fval_debugtext, debug_info, tau_a_max] = cds_obj_minactforce(TAU)
+function [fval, fval_debugtext, debug_info, tau_a_max] = cds_obj_actforce(TAU)
 debug_info = {};
 
 tau_a_max_per_actuator = max(abs(TAU));

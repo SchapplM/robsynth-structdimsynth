@@ -131,7 +131,7 @@ if Set.optimization.constraint_obj(4) > 0 % NB für Kondition gesetzt
 end
 
 %% Dynamik-Parameter
-if any(strcmp(Set.optimization.objective, {'energy', 'mass', 'minactforce', 'stiffness'}))
+if any(strcmp(Set.optimization.objective, {'energy', 'mass', 'actforce', 'stiffness'}))
   % Dynamik-Parameter aktualisieren. Keine Nutzung der Ausgabe der Funktion
   % (Parameter werden direkt in Klasse geschrieben; R.DesPar.seg_par ist
   % vor/nach dem Aufruf unterschiedlich)
@@ -168,7 +168,7 @@ else
   % Dynamik nochmal mit Regressorform mit neuen Dynamikparameter berechnen
   data_dyn2 = cds_obj_dependencies_regmult(R, data_dyn);
 end
-if any(strcmp(Set.optimization.objective, {'energy', 'minactforce'}))
+if any(strcmp(Set.optimization.objective, {'energy', 'actforce'}))
   TAU = data_dyn2.TAU;
 end
 
@@ -216,8 +216,8 @@ elseif strcmp(Set.optimization.objective, 'energy')
   [fval,fval_debugtext, debug_info] = cds_obj_energy(R, Set, Structure, Traj_0, TAU, QD);
 elseif strcmp(Set.optimization.objective, 'mass')
   [fval,fval_debugtext, debug_info] = cds_obj_mass(R);
-elseif strcmp(Set.optimization.objective, 'minactforce')
-  [fval,fval_debugtext, debug_info] = cds_obj_minactforce(TAU);
+elseif strcmp(Set.optimization.objective, 'actforce')
+  [fval,fval_debugtext, debug_info] = cds_obj_actforce(TAU);
 elseif strcmp(Set.optimization.objective, 'jointrange')
   [fval,fval_debugtext, debug_info] = cds_obj_jointrange(R, Set, Structure, Q);
 elseif strcmp(Set.optimization.objective, 'stiffness')

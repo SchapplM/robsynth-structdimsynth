@@ -164,7 +164,7 @@ calc_dyn_cut = false;
 % Schalter zur Berechnung der Regressorform der Dynamik; [SchapplerTapOrt2019]
 calc_reg = false;
 
-if any(strcmp(Set.optimization.objective, {'energy', 'minactforce'}))
+if any(strcmp(Set.optimization.objective, {'energy', 'actforce'}))
   calc_dyn_act = true; % Antriebskraft für Zielfunktion benötigt
 end
 if any(Set.optimization.constraint_obj(2:3)) % Energie oder Antriebskraft
@@ -937,14 +937,14 @@ if ~result_invalid && ~strcmp(Set.optimization.objective, 'valid_act')
   [fval_energy,~, ~, physval_energy] = cds_obj_energy(R, Set, Structure, Traj_0, data_dyn.TAU, QD);
   [fval_cond,~, ~, physval_cond] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
   [fval_mass,~, ~, physval_mass] = cds_obj_mass(R);
-  [fval_minactforce,~, ~, physval_minactforce] = cds_obj_minactforce(data_dyn.TAU);
+  [fval_actforce,~, ~, physval_actforce] = cds_obj_actforce(data_dyn.TAU);
   [fval_jrange,~, ~, physval_jrange] = cds_obj_jointrange(R, Set, Structure, Q);
   [fval_stiff,~, ~, physval_stiff] = cds_obj_stiffness(R, Set, Q);
   [~, ~, f_maxstrengthviol] = cds_constr_yieldstrength(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
   % Reihenfolge siehe Variable Set.optimization.constraint_obj aus cds_settings_defaults
-  fval_obj_all = [fval_mass; fval_energy; fval_minactforce; fval_cond; fval_jrange; fval_stiff];
+  fval_obj_all = [fval_mass; fval_energy; fval_actforce; fval_cond; fval_jrange; fval_stiff];
   fval_constr_all = f_maxstrengthviol;
-  physval_obj_all = [physval_mass; physval_energy; physval_minactforce; physval_cond; physval_jrange; physval_stiff];
+  physval_obj_all = [physval_mass; physval_energy; physval_actforce; physval_cond; physval_jrange; physval_stiff];
   % Vergleiche neu berechnete Werte mit den zuvor abgespeicherten (müssen
   % übereinstimmen)
   test_Jcond = PSO_Detail_Data.Jcond(dd_optgen, dd_optind) - physval_cond;
