@@ -75,9 +75,12 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
   synthrestable = readtable( ...
     fullfile(parroblibpath,'synthesis_result_lists',[EE_FG_Name,'.csv']), ...
     'ReadVariableNames', true);
-  synthrestable = [synthrestable; readtable( ...
+  synthrestable_var = readtable( ...
     fullfile(parroblibpath,'synthesis_result_lists',[EE_FG_Name,'_var.csv']), ...
-    'ReadVariableNames', true)]; %#ok<AGROW>
+    'ReadVariableNames', true);
+  if ~isempty(synthrestable_var)
+    synthrestable = [synthrestable; synthrestable_var]; %#ok<AGROW>
+  end
   fprintf('Prüfe PKM mit %s Plattform-FG\n', EE_FG_Name);
   % Bestimme Möglichkeiten für Koppelpunkte
   [Cpl1_grid,Cpl2_grid] = ndgrid(settings.base_couplings,settings.plf_couplings);
@@ -336,8 +339,8 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.task.maxangle = 5*pi/180; % Reduzierung der Winkel auf 5 Grad (ist für FG-Untersuchung ausreichend)
     Traj = cds_gen_traj(EE_FG, 1, Set.task);
     Set.optimization.objective = 'valid_act';
-    Set.optimization.optname = sprintf('add_robots_sym_%s_G%dP%d_tmp', ...
-      EE_FG_Name, Coupling(1), Coupling(2));
+    Set.optimization.optname = sprintf('add_robots_sym_%s_G%dP%d_tmp_%s', ...
+      EE_FG_Name, Coupling(1), Coupling(2), datestr(now,'yyyymmdd_HHMMSS'));
     Set.optimization.NumIndividuals = 200;
     Set.optimization.MaxIter = 50;
     Set.optimization.ee_rotation = false;
