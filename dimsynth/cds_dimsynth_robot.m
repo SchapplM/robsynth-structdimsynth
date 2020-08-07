@@ -223,7 +223,16 @@ if Structure.Type == 0 || Structure.Type == 2
   else  % Parallel
     R_pkin = R.Leg(1);
   end
+  % Nummern zur Indizierung der pkin, siehe SerRob/get_pkin_parameter_type
   Ipkinrel = R_pkin.get_relevant_pkin(Set.structures.DoF);
+  % Setzen den theta1-Parameter für PKM-Beinketten auf Null.
+  % Bei 3T0R- und 3T1R-PKM ist die Parallelität der Gelenke in den Beinketten
+  % besonders wichtig. Bei 3T3R darf es eigentlich keinen Einfluss haben.
+  if Structure.Type == 2 && ... % PKM
+      all(Set.structures.DoF(1:5)==[1 1 1 0 0]) % 3T0R und 3T1R
+    I_theta1 = R_pkin.pkin_jointnumber==1 & R_pkin.pkin_types == 5;
+    Ipkinrel = Ipkinrel & ~I_theta1; % Nehme die "1" bei theta1 weg.
+  end
   % Setze die a1/d1-Parameter für PKM-Beinketten auf Null. diese sind
   % redundant zur Einstellung der Basis-Position oder -Größe
   % (die Parameter werden dann auch nicht optimiert)
