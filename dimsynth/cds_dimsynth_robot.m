@@ -225,12 +225,13 @@ if Structure.Type == 0 || Structure.Type == 2
   end
   % Nummern zur Indizierung der pkin, siehe SerRob/get_pkin_parameter_type
   Ipkinrel = R_pkin.get_relevant_pkin(Set.structures.DoF);
-  % Setzen den theta1-Parameter für PKM-Beinketten auf Null.
+  % Setzen den theta1-Parameter für PKM-Beinketten auf einen konstant Wert,
+  % falls das durch die Struktursynthese vorgegeben ist (z.B. auf 0).
   % Bei 3T0R- und 3T1R-PKM ist die Parallelität der Gelenke in den Beinketten
   % besonders wichtig. Bei 3T3R darf es eigentlich keinen Einfluss haben.
   I_theta1 = R_pkin.pkin_jointnumber==1 & R_pkin.pkin_types==5;
   if Structure.Type == 2 && ... % PKM
-      all(Set.structures.DoF(1:5)==[1 1 1 0 0]) % 3T0R und 3T1R
+     any(Structure.angle1_values==1:3) % theta1 muss konstanter Wert sein; siehe parroblib_load_robot und cds_gen_robot_list
     Ipkinrel = Ipkinrel & ~I_theta1; % Nehme die "1" bei theta1 weg.
   end
   % Setze die a1/d1-Parameter für PKM-Beinketten auf Null. diese sind
@@ -264,8 +265,18 @@ if Structure.Type == 0 || Structure.Type == 2
 
   pkin_init = R_pkin.pkin;
   pkin_init(~Ipkinrel) = 0; % nicht relevante Parameter Null setzen
-  % Sonderregeln: nicht relevante theta-Parameter auf pi/2 setzen.
-  pkin_init(I_theta1&~Ipkinrel) = pi/2;
+  % Sonderregeln: nicht relevanten theta1-Parameter auf 0 oder pi/2 setzen.
+  if Structure.Type == 2
+    if     Structure.angle1_values==1 % nur Wert 0 ist zulässig
+      pkin_init(I_theta1&~Ipkinrel) = 0;
+    elseif Structure.angle1_values==2 % nur Wert +/- 90 ist zulässig
+      pkin_init(I_theta1&~Ipkinrel) = pi/2;
+    elseif Structure.angle1_values==3 % nur Wert 0 oder 90 ist zulässig
+      pkin_init(I_theta1&~Ipkinrel) = 0; % Nehme die 0
+    else % Entweder 0 (nicht definiert) oder 4 (alles erlaubt)
+      % Mache gar nichts. Parameter wird ganz normal optimiert.
+    end
+  end
   if Structure.Type == 0
     R.update_mdh(pkin_init);
   else
