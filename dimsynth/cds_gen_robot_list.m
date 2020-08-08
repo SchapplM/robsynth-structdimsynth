@@ -186,7 +186,7 @@ if structset.use_parallel
       % bank eingetragen wurde und das nicht erwünscht ist
       if structset.onlylegchain_from_synthesis
         mdllistfile_Ndof = fullfile(serroblibpath, sprintf('mdl_%ddof', NLegDoF), sprintf('S%d_list.mat',NLegDoF));
-        l = load(mdllistfile_Ndof, 'Names_Ndof', 'BitArrays_Origin', 'AdditionalInfo');
+        l = load(mdllistfile_Ndof, 'Names_Ndof', 'BitArrays_Origin', 'AdditionalInfo', 'BitArrays_Ndof');
         % Beinkette in Daten finden
         ilc = find(strcmp(l.Names_Ndof, LegChainName));
         if isempty(ilc) || length(ilc)>1, error('Unerwarteter Eintrag in Datenbank für Beinkette %s', LegChainName); end
@@ -262,12 +262,26 @@ if structset.use_parallel
         continue
       end
     end
-    % TODO: Mögliche Basis-Anordnungen von PKM hier generieren und hinzufügen
-
-    ii = ii + 1;
-    if verblevel >= 2, fprintf('%d: %s\n', ii, PNames_Akt{j}); end
-    Structures{ii} = struct('Name', PNames_Akt{j}, 'Type', 2, 'Number', ii, ...
-      'Coupling', Coupling, 'angle1_values', AdditionalInfo_Akt(2)); %#ok<AGROW>
-
+    % Stelle mögliche Werte für den Strukturparameter theta1 zusammen.
+    csvline = serroblib_bits2csvline(l.BitArrays_Ndof(ilc,:)); % DH-Parameter der Beinkette aus csv-Datei
+    if strcmp(Set.optimization.objective, 'valid_act') % Prüfe Laufgrad der PKM (sonst ist die Info schon vorhanden)
+      if any(strcmp(csvline, 'theta1')) && ... % es gibt einen theta1-Parameter
+          all(structset.DoF(1:5) == [1 1 1 0 0]) % 3T0R/3T1R (nur dort vorauss. relevant
+        % Falls theta1 ein variabler Parameter ist, werden verschiedene An- 
+        % nahmen für theta1 getroffen und alle einzeln geprüft.
+        theta1_values = 1:4; % verschiedene Einstellungen. Siehe parroblib_load_robot
+      else % theta1 muss nicht betrachtet werden
+        % Setze den Fall für theta1 auf Null (nicht definiert)
+        theta1_values = 0;
+      end
+    else % Normaler Fall der Maßsynthese. Lade Information aus Datenbank
+      theta1_values = AdditionalInfo_Akt(2);
+    end
+    for kkk = theta1_values
+      ii = ii + 1;
+      if verblevel >= 2, fprintf('%d: %s (theta1 Fall %d)\n', ii, PNames_Akt{j}, kkk); end
+      Structures{ii} = struct('Name', PNames_Akt{j}, 'Type', 2, 'Number', ii, ...
+        'Coupling', Coupling, 'angle1_values', kkk); %#ok<AGROW>
+    end
   end
 end

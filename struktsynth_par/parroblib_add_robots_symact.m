@@ -378,20 +378,46 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
       sprintf('parroblib_add_robots_symact_%s_3.mat', EE_FG_Name)));
     %% Nachverarbeitung der Ergebnis-Liste
-    fprintf('Verarbeite die %d Ergebnisse der Struktursynthese\n', length(Ergebnisliste));
+    % Stelle die Liste der Roboter zusammen. Ist nicht identisch mit Dateiliste,
+    % da PKM mehrfach geprüft werden können.
+    Structures_Names = cell(1,length(Structures));
     for jjj = 1:length(Structures)
-      Name = Structures{jjj}.Name;
+      Structures_Names{jjj} = Structures{jjj}.Name;
+    end
+    Structures_Names = unique(Structures_Names);
+    fprintf('Verarbeite die %d Ergebnisse der Struktursynthese (%d PKM)\n', ...
+      length(Ergebnisliste), length(Structures_Names));
+    
+    for jjj = 1:length(Structures_Names)
+      %% Ergebnisse für diese PKM laden
+      Name = Structures_Names{jjj};
       % Prüfe ob Strukturen in der Ergebnisliste enthalten ist
+      fval_jjj = []; % Ergebnis der Ergebnisse für diese PKM in der Ergebnisliste
+      theta1_jjj = []; % gespeicherte Werte für theta1-Parameter (wird variiert)
       for jj = 1:length(Ergebnisliste)
         if contains(Ergebnisliste(jj).name,Name)
-          break
+          % Ergebnisse aus Datei laden
+          resfile = fullfile(resmaindir, Ergebnisliste(jj).name);
+          tmp = load(resfile, 'RobotOptRes');
+          RobotOptRes = tmp.RobotOptRes;
+          fval_jjj = [fval_jjj; RobotOptRes.fval]; %#ok<AGROW>
+          theta1_jjj = [theta1_jjj; tmp.RobotOptRes.Structure.angle1_values]; %#ok<AGROW>
         elseif jj == length(Ergebnisliste)
           error('Ergebnisdatei zu %s nicht gefunden', Name)
         end
       end
-      resfile = fullfile(resmaindir, Ergebnisliste(jj).name);
-      tmp = load(resfile, 'RobotOptRes');
-      RobotOptRes = tmp.RobotOptRes;
+      %% Daten für freien Winkelparameter bestimmen
+      if fval_jjj(theta1_jjj==4) < 1e3 % alle Werte möglich
+        values_angle1 = '*';
+      elseif fval_jjj(theta1_jjj==3) < 1e3 % 0 oder 90° gehen beide (aber nichts dazwischen)
+        values_angle1 = '090';
+      elseif fval_jjj(theta1_jjj==2) < 1e3 % nur 90° geht
+        values_angle1 = '90';
+      elseif fval_jjj(theta1_jjj==1) < 1e3 % nur 0° geht
+        values_angle1 = '0';
+      else % Kein Wert hat funktioniert. Wird sowieso nicht benutzt.
+        values_angle1 = '';
+      end
       %% Ergebnis der Maßsynthese auswerten
       remove = false;
       try
@@ -453,6 +479,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       else
         fprintf('%d/%d: PKM %s hat laut Maßsynthese vollen Laufgrad\n', jjj, length(Structures), Name);
         parroblib_change_properties(Name, 'rankloss', '0');
+        parroblib_change_properties(Name, 'values_angle1', values_angle1);
         parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 0, 1);
         num_fullmobility = num_fullmobility + 1;
       end

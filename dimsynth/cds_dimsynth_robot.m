@@ -299,11 +299,20 @@ if Structure.Type == 0 || Structure.Type == 2
       % negative DH-Längen und negative Winkel redundant. Es wird nur die
       % Parallelität der Gelenke eingestellt
       plim(i,:) = [0, pi/2];
+      if strcmp(Set.optimization.objective, 'valid_act') % Sonderfall Struktursynthese
+        plim(i,:) = [5, 85]*pi/180; % 5° Abstand von den rechten Winkeln
+      end
     elseif R_pkin.pkin_types(i) == 5
       % Winkel-Parameter theta. Nur Begrenzung auf [-pi/2,pi/2].
       % Durch Möglichkeit negativer DH-Längen ist jede beliebige
       % Ausrichtung des folgenden Gelenks möglich.
       plim(i,:) = [-pi/2, pi/2];
+      % Sonderfall Struktursynthese: Die Fälle 0° und 90° sollen ausge- 
+      % schlossen werden, da diese eine strukturelle Eigenschaft sind.
+      % Dafür werden theta-Parameter separat optimiert.
+      if strcmp(Set.optimization.objective, 'valid_act')
+        plim(i,:) = [5, 85]*pi/180; % 5° Abstand von den rechten Winkeln
+      end
     elseif R_pkin.pkin_types(i) == 2 || R_pkin.pkin_types(i) == 4 || R_pkin.pkin_types(i) == 6
       % Maximale Länge der einzelnen Segmente
       plim(i,:) = [-1, 1]; % in Optimierung bezogen auf Lref
