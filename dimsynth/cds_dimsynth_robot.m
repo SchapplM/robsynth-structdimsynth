@@ -795,6 +795,8 @@ if exist(resdir, 'file')
 end
 mkdirs(resdir);
 %% Fitness-Funktion initialisieren (Strukturunabhängig)
+% Zurücksetzen der gespeicherten Werte (aus vorheriger Maßsynthese)
+clear cds_fitness
 fitnessfcn=@(p)cds_fitness(R, Set, Traj, Structure, p(:));
 f_test = fitnessfcn(InitPop(1,:)'); %#ok<NASGU> % Testweise ausführen
 % Zurücksetzen der Detail-Speicherfunktion
@@ -817,7 +819,9 @@ if false
   exitflag = -6;
 else
   % PSO wird ganz normal ausgeführt.
-  [p_val,fval,exitflag] = particleswarm(fitnessfcn,nvars,varlim(:,1),varlim(:,2),options);
+  [p_val,fval,exitflag,output] = particleswarm(fitnessfcn,nvars,varlim(:,1),varlim(:,2),options);
+  cds_log(1, sprintf('[dimsynth] Optimierung beendet. iterations=%d, funccount=%d, message: %s', ...
+    output.iterations, output.funccount, output.message));
 end
 % Detail-Ergebnisse extrahieren (persistente Variable in Funktion)
 PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, 0, 0, 'output');

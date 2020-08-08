@@ -134,7 +134,7 @@ end
 %% Inverse Kinematik für Eckpunkte der Trajektorie berechnen
 if R.Type == 0 % Seriell
   qlim = R.qlim;
-  Phi_E = NaN(sum(Set.structures.DoF), size(Traj_0.XE,1));
+  Phi_E = NaN(sum(size(Traj_0.XE,1), Set.structures.DoF));
   QE = NaN(size(Traj_0.XE,1), R.NQJ);
   if Set.task.profile ~= 0
     % Normale Trajektorie mit stetigem Zeitverlauf. Nur Berechnung der
@@ -154,7 +154,7 @@ if R.Type == 0 % Seriell
 else % PKM
   qlim = cat(1,R.Leg(:).qlim);
   nPhi = R.I2constr_red(end);
-  Phi_E = NaN(nPhi, size(Traj_0.XE,1));
+  Phi_E = NaN(size(Traj_0.XE,1), nPhi);
   QE = NaN(size(Traj_0.XE,1), R.NJ);
   if Set.task.profile ~= 0 % Normale Trajektorie mit stetigem Zeitverlauf
     s = struct('Phit_tol', 1e-4, 'Phir_tol', 1e-3, 'retry_limit', 5, ...
@@ -246,12 +246,12 @@ for i = size(Traj_0.XE,1):-1:1
       end
     end
   end
-  Phi_E(:,i) = Phi;
+  Phi_E(i,:) = Phi;
   if ~any(isnan(q))
     q0 = q; % Annahme: Startwert für nächsten Eckwert nahe aktuellem Eckwert
   end
   QE(i,:) = q;
-  if any(abs(Phi(:)) > 1e-2)
+  if any(abs(Phi(:)) > 1e-2) || any(isnan(Phi))
     break; % Breche Berechnung ab (zur Beschleunigung der Berechnung)
   end
   JPE(i,:) = Tc_stack(:,4); % Vierte Spalte ist Koordinatenursprung der Körper-KS
