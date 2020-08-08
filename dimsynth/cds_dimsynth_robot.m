@@ -228,9 +228,9 @@ if Structure.Type == 0 || Structure.Type == 2
   % Setzen den theta1-Parameter für PKM-Beinketten auf Null.
   % Bei 3T0R- und 3T1R-PKM ist die Parallelität der Gelenke in den Beinketten
   % besonders wichtig. Bei 3T3R darf es eigentlich keinen Einfluss haben.
+  I_theta1 = R_pkin.pkin_jointnumber==1 & R_pkin.pkin_types==5;
   if Structure.Type == 2 && ... % PKM
       all(Set.structures.DoF(1:5)==[1 1 1 0 0]) % 3T0R und 3T1R
-    I_theta1 = R_pkin.pkin_jointnumber==1 & R_pkin.pkin_types == 5;
     Ipkinrel = Ipkinrel & ~I_theta1; % Nehme die "1" bei theta1 weg.
   end
   % Setze die a1/d1-Parameter für PKM-Beinketten auf Null. diese sind
@@ -264,6 +264,8 @@ if Structure.Type == 0 || Structure.Type == 2
 
   pkin_init = R_pkin.pkin;
   pkin_init(~Ipkinrel) = 0; % nicht relevante Parameter Null setzen
+  % Sonderregeln: nicht relevante theta-Parameter auf pi/2 setzen.
+  pkin_init(I_theta1&~Ipkinrel) = pi/2;
   if Structure.Type == 0
     R.update_mdh(pkin_init);
   else
