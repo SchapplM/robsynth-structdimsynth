@@ -74,8 +74,16 @@ if isempty(Structures)
     return
   end
 end
-if ~isempty(Set.structures.whitelist) && length(Set.structures.whitelist) ~= length(Structures)
-  warning('Es wurde eine Positiv-Liste übergeben, aber nicht alle dieser Strukturen wurden gewählt.');
+
+if ~isempty(Set.structures.whitelist)
+  if length(Set.structures.whitelist) ~= length(unique(Set.structures.whitelist))
+    error('Die Positiv-Liste enthält doppelte Einträge');
+  end
+  Names_in_Struct = {}; % Es können bei Struktursynthese Strukturen doppelt getestet werden
+  for i = 1:length(Structures), Names_in_Struct{i} = Structures{i}.Name; end %#ok<SAGROW>
+  if length(Set.structures.whitelist) ~= length(unique(Names_in_Struct))
+    warning('Es wurde eine Positiv-Liste übergeben, aber nicht alle dieser Strukturen wurden gewählt.');
+  end
 end
 
 if Set.optimization.use_desopt ... 
