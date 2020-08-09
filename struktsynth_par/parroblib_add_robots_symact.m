@@ -402,7 +402,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           RobotOptRes = tmp.RobotOptRes;
           fval_jjj = [fval_jjj; RobotOptRes.fval]; %#ok<AGROW>
           theta1_jjj = [theta1_jjj; tmp.RobotOptRes.Structure.angle1_values]; %#ok<AGROW>
-        elseif jj == length(Ergebnisliste)
+        elseif isempty(fval_jjj) && jj == length(Ergebnisliste)
           error('Ergebnisdatei zu %s nicht gefunden', Name)
         end
       end
@@ -423,26 +423,27 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       try
         [~, LEG_Names_array, Actuation] = parroblib_load_robot(Name);
         if isempty([Actuation{:}])
-          fprintf(['Aktuierung der PKM %s wurde nicht in Datenbank gefunden, ', ...
-            'obwohl sie hinzugefügt werden sollte. Fehler.\n'], Name);
+          fprintf(['%d/%d: Aktuierung der PKM %s wurde nicht in Datenbank gefunden, ', ...
+            'obwohl sie hinzugefügt werden sollte. Fehler.\n'], jjj, length(Structures_Names), Name);
           continue
         end
       catch
-        fprintf(['PKM %s wurde nicht in Datenbank gefunden, obwohl sie ', ...
-          'hinzugefügt werden sollte. Fehler.\n'], Name);
+        fprintf(['%d/%d: PKM %s wurde nicht in Datenbank gefunden, obwohl sie ', ...
+          'hinzugefügt werden sollte. Fehler.\n'], jjj, length(Structures_Names), Name);
         continue
       end
       if isempty(Structures)
         fprintf(['%d/%d: PKM %s wurde in der Maßsynthese aufgrund struktur', ...
-          'eller Eigenschaften nicht in Erwägung gezogen\n'], jjj, length(Structures), Name);
+          'eller Eigenschaften nicht in Erwägung gezogen\n'], jjj, length(Structures_Names), Name);
         remove = true;
         num_dimsynthabort = num_dimsynthabort + 1;
       elseif RobotOptRes.fval > 50
         fprintf(['%d/%d: Für PKM %s konnte in der Maßsynthese keine funktio', ...
-          'nierende Lösung gefunden werden.\n'], jjj, length(Structures), Name);
+          'nierende Lösung gefunden werden.\n'], jjj, length(Structures_Names), Name);
         if RobotOptRes.fval < 1e3
           fprintf('Rangdefizit der Jacobi für Beispiel-Punkte ist %1.0f\n', RobotOptRes.fval/100);
           parroblib_change_properties(Name, 'rankloss', sprintf('%1.0f', RobotOptRes.fval/100));
+          parroblib_change_properties(Name, 'values_angle1', values_angle1);
           parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 0, 0);
           num_rankloss = num_rankloss + 1;
         elseif RobotOptRes.fval > 1e10
@@ -477,7 +478,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 7);
         end
       else
-        fprintf('%d/%d: PKM %s hat laut Maßsynthese vollen Laufgrad\n', jjj, length(Structures), Name);
+        fprintf('%d/%d: PKM %s hat laut Maßsynthese vollen Laufgrad\n', jjj, length(Structures_Names), Name);
         parroblib_change_properties(Name, 'rankloss', '0');
         parroblib_change_properties(Name, 'values_angle1', values_angle1);
         parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 0, 1);
