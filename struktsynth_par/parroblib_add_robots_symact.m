@@ -24,7 +24,10 @@ settings_default = struct( ...
   ...% Alternative 1: Nur Beinketten mit Kugelgelenk-Ende
   'onlyspherical', false, ...
   ...% Alternative 2: Allgemeine Beinketten
-  'onlygeneral', true, ...
+  'onlygeneral', false, ...
+  ... % Optionen zur Wahl nach anderen Kriterien
+  'selectgeneral', true, ... % Auch allgemeine Modelle wählen
+  'selectvariants', true, ... % Auch alle Varianten wählen
   'dryrun', false, ... % Falls true: Nur Anzeige, was gemacht werden würde
   'EE_FG_Nr', 2:3, ... % nur 3T0R, 3T1R
   'parcomp_structsynth', 1, ... % parfor-Struktursynthese (schneller, aber mehr Speicher notwendig)
@@ -151,14 +154,20 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       % nicht die Eigenschaft der Koppelgelenk-Position):
       % Alle Eigenschaften kombinieren und Beinketten auswählen
       I = I_FG & I_var & I_spherical;
-    elseif ~settings.onlyspherical && settings.onlygeneral
+    elseif settings.onlygeneral && ~settings.onlyspherical
       % Eigenschaften kombinieren
       I = I_FG & I_novar;
-    elseif ~settings.onlygeneral % Nur Modell-Varianten
-      % Eigenschaften kombinieren
-      I = I_FG & I_var;
-    else
-      error('Kombination von Filtern nicht vorgesehen');
+    elseif settings.onlyspherical && settings.onlygeneral
+      error('Kombination von ausschließenden Filtern nicht vorgesehen');
+    else % Jetzt werden hinzufügende Filter getestet. Keine ausschließenden Filter gesetzt
+      % Eigenschaften kombinieren, je nach gesetzter Einstellung
+      I = false(size(I_FG)); % Erstmal ohne eine Auswahl anfangen
+      if settings.selectgeneral
+        I = I | I_FG & I_novar;
+      end
+      if settings.selectvariants
+        I = I | I_FG & I_var;
+      end
     end
     % Indizes der möglichen aktuierten Gelenke (wird später noch gefiltert)
     Actuation_possib = 1:settings.max_actuation_idx;
