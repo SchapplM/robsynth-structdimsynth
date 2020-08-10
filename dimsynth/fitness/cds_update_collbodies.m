@@ -45,6 +45,7 @@ if isfield(Structure, 'installspace_collbodies')
   collbodies_instspc = Structure.installspace_collbodies;
   update_installspcbodies = true;
 else
+  collbodies_instspc = struct('link', [], 'type', [], 'params', []); % Platzhalter. Wird nicht nachher verarbeitet.
   update_installspcbodies = false;
 end
 %% Kollisionskörper aktualisieren

@@ -10,8 +10,10 @@
 warning('off', 'MATLAB:singularMatrix');
 warning('off', 'MATLAB:nearlySingularMatrix');
 warning('off', 'MATLAB:illConditionedMatrix');
+warning('off', 'MATLAB:rankDeficientMatrix');
 warning('off', 'Coder:MATLAB:singularMatrix');
 warning('off', 'Coder:MATLAB:nearlySingularMatrix');
+warning('off', 'Coder:MATLAB:rankDeficientMatrix');
 warning('off', 'Coder:MATLAB:rankDeficientMatrix');
 
 if ~exist('Set', 'var') || ~exist('Traj', 'var')
