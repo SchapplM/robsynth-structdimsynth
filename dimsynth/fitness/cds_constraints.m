@@ -168,9 +168,11 @@ end
 fval_jic = NaN(1,9);
 constrvioltext_jic = cell(9,1);
 Q_jic = NaN(size(Traj_0.XE,1), R.NJ, 9);
+q0_jic = NaN(R.NJ, 9); % zum späteren Nachvollziehen des Ergebnisses
 for jic = 1:9 % Schleife über IK-Konfigurationen (9 Versuche)
 Phi_E(:) = NaN; QE(:) = NaN; % erneut initialisieren wegen jic-Schleife.
 q0 = qlim(:,1) + rand(R.NJ,1).*(qlim(:,2)-qlim(:,1)); % Zufällige Anfangswerte geben vielleicht neue Konfiguration.
+q0_jic(:,jic) = q0;
 % Anpassung der IK-Anfangswerte für diesen Durchlauf der IK-Konfigurationen.
 % Versuche damit eine andere Konfiguration zu erzwingen
 if fval_jic(1) > 1e6
@@ -288,7 +290,8 @@ end
 QE(isnan(QE)) = 0;
 Q_jic(:,:,jic) = QE;
 Phi_E(isnan(Phi_E)) = 1e6;
-if any(abs(Phi_E(:)) > 1e-2) % Die Toleranz beim IK-Verfahren ist etwas größer
+if any(abs(Phi_E(:)) > 1e-2) || ... % Die Toleranz beim IK-Verfahren ist etwas größer
+    any(abs(Phi_E(1,:))>1e-9) % Startpunkt für Traj. Hat feine Toleranz, sonst missverständliche Ergebnisse
   % Nehme die mittlere IK-Abweichung aller Eckpunkte (Translation/Rotation
   % gemischt). Typische Werte von 1e-2 bis 10.
   % Bei vorzeitigem Abbruch zählt die Anzahl der erfolgreichen Eckpunkte
@@ -297,7 +300,7 @@ if any(abs(Phi_E(:)) > 1e-2) % Die Toleranz beim IK-Verfahren ist etwas größer
   fval_jic(jic) = 1e6*(1+9*f_phiE_norm); % Normierung auf 1e6 bis 1e7
   % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
   constrvioltext_jic{jic} = sprintf(['Keine IK-Konvergenz in Eckwerten. Untersuchte Eckpunkte: %d/%d. ', ...
-    'Durchschnittliche ZB-Verl. %1.2f'], size(Traj_0.XE,1)-i+1,size(Traj_0.XE,1), f_PhiE);
+    'Durchschnittliche ZB-Verl. %1.2e'], size(Traj_0.XE,1)-i+1,size(Traj_0.XE,1), f_PhiE);
   if jic<length(fval_jic), continue; else, break; end
 end
 
