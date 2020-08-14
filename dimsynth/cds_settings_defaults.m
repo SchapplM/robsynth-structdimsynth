@@ -47,6 +47,7 @@ general = struct( ...
   'noprogressfigure', false, ... % Verzicht auf Fortschritts-Bild des PSO
   'debug_calc', false, ... % Doppelte Berechnung zur Prüfung von Funktionen
   'parcomp_struct', 0, ... % Parallele Berechnung unterschiedlicher Roboter. Enthält Anzahl der Worker-Instanzen als Zahl
+  'parcomp_plot', 0, ... % Parallele Erzeugung der Ergebnisbilder und -videos
   'parcomp_maxworkers', inf, ... % Beschränkung der Anzahl paralleler Instanzen
   'compile_missing_functions', true, ... % Bei Start alle mex-Funktionen kompilieren
   'create_template_functions', false, ... % Erzeuge Funktionen neu aus Vorlagen-Dateien

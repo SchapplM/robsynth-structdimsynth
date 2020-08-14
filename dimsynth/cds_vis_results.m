@@ -31,19 +31,37 @@ end
 % Zum Debuggen
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_vis_results1.mat'));
 
+%% Initialisierung
 resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
 % Ergebnistabelle laden
 restabfile = fullfile(resmaindir, sprintf('%s_results_table.csv', Set.optimization.optname));
 ResTab = readtable(restabfile, 'Delimiter', ';');
 
-for i = 1:length(Structures)
-  if Set.general.matfile_verbosity > 0
-    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_vis_results2.mat'));
+%% Parallele Durchführung der Plots vorbereiten
+if Set.general.parcomp_plot
+  try %#ok<TRYNC>
+    parpool(Set.general.parcomp_maxworkers);
   end
+  Pool=gcp();
+  parfor_numworkers = Pool.NumWorkers;
+  if ~isinf(Set.general.parcomp_maxworkers) && parfor_numworkers ~= Set.general.parcomp_maxworkers
+    warning('Die gewünschte Zahl von %d Parallelinstanzen konnte nicht erfüllt werden. Es sind jetzt %d.', ...
+      Set.general.parcomp_maxworkers, parfor_numworkers)
+  end
+  % Warnungen auch in ParPool-Workern unterdrücken: https://github.com/altmany/export_fig/issues/75
+  parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:prnRenderer:opengl');
+else
+  parfor_numworkers = 0;
+end
+%% Ergebnisse für jeden Roboter plotten
+length_Structures = length(Structures);
+parfor (i = 1:length_Structures, parfor_numworkers)
+  t_start_i = tic();
   %% Initialisierung der Ergebnisse dieser Struktur
   % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_vis_results2.mat'));
   Structure = Structures{i};
   Name = Structures{i}.Name;
+  fprintf('Visualisiere Ergebnisse für Rob %d (%s)\n', i, Name);
   resfile = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', i, Name));
   if ~exist(resfile, 'file')
     warning('Ergebnis-Datei für Roboter %d (%s) existiert nicht: %s', i, Name, resfile);
@@ -62,12 +80,9 @@ for i = 1:length(Structures)
   end
   Q = RobotOptRes.Traj_Q;
   Traj_0 = cds_rotate_traj(Traj, R.T_W_0);
-  if Set.general.matfile_verbosity > 1
-    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_vis_results3.mat'));
-  end
-  % Zum Debuggen:
-  % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_vis_results3.mat'));
+
   %% Statistische Verteilung der Ergebnisse aller Generationen
+  t1 = tic();
   resdir_pso = fullfile(resmaindir, ...
     'tmp', sprintf('%d_%s', Structure.Number, Structure.Name));
   ergdatpso = dir(fullfile(resdir_pso, '*.mat'));
@@ -112,17 +127,20 @@ for i = 1:length(Structures)
   Farben = {};
   color_green = [0, 1, 0];
   color_blue = [0, 0, 1]; % color_orange = [1, 0.65, 0];
-  for kk = 1:size(Erg_Zul_Gen_Hist,1) % Farbe entspricht Zähler der Generationen
-    ant = kk/size(Erg_Zul_Gen_Hist,1);
-    Farben{kk} = color_green*(1-ant) + color_blue*ant;
+  for jj = 1:size(Erg_Zul_Gen_Hist,1) % Farbe entspricht Zähler der Generationen
+    ant = jj/size(Erg_Zul_Gen_Hist,1);
+    Farben{jj} = color_green*(1-ant) + color_blue*ant;
   end
   for ii = 1:size(Erg_Zul_Gen_Hist,2)
     legbarhdl = bar([means(ii);means(ii)+h_zul.BinWidth], [Erg_Zul_Gen_Hist(:,ii)'; NaN(1,size(Erg_Zul_Gen_Hist,1))], 'stacked');
     for j = 1:size(Erg_Zul_Gen_Hist,1)
       set(legbarhdl(j), 'EdgeColor', 'none', 'FaceColor', Farben{j});
     end
+    if ii == size(Erg_Zul_Gen_Hist,2) % letzte Iteration. Trage Legende ein
+      legend(legbarhdl([1,2,3,end]), {'Gen. 1', 'Gen. 2', '...', 'Letzte Gen.'});
+    end
   end
-  legend(legbarhdl([1,2,3,end]), {'Gen. 1', 'Gen. 2', '...', 'Letzte Gen.'});
+  
   grid on;
   xlim(minmax2(edges'));
   xlabel('Fitness');
@@ -173,8 +191,10 @@ for i = 1:length(Structures)
   
   saveas(10*i+1,     fullfile(resrobdir, sprintf('Rob%d_%s_Histogramm.fig', i, Name)));
   export_fig(10*i+1, fullfile(resrobdir, sprintf('Rob%d_%s_Histogramm.png', i, Name)));
-  fprintf('%d/%d: Histogramm für %s gespeichert.\n', i, length(Structures), Name);
+  fprintf('%d/%d: Histogramm für %s gespeichert. Dauer: %1.1fs\n', ...
+    i, length_Structures, Name, toc(t1));
   %% Verschiedene Auswertungen
+  t1 = tic();
   figure(10*i+6);clf;
   sgtitle('Diverse Auswertungsbilder');
   % Verteilung der Rechenzeit über die Zielfunktionswerte
@@ -215,13 +235,14 @@ for i = 1:length(Structures)
   
   saveas(10*i+6,     fullfile(resrobdir, sprintf('Rob%d_%s_Population_Fitness.fig', i, Name)));
   export_fig(10*i+6, fullfile(resrobdir, sprintf('Rob%d_%s_Population_Fitness.png', i, Name)));
-
+  fprintf('%d/%d: Weitere Auswertungsbilder für %s gespeichert. Dauer: %1.1fs\n', ...
+    i, length_Structures, Name, toc(t1));
   %% Animation des besten Roboters für die Trajektorie
+  t1 = tic();
   % Hole Erklärungstext zum Fitness-Wert aus Tabelle
   fval_text = ResTab.Fval_Text{strcmp(ResTab.Name, Name)};
-  kk = 0;
-  for anim_mode_cell = Set.general.animation_styles % Strichzeichnung, 3D-Modell, Kollisionskörper
-  kk = kk + 1; anim_mode = anim_mode_cell{1}; % Zur Anpassung an cell-Eingabe.
+  for kk = 1:length(Set.general.animation_styles)
+  anim_mode = Set.general.animation_styles{kk}; % Strichzeichnung, 3D-Modell, Kollisionskörper
   figure(10*i+1+kk);clf;hold all;
   set(10*i+1+kk, 'Name', sprintf('Rob%d_anim_%s', i, anim_mode), 'NumberTitle', 'off', 'color','w');
   if ~strcmp(get(10*i+1+kk, 'windowstyle'), 'docked')
@@ -261,8 +282,10 @@ for i = 1:length(Structures)
     end % for collobjset.type
   end % for co_sets
   s_anim = struct('gif_name', '', 'avi_name', '', 'mp4_name', '');
-  for file_ext = Set.general.save_animation_file_extensions
-    s_anim.(sprintf('%s_name', file_ext{1})) = fullfile(resrobdir, sprintf('Rob%d_%s_Animation_%s.%s', i, Name, anim_mode, file_ext{1}));
+  for kkk = 1:length(Set.general.save_animation_file_extensions)
+    file_ext = Set.general.save_animation_file_extensions{kkk};
+    s_anim.(sprintf('%s_name', file_ext)) = fullfile(resrobdir, ...
+      sprintf('Rob%d_%s_Animation_%s.%s', i, Name, anim_mode, file_ext));
   end
   if Set.task.profile == 0
     I_anim = 1:size(Q,1); % Zeichne jeden Zeitschritt
@@ -297,9 +320,11 @@ for i = 1:length(Structures)
   R.anim( Q(I_anim,:), Traj_0.X(I_anim,:), s_anim, s_plot);
   saveas(10*i+1+kk,     fullfile(resrobdir, sprintf('Rob%d_%s_Skizze_%s.fig', i, Name, anim_mode)));
   export_fig(10*i+1+kk, fullfile(resrobdir, sprintf('Rob%d_%s_Skizze_%s.png', i, Name, anim_mode)));
-  fprintf('%d/%d: Animation für %s gespeichert nach %s\n', i, length(Structures), Name, resrobdir);
+  fprintf('%d/%d: Animation für %s gespeichert nach %s. Dauer: %1.1fs\n', ...
+    i, length_Structures, Name, resrobdir, toc(t1));
   end
   %% Zeichnung der Roboters mit Trägheitsellipsen und Ersatzdarstellung
+  t1 = tic();
   figure(10*i+4);clf;hold all;
   set(10*i+4, 'Name', sprintf('Rob%d_Visu', i), 'NumberTitle', 'off', 'color','w');
   if ~strcmp(get(10*i+4, 'windowstyle'), 'docked')
@@ -378,8 +403,10 @@ for i = 1:length(Structures)
   linkxaxes;
   saveas(10*i+5,     fullfile(resrobdir, sprintf('Rob%d_%s_KinematikZeit.fig', i, Name)));
   export_fig(10*i+5, fullfile(resrobdir, sprintf('Rob%d_%s_KinematikZeit.png', i, Name)));
+  fprintf('%d/%d: Restliche Bilder für %s gespeichert. Dauer: %1.1fs\n', ...
+    i, length_Structures, Name, toc(t1));
   
-  if length(Structures) > 3
+  if length_Structures > 3
     close all; % schließe alle Bilder wieder. Sonst sind Hunderte Bilder am Ende offen
   end
   
@@ -388,5 +415,7 @@ for i = 1:length(Structures)
   % Probleme mit dem Arbeitsspeicher.
   if Set.general.only_save_summary_figures
     close all;
-  end  
+  end
+
+  fprintf('Visualisierung für Rob %d (%s) beendet. Dauer: %1.1fs\n', i, Name, toc(t_start_i));
 end
