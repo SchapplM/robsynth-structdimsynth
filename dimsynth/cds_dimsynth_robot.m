@@ -624,7 +624,10 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       if sum(R_cc.MDH.sigma(i-2:i) == 1) == 3
         cbdist = 3;
       else
-        if j_hascollbody(end-1) == 0
+        if length(j_hascollbody) <= 1
+          % Es gibt keinen oder nur einen direkten Vorgänger-Kollisionskörper
+          cbdist = 1; % dieser wird hiermit nicht genommen
+        elseif j_hascollbody(end-1) == 0
           % Der übernächste Kollisionskörper wäre die Basis (und damit
           % vermutlich eine Führungsschiene).
           % Überspringe diese Prüfung. Nehme die Führungsschiene nur, wenn
