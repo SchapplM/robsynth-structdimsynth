@@ -145,7 +145,7 @@ for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
     export_fig(867, fullfile(resdir, sprintf('PSO_Gen%02d_FitEval%03d_CollisionsSelf.%s', currgen, currimg, fileext{1})));
   end
 end
-if num_coll_plot == 0
+if num_coll_plot ~= sum(coll(j,:))
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constr_collisions_self_1_errplot.mat'));
   error(['Anzahl der geplotteten Kollisionen (%d) stimmt nicht mit vorab ', ...
     'berechneten (%d) überein'], num_coll_plot, sum(coll(j,:)));
