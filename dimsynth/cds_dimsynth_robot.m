@@ -277,6 +277,13 @@ if Structure.Type == 0 || Structure.Type == 2
       % Mache gar nichts. Parameter wird ganz normal optimiert.
     end
   end
+  % Setze alpha-Parameter bei PKM auf 90°. Der frei wählbare Parameter führt
+  % nicht zu gültigen PKM. Annahme: Frei wählbar heißt ungleich Null.
+  if Structure.Type == 2
+    I_alpha = R_pkin.pkin_types==3;
+    pkin_init(I_alpha) = pi/2;
+    Ipkinrel = Ipkinrel & ~I_alpha; % Nehme die "1" bei alpha weg.
+  end
   if Structure.Type == 0
     R.update_mdh(pkin_init);
   else
@@ -297,11 +304,8 @@ if Structure.Type == 0 || Structure.Type == 2
     elseif R_pkin.pkin_types(i) == 3
       % Winkel-Parameter alpha. Nur Begrenzung auf [0,pi/2]. Ansonsten sind
       % negative DH-Längen und negative Winkel redundant. Es wird nur die
-      % Parallelität der Gelenke eingestellt
+      % Parallelität der Gelenke eingestellt.
       plim(i,:) = [0, pi/2];
-      if strcmp(Set.optimization.objective, 'valid_act') % Sonderfall Struktursynthese
-        plim(i,:) = [5, 85]*pi/180; % 5° Abstand von den rechten Winkeln
-      end
     elseif R_pkin.pkin_types(i) == 5
       % Winkel-Parameter theta. Nur Begrenzung auf [-pi/2,pi/2].
       % Durch Möglichkeit negativer DH-Längen ist jede beliebige
