@@ -393,7 +393,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       Name = Structures_Names{jjj};
       % Prüfe ob Strukturen in der Ergebnisliste enthalten ist
       fval_jjj = []; % Ergebnis der Ergebnisse für diese PKM in der Ergebnisliste
-      theta1_jjj = []; % gespeicherte Werte für theta1-Parameter (wird variiert)
+      theta1_jjj = []; % gespeicherte Werte für ersten freien theta-Parameter (wird variiert)
       for jj = 1:length(Ergebnisliste)
         if contains(Ergebnisliste(jj).name,Name)
           % Ergebnisse aus Datei laden

@@ -264,22 +264,33 @@ if structset.use_parallel
     end
     % Stelle mögliche Werte für den Strukturparameter theta1 zusammen.
     csvline = serroblib_bits2csvline(l.BitArrays_Ndof(ilc,:)); % DH-Parameter der Beinkette aus csv-Datei
+    I_theta = find(contains(csvline, 'theta'));
+    if length(I_theta) > 1
+      warning('Es gibt mehr als einen freien Parameter theta. Mehr als ein Schubgelenk in PKM-Beinkette. Fall noch nicht definiert.');
+    end
     if strcmp(Set.optimization.objective, 'valid_act') % Prüfe Laufgrad der PKM (sonst ist die Info schon vorhanden)
-      if any(strcmp(csvline, 'theta1')) && ... % es gibt einen theta1-Parameter
-          all(structset.DoF(1:5) == [1 1 1 0 0]) % 3T0R/3T1R (nur dort vorauss. relevant
-        % Falls theta1 ein variabler Parameter ist, werden verschiedene An- 
-        % nahmen für theta1 getroffen und alle einzeln geprüft.
-        theta1_values = 1:4; % verschiedene Einstellungen. Siehe parroblib_load_robot
-      else % theta1 muss nicht betrachtet werden
-        % Setze den Fall für theta1 auf Null (nicht definiert)
-        theta1_values = 0;
+      if any(I_theta) && ... % es gibt (mindestens) einen theta-Parameter
+          all(structset.DoF(1:5) == [1 1 1 0 0]) % 3T0R/3T1R (nur dort vorauss. relevant)
+        % Falls theta ein variabler Parameter ist, werden verschiedene An- 
+        % nahmen für theta getroffen und alle einzeln geprüft.
+        theta_values = 1:4; % verschiedene Einstellungen. Siehe parroblib_load_robot
+      else % theta muss nicht betrachtet werden
+        % Setze den Fall für theta auf Null (nicht definiert)
+        theta_values = 0;
       end
     else % Normaler Fall der Maßsynthese. Lade Information aus Datenbank
-      theta1_values = AdditionalInfo_Akt(2);
+      theta_values = AdditionalInfo_Akt(2);
     end
-    for kkk = theta1_values
+    for kkk = theta_values % Gehe alle möglichen Werte für theta durch und trage als eigene PKM ein.
       ii = ii + 1;
-      if verblevel >= 2, fprintf('%d: %s (theta1 Fall %d)\n', ii, PNames_Akt{j}, kkk); end
+      if any(I_theta)
+        theta_str = {'0', '90', '0/90', '*'};
+        theta_logstr = sprintf(' (%s=%s; Fall %d/%d;)', csvline{I_theta(1)}, ...
+          theta_str{kkk}, kkk, length(theta_values));
+      else
+        theta_logstr = '';
+      end
+      if verblevel >= 2, fprintf('%d: %s%s\n', ii, PNames_Akt{j}, theta_logstr); end
       Structures{ii} = struct('Name', PNames_Akt{j}, 'Type', 2, 'Number', ii, ...
         'Coupling', Coupling, 'angle1_values', kkk); %#ok<AGROW>
     end

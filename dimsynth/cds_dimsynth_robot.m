@@ -225,14 +225,17 @@ if Structure.Type == 0 || Structure.Type == 2
   end
   % Nummern zur Indizierung der pkin, siehe SerRob/get_pkin_parameter_type
   Ipkinrel = R_pkin.get_relevant_pkin(Set.structures.DoF);
-  % Setzen den theta1-Parameter für PKM-Beinketten auf einen konstant Wert,
+  % Setzen den theta-Parameter für PKM-Beinketten auf einen konstant Wert,
   % falls das durch die Struktursynthese vorgegeben ist (z.B. auf 0).
   % Bei 3T0R- und 3T1R-PKM ist die Parallelität der Gelenke in den Beinketten
   % besonders wichtig. Bei 3T3R darf es eigentlich keinen Einfluss haben.
-  I_theta1 = R_pkin.pkin_jointnumber==1 & R_pkin.pkin_types==5;
+  II_theta = find(R_pkin.pkin_types==5);
   if Structure.Type == 2 && ... % PKM
-     any(Structure.angle1_values==1:3) % theta1 muss konstanter Wert sein; siehe parroblib_load_robot und cds_gen_robot_list
-    Ipkinrel = Ipkinrel & ~I_theta1; % Nehme die "1" bei theta1 weg.
+     any(Structure.angle1_values==1:3) % theta muss konstanter Wert sein; siehe parroblib_load_robot und cds_gen_robot_list
+    if length(II_theta) > 1
+      warning('Es gibt mehr als einen Parameter theta. Fall nicht explizit definiert.');
+    end
+    Ipkinrel(II_theta(1)) = false; % Nehme die "1" bei ersten einstellbarem theta weg.
   end
   % Setze die a1/d1-Parameter für PKM-Beinketten auf Null. diese sind
   % redundant zur Einstellung der Basis-Position oder -Größe
@@ -265,14 +268,14 @@ if Structure.Type == 0 || Structure.Type == 2
 
   pkin_init = R_pkin.pkin;
   pkin_init(~Ipkinrel) = 0; % nicht relevante Parameter Null setzen
-  % Sonderregeln: nicht relevanten theta1-Parameter auf 0 oder pi/2 setzen.
+  % Sonderregeln: nicht relevanten theta-Parameter auf 0 oder pi/2 setzen.
   if Structure.Type == 2
     if     Structure.angle1_values==1 % nur Wert 0 ist zulässig
-      pkin_init(I_theta1&~Ipkinrel) = 0;
+      pkin_init(II_theta(1)) = 0;
     elseif Structure.angle1_values==2 % nur Wert +/- 90 ist zulässig
-      pkin_init(I_theta1&~Ipkinrel) = pi/2;
+      pkin_init(II_theta(1)) = pi/2;
     elseif Structure.angle1_values==3 % nur Wert 0 oder 90 ist zulässig
-      pkin_init(I_theta1&~Ipkinrel) = 0; % Nehme die 0
+      pkin_init(II_theta(1)) = 0; % Nehme die 0
     else % Entweder 0 (nicht definiert) oder 4 (alles erlaubt)
       % Mache gar nichts. Parameter wird ganz normal optimiert.
     end
