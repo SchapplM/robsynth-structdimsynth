@@ -15,11 +15,15 @@
 %   Für Zurücksetzen der Log-Datei: "init". Sonst keine Eingabe
 % Set, Structure
 %   Informationsstrukturen für Optimierung (siehe andere Dateien)
+% 
+% Ausgabe:
+% lfp
+%   Pfad zur Log-Datei
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function cds_log(level, msg, option, Set, Structure)
+function lfp = cds_log(level, msg, option, Set, Structure)
 %% Initialisierung
 persistent logfilepath
 persistent loglevel
@@ -57,3 +61,4 @@ if level <= loglevel
     warning(msg);
   end
 end
+lfp = logfilepath;
