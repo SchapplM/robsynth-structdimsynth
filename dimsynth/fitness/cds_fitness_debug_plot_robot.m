@@ -51,7 +51,8 @@ if R.Type == 0 % Seriell
   s_plot = struct( 'ks', 1:R.NJ+2, 'straight', 1, 'mode', plotmode);
   R.plot( q, s_plot);
 else % PKM
-  s_plot = struct( 'ks_legs', [1,2], 'straight', 1, 'mode', plotmode);
+  s_plot = struct( 'ks_legs', [R.I1L_LEG; R.I2L_LEG], 'ks_platform', 1:6, ...
+    'straight', 1, 'mode', plotmode);
   R.plot( q, Traj_0.X(1,:)', s_plot);
 end
 title(sprintf('fval=%1.2e; p=[%s]; %s', fval,disp_array(p','%1.3f'), tt));
