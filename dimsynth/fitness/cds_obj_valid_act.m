@@ -39,14 +39,12 @@ end
 % Singularität, da Trajektorie und IK lösbar ist.
 n_qa = sum(R.I_qa);
 for i = 1
-  if all(R.I_EE == logical([1 1 1 1 1 0]))
-    Jinv_IK = reshape(Jinvges(i,:), R.NJ, 6);
-    Jinv_IK = Jinv_IK(:,1:5);
-  else
-    Jinv_IK = reshape(Jinvges(i,:), R.NJ, sum(R.I_EE));
-  end
+  % Vollständige inverse Jacobi-Matrix aus Ergebnissen der Traj.-IK holen
+  Jinv_IK = reshape(Jinvges(i,:), R.NJ, sum(R.I_EE));
+  % Reduktion auf aktive Gelenke (vorher auch passive Gelenke enthalten)
   Jinv_xred = Jinv_IK(R.I_qa,:);
-  % Jinv_xred = R.jacobi_qa_x(Q(i,:)', Traj_0.X(i,:)');
+  % Inverse Jacobi-Matrix nochmal neu aus vollständiger Matrix aufbauen.
+  % TODO: Prüfen, ob dieser Schritt noch notwendig ist.
   Jinv_3T3R = zeros(6, n_qa);
   Jinv_3T3R(R.I_EE,:) = Jinv_xred;
   Jinv_task = Jinv_3T3R(Set.structures.DoF,:);
