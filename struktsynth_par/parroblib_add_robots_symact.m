@@ -29,6 +29,8 @@ settings_default = struct( ...
   'selectgeneral', true, ... % Auch allgemeine Modelle wählen
   'selectvariants', true, ... % Auch alle Varianten wählen
   'dryrun', false, ... % Falls true: Nur Anzeige, was gemacht werden würde
+  'offline', false, ... % Falls true: Keine Optimierung durchführen, stattdessen letztes passendes Ergebnis laden
+  ... % ... dieser Modus kann genutzt werden, wenn die Optimierung korrekt durchgeführt wurde, aber die Nachverarbeitung fehlerhaft war
   'EE_FG_Nr', 2:3, ... % nur 3T0R, 3T1R
   'parcomp_structsynth', 1, ... % parfor-Struktursynthese (schneller, aber mehr Speicher notwendig)
   'parcomp_mexcompile', 1, ... % parfor-Mex-Kompilierung (schneller, aber Dateikonflikt möglich)
@@ -322,16 +324,18 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     fprintf('Generiere Template-Funktionen für %d Roboter und kompiliere anschließend.\n', length(Whitelist_Kin));
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
       sprintf('parroblib_add_robots_symact_%s_1.mat', EE_FG_Name)));
-    % Erzeuge alle Template-Dateien neu (ohne Kompilierung). Dadurch wird
-    % sichergestellt, dass sie die richtige Version haben.
-    parroblib_create_template_functions(Whitelist_Kin,false,false);
-    % Benötigte Funktionen kompilieren
-    parfor (i = 1:length(Whitelist_Kin), settings.parcomp_mexcompile*12)
-      % Erzeuge Klasse. Dafür Aktuierung A1 angenommen. Ist aber für
-      % Generierung der Funktionen egal.
-      RP = parroblib_create_robot_class([Whitelist_Kin{i},'A1'],1,1);
-      % Hierdurch werden fehlende mex-Funktionen kompiliert.
-      RP.fill_fcn_handles(true, true);
+    if ~settings.offline
+      % Erzeuge alle Template-Dateien neu (ohne Kompilierung). Dadurch wird
+      % sichergestellt, dass sie die richtige Version haben.
+      parroblib_create_template_functions(Whitelist_Kin,false,false);
+      % Benötigte Funktionen kompilieren
+      parfor (i = 1:length(Whitelist_Kin), settings.parcomp_mexcompile*12)
+        % Erzeuge Klasse. Dafür Aktuierung A1 angenommen. Ist aber für
+        % Generierung der Funktionen egal.
+        RP = parroblib_create_robot_class([Whitelist_Kin{i},'A1'],1,1);
+        % Hierdurch werden fehlende mex-Funktionen kompiliert.
+        RP.fill_fcn_handles(true, true);
+      end
     end
     %% Maßsynthese für Liste von Robotern durchführen
     % Mit dem dann eindeutigen Robotermodell sind weitere Berechnungen
@@ -370,7 +374,24 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.general.save_animation_file_extensions = {'gif'};
     Set.general.parcomp_struct = settings.parcomp_structsynth;
     Set.general.use_mex = true;
-    cds_start
+    if ~settings.offline
+      cds_start
+    else
+      % Finde den Namen der letzten Optimierung. Nur der Zeitstempel darf
+      % anders sein.
+      reslist = dir(fullfile(Set.optimization.resdir,[Set.optimization.optname(1:end-15),'*']));
+      % Suche das neuste Ergebnis aus der Liste und benutze es als Namen
+      [~,I] = sort([reslist.datenum]); % aufsteigend sortiert: Neuste am Ende.
+      Set.optimization.optname = reslist(I(end)).name;
+      % Erstelle Variablen, die sonst in cds_start entstehen
+      roblist = dir(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+        'Rob*_*')); % Die Namen aller Roboter sind in den Ordnernamen enthalten.
+      [tokens, ~] = regexp({roblist([roblist.isdir]).name},'Rob(\d+)_([A-Za-z0-9]*)','tokens','match');
+      Structures = {};
+      for i = 1:length(tokens)
+        Structures{i} = struct('Name', tokens{i}{1}{2}); %#ok<SAGROW>
+      end
+    end
     % Ergebnisse der Struktursynthese (bzw. als solcher durchgeführten
     % Maßsynthese zusammenstellen)
     resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
