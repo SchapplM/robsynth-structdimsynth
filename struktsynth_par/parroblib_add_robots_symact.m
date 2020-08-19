@@ -384,15 +384,16 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     for jjj = 1:length(Structures)
       Structures_Names{jjj} = Structures{jjj}.Name;
     end
-    Structures_Names = unique(Structures_Names);
+    Structures_Names = unique(Structures_Names); % Eindeutige Liste der Strukturen erzeugen
     fprintf('Verarbeite die %d Ergebnisse der Struktursynthese (%d PKM)\n', ...
       length(Ergebnisliste), length(Structures_Names));
-    
-    for jjj = 1:length(Structures_Names)
+    for jjj = 1:length(Structures_Names) % Alle eindeutigen Strukturen durchgehen
       %% Ergebnisse für diese PKM laden
       Name = Structures_Names{jjj};
-      % Prüfe ob Strukturen in der Ergebnisliste enthalten ist
-      fval_jjj = []; % Ergebnis der Ergebnisse für diese PKM in der Ergebnisliste
+      % Prüfe ob Struktur in der Ergebnisliste enthalten ist. Jede Struktur
+      % kann mehrfach in der Ergebnisliste enthalten sein, wenn
+      % verschiedene Fälle für freie Winkelparameter untersucht werden.
+      fval_jjj = []; % Zielfunktionswert der Ergebnisse für diese PKM in der Ergebnisliste
       theta1_jjj = []; % gespeicherte Werte für ersten freien theta-Parameter (wird variiert)
       for jj = 1:length(Ergebnisliste)
         if contains(Ergebnisliste(jj).name,Name)
@@ -437,42 +438,42 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           'eller Eigenschaften nicht in Erwägung gezogen\n'], jjj, length(Structures_Names), Name);
         remove = true;
         num_dimsynthabort = num_dimsynthabort + 1;
-      elseif RobotOptRes.fval > 50
+      elseif all(fval_jjj > 50)
         fprintf(['%d/%d: Für PKM %s konnte in der Maßsynthese keine funktio', ...
           'nierende Lösung gefunden werden.\n'], jjj, length(Structures_Names), Name);
-        if RobotOptRes.fval < 1e3
-          fprintf('Rangdefizit der Jacobi für Beispiel-Punkte ist %1.0f\n', RobotOptRes.fval/100);
-          parroblib_change_properties(Name, 'rankloss', sprintf('%1.0f', RobotOptRes.fval/100));
+        if min(fval_jjj) < 1e3
+          fprintf('Rangdefizit der Jacobi für Beispiel-Punkte ist %1.0f\n', min(fval_jjj)/100);
+          parroblib_change_properties(Name, 'rankloss', sprintf('%1.0f', min(fval_jjj)/100));
           parroblib_change_properties(Name, 'values_angle1', values_angle1);
           parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 0, 0);
           num_rankloss = num_rankloss + 1;
-        elseif RobotOptRes.fval > 1e10
+        elseif min(fval_jjj) > 1e10
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
-            'Zielfunktion (Einzelpunkt-IK) %1.2e\n'], RobotOptRes.fval);
+            'Zielfunktion (Einzelpunkt-IK) %1.2e\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
           parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 3);
-        elseif RobotOptRes.fval > 1e9
+        elseif min(fval_jjj) > 1e9
           fprintf(['Erweiterte Prüfung (Kollision etc.) fehlgeschlagen. Sollte ', ...
-            'eigentlich nicht geprüft werden! Zielfkt. %1.2e\n'], RobotOptRes.fval);
+            'eigentlich nicht geprüft werden! Zielfkt. %1.2e\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
           parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 7);
-        elseif RobotOptRes.fval > 1e8
+        elseif min(fval_jjj) > 1e8
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
-            'Zielfunktion (Traj.-IK) %1.2e\n'], RobotOptRes.fval);
+            'Zielfunktion (Traj.-IK) %1.2e\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
           parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 4);
-        elseif RobotOptRes.fval == 1e8
+        elseif min(fval_jjj) == 1e8
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
-            'Zielfunktion (Parasitäre Bewegung) %1.2e\n'], RobotOptRes.fval);
+            'Zielfunktion (Parasitäre Bewegung) %1.2e\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
           parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 5);
         else
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
-            'Zielfunktion (Nicht behandelte Ausnahme) %1.2e\n'], RobotOptRes.fval);
+            'Zielfunktion (Nicht behandelte Ausnahme) %1.2e\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
           parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 7);
