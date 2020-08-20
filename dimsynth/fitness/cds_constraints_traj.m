@@ -135,26 +135,6 @@ else % PKM
     end
   end
 end
-% Plattform-Bewegung neu für 3T2R-Roboter berechnen (der letzte Euler-Winkel
-% ist nicht definiert und kann beliebige Werte einnehmen).
-if all(R.I_EE_Task == [1 1 1 1 1 0])
-  [X2,XD2,XDD2] = R.fkineEE_traj(Q, QD, QDD);
-  % Teste nur die ersten fünf Einträge (sind vorgegeben). Der sechste
-  % Wert wird an dieser Stelle erst berechnet und kann nicht verglichen werden.
-  % Hier wird nur eine Hin- und Rückrechnung (InvKin/DirKin) gemacht. 
-  test_X = Traj_0.X(:,1:5) - X2(:,1:5);
-  test_XD = Traj_0.XD(:,1:5) - XD2(:,1:5);
-  test_XDD = Traj_0.XDD(:,1:5) - XDD2(:,1:5);
-  if any(abs([test_X(:);test_XD(:);test_XDD(:)])>1e-6)
-    error('Die Endeffektor-Trajektorie aus direkter Kinematik stimmt nicht');
-  end
-  % Eintragen des dritten Euler-Winkels, damit spätere Vergleiche
-  % funktionieren.
-  Traj_0.X(:,6) = X2(:,6);
-  Traj_0.XD(:,6) = XD2(:,6);
-  Traj_0.XDD(:,6) = XDD2(:,6);
-end
-
 % Anfangswerte nochmal neu speichern, damit der Anfangswert exakt der
 % Wert ist, der für die Neuberechnung gebraucht wird. Ansonsten ist die
 % Reproduzierbarkeit durch die rng-Initialisierung der mex-Funktionen
@@ -178,7 +158,31 @@ if any(I_ZBviol)
     (1-Failratio)*100, IdxFirst, length(Traj_0.t));
   return
 end
-
+% Plattform-Bewegung neu für 3T2R-Roboter berechnen (der letzte Euler-Winkel
+% ist nicht definiert und kann beliebige Werte einnehmen).
+if all(R.I_EE_Task == [1 1 1 1 1 0])
+  [X2,XD2,XDD2] = R.fkineEE_traj(Q, QD, QDD);
+  % Teste nur die ersten fünf Einträge (sind vorgegeben). Der sechste
+  % Wert wird an dieser Stelle erst berechnet und kann nicht verglichen werden.
+  % Hier wird nur eine Hin- und Rückrechnung (InvKin/DirKin) gemacht. 
+  test_X = Traj_0.X(:,1:5) - X2(:,1:5);
+  test_XD = Traj_0.XD(:,1:5) - XD2(:,1:5);
+  test_XDD = Traj_0.XDD(:,1:5) - XDD2(:,1:5);
+  if any(abs([test_X(:);test_XD(:);test_XDD(:)])>1e-6)
+    % save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_fkine_error_debug.mat'));
+    cds_log(-1, sprintf(['Die Endeffektor-Trajektorie aus direkter Kinematik stimmt nicht. ', ...
+      'Fehler in X %1.2e, XD %1.2e, XDD %1.2e'], max(abs(test_X(:))), ...
+      max(abs(test_XD(:))), max(abs(test_XDD(:)))));
+    fval = 1e4; % TODO: Korrekt festlegen
+    constrvioltext='Beschleunigung falsch';
+    return
+  end
+  % Eintragen des dritten Euler-Winkels, damit spätere Vergleiche
+  % funktionieren.
+  Traj_0.X(:,6) = X2(:,6);
+  Traj_0.XD(:,6) = XD2(:,6);
+  Traj_0.XDD(:,6) = XDD2(:,6);
+end
 %% Prüfe, ob eine Verletzung der Geschwindigkeits-Zwangsbedingungen vorliegt
 % Bei 3T2R-PKM kann eine Positions-ZB ungleich Null für die z-Rotation
 % korrekt sein. Diese muss aber konstant bleiben und darf sich nicht
