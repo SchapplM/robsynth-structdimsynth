@@ -161,7 +161,7 @@ end
 % Plattform-Bewegung neu für 3T2R-Roboter berechnen (der letzte Euler-Winkel
 % ist nicht definiert und kann beliebige Werte einnehmen).
 if all(R.I_EE_Task == [1 1 1 1 1 0])
-  [X2,XD2,XDD2] = R.fkineEE_traj(Q, QD, QDD);
+  [X2,XD2,XDD2] = R.fkineEE2_traj(Q, QD, QDD);
   % Teste nur die ersten fünf Einträge (sind vorgegeben). Der sechste
   % Wert wird an dieser Stelle erst berechnet und kann nicht verglichen werden.
   % Hier wird nur eine Hin- und Rückrechnung (InvKin/DirKin) gemacht. 
@@ -215,7 +215,7 @@ if any(strcmp(Set.optimization.objective, 'valid_act')) && R.Type ~= 0 % nur sin
   % verschiedenen Beinketten aus berechnet.
   if Set.general.debug_calc
     for j = 2:R.NLEG
-      [X3,XD3,~] = R.fkineEE_traj(Q, QD, QDD, j);
+      [X3,XD3,~] = R.fkineEE2_traj(Q, QD, QDD, uint8(j));
       test_X = Traj_0.X(:,1:5) - X3(:,1:5);
       test_XD = Traj_0.XD(:,1:6) - XD3(:,1:6);
       % test_XDD = Traj_0.XDD(:,1:6) - XDD3(:,1:6);
