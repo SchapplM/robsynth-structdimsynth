@@ -189,17 +189,14 @@ end
 % ändern. Durch die Prüfung der ZB-Zeitableitung wird geprüft, ob QD und XD
 % konsistent sind.
 if any(strcmp(Set.optimization.objective, 'valid_act')) && R.Type ~= 0 % nur sinnvoll bei PKM-Struktursynthese
-  PHI4D_ges = NaN(length(Traj_0.t), 6*R.NLEG);
-%   PHI1D_ges=PHI4D_ges; PHI2D_ges=PHI4D_ges;
-  for jj = 1:length(Traj_0.t)
-    % Zum Debuggen: Weitere Zwangsbedingungen
+  % Geschwindigkeits-Zwangsbedingungen der Koppelpunkte.
+  PHI4D_ges = R.constr4D2_traj(Q, QD, Traj_0.X, Traj_0.XD);
+  % Zum Debuggen: Weitere Zwangsbedingungen
+%   PHI1D_ges=NaN(size(PHI4D_ges)); PHI2D_ges=PHI1D_ges;
+%   for jj = 1:length(Traj_0.t)
 %     [~,PHI1D_ges(jj,:)] = R.constr1D(Q(jj,:)', QD(jj,:)', Traj_0.X(jj,:)',Traj_0.XD(jj,:)');
 %     [~,PHI2D_ges(jj,:)] = R.constr2D(Q(jj,:)', QD(jj,:)', Traj_0.X(jj,:)',Traj_0.XD(jj,:)');
-    % Geschwindigkeits-Zwangsbedingungen der Koppelpunkte.
-    [~,PHI4D_ges(jj,:)] = R.constr4D(Q(jj,:)', QD(jj,:)', Traj_0.X(jj,:)',Traj_0.XD(jj,:)');
-  end
-%   PHI2D_ges(abs(PHI2D_ges)<1e-6) = 0; % zur Lesbarkeit beim Debuggen
-%   PHI4D_ges(abs(PHI4D_ges)<1e-6) = 0; % zur Lesbarkeit beim Debuggen
+%   end
   if any(abs(PHI4D_ges(:))>1e-6)
     % Bilde Kennzahl aus Schwere der parasitären Bewegung
     fval_paras = mean(abs(PHI4D_ges(:)));
