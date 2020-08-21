@@ -27,7 +27,8 @@
 %   5e3...6e3: Geschwindigkeitsgrenzen
 %   6e3...9e3: Gelenkwinkelgrenzen in Trajektorie
 %   9e3...1e4: Parasitäre Bewegung (Roboter strukturell unpassend)
-%   1e4...1e5: IK in Trajektorie nicht lösbar
+%   1e4...4e4: Inkonsistente Pos./Geschw./Beschl. in Traj.-IK. für Beink. 1
+%   4e4...1e5: IK in Trajektorie nicht lösbar (später mit vorherigem zusammengefasst)
 %   1e5...1e9: Nicht belegt (siehe cds_constraints.m)
 % Q,QD,QDD
 %   Gelenkpositionen und -geschwindigkeiten des Roboters (für PKM auch
@@ -133,6 +134,11 @@ else % PKM
           'Max Fehler %1.1e.'], max(abs(test_JPtraj(:))));
       end
     end
+    test_QDDtraj = QDD-QDD_debug;
+    if any(abs(test_QDDtraj(:))>1e-6)
+      Ifirst = find(any(abs(test_QDDtraj)>1e-6,2),1,'first');
+      error('Ausgabevariable QDD aus invkin_traj vs invkin2_traj stimmt nicht. Zuerst in Zeitschritt %d.', Ifirst);
+    end
   end
 end
 % Anfangswerte nochmal neu speichern, damit der Anfangswert exakt der
@@ -152,7 +158,7 @@ if any(I_ZBviol)
   IdxFirst = find(I_ZBviol, 1 );
   % Umrechnung in Prozent der Traj.
   Failratio = 1-IdxFirst/length(Traj_0.t); % Wert zwischen 0 und 1
-  fval = 1e4*(1+9*Failratio); % Wert zwischen 1e4 und 1e5
+  fval = 1e4*(4+6*Failratio); % Wert zwischen 4e4 und 1e5.
   % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
   constrvioltext = sprintf('Keine IK-Konvergenz in Traj. Bis %1.0f%% (%d/%d) gekommen.', ...
     (1-Failratio)*100, IdxFirst, length(Traj_0.t));
@@ -160,28 +166,54 @@ if any(I_ZBviol)
 end
 % Plattform-Bewegung neu für 3T2R-Roboter berechnen (der letzte Euler-Winkel
 % ist nicht definiert und kann beliebige Werte einnehmen).
-if all(R.I_EE_Task == [1 1 1 1 1 0])
+if all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
   [X2,XD2,XDD2] = R.fkineEE2_traj(Q, QD, QDD);
   % Teste nur die ersten fünf Einträge (sind vorgegeben). Der sechste
   % Wert wird an dieser Stelle erst berechnet und kann nicht verglichen werden.
   % Hier wird nur eine Hin- und Rückrechnung (InvKin/DirKin) gemacht. 
   test_X = Traj_0.X(:,1:5) - X2(:,1:5);
-  test_XD = Traj_0.XD(:,1:5) - XD2(:,1:5);
-  test_XDD = Traj_0.XDD(:,1:5) - XDD2(:,1:5);
-  if any(abs([test_X(:);test_XD(:);test_XDD(:)])>1e-6)
-    % save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_fkine_error_debug.mat'));
-    cds_log(-1, sprintf(['Die Endeffektor-Trajektorie aus direkter Kinematik stimmt nicht. ', ...
-      'Fehler in X %1.2e, XD %1.2e, XDD %1.2e'], max(abs(test_X(:))), ...
-      max(abs(test_XD(:))), max(abs(test_XDD(:)))));
-    fval = 1e4; % TODO: Korrekt festlegen
-    constrvioltext='Beschleunigung falsch';
+  if any(abs(test_X(:))>1e-6)
+    % Bestimme die mittlere Abweichung zwischen Position des Endeffektors
+    % aus inverser und direkter Kinematik
+    % Dieser Fall darf eigentlich gar nicht auftreten, wenn invkin und
+    % fkin korrekt implementiert sind.
+    fval_x = mean(test_X(:));
+    fval_x_norm = 2/pi*atan(fval_x*70); % Normierung auf 0 bis 1. 0.1 -> 0.9
+    fval = 1e4*(3+fval_x_norm); % Werte zwischen 3e4 und 4e4
+    constrvioltext=sprintf(['Fehler der EE-Lage der ersten Beinkette ', ...
+      'zwischen invkin und fkine. Max Fehler %1.2e'], max(abs(test_X(:))));
     return
   end
-  % Eintragen des dritten Euler-Winkels, damit spätere Vergleiche
-  % funktionieren.
-  Traj_0.X(:,6) = X2(:,6);
-  Traj_0.XD(:,6) = XD2(:,6);
-  Traj_0.XDD(:,6) = XDD2(:,6);
+  test_XD = Traj_0.XD(:,1:5) - XD2(:,1:5);
+  if any(abs(test_XD(:))>1e-6)
+    % Bestimme die mittlere Abweichung zwischen Geschwindigkeit des Endeffektors
+    % aus inverser und direkter differentieller Kinematik. Darf
+    % eigentlich nicht passieren (s.o.).
+    fval_xD = mean(test_XD(:));
+    fval_xD_norm = 2/pi*atan(fval_xD*70); % Normierung auf 0 bis 1. 0.1 -> 0.9
+    fval = 1e4*(2+fval_xD_norm); % Werte zwischen 2e4 und 3e4
+    constrvioltext=sprintf(['Fehler der EE-Geschwindigkeit der ersten Beinkette ', ...
+      'zwischen invkin und fkine. Max Fehler %1.2e'], max(abs(test_XD(:))));
+    return
+  end
+  test_XDD = Traj_0.XDD(:,1:5) - XDD2(:,1:5);
+  if any(abs(test_XDD(:))>1e-6)
+    % Bestimme die mittlere Abweichung zwischen Beschleunigung des Endeffektors
+    % aus inverser und direkter differentieller Kinematik. Darf
+    % eigentlich nicht passieren (s.o.).
+    fval_xDD = mean(test_XDD(:));
+    fval_xDD_norm = 2/pi*atan(fval_xDD*70); % Normierung auf 0 bis 1. 0.1 -> 0.9
+    fval = 1e4*(1+fval_xDD_norm); % Werte zwischen 1e4 und 2e4
+    constrvioltext=sprintf(['Fehler der EE-Beschleunigung der ersten Beinkette ', ...
+      'zwischen invkin und fkine. Max Fehler %1.2e'], max(abs(test_XDD(:))));
+    return
+  end
+  % Eintragen des dritten Euler-Winkels, damit spätere Vergleiche funktionieren.
+  if all(R.I_EE_Task == [1 1 1 1 1 0])
+    Traj_0.X(:,6) = X2(:,6);
+    Traj_0.XD(:,6) = XD2(:,6);
+    Traj_0.XDD(:,6) = XDD2(:,6);
+  end
 end
 %% Prüfe, ob eine Verletzung der Geschwindigkeits-Zwangsbedingungen vorliegt
 % Bei 3T2R-PKM kann eine Positions-ZB ungleich Null für die z-Rotation
