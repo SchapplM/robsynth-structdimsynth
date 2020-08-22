@@ -328,13 +328,16 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       % Erzeuge alle Template-Dateien neu (ohne Kompilierung). Dadurch wird
       % sichergestellt, dass sie die richtige Version haben.
       parroblib_create_template_functions(Whitelist_Kin,false,false);
-      % Benötigte Funktionen kompilieren
-      parfor (i = 1:length(Whitelist_Kin), settings.parcomp_mexcompile*12)
-        % Erzeuge Klasse. Dafür Aktuierung A1 angenommen. Ist aber für
-        % Generierung der Funktionen egal.
-        RP = parroblib_create_robot_class([Whitelist_Kin{i},'A1'],1,1);
-        % Hierdurch werden fehlende mex-Funktionen kompiliert.
-        RP.fill_fcn_handles(true, true);
+      % Benötigte Funktionen kompilieren (nur wenn Struktursynthese
+      % parallel). Bei serieller Struktursynthese wird dort kompiliert.
+      if settings.parcomp_structsynth == 1
+        parfor (i = 1:length(Whitelist_Kin), settings.parcomp_mexcompile*12)
+          % Erzeuge Klasse. Dafür Aktuierung A1 angenommen. Ist aber für
+          % Generierung der Funktionen egal.
+          RP = parroblib_create_robot_class([Whitelist_Kin{i},'A1'],1,1);
+          % Hierdurch werden fehlende mex-Funktionen kompiliert.
+          RP.fill_fcn_handles(true, true);
+        end
       end
     end
     %% Maßsynthese für Liste von Robotern durchführen
@@ -365,6 +368,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.general.max_retry_bestfitness_reconstruction = 1;
     Set.general.plot_details_in_fitness = 0e3;
     Set.general.plot_robot_in_fitness = 0e3;
+    Set.general.noprogressfigure = true;
     Set.general.verbosity = 3;
     Set.general.matfile_verbosity = 0;
     Set.general.nosummary = true; % Keine Bilder erstellen.
@@ -429,7 +433,9 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         end
       end
       %% Daten für freien Winkelparameter bestimmen
-      if fval_jjj(theta1_jjj==4) < 1e3
+      if length(theta1_jjj) == 1 && theta1_jjj(1) == 0
+        values_angle1 = ''; % Wert ist nicht definiert. Ignorieren.
+      elseif fval_jjj(theta1_jjj==4) < 1e3
         values_angle1 = '*'; % alle Werte möglich
       elseif fval_jjj(theta1_jjj==1) < 1e3 && fval_jjj(theta1_jjj==2) < 1e3
         values_angle1 = '090'; % 0 oder 90° gehen beide (aber nichts dazwischen)
