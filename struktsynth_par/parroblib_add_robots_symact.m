@@ -310,6 +310,8 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     end
     if settings.dryrun, continue; end
     %% Alle Matlab-Funktionen generieren
+    % Muss hier gemacht werden, da später nicht mehr zwischen den G-/P-Nummern
+    % unterschieden wird. Die Kinematik-Funktionen sind dort identisch.
     % TODO: Nicht machen, wenn Roboter schon in Datenbank war. Also vorher
     % prüfen, ob existient
     % TODO: Auch andere Funktionen kompilieren? Ja: Sonst kommt eine
@@ -378,6 +380,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.general.save_animation_file_extensions = {'gif'};
     Set.general.parcomp_struct = settings.parcomp_structsynth;
     Set.general.use_mex = true;
+    Set.general.compile_missing_functions = false; % wurde schon weiter oben gemacht.
     if ~settings.offline
       cds_start
     else

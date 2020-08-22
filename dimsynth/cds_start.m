@@ -113,15 +113,34 @@ if ~Set.general.regenerate_summmary_only
     % Benötigte Funktionen kompilieren (serielle statt parallele Ausführung)
     % (es wird automatisch der codegen-Ordner gelöscht. Kann bei paralleler
     % Rechnung zu Konflikten führen)
-    for i = 1:length(Structures)
-      Structure = Structures{i};
-      if Structure.Type == 0 % Serieller Roboter
-        R = serroblib_create_robot_class(Structure.Name);
-      else % PKM
-        R = parroblib_create_robot_class(Structure.Name,1,1);
+    for type = [0 2] % seriell und PKM
+      % Stelle vorher eine Liste von Namen zusammen, um doppelte zu finden.
+      Names = {};
+      for k = 1:length(Structures)
+        if Structures{k}.Type == type
+          Names = [Names, Structures{k}.Name]; %#ok<AGROW>
+        end
       end
-      % Hierdurch werden fehlende mex-Funktionen kompiliert.
-      R.fill_fcn_handles(true, true);
+      % Duplikate löschen (treten auf, wenn verschiedene Werte für theta
+      % möglich sind)
+      Names = unique(Names);
+      t1 = tic(); % Beginn der Prüfung auf Datei-Existenz
+      t_ll = t1;
+      for i = 1:length(Names)
+        Structure = Structures{i};
+        if Structure.Type == 0 % Serieller Roboter
+          R = serroblib_create_robot_class(Names{i});
+        else % PKM
+          R = parroblib_create_robot_class(Names{i},1,1);
+        end
+        % Hierdurch werden fehlende mex-Funktionen kompiliert.
+        R.fill_fcn_handles(true, true);
+        if toc(t_ll) > 20
+          fprintf('%d/%d Roboter vom Typ %d auf Existenz der Dateien geprüft. Dauer bis hier: %1.1fs\n', ...
+            i, length(Names), type, toc(t1));
+          t_ll = tic();
+        end
+      end
     end
   end
   
