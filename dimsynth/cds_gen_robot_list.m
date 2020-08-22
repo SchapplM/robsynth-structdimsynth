@@ -281,7 +281,8 @@ if structset.use_parallel
     end
     if strcmp(Set.optimization.objective, 'valid_act') % Prüfe Laufgrad der PKM (sonst ist die Info schon vorhanden)
       if any(I_theta) && ... % es gibt (mindestens) einen theta-Parameter
-          all(structset.DoF(1:5) == [1 1 1 0 0]) % 3T0R/3T1R (nur dort vorauss. relevant)
+          (all(structset.DoF(1:5) == [1 1 1 0 0]) || ... % 3T0R/3T1R
+           all(structset.DoF(1:6) == [1 1 1 1 1 0])) % 3T2R (vermutlich hier relevant)
         % Falls theta ein variabler Parameter ist, werden verschiedene An- 
         % nahmen für theta getroffen und alle einzeln geprüft.
         theta_values = [1 2 4]; % verschiedene Einstellungen. Siehe parroblib_load_robot
