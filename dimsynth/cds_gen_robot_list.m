@@ -273,7 +273,7 @@ if structset.use_parallel
           all(structset.DoF(1:5) == [1 1 1 0 0]) % 3T0R/3T1R (nur dort vorauss. relevant)
         % Falls theta ein variabler Parameter ist, werden verschiedene An- 
         % nahmen für theta getroffen und alle einzeln geprüft.
-        theta_values = 1:4; % verschiedene Einstellungen. Siehe parroblib_load_robot
+        theta_values = [1 2 4]; % verschiedene Einstellungen. Siehe parroblib_load_robot
       else % theta muss nicht betrachtet werden
         % Setze den Fall für theta auf Null (nicht definiert)
         theta_values = 0;

@@ -429,14 +429,14 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         end
       end
       %% Daten für freien Winkelparameter bestimmen
-      if fval_jjj(theta1_jjj==4) < 1e3 % alle Werte möglich
-        values_angle1 = '*';
-      elseif fval_jjj(theta1_jjj==3) < 1e3 % 0 oder 90° gehen beide (aber nichts dazwischen)
-        values_angle1 = '090';
-      elseif fval_jjj(theta1_jjj==2) < 1e3 % nur 90° geht
-        values_angle1 = '90';
-      elseif fval_jjj(theta1_jjj==1) < 1e3 % nur 0° geht
-        values_angle1 = '0';
+      if fval_jjj(theta1_jjj==4) < 1e3
+        values_angle1 = '*'; % alle Werte möglich
+      elseif fval_jjj(theta1_jjj==1) < 1e3 && fval_jjj(theta1_jjj==2) < 1e3
+        values_angle1 = '090'; % 0 oder 90° gehen beide (aber nichts dazwischen)
+      elseif fval_jjj(theta1_jjj==2) < 1e3
+        values_angle1 = '90'; % nur 90° geht
+      elseif fval_jjj(theta1_jjj==1) < 1e3
+        values_angle1 = '0'; % nur 0° geht
       else % Kein Wert hat funktioniert. Wird sowieso nicht benutzt.
         values_angle1 = '';
       end
