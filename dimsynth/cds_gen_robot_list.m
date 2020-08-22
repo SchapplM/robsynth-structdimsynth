@@ -283,7 +283,7 @@ if structset.use_parallel
     end
     for kkk = theta_values % Gehe alle möglichen Werte für theta durch und trage als eigene PKM ein.
       ii = ii + 1;
-      if any(I_theta)
+      if any(I_theta) && kkk ~= 0
         theta_str = {'0', '90', '0/90', '*'};
         theta_logstr = sprintf(' (%s=%s; Fall %d/%d;)', csvline{I_theta(1)}, ...
           theta_str{kkk}, kkk, length(theta_values));
