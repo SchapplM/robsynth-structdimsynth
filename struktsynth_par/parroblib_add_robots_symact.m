@@ -28,6 +28,7 @@ settings_default = struct( ...
   ... % Optionen zur Wahl nach anderen Kriterien
   'selectgeneral', true, ... % Auch allgemeine Modelle wählen
   'selectvariants', true, ... % Auch alle Varianten wählen
+  'luis_cluster', false, ... % Rechne auf LUIS-Cluster. Parallel-Instanz für G-/P-Kombis
   'dryrun', false, ... % Falls true: Nur Anzeige, was gemacht werden würde
   'offline', false, ... % Falls true: Keine Optimierung durchführen, stattdessen letztes passendes Ergebnis laden
   ... % ... dieser Modus kann genutzt werden, wenn die Optimierung korrekt durchgeführt wurde, aber die Nachverarbeitung fehlerhaft war
@@ -62,7 +63,12 @@ end
 settings = settings_new;
 % Eingaben prüfen
 assert(isscalar(settings.max_actuation_idx), 'max_actuation_idx muss Skalar sein');
-  
+% Eingaben nachverarbeiten
+if settings.luis_cluster
+  % Die Datenbank muss lokal nicht geändert werden. Es wird alles auf dem
+  % Cluster gemacht.
+  settings.dryrun = true;
+end
 %% Initialisierung
 EE_FG_ges = [1 1 0 0 0 1; ...
   1 1 1 0 0 0; ...
@@ -312,6 +318,44 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       fprintf('Für FG %s und G%dP%d gibt es keine PKM.\n', EE_FG_Name, Coupling(1), Coupling(2));
       continue
     end
+    %% LUIS-Cluster vorbereiten
+    if settings.luis_cluster
+      % Führe die Maßsynthese für die Struktursynthese auf dem Cluster durch.
+      % Bereite eine Einstellungs-Datei vor
+      cluster_repo_path = computingcluster_repo_path();
+      % Eindeutige Bezeichnung für diesen Versuchslauf
+      computation_name = sprintf('structsynth_par_%s_G%dP%d_%s', EE_FG_Name, ...
+        Coupling(1), Coupling(2),  datestr(now,'yyyymmdd_HHMMSS'));
+      jobdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+        'struktsynth_par', 'cluster_jobs', computation_name);
+      mkdirs(fullfile(jobdir, 'results')); % Unterordner notwendig für Cluster-Dateisynchronisation
+      targetfile = fullfile(jobdir, [computation_name,'.m']);
+      settings_cluster = settings;
+      % Für jede G-P-Nummer wird ein Cluster-Job erzeugt.
+      settings_cluster.base_couplings = Coupling(1);
+      settings_cluster.plf_couplings = Coupling(2);
+      settings_cluster.luis_cluster = false;
+      settings_cluster.dryrun = false;
+      save(fullfile(jobdir, [computation_name,'.mat']), 'settings_cluster');
+      % Matlab-Skript erzeugen
+      copyfile(fullfile(jobdir,'..','..','structsynth_cluster_header.m'), ...
+               targetfile);
+      fid = fopen(targetfile, 'a');
+      fprintf(fid, 'tmp=load(''%s'');\n', [computation_name,'.mat']);
+      fprintf(fid, 'settings=tmp.settings_cluster;\n');
+      fprintf(fid, 'parroblib_add_robots_symact;\n');
+      fclose(fid);
+      % Matlab-Skript auf Cluster starten.
+      % Schätze die Rechenzeit: 15min pro PKM aufgeteilt auf 12 parallele
+      % Kerne und 2h Reserve für allgemeine Aufgaben.
+      fprintf('Starte die Berechnung der Struktursynthese auf dem Rechencluster: %s\n', computation_name);
+      addpath(cluster_repo_path);
+      jobStart(struct('name', computation_name, ...
+                      'matFileName', [computation_name, '.m'], ...
+                      'locUploadFolder', jobdir, ...
+                      'time', 2+length(Whitelist_PKM)*0.25/12)); 
+    end
+    
     if settings.dryrun, continue; end
     %% Alle Matlab-Funktionen generieren
     % Muss hier gemacht werden, da später nicht mehr zwischen den G-/P-Nummern
