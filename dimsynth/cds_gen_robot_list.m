@@ -143,6 +143,17 @@ if structset.use_parallel
       end
       continue
     end
+    % Prüfe, ob Rang ordnungsgemäß in Datenbank steht. Wenn nicht, ist das
+    % ein Zeichen dafür, dass die PKM noch ungeprüft ist. Bei Zielfunktion
+    % "valid_act" soll in Struktursynthese der Rang geprüft werden. Dann
+    % damit weitermachen.
+    if isnan(AdditionalInfo_Akt(1)) && ~strcmp(Set.optimization.objective, 'valid_act')
+      if verblevel >= 3
+        fprintf(['%s hat keine Angabe eines Rangverlusts der Jacobi-Matrix. ', ...
+          'Vermutlich ungeprüfte PKM. Ignoriere.\n'], PNames_Akt{j});
+      end
+      continue
+    end
     PassPrisJoint = false;
     TooManyPrisJoints = false;
     LastJointActive = false;
