@@ -28,7 +28,7 @@ settings_default = struct( ...
   ... % Optionen zur Wahl nach anderen Kriterien
   'selectgeneral', true, ... % Auch allgemeine Modelle wählen
   'selectvariants', true, ... % Auch alle Varianten wählen
-  'luis_cluster', false, ... % Rechne auf LUIS-Cluster. Parallel-Instanz für G-/P-Kombis
+  'comp_cluster', false, ... % Rechne auf PBS-Rechen-Cluster. Parallel-Instanz für G-/P-Kombis
   'nodelete', false, ... % ungültige PKM am Ende nicht wieder aus Datenbank entfernen (auf Rechencluster, parallele Rechnung)
   'dryrun', false, ... % Falls true: Nur Anzeige, was gemacht werden würde
   'offline', false, ... % Falls true: Keine Optimierung durchführen, stattdessen letztes passendes Ergebnis laden
@@ -65,7 +65,7 @@ settings = settings_new;
 % Eingaben prüfen
 assert(isscalar(settings.max_actuation_idx), 'max_actuation_idx muss Skalar sein');
 % Eingaben nachverarbeiten
-if settings.luis_cluster
+if settings.comp_cluster
   % Die Datenbank muss lokal nicht geändert werden. Es wird alles auf dem
   % Cluster gemacht.
   settings.dryrun = true;
@@ -320,7 +320,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       continue
     end
     %% LUIS-Cluster vorbereiten
-    if settings.luis_cluster
+    if settings.comp_cluster
       % Führe die Maßsynthese für die Struktursynthese auf dem Cluster durch.
       % Bereite eine Einstellungs-Datei vor
       cluster_repo_path = computingcluster_repo_path();
@@ -335,9 +335,11 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       % Für jede G-P-Nummer wird ein Cluster-Job erzeugt.
       settings_cluster.base_couplings = Coupling(1);
       settings_cluster.plf_couplings = Coupling(2);
-      settings_cluster.luis_cluster = false;
+      settings_cluster.comp_cluster = false;
       settings_cluster.dryrun = false;
       settings_cluster.nodelete = true;
+      settings_cluster.parcomp_structsynth = true;
+      settings_cluster.parcomp_mexcompile = false;
       save(fullfile(jobdir, [computation_name,'.mat']), 'settings_cluster');
       % Matlab-Skript erzeugen
       copyfile(fullfile(jobdir,'..','..','structsynth_cluster_header.m'), ...
@@ -348,14 +350,16 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       fprintf(fid, 'parroblib_add_robots_symact;\n');
       fclose(fid);
       % Matlab-Skript auf Cluster starten.
-      % Schätze die Rechenzeit: 15min pro PKM aufgeteilt auf 12 parallele
-      % Kerne und 2h Reserve für allgemeine Aufgaben.
+      % Schätze die Rechenzeit: 30min pro PKM aufgeteilt auf 12 parallele
+      % Kerne und 6h Reserve für allgemeine Aufgaben. Eher zu große
+      % Einschätzung der Rechenzeit.
       fprintf('Starte die Berechnung der Struktursynthese auf dem Rechencluster: %s\n', computation_name);
       addpath(cluster_repo_path);
       jobStart(struct('name', computation_name, ...
                       'matFileName', [computation_name, '.m'], ...
                       'locUploadFolder', jobdir, ...
-                      'time', 2+length(Whitelist_PKM)*0.25/12)); 
+                      'time', 6+length(Whitelist_PKM)*0.5/12));
+      rmpath_genpath(cluster_repo_path, false);
     end
     
     if settings.dryrun, continue; end
