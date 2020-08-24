@@ -29,6 +29,7 @@ settings_default = struct( ...
   'selectgeneral', true, ... % Auch allgemeine Modelle wählen
   'selectvariants', true, ... % Auch alle Varianten wählen
   'luis_cluster', false, ... % Rechne auf LUIS-Cluster. Parallel-Instanz für G-/P-Kombis
+  'nodelete', false, ... % ungültige PKM am Ende nicht wieder aus Datenbank entfernen (auf Rechencluster, parallele Rechnung)
   'dryrun', false, ... % Falls true: Nur Anzeige, was gemacht werden würde
   'offline', false, ... % Falls true: Keine Optimierung durchführen, stattdessen letztes passendes Ergebnis laden
   ... % ... dieser Modus kann genutzt werden, wenn die Optimierung korrekt durchgeführt wurde, aber die Nachverarbeitung fehlerhaft war
@@ -336,6 +337,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       settings_cluster.plf_couplings = Coupling(2);
       settings_cluster.luis_cluster = false;
       settings_cluster.dryrun = false;
+      settings_cluster.nodelete = true;
       save(fullfile(jobdir, [computation_name,'.mat']), 'settings_cluster');
       % Matlab-Skript erzeugen
       copyfile(fullfile(jobdir,'..','..','structsynth_cluster_header.m'), ...
@@ -567,7 +569,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         num_fullmobility = num_fullmobility + 1;
       end
 
-      if remove
+      if remove && ~settings.nodelete
         fprintf('Entferne PKM %s wieder aus der Datenbank (Name wird wieder frei)\n', Name);
         remsuccess = parroblib_remove_robot(Name);
         if ~remsuccess
