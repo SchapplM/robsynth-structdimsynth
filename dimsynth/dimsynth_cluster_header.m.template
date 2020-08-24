@@ -1,0 +1,4 @@
+% Der Inhalt dieser Datei wird vorne an Matlab-Skripte angehängt, die für das Rechen-Cluster
+% erzeugt werden. Diese Datei muss ohne die Endung .template am selben Ort liegen.
+run('/bigwork/nhkbscha/REPO/scripts/startup_cluster.m'); % TODO: Pfad-Initialisierung an tatsächlichen Namen anpassen
+addpath(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'struktsynth_par'));
