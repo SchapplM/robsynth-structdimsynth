@@ -110,14 +110,13 @@ if ~Set.general.regenerate_summmary_only
     % Vorlagen-Funktionen neu generieren (falls dort Änderungen gemacht
     % wurden). Die automatische Neugenerierung in der parfor-Schleife
     % funktioniert nicht aufgrund von Dateikonflikten, autom. Ordnerlöschung.
-    if type == 2 % Sperrschutz für PKM-Bibliothek (hauptsächlich für Struktursynthese)
-      parroblib_writelock('lock', 'mex', logical(Set.structures.DoF)); % keine gleichzeitige Änderung erlauben.
-    end
     if Set.general.create_template_functions
       for i = 1:length(Names)
         if type == 0 % Serieller Roboter
           serroblib_create_template_functions(Names(i), false, false);
         else % PKM
+          % Sperrschutz für PKM-Bibliothek (hauptsächlich für Struktursynthese)
+          parroblib_writelock('check', 'csv', logical(EE_FG), 5*60, false);
           parroblib_create_template_functions(Names(i), false, false);
         end
         continue
@@ -133,19 +132,23 @@ if ~Set.general.regenerate_summmary_only
         if type == 0 % Serieller Roboter
           R = serroblib_create_robot_class(Names{i});
         else % PKM
+          parroblib_writelock('check', 'csv', logical(EE_FG), 5*60, false);
           R = parroblib_create_robot_class(Names{i},1,1);
         end
         % Hierdurch werden fehlende mex-Funktionen kompiliert.
+        if type == 2 % keine gleichzeitige mex-Kompilierung gleicher Kinematiken erlauben.
+          parroblib_writelock('lock', Names{i}, logical(Set.structures.DoF), 60*60, Set.general.verbosity>2);
+        end
         R.fill_fcn_handles(true, true);
+        if type == 2 % Sperrschutz für PKM aufheben
+          parroblib_writelock('free', Names{i}, logical(Set.structures.DoF));
+        end
         if toc(t_ll) > 20
           fprintf('%d/%d Roboter vom Typ %d auf Existenz der Dateien geprüft. Dauer bis hier: %1.1fs\n', ...
             i, length(Names), type, toc(t1));
           t_ll = tic();
         end
       end
-    end
-    if type == 2 % Sperrschutz für PKM-Repo aufheben
-      parroblib_writelock('free', 'mex', logical(Set.structures.DoF));
     end
   end
   resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);

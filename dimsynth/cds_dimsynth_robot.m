@@ -90,6 +90,9 @@ elseif Structure.Type == 2 % Parallel
   if any(Structure.Coupling(2) == [4,5,6])
     p_platform(2) = 0.5*p_platform(1);
   end
+  % Bei paralleler Rechnung der Struktursynthese auf Cluster Konflikte vermeiden
+  parroblib_writelock('check', 'csv', logical(Set.structures.DoF), 5*60, false);
+  % Klasse initialisierung (liest auch die csv-Dateien aus).
   R = parroblib_create_robot_class(Structure.Name, p_base(:), p_platform(:));
   NLEG = R.NLEG;
   if Set.optimization.use_desopt && Set.optimization.constraint_link_yieldstrength > 0

@@ -29,7 +29,7 @@ settings_default = struct( ...
   'selectgeneral', true, ... % Auch allgemeine Modelle wählen
   'selectvariants', true, ... % Auch alle Varianten wählen
   'comp_cluster', false, ... % Rechne auf PBS-Rechen-Cluster. Parallel-Instanz für G-/P-Kombis
-  'nodelete', false, ... % ungültige PKM am Ende nicht wieder aus Datenbank entfernen (auf Rechencluster, parallele Rechnung)
+  'isoncluster', false, ... % Marker um festzustellen, dass gerade auf Cluster parallel gerechnet wird
   'dryrun', false, ... % Falls true: Nur Anzeige, was gemacht werden würde
   'offline', false, ... % Falls true: Keine Optimierung durchführen, stattdessen letztes passendes Ergebnis laden
   ... % ... dieser Modus kann genutzt werden, wenn die Optimierung korrekt durchgeführt wurde, aber die Nachverarbeitung fehlerhaft war
@@ -84,14 +84,13 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
   EE_FG = EE_FG_ges(iFG,:);
   EE_FG_Name = sprintf( '%dT%dR', sum(EE_FG(1:3)), sum(EE_FG(4:6)) );
   % Pfad mit vollständigen Ergebnissen der Struktursynthese
-  parroblib_writelock('lock', 'csv', logical(EE_FG), 600, true); % nicht lesen, wenn gleichzeitig geschrieben.
+  parroblib_writelock('check', 'csv', logical(EE_FG), 600, true); % nicht lesen, wenn gleichzeitig geschrieben.
   synthrestable = readtable( ...
     fullfile(parroblibpath,'synthesis_result_lists',[EE_FG_Name,'.csv']), ...
     'ReadVariableNames', true);
   synthrestable_var = readtable( ...
     fullfile(parroblibpath,'synthesis_result_lists',[EE_FG_Name,'_var.csv']), ...
     'ReadVariableNames', true);
-  parroblib_writelock('free', 'csv', logical(EE_FG), 0, true);
   if ~isempty(synthrestable_var)
     synthrestable = [synthrestable; synthrestable_var]; %#ok<AGROW>
   end
@@ -196,7 +195,12 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     
     Whitelist_PKM = {};
     tlm_iFKloop = tic(); % zur Speicherung des Zeitpunkts der letzten Meldung
-    parroblib_writelock('lock', 'csv', logical(EE_FG), 30*60, true); % Sperre csv-Dateien während des Hinzufügens
+    % Sperre csv-Dateien während des Hinzufügens. Dieser Abschnitt ist
+    % kritisch für parallel arbeitende weitere Instanzen der Synthese
+    parroblib_writelock('lock', 'csv', logical(EE_FG), 30*60, true);
+    if settings.isoncluster
+      pause(10.0); % Warte nach dem Sperren der csv-Tabellen, damit check-Befehl anderer Instanzen auslaufen kann.
+    end
     for iFK = II' % Schleife über serielle Führungsketten
       ii_kin = ii_kin + 1;
       SName = l.Names_Ndof{iFK};
@@ -337,7 +341,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       settings_cluster.plf_couplings = Coupling(2);
       settings_cluster.comp_cluster = false;
       settings_cluster.dryrun = false;
-      settings_cluster.nodelete = true;
+      settings_cluster.isoncluster = true;
       settings_cluster.parcomp_structsynth = true;
       settings_cluster.parcomp_mexcompile = false;
       save(fullfile(jobdir, [computation_name,'.mat']), 'settings_cluster');
@@ -383,20 +387,27 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     if ~settings.offline
       % Erzeuge alle Template-Dateien neu (ohne Kompilierung). Dadurch wird
       % sichergestellt, dass sie die richtige Version haben.
-      parroblib_writelock('lock', 'mex', logical(EE_FG), 60*60, true);
-      parroblib_create_template_functions(Whitelist_Kin,false,false);
+      for i = 1:length(Whitelist_Kin)
+        parroblib_writelock('check', 'csv', logical(EE_FG), 10*60, true);
+        parroblib_create_template_functions(Whitelist_Kin(i),false,false);
+      end
       % Benötigte Funktionen kompilieren (nur wenn Struktursynthese
       % parallel). Bei serieller Struktursynthese wird dort kompiliert.
       if settings.parcomp_structsynth == 1
         parfor (i = 1:length(Whitelist_Kin), settings.parcomp_mexcompile*12)
+          % Lesen der csv-Tabelle für Funktionskompilierung notwendig.
+          % Hoffe, dass direkt beim Freiwerden nicht schon wieder
+          % geschrieben wird (deshalb oben an gleichwertiger Stelle Pause)
+          parroblib_writelock('check', 'csv', logical(EE_FG), 10*60, true);
           % Erzeuge Klasse. Dafür Aktuierung A1 angenommen. Ist aber für
           % Generierung der Funktionen egal.
           RP = parroblib_create_robot_class([Whitelist_Kin{i},'A1'],1,1);
           % Hierdurch werden fehlende mex-Funktionen kompiliert.
+          parroblib_writelock('lock', Whitelist_Kin{i}, logical(EE_FG), 60*60, true);
           RP.fill_fcn_handles(true, true);
+          parroblib_writelock('free', Whitelist_Kin{i}, logical(EE_FG), 0, true);
         end
       end
-      parroblib_writelock('free', 'mex', logical(EE_FG), 0, true);
     end
     %% Maßsynthese für Liste von Robotern durchführen
     % Mit dem dann eindeutigen Robotermodell sind weitere Berechnungen
@@ -573,7 +584,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         num_fullmobility = num_fullmobility + 1;
       end
 
-      if remove && ~settings.nodelete
+      if remove && ~settings.isoncluster % Auf Cluster würde das Löschen parallele Instanzen stören.
         fprintf('Entferne PKM %s wieder aus der Datenbank (Name wird wieder frei)\n', Name);
         remsuccess = parroblib_remove_robot(Name);
         if ~remsuccess
