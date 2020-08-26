@@ -355,14 +355,14 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       fclose(fid);
       % Matlab-Skript auf Cluster starten.
       % Schätze die Rechenzeit: 30min pro PKM aufgeteilt auf 12 parallele
-      % Kerne und 6h Reserve für allgemeine Aufgaben. Eher zu große
-      % Einschätzung der Rechenzeit.
+      % Kerne und 12h Reserve für allgemeine Aufgaben, z.B. Warten. Eher zu 
+      % große Einschätzung der Rechenzeit.
       fprintf('Starte die Berechnung der Struktursynthese auf dem Rechencluster: %s\n', computation_name);
       addpath(cluster_repo_path);
       jobStart(struct('name', computation_name, ...
                       'matFileName', [computation_name, '.m'], ...
                       'locUploadFolder', jobdir, ...
-                      'time', 6+length(Whitelist_PKM)*0.5/12));
+                      'time', 12+length(Whitelist_PKM)*0.5/12));
       rmpath_genpath(cluster_repo_path, false);
     end
     
@@ -412,7 +412,6 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     %% Maßsynthese für Liste von Robotern durchführen
     % Mit dem dann eindeutigen Robotermodell sind weitere Berechnungen
     % möglich
-    fprintf('Starte Prüfung des Laufgrads der PKM mit Maßsynthese für %d Roboter\n', length(Whitelist_PKM));
     num_checked_dimsynth = num_checked_dimsynth + 1;
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
       sprintf('parroblib_add_robots_symact_%s_2.mat', EE_FG_Name)));
@@ -449,21 +448,72 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.general.use_mex = true;
     Set.general.compile_missing_functions = false; % wurde schon weiter oben gemacht.
     if ~settings.offline
+      fprintf(['Starte Prüfung des Laufgrads der PKM mit Maßsynthese für ', ...
+        '%d Roboter\n'], length(Whitelist_PKM));
       cds_start
     else
+      % Debug: Lade Ergebnisse aus temporärem Cluster-Download-Ordner
+      % Set.optimization.resdir = '/mnt/FP500/IMES/CLUSTER/REPO/structgeomsynth/dimsynth/results';
       % Finde den Namen der letzten Optimierung. Nur der Zeitstempel darf
       % anders sein.
       reslist = dir(fullfile(Set.optimization.resdir,[Set.optimization.optname(1:end-15),'*']));
       % Suche das neuste Ergebnis aus der Liste und benutze es als Namen
-      [~,I] = sort([reslist.datenum]); % aufsteigend sortiert: Neuste am Ende.
-      Set.optimization.optname = reslist(I(end)).name;
+      if isempty(reslist)
+        warning(['Offline-Modus gewählt, aber keine Ergebnisse für %s* im ', ...
+          'passenden Ordner.'], Set.optimization.optname(1:end-15));
+        continue % Beendet Prüfung dieser Koppelgelenk-Kombination
+      end
+      % Suche den Ergebnis-Ordner mit der größten Übereinstimmung
+      reslist_nummatch = zeros(length(reslist),1); % Anzahl der Treffer
+      reslist_age = zeros(length(reslist),1); % Alter der durchgeführten Optimierungen in Ergebnisordner
+      for i = 1:length(reslist) % Alle Ergebnis-Ordner durchgehen
+        % Prüfe, wie viele passende Ergebnisse in dem Ordner sind
+        Whitelist_PKM_match = false(length(Whitelist_PKM),1);
+        reslist_pkm = dir(fullfile(reslist(i).folder, reslist(i).name, 'Rob*_Endergebnis.mat'));
+        for j = 1:length(reslist_pkm) % Alle Endergebnisse
+          for k = find(~Whitelist_PKM_match)' % Suche nur nach bisher noch nicht gefundenen
+            if contains(reslist_pkm(j).name, Whitelist_PKM{k})
+              Whitelist_PKM_match(k) = true; % für gesuchte PKM liegt ein Endergebnis vor
+              break;
+            end
+          end
+        end
+        reslist_nummatch(i) = sum(Whitelist_PKM_match); % Anzahl der Treffer
+        % Alter des Ordners bestimmen (aus bekanntem Namensschema)
+        [datestr_match, ~] = regexp(reslist(i).name,'[A-Za-z0-9_]*_tmp_(\d+)_(\d+)', 'tokens','match');
+        date_i = datenum([datestr_match{1}{1}, ' ', datestr_match{1}{2}], 'yyyymmdd HHMMSS');
+        reslist_age(i) = now() - date_i; % Alter in Tagen
+      end
+      % Bestimme das am sinnvollsten auszuwählendste Ergebnis: Nehme
+      % möglichst vollständige Ordner, aber ziehe 5% für jeden vergangenen
+      % Tag ab, damit nicht ein sehr altes vollständiges Ergebnis immer
+      % genommen wird.
+      [~, I] = max(reslist_nummatch/length(Whitelist_PKM) - reslist_age*0.05);
+      Set.optimization.optname = reslist(I).name;
+      fprintf(['Ergebnis-Ordner %s zur Offline-Auswertung gewählt. Enthält ', ...
+        '%d/%d Ergebnisse und ist %1.1f Tage alt\n'], Set.optimization.optname, ...
+        reslist_nummatch(I), length(Whitelist_PKM), reslist_age(I));
       % Erstelle Variablen, die sonst in cds_start entstehen
       roblist = dir(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
         'Rob*_*')); % Die Namen aller Roboter sind in den Ordnernamen enthalten.
       [tokens, ~] = regexp({roblist([roblist.isdir]).name},'Rob(\d+)_([A-Za-z0-9]*)','tokens','match');
-      Structures = {};
+      % Nach Nummer der Roboter sortieren (für nachträgliche Erzeugung der
+      % Ergebnis-Tabelle zum korrekten Laden der mat-Dateien)
+      robnum_ges = zeros(length(tokens),1);
       for i = 1:length(tokens)
-        Structures{i} = struct('Name', tokens{i}{1}{2}); %#ok<SAGROW>
+        robnum_ges(i) = str2double(tokens{i}{1}{1});
+      end
+      [~,I_sortres] = sort(robnum_ges);
+      % Erstelle Cell-Array mit allen Roboter-Strukturen (Platzhalter-Var.)
+      Structures = {}; istr = 0;
+      for i = I_sortres(:)'
+        istr = istr + 1;
+        Structures{istr} = struct('Name', tokens{i}{1}{2}, 'Type', 2); %#ok<SAGROW>
+      end
+      % Erstelle auch die csv-Tabelle aus den Ergebnissen (falls fehlend)
+      if ~exist(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+          sprintf('%s_results_table.csv', Set.optimization.optname)), 'file')
+        cds_results_table(Set, Traj, Structures);
       end
     end
     % Ergebnisse der Struktursynthese (bzw. als solcher durchgeführten
@@ -480,6 +530,9 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       Structures_Names{jjj} = Structures{jjj}.Name;
     end
     Structures_Names = unique(Structures_Names); % Eindeutige Liste der Strukturen erzeugen
+    % Sortiere die Liste absteigend, damit zuerst hohe Aktuierungs-
+    % nummern gelöscht werden. Andernfalls gibt es Logik-Probleme in der DB
+    Structures_Names = fliplr(sort(Structures_Names)); %#ok<FLPST>
     fprintf('Verarbeite die %d Ergebnisse der Struktursynthese (%d PKM)\n', ...
       length(Ergebnisliste), length(Structures_Names));
     parroblib_writelock('lock', 'csv', logical(EE_FG), 30*60, true); % Sperre beim Ändern der csv
@@ -500,7 +553,16 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           fval_jjj = [fval_jjj; RobotOptRes.fval]; %#ok<AGROW>
           theta1_jjj = [theta1_jjj; tmp.RobotOptRes.Structure.angle1_values]; %#ok<AGROW>
         elseif isempty(fval_jjj) && jj == length(Ergebnisliste)
-          error('Ergebnisdatei zu %s nicht gefunden', Name)
+          warning('Ergebnisdatei zu %s nicht gefunden', Name);
+          continue; % kann im Offline-Modus passieren, falls unvollständige Ergebnisse geladen werden.
+        end
+      end
+      if isempty(fval_jjj)
+        if settings.offline
+          warning('Keine Ergebnisse zu %s gefunden. Vermutlich unvollständiger Durchlauf geladen', Name);
+          continue
+        else
+          error('Keine Ergebnisse zu %s gefunden. Darf nicht passieren.', Name);
         end
       end
       %% Daten für freien Winkelparameter bestimmen
@@ -508,7 +570,8 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         values_angle1 = ''; % Wert ist nicht definiert. Ignorieren.
       elseif fval_jjj(theta1_jjj==4) < 1e3
         values_angle1 = '*'; % alle Werte möglich
-      elseif fval_jjj(theta1_jjj==1) < 1e3 && fval_jjj(theta1_jjj==2) < 1e3
+      elseif any(theta1_jjj==1) && any(theta1_jjj==2) && ... % Die Untersuchung von 0° und 90° wurde durchgeführt
+          fval_jjj(theta1_jjj==1) < 1e3 && fval_jjj(theta1_jjj==2) < 1e3 % beide sind erfolgreich
         values_angle1 = '090'; % 0 oder 90° gehen beide (aber nichts dazwischen)
       elseif fval_jjj(theta1_jjj==2) < 1e3
         values_angle1 = '90'; % nur 90° geht
