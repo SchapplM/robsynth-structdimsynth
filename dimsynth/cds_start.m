@@ -116,7 +116,7 @@ if ~Set.general.regenerate_summmary_only
           serroblib_create_template_functions(Names(i), false, false);
         else % PKM
           % Sperrschutz für PKM-Bibliothek (hauptsächlich für Struktursynthese)
-          parroblib_writelock('check', 'csv', logical(EE_FG), 5*60, false);
+          parroblib_writelock('check', 'csv', logical(Set.structures.DoF), 5*60, false);
           parroblib_create_template_functions(Names(i), false, false);
         end
         continue
@@ -132,7 +132,7 @@ if ~Set.general.regenerate_summmary_only
         if type == 0 % Serieller Roboter
           R = serroblib_create_robot_class(Names{i});
         else % PKM
-          parroblib_writelock('check', 'csv', logical(EE_FG), 5*60, false);
+          parroblib_writelock('check', 'csv', logical(Set.structures.DoF), 5*60, false);
           R = parroblib_create_robot_class(Names{i},1,1);
         end
         % Hierdurch werden fehlende mex-Funktionen kompiliert.
