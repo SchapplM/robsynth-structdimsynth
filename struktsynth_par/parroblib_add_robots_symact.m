@@ -186,7 +186,6 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     ii_kin = 0; % Laufende Nummer für Kinematik-Struktur der PKM
     % Variablen zum Erzeugen der Statistik
     num_rankloss = 0;
-    num_dimsynthabort = 0;
     num_dimsynthfail = 0;
     num_fullmobility = 0;
     num_checked_dimsynth = 0;
@@ -323,14 +322,17 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       fprintf('Für FG %s und G%dP%d gibt es keine PKM.\n', EE_FG_Name, Coupling(1), Coupling(2));
       continue
     end
+    % Zeichenfolge zum Erstellen von eindeutigen Namen
+    if settings.selectvariants, varstr = 'v'; else, varstr = ''; end
+    if settings.selectgeneral, genstr = 'g'; else, genstr = ''; end
     %% LUIS-Cluster vorbereiten
     if settings.comp_cluster
       % Führe die Maßsynthese für die Struktursynthese auf dem Cluster durch.
       % Bereite eine Einstellungs-Datei vor
       cluster_repo_path = computingcluster_repo_path();
       % Eindeutige Bezeichnung für diesen Versuchslauf
-      computation_name = sprintf('structsynth_par_%s_G%dP%d_%s', EE_FG_Name, ...
-        Coupling(1), Coupling(2),  datestr(now,'yyyymmdd_HHMMSS'));
+      computation_name = sprintf('structsynth_par_%s_G%dP%d_%s_%s%s', EE_FG_Name, ...
+        Coupling(1), Coupling(2),  datestr(now,'yyyymmdd_HHMMSS'), genstr, varstr);
       jobdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
         'struktsynth_par', 'cluster_jobs', computation_name);
       mkdirs(fullfile(jobdir, 'results')); % Unterordner notwendig für Cluster-Dateisynchronisation
@@ -423,8 +425,10 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.task.maxangle = 5*pi/180; % Reduzierung der Winkel auf 5 Grad (ist für FG-Untersuchung ausreichend)
     Traj = cds_gen_traj(EE_FG, 1, Set.task);
     Set.optimization.objective = 'valid_act';
-    Set.optimization.optname = sprintf('add_robots_sym_%s_G%dP%d_tmp_%s', ...
-      EE_FG_Name, Coupling(1), Coupling(2), datestr(now,'yyyymmdd_HHMMSS'));
+    rs = ['a':'z', 'A':'Z', '0':'9'];
+    Set.optimization.optname = sprintf('add_robots_sym_%s_G%dP%d_tmp_%s_%s%s_%s', ...
+      EE_FG_Name, Coupling(1), Coupling(2), datestr(now,'yyyymmdd_HHMMSS'), ...
+      genstr, varstr, rs(randi([1 length(rs)], 5, 1))); % zufällige String anhängen, falls Sekundengleicher Start einer Optimierung
     Set.optimization.NumIndividuals = 200;
     Set.optimization.MaxIter = 50;
     Set.optimization.ee_rotation = false;
@@ -456,7 +460,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       % Set.optimization.resdir = '/mnt/FP500/IMES/CLUSTER/REPO/structgeomsynth/dimsynth/results';
       % Finde den Namen der letzten Optimierung. Nur der Zeitstempel darf
       % anders sein.
-      reslist = dir(fullfile(Set.optimization.resdir,[Set.optimization.optname(1:end-15),'*']));
+      reslist = dir(fullfile(Set.optimization.resdir,[Set.optimization.optname(1:29),'*']));
       % Suche das neuste Ergebnis aus der Liste und benutze es als Namen
       if isempty(reslist)
         warning(['Offline-Modus gewählt, aber keine Ergebnisse für %s* im ', ...
@@ -465,6 +469,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       end
       % Suche den Ergebnis-Ordner mit der größten Übereinstimmung
       reslist_nummatch = zeros(length(reslist),1); % Anzahl der Treffer
+      reslist_rationomatch = zeros(length(reslist),1); % Anzahl der unpassenden Ergebnisse im Ordner
       reslist_age = zeros(length(reslist),1); % Alter der durchgeführten Optimierungen in Ergebnisordner
       for i = 1:length(reslist) % Alle Ergebnis-Ordner durchgehen
         % Prüfe, wie viele passende Ergebnisse in dem Ordner sind
@@ -479,20 +484,23 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           end
         end
         reslist_nummatch(i) = sum(Whitelist_PKM_match); % Anzahl der Treffer
+        reslist_rationomatch(i) = 1 - reslist_nummatch(i)/length(reslist_pkm);
         % Alter des Ordners bestimmen (aus bekanntem Namensschema)
         [datestr_match, ~] = regexp(reslist(i).name,'[A-Za-z0-9_]*_tmp_(\d+)_(\d+)', 'tokens','match');
         date_i = datenum([datestr_match{1}{1}, ' ', datestr_match{1}{2}], 'yyyymmdd HHMMSS');
         reslist_age(i) = now() - date_i; % Alter in Tagen
       end
-      % Bestimme das am sinnvollsten auszuwählendste Ergebnis: Nehme
-      % möglichst vollständige Ordner, aber ziehe 5% für jeden vergangenen
-      % Tag ab, damit nicht ein sehr altes vollständiges Ergebnis immer
-      % genommen wird.
-      [~, I] = max(reslist_nummatch/length(Whitelist_PKM) - reslist_age*0.05);
+      reslist_rationomatch(isnan(reslist_rationomatch)) = 0;
+      % Bestimme das am sinnvollsten auszuwählendste Ergebnis:
+      [~, I] = max(reslist_nummatch/length(Whitelist_PKM) ... % Nehme möglichst vollständige Ordner
+        - reslist_age*0.05 ... aber ziehe 5% für jeden vergangenen Tag ab, ...
+          ... % damit nicht ein sehr altes vollständiges Ergebnis immer genommen wird
+        - reslist_rationomatch*0.10); % Bestrafe nicht passende Einträge
       Set.optimization.optname = reslist(I).name;
       fprintf(['Ergebnis-Ordner %s zur Offline-Auswertung gewählt. Enthält ', ...
-        '%d/%d Ergebnisse und ist %1.1f Tage alt\n'], Set.optimization.optname, ...
-        reslist_nummatch(I), length(Whitelist_PKM), reslist_age(I));
+        '%d/%d passende Ergebnisse (%1.0f%% unpassende Ergebnisse) und ist %1.1f ', ...
+        'Tage alt\n'], Set.optimization.optname, reslist_nummatch(I), ...
+        length(Whitelist_PKM), reslist_rationomatch(I), reslist_age(I));
       % Erstelle Variablen, die sonst in cds_start entstehen
       roblist = dir(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
         'Rob*_*')); % Die Namen aller Roboter sind in den Ordnernamen enthalten.
@@ -566,6 +574,15 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         end
       end
       %% Daten für freien Winkelparameter bestimmen
+      [theta1_jjj_u, I] = unique(theta1_jjj);
+      if length(theta1_jjj_u) ~= length(theta1_jjj)
+        warning(['Min. ein Fall für %s wurde mehrfach überprüft. %d Ergebnisse,', ...
+          'aber nur %d eindeutige. Hier stimmt etwas nicht.'], Name, ...
+          length(theta1_jjj), length(theta1_jjj_u));
+        II = false(length(theta1_jjj),1);
+        II(I) = true; % Binär-Indizes der ersten eindeutigen Ergebnisse
+        theta1_jjj(~II) = 5; %#ok<SAGROW> % Markiere doppelte, damit die Logik unten noch stimmt
+      end
       if length(theta1_jjj) == 1 && theta1_jjj(1) == 0
         values_angle1 = ''; % Wert ist nicht definiert. Ignorieren.
       elseif fval_jjj(theta1_jjj==4) < 1e3
@@ -594,12 +611,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           'hinzugefügt werden sollte. Fehler.\n'], jjj, length(Structures_Names), Name);
         continue
       end
-      if isempty(Structures)
-        fprintf(['%d/%d: PKM %s wurde in der Maßsynthese aufgrund struktur', ...
-          'eller Eigenschaften nicht in Erwägung gezogen\n'], jjj, length(Structures_Names), Name);
-        remove = true;
-        num_dimsynthabort = num_dimsynthabort + 1;
-      elseif all(fval_jjj > 50)
+      if all(fval_jjj > 50)
         fprintf(['%d/%d: Für PKM %s konnte in der Maßsynthese keine funktio', ...
           'nierende Lösung gefunden werden.\n'], jjj, length(Structures_Names), Name);
         if min(fval_jjj) < 1e3
