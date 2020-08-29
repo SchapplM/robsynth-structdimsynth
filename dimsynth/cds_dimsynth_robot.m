@@ -852,8 +852,10 @@ options.InitialSwarmMatrix = InitPop;
 if ~Set.general.noprogressfigure
   options.PlotFcn = {@pswplotbestf};
 end
-cds_save_all_results_anonym = @(optimValues,state)cds_psw_save_all_results(optimValues,state,Set,Structure);
-options.OutputFcn = {cds_save_all_results_anonym};
+if Set.general.matfile_verbosity > 2
+  cds_save_all_results_anonym = @(optimValues,state)cds_psw_save_all_results(optimValues,state,Set,Structure);
+  options.OutputFcn = {cds_save_all_results_anonym};
+end
 %% Tmp-Ordner leeren
 resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
   'tmp', sprintf('%d_%s', Structure.Number, Structure.Name));
