@@ -134,7 +134,7 @@ end
 %% Inverse Kinematik für Eckpunkte der Trajektorie berechnen
 if R.Type == 0 % Seriell
   qlim = R.qlim;
-  Phi_E = NaN(sum(size(Traj_0.XE,1), Set.structures.DoF));
+  Phi_E = NaN(size(Traj_0.XE,1), sum(Set.structures.DoF));
   QE = NaN(size(Traj_0.XE,1), R.NQJ);
   if Set.task.profile ~= 0
     % Normale Trajektorie mit stetigem Zeitverlauf. Nur Berechnung der
