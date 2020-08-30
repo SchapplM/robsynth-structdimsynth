@@ -534,7 +534,8 @@ Structure.I_firstprismatic = I_firstprismatic;
 
 %% Initialisierung der Kollisionsprüfung
 if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) || ...
-    ~isempty(Set.task.installspace.type)
+    ~isempty(Set.task.installspace.type) || ...
+    ~isnan(Set.optimization.base_size_limits(2)) && any(Structure.I_firstprismatic)
   % Lege die Starrkörper-Indizes fest, für die Kollisionen geprüft werden
   selfcollchecks_bodies = [];
   % Prüfe Selbstkollisionen einer kinematischen Kette.

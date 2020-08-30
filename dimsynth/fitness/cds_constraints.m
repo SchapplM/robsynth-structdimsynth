@@ -25,9 +25,10 @@
 %   6e3...9e3: Gelenkwinkelgrenzen in Trajektorie
 %   9e3...1e4: Parasitäre Bewegung (Roboter strukturell unpassend)
 %   1e4...1e5: IK in Trajektorie nicht lösbar
-%   1e5...3e5: Arbeitsraum-Hindernis-Kollision in Einzelpunkten
-%   3e5...4e5: Bauraumverletzung in Einzelpunkten
-%   4e5...5e5: Selbstkollision in Einzelpunkten
+%   1e5...2e5: Arbeitsraum-Hindernis-Kollision in Einzelpunkten
+%   2e5...3e5: Bauraumverletzung in Einzelpunkten
+%   3e5...4e5: Selbstkollision in Einzelpunkten
+%   4e5...5e5: Gestell ist wegen Schubgelenken zu groß (nach IK erkannt)
 %   5e5...1e6: Gelenkwinkelgrenzen in Einzelpunkten
 %   1e6...1e7: IK in Einzelpunkten nicht lösbar
 %   1e7...1e8: Geometrie nicht plausibel lösbar (2: Reichweite PKM-Koppelpunkte)
@@ -305,17 +306,8 @@ if any(abs(Phi_E(:)) > 1e-2) || ... % Die Toleranz beim IK-Verfahren ist etwas g
 end
 
 %% Bestimme die Spannweite der Gelenkkoordinaten (getrennt Dreh/Schub)
-QE_korr = [QE; QE(end,:)];
-% Berücksichtige Sonderfall des ersten Schubgelenks bei der Bestimmung der
-% Gelenkposition-Spannweite
-if R.Type == 2
-  % Hänge Null-Koordinate an, damit erstes Schubgelenk keine sehr große
-  % Auslenkung haben kann. Das widerspricht der Anordnung von Basis und
-  % Koppelpunkten. TODO: Bessere Methode dafür finden.
-  QE_korr(end,Structure.I_firstprismatic) = 0;
-end
 q_range_E = NaN(1, R.NJ);
-q_range_E(R.MDH.sigma==1) = diff(minmax2(QE_korr(:,R.MDH.sigma==1)')');
+q_range_E(R.MDH.sigma==1) = diff(minmax2(QE(:,R.MDH.sigma==1)')');
 q_range_E(R.MDH.sigma==0) = angle_range( QE(:,R.MDH.sigma==0));
 % Bestimme ob die maximale Spannweite der Koordinaten überschritten wurde
 qlimviol_E = (qlim(:,2)-qlim(:,1))' - q_range_E;
@@ -336,8 +328,8 @@ if any(I_qlimviol_E)
   if fval < Set.general.plot_details_in_fitness
     change_current_figure(1000); clf; hold on;
     % Gut-Einträge: Dummy-NaN-Eintrag mit plotten, damit Handle für Legende nicht leer bleibt.
-    hdl_iO= plot([find(~I_qlimviol_E),NaN], [QE_korr(:,~I_qlimviol_E)-min(QE_korr(:,~I_qlimviol_E)),NaN(size(QE_korr,1),1)], 'co');
-    hdl_niO=plot(find( I_qlimviol_E), QE_korr(:, I_qlimviol_E)-min(QE_korr(:, I_qlimviol_E)), 'bx'); % Kein NaN-Dummy notwendig.
+    hdl_iO= plot([find(~I_qlimviol_E),NaN], [QE(:,~I_qlimviol_E)-min(QE(:,~I_qlimviol_E)),NaN(size(QE,1),1)], 'co');
+    hdl_niO=plot(find( I_qlimviol_E), QE(:, I_qlimviol_E)-min(QE(:, I_qlimviol_E)), 'bx'); % Kein NaN-Dummy notwendig.
     hdl1=plot(qlim(:,2)'-qlim(:,1)', 'r--');
     hdl2=plot([1;size(QE,2)], [0;0], 'm--');
     xlabel('Koordinate Nummer'); ylabel('Koordinate Wert');
@@ -354,16 +346,40 @@ end
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_2.mat'));
 
 %% Aktualisiere Roboter für Kollisionsprüfung (geänderte Winkelgrenzen aus IK)
-if Set.optimization.constraint_collisions || ...
-    ~isempty(Set.task.installspace.type) || ~isempty(Set.task.obstacles.type)
+if Set.optimization.constraint_collisions || ... % Kollisionsprüfung
+    ~isempty(Set.task.installspace.type) || ... % Bauraum-Grenzen definiert
+    ~isempty(Set.task.obstacles.type) || ... % Arbeitsraum-Objekte definiert
+    ~isnan(Set.optimization.base_size_limits(2)) && any(Structure.I_firstprismatic) % Gestell-Schubachsen
   [Structure.collbodies_robot, Structure.installspace_collbodies] = ...
     cds_update_collbodies(R, Set, Structure, QE);
 end
+%% Prüfe Gestell-Durchmesser durch geänderte gestellfeste Führungsschienen
+if ~isnan(Set.optimization.base_size_limits(2)) && ...% Obere Grenze für Gestell-Radius gesetzt
+    any(Structure.I_firstprismatic) % Es gibt ein gestellfestes Schubgelenk
+  % Finde den effektiven Gestell-Radius heraus (weitesten vom
+  % Mittelpunkt entfernte Enden der Führungsschienen)
+  I_guidance = Structure.collbodies_robot.type==13;
+  pts = [Structure.collbodies_robot.params(I_guidance,1:3); ...
+         Structure.collbodies_robot.params(I_guidance,4:6)];
+  % Max. Abstand aller Punkte der Führungsschiene von PKM-Basis (Maschinenmitte)
+  r_base_eff = max((pts(:,1).^2 + pts(:,2).^2).^0.5);
+  % Um so viel ist der Radius zu groß (bezogen auf Grenze)
+  fval_rbase = r_base_eff/Set.optimization.base_size_limits(2)-1;
+  if fval_rbase > 0
+    constrvioltext_jic{jic} = sprintf('Gestell-Radius ist durch Schubachsen-Führungsschienen um %1.0f%% zu groß (%1.1fmm>%1.1fmm).', ...
+      100*fval_rbase, 1e3*r_base_eff, 1e3*Set.optimization.base_size_limits(2));
+    fval_rbase_norm = 2/pi*atan(fval_rbase*3); % Normierung auf 0 bis 1; 100% zu groß ist 0.8
+    fval = 1e5*(4+1*fval_rbase_norm); % Normierung auf 4e5 bis 5e5
+    fval_jic(jic) = fval;
+    if jic<length(fval_jic), continue; else, break; end
+  end
+end
+
 %% Selbst-Kollisionsprüfung für Einzelpunkte
 if Set.optimization.constraint_collisions
-  [fval_coll, coll_self] = cds_constr_collisions_self(R, Traj_0.XE, Set, Structure, JPE, QE, [4e5;5e5]);
+  [fval_coll, coll_self] = cds_constr_collisions_self(R, Traj_0.XE, Set, Structure, JPE, QE, [3e5;4e5]);
   if fval_coll > 0
-    fval_jic(jic) = fval_coll; % Normierung auf 4e5 bis 5e5 bereits in Funktion
+    fval_jic(jic) = fval_coll; % Normierung auf 3e5 bis 4e5 bereits in Funktion
     constrvioltext_jic{jic} = sprintf('Selbstkollision in %d/%d AR-Eckwerten.', ...
       sum(any(coll_self,2)), size(coll_self,1));
     if jic<length(fval_jic), continue; else, break; end
@@ -372,9 +388,9 @@ end
 
 %% Bauraumprüfung für Einzelpunkte
 if ~isempty(Set.task.installspace.type)
-  [fval_instspc, f_constrinstspc] = cds_constr_installspace(R, Traj_0.XE, Set, Structure, JPE, QE, [3e5;4e5]);
+  [fval_instspc, f_constrinstspc] = cds_constr_installspace(R, Traj_0.XE, Set, Structure, JPE, QE, [2e5;3e5]);
   if fval_instspc > 0
-    fval_jic(jic) = fval_instspc; % Normierung auf 3e5 bis 4e5 -> bereits in Funktion
+    fval_jic(jic) = fval_instspc; % Normierung auf 2e5 bis 3e5 -> bereits in Funktion
     constrvioltext_jic{jic} = sprintf(['Verletzung des zulässigen Bauraums in AR-', ...
       'Eckpunkten. Schlimmstenfalls %1.1f mm draußen.'], 1e3*f_constrinstspc);
     if jic<length(fval_jic), continue; else, break; end
@@ -382,9 +398,9 @@ if ~isempty(Set.task.installspace.type)
 end
 %% Arbeitsraum-Hindernis-Kollisionsprüfung für Einzelpunkte
 if ~isempty(Set.task.obstacles.type)
-  [fval_obstcoll, coll_obst, f_constr_obstcoll] = cds_constr_collisions_ws(R, Traj_0.XE, Set, Structure, JPE, QE, [1e5;3e5]);
+  [fval_obstcoll, coll_obst, f_constr_obstcoll] = cds_constr_collisions_ws(R, Traj_0.XE, Set, Structure, JPE, QE, [1e5;2e5]);
   if fval_obstcoll > 0
-    fval_jic(jic) = fval_obstcoll; % Normierung auf 1e5 bis 3e5 -> bereits in Funktion
+    fval_jic(jic) = fval_obstcoll; % Normierung auf 1e5 bis 2e5 -> bereits in Funktion
     constrvioltext_jic{jic} = sprintf(['Arbeitsraum-Kollision in %d/%d AR-Eckwerten. ', ...
       'Schlimmstenfalls %1.1f mm in Kollision.'], sum(any(coll_obst,2)), size(coll_obst,1), f_constr_obstcoll);
     if jic<length(fval_jic), continue; else, break; end
