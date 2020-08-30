@@ -51,6 +51,7 @@ if Set.general.computing_cluster
   Set_cluster = Set;
   Set_cluster.general.computing_cluster = false; % auf Cluster muss "lokal" gerechnet werden
   Set_cluster.general.parcomp_struct = true; % parallele Berechnung auf Cluster (sonst sinnlos)
+  Set_cluster.general.parcomp_plot = true; % paralleles Plotten auf Cluster (ist dort gleichwertig und schneller)
   save(fullfile(jobdir, [computation_name,'.mat']), 'Set_cluster', 'Traj');
   % Matlab-Skript erzeugen
   copyfile(fullfile(jobdir,'..','..','dimsynth_cluster_header.m'), targetfile);
@@ -147,6 +148,7 @@ if ~Set.general.regenerate_summmary_only
         Names = [Names, Structures{k}.Name]; %#ok<AGROW>
       end
     end
+    if isempty(Names), continue; end
     % Duplikate löschen (treten z.B. auf, wenn verschiedene Werte für theta
     % in der Struktursynthese möglich sind)
     Names = unique(Names);
