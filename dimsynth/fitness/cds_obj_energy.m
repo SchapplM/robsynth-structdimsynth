@@ -65,7 +65,7 @@ end
 E_Netz_res = sum(trapz(Traj_0.t, P_Netz)); % Integral der Leistung am Ende
 f_en_norm = 2/pi*atan((E_Netz_res)/100); % Normierung auf 0 bis 1; 620 ist 0.9
 fval = 1e3*f_en_norm; % Normiert auf 0 bis 1e3
-fval_debugtext = sprintf('Energieverbrauch %1.1f J', E_Netz_res);
+fval_debugtext = sprintf('Energieverbrauch %1.1f J.', E_Netz_res);
 % TODO: Falls NaN auftritt, Zeitpunkt innerhalb Gesamt-Traj kodieren
 % im Bereich 100-1000. Energie-Wert erst bei 0 bis 100
 if isnan(fval), fval = 1000-eps(1000); end

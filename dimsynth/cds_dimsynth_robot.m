@@ -194,7 +194,7 @@ calc_dyn_cut = false;
 % Schalter zur Berechnung der Regressorform der Dynamik; [SchapplerTapOrt2019]
 calc_reg = false;
 
-if any(strcmp(Set.optimization.objective, {'energy', 'actforce'}))
+if ~isempty(intersect(Set.optimization.objective, {'energy', 'actforce'}))
   calc_dyn_act = true; % Antriebskraft für Zielfunktion benötigt
 end
 if any(Set.optimization.constraint_obj(2:3)) % Energie oder Antriebskraft
@@ -320,7 +320,7 @@ if Structure.Type == 0 || Structure.Type == 2
       % Sonderfall Struktursynthese: Die Fälle 0° und 90° sollen ausge- 
       % schlossen werden, da diese eine strukturelle Eigenschaft sind.
       % Dafür werden theta-Parameter separat optimiert.
-      if strcmp(Set.optimization.objective, 'valid_act')
+      if any(strcmp(Set.optimization.objective, 'valid_act'))
         plim(i,:) = [5, 85]*pi/180; % 5° Abstand von den rechten Winkeln
       end
     elseif R_pkin.pkin_types(i) == 2 || R_pkin.pkin_types(i) == 4 || R_pkin.pkin_types(i) == 6
@@ -841,25 +841,36 @@ end
 NumIndividuals = Set.optimization.NumIndividuals;
 % Generiere Anfangspopulation aus Funktion mit Annahmen bezüglich Winkel
 InitPop = cds_gen_init_pop(NumIndividuals,nvars,varlim,varnames,vartypes);
-%% PSO-Einstellungen festlegen
-options = optimoptions('particleswarm');
+%% Optimierungs-Einstellungen festlegen
+if length(Set.optimization.objective) > 1 % Mehrkriteriell mit GA
+  options = optimoptions('gamultiobj');
+  options.MaxGenerations = Set.optimization.MaxIter;
+  options.PopulationSize = NumIndividuals;
+  options.InitialPopulationMatrix = InitPop;
+  if ~Set.general.noprogressfigure
+    options.PlotFcn = {@gaplotpareto,@gaplotscorediversity};
+  end
+else % Einkriteriell mit PSO
+  options = optimoptions('particleswarm');
+  options.MaxIter = Set.optimization.MaxIter; %70 100 % in GeneralConfig
+  options.SwarmSize = NumIndividuals;
+  if any(strcmp(Set.optimization.objective, {'valid_act', 'valid_kin'}))
+    % Es soll nur geprüft werden, ob es eine zulässige Lösung gibt.
+    % Breche bei einer erfolgreichen Berechnung der Zulässigkeit ab.
+    options.ObjectiveLimit = 999;
+  end
+  options.InitialSwarmMatrix = InitPop;
+  if ~Set.general.noprogressfigure
+    options.PlotFcn = {@pswplotbestf};
+  end
+  % Speichere mat-Dateien nach jeder Iteration des PSO zum Debuggen bei
+  % Abbruch.
+  if Set.general.matfile_verbosity > 2
+    cds_save_all_results_anonym = @(optimValues,state)cds_psw_save_all_results(optimValues,state,Set,Structure);
+    options.OutputFcn = {cds_save_all_results_anonym};
+  end
+end
 options.Display='iter';
-options.MaxIter = Set.optimization.MaxIter; %70 100 % in GeneralConfig
-% options.StallIterLimit = 2;
-options.SwarmSize = NumIndividuals;
-if any(strcmp(Set.optimization.objective, {'valid_act', 'valid_kin'}))
-  % Es soll nur geprüft werden, ob es eine zulässige Lösung gibt.
-  % Breche bei einer erfolgreichen Berechnung der Zulässigkeit ab.
-  options.ObjectiveLimit = 999;
-end
-options.InitialSwarmMatrix = InitPop;
-if ~Set.general.noprogressfigure
-  options.PlotFcn = {@pswplotbestf};
-end
-if Set.general.matfile_verbosity > 2
-  cds_save_all_results_anonym = @(optimValues,state)cds_psw_save_all_results(optimValues,state,Set,Structure);
-  options.OutputFcn = {cds_save_all_results_anonym};
-end
 %% Tmp-Ordner leeren
 resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
   'tmp', sprintf('%d_%s', Structure.Number, Structure.Name));
@@ -893,16 +904,27 @@ if false
   exitflag = -6;
 else
   % PSO wird ganz normal ausgeführt.
-  [p_val,fval,exitflag,output] = particleswarm(fitnessfcn,nvars,varlim(:,1),varlim(:,2),options);
-  cds_log(1, sprintf('[dimsynth] Optimierung beendet. iterations=%d, funccount=%d, message: %s', ...
-    output.iterations, output.funccount, output.message));
+  if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO
+    [p_val_pareto,fval_pareto,exitflag,output] = gamultiobj(fitnessfcn, nvars, [], [], [], [],varlim(:,1),varlim(:,2), options);
+    cds_log(1, sprintf('[dimsynth] Optimierung beendet. generations=%d, funccount=%d, message: %s', ...
+      output.generations, output.funccount, output.message));
+    % Gleiche das Rückgabeformat zwischen MO und SO Optimierung an.
+    p_val = p_val_pareto(1,:)'; % nehme nur das erste Individuum
+    fval = mean(fval_pareto(1,:)); % gleiche Gewichtung. Willkürlich, damit Code funktioniert.
+  else % Einkriteriell: PSO
+    [p_val,fval,exitflag,output] = particleswarm(fitnessfcn,nvars,varlim(:,1),varlim(:,2),options);
+    cds_log(1, sprintf('[dimsynth] Optimierung beendet. iterations=%d, funccount=%d, message: %s', ...
+      output.iterations, output.funccount, output.message));
+    p_val_pareto = [];
+    fval_pareto = [];
+    p_val = p_val(:); % stehender Vektor
+  end
 end
 % Detail-Ergebnisse extrahieren (persistente Variable in Funktion)
 PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, 0, 0, 'output');
 % Zurücksetzen, damit Neuberechnungen der Fitness-Funktion nicht fehlschlagen
 cds_save_particle_details(Set, R, 0, 0, 0, 0, 'reset');
 clear cds_fitness
-% Debug:
 if Set.general.matfile_verbosity > 0
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot3.mat'));
 end
@@ -916,7 +938,7 @@ for i = 1:Set.general.max_retry_bestfitness_reconstruction
   % andere Ergebnisse entstehen können.
   % Eigentlich darf sich das Ergebnis aber nicht ändern (wegen der
   % Zufallszahlen-Initialisierung in cds_fitness).
-  fval_test = fitnessfcn(p_val');
+  fval_test = mean(fitnessfcn(p_val)); % `mean` für mehrkriterielle Optimierung
   if fval_test~=fval
     if fval_test < fval
       t = sprintf('Der neue Wert (%1.1f) ist um %1.1e besser als der alte (%1.1f).', ...
@@ -961,7 +983,7 @@ if Structure.Type == 0 % Seriell
 else % Parallel
   [q, Phi] = R.invkin_ser(Traj_0.XE(1,:)', cat(1,R.Leg.qref));
 end
-if ~strcmp(Set.optimization.objective, 'valid_act') && any(abs(Phi)>1e-8)
+if ~any(strcmp(Set.optimization.objective, 'valid_act')) && any(abs(Phi)>1e-8)
   cds_log(-1, '[dimsynth] PSO-Ergebnis für Startpunkt nicht reproduzierbar (ZB-Verletzung)');
 end
 % Berechne IK der Bahn (für spätere Visualisierung und Neuberechnung der Zielfunktionen)
@@ -986,7 +1008,7 @@ if any(test_q > 1e-6)
     'mehr mit den ursprünglich berechneten überein. Max diff.: %1.4e'], max(test_q)));
 end
 result_invalid = false;
-if ~strcmp(Set.optimization.objective, 'valid_act') && ...
+if ~any(strcmp(Set.optimization.objective, 'valid_act')) && ...
     (any(abs(PHI(:))>1e-6) || any(isnan(Q(:)))) % Toleranz wie in cds_constraints
   cds_log(-1, sprintf(['[dimsynth] PSO-Ergebnis für Trajektorie nicht reproduzierbar ', ...
     'oder nicht gültig (ZB-Verletzung). Max IK-Fehler: %1.1e. %d Fehler > 1e-6. %d mal NaN.'], ...
@@ -1004,10 +1026,10 @@ if R.Type ~= 0 % für PKM
 	R.DynPar.mode = 3; 
   for i = 1:R.NLEG, R.Leg(i).DynPar.mode = 3; end
 end
-if ~result_invalid && ~strcmp(Set.optimization.objective, 'valid_act')
+if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   % Masseparameter belegen, falls das nicht vorher passiert ist.
   if fval > 1e3 ...% irgendeine Nebenbedingung wurde immer verletzt. ...
-      || any(strcmp(Set.optimization.objective, {'condition', 'jointrange'})) % ... oder rein kinematische Zielfunktion ...
+      || length(intersect(Set.optimization.objective, {'condition', 'jointrange'}))==2 % ... oder rein kinematische Zielfunktion ...
     cds_dimsynth_design(R, Q, Set, Structure); % ...  Daher nie bis zu diesem Funktionsaufruf gekommen.
   end
   data_dyn = cds_obj_dependencies(R, Traj_0, Set, Structure_tmp, Q, QD, QDD, Jinv_ges);
@@ -1062,6 +1084,15 @@ if Set.optimization.constraint_link_yieldstrength~= 0 && ...
     Structure.Number, Structure.Name)));
   cds_log(1, sprintf('[dimsynth] Materialbelastungs-Nebenbedingung verletzt trotz Berücksichtigung in Optimierung. Keine Lösung gefunden.'));
 end
+% Bestimme Zuordnung der Fitness-Vektor-Einträge bei Pareto-Optimierung
+% (Erleichtert spätere Auswertung)
+I_fval_pareto_obj_all = zeros(length(Set.optimization.objective),1);
+if length(Set.optimization.objective) > 1
+  obj_names_all = {'mass', 'energy', 'actforce', 'condition', 'jointrange', 'stiffness'};
+  for i = 1:length(Set.optimization.objective)
+    I_fval_pareto_obj_all(i) = find(strcmp(Set.optimization.objective{i},obj_names_all));
+  end
+end
 %% Ausgabe der Ergebnisse
 t_end = now(); % End-Zeitstempel der Optimierung dieses Roboters
 RobotOptRes = struct( ...
@@ -1071,6 +1102,9 @@ RobotOptRes = struct( ...
   'fval_constr_all', fval_constr_all, ... % Werte der Nebenbedingungen
   'R', R, ... % Roboter-Klasse
   'p_val', p_val, ... % Parametervektor der Optimierung
+  'fval_pareto', fval_pareto, ... % Alle Fitness-Werte der Pareto-Front
+  'p_val_pareto', p_val_pareto, ... % Alle Parametervektoren der P.-Front
+  'I_fval_pareto_obj_all', I_fval_pareto_obj_all, ... % Zuordnung der Pareto-Fitness-Einträge zu fval_obj_all
   'p_limits', varlim, ... % Grenzen für die Parameterwerte
   'options', options, ... % Optionen des Optimierungs-Algorithmus
   'q0', q, ... % Anfangs-Gelenkwinkel für Lösung der IK

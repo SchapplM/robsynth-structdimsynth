@@ -42,7 +42,7 @@ t1=tic();
 debug_info = {};
 Jcond = NaN; % Konditionszahl der Jacobi-Matrix (für spätere Auswertung)
 f_maxstrengthviol = NaN; % Überschreitung der Materialspannungsgrenzen (...)
-
+fval = NaN(length(Set.optimization.objective),1);
 %% Abbruch prüfen
 % Prüfe, ob Berechnung schon abgebrochen werden kann, weil ein anderes
 % Partikel erfolgreich berechnet wurde. Dauert sonst eine ganze Generation.
@@ -50,9 +50,9 @@ persistent abort_fitnesscalc
 if isempty(abort_fitnesscalc)
   abort_fitnesscalc = false;
 elseif abort_fitnesscalc
-  fval = Inf;
+  fval(:) = Inf;
   cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. Bereits anderes Gut-Partikel berechnet.', toc(t1), fval));
-  cds_save_particle_details(Set, R, toc(t1), fval, Jcond, f_maxstrengthviol);
+  cds_save_particle_details(Set, R, toc(t1), fval(1), Jcond, f_maxstrengthviol);
   return;
 end
 %% Parameter prüfen
@@ -72,8 +72,8 @@ Traj_0 = cds_rotate_traj(Traj_W, R.T_W_0);
 % NB-Verletzung wird in Ausgabe mit Werten von 1e3 aufwärts angegeben.
 % Umwandlung in Werte von 1e6 aufwärts.
 [fval_constr,Q,QD,QDD,Jinv_ges,constrvioltext] = cds_constraints(R, Traj_0, Traj_W, Set, Structure);
-fval = fval_constr*1e4; % Erhöhung, damit später kommende Funktionswerte aus Entwurfsoptimierung kleiner sein können
-cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
+fval(:) = fval_constr*1e4; % Erhöhung, damit später kommende Funktionswerte aus Entwurfsoptimierung kleiner sein können
+cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval(1), debug_info);
 % Normalisieren der Winkel (erst hier durchführen, da einige Prüfungen oben
 % davon beeinflusst werden).
 Q(:,R.MDH.sigma==0) = wrapToPi(Q(:,R.MDH.sigma==0));
@@ -98,8 +98,8 @@ else % PKM
 end
 
 if fval_constr > 1000 % Nebenbedingungen verletzt.
-  cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval, constrvioltext));
-  cds_save_particle_details(Set, R, toc(t1), fval, Jcond, f_maxstrengthviol);
+  cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval(1), constrvioltext));
+  cds_save_particle_details(Set, R, toc(t1), fval(1), Jcond, f_maxstrengthviol);
   return
 end
 % Prüfe Validität der Jacobi (nur für PKM)
@@ -121,18 +121,18 @@ end
 if Set.optimization.constraint_obj(4) > 0 % NB für Kondition gesetzt
   [fval_cond,fval_debugtext_cond, debug_info_cond, Jcond] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
   if Jcond > Set.optimization.constraint_obj(4)
-    fval = 1e6*(1+9*fval_cond/1e3); % normiert auf 1e6 bis 1e7
+    fval(:) = 1e6*(1+9*fval_cond/1e3); % normiert auf 1e6 bis 1e7
     debug_info = {sprintf('Kondition %1.1e > %1.1e', Jcond, Set.optimization.constraint_obj(4)); debug_info_cond{1}};
-    cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
+    cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval(1), debug_info);
     constrvioltext = sprintf('Konditionszahl ist zu schlecht: %1.1e > %1.1e', Jcond, Set.optimization.constraint_obj(4));
-    cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval, constrvioltext));
-    cds_save_particle_details(Set, R, toc(t1), fval, Jcond, f_maxstrengthviol);
+    cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval(1), constrvioltext));
+    cds_save_particle_details(Set, R, toc(t1), fval(1), Jcond, f_maxstrengthviol);
     return
   end
 end
 
 %% Dynamik-Parameter
-if any(strcmp(Set.optimization.objective, {'energy', 'mass', 'actforce', 'stiffness'})) || ... % Für Zielfunktion benötigt
+if ~isempty(intersect(Set.optimization.objective, {'energy', 'mass', 'actforce', 'stiffness'})) || ... % Für Zielfunktion benötigt
     Set.optimization.constraint_obj(3) ~= 0 % Für Nebenbedingung benötigt
   % Dynamik-Parameter aktualisieren. Keine Nutzung der Ausgabe der Funktion
   % (Parameter werden direkt in Klasse geschrieben; R.DesPar.seg_par ist
@@ -151,11 +151,11 @@ if any(strcmp(Set.optimization.objective, {'energy', 'mass', 'actforce', 'stiffn
       % Neue Werte (geändert gegenüber cds_dimsynth_desopt_fitness.)
       % 1e4...1e5: Nebenbedingung von Zielfunktion überschritten
       % 1e5...1e6: Überschreitung Belastungsgrenze der Segmente
-      fval = 10*fval_desopt; % Wert ist im Bereich 1e3...1e5. Bringe in Bereich 1e4 bis 1e6
-      cds_fitness_debug_plot_robot(R, zeros(R.NJ,1), Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
+      fval(:) = 10*fval_desopt; % Wert ist im Bereich 1e3...1e5. Bringe in Bereich 1e4 bis 1e6
+      cds_fitness_debug_plot_robot(R, zeros(R.NJ,1), Traj_0, Traj_W, Set, Structure, p, fval(1), debug_info);
       constrvioltext = 'Verletzung der Nebenbedingungen in Entwurfsoptimierung';
-      cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval, constrvioltext));
-      cds_save_particle_details(Set, R, toc(t1), fval, Jcond, f_maxstrengthviol);
+      cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval(1), constrvioltext));
+      cds_save_particle_details(Set, R, toc(t1), fval(1), Jcond, f_maxstrengthviol);
       return
     end
   end
@@ -173,7 +173,7 @@ else
   % Dynamik nochmal mit Regressorform mit neuen Dynamikparameter berechnen
   data_dyn2 = cds_obj_dependencies_regmult(R, data_dyn);
 end
-if any(strcmp(Set.optimization.objective, {'energy', 'actforce'})) || ... % Für Zielf. benötigt
+if ~isempty(intersect(Set.optimization.objective, {'energy', 'actforce'})) || ...  % Für Zielf. benötigt
     Set.optimization.constraint_obj(3) ~= 0 % Für NB benötigt
   TAU = data_dyn2.TAU;
 end
@@ -187,9 +187,9 @@ if Set.optimization.constraint_link_yieldstrength > 0 && ~Set.optimization.use_d
   if fval_ys > 1e5 % Muss schon im Bereich 1e4...1e5 sein (im Fehlerfall)
     error('Dieser Fall ist nicht vorgesehen');
   elseif fval_ys>1e4
-    fval = 10*fval_ys; % Bringe in Bereich 1e5 ... 1e6
-    cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval, constrvioltext_ys));
-    cds_save_particle_details(Set, R, toc(t1), fval, Jcond, f_maxstrengthviol);
+    fval(:) = 10*fval_ys; % Bringe in Bereich 1e5 ... 1e6
+    cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval(1), constrvioltext_ys));
+    cds_save_particle_details(Set, R, toc(t1), fval(1), Jcond, f_maxstrengthviol);
     return
   end
 end
@@ -198,10 +198,10 @@ if Set.optimization.constraint_obj(5)
   [fval_st, ~, ~, fval_phys_st] = cds_obj_stiffness(R, Set, Q);
   if fval_phys_st > Set.optimization.constraint_obj(5)
     % Nutze den gleichen Wertebereich wie Entwurfsoptimierung oben.
-    fval = fval_st*100; % Bringe in Bereich 1e4 ... 1e5
+    fval(:) = fval_st*100; % Bringe in Bereich 1e4 ... 1e5
     constrvioltext_stiffness = sprintf('Die Nachgiebigkeit ist zu groß: %1.1e > %1.1e', ...
       fval_phys_st, Set.optimization.constraint_obj(5));
-    cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval, constrvioltext_stiffness));
+    cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval(1), constrvioltext_stiffness));
     return
   end
 end
@@ -210,49 +210,68 @@ end
 if Set.optimization.constraint_obj(3) > 0 % NB für Antriebskraft gesetzt
   [fval_actforce,fval_debugtext_actforce, debug_info_actforce, tau_a_max] = cds_obj_actforce(TAU);
   if tau_a_max > Set.optimization.constraint_obj(3)
-    fval = 1e3*(1+9*fval_actforce/1e3); % normiert auf 1e3 bis 1e4
+    fval(:) = 1e3*(1+9*fval_actforce/1e3); % normiert auf 1e3 bis 1e4
     debug_info = {sprintf('Antriebskraft %1.1e > %1.1e', tau_a_max, Set.optimization.constraint_obj(3)); debug_info_cond{1}};
-    cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
+    cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval(1), debug_info);
     constrvioltext = sprintf('Antriebskraft zu hoch: %1.1e > %1.1e', tau_a_max, Set.optimization.constraint_obj(3));
-    cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval, constrvioltext));
-    cds_save_particle_details(Set, R, toc(t1), fval, Jcond, f_maxstrengthviol);
+    cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval(1), constrvioltext));
+    cds_save_particle_details(Set, R, toc(t1), fval(1), Jcond, f_maxstrengthviol);
     return
   end
 end
 %% Zielfunktion berechnen
-if strcmp(Set.optimization.objective, 'valid_act')
-  [fval,fval_debugtext, debug_info] = cds_obj_valid_act(R, Set, Jinv_ges);
-  if fval < 1e3 % Wenn einmal der Freiheitsgrad festgestellt wurde, reicht das 
+fval_debugtext = '';
+if any(strcmp(Set.optimization.objective, 'valid_act'))
+  [fval_va,fval_debugtext_va, debug_info] = cds_obj_valid_act(R, Set, Jinv_ges);
+  if fval_va < 1e3 % Wenn einmal der Freiheitsgrad festgestellt wurde, reicht das 
     abort_fitnesscalc = true;
   end
-elseif strcmp(Set.optimization.objective, 'condition')
+  fval(strcmp(Set.optimization.objective, 'valid_act')) = fval_va;
+  fval_debugtext = [fval_debugtext, ' ', fval_debugtext_va];
+end
+if any(strcmp(Set.optimization.objective, 'condition'))
   if Set.optimization.constraint_obj(4) == 0
-    [fval,fval_debugtext, debug_info] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
+    [fval_cond, fval_debugtext_cond, debug_info] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
   else % Bereits oben berechnet. Keine Neuberechnung notwendig.
-    fval = fval_cond;
-    fval_debugtext = fval_debugtext_cond;
     debug_info = debug_info_cond;
   end
-elseif strcmp(Set.optimization.objective, 'energy')
-  [fval,fval_debugtext, debug_info] = cds_obj_energy(R, Set, Structure, Traj_0, TAU, QD);
-elseif strcmp(Set.optimization.objective, 'mass')
-  [fval,fval_debugtext, debug_info] = cds_obj_mass(R);
-elseif strcmp(Set.optimization.objective, 'actforce')
+  fval(strcmp(Set.optimization.objective, 'condition')) = fval_cond;
+  fval_debugtext = [fval_debugtext, ' ', fval_debugtext_cond];
+end
+if any(strcmp(Set.optimization.objective, 'energy'))
+  [fval_en,fval_debugtext_en, debug_info] = cds_obj_energy(R, Set, Structure, Traj_0, TAU, QD);
+  fval(strcmp(Set.optimization.objective, 'energy')) = fval_en;
+  fval_debugtext = [fval_debugtext, ' ', fval_debugtext_en];
+end
+if any(strcmp(Set.optimization.objective, 'mass'))
+  [fval_m,fval_debugtext_m, debug_info] = cds_obj_mass(R);
+  fval(strcmp(Set.optimization.objective, 'mass')) = fval_m;
+  fval_debugtext = [fval_debugtext, ' ', fval_debugtext_m];
+end
+if any(strcmp(Set.optimization.objective, 'actforce'))
   if Set.optimization.constraint_obj(3) == 0
-    [fval,fval_debugtext, debug_info] = cds_obj_actforce(TAU);
+    [fval_actforce,fval_debugtext_actforce, debug_info] = cds_obj_actforce(TAU);
   else % Bereits oben berechnet.
-    fval = fval_actforce;
-    fval_debugtext = fval_debugtext_actforce;
     debug_info = debug_info_actforce;
   end
-elseif strcmp(Set.optimization.objective, 'jointrange')
-  [fval,fval_debugtext, debug_info] = cds_obj_jointrange(R, Set, Structure, Q);
-elseif strcmp(Set.optimization.objective, 'stiffness')
-  [fval,fval_debugtext, debug_info] = cds_obj_stiffness(R, Set, Q);
-else
-  error('Zielfunktion "%s" nicht definiert', Set.optimization.objective{1});
+  fval(strcmp(Set.optimization.objective, 'actforce')) = fval_actforce;
+  fval_debugtext = [fval_debugtext, ' ', fval_debugtext_actforce];
 end
-cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. Erfolgreich. %s.', toc(t1), fval, fval_debugtext));
-cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval, debug_info);
-cds_save_particle_details(Set, R, toc(t1), fval, Jcond, f_maxstrengthviol);
+if any(strcmp(Set.optimization.objective, 'jointrange'))
+  [fval_jr,fval_debugtext_jr, debug_info] = cds_obj_jointrange(R, Set, Structure, Q);
+  fval(strcmp(Set.optimization.objective, 'jointrange')) = fval_jr;
+  fval_debugtext = [fval_debugtext, ' ', fval_debugtext_jr];
+end
+if any(strcmp(Set.optimization.objective, 'stiffness'))
+  [fval_st,fval_debugtext_st, debug_info] = cds_obj_stiffness(R, Set, Q);
+  fval(strcmp(Set.optimization.objective, 'stiffness')) = fval_st;
+  fval_debugtext = [fval_debugtext, ' ', fval_debugtext_st];
+end
+if any(fval>1e3)
+  error('Zielfunktion "%s" nicht definiert', Set.optimization.objective{fval>1e3});
+end
+cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=[%s]. Erfolgreich. %s', ...
+  toc(t1), disp_array(fval', '%1.3e'), fval_debugtext(2:end)));
+cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, mean(fval), debug_info);
+cds_save_particle_details(Set, R, toc(t1), mean(fval), Jcond, f_maxstrengthviol);
 rng('shuffle'); % damit Zufallszahlen in anderen Funktionen zufällig bleiben

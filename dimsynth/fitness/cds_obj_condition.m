@@ -61,7 +61,7 @@ f_cond1 = max(Cges);
 f_cond = log(f_cond1); 
 f_cond_norm = 2/pi*atan((f_cond)/20); % Normierung auf 0 bis 1; 150 ist 0.9
 fval = 1e3*f_cond_norm; % Normiert auf 0 bis 1e3
-fval_debugtext = sprintf('Schlechteste Konditionszahl %1.3e', f_cond1);
+fval_debugtext = sprintf('Schlechteste Konditionszahl %1.3e.', f_cond1);
 
 %% Debug-Plot (nur für PKM)
 if R.Type == 2

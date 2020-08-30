@@ -59,5 +59,5 @@ if RD == 0
 else
   fval = 100*RD; % Kodiere Rangdefizit in Zielfunktion
 end
-fval_debugtext = sprintf('Rangdefizit %d (Konditionszahl %e, Determinante %e)', ...
+fval_debugtext = sprintf('Rangdefizit %d (Konditionszahl %e, Determinante %e).', ...
   RD, cond(Jinv_task), det(Jinv_task));

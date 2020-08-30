@@ -27,6 +27,8 @@
 % 6: Diverse Auswertungen zur Fitness-Funktion ('fitness_various')
 %    (Daten, die in cds_save_particle_details.m gespeichert werden:
 %    Zeitauswertung, Kondition, Materialbelastung)
+% 7: 2D-Pareto-Front (nur bei mehrkriterieller Optimierung)
+% 8: 3D-Pareto-Front (nur falls 3 oder mehr Kriterien)
 % 
 % Speichert die Bilder für jeden Roboter in einem eigenen Unterordner
 
@@ -415,6 +417,53 @@ parfor (i = 1:length_Structures, parfor_numworkers)
   fprintf('%d/%d: Restliche Bilder für %s gespeichert. Dauer: %1.1fs\n', ...
     i, length_Structures, Name, toc(t1));
   end
+
+  %% (2D)-Pareto-Fronten für die Zielkriterien
+  if length(Set.optimization.objective) > 1 % Mehrkriterielle Optimierung
+    % Gehe alle Kombinationen von zwei Zielkriterien durch (falls mehr als
+    % zwei gewählt).
+    objcomb = allcomb(1:length(Set.optimization.objective), 1:length(Set.optimization.objective));
+    objcomb(objcomb(:,1)==objcomb(:,2),:) = [];
+    objcomb(objcomb(:,1)>objcomb(:,2),:) = [];
+    figure(10*i+7);clf;hold all;
+    sprows = floor(sqrt(size(objcomb,1)));
+    spcols = ceil(size(objcomb,1)/sprows);
+    for kk = 1:size(objcomb,1)
+      kk1 = objcomb(kk,1); kk2 = objcomb(kk,2);
+      subplot(sprows,spcols,kk);
+      plot(RobotOptRes.fval_pareto(:,kk1), RobotOptRes.fval_pareto(:,kk2), 'm*');
+      xlabel(sprintf('Zielf. %d (%s) (norm.)', kk1, Set.optimization.objective{kk1}));
+      ylabel(sprintf('Zielf. %d (%s) (norm.)', kk2, Set.optimization.objective{kk2}));
+      grid on;
+    end
+    sgtitle('Pareto-Fronten für mehrkrit. Opt.');
+    saveas(10*i+7,     fullfile(resrobdir, sprintf('Rob%d_%s_Pareto2D.fig', i, Name)));
+    export_fig(10*i+7, fullfile(resrobdir, sprintf('Rob%d_%s_Pareto2D.png', i, Name)));
+  end
+  %% (3D)-Pareto-Fronten für die Zielkriterien
+  if length(Set.optimization.objective) > 2 % Mehrkriterielle Optimierung
+    objcomb = allcomb(1:length(Set.optimization.objective), 1:length(Set.optimization.objective), ...
+      1:length(Set.optimization.objective));
+    objcomb(objcomb(:,1)==objcomb(:,2) | objcomb(:,2)==objcomb(:,3),:) = [];
+    objcomb(objcomb(:,1)>objcomb(:,2),:) = [];
+    objcomb(objcomb(:,2)>objcomb(:,3),:) = [];
+    figure(10*i+8);clf;hold all;
+    sprows = floor(sqrt(size(objcomb,1)));
+    spcols = ceil(size(objcomb,1)/sprows);
+    for kk = 1:size(objcomb,1)
+      kk1 = objcomb(kk,1); kk2 = objcomb(kk,2); kk3 = objcomb(kk,3);
+      subplot(sprows,spcols,kk);
+      plot3(RobotOptRes.fval_pareto(:,kk1), RobotOptRes.fval_pareto(:,kk2), RobotOptRes.fval_pareto(:,kk3), 'm*');
+      xlabel(sprintf('Zielf. %d (%s) (norm.)', kk1, Set.optimization.objective{kk1}));
+      ylabel(sprintf('Zielf. %d (%s) (norm.)', kk2, Set.optimization.objective{kk2}));
+      zlabel(sprintf('Zielf. %d (%s) (norm.)', kk3, Set.optimization.objective{kk3}));
+      grid on;
+    end
+    sgtitle('Pareto-Fronten (3D) für mehrkrit. Opt.');
+    saveas(10*i+8,     fullfile(resrobdir, sprintf('Rob%d_%s_Pareto3D.fig', i, Name)));
+    export_fig(10*i+8, fullfile(resrobdir, sprintf('Rob%d_%s_Pareto3D.png', i, Name)));
+  end
+
   %% Finalisierung
   if length_Structures > 3
     close all; % schließe alle Bilder wieder. Sonst sind Hunderte Bilder am Ende offen

@@ -43,7 +43,7 @@ for i = 1:length(Structures)
   tmp = load(resfile, 'RobotOptRes', 'Set', 'Traj', 'PSO_Detail_Data');
   % Text zu Optimierungsergebnis (insbes. Ausschlussgrund). Siehe
   % cds_vis_results, cds_constraints, cds_fitness
-  f = tmp.RobotOptRes.fval;
+  f = mean(tmp.RobotOptRes.fval); % Falls mehrkriteriell abfangen mit `mean`
   if f < 1e3,     fval_text = 'i.O.';
   elseif f < 1e4, fval_text = 'NB-Verl. Zielf.';
   elseif f < 1e5, fval_text = 'NB-Verl. Zielf. EO';

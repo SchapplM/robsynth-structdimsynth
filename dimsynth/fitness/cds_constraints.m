@@ -524,7 +524,7 @@ else
   end
 end
 %% Prüfe, ob eine parasitäre Bewegung in der Trajektorie vorliegt
-if strcmp(Set.optimization.objective, 'valid_act') && R.Type ~= 0 % nur sinnvoll bei PKM-Struktursynthese
+if any(strcmp(Set.optimization.objective, 'valid_act')) && R.Type ~= 0 % nur sinnvoll bei PKM-Struktursynthese
   for jj = 1:length(Traj_0.t)
     [~,PhiD_jj] = R.constr4D(Q(jj,:)', QD(jj,:)', Traj_0.X(jj,:)',Traj_0.XD(jj,:)');
     if any(abs(PhiD_jj)> min(s.Phir_tol,s.Phit_tol))

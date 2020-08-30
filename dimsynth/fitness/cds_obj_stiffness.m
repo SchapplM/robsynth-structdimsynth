@@ -85,7 +85,7 @@ if num_invalid > 0
   % Normiere Marker für ungültiges Ergebnis im Bereich 1e2 bis 1e3
   f_invalid_norm = num_invalid/size(Q,1);
   fval = 1e2*(1+9*f_invalid_norm);
-  fval_debugtext = sprintf('In %d/%d Fällen keine Steifigkeit bestimmbar', num_invalid, size(Q,1));
+  fval_debugtext = sprintf('In %d/%d Fällen keine Steifigkeit bestimmbar.', num_invalid, size(Q,1));
   return
 end
 [f_sti_min, I_sti_min] = min(Keigges(:,1));
@@ -103,7 +103,7 @@ f_com = 1/f_sti_min; % Größte Nachgiebigkeit in mm/N
 % 1 mm/N bzw. 1N/mm        -> 0.99
 f_com_norm = 2/pi*atan(f_com/1e-2); 
 fval = 1e2*f_com_norm; % Normiert auf 0 bis 1e2
-fval_debugtext = sprintf('Nachgiebigkeit %1.3f mm/N; Steifigkeit %1.3f N/mm', f_com, 1/f_com);
+fval_debugtext = sprintf('Nachgiebigkeit %1.3f mm/N; Steifigkeit %1.3f N/mm.', f_com, 1/f_com);
 fval_phys = 1e-3 * f_com; % Umrechnung in äquivalenten physikalischen Wert (mm/N -> m/N)
 debug_info = {sprintf('min. Steifigkeit: %1.3f N/mm', 1/f_com)};
 
