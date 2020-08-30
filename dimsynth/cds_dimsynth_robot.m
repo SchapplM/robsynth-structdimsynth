@@ -16,6 +16,9 @@
 % [SchapplerTapOrt2019] Schappler, M. and Tappe, S., Ortmaier, T.:
 % Exploiting Dynamics Parameter Linearity for Design Optimization in
 % Combined Structural and Dimensional Robot Synthesis (2019)
+% [SierraCoe2005] Improving PSO-based multi-objective optimization 
+% using crowding, mutation and ϵ-dominance (2005)
+
 
 function RobotOptRes = cds_dimsynth_robot(Set, Traj, Structure)
 t1 = tic();
@@ -884,6 +887,10 @@ mkdirs(resdir);
 clear cds_fitness
 fitnessfcn=@(p)cds_fitness(R, Set, Traj, Structure, p(:));
 f_test = fitnessfcn(InitPop(1,:)'); %#ok<NASGU> % Testweise ausführen
+if length(Set.optimization.objective) > 1 % Mehrkriteriell (MOPSO geht nur mit vektorieller Fitness-Funktion)
+  fitnessfcn_vec=@(P)cds_fitness_vec(R, Set, Traj, Structure, P);
+  f_test = fitnessfcn_vec(InitPop(1:3,:)); %#ok<NASGU> % Testweise ausführen
+end
 % Zurücksetzen der Detail-Speicherfunktion
 cds_save_particle_details(Set, R, 0, 0, 0, 0, 'reset');
 % Zurücksetzen der gespeicherten Werte der Fitness-Funktion
@@ -902,12 +909,24 @@ if false
   p_val = lastres.optimValues.bestx;
   fval = lastres.optimValues.bestfval;
   exitflag = -6;
-else
-  % PSO wird ganz normal ausgeführt.
+else  % PSO wird ganz normal ausgeführt.
   if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO
-    [p_val_pareto,fval_pareto,exitflag,output] = gamultiobj(fitnessfcn, nvars, [], [], [], [],varlim(:,1),varlim(:,2), options);
-    cds_log(1, sprintf('[dimsynth] Optimierung beendet. generations=%d, funccount=%d, message: %s', ...
-      output.generations, output.funccount, output.message));
+    % Durchführung mit MOPSO; Einstellungen siehe [SierraCoe2005]
+    % Und Beispiele aus Matlab File Exchange
+    MOPSO_set1 = struct('Np', NumIndividuals, 'Nr', NumIndividuals, ...
+      'maxgen', Set.optimization.MaxIter, 'W', 0.4, 'C1', 2, 'C2', 2, 'ngrid', 20, ...
+      'maxvel', 5, 'u_mut', 1/nvars); % [SierraCoe2005] S. 4
+    MOPSO_set2 = struct('fun', fitnessfcn_vec, 'nVar', nvars, ...
+      'var_min', varlim(:,1), 'var_max', varlim(:,2));
+    output = MOPSO(MOPSO_set1, MOPSO_set2);
+    p_val_pareto = output.pos;
+    fval_pareto = output.pos_fit;
+    cds_log(1, sprintf('[dimsynth] Optimierung mit MOPSO beendet. %d Punkte auf Pareto-Front.', size(p_val_pareto,1)));
+    exitflag = -1; % Nehme an, dass kein vorzeitiger Abbruch erfolgte
+    % Alternative: Durchführung mit gamultiobj (konvergiert schlechter)
+%     [p_val_pareto,fval_pareto,exitflag,output] = gamultiobj(fitnessfcn, nvars, [], [], [], [],varlim(:,1),varlim(:,2), options);
+%     cds_log(1, sprintf('[dimsynth] Optimierung beendet. generations=%d, funccount=%d, message: %s', ...
+%       output.generations, output.funccount, output.message));
     % Gleiche das Rückgabeformat zwischen MO und SO Optimierung an.
     p_val = p_val_pareto(1,:)'; % nehme nur das erste Individuum
     fval = mean(fval_pareto(1,:)); % gleiche Gewichtung. Willkürlich, damit Code funktioniert.
