@@ -29,6 +29,8 @@ settings_default = struct( ...
   'selectgeneral', true, ... % Auch allgemeine Modelle wählen
   'selectvariants', true, ... % Auch alle Varianten wählen
   'dryrun', false, ... % Falls true: Nur Anzeige, was gemacht werden würde
+  'offline', false, ... % Falls true: Keine Optimierung durchführen, stattdessen letztes passendes Ergebnis laden
+  ... % ... dieser Modus kann genutzt werden, wenn die Optimierung korrekt durchgeführt wurde, aber die Nachverarbeitung fehlerhaft war
   'EE_FG_Nr', 2:3, ... % nur 3T0R, 3T1R
   'parcomp_structsynth', 1, ... % parfor-Struktursynthese (schneller, aber mehr Speicher notwendig)
   'parcomp_mexcompile', 1, ... % parfor-Mex-Kompilierung (schneller, aber Dateikonflikt möglich)
@@ -322,16 +324,21 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     fprintf('Generiere Template-Funktionen für %d Roboter und kompiliere anschließend.\n', length(Whitelist_Kin));
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
       sprintf('parroblib_add_robots_symact_%s_1.mat', EE_FG_Name)));
-    % Erzeuge alle Template-Dateien neu (ohne Kompilierung). Dadurch wird
-    % sichergestellt, dass sie die richtige Version haben.
-    parroblib_create_template_functions(Whitelist_Kin,false,false);
-    % Benötigte Funktionen kompilieren
-    parfor (i = 1:length(Whitelist_Kin), settings.parcomp_mexcompile*12)
-      % Erzeuge Klasse. Dafür Aktuierung A1 angenommen. Ist aber für
-      % Generierung der Funktionen egal.
-      RP = parroblib_create_robot_class([Whitelist_Kin{i},'A1'],1,1);
-      % Hierdurch werden fehlende mex-Funktionen kompiliert.
-      RP.fill_fcn_handles(true, true);
+    if ~settings.offline
+      % Erzeuge alle Template-Dateien neu (ohne Kompilierung). Dadurch wird
+      % sichergestellt, dass sie die richtige Version haben.
+      parroblib_create_template_functions(Whitelist_Kin,false,false);
+      % Benötigte Funktionen kompilieren (nur wenn Struktursynthese
+      % parallel). Bei serieller Struktursynthese wird dort kompiliert.
+      if settings.parcomp_structsynth == 1
+        parfor (i = 1:length(Whitelist_Kin), settings.parcomp_mexcompile*12)
+          % Erzeuge Klasse. Dafür Aktuierung A1 angenommen. Ist aber für
+          % Generierung der Funktionen egal.
+          RP = parroblib_create_robot_class([Whitelist_Kin{i},'A1'],1,1);
+          % Hierdurch werden fehlende mex-Funktionen kompiliert.
+          RP.fill_fcn_handles(true, true);
+        end
+      end
     end
     %% Maßsynthese für Liste von Robotern durchführen
     % Mit dem dann eindeutigen Robotermodell sind weitere Berechnungen
@@ -361,6 +368,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.general.max_retry_bestfitness_reconstruction = 1;
     Set.general.plot_details_in_fitness = 0e3;
     Set.general.plot_robot_in_fitness = 0e3;
+    Set.general.noprogressfigure = true;
     Set.general.verbosity = 3;
     Set.general.matfile_verbosity = 0;
     Set.general.nosummary = true; % Keine Bilder erstellen.
@@ -370,7 +378,24 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.general.save_animation_file_extensions = {'gif'};
     Set.general.parcomp_struct = settings.parcomp_structsynth;
     Set.general.use_mex = true;
-    cds_start
+    if ~settings.offline
+      cds_start
+    else
+      % Finde den Namen der letzten Optimierung. Nur der Zeitstempel darf
+      % anders sein.
+      reslist = dir(fullfile(Set.optimization.resdir,[Set.optimization.optname(1:end-15),'*']));
+      % Suche das neuste Ergebnis aus der Liste und benutze es als Namen
+      [~,I] = sort([reslist.datenum]); % aufsteigend sortiert: Neuste am Ende.
+      Set.optimization.optname = reslist(I(end)).name;
+      % Erstelle Variablen, die sonst in cds_start entstehen
+      roblist = dir(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+        'Rob*_*')); % Die Namen aller Roboter sind in den Ordnernamen enthalten.
+      [tokens, ~] = regexp({roblist([roblist.isdir]).name},'Rob(\d+)_([A-Za-z0-9]*)','tokens','match');
+      Structures = {};
+      for i = 1:length(tokens)
+        Structures{i} = struct('Name', tokens{i}{1}{2}); %#ok<SAGROW>
+      end
+    end
     % Ergebnisse der Struktursynthese (bzw. als solcher durchgeführten
     % Maßsynthese zusammenstellen)
     resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
@@ -378,81 +403,112 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
       sprintf('parroblib_add_robots_symact_%s_3.mat', EE_FG_Name)));
     %% Nachverarbeitung der Ergebnis-Liste
-    fprintf('Verarbeite die %d Ergebnisse der Struktursynthese\n', length(Ergebnisliste));
+    % Stelle die Liste der Roboter zusammen. Ist nicht identisch mit Dateiliste,
+    % da PKM mehrfach geprüft werden können.
+    Structures_Names = cell(1,length(Structures));
     for jjj = 1:length(Structures)
-      Name = Structures{jjj}.Name;
-      % Prüfe ob Strukturen in der Ergebnisliste enthalten ist
+      Structures_Names{jjj} = Structures{jjj}.Name;
+    end
+    Structures_Names = unique(Structures_Names); % Eindeutige Liste der Strukturen erzeugen
+    fprintf('Verarbeite die %d Ergebnisse der Struktursynthese (%d PKM)\n', ...
+      length(Ergebnisliste), length(Structures_Names));
+    for jjj = 1:length(Structures_Names) % Alle eindeutigen Strukturen durchgehen
+      %% Ergebnisse für diese PKM laden
+      Name = Structures_Names{jjj};
+      % Prüfe ob Struktur in der Ergebnisliste enthalten ist. Jede Struktur
+      % kann mehrfach in der Ergebnisliste enthalten sein, wenn
+      % verschiedene Fälle für freie Winkelparameter untersucht werden.
+      fval_jjj = []; % Zielfunktionswert der Ergebnisse für diese PKM in der Ergebnisliste
+      theta1_jjj = []; % gespeicherte Werte für ersten freien theta-Parameter (wird variiert)
       for jj = 1:length(Ergebnisliste)
         if contains(Ergebnisliste(jj).name,Name)
-          break
-        elseif jj == length(Ergebnisliste)
+          % Ergebnisse aus Datei laden
+          resfile = fullfile(resmaindir, Ergebnisliste(jj).name);
+          tmp = load(resfile, 'RobotOptRes');
+          RobotOptRes = tmp.RobotOptRes;
+          fval_jjj = [fval_jjj; RobotOptRes.fval]; %#ok<AGROW>
+          theta1_jjj = [theta1_jjj; tmp.RobotOptRes.Structure.angle1_values]; %#ok<AGROW>
+        elseif isempty(fval_jjj) && jj == length(Ergebnisliste)
           error('Ergebnisdatei zu %s nicht gefunden', Name)
         end
       end
-      resfile = fullfile(resmaindir, Ergebnisliste(jj).name);
-      tmp = load(resfile, 'RobotOptRes');
-      RobotOptRes = tmp.RobotOptRes;
+      %% Daten für freien Winkelparameter bestimmen
+      if length(theta1_jjj) == 1 && theta1_jjj(1) == 0
+        values_angle1 = ''; % Wert ist nicht definiert. Ignorieren.
+      elseif fval_jjj(theta1_jjj==4) < 1e3
+        values_angle1 = '*'; % alle Werte möglich
+      elseif fval_jjj(theta1_jjj==1) < 1e3 && fval_jjj(theta1_jjj==2) < 1e3
+        values_angle1 = '090'; % 0 oder 90° gehen beide (aber nichts dazwischen)
+      elseif fval_jjj(theta1_jjj==2) < 1e3
+        values_angle1 = '90'; % nur 90° geht
+      elseif fval_jjj(theta1_jjj==1) < 1e3
+        values_angle1 = '0'; % nur 0° geht
+      else % Kein Wert hat funktioniert. Wird sowieso nicht benutzt.
+        values_angle1 = '';
+      end
       %% Ergebnis der Maßsynthese auswerten
       remove = false;
       try
         [~, LEG_Names_array, Actuation] = parroblib_load_robot(Name);
         if isempty([Actuation{:}])
-          fprintf(['Aktuierung der PKM %s wurde nicht in Datenbank gefunden, ', ...
-            'obwohl sie hinzugefügt werden sollte. Fehler.\n'], Name);
+          fprintf(['%d/%d: Aktuierung der PKM %s wurde nicht in Datenbank gefunden, ', ...
+            'obwohl sie hinzugefügt werden sollte. Fehler.\n'], jjj, length(Structures_Names), Name);
           continue
         end
       catch
-        fprintf(['PKM %s wurde nicht in Datenbank gefunden, obwohl sie ', ...
-          'hinzugefügt werden sollte. Fehler.\n'], Name);
+        fprintf(['%d/%d: PKM %s wurde nicht in Datenbank gefunden, obwohl sie ', ...
+          'hinzugefügt werden sollte. Fehler.\n'], jjj, length(Structures_Names), Name);
         continue
       end
       if isempty(Structures)
         fprintf(['%d/%d: PKM %s wurde in der Maßsynthese aufgrund struktur', ...
-          'eller Eigenschaften nicht in Erwägung gezogen\n'], jjj, length(Structures), Name);
+          'eller Eigenschaften nicht in Erwägung gezogen\n'], jjj, length(Structures_Names), Name);
         remove = true;
         num_dimsynthabort = num_dimsynthabort + 1;
-      elseif RobotOptRes.fval > 50
+      elseif all(fval_jjj > 50)
         fprintf(['%d/%d: Für PKM %s konnte in der Maßsynthese keine funktio', ...
-          'nierende Lösung gefunden werden.\n'], jjj, length(Structures), Name);
-        if RobotOptRes.fval < 1e3
-          fprintf('Rangdefizit der Jacobi für Beispiel-Punkte ist %1.0f\n', RobotOptRes.fval/100);
-          parroblib_change_properties(Name, 'rankloss', sprintf('%1.0f', RobotOptRes.fval/100));
+          'nierende Lösung gefunden werden.\n'], jjj, length(Structures_Names), Name);
+        if min(fval_jjj) < 1e3
+          fprintf('Rangdefizit der Jacobi für Beispiel-Punkte ist %1.0f\n', min(fval_jjj)/100);
+          parroblib_change_properties(Name, 'rankloss', sprintf('%1.0f', min(fval_jjj)/100));
+          parroblib_change_properties(Name, 'values_angle1', values_angle1);
           parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 0, 0);
           num_rankloss = num_rankloss + 1;
-        elseif RobotOptRes.fval > 1e10
+        elseif min(fval_jjj) > 1e10
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
-            'Zielfunktion (Einzelpunkt-IK) %1.2e\n'], RobotOptRes.fval);
+            'Zielfunktion (Einzelpunkt-IK) %1.2e\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
           parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 3);
-        elseif RobotOptRes.fval > 1e9
+        elseif min(fval_jjj) > 1e9
           fprintf(['Erweiterte Prüfung (Kollision etc.) fehlgeschlagen. Sollte ', ...
-            'eigentlich nicht geprüft werden! Zielfkt. %1.2e\n'], RobotOptRes.fval);
+            'eigentlich nicht geprüft werden! Zielfkt. %1.2e\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
           parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 7);
-        elseif RobotOptRes.fval > 1e8
+        elseif min(fval_jjj) > 1e8
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
-            'Zielfunktion (Traj.-IK) %1.2e\n'], RobotOptRes.fval);
+            'Zielfunktion (Traj.-IK) %1.2e\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
           parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 4);
-        elseif RobotOptRes.fval == 1e8
+        elseif min(fval_jjj) == 1e8
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
-            'Zielfunktion (Parasitäre Bewegung) %1.2e\n'], RobotOptRes.fval);
+            'Zielfunktion (Parasitäre Bewegung) %1.2e\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
           parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 5);
         else
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
-            'Zielfunktion (Nicht behandelte Ausnahme) %1.2e\n'], RobotOptRes.fval);
+            'Zielfunktion (Nicht behandelte Ausnahme) %1.2e\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
           parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 7);
         end
       else
-        fprintf('%d/%d: PKM %s hat laut Maßsynthese vollen Laufgrad\n', jjj, length(Structures), Name);
+        fprintf('%d/%d: PKM %s hat laut Maßsynthese vollen Laufgrad\n', jjj, length(Structures_Names), Name);
         parroblib_change_properties(Name, 'rankloss', '0');
+        parroblib_change_properties(Name, 'values_angle1', values_angle1);
         parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 0, 1);
         num_fullmobility = num_fullmobility + 1;
       end

@@ -37,13 +37,17 @@ for i = 1:nvars
   end
   if contains(varnames(i),{'theta'}) % theta parameter
     % Setze nur auf 0 oder pi/2. Das verspricht eine bessere Lösbarkeit der
-    % Kinematik
-    InitPop(:,i) = pi/2 * round(rand(NumIndividuals,1)); 
-    continue
+    % Kinematik. Mache nur, wenn das mit den Grenzen passt.
+    if varlim(i,2) >= pi/2 && varlim(i,1) <= 0
+      InitPop(:,i) = pi/2 * round(rand(NumIndividuals,1)); 
+      continue
+    end
   end
   if contains(varnames(i),{'alpha'}) % alpha parameter
     % nur 0 oder pi/2
-    InitPop(:,i) = pi/2 * round(rand(NumIndividuals,1)); 
-    continue
+    if varlim(i,2) >= pi/2 && varlim(i,1) <= 0
+      InitPop(:,i) = pi/2 * round(rand(NumIndividuals,1)); 
+      continue
+    end
   end
 end
