@@ -36,6 +36,49 @@ end
 % Menge der Roboter laden
 Structures = cds_gen_robot_list(Set);
 
+% Berechnung auf PBS-Cluster vorbereiten und durchführen
+if Set.general.computing_cluster
+  % Bereite eine Einstellungs-Datei vor
+  % Folgende Zeile scheitert auf dem Cluster, da Pfad dort nicht gesetzt.
+  % Das ist so gewollt.
+  cluster_repo_path = computingcluster_repo_path();
+  computation_name = sprintf('dimsynth_%s_%s', ...
+    datestr(now,'yyyymmdd_HHMMSS'), Set.optimization.optname);
+  jobdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+    'dimsynth', 'cluster_jobs', computation_name);
+  mkdirs(fullfile(jobdir, 'results')); % Unterordner notwendig für Cluster-Transfer-Toolbox
+  targetfile = fullfile(jobdir, [computation_name,'.m']);
+  Set_cluster = Set;
+  Set_cluster.general.computing_cluster = false; % auf Cluster muss "lokal" gerechnet werden
+  Set_cluster.general.parcomp_struct = true; % parallele Berechnung auf Cluster (sonst sinnlos)
+  save(fullfile(jobdir, [computation_name,'.mat']), 'Set_cluster', 'Traj');
+  % Matlab-Skript erzeugen
+  copyfile(fullfile(jobdir,'..','..','dimsynth_cluster_header.m'), targetfile);
+  fid = fopen(targetfile, 'a');
+  fprintf(fid, 'tmp=load(''%s'');\n', [computation_name,'.mat']);
+  fprintf(fid, 'Set=tmp.Set_cluster;\nTraj=tmp.Traj;\n');
+  % Ergebnis-Ordner neu setzen. Ansonsten ist der Pfad des Rechners
+  % gesetzt, von dem der Job gestartet wird.
+  fprintf(fid, ['Set.optimization.resdir=fullfile(fileparts(', ...
+    'which(''structgeomsynth_path_init.m'')),''dimsynth'',''results'');\n']);
+  fprintf(fid, 'cds_start;\n');
+  fclose(fid);
+  % Schätze die Rechenzeit: Im Mittel 2s pro Parametersatz aufgeteilt auf
+  % 12 parallele Kerne, 30min für Bilderstellung und 6h Reserve/Allgemeines
+  comptime_est = (Set.optimization.NumIndividuals*(1+Set.optimization.MaxIter)* ...
+    2+30*60)*length(Structures)/12 + 6*3600;
+  % Matlab-Skript auf Cluster starten.
+  addpath(cluster_repo_path);
+  jobStart(struct('name', computation_name, ...
+                  'matFileName', [computation_name, '.m'], ...
+                  'locUploadFolder', jobdir, ...
+                  'time',comptime_est/3600)); % Angabe in h
+  fprintf(['Berechnung von %d Robotern wurde auf Cluster hochgeladen. Ende. ', ...
+    'Die Ergebnisse müssen nach Beendigung der Rechnung manuell heruntergeladen ', ...
+    'werden.\n'], length(Structures));
+  return;
+end
+
 % Bei paralleler Berechnung dürfen keine Dateien geschrieben werden um
 % Konflikte zu vermeiden
 if Set.general.parcomp_struct && ... % Parallele Rechnung ist ausgewählt
@@ -111,6 +154,7 @@ if ~Set.general.regenerate_summmary_only
     % wurden). Die automatische Neugenerierung in der parfor-Schleife
     % funktioniert nicht aufgrund von Dateikonflikten, autom. Ordnerlöschung.
     if Set.general.create_template_functions
+      fprintf('Erstelle kompilierbare Funktionsdateien aus Vorlagen für %d Roboter\n', length(Names));
       for i = 1:length(Names)
         if type == 0 % Serieller Roboter
           serroblib_create_template_functions(Names(i), false, false);
