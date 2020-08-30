@@ -78,6 +78,13 @@ end
 colldepth(isnan(colldepth)) = 0;
 colldepth_t = sum(colldepth,2);
 [~,j] = max(colldepth_t); % Index für Zeitschritt in Daten
+% Debug: Detaillierte Informationen
+% fprintf('%d Kollisionen für Zeitschritt %d/%d berechnet:\n', sum(coll(j,:)), j, size(coll,1));
+% for kk = find(coll(j,:))
+%   fprintf('Prüfung %d: Koll.-Körper %d vs %d (Rob.-Seg. %d vs %d)\n', kk, collchecks(kk,1), ...
+%     collchecks(kk,2), collbodies.link(collchecks(kk,1)), collbodies.link(collchecks(kk,2)));
+% end
+
 % Bild zeichnen
 change_current_figure(867); clf; hold all
 view(3); axis auto; grid on;
@@ -122,7 +129,7 @@ for i = 1:size(collbodies.link,1)
   collstate_i = coll(j,I);
   if any(collstate_i) % Es gibt eine Kollision
     color = 'r'; num_coll_plot = num_coll_plot + 1;
-    % Zusätzliche Diagnose:
+    % Debug: Zusätzliche Diagnose:
     % collchecks_i = collchecks(I,:);
     % collpairs_i = collchecks_i(collstate_i,:);
     % collpartners_i = unique(collpairs_i(:));
@@ -145,9 +152,9 @@ for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
     export_fig(867, fullfile(resdir, sprintf('PSO_Gen%02d_FitEval%03d_CollisionsSelf.%s', currgen, currimg, fileext{1})));
   end
 end
-if num_coll_plot ~= sum(coll(j,:))
-  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constr_collisions_self_1_errplot.mat'));
-  error(['Anzahl der geplotteten Kollisionen (%d) stimmt nicht mit vorab ', ...
-    'berechneten (%d) überein'], num_coll_plot, sum(coll(j,:)));
+if any(num_coll_plot) ~= any(coll(j,:))
+  % save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constr_collisions_self_1_errplot.mat'));
+  error(['Status der geplotteten Kollisionen (logisch %d) stimmt nicht mit vorab ', ...
+    'berechnetem (logisch %d) überein'], any(num_coll_plot), any(coll(j,:)));
 end
 

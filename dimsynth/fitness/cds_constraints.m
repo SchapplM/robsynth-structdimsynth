@@ -306,7 +306,7 @@ end
 
 %% Bestimme die Spannweite der Gelenkkoordinaten (getrennt Dreh/Schub)
 QE_korr = [QE; QE(end,:)];
-% Berücksichtige Sonderfall des erten Schubgelenks bei der Bestimmung der
+% Berücksichtige Sonderfall des ersten Schubgelenks bei der Bestimmung der
 % Gelenkposition-Spannweite
 if R.Type == 2
   % Hänge Null-Koordinate an, damit erstes Schubgelenk keine sehr große
@@ -335,8 +335,9 @@ if any(I_qlimviol_E)
     'Schlechteste Spannweite: %1.2f/%1.2f (Gelenk %d)'], q_range_E(IIw), qlim(IIw,2)-qlim(IIw,1), IIw);
   if fval < Set.general.plot_details_in_fitness
     change_current_figure(1000); clf; hold on;
-    hdl_iO= plot(find(~I_qlimviol_E), QE_korr(:,~I_qlimviol_E)-min(QE_korr(:,~I_qlimviol_E)), 'co');
-    hdl_niO=plot(find( I_qlimviol_E), QE_korr(:, I_qlimviol_E)-min(QE_korr(:, I_qlimviol_E)), 'bx');
+    % Gut-Einträge: Dummy-NaN-Eintrag mit plotten, damit Handle für Legende nicht leer bleibt.
+    hdl_iO= plot([find(~I_qlimviol_E),NaN], [QE_korr(:,~I_qlimviol_E)-min(QE_korr(:,~I_qlimviol_E)),NaN(size(QE_korr,1),1)], 'co');
+    hdl_niO=plot(find( I_qlimviol_E), QE_korr(:, I_qlimviol_E)-min(QE_korr(:, I_qlimviol_E)), 'bx'); % Kein NaN-Dummy notwendig.
     hdl1=plot(qlim(:,2)'-qlim(:,1)', 'r--');
     hdl2=plot([1;size(QE,2)], [0;0], 'm--');
     xlabel('Koordinate Nummer'); ylabel('Koordinate Wert');
