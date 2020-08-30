@@ -74,6 +74,7 @@ end
 EE_FG_ges = [1 1 0 0 0 1; ...
   1 1 1 0 0 0; ...
   1 1 1 0 0 1; ...
+  1 1 1 1 1 0; ...
   1 1 1 1 1 1];
 EE_FG_Mask = [1 1 1 1 1 1]; % Die FG müssen genauso auch vom Roboter erfüllt werden (0 darf nicht auch 1 sein)
 serroblibpath=fileparts(which('serroblib_path_init.m'));
@@ -107,6 +108,10 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     I1del(Cpl1_grid>4) = true; % nur Methode 1 bis 4 ist sinnvoll
     I2del(Cpl2_grid>3) = true; % nur Methode 1 bis 3 ist sinnvoll
   end
+  if any(settings.EE_FG_Nr==4) % 3T2R
+    I1del(Cpl1_grid>4&Cpl1_grid<9) = true; % nur Methode 1 bis 4 oder 9 ist sinnvoll
+    I2del(Cpl2_grid>3&Cpl2_grid<8) = true; % nur Methode 1 bis 3 oder 8 ist sinnvoll
+  end
   Cpl1_grid_filt = Cpl1_grid(~I1del&~I2del);
   Cpl2_grid_filt = Cpl2_grid(~I1del&~I2del);
   Coupling_all = [Cpl1_grid_filt(:),Cpl2_grid_filt(:)];
@@ -121,7 +126,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       % Die Beinketten müssen mindestens so viele FG wie die PKM haben
       % Alles weitere wird weiter unten gefiltert (kinematische Eigenschaften)
       LegDoF_allowed = 5:-1:N_Legs;
-    elseif all(EE_FG == [1 1 0 0 0 1]) || all(EE_FG == [1 1 1 1 1 1])
+    elseif all(EE_FG == [1 1 0 0 0 1]) || all(EE_FG == [1 1 1 1 1 1]) || all(EE_FG == [1 1 1 1 1 0])
       LegDoF_allowed = N_Legs; % Fall 2T1R und 3T3R
     else
       error('Fall nicht implementiert');
@@ -133,10 +138,8 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       EE_FG_Mask = [1 1 1 0 0 0];
     elseif all(EE_FG == [1 1 1 0 0 1]) % && Coupling(1) == 1
       EE_FG_Mask = [1 1 1 0 0 1];
-%     elseif all(EE_FG == [1 1 1 0 0 1]) && (Coupling(1) == 2 || Coupling(1) == 3)
-%       EE_FG_Mask = [1 1 1 1 0 0];
-%     elseif all(EE_FG == [1 1 1 0 0 1]) && Coupling(1) == 4
-%       EE_FG_Mask = [1 1 1 1 1 1];
+    elseif all(EE_FG == [1 1 1 1 1 0])
+      EE_FG_Mask = [1 1 1 0 0 0]; % Rotations-Komponente nicht angucken (Drehung wird teilw. durch Basis vorgegeben)
     elseif all(EE_FG == [1 1 1 1 1 1])
       EE_FG_Mask = [1 1 1 1 1 1];
     end
@@ -638,7 +641,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
           parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 4);
-        elseif min(fval_jjj) == 1e8
+        elseif min(fval_jjj) >= 9e7
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
             'Zielfunktion (Parasitäre Bewegung) %1.2e\n'], min(fval_jjj));
           remove = true;

@@ -34,7 +34,6 @@ end
 Basis_Coupling = Coupling(1);
 Koppel_Coupling = Coupling(2);
 
-% RS = serroblib_create_robot_class(SName); % Aufruf braucht viel Zeit
 LEG_Dof = EE_dof_legchain; %RS.I_EE;
 
 if sum(LEG_Dof(1:6)) == 6
@@ -48,3 +47,5 @@ elseif (Basis_Coupling ~= Koppel_Coupling) && (LEG_Dof(4) == 0)
 else
   leg_success = true;
 end
+
+  

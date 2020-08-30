@@ -47,10 +47,10 @@ end
 
 EE_FG = structset.DoF;
 EE_FG_Mask = [1 1 1 1 1 1]; % Die FG müssen genauso auch vom Roboter erfüllt werden (0 darf nicht auch 1 sein)
-if all(structset.DoF == [1 1 1 1 1 0])
-  EE_FG      = [[1 1 1], [1 1 1], [1 1 1]];
-  EE_FG_Mask = [[1 1 1], [1 1 1], [1 1 0]];
-end
+% if all(structset.DoF == [1 1 1 1 1 0])
+%   EE_FG      = [[1 1 1], [1 1 1], [1 1 1]];
+%   EE_FG_Mask = [[1 1 1], [1 1 1], [1 1 0]];
+% end
 
 ii = 0; % Laufende Nummer für alle Roboterstrukturen (seriell und parallel)
 
@@ -132,7 +132,7 @@ if structset.use_parallel
     [~, LEG_Names, Actuation, Coupling, ~, ~, ~, ~, ~, AdditionalInfo_Akt] ...
       = parroblib_load_robot(PNames_Akt{j});
     % Prüfe Koppelpunkt-Eigenschaften
-    if ~any(Coupling(1) == 1:8) || ~any(Coupling(2) == 1:6)
+    if ~any(Coupling(1) == [1:9]) || ~any(Coupling(2) == [1:6, 8])
       if verblevel >= 3, fprintf('%s hat eine nicht implementierte Koppelpunkt-Variante\n', PNames_Akt{j}); end
       continue % Robotermodell kann in Optimierung nicht generiert werden.
     end

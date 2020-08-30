@@ -6,7 +6,7 @@
 clear
 
 settings = struct( ...
-  'EE_FG_Nr', 4, ... % 3T3R
+  'EE_FG_Nr', 5, ... % 3T3R
   'onlyspherical', true, ...
   'onlygeneral', false, ... % Kugelgelenk-Beinketten sind spezielle Varianten
   'dryrun', true); 
