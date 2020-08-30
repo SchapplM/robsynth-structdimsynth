@@ -1,0 +1,21 @@
+% Der Inhalt dieser Datei wird vorne an Matlab-Skripte angehängt, die für das Rechen-Cluster
+% erzeugt werden. Diese Datei muss ohne die Endung .template am selben Ort liegen.
+% TODO: Pfade an tatsächliche Namen anpassen
+run('/bigwork/nhkbscha/REPO/scripts/startup_cluster.m');
+% Kopiere die PKM-Datenbank in den TMP-Ordner. Dadurch wird in der Struktur-
+% synthese Schreibkonflikten vorgebeugt. Die Ergebnisse müssen dann nach-
+% träglich im Offline-Modus lokal in die PKM-Datenbank eingefügt werden.
+t1=tic();
+fprintf('Starte Kopieren der Parallelroboter-Datenbank\n');
+% Kopierbefehl Variante 1
+% system('cp -rv /bigwork/nhkbscha/REPO/parrob_mdlbib $TMPDIR');
+% Kopierbefehl Variante 2 (vermutlich effizienter)
+system('mkdir $TMPDIR/parrob_mdlbib && cd /bigwork/nhkbscha/REPO/parrob_mdlbib && tar cf - . | tar xCf $TMPDIR/parrob_mdlbib -');
+fprintf('PKM-Datenbank kopiert. Dauer: %1.1fs\n', toc(t1));
+% PKM-Datenbank aus Pfad entfernen und neue Datenbank aus tmp-Verzeichnis aufnehmen
+rmpath_genpath('/bigwork/nhkbscha/REPO/parrob_mdlbib');
+[~,tmpdirpath]=system('echo $TMPDIR');
+tmpdirpath=tmpdirpath(1:end-1); % Zeilenumbruch entfernen
+run(fullfile(tmpdirpath, 'parrob_mdlbib', 'parroblib_path_init.m'));
+% Struktursynthese-Hauptordner hinzufügen
+addpath(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'struktsynth_par'));

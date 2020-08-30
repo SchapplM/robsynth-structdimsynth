@@ -1,0 +1,9 @@
+% Die Ausgabe dieser Funktion zeigt auf den Pfad zum Repo des Computing-Clusters.
+% Diese Datei muss vorher umbenannt werden (ohne Endung .template).
+% Das Repo zur Kommunikation mit dem Cluster muss vorher hierher heruntergeladen werden:
+% https://gitlab.projekt.uni-hannover.de/imes-material/matlab-luis-cluster
+% (funktioniert nur für Angehörige der Uni Hannover mit Zugang zu LUIS Cluster)
+
+function lcp = computingcluster_repo_path()
+
+lcp = '/mnt/FP500/IMES/REPO/matlab-luis-cluster'; % TODO: An jeweiligen Ort anpassen.

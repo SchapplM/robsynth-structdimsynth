@@ -24,14 +24,16 @@
 function [currgen,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure, suffix)
 resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
   'tmp', sprintf('%d_%s', Structure.Number, Structure.Name));
-matfiles = dir(fullfile(resdir, 'PSO_Gen*.mat'));
-if isempty(matfiles)
-  % Es liegen noch keine .mat-Dateien vor. Also wird aktuell die erste
-  % Generation berechnet
-  currgen = 0;
-else
-  [tokens_mat,~] = regexp(matfiles(end).name,'PSO_Gen(\d+)','tokens','match');
-  currgen = str2double(tokens_mat{1}{1})+1; % Es fängt mit Null an
+% Finde die aktuelle Generation anhand der bisher gespeicherten
+% Fitness-Werte heraus. Benutze keine mat-Dateien, sondern persistente Var.
+PSO_Detail_Data = cds_save_particle_details([], [], 0, 0, 0, 0, 'output');
+% In der aktuellen Generation sind Einträge ungleich NaN.
+% Die erste Zeile entspricht der Initial-Population (Generation 0).
+currgen = find(any(~isnan(PSO_Detail_Data.fval),2),1,'last')-1;
+% Wenn dieses Partikel das erste der aktuellen Generation ist, ist die vor-
+% herige Zeile komplett voll (ungleich NaN)
+if all(~isnan(PSO_Detail_Data.fval(currgen+1,:)))
+  currgen = currgen + 1;
 end
 imgfiles = dir(fullfile(resdir, sprintf('PSO_Gen%02d_FitEval*_%s*',currgen,suffix)));
 if isempty(imgfiles)
@@ -40,5 +42,4 @@ if isempty(imgfiles)
 else
   [tokens_img,~] = regexp(imgfiles(end).name,sprintf('PSO_Gen%02d_FitEval(\\d+)_%s',currgen,suffix),'tokens','match');
   currimg = str2double(tokens_img{1}{1})+1;
-end
 end

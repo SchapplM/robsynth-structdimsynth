@@ -37,7 +37,7 @@ for i = 1:length(Structures)
   % Ergebnisse laden. Inhalt der Datei siehe cds_dimsynth_robot.m
   resfile = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', i, Name));
   if ~exist(resfile, 'file')
-    warning('Ergebnis-Datei für Roboter %d (%s) existiert nicht: %s', i, Name, resfile);
+    warning('Ergebnis-Datei für Roboter %d/%d (%s) existiert nicht: %s', i, length(Structures), Name, resfile);
     continue
   end
   tmp = load(resfile, 'RobotOptRes', 'Set', 'Traj', 'PSO_Detail_Data');

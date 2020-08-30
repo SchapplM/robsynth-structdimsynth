@@ -83,14 +83,7 @@ parfor (i = 1:length_Structures, parfor_numworkers)
 
   %% Statistische Verteilung der Ergebnisse aller Generationen
   t1 = tic();
-  resdir_pso = fullfile(resmaindir, ...
-    'tmp', sprintf('%d_%s', Structure.Number, Structure.Name));
-  ergdatpso = dir(fullfile(resdir_pso, '*.mat'));
-  Erg_All_Gen = NaN(length(ergdatpso), Set.optimization.NumIndividuals);
-  for jj = 1:length(ergdatpso)
-    tmp = load(fullfile(resdir_pso, ergdatpso(jj).name));
-    Erg_All_Gen(jj,:) = tmp.optimValues.swarmfvals;
-  end
+  Erg_All_Gen = PSO_Detail_Data.fval;
   I_zul = Erg_All_Gen(:) < 1e3;
   Klassengrenzen_Alle = [0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13];
   Klassengrenzen_Alle_Log = log10(Klassengrenzen_Alle);

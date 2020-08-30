@@ -1,6 +1,10 @@
 % OutputFcn für den Particle-Swarm-Algorithmus. Speichere den aktuellen
 % Zwischenstand.
 % 
+% Die Funktion kann mit folgendem Befehl im PSO-Algorithmus benutzt werden:
+% cds_save_all_results_anonym = @(optimValues,state)cds_psw_save_all_results(optimValues,state,Set,Structure);
+% options.OutputFcn = {cds_save_all_results_anonym};
+% 
 % Eingabe:
 % optimValues
 %   Standard-Eingabe für PSO-Output-Fcn

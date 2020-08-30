@@ -95,46 +95,54 @@ if Set.optimization.use_desopt ...
 end
 % Optimierung der Strukturen durchführen
 if ~Set.general.regenerate_summmary_only
-  % Vorlagen-Funktionen neu generieren (falls dort Änderungen gemacht
-  % wurden). Die automatische Neugenerierung in der parfor-Schleife
-  % funktioniert nicht.
-  if Set.general.create_template_functions
-    for i = 1:length(Structures)
-      Structure = Structures{i};
-      if Structure.Type == 0 % Serieller Roboter
-        serroblib_create_template_functions({Structure.Name}, false, false);
-      else % PKM
-        parroblib_create_template_functions({Structure.Name}, false, false);
+  % Vorbereitung: Getrennt für serielle und parallele Roboter
+  for type = [0 2] % seriell und PKM
+    % Stelle vorher eine Liste von Namen zusammen, um doppelte zu finden.
+    Names = {};
+    for k = 1:length(Structures)
+      if Structures{k}.Type == type
+        Names = [Names, Structures{k}.Name]; %#ok<AGROW>
       end
-      continue
     end
-  end
-  if Set.general.use_mex && Set.general.compile_missing_functions
-    % Benötigte Funktionen kompilieren (serielle statt parallele Ausführung)
-    % (es wird automatisch der codegen-Ordner gelöscht. Kann bei paralleler
-    % Rechnung zu Konflikten führen)
-    for type = [0 2] % seriell und PKM
-      % Stelle vorher eine Liste von Namen zusammen, um doppelte zu finden.
-      Names = {};
-      for k = 1:length(Structures)
-        if Structures{k}.Type == type
-          Names = [Names, Structures{k}.Name]; %#ok<AGROW>
-        end
-      end
-      % Duplikate löschen (treten auf, wenn verschiedene Werte für theta
-      % möglich sind)
-      Names = unique(Names);
-      t1 = tic(); % Beginn der Prüfung auf Datei-Existenz
-      t_ll = t1;
+    % Duplikate löschen (treten z.B. auf, wenn verschiedene Werte für theta
+    % in der Struktursynthese möglich sind)
+    Names = unique(Names);
+    % Vorlagen-Funktionen neu generieren (falls dort Änderungen gemacht
+    % wurden). Die automatische Neugenerierung in der parfor-Schleife
+    % funktioniert nicht aufgrund von Dateikonflikten, autom. Ordnerlöschung.
+    if Set.general.create_template_functions
       for i = 1:length(Names)
-        Structure = Structures{i};
-        if Structure.Type == 0 % Serieller Roboter
+        if type == 0 % Serieller Roboter
+          serroblib_create_template_functions(Names(i), false, false);
+        else % PKM
+          % Sperrschutz für PKM-Bibliothek (hauptsächlich für Struktursynthese)
+          parroblib_writelock('check', 'csv', logical(Set.structures.DoF), 5*60, false);
+          parroblib_create_template_functions(Names(i), false, false);
+        end
+        continue
+      end
+    end
+    if Set.general.use_mex && Set.general.compile_missing_functions
+      % Benötigte Funktionen kompilieren (serielle statt parallele Ausführung)
+      % (es wird automatisch der codegen-Ordner gelöscht. Kann bei paralleler
+      % Rechnung zu Konflikten führen)
+      t1 = tic(); % Beginn der Prüfung auf Datei-Existenz
+      t_ll = t1; % Zeitpunkt der letzten Log-Ausgabe diesbezüglich
+      for i = 1:length(Names)
+        if type == 0 % Serieller Roboter
           R = serroblib_create_robot_class(Names{i});
         else % PKM
+          parroblib_writelock('check', 'csv', logical(Set.structures.DoF), 5*60, false);
           R = parroblib_create_robot_class(Names{i},1,1);
         end
         % Hierdurch werden fehlende mex-Funktionen kompiliert.
+        if type == 2 % keine gleichzeitige mex-Kompilierung gleicher Kinematiken erlauben.
+          parroblib_writelock('lock', Names{i}, logical(Set.structures.DoF), 60*60, Set.general.verbosity>2);
+        end
         R.fill_fcn_handles(true, true);
+        if type == 2 % Sperrschutz für PKM aufheben
+          parroblib_writelock('free', Names{i}, logical(Set.structures.DoF));
+        end
         if toc(t_ll) > 20
           fprintf('%d/%d Roboter vom Typ %d auf Existenz der Dateien geprüft. Dauer bis hier: %1.1fs\n', ...
             i, length(Names), type, toc(t1));
@@ -143,7 +151,6 @@ if ~Set.general.regenerate_summmary_only
       end
     end
   end
-  
   resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
   mkdirs(resdir_main); % Ergebnis-Ordner für diese Optimierung erstellen
   t1 = tic();
