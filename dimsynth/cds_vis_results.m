@@ -2,7 +2,17 @@
 % 
 % Eingabe:
 % Set
-%   Einstellungen des Optimierungsalgorithmus
+%   Einstellungen des Optimierungsalgorithmus. Hier insbesondere folgende:
+%   .general.parcomp_plot
+%     Plotten in parfor-Schleife: Geht schneller, aber kein openGL; also
+%     ohne Transparenz-Effekte o.ä.
+%   .general.eval_figures
+%     Auswahl der zu erstellenden Bilder. Siehe Beschreibung unten.
+%   .general.animation_styles
+%     Steuert die zu speichernde Animation (keine, falls leer)
+%   .general.save_animation_file_extensions
+%     Dateiformat der Animation (gif und/oder mp4)
+%   Ansonsten siehe cds_settings_defaults.m.
 % Traj
 %   Trajektorie (bezogen auf Welt-KS)
 % Structures
@@ -10,11 +20,13 @@
 %   Siehe cds_gen_robot_list.m
 % 
 % Erzeugt Bilder:
-% 1: Statistik der Ergebnisse
-% 2, 3: Animation
-% 4: Trägheitsellipsen
-% 5: Gelenkverläufe
-% 6: Zeitauswertung Fitness-Funktion
+% 1: Statistik der Ergebnisse ('histogram')
+% 2, 3: Animation ('animation')
+% 4: Trägheitsellipsen ('robvisu')
+% 5: Gelenkverläufe ('jointtraj')
+% 6: Diverse Auswertungen zur Fitness-Funktion ('fitness_various')
+%    (Daten, die in cds_save_particle_details.m gespeichert werden:
+%    Zeitauswertung, Kondition, Materialbelastung)
 % 
 % Speichert die Bilder für jeden Roboter in einem eigenen Unterordner
 
@@ -82,6 +94,7 @@ parfor (i = 1:length_Structures, parfor_numworkers)
   Traj_0 = cds_rotate_traj(Traj, R.T_W_0);
 
   %% Statistische Verteilung der Ergebnisse aller Generationen
+  if any(strcmp(Set.general.eval_figures, 'histogram')) %#ok<PFBNS>
   t1 = tic();
   Erg_All_Gen = PSO_Detail_Data.fval;
   I_zul = Erg_All_Gen(:) < 1e3;
@@ -104,18 +117,29 @@ parfor (i = 1:length_Structures, parfor_numworkers)
   ylabel('Häufigkeit (abs)');
   title(sprintf('Zulässige Lösungen (%d)', sum(I_zul)));
   
+  % Mehrere Generationen zusammenfassen. Ansonsten benötigt man bei vielen
+  % Generationen teilweise Stunden, bis das Diagramm geplottet ist.
+  n_genc = min(size(Erg_All_Gen,1),19); % max. 30 verschiedene Farben benutzen.
+  nindvirt = ceil(length(Erg_All_Gen(:))/n_genc); % Generationen-Anzahl für Plot zusammenfassen
+  Erg_All_GenT = Erg_All_Gen'; % Transponieren, da Spaltenweise indiziert wird
+  Erg_All_Gen2T = NaN(nindvirt,n_genc);
+  % Trage die Individuen der Reihe nach ein (Generationen stimmen nicht mehr exakt)
+  Erg_All_Gen2T(1:length(Erg_All_Gen(:))) = Erg_All_GenT(:);
+  Erg_All_Gen2 = Erg_All_Gen2T';
+  Erg_All_Gen2 = Erg_All_Gen2(~all(isnan(Erg_All_Gen2),2),:); % Entferne reine NaN-Zeilen
   % Histogramm
   means = (edges(1:end-1)+edges(2:end))/2;
   % Histogramm für einzelne Generationen des PSO erstellen
-  Erg_Zul_Gen_Hist = zeros(size(Erg_All_Gen,1), length(edges)-1);
+  Erg_Zul_Gen_Hist = zeros(size(Erg_All_Gen2,1), length(edges)-1);
   for ii = 1:size(Erg_Zul_Gen_Hist,1)
     for jj = 2:length(edges)
-      Erg_Zul_Gen_Hist(ii,jj-1) = sum((Erg_All_Gen(ii,:) > edges(jj-1)) & (Erg_All_Gen(ii,:) < edges(jj)));
+      Erg_Zul_Gen_Hist(ii,jj-1) = sum((Erg_All_Gen2(ii,:) > edges(jj-1)) & (Erg_All_Gen2(ii,:) < edges(jj)));
     end
   end
 
   % Gestapelte Säulen mit unterschiedlichen Farben plotten
   % Siehe https://de.mathworks.com/matlabcentral/answers/295950-how-can-i-get-a-stacked-bar-graph-with-a-single-bar#comment_516535
+  % TODO: Bessere Lösung seit Matlab R2019b verfügbar?
   subplot(2,2,sprc2no(2,2,2,1));cla;hold on;
   Farben = {};
   color_green = [0, 1, 0];
@@ -149,10 +173,10 @@ parfor (i = 1:length_Structures, parfor_numworkers)
   title(sprintf('Alle Lösungen (%d)', length(I_zul)));
   
   % Histogramm für einzelne Generationen des PSO erstellen
-  Erg_All_Gen_Hist = zeros(size(Erg_All_Gen,1), length(Klassengrenzen_Alle)-1);
+  Erg_All_Gen_Hist = zeros(size(Erg_All_Gen2,1), length(Klassengrenzen_Alle)-1);
   for ii = 1:size(Erg_All_Gen_Hist,1)
     for jj = 2:length(Klassengrenzen_Alle)
-      Erg_All_Gen_Hist(ii,jj-1) = sum((Erg_All_Gen(ii,:) > Klassengrenzen_Alle(jj-1)) & (Erg_All_Gen(ii,:) < Klassengrenzen_Alle(jj)));
+      Erg_All_Gen_Hist(ii,jj-1) = sum((Erg_All_Gen2(ii,:) > Klassengrenzen_Alle(jj-1)) & (Erg_All_Gen2(ii,:) < Klassengrenzen_Alle(jj)));
     end
   end
   subplot(2,2,sprc2no(2,2,2,2));hold on;
@@ -168,25 +192,14 @@ parfor (i = 1:length_Structures, parfor_numworkers)
   xlabel('log(Fitness)');
   ylabel('Häufigkeit (abs)');
   title('Vert. alle Lsg. (nach Gen.)');
-  
-  % Auskommentierte Plots: Nicht sinnvolle Kombinationen Log vs Bereich
-%   subplot(2,2,sprc2no(2,2,1,2)); % Histogramm über alle Lösungen
-%   histogram(Erg_All_Gen(:), Klassengrenzen_Log);
-%   xlabel('fitness');
-%   ylabel('Häufigkeit (abs)');
-%   title(sprintf('Alle Lösungen (%d)', length(I_zul)));
-  
-%   subplot(2,2,sprc2no(2,2,2,1)); % Histogramm über zulässige Lösungen (Log)
-%   histogram(log10(Erg_All_Gen(I_zul)));
-%   xlabel('log(fitness)');
-%   ylabel('Häufigkeit (abs)');
-  
-  
+
   saveas(10*i+1,     fullfile(resrobdir, sprintf('Rob%d_%s_Histogramm.fig', i, Name)));
   export_fig(10*i+1, fullfile(resrobdir, sprintf('Rob%d_%s_Histogramm.png', i, Name)));
   fprintf('%d/%d: Histogramm für %s gespeichert. Dauer: %1.1fs\n', ...
     i, length_Structures, Name, toc(t1));
+  end
   %% Verschiedene Auswertungen
+  if any(strcmp(Set.general.eval_figures, 'fitness_various'))
   t1 = tic();
   figure(10*i+6);clf;
   sgtitle('Diverse Auswertungsbilder');
@@ -230,10 +243,11 @@ parfor (i = 1:length_Structures, parfor_numworkers)
   export_fig(10*i+6, fullfile(resrobdir, sprintf('Rob%d_%s_Population_Fitness.png', i, Name)));
   fprintf('%d/%d: Weitere Auswertungsbilder für %s gespeichert. Dauer: %1.1fs\n', ...
     i, length_Structures, Name, toc(t1));
+  end
   %% Animation des besten Roboters für die Trajektorie
   t1 = tic();
   % Hole Erklärungstext zum Fitness-Wert aus Tabelle
-  fval_text = ResTab.Fval_Text{strcmp(ResTab.Name, Name)};
+  fval_text = ResTab.Fval_Text{strcmp(ResTab.Name, Name)}; %#ok<PFBNS>
   for kk = 1:length(Set.general.animation_styles)
   anim_mode = Set.general.animation_styles{kk}; % Strichzeichnung, 3D-Modell, Kollisionskörper
   figure(10*i+1+kk);clf;hold all;
@@ -317,6 +331,7 @@ parfor (i = 1:length_Structures, parfor_numworkers)
     i, length_Structures, Name, resrobdir, toc(t1));
   end
   %% Zeichnung der Roboters mit Trägheitsellipsen und Ersatzdarstellung
+  if any(strcmp(Set.general.eval_figures, 'robvisu'))
   t1 = tic();
   figure(10*i+4);clf;hold all;
   set(10*i+4, 'Name', sprintf('Rob%d_Visu', i), 'NumberTitle', 'off', 'color','w');
@@ -338,8 +353,9 @@ parfor (i = 1:length_Structures, parfor_numworkers)
   end
   saveas(10*i+4,     fullfile(resrobdir, sprintf('Rob%d_%s_Skizze_Plausib.fig', i, Name)));
   export_fig(10*i+4, fullfile(resrobdir, sprintf('Rob%d_%s_Skizze_Plausib.png', i, Name)));
-  
+  end
   %% Verlauf der Gelenkgrößen für den besten Roboter
+  if any(strcmp(Set.general.eval_figures, 'jointtraj'))
   figure(10*i+5);clf;hold all;
   set(10*i+5, 'Name', sprintf('Rob%d_KinematikZeit', i), 'NumberTitle', 'off', 'color','w');
   if ~strcmp(get(10*i+5, 'windowstyle'), 'docked')
@@ -398,12 +414,11 @@ parfor (i = 1:length_Structures, parfor_numworkers)
   export_fig(10*i+5, fullfile(resrobdir, sprintf('Rob%d_%s_KinematikZeit.png', i, Name)));
   fprintf('%d/%d: Restliche Bilder für %s gespeichert. Dauer: %1.1fs\n', ...
     i, length_Structures, Name, toc(t1));
-  
+  end
+  %% Finalisierung
   if length_Structures > 3
     close all; % schließe alle Bilder wieder. Sonst sind Hunderte Bilder am Ende offen
   end
-  
-  %% Finalisierung
   % Alle Auswertungsbilder wieder schließen. Sonst gibt es eventuell
   % Probleme mit dem Arbeitsspeicher.
   if Set.general.only_save_summary_figures
