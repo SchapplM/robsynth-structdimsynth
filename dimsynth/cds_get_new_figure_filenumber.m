@@ -26,13 +26,13 @@ resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
   'tmp', sprintf('%d_%s', Structure.Number, Structure.Name));
 % Finde die aktuelle Generation anhand der bisher gespeicherten
 % Fitness-Werte heraus. Benutze keine mat-Dateien, sondern persistente Var.
-PSO_Detail_Data = cds_save_particle_details([], [], 0, 0, 0, 0, 'output');
+PSO_Detail_Data = cds_save_particle_details([], [], 0, 0, NaN, NaN, NaN, 'output');
 % In der aktuellen Generation sind Einträge ungleich NaN.
 % Die erste Zeile entspricht der Initial-Population (Generation 0).
-currgen = find(any(~isnan(PSO_Detail_Data.fval),2),1,'last')-1;
+currgen = find(any(~isnan(PSO_Detail_Data.comptime),2),1,'last')-1;
 % Wenn dieses Partikel das erste der aktuellen Generation ist, ist die vor-
 % herige Zeile komplett voll (ungleich NaN)
-if all(~isnan(PSO_Detail_Data.fval(currgen+1,:)))
+if all(~isnan(PSO_Detail_Data.comptime(currgen+1,:)))
   currgen = currgen + 1;
 end
 imgfiles = dir(fullfile(resdir, sprintf('PSO_Gen%02d_FitEval*_%s*',currgen,suffix)));

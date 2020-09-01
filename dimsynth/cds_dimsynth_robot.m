@@ -886,13 +886,13 @@ mkdirs(resdir);
 % Zurücksetzen der gespeicherten Werte (aus vorheriger Maßsynthese)
 clear cds_fitness
 fitnessfcn=@(p)cds_fitness(R, Set, Traj, Structure, p(:));
-f_test = fitnessfcn(InitPop(1,:)'); %#ok<NASGU> % Testweise ausführen
+f_test = fitnessfcn(InitPop(1,:)'); % Testweise ausführen
 if length(Set.optimization.objective) > 1 % Mehrkriteriell (MOPSO geht nur mit vektorieller Fitness-Funktion)
   fitnessfcn_vec=@(P)cds_fitness_vec(R, Set, Traj, Structure, P);
-  f_test = fitnessfcn_vec(InitPop(1:3,:)); %#ok<NASGU> % Testweise ausführen
+  f_test_vec = fitnessfcn_vec(InitPop(1:3,:)); %#ok<NASGU> % Testweise ausführen
 end
 % Zurücksetzen der Detail-Speicherfunktion
-cds_save_particle_details(Set, R, 0, 0, 0, 0, 'reset');
+cds_save_particle_details(Set, R, 0, zeros(size(f_test)), zeros(size(f_test)), 0, 0, 'reset');
 % Zurücksetzen der gespeicherten Werte der Fitness-Funktion
 clear cds_fitness
 %% PSO-Aufruf starten
@@ -928,8 +928,8 @@ else  % PSO wird ganz normal ausgeführt.
 %     cds_log(1, sprintf('[dimsynth] Optimierung beendet. generations=%d, funccount=%d, message: %s', ...
 %       output.generations, output.funccount, output.message));
     % Gleiche das Rückgabeformat zwischen MO und SO Optimierung an.
-    p_val = p_val_pareto(1,:)'; % nehme nur das erste Individuum
-    fval = mean(fval_pareto(1,:)); % gleiche Gewichtung. Willkürlich, damit Code funktioniert.
+    p_val = p_val_pareto(1,:)'; % nehme nur das erste Individuum ...
+    fval = fval_pareto(1,:)'; % ... damit Code funktioniert.
   else % Einkriteriell: PSO
     [p_val,fval,exitflag,output] = particleswarm(fitnessfcn,nvars,varlim(:,1),varlim(:,2),options);
     cds_log(1, sprintf('[dimsynth] Optimierung beendet. iterations=%d, funccount=%d, message: %s', ...
@@ -940,15 +940,30 @@ else  % PSO wird ganz normal ausgeführt.
   end
 end
 % Detail-Ergebnisse extrahieren (persistente Variable in Funktion)
-PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, 0, 0, 'output');
+PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, 'output');
 % Zurücksetzen, damit Neuberechnungen der Fitness-Funktion nicht fehlschlagen
-cds_save_particle_details(Set, R, 0, 0, 0, 0, 'reset');
+cds_save_particle_details(Set, R, 0, zeros(size(f_test)), zeros(size(f_test)), 0, 0, 'reset');
 clear cds_fitness
 if Set.general.matfile_verbosity > 0
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot3.mat'));
 end
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot3.mat'));
 %% Nachverarbeitung der Ergebnisse
+% Finde die physikalischen Parameter der Pareto-Front (dort ansonsten nur
+% normierte und gesättigte Werte gespeichert). Suche in den während der
+% Optimierung gespeicherten Werten (persistente Variablen)
+if length(Set.optimization.objective) > 1
+  physval_pareto = NaN(size(fval_pareto)); % Initialisierung
+  for i = 1:size(fval_pareto,1) % Pareto-Front durchgehen
+    for oc = 1:size(fval_pareto,2) % Gehe alle Optimierungskriterien durch
+      % Variable zum Finden: Dim. 1: Generationen, Dim. 2: Individuen
+      fval_oc = squeeze(PSO_Detail_Data.fval(:,oc,:))';
+      k = find((fval_pareto(i,oc) == fval_oc'), 1, 'first'); % Umrechnen der Indizes
+      [k_ind,k_gen] = ind2sub(fliplr(size(PSO_Detail_Data.comptime)),k);
+      physval_pareto(i,oc) = PSO_Detail_Data.physval(k_ind,oc,k_gen);
+    end
+  end
+end
 
 % Fitness-Funktion nochmal mit besten Parametern aufrufen. Dadurch werden
 % die Klassenvariablen (R.pkin, R.DesPar.seg_par, ...) aktualisiert
@@ -957,17 +972,17 @@ for i = 1:Set.general.max_retry_bestfitness_reconstruction
   % andere Ergebnisse entstehen können.
   % Eigentlich darf sich das Ergebnis aber nicht ändern (wegen der
   % Zufallszahlen-Initialisierung in cds_fitness).
-  fval_test = mean(fitnessfcn(p_val)); % `mean` für mehrkriterielle Optimierung
-  if fval_test~=fval
-    if fval_test < fval
-      t = sprintf('Der neue Wert (%1.1f) ist um %1.1e besser als der alte (%1.1f).', ...
-        fval_test, fval-fval_test, fval);
+  fval_test = fitnessfcn(p_val);
+  if any(fval_test~=fval)
+    if all(fval_test < fval)
+      t = sprintf('Der neue Wert (%s) ist um [%s] besser als der alte (%s).', ...
+        disp_array(fval_test','%1.1f'), disp_array(fval'-fval_test','%1.1e'), disp_array(fval','%1.1f'));
     else
-      t = sprintf('Der alte Wert (%1.1f) ist um %1.1e besser als der neue (%1.1f).', ...
-        fval, fval_test-fval, fval_test);
+      t = sprintf('Der alte Wert (%s) ist um [%s] besser als der neue (%s).', ...
+        disp_array(fval','%1.1f'), disp_array(fval_test'-fval','%1.1e'), disp_array(fval_test','%1.1f'));
     end
     cds_log(-1, sprintf('[dimsynth] Bei nochmaligem Aufruf der Fitness-Funktion kommt nicht der gleiche Wert heraus (Versuch %d). %s', i, t));
-    if fval_test < fval
+    if all(fval_test < fval)
       fval = fval_test;
       cds_log(1,sprintf('[dimsynth] Nehme den besseren neuen Wert als Ergebnis ...'));
       break;
@@ -981,8 +996,21 @@ end
 % die Roboterklasse. Suche dafür den besten Funktionswert in den zusätzlich
 % gespeicherten Daten für die Position des Partikels in dem
 % Optimierungsverfahren
-k = find(fval == PSO_Detail_Data.fval', 1, 'first');
-[dd_optind,dd_optgen] = ind2sub(fliplr(size(PSO_Detail_Data.fval)),k); % Umrechnung in 2D-Indizes: Generation und Individuum
+% % Benutze Variable comptime als Hilfe (Dim.1: Gen., Dim.2: Ind.)
+fval_oc_mask = true(size(PSO_Detail_Data.comptime))';
+for oc = 1:length(fval) % Gehe alle Optimierungskriterien durch
+  % Dim. 1: Generationen, Dim. 2: Individuen
+  fval_oc = squeeze(PSO_Detail_Data.fval(:,oc,:))';
+  % Lasse nur dort eine 1, wo dieses Zielkriterium exakt den als
+  % Endergebnis der Optimierung gefundenen Wert hat.
+  fval_oc_mask = fval_oc_mask & (fval(oc) == fval_oc');
+end
+k = find(fval_oc_mask, 1, 'first'); % Umrechnen der Indizes
+[dd_optind,dd_optgen] = ind2sub(fliplr(size(PSO_Detail_Data.comptime)),k); % Umrechnung in 2D-Indizes: Generation und Individuum
+% Probe der Indizes: Wird damit der gesuchte Wert wiedergefunden?
+if any(PSO_Detail_Data.fval(dd_optind,:,dd_optgen)' ~= fval)
+  error('Umrechnung der Indizes zum Finden der Zwischenergebnisse hat nicht funktioniert. Logik-Fehler.');
+end
 q0_ik = PSO_Detail_Data.q0_ik(dd_optind,:,dd_optgen)';
 
 % Prüfen, ob diese mit den im Optimierungsprozess gespeicherten IK-Anfangs-
@@ -991,7 +1019,7 @@ if Structure.Type == 0, q0_ik2 = R.qref;
 else,                   q0_ik2 = cat(1,R.Leg.qref); end
 test_q0 = q0_ik - q0_ik2;
 test_q0(abs(abs(test_q0)-2*pi)<1e-6) = 0; % entferne 2pi-Fehler
-if any(test_q0~=0) && fval<1e9 % nur bei erfolgreicher Berechnung der IK ist der gespeicherte Wert sinnvoll
+if any(test_q0~=0) && all(fval<1e9) % nur bei erfolgreicher Berechnung der IK ist der gespeicherte Wert sinnvoll
   cds_log(-1, sprintf('[dimsynth] IK-Anfangswinkeln sind bei erneuter Berechnung anders. Darf nicht passieren. max. Abweichung: %1.2e.', max(abs(test_q0))));
 end
 % Berechne Inverse Kinematik zu erstem Bahnpunkt
@@ -1047,7 +1075,7 @@ if R.Type ~= 0 % für PKM
 end
 if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   % Masseparameter belegen, falls das nicht vorher passiert ist.
-  if fval > 1e3 ...% irgendeine Nebenbedingung wurde immer verletzt. ...
+  if any(fval > 1e3) ...% irgendeine Nebenbedingung wurde immer verletzt. ...
       || length(intersect(Set.optimization.objective, {'condition', 'jointrange'}))==2 % ... oder rein kinematische Zielfunktion ...
     cds_dimsynth_design(R, Q, Set, Structure); % ...  Daher nie bis zu diesem Funktionsaufruf gekommen.
   end
@@ -1122,6 +1150,7 @@ RobotOptRes = struct( ...
   'R', R, ... % Roboter-Klasse
   'p_val', p_val, ... % Parametervektor der Optimierung
   'fval_pareto', fval_pareto, ... % Alle Fitness-Werte der Pareto-Front
+  'physval_pareto', physval_pareto, ... % physikalische Werte dazu
   'p_val_pareto', p_val_pareto, ... % Alle Parametervektoren der P.-Front
   'I_fval_pareto_obj_all', I_fval_pareto_obj_all, ... % Zuordnung der Pareto-Fitness-Einträge zu fval_obj_all
   'p_limits', varlim, ... % Grenzen für die Parameterwerte
