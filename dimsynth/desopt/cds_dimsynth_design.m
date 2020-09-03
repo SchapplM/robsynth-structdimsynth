@@ -124,10 +124,19 @@ else
 end
 %% Strukturteile
 % Länge von Schubgelenken herausfinden
+q_minmax = NaN(R.NJ, 2);
+q_minmax(R.MDH.sigma==1,:) = minmax2(Q(:,R.MDH.sigma==1)');
 if Structure.Type == 0 % Seriell
-  q_range = diff(minmax2(Q')')';
+  q_range = diff(q_minmax')';
 else  % Parallel (symmetrisch)
-  q_range = diff(minmax2(Q(:,R.I_qa)')')';
+  % Siehe cds_update_collbodies; nehme eine identische Führungsschiene
+  % aller PKM-Beinketten an, auch wenn die Bewegung nicht symmetrisch ist.
+  q_minmax_sym = q_minmax(R.I1J_LEG(1):R.I2J_LEG(1),:);
+  % Grenzen durch Min-/Max-Werte aller Beinketten finden
+  for i = 2:R.NLEG
+    q_minmax_sym = minmax2([q_minmax_sym, q_minmax(R.I1J_LEG(i):R.I2J_LEG(i),:)]);
+  end
+  q_range = diff(q_minmax_sym')';
 end
 % Dynamikparameter initialisieren:
 % Segmente des Roboters
@@ -377,24 +386,34 @@ if desopt_debug
   sphdl = NaN(2,3);
   for i = 1:6
     sphdl(i) = subplot(2,3,i);
-    if R.Type == 0
-      I_pi = 1:R.NL;
-    else
-      I_pi = [2:R.NQJ_LEG_bc+1,length(m_ges)];
-    end
     s = struct('mode', 3, 'ks', 1:R.NJ, 'straight', false);
-    switch i
-      case 1, R.update_dynpar2(m_ges_Link(I_pi,:), mrS_ges_Link(I_pi,:), If_ges_Link(I_pi,:)); t='Link';
-      case 2, R.update_dynpar2(m_ges_PStator(I_pi,:), mrS_ges_PStator(I_pi,:), If_ges_PStator(I_pi,:)); t='PStator';
-      case 3, R.update_dynpar2(m_ges_PAbtrieb(I_pi,:), mrS_ges_PAbtrieb(I_pi,:), If_ges_PAbtrieb(I_pi,:)); t='PAbtrieb';
-      case 4, R.update_dynpar2(m_ges_Zus(I_pi,:), mrS_ges_Zus(I_pi,:), If_ges_Zus(I_pi,:)); t='Zus';
-      case 5, R.update_dynpar2(m_ges(I_pi,:), mrS_ges(I_pi,:), If_ges(I_pi,:)); t='Gesamt';
+    % Setze in die Roboterklasse nach und nach die einzelnen Komponenten
+    % der Dynamikparameter ein und plotte jeweils. Am Ende Gesamt-Parameter
+    % einsetzen (damit keine Beeinflussung folgender Berechnungen)
+    switch i % Spalten für ID_ges_i: Masse, Schwerpunkt, Trägheitstensor
+      case 1, ID_ges_i = [m_ges_Link,    mrS_ges_Link,    If_ges_Link];    t='Link';
+      case 2, ID_ges_i = [m_ges_PStator, mrS_ges_PStator, If_ges_PStator]; t='PStator';
+      case 3, ID_ges_i = [m_ges_PAbtrieb,mrS_ges_PAbtrieb,If_ges_PAbtrieb];t='PAbtrieb';
+      case 4, ID_ges_i = [m_ges_Zus,     mrS_ges_Zus,     If_ges_Zus];     t='Zus';
+      case 5, ID_ges_i = [m_ges,         mrS_ges,         If_ges];         t='Gesamt';
       case 6, t='Ersatzgeometrie'; s=struct('mode', 4);
     end
-    if R.Type == 0
+    if R.Type == 0 % Seriell
+      R.update_dynpar2(ID_ges_i(:,1), ID_ges_i(:,2:4), ID_ges_i(:,5:10));
+    else % PKM
+      ID_ges_i_pkm = [ID_ges_i(2:end-1,:); zeros(1,10); ID_ges_i(end,:)];
+      R.update_dynpar2(ID_ges_i_pkm(:,1), ID_ges_i_pkm(:,2:4), ID_ges_i_pkm(:,5:10));
+    end
+    if R.Type == 0 % Seriell
       R.plot(Q(1,:)', s);
-    else
-      R.plot(Q(1,:)', Traj_0.X(1,:)', s);
+    else % PKM
+      % Pose der Plattform berechnen (steht in dieser Funktion nicht zur
+      % Verfügung, da nicht zur Berechnung benötigt).
+      T_0A1 = R.Leg(1).T_W_0;
+      T_A1E1 = R.Leg(1).fkineEE(Q(1,R.I1J_LEG(1):R.I2J_LEG(1))');
+      T_P_B1 = rt2tr(eulxyz2r(R.phi_P_B_all(:,1)), R.r_P_B_all(:,1));
+      x = R.t2x(T_0A1*T_A1E1*invtr(T_P_B1)*R.T_P_E);
+      R.plot(Q(1,:)', x, s);
     end
     title(t); xlabel('x');ylabel('y');zlabel('z'); view([0,90]);
   end
