@@ -952,8 +952,8 @@ end
 % Finde die physikalischen Parameter der Pareto-Front (dort ansonsten nur
 % normierte und gesättigte Werte gespeichert). Suche in den während der
 % Optimierung gespeicherten Werten (persistente Variablen)
-if length(Set.optimization.objective) > 1
-  physval_pareto = NaN(size(fval_pareto)); % Initialisierung
+if length(Set.optimization.objective) > 1 % Mehrkriteriell
+  physval_pareto = NaN(size(fval_pareto));
   for i = 1:size(fval_pareto,1) % Pareto-Front durchgehen
     for oc = 1:size(fval_pareto,2) % Gehe alle Optimierungskriterien durch
       % Variable zum Finden: Dim. 1: Generationen, Dim. 2: Individuen
@@ -963,6 +963,8 @@ if length(Set.optimization.objective) > 1
       physval_pareto(i,oc) = PSO_Detail_Data.physval(k_ind,oc,k_gen);
     end
   end
+else % Einkriteriell
+  physval_pareto = [];
 end
 
 % Fitness-Funktion nochmal mit besten Parametern aufrufen. Dadurch werden
@@ -1075,8 +1077,10 @@ if R.Type ~= 0 % für PKM
 end
 if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   % Masseparameter belegen, falls das nicht vorher passiert ist.
+  % Nachbildung der Bedingungen für Belegung der Masseparameter in cds_fitness.m
   if any(fval > 1e3) ...% irgendeine Nebenbedingung wurde immer verletzt. ...
-      || length(intersect(Set.optimization.objective, {'condition', 'jointrange'}))==2 % ... oder rein kinematische Zielfunktion ...
+      || length(intersect(Set.optimization.objective, {'condition', 'jointrange'}))==2 ...% ... oder mehrkriteriell und nur kinematische Zielfunktionen ...
+      || length(Set.optimization.objective) == 1 && any(strcmp(Set.optimization.objective, {'condition', 'jointrange'})) % ... oder einkriteriell und kinematische ZF
     cds_dimsynth_design(R, Q, Set, Structure); % ...  Daher nie bis zu diesem Funktionsaufruf gekommen.
   end
   data_dyn = cds_obj_dependencies(R, Traj_0, Set, Structure_tmp, Q, QD, QDD, Jinv_ges);
