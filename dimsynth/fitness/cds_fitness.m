@@ -86,15 +86,17 @@ else
   end
 end
 
-% Gelenkgrenzen in Roboterklasse neu eintragen
+% Gelenkgrenzen für Schubgelenke in Roboterklasse neu eintragen.
+% Für Drehgelenke keine Aktualisierung notwendig (wird nicht benutzt).
 % Nutzen: Berechnung der Masse von Führungsschienen und Hubzylindern,
 % Anpassung der Kollisionskörper (für nachgelagerte Prüfung und Plots)
 % Bereits hier, damit Ergebnis-Visualisierung konsistent ist.
 if R.Type == 0 % Seriell
-  R.qlim = minmax2(Q');
+  R.qlim(:,R.MDH.sigma==1) = minmax2(Q(:,R.MDH.sigma==1)');
 else % PKM
   for i = 1:R.NLEG
-    R.Leg(i).qlim = minmax2(Q(:,R.I1J_LEG(i):R.I2J_LEG(i))');
+    Q_i = Q(:,R.I1J_LEG(i):R.I2J_LEG(i));
+    R.Leg(i).qlim(R.Leg(i).MDH.sigma==1,:) = minmax2(Q_i(:,R.Leg(i).MDH.sigma==1)');
   end
 end
 
