@@ -43,7 +43,7 @@ for i = 1:length(Structures)
   tmp = load(resfile, 'RobotOptRes', 'Set', 'Traj', 'PSO_Detail_Data');
   % Text zu Optimierungsergebnis (insbes. Ausschlussgrund). Siehe
   % cds_vis_results, cds_constraints, cds_fitness
-  f = tmp.RobotOptRes.fval;
+  f = mean(tmp.RobotOptRes.fval); % Falls mehrkriteriell abfangen mit `mean`
   if f < 1e3,     fval_text = 'i.O.';
   elseif f < 1e4, fval_text = 'NB-Verl. Zielf.';
   elseif f < 1e5, fval_text = 'NB-Verl. Zielf. EO';
@@ -71,7 +71,7 @@ for i = 1:length(Structures)
   Row_i = {i, Name, Structure.Type, ...
     datestr(tmp.RobotOptRes.timestamps_start_end(1),'dd.mm.yyyy HH:MM:SS'), ...
     datestr(tmp.RobotOptRes.timestamps_start_end(2),'dd.mm.yyyy HH:MM:SS'), ...
-    tmp.RobotOptRes.timestamps_start_end(3), tmp.RobotOptRes.fval, fval_text};
+    tmp.RobotOptRes.timestamps_start_end(3), f, fval_text};
   % Hole andere Zielfunktionen aus den Ergebnissen
   for ii = 1:6
     Row_i = [Row_i, {tmp.RobotOptRes.fval_obj_all(ii), tmp.RobotOptRes.physval_obj_all(ii)}]; %#ok<AGROW>
@@ -82,8 +82,8 @@ for i = 1:length(Structures)
   % Überschreitung der Materialspannung
   Row_i = [Row_i, {tmp.RobotOptRes.fval_constr_all}]; %#ok<AGROW>
   % Weitere Daten
-  num_succ = sum(tmp.PSO_Detail_Data.fval(:) < 1e3);
-  num_fail = sum(tmp.PSO_Detail_Data.fval(:) >= 1e3);
+  num_succ = sum(tmp.PSO_Detail_Data.fval_mean(:) < 1e3);
+  num_fail = sum(tmp.PSO_Detail_Data.fval_mean(:) >= 1e3);
   comptime_sum = sum(tmp.PSO_Detail_Data.comptime(~isnan(tmp.PSO_Detail_Data.comptime(:))));
   Row_i = [Row_i, {num_succ, num_fail, comptime_sum}]; %#ok<AGROW>
   % Datenzeile anhängen

@@ -29,7 +29,12 @@ for subconf = fields(Set_default)'
     end
   end
 end
-if Set.task.profile == 0 && strcmp(Set.optimization.objective, 'energy')
+if isa(Set.optimization.objective, 'char')
+  % Bei mehrkriterieller Optimierung mehrere Zielfunktionsnamen als cell.
+  % Einheitliches Format für Ein- und Mehrkriteriell.
+  Set.optimization.objective = {Set.optimization.objective};
+end
+if Set.task.profile == 0 && any(strcmp(Set.optimization.objective, 'energy'))
   error('Energieberechnung ohne Zeitverlauf der Trajektorie nicht sinnvoll');
 end
 
