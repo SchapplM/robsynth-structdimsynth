@@ -53,7 +53,7 @@ if isempty(abort_fitnesscalc)
 elseif abort_fitnesscalc
   fval(:) = Inf;
   cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. Bereits anderes Gut-Partikel berechnet.', toc(t1), fval));
-  cds_save_particle_details(Set, R, toc(t1), fval, physval, Jcond, f_maxstrengthviol);
+  cds_save_particle_details(Set, R, toc(t1), fval, p, physval, Jcond, f_maxstrengthviol);
   return;
 end
 %% Parameter prüfen
@@ -102,7 +102,7 @@ end
 
 if fval_constr > 1000 % Nebenbedingungen verletzt.
   cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval(1), constrvioltext));
-  cds_save_particle_details(Set, R, toc(t1), fval, physval, Jcond, f_maxstrengthviol);
+  cds_save_particle_details(Set, R, toc(t1), fval, p, physval, Jcond, f_maxstrengthviol);
   return
 end
 % Prüfe Validität der Jacobi (nur für PKM)
@@ -129,7 +129,7 @@ if Set.optimization.constraint_obj(4) > 0 % NB für Kondition gesetzt
     cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval(1), debug_info);
     constrvioltext = sprintf('Konditionszahl ist zu schlecht: %1.1e > %1.1e', Jcond, Set.optimization.constraint_obj(4));
     cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval(1), constrvioltext));
-    cds_save_particle_details(Set, R, toc(t1), fval, physval, Jcond, f_maxstrengthviol);
+    cds_save_particle_details(Set, R, toc(t1), fval, p, physval, Jcond, f_maxstrengthviol);
     return
   end
 end
@@ -158,7 +158,7 @@ if ~isempty(intersect(Set.optimization.objective, {'energy', 'mass', 'actforce',
       cds_fitness_debug_plot_robot(R, zeros(R.NJ,1), Traj_0, Traj_W, Set, Structure, p, fval(1), debug_info);
       constrvioltext = 'Verletzung der Nebenbedingungen in Entwurfsoptimierung';
       cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval(1), constrvioltext));
-      cds_save_particle_details(Set, R, toc(t1), fval, physval, Jcond, f_maxstrengthviol);
+      cds_save_particle_details(Set, R, toc(t1), fval, p, physval, Jcond, f_maxstrengthviol);
       return
     end
   end
@@ -192,7 +192,7 @@ if Set.optimization.constraint_link_yieldstrength > 0 && ~Set.optimization.use_d
   elseif fval_ys>1e4
     fval(:) = 10*fval_ys; % Bringe in Bereich 1e5 ... 1e6
     cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval(1), constrvioltext_ys));
-    cds_save_particle_details(Set, R, toc(t1), fval, physval, Jcond, f_maxstrengthviol);
+    cds_save_particle_details(Set, R, toc(t1), fval, p, physval, Jcond, f_maxstrengthviol);
     return
   end
 end
@@ -218,7 +218,7 @@ if Set.optimization.constraint_obj(3) > 0 % NB für Antriebskraft gesetzt
     cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval(1), debug_info);
     constrvioltext = sprintf('Antriebskraft zu hoch: %1.1e > %1.1e', tau_a_max, Set.optimization.constraint_obj(3));
     cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval(1), constrvioltext));
-    cds_save_particle_details(Set, R, toc(t1), fval, physval, Jcond, f_maxstrengthviol);
+    cds_save_particle_details(Set, R, toc(t1), fval, p, physval, Jcond, f_maxstrengthviol);
     return
   end
 end
@@ -283,5 +283,5 @@ end
 cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=[%s]. Erfolgreich. %s', ...
   toc(t1), disp_array(fval', '%1.3e'), fval_debugtext(2:end)));
 cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, mean(fval), debug_info);
-cds_save_particle_details(Set, R, toc(t1), fval, physval, Jcond, f_maxstrengthviol);
+cds_save_particle_details(Set, R, toc(t1), fval, p, physval, Jcond, f_maxstrengthviol);
 rng('shuffle'); % damit Zufallszahlen in anderen Funktionen zufällig bleiben

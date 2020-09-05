@@ -892,7 +892,8 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell (MOPSO geht nur mit v
   f_test_vec = fitnessfcn_vec(InitPop(1:3,:)); %#ok<NASGU> % Testweise ausführen
 end
 % Zurücksetzen der Detail-Speicherfunktion
-cds_save_particle_details(Set, R, 0, zeros(size(f_test)), zeros(size(f_test)), 0, 0, 'reset');
+cds_save_particle_details(Set, R, 0, zeros(size(f_test)), zeros(nvars,1), ...
+  zeros(size(f_test)), 0, 0, 'reset');
 % Zurücksetzen der gespeicherten Werte der Fitness-Funktion
 clear cds_fitness
 %% PSO-Aufruf starten
@@ -940,9 +941,10 @@ else  % PSO wird ganz normal ausgeführt.
   end
 end
 % Detail-Ergebnisse extrahieren (persistente Variable in Funktion)
-PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, 'output');
+PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, NaN, 'output');
 % Zurücksetzen, damit Neuberechnungen der Fitness-Funktion nicht fehlschlagen
-cds_save_particle_details(Set, R, 0, zeros(size(f_test)), zeros(size(f_test)), 0, 0, 'reset');
+cds_save_particle_details(Set, R, 0, zeros(size(f_test)), zeros(length(p_val),1), ...
+  zeros(size(f_test)), 0, 0, 'reset');
 clear cds_fitness
 if Set.general.matfile_verbosity > 0
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot3.mat'));

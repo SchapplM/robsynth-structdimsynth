@@ -10,6 +10,8 @@
 %   Rechenzeit in s nach Beginn des Fitnessfunktion-Aufrufs
 % fval
 %   Güte-Wert für aktuellen Parametersatz. Kann skalar oder vektoriell sein.
+% pval
+%   Vektor der Optimierungsvariablen für PSO
 % physval
 %   Physikalischer Wert für alle Zielfunktionswerte aus fval. Dient der
 %   späteren vereinfachten Auswertung.
@@ -32,7 +34,8 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function PSO_Detail_Data_output = cds_save_particle_details(Set, R, comptime, fval, physval, Jcond, f_maxstrengthviol, option)
+function PSO_Detail_Data_output = cds_save_particle_details(Set, R, comptime, ...
+  fval, pval, physval, Jcond, f_maxstrengthviol, option)
 if isnan(comptime) || any(isnan(fval))
   error('Rechenzeit darf nicht NaN sein');
 end
@@ -40,7 +43,7 @@ end
 persistent PSO_Detail_Data
 PSO_Detail_Data_output = [];
 % Eingabe verarbeiten
-if nargin < 8
+if nargin < 9
   option = 'iter';
 end
 if strcmp(option, 'output')
@@ -57,6 +60,7 @@ if isempty(PSO_Detail_Data) || strcmp(option, 'reset')
     'comptime', NaN(size_data), ...
     'fval_mean', NaN(size_data), ...
     'fval', NaN(size_data(2), length(fval), size_data(1)), ...
+    'pval', NaN(size_data(2), length(pval), size_data(1)), ...
     'physval', NaN(size_data(2), length(fval), size_data(1)), ...
     'Jcond', NaN(size_data), ...
     'f_maxstrengthviol', NaN(size_data), ...
@@ -75,6 +79,7 @@ k=find(isnan(data_transp(:)), 1, 'first'); % 1D-Index in Matrix
 PSO_Detail_Data.comptime(i,j) = comptime; % Rechenzeit
 PSO_Detail_Data.fval_mean(i,j) = mean(fval); % Mittelwert für mehrkriterielle Optimierung
 PSO_Detail_Data.fval(j,:,i) = fval; % vollständiger Vektor bei mehrkriteriell
+PSO_Detail_Data.pval(j,:,i) = pval; % Parametersatz zu fval
 PSO_Detail_Data.physval(j,:,i) = physval; % physikalische Werte zu fval (ohne Sättigung/Normierung)
 PSO_Detail_Data.Jcond(i,j) = Jcond; % Konditionszahl
 PSO_Detail_Data.f_maxstrengthviol(i,j) = f_maxstrengthviol; % Materialbelastung
