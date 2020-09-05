@@ -861,6 +861,9 @@ else % Einkriteriell mit PSO
     % Es soll nur geprüft werden, ob es eine zulässige Lösung gibt.
     % Breche bei einer erfolgreichen Berechnung der Zulässigkeit ab.
     options.ObjectiveLimit = 999;
+  elseif Set.optimization.obj_limit > 0
+    % Die Grenze zum Abbbruch wurde vom Nutzer gesetzt
+    options.ObjectiveLimit = Set.optimization.obj_limit;
   end
   options.InitialSwarmMatrix = InitPop;
   if ~Set.general.noprogressfigure

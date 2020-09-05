@@ -52,7 +52,8 @@ if isempty(abort_fitnesscalc)
   abort_fitnesscalc = false;
 elseif abort_fitnesscalc
   fval(:) = Inf;
-  cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. Bereits anderes Gut-Partikel berechnet.', toc(t1), fval));
+  cds_log(2,sprintf(['[fitness] Fitness-Evaluation in %1.1fs. fval=[%s]. ', ...
+    'Bereits anderes Gut-Partikel berechnet.'], toc(t1), disp_array(fval', '%1.3e')));
   cds_save_particle_details(Set, R, toc(t1), fval, p, physval, Jcond, f_maxstrengthviol);
   return;
 end
@@ -280,6 +281,13 @@ end
 if any(fval>1e3)
   error('Zielfunktion "%s" nicht definiert', Set.optimization.objective{fval>1e3});
 end
+if all(fval <= Set.optimization.obj_limit) || ...
+   all(physval <= Set.optimization.obj_limit_physval)
+  % Die Fitness-Funktion ist besser als die Grenze. Optimierung kann
+  % hiernach beendet werden.
+  abort_fitnesscalc = true;
+end
+
 cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=[%s]. Erfolgreich. %s', ...
   toc(t1), disp_array(fval', '%1.3e'), fval_debugtext(2:end)));
 cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, mean(fval), debug_info);

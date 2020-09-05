@@ -37,7 +37,19 @@ end
 if Set.task.profile == 0 && any(strcmp(Set.optimization.objective, 'energy'))
   error('Energieberechnung ohne Zeitverlauf der Trajektorie nicht sinnvoll');
 end
-
+% Prüfe Plausibilität von Abbruchbedingungen und Wahl mehrkriterieller Ziele
+if length(Set.optimization.objective) ~= length(Set.optimization.obj_limit_physval) && ...
+    length(Set.optimization.obj_limit_physval) ~= 1 || ... % Skalare Grenze von Null ist Standard (kein Fehler)
+  length(Set.optimization.obj_limit_physval) == 1 && Set.optimization.obj_limit_physval ~= 0
+  error('%d Zielfunktionen gesetzt und %d Abbruchbedingungen in obj_limit_physval. Passt nicht.', ...
+    length(Set.optimization.objective), length(Set.optimization.obj_limit_physval));
+end
+if length(Set.optimization.objective) ~= length(Set.optimization.obj_limit) && ...
+    length(Set.optimization.obj_limit) ~= 1 || ...
+  length(Set.optimization.obj_limit) == 1 && Set.optimization.obj_limit~=0
+  error('%d Zielfunktionen gesetzt und %d Abbruchbedingungen in obj_limit. Passt nicht.', ...
+    length(Set.optimization.objective), length(Set.optimization.obj_limit));
+end
 % Menge der Roboter laden
 Structures = cds_gen_robot_list(Set);
 
