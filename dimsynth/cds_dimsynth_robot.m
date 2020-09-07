@@ -1034,7 +1034,7 @@ if any(test_q0~=0) && all(fval<1e9) % nur bei erfolgreicher Berechnung der IK is
   cds_log(-1, sprintf('[dimsynth] IK-Anfangswinkeln sind bei erneuter Berechnung anders. Darf nicht passieren. max. Abweichung: %1.2e.', max(abs(test_q0))));
 end
 % Berechne Inverse Kinematik zu erstem Bahnpunkt
-Traj_0 = cds_rotate_traj(Traj, R.T_W_0);
+Traj_0 = cds_transform_traj(R, Traj);
 if Structure.Type == 0 % Seriell
   % Benutze Referenzpose die bei obigen Zielfunktionsaufruf gespeichert wurde
   [q, Phi] = R.invkin2(Traj_0.XE(1,:)', R.qref);

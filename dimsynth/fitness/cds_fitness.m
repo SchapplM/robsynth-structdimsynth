@@ -68,7 +68,7 @@ end
 cds_update_robot_parameters(R, Set, Structure, p);
 
 %% Trajektorie anpassen
-Traj_0 = cds_rotate_traj(Traj_W, R.T_W_0);
+Traj_0 = cds_transform_traj(R, Traj_W);
 
 %% Nebenbedingungen prüfen
 % NB-Verletzung wird in Ausgabe mit Werten von 1e3 aufwärts angegeben.

@@ -93,7 +93,7 @@ parfor (i = 1:length_Structures, parfor_numworkers)
     parroblib_addtopath({Name});
   end
   Q = RobotOptRes.Traj_Q;
-  Traj_0 = cds_rotate_traj(Traj, R.T_W_0);
+  Traj_0 = cds_transform_traj(R, Traj);
   if all(RobotOptRes.fval > 1e3) % NB verletzt. Es gibt nur ein Kriterium
     fval_str = sprintf('%1.3e', RobotOptRes.fval(1));
   elseif length(RobotOptRes.fval) == 1 % Einkriteriell
