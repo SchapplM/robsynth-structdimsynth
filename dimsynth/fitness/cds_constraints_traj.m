@@ -136,15 +136,10 @@ if any(strcmp(Set.optimization.objective, 'valid_act')) && R.Type ~= 0 % nur sin
   end
 end
 %% Prüfe, ob die Gelenkwinkelgrenzen verletzt werden
-Q_korr = [Q; Q(end,:)];
-% Berücksichtige Sonderfall des erten Schubgelenks bei der Bestimmung der
-% Gelenkposition-Spannweite für PKM (s.o.)
-if R.Type == 2
-  Q_korr(end,Structure.I_firstprismatic) = 0;
-end
+% Gleiche Prüfung wie in cds_constraints.m
 q_range_T = NaN(1, R.NJ);
-q_range_T(R.MDH.sigma==1) = diff(minmax2(Q_korr(:,R.MDH.sigma==1)')');
-q_range_T(R.MDH.sigma==0) = angle_range(Q(:,R.MDH.sigma==0));
+q_range_T(R.MDH.sigma==1) = diff(minmax2(Q(:,R.MDH.sigma==1)')');
+q_range_T(R.MDH.sigma==0) = angle_range( Q(:,R.MDH.sigma==0));
 qlimviol_T = (qlim(:,2)-qlim(:,1))' - q_range_T;
 I_qlimviol_T = (qlimviol_T < 0);
 if any(I_qlimviol_T)
