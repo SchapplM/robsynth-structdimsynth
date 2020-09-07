@@ -271,7 +271,7 @@ if ~isempty(Set.task.obstacles.type)
     fval = fval_obstcoll_traj; % Normierung auf 1e3 bis 2e3 -> bereits in Funktion
     constrvioltext = sprintf(['Arbeitsraum-Kollision in %d/%d Traj.-Punkten. ', ...
       'Schlimmstenfalls %1.1f mm in Kollision.'], sum(any(coll_obst_traj,2)), ...
-      size(coll_obst,1), f_constr_obstcoll_traj);
+      size(coll_obst_traj,1), f_constr_obstcoll_traj);
     return
   end
 end
