@@ -178,7 +178,7 @@ for iIKC = 1:size(Q0,1)
   % IK-Konfiguration benutzt werden. Ansonsten beeinflussen die Läufe sich
   % gegenseitig
   if R.Type == 0 % Seriell
-    R.qlim(:,R.MDH.sigma==1) = minmax2(Q(:,R.MDH.sigma==1)');
+    R.qlim(R.MDH.sigma==1,:) = minmax2(Q(:,R.MDH.sigma==1)');
   else % PKM
     for i = 1:R.NLEG
       Q_i = Q(:,R.I1J_LEG(i):R.I2J_LEG(i));
@@ -370,7 +370,7 @@ else
 end
 % Erneutes Eintragen der Gelenkgrenzen (so.o)
 if R.Type == 0 % Seriell
-  R.qlim(:,R.MDH.sigma==1) = minmax2(Q_iIKC(:,R.MDH.sigma==1, iIKC)');
+  R.qlim(R.MDH.sigma==1,:) = minmax2(Q_iIKC(:,R.MDH.sigma==1, iIKC)');
 else % PKM
   for i = 1:R.NLEG
     Q_i = Q_iIKC(:,R.I1J_LEG(i):R.I2J_LEG(i), iIKC);
