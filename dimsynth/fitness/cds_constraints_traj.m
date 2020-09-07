@@ -248,7 +248,6 @@ if Set.optimization.constraint_collisions
     fval = fval_coll_traj; % Normierung auf 3e3 bis 4e3 -> bereits in Funktion
     constrvioltext = sprintf('Kollision in %d/%d Traj.-Punkten.', ...
       sum(any(coll_traj,2)), size(coll_traj,1));
-    Q = QE; % Ausgabe dient nur zum Zeichnen des Roboters
     return
   end
 end
@@ -261,7 +260,6 @@ if ~isempty(Set.task.installspace.type)
     fval = fval_instspc_traj; % Normierung auf 2e3 bis 3e3 -> bereits in Funktion
     constrvioltext = sprintf(['Verletzung des zulässigen Bauraums in Traj.', ...
       'Schlimmstenfalls %1.1f mm draußen.'], 1e3*f_constrinstspc_traj);
-    Q = QE; % Ausgabe dient nur zum Zeichnen des Roboters
     return
   end
 end
@@ -274,7 +272,6 @@ if ~isempty(Set.task.obstacles.type)
     constrvioltext = sprintf(['Arbeitsraum-Kollision in %d/%d Traj.-Punkten. ', ...
       'Schlimmstenfalls %1.1f mm in Kollision.'], sum(any(coll_obst_traj,2)), ...
       size(coll_obst,1), f_constr_obstcoll_traj);
-    Q = QE; % Ausgabe dient nur zum Zeichnen des Roboters
     return
   end
 end
