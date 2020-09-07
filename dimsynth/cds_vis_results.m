@@ -161,7 +161,7 @@ parfor (i = 1:length_Structures, parfor_numworkers)
     for j = 1:size(Erg_Zul_Gen_Hist,1)
       set(legbarhdl(j), 'EdgeColor', 'none', 'FaceColor', Farben{j});
     end
-    if ii == size(Erg_Zul_Gen_Hist,2) % letzte Iteration. Trage Legende ein
+    if ii == size(Erg_Zul_Gen_Hist,2) && length(legbarhdl)>3 % letzte Iteration. Trage Legende ein
       legend(legbarhdl([1,2,3,end]), {'Gen. 1', 'Gen. 2', '...', 'Letzte Gen.'});
     end
   end

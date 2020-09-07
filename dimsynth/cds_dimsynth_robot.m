@@ -888,7 +888,11 @@ mkdirs(resdir);
 %% Fitness-Funktion initialisieren (Strukturunabhängig)
 % Zurücksetzen der gespeicherten Werte (aus vorheriger Maßsynthese)
 clear cds_fitness
-fitnessfcn=@(p)cds_fitness(R, Set, Traj, Structure, p(:));
+% Initialisierung der Speicher-Funktion (damit testweises Ausführen funk- 
+% tioniert; sonst teilw. Fehler im Debug-Modus durch Zugriff auf Variablen)
+cds_save_particle_details(Set, R, 0, zeros(length(Set.optimization.objective),1), ...
+  zeros(nvars,1), zeros(length(Set.optimization.objective),1), 0, 0, 'reset');
+fitnessfcn=@(p)cds_fitness(R, Set, Traj, Structure, p(:)); % Definition der Funktion
 f_test = fitnessfcn(InitPop(1,:)'); % Testweise ausführen
 if length(Set.optimization.objective) > 1 % Mehrkriteriell (MOPSO geht nur mit vektorieller Fitness-Funktion)
   fitnessfcn_vec=@(P)cds_fitness_vec(R, Set, Traj, Structure, P);
