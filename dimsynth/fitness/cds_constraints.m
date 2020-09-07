@@ -402,12 +402,21 @@ end % Schleife über IK-Konfigurationen
 [fval, jic_best] = min(fval_jic);
 constrvioltext = constrvioltext_jic{jic_best};
 
-I_iO = (fval_jic == 1e3);
+I_iO = find(fval_jic == 1e3);
 if ~any(I_iO) % keine gültige Lösung für Eckpunkte
   Q0 = Q_jic(1,:,jic_best); % Gebe nur eine einzige Konfiguration aus
   QE_all = Q_jic(:,:,jic_best);
 else % Gebe alle gültigen Lösungen aus
-  Q0 = reshape(squeeze(Q_jic(1,:,I_iO)),R.NJ,sum(I_iO))';
+  Q0 = reshape(squeeze(Q_jic(1,:,I_iO)),R.NJ,length(I_iO))';
+  % Falls der Roboter Schubgelenke hat, dominiert die Stellung der
+  % Schubgelenke die Eigenschaften durch die IK-Konfiguration. Nehme nur
+  % bezüglich der Schubgelenke unterschiedliche Konfigurationen. Sonst ist
+  % der Rechenaufwand zu hoch. TODO: Feinere Unterscheidung für 3T3R-PKM
+  if any(R.MDH.sigma==1)
+    [~,I,~] = unique(round(Q0(:,R.MDH.sigma==1),5), 'rows', 'first');
+    Q0 = Q0(I,:);
+    I_iO = I_iO(I); % Entferne Indizes, die sich auf doppelte Schubgelenk-Konfig. beziehen
+  end
   % Ausgabe der IK-Werte für alle Eckpunkte. Im weiteren Verlauf der
   % Optimierung benötigt, falls keine Trajektorie berechnet wird.
   QE_all = Q_jic(:,:,I_iO);
