@@ -87,6 +87,9 @@ if fval_constr > 1000 % Nebenbedingungen verletzt.
   cds_save_particle_details(Set, R, toc(t1), fval, p, physval, Jcond, f_maxstrengthviol);
   return
 end
+% Gelenkgrenzen merken (werden später überschrieben)
+if R.Type == 0, qlim = R.qlim; % Seriell
+else,           qlim = cat(1, R.Leg.qlim); end % PKM
 %% Alle IK-Konfigurationen durchgehen
 % Berechne jeweils alle Zielfunktionen. Bestimme erst danach, welcher
 % Parametersatz der beste ist
@@ -95,10 +98,23 @@ fval_IKC = NaN(size(Q0,1), length(Set.optimization.objective));
 physval_IKC = fval_IKC; 
 constrvioltext_IKC = cell(size(Q0,1), 1);
 Jcond_IKC = NaN(size(Q0,1),1);
+mges_IKC = NaN(size(Q0,1),1); % Gesamtmasse der PKM
 fval_debugtext_IKC = constrvioltext_IKC;
 f_maxstrengthviol_IKC = Jcond_IKC;
-Q_iIKC = NaN(size(Traj_0.X,1), R.NJ, size(Q0,1));
+Q_IKC = NaN(size(Traj_0.X,1), R.NJ, size(Q0,1));
+% Zum Debuggen
+% if R.Type == 0, n_actjoint = R.NJ;
+% else,           n_actjoint = sum(R.I_qa); end
+% TAU_IKC = NaN(size(Traj_0.X,1), n_actjoint, size(Q0,1));
+
 for iIKC = 1:size(Q0,1)
+  % Gelenkgrenzen von oben wieder erneut einsetzen. Notwendig, da Grenzen
+  % in Traj.-IK berücksichtigt werden. Unten wird der Wert aktualisiert
+  if R.Type == 0 % Seriell
+    R.qlim = qlim;
+  else % PKM
+    for i = 1:R.NLEG, R.Leg(i).qlim = qlim(R.I1J_LEG(i):R.I2J_LEG(i),:); end
+  end
   %% Trajektorie berechnen
   if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
     [fval_trajconstr,Q,QD,QDD,Jinv_ges,constrvioltext_IKC{iIKC}] = cds_constraints_traj( ...
@@ -127,7 +143,7 @@ for iIKC = 1:size(Q0,1)
       end
     end
   end
-  Q_iIKC(:,:,iIKC) = Q;
+  Q_IKC(:,:,iIKC) = Q;
   % Normalisieren der Winkel (erst hier durchführen, da einige Prüfungen oben
   % davon beeinflusst werden).
   Q(:,R.MDH.sigma==0) = wrapToPi(Q(:,R.MDH.sigma==0));
@@ -174,9 +190,6 @@ for iIKC = 1:size(Q0,1)
   % Nutzen: Berechnung der Masse von Führungsschienen und Hubzylindern,
   % Anpassung der Kollisionskörper (für nachgelagerte Prüfung und Plots)
   % Bereits hier, damit Ergebnis-Visualisierung konsistent ist.
-  % TODO: Anpassung, wenn die Grenzen in der Traj.-IK für die nächste
-  % IK-Konfiguration benutzt werden. Ansonsten beeinflussen die Läufe sich
-  % gegenseitig
   if R.Type == 0 % Seriell
     R.qlim(R.MDH.sigma==1,:) = minmax2(Q(:,R.MDH.sigma==1)');
   else % PKM
@@ -185,6 +198,7 @@ for iIKC = 1:size(Q0,1)
       R.Leg(i).qlim(R.Leg(i).MDH.sigma==1,:) = minmax2(Q_i(:,R.Leg(i).MDH.sigma==1)');
     end
   end
+  massparam_set = false; % Marker, ob Masseparameter gesetzt wurden
   if ~isempty(intersect(Set.optimization.objective, {'energy', 'mass', 'actforce', 'stiffness'})) || ... % Für Zielfunktion benötigt
       Set.optimization.constraint_obj(3) ~= 0 % Für Nebenbedingung benötigt
     % Dynamik-Parameter aktualisieren. Keine Nutzung der Ausgabe der Funktion
@@ -210,8 +224,9 @@ for iIKC = 1:size(Q0,1)
         continue
       end
     end
+    massparam_set = true;
   end
-  if Set.general.matfile_verbosity > 1
+  if Set.general.matfile_verbosity > 2
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_fitness_3.mat'));
   end
   % Debug:
@@ -227,6 +242,7 @@ for iIKC = 1:size(Q0,1)
   if ~isempty(intersect(Set.optimization.objective, {'energy', 'actforce'})) || ...  % Für Zielf. benötigt
       Set.optimization.constraint_obj(3) ~= 0 % Für NB benötigt
     TAU = data_dyn2.TAU;
+%     TAU_IKC(:,:,iIKC) = TAU; % Zum Debuggen
   end
 
   %% Nebenbedingungen der Entwurfsvariablen berechnen: Festigkeit der Segmente
@@ -293,10 +309,14 @@ for iIKC = 1:size(Q0,1)
     physval_IKC(iIKC,strcmp(Set.optimization.objective, 'energy')) = physval_en;
     fval_debugtext = [fval_debugtext, ' ', fval_debugtext_en]; %#ok<AGROW>
   end
+  if massparam_set
+    % Berechne in jedem Fall die Gesamtmasse, sobald das möglich ist (geht sehr 
+    % schnell und hilft im Entscheidungsfall am Ende dieser Funktion)
+    [fval_m,fval_debugtext_m, debug_info, mges_IKC(iIKC)] = cds_obj_mass(R);
+  end
   if any(strcmp(Set.optimization.objective, 'mass'))
-    [fval_m,fval_debugtext_m, debug_info, physval_m] = cds_obj_mass(R);
     fval_IKC(iIKC,strcmp(Set.optimization.objective, 'mass')) = fval_m;
-    physval_IKC(iIKC,strcmp(Set.optimization.objective, 'mass')) = physval_m;
+    physval_IKC(iIKC,strcmp(Set.optimization.objective, 'mass')) = mges_IKC(iIKC);
     fval_debugtext = [fval_debugtext, ' ', fval_debugtext_m]; %#ok<AGROW>
   end
   if any(strcmp(Set.optimization.objective, 'actforce'))
@@ -333,11 +353,25 @@ for iIKC = 1:size(Q0,1)
     % break; % zur Nachvollziehbarkeit kein direkter Abbruch.
   end
 end % Schleife über IK-Konfigurationen
+if Set.general.matfile_verbosity > 2
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_fitness_4.mat'));
+end
 %% Bestes Ergebnis heraussuchen
+I_IKC_iO = find(all(fval_IKC < 1e3, 2)); % i.O.-Partikel (für Auswertungen)
 if length(Set.optimization.objective) == 1
-  [~,iIKCbest] = min(fval_IKC);
+  fval_min = min(fval_IKC);
+  iIKCopt = find(fval_IKC==fval_min); % es kann mehrere gleich gute Lösungen geben
 else
   % Prüfe, welche Ergebnisse Pareto-optimal sind (durch Ausschluss)
+  % Nehme alle Kriterien als Differenz zum jeweils besten. Dadurch ist noch
+  % ein Runden möglich. Exakte Gleichheit tritt aufgrund der numerischen IK
+  % nicht auf. Identische Zielfunktionswerte sind bei kinematischen Größen
+  % möglich.
+  fval_IKC_check = fval_IKC; % Kleinster Spaltenwert ist jeweils Null.
+  for mm = 1:size(fval_IKC,2) % Kriterien durchgehen
+    fval_IKC_check(:,mm) = fval_IKC_check(:,mm) - min(fval_IKC(:,mm));
+  end
+  fval_IKC_check(abs(fval_IKC_check)<1e-10) = 0; % Runde kleine Differenzen auf Gleichheit
   Idom_ges = false(size(fval_IKC,1), 1);
   for iIKC = 1:size(fval_IKC,1)
     Idom_i = true(size(fval_IKC,1),1); % Marker, dass ll dominiert wird
@@ -345,20 +379,84 @@ else
       % Wenn IK-Konfig. iIKC in allen Zielfunktionen schlechter ist als eine 
       % andere, bleibt die 1 stehen. Ansonsten steht am Ende eine Null und 
       % Partikel iIKC ist Pareto-optimal.
-      Idom_i = Idom_i & (fval_IKC(iIKC,mm) > fval_IKC(:,mm));
+      Idom_i = Idom_i & (fval_IKC_check(iIKC,mm) >= fval_IKC_check(:,mm));
     end
+    Idom_i(iIKC) = false; % Partikel kann nicht von sich selbst dominiert werden
     if any(Idom_i) % irgend ein anderes Partikel ist in allen Kategorien besser ...
       Idom_ges(iIKC) = true; % ... daher dieses entfernen
     end
   end
-  iIKCposs = find(~Idom_ges);
-  iIKCbest = iIKCposs(1); % Nehme das erste (beliebig)
+  iIKCopt = find(~Idom_ges); % Menge der möglichen Pareto-optimalen Lösungen
+end
+% Definition "optimaler" Lösungen: Die beste/besten Lösungen.
+% "Beste" Lösung: Nach bestimmten Kriterien aus mehreren Optimalen gewählt
+n_fval_opt = length(iIKCopt);
+if length(iIKCopt) == 1
+  iIKCbest = iIKCopt(1);
+else
+  % Es gibt mehrere gleichwertige "optimale" Lösungen (einkriteriell) oder
+  % Pareto-Optimale Lösungen. Wähle anhand eines weiteren Kriteriums aus.
+  % Die gewählte Lösung ist dann die "beste" Lösung.
+  I_best_opt = 0; % Index zur Auswahl in iIKCopt
+  % Nehme die Lösung mit der besten Konditionszahl. Toleranz gegen
+  % Rundungsfehler; sonst beliebige Wahl quasi identischer Lösungen.
+  Jcond_IKC_check = Jcond_IKC - Jcond_IKC(iIKCopt(1));
+  Jcond_IKC_check(abs(Jcond_IKC_check)<1e-10) = 0;
+  if all(~isnan(Jcond_IKC(iIKCopt))) && any(Jcond_IKC_check(iIKCopt))
+    [~,I_best_opt] = min(Jcond_IKC_check(iIKCopt));
+  end
+  % Nehme den Roboter mit der geringsten (bewegten) Masse. Kann unterschied-
+  % lich sein, wenn Schubgelenke verschieden lang sind.
+  mges_IKC_check = mges_IKC - mges_IKC(iIKCopt(1));
+  mges_IKC_check(abs(mges_IKC_check)<1e-10) = 0;
+  if all(~isnan(mges_IKC_check(iIKCopt))) && any(mges_IKC_check(iIKCopt))
+    [~,I_best_opt] = min(mges_IKC_check(iIKCopt));
+  end
+  % Wenn es Schubgelenke gibt, nehme die Möglichkeit mit der geringsten
+  % Auslenkung. Das ist am ehesten plausibel. Meistens betrifft es das
+  % gestellfeste Gelenk.
+  if I_best_opt==0 && any(R.MDH.sigma==1)
+    qP_range_opt = NaN(length(iIKCopt), 1);
+    for j = 1:length(iIKCopt)
+      qP_range_opt(j) = max(max(abs(Q_IKC(:,R.MDH.sigma==1,iIKCopt(j)))));
+    end
+    [~,I_best_opt] = min(qP_range_opt); % Wähle die "beste" der "optimalen" Lösungen
+  end
+  if I_best_opt==0 % keine weiteren Kriterien definiert.
+    I_best_opt = 1;% Nehme das erste (beliebig);
+  end
+  iIKCbest = iIKCopt(I_best_opt);
+
+  if false % Debug: Prüfe, warum die eine Lösung besser als die andere ist
+    cds_fitness_debug_plot_robot(R, Q_IKC(1,:,iIKCbest)', Traj_0, ...
+      Traj_W, Set, Structure, p, mean(fval_IKC(iIKCbest,:)), debug_info); %#ok<UNRCH>
+    figure(333);clf;
+    for i = 1:size(TAU_IKC,2)
+      for k = 1:length(I_IKC_iO)
+        [~,I_max] = max(abs(TAU_IKC(:,i,I_IKC_iO(k))));
+        subplot(size(TAU_IKC,2),1,i); hold on;
+        plot(Traj_0.t, TAU_IKC(:,i,I_IKC_iO(I_IKC_iO(k))));
+        plot(Traj_0.t(I_max), TAU_IKC(I_max,i,k), 'ko');
+      end
+      ylabel(sprintf('tau %d', i)); grid on;
+    end
+    linkxaxes
+    figure(334);clf;
+    for i = 1:R.NJ
+      for k = 1:length(I_IKC_iO)
+        subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i); hold on;
+        plot(Traj_0.t, Q_IKC(:,i,I_IKC_iO(k)));
+      end
+      ylabel(sprintf('q %d', i)); grid on;
+    end
+    linkxaxes
+  end
 end
 fval = fval_IKC(iIKCbest,:)';
 physval = physval_IKC(iIKCbest,:)';
 Jcond = Jcond_IKC(iIKCbest);
 f_maxstrengthviol = f_maxstrengthviol_IKC(iIKCbest);
-n_fval_iO = sum(all(fval_IKC < 1e3,2));
+n_fval_iO = length(I_IKC_iO);
 
 %% Ende
 % Anfangs-Gelenkwinkel in Roboter-Klasse speichern (zur Reproduktion der
@@ -370,19 +468,24 @@ else
 end
 % Erneutes Eintragen der Gelenkgrenzen (so.o)
 if R.Type == 0 % Seriell
-  R.qlim(R.MDH.sigma==1,:) = minmax2(Q_iIKC(:,R.MDH.sigma==1, iIKC)');
+   % Grenzen numerisch etwas erweitern. Dadurch kein Fehlschlag, falls
+   % rundungsbedingte Abweichungen auftreten. Ansonsten dadurch Verletzung
+   % der Grenzen möglich.
+  R.qlim(R.MDH.sigma==1,:) = minmax2(Q_IKC(:,R.MDH.sigma==1, iIKC)') + ...
+    1e-6*repmat([-1, 1], sum(R.MDH.sigma==1),1);
 else % PKM
   for i = 1:R.NLEG
-    Q_i = Q_iIKC(:,R.I1J_LEG(i):R.I2J_LEG(i), iIKC);
-    R.Leg(i).qlim(R.Leg(i).MDH.sigma==1,:) = minmax2(Q_i(:,R.Leg(i).MDH.sigma==1)');
+    Q_i = Q_IKC(:,R.I1J_LEG(i):R.I2J_LEG(i), iIKC);
+    R.Leg(i).qlim(R.Leg(i).MDH.sigma==1,:) = minmax2(Q_i(:,R.Leg(i).MDH.sigma==1)') + ...
+      1e-6*repmat([-1, 1], sum(R.Leg(i).MDH.sigma==1),1);
   end
 end
 
 if all(fval<1e3)
   cds_log(2,sprintf(['[fitness] Fitness-Evaluation in %1.1fs. fval=[%s]. Erfolg', ...
-    'reich. %s Auswahl aus %d IK-Konfigurationen (davon %d i.O.)'], ...
+    'reich. %s Auswahl aus %d IK-Konfigurationen (davon %d i.O., %d optimal)'], ...
     toc(t1), disp_array(fval', '%1.3e'), fval_debugtext(2:end), ...
-    size(fval_IKC,1), n_fval_iO));
+    size(fval_IKC,1), n_fval_iO, n_fval_opt));
 else
   cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', ...
     toc(t1), fval(1), constrvioltext_IKC{iIKCbest}));
