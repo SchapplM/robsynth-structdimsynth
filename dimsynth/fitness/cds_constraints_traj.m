@@ -152,8 +152,8 @@ if any(I_qlimviol_T)
   fval_qlimv_T_norm = 2/pi*atan((-fval_qlimv_T)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
   fval = 1e3*(6+3*fval_qlimv_T_norm); % Wert zwischen 6e3 und 9e3
   % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Weitere Rechnungen machen keinen Sinn.
-  constrvioltext = sprintf('Gelenkgrenzverletzung in Traj. Schlechteste Spannweite: %1.2f/%1.2f', ...
-    q_range_T(IIw), qlim(IIw,2)-qlim(IIw,1) );
+  constrvioltext = sprintf(['Gelenkgrenzverletzung in Traj. Schlechteste ', ...
+    'Spannweite: %1.2f/%1.2f (Gelenk %d)'], q_range_T(IIw), qlim(IIw,2)-qlim(IIw,1), IIw);
   if fval < Set.general.plot_details_in_fitness
     change_current_figure(1001); clf;
     plot(Traj_0.t, Q-repmat(min(Q), length(Traj_0.t), 1));
