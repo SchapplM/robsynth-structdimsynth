@@ -135,6 +135,32 @@ if any(strcmp(Set.optimization.objective, 'valid_act')) && R.Type ~= 0 % nur sin
     end
   end
 end
+if R.Type ~= 0
+  % Debuggen der Geschwindigkeits-Konsistenz: Vergleiche EE-Trajektorie von
+  % verschiedenen Beinketten aus berechnet.
+  if Set.general.debug_calc
+    for j = 2:R.NLEG
+      [X3,XD3,~] = R.fkineEE2_traj(Q, QD, QDD, uint8(j));
+      test_X = Traj_0.X(:,1:5) - X3(:,1:5);
+      test_XD = Traj_0.XD(:,1:6) - XD3(:,1:6);
+      test_X([false(size(test_X,1),3),abs(test_X(:,4:5)-2*pi)<1e-3]) = 0; % 2pi-Fehler entfernen
+      % test_XDD = Traj_0.XDD(:,1:6) - XDD3(:,1:6);
+      if any(abs(test_X(:))>1e-6)
+        if Set.general.matfile_verbosity > 0
+          save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_xtraj_legs_inconsistency.mat'));
+        end
+        error(['Die Endeffektor-Trajektorie X aus Beinkette %d stimmt nicht ', ...
+          'gegen Beinkette 1. Zuerst in Zeitschritt %d/%d.'], j, ...
+          find(any(abs(test_X)>1e-6,2),1,'first'), length(Traj_0.t));
+      end
+      if any(abs(test_XD(:))>1e-6)
+        error(['Die Endeffektor-Trajektorie XD aus Beinkette %d stimmt nicht ', ...
+          'gegen Beinkette 1. Zuerst in Zeitschritt %d/%d.'], j, ...
+          find(any(abs(test_XD)>1e-6,2),1,'first'), length(Traj_0.t));
+      end
+    end
+  end
+end
 %% Prüfe, ob die Gelenkwinkelgrenzen verletzt werden
 % Gleiche Prüfung wie in cds_constraints.m
 q_range_T = NaN(1, R.NJ);
