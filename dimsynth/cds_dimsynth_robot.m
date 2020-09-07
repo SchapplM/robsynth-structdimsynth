@@ -178,7 +178,33 @@ if Structure.Type == 0
 else
   Structure.R_N_E = R.T_P_E(1:3,1:3);
 end
-if any(abs(r2eulxyz(Structure.R_N_E(1:3,1:3))) > 1e-10)
+% Richte den Roboter entsprechend der Montagekonfiguration aus
+if Structure.Type == 0 % Seriell
+  mounting = Set.structures.mounting_serial;
+else % PKM
+  mounting = Set.structures.mounting_parallel;
+end
+if ~Set.optimization.rotate_base
+  if strcmp(mounting, 'floor')
+    % Nichts ändern. Basis-KS zeigt (mit z-Achse) nach oben
+    R.update_base([], zeros(3,1));
+  elseif strcmp(mounting, 'ceiling')
+    % Roboter zeigt nach unten. x-Achse bleibt gleich
+    R.update_base([], [pi;0;0]); % xyz-Euler-Winkel
+    % Drehe End-Effektor auch um. Die Aufgaben sind so definiert, dass die
+    % z-Achse standardmäßig (im Welt-KS) nach oben zeigt. Sonst ist bei
+    % 2T1R, 3T0R und 3T1R die IK nicht lösbar.
+    % Vorher sind die KS schon so definiert, dass die z-Achse im Basis-KS
+    % nach oben zeigt. Jetzt zeigt sie im Basis-KS nach unten.
+    Structure.R_N_E = Structure.R_N_E*rotx(pi); % wird damit in Opt. der EE-Rotation berücksichtigt
+    R.update_EE([], r2eulxyz(Structure.R_N_E));
+  else
+    error('Fall %s noch nicht implementiert', mounting);
+  end
+else
+  error('Rotation der Basis ist noch nicht implementiert');
+end
+if any(any(abs(Structure.R_N_E-eye(3)) > 1e-10))
   Structure.R_N_E_isset = true;
 else
   Structure.R_N_E_isset = false;
@@ -361,7 +387,12 @@ if Set.optimization.movebase
   vartypes = [vartypes; 2*ones(sum(I_DoF_basepos),1)];
   if Structure.Type == 0 % Seriell
     % TODO: Stelle den seriellen Roboter vor die Aufgabe
-    varlim = [varlim; repmat([-1, 1], sum(I_DoF_basepos), 1)];
+    varlim = [varlim; repmat([-1, 1], sum(I_DoF_basepos(1:2)), 1)];
+    % TODO: Durchdachte Behandlung des Montageortes. Prinzipiell kann ein
+    % am Boden befestigter Roboter auch auf eine Säule gestellt werden und
+    % die Basis kann dann oberhalb der Basis sein. Aktuell keine
+    % Einschränkung.
+    varlim = [varlim; repmat([-1, 1], sum(I_DoF_basepos(3)), 1)];
   else % Parallel
     % Stelle den parallelen Roboter in/über die Aufgabe
     % Bei Parallelen Robotern ist der Arbeitsraum typischerweise in der
@@ -369,8 +400,17 @@ if Set.optimization.movebase
     % nicht so weit definiert werden: 20% der Referenzlänge um Mittelpunkt
     % der Aufgabe. Annahme: x-/y-Komponente werden immer optimiert.
     varlim = [varlim; repmat([-0.2, 0.2],sum(I_DoF_basepos(1:2)),1)]; % xy-Komponenten
-    % Die z-Komponente der Basis kann mehr variieren (hängender Roboter)
-    varlim = [varlim; repmat([-1, 1], sum(I_DoF_basepos(3)), 1)];
+    % Die z-Komponente der Basis kann mehr variieren. Einstellung je nach-
+    % dem, ob unter- oder oberhalb der Aufgabe.
+    % Siehe cds_update_robot_parameters.m
+    if strcmp(mounting, 'floor')
+      % Roboterbasis ist unterhalb der Aufgabe
+      varlim = [varlim; repmat([-1, 0], sum(I_DoF_basepos(3)), 1)];
+    elseif strcmp(mounting, 'ceiling')
+      varlim = [varlim; repmat([0, 1], sum(I_DoF_basepos(3)), 1)];
+    else
+      error('Noch nicht implementiert');
+    end
   end
   % Überschreibe die Grenzen, falls sie explizit als Einstellung gesetzt sind
   bplim = NaN(3,2); % Grenzen für xyz-Koordinaten
@@ -393,13 +433,26 @@ else
   if Structure.Type == 0 % Seriell
     % Stelle den seriellen Roboter vor die Aufgabe
     r_W_0 = Structure.xT_mean + [-0.4*Lref;-0.4*Lref;0];
-    if Set.structures.DoF(3) == 1
-      r_W_0(3) = -0.7*Lref; % Setze Roboter-Basis etwas unter die Aufgabe
+    if Set.structures.DoF(3) == 1 % nicht für 2T1R
+      if strcmp(mounting, 'floor')
+        r_W_0(3) = -0.7*Lref; % Setze Roboter-Basis etwas unter die Aufgabe
+      elseif strcmp(mounting, 'ceiling')
+        r_W_0(3) =  0.7*Lref;
+      else
+        error('Fall nicht definiert');
+      end
     end
   else % Parallel
     r_W_0 = zeros(3,1);
-    if Set.structures.DoF(3) == 1
-      r_W_0(3) = Structure.xT_mean(3)-0.7*Lref; % Setze Roboter mittig unter die Aufgabe (besser sichtbar)
+    if Set.structures.DoF(3) == 1 % nicht für 2T1R
+      if strcmp(mounting, 'floor')
+        % Setze Roboter mittig unter die Aufgabe
+        r_W_0(3) = Structure.xT_mean(3)-0.7*Lref;
+      elseif strcmp(mounting, 'ceiling')
+        r_W_0(3) = Structure.xT_mean(3)+0.7*Lref;
+      else
+        error('Fall nicht definiert');
+      end
     end
     % In der xy-Ebene liegt der Roboter in der Mitte der Aufgabe
     r_W_0(1:2) = Structure.xT_mean(1:2);
