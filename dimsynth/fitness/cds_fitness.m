@@ -22,7 +22,8 @@
 %   1e4...1e5: Nebenbedingung für Zielfunktion in Entwurfsopt. überschritten
 %   1e5...1e6: Überschreitung Belastungsgrenze der Segmente (aus cds_dimsynth_desopt_fitness)
 %   1e6...1e7: Überschreitung kinematischer NB (Kondition)
-%   1e7...1e13: Siehe cds_constraints. Werte von dort mit Faktor 1e4 multipliziert
+%   1e7...1e9: Siehe cds_constraints_traj. Werte von dort mit Faktor 1e4 multipliziert
+%   1e9...1e13: Siehe cds_constraints. Werte von dort mit Faktor 1e4 multipliziert
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
@@ -74,7 +75,6 @@ Traj_0 = cds_transform_traj(R, Traj_W);
 % Umwandlung in Werte von 1e6 aufwärts.
 [fval_constr,QE_iIKC, Q0, constrvioltext] = cds_constraints(R, Traj_0, Set, Structure);
 fval(:) = fval_constr*1e4; % Erhöhung, damit später kommende Funktionswerte aus Entwurfsoptimierung kleiner sein können
-cds_fitness_debug_plot_robot(R, Q0(1,:)', Traj_0, Traj_W, Set, Structure, p, fval(1), debug_info);
 if fval_constr > 1000 % Nebenbedingungen verletzt.
   % Speichere die Anfangs-Winkelstellung in der Roboterklasse für später.
   % Dient zum Vergleich und zur Reproduktion der Ergebnisse
@@ -83,7 +83,18 @@ if fval_constr > 1000 % Nebenbedingungen verletzt.
   else
     for i = 1:R.NLEG, R.Leg(i).qref = Q0(1,R.I1J_LEG(i):R.I2J_LEG(i))'; end
   end
+  % Speichere Gelenk-Grenzen. Damit sieht eine hieraus erstellte 3D-Bilder
+  % besser aus, weil die Schubgelenk-Führungsschienen ungefähr stimmen
+  if R.Type == 0 % Seriell
+    R.qlim(R.MDH.sigma==1,:) = minmax2(QE_iIKC(:,R.MDH.sigma==1)');
+  else % PKM
+    for i = 1:R.NLEG
+      Q_i = QE_iIKC(:,R.I1J_LEG(i):R.I2J_LEG(i));
+      R.Leg(i).qlim(R.Leg(i).MDH.sigma==1,:) = minmax2(Q_i(:,R.Leg(i).MDH.sigma==1)');
+    end
+  end
   cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval(1), constrvioltext));
+  cds_fitness_debug_plot_robot(R, Q0(1,:)', Traj_0, Traj_W, Set, Structure, p, mean(fval), debug_info);
   cds_save_particle_details(Set, R, toc(t1), fval, p, physval, Jcond, f_maxstrengthviol);
   return
 end
@@ -466,7 +477,7 @@ if R.Type == 0 % Seriell
 else
   for i = 1:R.NLEG, R.Leg(i).qref = Q0(iIKCbest,R.I1J_LEG(i):R.I2J_LEG(i))'; end
 end
-% Erneutes Eintragen der Gelenkgrenzen (so.o)
+% Erneutes Eintragen der Gelenkgrenzen (s.o)
 if R.Type == 0 % Seriell
    % Grenzen numerisch etwas erweitern. Dadurch kein Fehlschlag, falls
    % rundungsbedingte Abweichungen auftreten. Ansonsten dadurch Verletzung
