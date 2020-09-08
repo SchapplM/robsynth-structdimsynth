@@ -27,6 +27,12 @@ resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
 % Finde die aktuelle Generation anhand der bisher gespeicherten
 % Fitness-Werte heraus. Benutze keine mat-Dateien, sondern persistente Var.
 PSO_Detail_Data = cds_save_particle_details([], [], 0, 0, NaN, NaN, NaN, NaN, 'output');
+if isempty(PSO_Detail_Data)
+  % Die Speicherfunktion wurde nicht initialisiert. Voraussichtlich Aufruf
+  % außerhalb der Maßsynthese. Bild-Speicherung sowieso nicht sinnvoll.
+  currgen = -1; currimg = -1; % Dummy-Werte. Wird dann im Dateinamen benutzt.
+  return
+end
 % In der aktuellen Generation sind Einträge ungleich NaN.
 % Die erste Zeile entspricht der Initial-Population (Generation 0).
 currgen = find(any(~isnan(PSO_Detail_Data.comptime),2),1,'last')-1;
