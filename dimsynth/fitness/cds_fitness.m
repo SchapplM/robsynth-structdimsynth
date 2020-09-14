@@ -30,7 +30,7 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function [fval, Q] = cds_fitness(R, Set, Traj_W, Structure, p)
+function [fval, physval, Q] = cds_fitness(R, Set, Traj_W, Structure, p)
 repopath = fileparts(which('structgeomsynth_path_init.m'));
 rng(0); % Für Wiederholbarkeit der Versuche: Zufallszahlen-Initialisierung
 

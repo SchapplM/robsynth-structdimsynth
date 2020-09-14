@@ -267,9 +267,9 @@ if structset.use_parallel
     end
     if SkipRobot % Einer der Ausschlussgründe oben wurde getroffen.
       if IsInWhiteList % Positiv-Liste wird trotzdem genommen.
-        fprintf(' Füge trotzdem hinzu, da auf Positiv-Liste.\n');
+        if verblevel >= 3, fprintf(' Füge trotzdem hinzu, da auf Positiv-Liste.\n'); end
       else
-        fprintf(' Ignoriere.\n');
+        if verblevel >= 3, fprintf(' Ignoriere.\n'); end
         continue
       end
     end
