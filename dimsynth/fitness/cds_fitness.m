@@ -375,32 +375,32 @@ I_IKC_iO = find(all(fval_IKC < 1e3, 2)); % i.O.-Partikel (für Auswertungen)
 if length(Set.optimization.objective) == 1
   fval_min = min(fval_IKC);
   iIKCopt = find(fval_IKC==fval_min); % es kann mehrere gleich gute Lösungen geben
+elseif size(fval_IKC,1) == 1
+  iIKCopt = 1; % Wenn es nur eine Lösung gibt, ist keine Pareto-Prüfung notwendig
 else
-  % Prüfe, welche Ergebnisse Pareto-optimal sind (durch Ausschluss)
+  % Prüfe, welche Ergebnisse Pareto-optimal sind
   % Nehme alle Kriterien als Differenz zum jeweils besten. Dadurch ist noch
   % ein Runden möglich. Exakte Gleichheit tritt aufgrund der numerischen IK
   % nicht auf. Identische Zielfunktionswerte sind bei kinematischen Größen
-  % möglich.
+  % möglich. Dadurch ist weiter unten eine weitere Auswahl anhand anderer
+  % Kriterien möglich.
   fval_IKC_check = fval_IKC; % Kleinster Spaltenwert ist jeweils Null.
   for mm = 1:size(fval_IKC,2) % Kriterien durchgehen
     fval_IKC_check(:,mm) = fval_IKC_check(:,mm) - min(fval_IKC(:,mm));
   end
   fval_IKC_check(abs(fval_IKC_check)<1e-10) = 0; % Runde kleine Differenzen auf Gleichheit
-  Idom_ges = false(size(fval_IKC,1), 1);
-  for iIKC = 1:size(fval_IKC,1)
-    Idom_i = true(size(fval_IKC,1),1); % Marker, dass ll dominiert wird
-    for mm = 1:size(fval_IKC,2) % Kriterien durchgehen
-      % Wenn IK-Konfig. iIKC in allen Zielfunktionen schlechter ist als eine 
-      % andere, bleibt die 1 stehen. Ansonsten steht am Ende eine Null und 
-      % Partikel iIKC ist Pareto-optimal.
-      Idom_i = Idom_i & (fval_IKC_check(iIKC,mm) >= fval_IKC_check(:,mm));
-    end
-    Idom_i(iIKC) = false; % Partikel kann nicht von sich selbst dominiert werden
-    if any(Idom_i) % irgend ein anderes Partikel ist in allen Kategorien besser ...
-      Idom_ges(iIKC) = true; % ... daher dieses entfernen
-    end
-  end
-  iIKCopt = find(~Idom_ges); % Menge der möglichen Pareto-optimalen Lösungen
+  % Algorithmus zur Prüfung auf Pareto-Optimalität der Lösungen aus MOPSO.m
+  % Matlab File Exchange, Autor: Victor Martinez Cagigal
+  Np = size(fval_IKC_check,1);
+  dom_vector = false(Np,1); % Vektor, welche der Partikel dominiert wird
+  all_perm = nchoosek(1:Np,2); % Alle Kombinationen
+  all_perm = [all_perm; [all_perm(:,2) all_perm(:,1)]]; % Prüfe auch anders herum
+  x=fval_IKC_check(all_perm(:,1),:);
+  y=fval_IKC_check(all_perm(:,2),:);
+  d = all(x<=y,2) & any(x<y,2);
+  dominated_particles = unique(all_perm(d==1,2));
+  dom_vector(dominated_particles) = true;
+  iIKCopt = find(~dom_vector); % Menge der möglichen Pareto-optimalen Lösungen
 end
 % Definition "optimaler" Lösungen: Die beste/besten Lösungen.
 % "Beste" Lösung: Nach bestimmten Kriterien aus mehreren Optimalen gewählt
@@ -430,11 +430,11 @@ else
   % Auslenkung. Das ist am ehesten plausibel. Meistens betrifft es das
   % gestellfeste Gelenk.
   if I_best_opt==0 && any(R.MDH.sigma==1)
-    qP_range_opt = NaN(length(iIKCopt), 1);
+    qP_value_opt = NaN(length(iIKCopt), 1);
     for j = 1:length(iIKCopt)
-      qP_range_opt(j) = max(max(abs(Q_IKC(:,R.MDH.sigma==1,iIKCopt(j)))));
+      qP_value_opt(j) = max(max(abs(Q_IKC(:,R.MDH.sigma==1,iIKCopt(j)))));
     end
-    [~,I_best_opt] = min(qP_range_opt); % Wähle die "beste" der "optimalen" Lösungen
+    [~,I_best_opt] = min(qP_value_opt); % Wähle die "beste" der "optimalen" Lösungen
   end
   if I_best_opt==0 % keine weiteren Kriterien definiert.
     I_best_opt = 1;% Nehme das erste (beliebig);
@@ -498,7 +498,7 @@ end
 if all(fval<1e3)
   cds_log(2,sprintf(['[fitness] Fitness-Evaluation in %1.1fs. fval=[%s]. Erfolg', ...
     'reich. %s Auswahl aus %d IK-Konfigurationen (davon %d i.O., %d optimal)'], ...
-    toc(t1), disp_array(fval', '%1.3e'), fval_debugtext(2:end), ...
+    toc(t1), disp_array(fval', '%1.3e'), fval_debugtext_IKC{iIKCbest}(2:end), ...
     size(fval_IKC,1), n_fval_iO, n_fval_opt));
 else
   cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', ...
