@@ -38,18 +38,34 @@ if Set.task.profile == 0 && any(strcmp(Set.optimization.objective, 'energy'))
   error('Energieberechnung ohne Zeitverlauf der Trajektorie nicht sinnvoll');
 end
 % Prüfe Plausibilität von Abbruchbedingungen und Wahl mehrkriterieller Ziele
-if length(Set.optimization.objective) ~= length(Set.optimization.obj_limit_physval) && ...
-    length(Set.optimization.obj_limit_physval) ~= 1 || ... % Skalare Grenze von Null ist Standard (kein Fehler)
-  length(Set.optimization.obj_limit_physval) == 1 && Set.optimization.obj_limit_physval ~= 0
+if length(Set.optimization.obj_limit_physval) == 1 && length(Set.optimization.objective) > 1 && ...
+    Set.optimization.obj_limit_physval == 0 % nur, falls Null nicht bereits überschrieben wurde
+  % Korrigiere auf Dimension der Fitness-Funktion. Skalare Grenze von
+  % Null ist Standard (kein Fehler)
+  Set.optimization.obj_limit_physval = repmat(Set.optimization.obj_limit_physval, ...
+    length(Set.optimization.objective), 1);
+end
+% Jetzt muss die Anzahl der Zielfunktionen mit der Abbruchbedingung stimmen
+if length(Set.optimization.objective) ~= length(Set.optimization.obj_limit_physval)
   error('%d Zielfunktionen gesetzt und %d Abbruchbedingungen in obj_limit_physval. Passt nicht.', ...
     length(Set.optimization.objective), length(Set.optimization.obj_limit_physval));
 end
-if length(Set.optimization.objective) ~= length(Set.optimization.obj_limit) && ...
-    length(Set.optimization.obj_limit) ~= 1 || ...
-  length(Set.optimization.obj_limit) == 1 && Set.optimization.obj_limit~=0
+if length(Set.optimization.obj_limit) == 1 && length(Set.optimization.objective) > 1 && ...
+    Set.optimization.obj_limit == 0 % nur, falls Null nicht bereits überschrieben wurde
+  Set.optimization.obj_limit = repmat(Set.optimization.obj_limit, ...
+    length(Set.optimization.objective), 1);
+end
+if length(Set.optimization.objective) ~= length(Set.optimization.obj_limit)
   error('%d Zielfunktionen gesetzt und %d Abbruchbedingungen in obj_limit. Passt nicht.', ...
     length(Set.optimization.objective), length(Set.optimization.obj_limit));
 end
+if size(Set.optimization.obj_limit_physval,2) > 1
+  error('obj_limit_physval muss %d x 1 Vektor sein', length(Set.optimization.objective));
+end
+if size(Set.optimization.obj_limit,2) > 1
+  error('obj_limit muss %d x 1 Vektor sein', length(Set.optimization.objective));
+end
+
 % Menge der Roboter laden
 Structures = cds_gen_robot_list(Set);
 

@@ -989,9 +989,10 @@ else  % PSO wird ganz normal ausgeführt.
 %     [p_val_pareto,fval_pareto,exitflag,output] = gamultiobj(fitnessfcn, nvars, [], [], [], [],varlim(:,1),varlim(:,2), options);
 %     cds_log(1, sprintf('[dimsynth] Optimierung beendet. generations=%d, funccount=%d, message: %s', ...
 %       output.generations, output.funccount, output.message));
-    % Gleiche das Rückgabeformat zwischen MO und SO Optimierung an.
-    p_val = p_val_pareto(1,:)'; % nehme nur das erste Individuum ...
-    fval = fval_pareto(1,:)'; % ... damit Code funktioniert.
+    % Gleiche das Rückgabeformat zwischen MO und SO Optimierung an. Es muss
+    % immer ein einzelnes Endergebnis geben (nicht nur Pareto-Front)
+    p_val = p_val_pareto(1,:)'; % nehme nur das erste Individuum damit Code funktioniert.
+    fval = fval_pareto(1,:)'; % ... kann unten noch überschrieben werden.
   else % Einkriteriell: PSO
     [p_val,fval,exitflag,output] = particleswarm(fitnessfcn,nvars,varlim(:,1),varlim(:,2),options);
     cds_log(1, sprintf('[dimsynth] Optimierung beendet. iterations=%d, funccount=%d, message: %s', ...
@@ -1025,6 +1026,20 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell
       [k_ind,k_gen] = ind2sub(fliplr(size(PSO_Detail_Data.comptime)),k);
       physval_pareto(i,oc) = PSO_Detail_Data.physval(k_ind,oc,k_gen);
     end
+  end
+  % Falls Nebenbedingungen gesetzt sind: Wähle von Pareto-Front dazu
+  % passende Partikel als Rückgabe aus (für Plausibilität).
+  % Das Überschreibt das oben gewählte erste Individuum. Dieser Wert ist
+  % aber sowieso nicht kritisch, da meistens die Pareto-Front komplett aus-
+  % gewertet wird.
+  I_physvalmatch = all(physval_pareto < ...
+    repmat(Set.optimization.obj_limit_physval', size(physval_pareto,1), 1), 2);
+  I_fvalmatch = all(fval_pareto < ...
+    repmat(Set.optimization.obj_limit', size(physval_pareto,1), 1), 2);
+  if sum(I_physvalmatch|I_fvalmatch) > 0
+    II_match = find(I_physvalmatch|I_fvalmatch, 1, 'first');
+    p_val = p_val_pareto(II_match,:)';
+    fval = fval_pareto(II_match,:)';
   end
 else % Einkriteriell
   physval_pareto = [];
