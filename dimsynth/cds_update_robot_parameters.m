@@ -188,6 +188,11 @@ end
 
 if R_neu.Type == 2 && changed_base
   R_neu.align_base_coupling(R.DesPar.base_method, p_basepar);
+  if R.DesPar.base_method == 4 || R.DesPar.base_method == 8 % Kegel, Pyramide
+    % Falls schräge Anordnung kann sich der Winkel ändern. Sonst bleibt er
+    % konstant (wie in Initialisierung bereits gesetzt).
+    R.update_gravity(); % Die Gravitations-Vektoren im Beinketten-Basis-KS aktualisieren
+  end
 end
 %% Plattform-Koppelpunkt Positionsparameter (z.B. Plattform-Radius)
 if R_neu.Type == 2

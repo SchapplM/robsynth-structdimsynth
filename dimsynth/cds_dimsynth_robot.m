@@ -191,6 +191,7 @@ if ~Set.optimization.rotate_base
   elseif strcmp(mounting, 'ceiling')
     % Roboter zeigt nach unten. x-Achse bleibt gleich
     R.update_base([], [pi;0;0]); % xyz-Euler-Winkel
+    R.update_gravity([0;0;-9.81]); % Gravitation wird für Dynamik im Basis-KS definiert.
     % Drehe End-Effektor auch um. Die Aufgaben sind so definiert, dass die
     % z-Achse standardmäßig (im Welt-KS) nach oben zeigt. Sonst ist bei
     % 2T1R, 3T0R und 3T1R die IK nicht lösbar.
