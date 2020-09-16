@@ -291,6 +291,9 @@ if structset.use_parallel
       end
     else % Normaler Fall der Maßsynthese. Lade Information aus Datenbank
       theta_values = AdditionalInfo_Akt(2);
+      if theta_values == 3 % Es gehen 0° und 90°. Führe Optimierung für beide ...
+        theta_values = [1 2]; % ... Alternativen durch. Willkürliche Wahl beschränkt.
+      end
     end
     for kkk = theta_values % Gehe alle möglichen Werte für theta durch und trage als eigene PKM ein.
       ii = ii + 1;

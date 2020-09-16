@@ -308,6 +308,8 @@ if Structure.Type == 0 || Structure.Type == 2
     elseif Structure.angle1_values==2 % nur Wert +/- 90 ist zulässig
       pkin_init(II_theta(1)) = pi/2;
     elseif Structure.angle1_values==3 % nur Wert 0 oder 90 ist zulässig
+      cds_log(-1, sprintf(['[dimsynth] Winkel theta als 0 und 90 zulässig ', ...
+        'gegeben. Wähle eine Alternative (0). Das sollte eigentlich nicht mehr vorkommen.']));
       pkin_init(II_theta(1)) = 0; % Nehme die 0
     else % Entweder 0 (nicht definiert) oder 4 (alles erlaubt)
       % Mache gar nichts. Parameter wird ganz normal optimiert.
