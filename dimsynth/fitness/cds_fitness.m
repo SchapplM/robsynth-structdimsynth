@@ -389,17 +389,8 @@ else
     fval_IKC_check(:,mm) = fval_IKC_check(:,mm) - min(fval_IKC(:,mm));
   end
   fval_IKC_check(abs(fval_IKC_check)<1e-10) = 0; % Runde kleine Differenzen auf Gleichheit
-  % Algorithmus zur Prüfung auf Pareto-Optimalität der Lösungen aus MOPSO.m
-  % Matlab File Exchange, Autor: Victor Martinez Cagigal
-  Np = size(fval_IKC_check,1);
-  dom_vector = false(Np,1); % Vektor, welche der Partikel dominiert wird
-  all_perm = nchoosek(1:Np,2); % Alle Kombinationen
-  all_perm = [all_perm; [all_perm(:,2) all_perm(:,1)]]; % Prüfe auch anders herum
-  x=fval_IKC_check(all_perm(:,1),:);
-  y=fval_IKC_check(all_perm(:,2),:);
-  d = all(x<=y,2) & any(x<y,2);
-  dominated_particles = unique(all_perm(d==1,2));
-  dom_vector(dominated_particles) = true;
+  % Prüfung auf Pareto-Optimalität der Lösungen
+  dom_vector = pareto_dominance(fval_IKC_check);
   iIKCopt = find(~dom_vector); % Menge der möglichen Pareto-optimalen Lösungen
 end
 % Definition "optimaler" Lösungen: Die beste/besten Lösungen.
