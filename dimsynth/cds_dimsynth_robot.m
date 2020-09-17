@@ -1022,13 +1022,8 @@ end
 if length(Set.optimization.objective) > 1 % Mehrkriteriell
   physval_pareto = NaN(size(fval_pareto));
   for i = 1:size(fval_pareto,1) % Pareto-Front durchgehen
-    for oc = 1:size(fval_pareto,2) % Gehe alle Optimierungskriterien durch
-      % Variable zum Finden: Dim. 1: Generationen, Dim. 2: Individuen
-      fval_oc = squeeze(PSO_Detail_Data.fval(:,oc,:))';
-      k = find((fval_pareto(i,oc) == fval_oc'), 1, 'first'); % Umrechnen der Indizes
-      [k_ind,k_gen] = ind2sub(fliplr(size(PSO_Detail_Data.comptime)),k);
-      physval_pareto(i,oc) = PSO_Detail_Data.physval(k_ind,oc,k_gen);
-    end
+    [k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, fval_pareto(i,:)');
+    physval_pareto(i,:) = PSO_Detail_Data.physval(k_ind,:,k_gen);
   end
   % Falls Nebenbedingungen gesetzt sind: Wähle von Pareto-Front dazu
   % passende Partikel als Rückgabe aus (für Plausibilität).
@@ -1077,23 +1072,8 @@ for i = 1:Set.general.max_retry_bestfitness_reconstruction
 end
 % Schreibe die Anfangswerte der Gelenkwinkel für das beste Individuum in
 % die Roboterklasse. Suche dafür den besten Funktionswert in den zusätzlich
-% gespeicherten Daten für die Position des Partikels in dem
-% Optimierungsverfahren
-% % Benutze Variable comptime als Hilfe (Dim.1: Gen., Dim.2: Ind.)
-fval_oc_mask = true(size(PSO_Detail_Data.comptime))';
-for oc = 1:length(fval) % Gehe alle Optimierungskriterien durch
-  % Dim. 1: Generationen, Dim. 2: Individuen
-  fval_oc = squeeze(PSO_Detail_Data.fval(:,oc,:))';
-  % Lasse nur dort eine 1, wo dieses Zielkriterium exakt den als
-  % Endergebnis der Optimierung gefundenen Wert hat.
-  fval_oc_mask = fval_oc_mask & (fval(oc) == fval_oc');
-end
-k = find(fval_oc_mask, 1, 'first'); % Umrechnen der Indizes
-[dd_optind,dd_optgen] = ind2sub(fliplr(size(PSO_Detail_Data.comptime)),k); % Umrechnung in 2D-Indizes: Generation und Individuum
-% Probe der Indizes: Wird damit der gesuchte Wert wiedergefunden?
-if any(PSO_Detail_Data.fval(dd_optind,:,dd_optgen)' ~= fval)
-  error('Umrechnung der Indizes zum Finden der Zwischenergebnisse hat nicht funktioniert. Logik-Fehler.');
-end
+% gespeicherten Daten für die Position des Partikels in dem Optimierungsverfahren
+[dd_optgen, dd_optind] = cds_load_particle_details(PSO_Detail_Data, fval);
 q0_ik = PSO_Detail_Data.q0_ik(dd_optind,:,dd_optgen)';
 
 % Prüfen, ob diese mit den im Optimierungsprozess gespeicherten IK-Anfangs-
