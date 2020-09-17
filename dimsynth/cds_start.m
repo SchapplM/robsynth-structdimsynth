@@ -69,6 +69,14 @@ end
 % Menge der Roboter laden
 Structures = cds_gen_robot_list(Set);
 
+if isempty(Structures)
+  fprintf('Keine Strukturen entsprechen den Filterkriterien\n');
+  if ~isempty(Set.structures.whitelist)
+    fprintf('Es wurde eine Positiv-Liste übergeben, aber keine Strukturen entsprachen den Kriterien. Filter-Liste passt nicht\n');
+  end
+  return
+end
+
 % Berechnung auf PBS-Cluster vorbereiten und durchführen
 if Set.general.computing_cluster
   % Bereite eine Einstellungs-Datei vor
@@ -142,14 +150,6 @@ if Set.general.parcomp_struct && ... % Parallele Rechnung ist ausgewählt
   parfevalOnAll(gcp(), @warning, 0, 'off', 'Coder:MATLAB:illConditionedMatrix');
 else
   parfor_numworkers = 0;
-end
-
-if isempty(Structures)
-  fprintf('Keine Strukturen entsprechen den Filterkriterien\n');
-  if ~isempty(Set.structures.whitelist)
-    fprintf('Es wurde eine Positiv-Liste übergeben, aber keine Strukturen entsprachen den Kriterien. Filter-Liste passt nicht\n');
-    return
-  end
 end
 
 if ~isempty(Set.structures.whitelist)
