@@ -61,7 +61,7 @@ else % PKM
   qlim = cat(1,R.Leg(:).qlim);
   [Q, QD, QDD, PHI, Jinv_ges, ~, JP] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
   if Set.general.debug_calc % Rechne nochmal mit Klassenmethode nach
-    [~, ~, ~, PHI_debug, ~, ~, JP_debug] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+    [Q_debug, QD_debug, QDD_debug, PHI_debug, ~, ~, JP_debug] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
     ik_res_ik2 = (all(max(abs(PHI(:,R.I_constr_t_red)))<s.Phit_tol) && ...
         all(max(abs(PHI(:,R.I_constr_r_red)))<s.Phir_tol));% IK-Status Funktionsdatei
     ik_res_iks = (all(max(abs(PHI_debug(:,R.I_constr_t_red)))<s.Phit_tol) && ... 
@@ -95,9 +95,41 @@ else % PKM
       end
     end
     % Prüfe ob die Gelenk-Positionen aus Klasse und Vorlage stimmen
-    test_JPtraj = JP-JP_debug;
-    if any(abs(test_JPtraj(:))>1e-6)
-      error('Ausgabevariable JP aus invkin_traj vs invkin2_traj stimmt nicht');
+    % (nur prüfen, wenn die IK erfolgreich war. Sonst große Fehler bei
+    % Zeitschritt des Abbruchs der Berechnung)
+    if ik_res_ik2 && ik_res_iks 
+      test_Q = Q-Q_debug;
+      if any(abs(test_Q(:))>1e-3)
+        if Set.general.matfile_verbosity > 0
+          save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_trajq_error_debug.mat'));
+        end
+        error(['Ausgabevariable Q aus invkin_traj vs invkin2_traj stimmt nicht. ', ...
+          'Max Fehler %1.1e.'], max(abs(test_Q(:))));
+      end
+      test_QD = QD-QD_debug;
+      if any(abs(test_QD(:))>1e-3)
+        if Set.general.matfile_verbosity > 0
+          save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_trajqD_error_debug.mat'));
+        end
+        error(['Ausgabevariable QD aus invkin_traj vs invkin2_traj stimmt nicht. ', ...
+          'Max Fehler %1.1e.'], max(abs(test_QD(:))));
+      end
+      test_QDD = QDD-QDD_debug;
+      if any(abs(test_QDD(:))>1e-3)
+        if Set.general.matfile_verbosity > 0
+          save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_trajqDD_error_debug.mat'));
+        end
+        error(['Ausgabevariable QDD aus invkin_traj vs invkin2_traj stimmt nicht. ', ...
+          'Max Fehler %1.1e.'], max(abs(test_QDD(:))));
+      end
+      test_JPtraj = JP-JP_debug;
+      if any(abs(test_JPtraj(:))>1e-6)
+        if Set.general.matfile_verbosity > 0
+          save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_trajjointpos2_error_debug.mat'));
+        end
+        error(['Ausgabevariable JP aus invkin_traj vs invkin2_traj stimmt nicht. ', ...
+          'Max Fehler %1.1e.'], max(abs(test_JPtraj(:))));
+      end
     end
   end
 end
