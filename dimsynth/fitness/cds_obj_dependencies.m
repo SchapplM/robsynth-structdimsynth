@@ -46,6 +46,18 @@ XE = Traj_0.X;
 XED = Traj_0.XD;
 XEDD = Traj_0.XDD;
 
+if Set.optimization.static_force_only
+  % Nur statische Kräfte berechnen (obwohl Trajektorie mit Geschw. gegeben
+  % ist).
+  % TODO: Effizienter: Nur Gravload-Funktion aufrufen, nicht vollständige
+  % Dynamik.
+  QD = zeros(size(QD));
+  QDD = zeros(size(QDD));
+  XED = zeros(size(XED));
+  XEDD = zeros(size(XEDD));
+end
+
+
 if Structure.calc_dyn_cut
   % Berechne die Schnittkräfte in allen Segmenten
   if R.Type == 0 % Seriell
@@ -53,7 +65,7 @@ if Structure.calc_dyn_cut
   else % PKM
     if Structure.calc_reg || Set.general.debug_calc
       % Berechne nur die Regressormatrizen der Schnittkraft
-      Wges_reg = R.internforce_regmat_traj(Q, QD, QDD, Traj_0.X, Traj_0.XD, Traj_0.XDD, Jinv_ges);
+      Wges_reg = R.internforce_regmat_traj(Q, QD, QDD, XE, XED, XEDD, Jinv_ges);
     else
       % Die Schnittkraft für diesen Fall wird ganz unten berechnet
     end
