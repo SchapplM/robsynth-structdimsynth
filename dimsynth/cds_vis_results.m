@@ -249,22 +249,23 @@ parfor (i = 1:length_Structures, parfor_numworkers)
   
   % Verteilung der Konditionszahlen in den Ergebnissen
   subplot(2,2,2); hold all;
-  h = histogram(log10(PSO_Detail_Data.Jcond(:)));
+  Jcond_all = PSO_Detail_Data.constraint_obj_val(:,4,:);
+  h = histogram(log10(Jcond_all(:)));
   plot(log10(Set.optimization.constraint_obj(4))*[1;1], [0;1.2*max(h.Values)], 'k-', 'LineWidth', 2);
   xlim(minmax2(h.BinEdges)+h.BinWidth*[-1 1])
   title('Verteilung der Konditionszahlen über die Optimierung');
   xlabel('Konditionszahl (log)');
-  ylabel(sprintf('Häufigkeit (Anzahl i.O.: %d/%d)', sum(~isnan(PSO_Detail_Data.Jcond(:))), ...
-    length(PSO_Detail_Data.Jcond(:))));
+  ylabel(sprintf('Häufigkeit (Anzahl i.O.: %d/%d)', sum(~isnan(Jcond_all(:))), ...
+    length(Jcond_all(:))));
     
   % Verteilung der Materialbeanspruchung gegen die Jacobi-Konditionszahl
   % Streudiagramm
   subplot(2,2,3); hold all;
-  plot(log10(PSO_Detail_Data.Jcond(:)), 100*PSO_Detail_Data.f_maxstrengthviol(:), 'kx');
-  plot([0;log10(max(PSO_Detail_Data.Jcond(:)))], [100;100], 'g--'); % Grenze Material
+  plot(log10(Jcond_all(:)), 100*PSO_Detail_Data.f_maxstrengthviol(:), 'kx');
+  plot([0;log10(max(Jcond_all(:)))], [100;100], 'g--'); % Grenze Material
   plot(log10(Set.optimization.constraint_obj(4))*[1;1], [0;100], 'r--'); % Grenze für Jacobi
-  if sum(~isnan(unique(PSO_Detail_Data.Jcond))) > 1
-    xlim(log10(minmax2(PSO_Detail_Data.Jcond(:)'))); % geht nur, wenn zwei Werte da sind
+  if sum(~isnan(unique(Jcond_all))) > 1
+    xlim(log10(minmax2(Jcond_all(:)'))); % geht nur, wenn zwei Werte da sind
   end
   if sum(~isnan(unique(PSO_Detail_Data.f_maxstrengthviol))) > 1
     ylim(100*minmax2(PSO_Detail_Data.f_maxstrengthviol(:)'));

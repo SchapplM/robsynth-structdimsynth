@@ -952,7 +952,8 @@ clear cds_fitness
 % Initialisierung der Speicher-Funktion (damit testweises Ausführen funk- 
 % tioniert; sonst teilw. Fehler im Debug-Modus durch Zugriff auf Variablen)
 cds_save_particle_details(Set, R, 0, zeros(length(Set.optimization.objective),1), ...
-  zeros(nvars,1), zeros(length(Set.optimization.objective),1), 0, 0, 'reset');
+  zeros(nvars,1), zeros(length(Set.optimization.objective),1), ...
+  zeros(length(Set.optimization.constraint_obj),1), 0, 'reset');
 fitnessfcn=@(p)cds_fitness(R, Set, Traj, Structure, p(:)); % Definition der Funktion
 f_test = fitnessfcn(InitPop(1,:)'); % Testweise ausführen
 if length(Set.optimization.objective) > 1 % Mehrkriteriell (MOPSO geht nur mit vektorieller Fitness-Funktion)
@@ -961,7 +962,7 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell (MOPSO geht nur mit v
 end
 % Zurücksetzen der Detail-Speicherfunktion
 cds_save_particle_details(Set, R, 0, zeros(size(f_test)), zeros(nvars,1), ...
-  zeros(size(f_test)), 0, 0, 'reset');
+  zeros(size(f_test)), zeros(length(Set.optimization.constraint_obj),1), 0, 'reset');
 % Zurücksetzen der gespeicherten Werte der Fitness-Funktion
 clear cds_fitness
 %% PSO-Aufruf starten
@@ -1013,7 +1014,7 @@ end
 PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, NaN, 'output');
 % Zurücksetzen, damit Neuberechnungen der Fitness-Funktion nicht fehlschlagen
 cds_save_particle_details(Set, R, 0, zeros(size(f_test)), zeros(length(p_val),1), ...
-  zeros(size(f_test)), 0, 0, 'reset');
+  zeros(size(f_test)), zeros(length(Set.optimization.constraint_obj),1), 0, 'reset');
 clear cds_fitness
 if Set.general.matfile_verbosity > 0
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot3.mat'));
@@ -1168,7 +1169,7 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   physval_obj_all = [physval_mass; physval_energy; physval_actforce; physval_cond; physval_jrange; physval_stiff];
   % Vergleiche neu berechnete Werte mit den zuvor abgespeicherten (müssen
   % übereinstimmen)
-  test_Jcond = PSO_Detail_Data.Jcond(dd_optgen, dd_optind) - physval_cond;
+  test_Jcond = PSO_Detail_Data.constraint_obj_val(dd_optind, 4, dd_optgen) - physval_cond;
   if abs(test_Jcond) > 1e-6
     save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
       sprintf('%d_%s', Structure.Number, Structure.Name), 'condreprowarning.mat'));

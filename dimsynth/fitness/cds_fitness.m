@@ -43,10 +43,12 @@ end
 t1=tic();
 Q = [];
 debug_info = {};
-Jcond = NaN; % Konditionszahl der Jacobi-Matrix (für spätere Auswertung)
+% Alle möglichen physikalischen Werte von Nebenbedingungen (für spätere Auswertung)
+constraint_obj_val = NaN(length(Set.optimization.constraint_obj),1);
 f_maxstrengthviol = NaN; % Überschreitung der Materialspannungsgrenzen (...)
 fval = NaN(length(Set.optimization.objective),1);
 physval = fval;
+
 %% Abbruch prüfen
 % Prüfe, ob Berechnung schon abgebrochen werden kann, weil ein anderes
 % Partikel erfolgreich berechnet wurde. Dauert sonst eine ganze Generation.
@@ -57,7 +59,7 @@ elseif abort_fitnesscalc
   fval(:) = Inf;
   cds_log(2,sprintf(['[fitness] Fitness-Evaluation in %1.1fs. fval=[%s]. ', ...
     'Bereits anderes Gut-Partikel berechnet.'], toc(t1), disp_array(fval', '%1.3e')));
-  cds_save_particle_details(Set, R, toc(t1), fval, p, physval, Jcond, f_maxstrengthviol);
+  cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, f_maxstrengthviol);
   return;
 end
 %% Parameter prüfen
@@ -98,7 +100,7 @@ if fval_constr > 1000 % Nebenbedingungen verletzt.
   end
   cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval(1), constrvioltext));
   cds_fitness_debug_plot_robot(R, Q0(1,:)', Traj_0, Traj_W, Set, Structure, p, mean(fval), debug_info);
-  cds_save_particle_details(Set, R, toc(t1), fval, p, physval, Jcond, f_maxstrengthviol);
+  cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, f_maxstrengthviol);
   return
 end
 % Gelenkgrenzen merken (werden später überschrieben)
@@ -111,10 +113,9 @@ else,           qlim = cat(1, R.Leg.qlim); end % PKM
 fval_IKC = NaN(size(Q0,1), length(Set.optimization.objective));
 physval_IKC = fval_IKC; 
 constrvioltext_IKC = cell(size(Q0,1), 1);
-Jcond_IKC = NaN(size(Q0,1),1);
-mges_IKC = NaN(size(Q0,1),1); % Gesamtmasse der PKM
+constraint_obj_val_IKC = NaN(length(Set.optimization.constraint_obj),size(Q0,1));
 fval_debugtext_IKC = constrvioltext_IKC;
-f_maxstrengthviol_IKC = Jcond_IKC;
+f_maxstrengthviol_IKC = NaN(size(Q0,1),1);
 Q_IKC = NaN(size(Traj_0.X,1), R.NJ, size(Q0,1));
 % Zum Debuggen
 % if R.Type == 0, n_actjoint = R.NJ;
@@ -189,11 +190,12 @@ for iIKC = 1:size(Q0,1)
   % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_fitness_2.mat'));
   %% Konditionszahl als Nebenbedingung prüfen
   if Set.optimization.constraint_obj(4) > 0 % NB für Kondition gesetzt
-    [fval_cond,fval_debugtext_cond, debug_info_cond, Jcond_IKC(iIKC)] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
-    if Jcond_IKC(iIKC) > Set.optimization.constraint_obj(4)
+    [fval_cond,fval_debugtext_cond, debug_info_cond, Jcond] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
+    constraint_obj_val_IKC(4,iIKC) = Jcond;
+    if Jcond > Set.optimization.constraint_obj(4)
       fval_IKC(iIKC,:) = 1e6*(1+9*fval_cond/1e3); % normiert auf 1e6 bis 1e7
       % debug_info = {sprintf('Kondition %1.1e > %1.1e', Jcond, Set.optimization.constraint_obj(4)); debug_info_cond{1}};
-      constrvioltext_IKC{iIKC} = sprintf('Konditionszahl ist zu schlecht: %1.1e > %1.1e', Jcond_IKC(iIKC), Set.optimization.constraint_obj(4));
+      constrvioltext_IKC{iIKC} = sprintf('Konditionszahl ist zu schlecht: %1.1e > %1.1e', Jcond, Set.optimization.constraint_obj(4));
       continue
     end
   end
@@ -275,6 +277,7 @@ for iIKC = 1:size(Q0,1)
   %% Nebenbedingungen der Entwurfsvariablen berechnen: Steifigkeit
   if Set.optimization.constraint_obj(5)
     [fval_st, ~, ~, fval_phys_st] = cds_obj_stiffness(R, Set, Q);
+    constraint_obj_val_IKC(5,iIKC) = fval_phys_st;
     if fval_phys_st > Set.optimization.constraint_obj(5)
       % Nutze den gleichen Wertebereich wie Entwurfsoptimierung oben.
       fval_IKC(iIKC,:) = fval_st*100; % Bringe in Bereich 1e4 ... 1e5
@@ -288,6 +291,7 @@ for iIKC = 1:size(Q0,1)
   %% Antriebskraft als Nebenbedingung prüfen
   if Set.optimization.constraint_obj(3) > 0 % NB für Antriebskraft gesetzt
     [fval_actforce,fval_debugtext_actforce, debug_info_actforce, tau_a_max] = cds_obj_actforce(TAU);
+    constraint_obj_val_IKC(3,iIKC) = tau_a_max;
     if tau_a_max > Set.optimization.constraint_obj(3)
       fval_IKC(iIKC,:) = 1e3*(1+9*fval_actforce/1e3); % normiert auf 1e3 bis 1e4
       debug_info = {sprintf('Antriebskraft %1.1e > %1.1e', tau_a_max, Set.optimization.constraint_obj(3)); debug_info_cond{1}};
@@ -309,12 +313,12 @@ for iIKC = 1:size(Q0,1)
   end
   if any(strcmp(Set.optimization.objective, 'condition'))
     if Set.optimization.constraint_obj(4) == 0
-      [fval_cond, fval_debugtext_cond, debug_info, Jcond_IKC(iIKC)] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
+      [fval_cond, fval_debugtext_cond, debug_info, constraint_obj_val_IKC(4,iIKC)] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
     else % Bereits oben berechnet. Keine Neuberechnung notwendig.
       debug_info = debug_info_cond;
     end
     fval_IKC(iIKC,strcmp(Set.optimization.objective, 'condition')) = fval_cond;
-    physval_IKC(iIKC,strcmp(Set.optimization.objective, 'condition')) = Jcond_IKC(iIKC);
+    physval_IKC(iIKC,strcmp(Set.optimization.objective, 'condition')) = constraint_obj_val_IKC(4,iIKC);
     fval_debugtext = [fval_debugtext, ' ', fval_debugtext_cond]; %#ok<AGROW>
   end
   if any(strcmp(Set.optimization.objective, 'energy'))
@@ -326,16 +330,17 @@ for iIKC = 1:size(Q0,1)
   if massparam_set
     % Berechne in jedem Fall die Gesamtmasse, sobald das möglich ist (geht sehr 
     % schnell und hilft im Entscheidungsfall am Ende dieser Funktion)
-    [fval_m,fval_debugtext_m, debug_info, mges_IKC(iIKC)] = cds_obj_mass(R);
+    [fval_m,fval_debugtext_m, debug_info, constraint_obj_val_IKC(1,iIKC)] = cds_obj_mass(R);
   end
   if any(strcmp(Set.optimization.objective, 'mass'))
     fval_IKC(iIKC,strcmp(Set.optimization.objective, 'mass')) = fval_m;
-    physval_IKC(iIKC,strcmp(Set.optimization.objective, 'mass')) = mges_IKC(iIKC);
+    physval_IKC(iIKC,strcmp(Set.optimization.objective, 'mass')) = constraint_obj_val_IKC(1,iIKC);
     fval_debugtext = [fval_debugtext, ' ', fval_debugtext_m]; %#ok<AGROW>
   end
   if any(strcmp(Set.optimization.objective, 'actforce'))
     if Set.optimization.constraint_obj(3) == 0
       [fval_actforce,fval_debugtext_actforce, debug_info, tau_a_max] = cds_obj_actforce(TAU);
+      constraint_obj_val_IKC(3,iIKC) = tau_a_max;
     else % Bereits oben berechnet.
       debug_info = debug_info_actforce;
     end
@@ -405,6 +410,7 @@ else
   I_best_opt = 0; % Index zur Auswahl in iIKCopt
   % Nehme die Lösung mit der besten Konditionszahl. Toleranz gegen
   % Rundungsfehler; sonst beliebige Wahl quasi identischer Lösungen.
+  Jcond_IKC = constraint_obj_val_IKC(4,:)';
   Jcond_IKC_check = Jcond_IKC - Jcond_IKC(iIKCopt(1));
   Jcond_IKC_check(abs(Jcond_IKC_check)<1e-10) = 0;
   if all(~isnan(Jcond_IKC(iIKCopt))) && any(Jcond_IKC_check(iIKCopt))
@@ -412,6 +418,7 @@ else
   end
   % Nehme den Roboter mit der geringsten (bewegten) Masse. Kann unterschied-
   % lich sein, wenn Schubgelenke verschieden lang sind.
+  mges_IKC = constraint_obj_val_IKC(1,:)';
   mges_IKC_check = mges_IKC - mges_IKC(iIKCopt(1));
   mges_IKC_check(abs(mges_IKC_check)<1e-10) = 0;
   if all(~isnan(mges_IKC_check(iIKCopt))) && any(mges_IKC_check(iIKCopt))
@@ -459,7 +466,7 @@ else
 end
 fval = fval_IKC(iIKCbest,:)';
 physval = physval_IKC(iIKCbest,:)';
-Jcond = Jcond_IKC(iIKCbest);
+constraint_obj_val = constraint_obj_val_IKC(:,iIKCbest);
 f_maxstrengthviol = f_maxstrengthviol_IKC(iIKCbest);
 n_fval_iO = length(I_IKC_iO);
 
@@ -496,5 +503,5 @@ else
     toc(t1), fval(1), constrvioltext_IKC{iIKCbest}));
 end
 cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, mean(fval), debug_info);
-cds_save_particle_details(Set, R, toc(t1), fval, p, physval, Jcond, f_maxstrengthviol);
+cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, f_maxstrengthviol);
 rng('shuffle'); % damit Zufallszahlen in anderen Funktionen zufällig bleiben
