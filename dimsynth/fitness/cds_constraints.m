@@ -123,6 +123,7 @@ end
 %% Inverse Kinematik für Eckpunkte der Trajektorie berechnen
 if R.Type == 0 % Seriell
   qlim = R.qlim;
+  qref = R.qref;
   Phi_E = NaN(size(Traj_0.XE,1), sum(Set.structures.DoF));
   QE = NaN(size(Traj_0.XE,1), R.NQJ);
   if Set.task.profile ~= 0
@@ -142,6 +143,7 @@ if R.Type == 0 % Seriell
   JPE = NaN(size(Traj_0.XE,1), R.NL*3);
 else % PKM
   qlim = cat(1,R.Leg(:).qlim);
+  qref = cat(1,R.Leg(:).qref);
   nPhi = R.I2constr_red(end);
   Phi_E = NaN(size(Traj_0.XE,1), nPhi);
   QE = NaN(size(Traj_0.XE,1), R.NJ);
@@ -161,7 +163,11 @@ Q_jic = NaN(size(Traj_0.XE,1), R.NJ, n_jic);
 q0_jic = NaN(R.NJ, n_jic); % zum späteren Nachvollziehen des Ergebnisses
 for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   Phi_E(:) = NaN; QE(:) = NaN; % erneut initialisieren wegen jic-Schleife.
-  q0 = qlim(:,1) + rand(R.NJ,1).*(qlim(:,2)-qlim(:,1)); % Zufällige Anfangswerte geben vielleicht neue Konfiguration.
+  if jic == 1 && ~any(isnan(qref)) && any(qref) % nehme Referenz-Pose (kann erfolgreiche gespeicherte Pose bei erneutem Aufruf enthalten)
+    q0 = qref; % TODO: Prüfe, warum hier manchmal nur Nullen stehen. Dieser Fall wird aktuell ignoriert.
+  else
+    q0 = qlim(:,1) + rand(R.NJ,1).*(qlim(:,2)-qlim(:,1)); % Zufällige Anfangswerte geben vielleicht neue Konfiguration.
+  end
   q0_jic(:,jic) = q0;
   % Anpassung der IK-Anfangswerte für diesen Durchlauf der IK-Konfigurationen.
   % Versuche damit eine andere Konfiguration zu erzwingen
