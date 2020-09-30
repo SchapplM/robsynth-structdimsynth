@@ -82,6 +82,9 @@ if Set.general.computing_cluster
   % Bereite eine Einstellungs-Datei vor
   % Folgende Zeile scheitert auf dem Cluster, da Pfad dort nicht gesetzt.
   % Das ist so gewollt.
+  if isempty(which('computingcluster_repo_path.m'))
+    error('Datei computingcluster_repo_path.m existiert nicht. Muss manuell aus template-Datei erstellt werden.');
+  end
   cluster_repo_path = computingcluster_repo_path();
   computation_name = sprintf('dimsynth_%s_%s', ...
     datestr(now,'yyyymmdd_HHMMSS'), Set.optimization.optname);
@@ -95,7 +98,11 @@ if Set.general.computing_cluster
   Set_cluster.general.parcomp_plot = true; % paralleles Plotten auf Cluster (ist dort gleichwertig und schneller)
   save(fullfile(jobdir, [computation_name,'.mat']), 'Set_cluster', 'Traj');
   % Matlab-Skript erzeugen
-  copyfile(fullfile(jobdir,'..','..','dimsynth_cluster_header.m'), targetfile);
+  clusterheaderfile=fullfile(jobdir,'..','..','dimsynth_cluster_header.m');
+  if ~exist(clusterheaderfile, 'file')
+    error('Datei %s existiert nicht. Muss manuell aus template-Datei erstellt werden.', clusterheaderfile);
+  end
+  copyfile(clusterheaderfile, targetfile);
   fid = fopen(targetfile, 'a');
   fprintf(fid, 'tmp=load(''%s'');\n', [computation_name,'.mat']);
   fprintf(fid, 'Set=tmp.Set_cluster;\nTraj=tmp.Traj;\n');
