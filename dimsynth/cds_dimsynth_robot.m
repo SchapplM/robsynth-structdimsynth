@@ -1056,7 +1056,7 @@ for i = 1:Set.general.max_retry_bestfitness_reconstruction
   % Eigentlich darf sich das Ergebnis aber nicht ändern (wegen der
   % Zufallszahlen-Initialisierung in cds_fitness).
   fval_test = fitnessfcn(p_val);
-  if any(fval_test~=fval)
+  if any(abs(fval_test-fval)>1e-8)
     if all(fval_test < fval)
       t = sprintf('Der neue Wert (%s) ist um [%s] besser als der alte (%s).', ...
         disp_array(fval_test','%1.1f'), disp_array(fval'-fval_test','%1.1e'), disp_array(fval','%1.1f'));
@@ -1087,7 +1087,7 @@ if Structure.Type == 0, q0_ik2 = R.qref;
 else,                   q0_ik2 = cat(1,R.Leg.qref); end
 test_q0 = q0_ik - q0_ik2;
 test_q0(abs(abs(test_q0)-2*pi)<1e-6) = 0; % entferne 2pi-Fehler
-if any(test_q0~=0) && all(fval<1e9) % nur bei erfolgreicher Berechnung der IK ist der gespeicherte Wert sinnvoll
+if any(abs(test_q0)>1e-10) && all(fval<1e9) % nur bei erfolgreicher Berechnung der IK ist der gespeicherte Wert sinnvoll
   cds_log(-1, sprintf('[dimsynth] IK-Anfangswinkeln sind bei erneuter Berechnung anders. Darf nicht passieren. max. Abweichung: %1.2e.', max(abs(test_q0))));
 end
 % Berechne Inverse Kinematik zu erstem Bahnpunkt

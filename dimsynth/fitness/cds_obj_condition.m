@@ -71,8 +71,7 @@ if R.Type == 2
     for i = 1:size(Jinvges,1)
       Jinv_IK = reshape(Jinvges(i,:), R.NJ, sum(R.I_EE));
       if Set.general.debug_calc
-        % Debug: Vergleich der Jacobi-Matrizen (falls keine Singularität
-        % auftritt). TODO: Nur Optional mit Debug-Schalter
+        % Debug: Vergleich der Jacobi-Matrizen
         test_Jinv = Jinv_IK(R.I_qa,:) - R.jacobi_qa_x(Q(i,:)',Traj_0.X(i,:)');
         if any(abs(test_Jinv(:)) > 1e-6)%  && Cges(i) < 1e10
           if Set.general.matfile_verbosity > 0
@@ -81,8 +80,8 @@ if R.Type == 2
           error('Jacobi numerisch vs. symbolisch stimmt nicht. Fehler %e, Kondition Jinv %e', ...
             max(abs(abs(test_Jinv(:)))), Cges(i));
         end
+        det_ges(i,:) = det(Jinv_IK(R.I_qa,:));
       end
-      det_ges(i,:) = det(Jinv_IK(R.I_qa,:));
     end
 
     if Set.general.plot_robot_in_fitness < 0 && fval > abs(Set.general.plot_robot_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
