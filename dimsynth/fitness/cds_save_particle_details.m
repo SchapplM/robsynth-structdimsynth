@@ -55,8 +55,9 @@ end
 if R.Type == 0, q0 = R.qref;
 else,           q0 = cat(1,R.Leg.qref); end
 
-% Persistente Variable belegen
-size_data = [Set.optimization.MaxIter+1, Set.optimization.NumIndividuals];
+% Persistente Variable initialisieren. Eine zusätzliche Generation für Initial-
+% population, eine für Berechnungen nach Ende der eigentlichen Optimierung.
+size_data = [Set.optimization.MaxIter+2, Set.optimization.NumIndividuals];
 if isempty(PSO_Detail_Data) || strcmp(option, 'reset')
   PSO_Detail_Data = struct( ...
     'comptime', NaN(size_data), ...

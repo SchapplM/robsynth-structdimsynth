@@ -1012,10 +1012,7 @@ else  % PSO wird ganz normal ausgeführt.
 end
 % Detail-Ergebnisse extrahieren (persistente Variable in Funktion)
 PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, NaN, 'output');
-% Zurücksetzen, damit Neuberechnungen der Fitness-Funktion nicht fehlschlagen
-cds_save_particle_details(Set, R, 0, zeros(size(f_test)), zeros(length(p_val),1), ...
-  zeros(size(f_test)), zeros(length(Set.optimization.constraint_obj),1), 0, 'reset');
-clear cds_fitness
+
 if Set.general.matfile_verbosity > 0
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot3.mat'));
 end
@@ -1054,7 +1051,8 @@ for i = 1:Set.general.max_retry_bestfitness_reconstruction
   % Mehrere Versuche vornehmen, da beim Umklappen der Roboterkonfiguration
   % andere Ergebnisse entstehen können.
   % Eigentlich darf sich das Ergebnis aber nicht ändern (wegen der
-  % Zufallszahlen-Initialisierung in cds_fitness).
+  % Zufallszahlen-Initialisierung in cds_fitness). Es kann rundungsbedingte
+  % Aenderungen des Ergebnisses geben.
   fval_test = fitnessfcn(p_val);
   if any(abs(fval_test-fval)>1e-8)
     if all(fval_test < fval)
@@ -1075,6 +1073,11 @@ for i = 1:Set.general.max_retry_bestfitness_reconstruction
     break;
   end
 end
+% Detail-Ergebnisse extrahieren (persistente Variable in Funktion).
+% (Nochmal, da Neuberechnung oben eventuell anderes Ergebnis bringt)
+% Kein Zurücksetzen der persistenten Variablen notwendig.
+PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, NaN, 'output');
+
 % Schreibe die Anfangswerte der Gelenkwinkel für das beste Individuum in
 % die Roboterklasse. Suche dafür den besten Funktionswert in den zusätzlich
 % gespeicherten Daten für die Position des Partikels in dem Optimierungsverfahren

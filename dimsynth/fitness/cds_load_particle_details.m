@@ -14,7 +14,7 @@
 %   Index des Individuums in der Generation k_gen
 % 
 % Siehe auch:
-% cds_load_particle_details.m
+% cds_save_particle_details.m
 
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-09
@@ -33,6 +33,10 @@ for oc = 1:length(fval) % Gehe alle Optimierungskriterien durch
   fval_oc_mask = fval_oc_mask & (fval(oc) == fval_oc');
 end
 k = find(fval_oc_mask, 1, 'first'); % Umrechnen der Indizes
+if isempty(k)
+  % Abbruch, deutet auf einen Syntax-Fehler hin. Wert muss da sein.
+  error('Gesuchter Wert nicht in gespeicherten Daten gefunden.');
+end
 [k_ind,k_gen] = ind2sub(fliplr(size(PSO_Detail_Data.comptime)),k); % Umrechnung in 2D-Indizes: Generation und Individuum
 
 % Prüfe, ob die Indizes stimmen
