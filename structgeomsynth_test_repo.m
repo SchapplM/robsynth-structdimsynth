@@ -17,6 +17,9 @@ cds_testcase_3T0R; close all;
 cds_testcase_3T1R; close all;
 cds_testcase_3T3R; close all;
 
+%% Testfälle zum Reproduzieren eines definierten Ergebnisses
+cds_testcase_PKM_G1G4; close all;
+
 %% Diverse weitere Tests
 % Einige andere einzelne Funktionen werden getestet
 cds_example_2T1R_RRR_multiobj; close all;
