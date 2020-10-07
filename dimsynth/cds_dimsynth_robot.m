@@ -1047,13 +1047,27 @@ end
 
 % Fitness-Funktion nochmal mit besten Parametern aufrufen. Dadurch werden
 % die Klassenvariablen (R.pkin, R.DesPar.seg_par, ...) aktualisiert
-for i = 1:Set.general.max_retry_bestfitness_reconstruction
+if any(strcmp(Set.optimization.objective, 'valid_act'))
+  % Keine nochmalige Berechnung in diesem Fall sinnvoll
+  max_retry = 0;
+else
+  max_retry = Set.general.max_retry_bestfitness_reconstruction;
+end
+if max_retry > Set.optimization.NumIndividuals
+  % Reduziere, damit Speicherung in virtueller Post-Final-Generation läuft.
+  cds_log(-1, sprintf(['[dimsynth] Anzahl der Fitness-Neuversuche begrenzt ', ...
+    'auf %d. Einstellung max_retry_bestfitness_reconstruction passt nicht.'], ...
+    Set.optimization.NumIndividuals));
+  max_retry = Set.optimization.NumIndividuals;
+end
+
+for i = 1:max_retry
   % Mehrere Versuche vornehmen, da beim Umklappen der Roboterkonfiguration
   % andere Ergebnisse entstehen können.
   % Eigentlich darf sich das Ergebnis aber nicht ändern (wegen der
   % Zufallszahlen-Initialisierung in cds_fitness). Es kann rundungsbedingte
   % Aenderungen des Ergebnisses geben.
-  fval_test = fitnessfcn(p_val);
+  [fval_test, ~, Q_test] = fitnessfcn(p_val);
   if any(abs(fval_test-fval)>1e-8)
     if all(fval_test < fval)
       t = sprintf('Der neue Wert (%s) ist um [%s] besser als der alte (%s).', ...
@@ -1084,15 +1098,27 @@ PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, NaN, 'o
 [dd_optgen, dd_optind] = cds_load_particle_details(PSO_Detail_Data, fval);
 q0_ik = PSO_Detail_Data.q0_ik(dd_optind,:,dd_optgen)';
 
-% Prüfen, ob diese mit den im Optimierungsprozess gespeicherten IK-Anfangs-
-% winkeln übereinstimmen
-if Structure.Type == 0, q0_ik2 = R.qref;
-else,                   q0_ik2 = cat(1,R.Leg.qref); end
-test_q0 = q0_ik - q0_ik2;
-test_q0(abs(abs(test_q0)-2*pi)<1e-6) = 0; % entferne 2pi-Fehler
-if any(abs(test_q0)>1e-10) && all(fval<1e9) % nur bei erfolgreicher Berechnung der IK ist der gespeicherte Wert sinnvoll
-  cds_log(-1, sprintf('[dimsynth] IK-Anfangswinkeln sind bei erneuter Berechnung anders. Darf nicht passieren. max. Abweichung: %1.2e.', max(abs(test_q0))));
+% Prüfen, ob diese mit der Klassenvariable (aus dem letzten Fitness-Aufruf)
+% übereinstimmen. Muss nicht sein, da Zufallskomponente bei IK-Anfangswerten
+if max_retry > 0 % nur sinnvoll, falls Fitness nach Optimierungs-Ende neu berechnet
+  if Structure.Type == 0, q0_ik2 = R.qref;
+  else,                   q0_ik2 = cat(1,R.Leg.qref); end
+  test_q0 = q0_ik - q0_ik2;
+  test_q0(abs(abs(test_q0)-2*pi)<1e-6) = 0; % entferne 2pi-Fehler
+  if any(abs(test_q0)>1e-10) && all(fval<1e9) % nur bei erfolgreicher Berechnung der IK ist der gespeicherte Wert sinnvoll
+    cds_log(-1, sprintf(['[dimsynth] IK-Anfangswinkeln sind bei erneuter ', ...
+      'Berechnung anders. Kann passieren, aber nachteilig für Reproduzierbar', ...
+      'keit des Ergebnisses. max. Abweichung: %1.2e.'], max(abs(test_q0))));
+  end
 end
+% Schreibe die während der Optimierung gespeicherten Anfangswerte in der Klasse
+% Annahme: Damit ist immer eine Reproduktion des Endergebnisses (Optimum) möglich
+if Structure.Type == 0 % Seriell
+  R.qref = q0_ik;
+else % Parallel
+  for i = 1:R.NLEG, R.Leg(i).qref = q0_ik(R.I1J_LEG(i):R.I2J_LEG(i)); end
+end
+
 % Berechne Inverse Kinematik zu erstem Bahnpunkt
 Traj_0 = cds_transform_traj(R, Traj);
 if Structure.Type == 0 % Seriell
@@ -1104,7 +1130,7 @@ end
 if ~any(strcmp(Set.optimization.objective, 'valid_act')) && any(abs(Phi)>1e-8)
   cds_log(-1, '[dimsynth] PSO-Ergebnis für Startpunkt nicht reproduzierbar (ZB-Verletzung)');
 end
-% Berechne IK der Bahn (für spätere Visualisierung und Neuberechnung der Zielfunktionen)
+% Berechne IK der Bahn (für spätere Visualisierung und Neuberechnung der Leistungsmerkmale)
 % Benutze ähnliche Einstellungen wie in cds_constraints.m (aber feinere
 % Toleranz und mehr Rechenaufwand bei der eigentlichen IK-Berechnung)
 % Hier auch Weglassen der Beachtung der Winkelgrenzen (führt teilweise zu
@@ -1135,10 +1161,22 @@ if ~any(strcmp(Set.optimization.objective, 'valid_act')) && ...
     cds_log(-1, sprintf(['[dimsynth] PSO-Ergebnis für Trajektorie nicht reproduzierbar ', ...
       'oder nicht gültig (ZB-Verletzung). Max IK-Fehler: %1.1e. %d Fehler > 1e-6. %d mal NaN.'], ...
       max(abs(PHI(:))), sum(sum(abs(PHI)>1e-6,2)>0), sum(isnan(Q(:))) ));
+    % Vergleiche die neu berechnete Trajektorie und die aus der Fitness-Funktion
+    if Set.general.max_retry_bestfitness_reconstruction > 0
+      change_current_figure(654); clf;
+      for i = 1:R.NJ
+        subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i); hold on;
+        plot(Traj_0.t, Q(:,i));
+        plot(Traj_0.t, Q_test(:,i));
+        ylabel(sprintf('q%d', i));
+      end
+      legend({'invkin_traj', 'fitnessfcn'});
+      sgtitle('Neuberechnung Gelenk-Traj. Debug');
+    end
   end
   result_invalid = true;
 end
-%% Berechne andere Zielfunktionen
+%% Berechne andere Leistungsmerkmale
 Structure_tmp = Structure; % Eingabe um Berechnung der Antriebskräfte zu erzwingen
 Structure_tmp.calc_dyn_act = true;
 Structure_tmp.calc_dyn_cut = true; % ... und der Schnittkräfte
@@ -1177,7 +1215,7 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
     save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
       sprintf('%d_%s', Structure.Number, Structure.Name), 'condreprowarning.mat'));
     cds_log(-1, sprintf('[dimsynth] Während Optimierung gespeicherte Konditionszahl (%1.5e) stimmt nicht mit erneuter Berechnung (%1.5e) überein. Differenz %1.5e.', ...
-      PSO_Detail_Data.Jcond(dd_optgen, dd_optind), physval_cond, test_Jcond));
+      PSO_Detail_Data.constraint_obj_val(dd_optind, 4, dd_optgen), physval_cond, test_Jcond));
   end
   test_sv = PSO_Detail_Data.f_maxstrengthviol(dd_optgen, dd_optind) - f_maxstrengthviol;
   if abs(test_sv) > 1e-5
@@ -1187,7 +1225,7 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
       PSO_Detail_Data.f_maxstrengthviol(dd_optgen, dd_optind), f_maxstrengthviol, test_sv));
   end
 else
-  % Keine Berechnung der Zielfunktionen möglich, da keine zulässige Lösung
+  % Keine Berechnung der Leistungsmerkmale möglich, da keine zulässige Lösung
   % gefunden wurde.
   fval_obj_all = NaN(6,1);
   fval_constr_all = NaN(1,1);
@@ -1207,13 +1245,27 @@ if any(fval<1e3) && Set.optimization.constraint_link_yieldstrength~= 0 && ...
     sprintf('%d_%s', Structure.Number, Structure.Name), 'strengthconstrwarning.mat'));
   cds_log(-1, sprintf('[dimsynth] Materialbelastungs-Nebenbedingung verletzt trotz Berücksichtigung in Optimierung. Keine Lösung gefunden.'));
 end
-% Bestimme Zuordnung der Fitness-Vektor-Einträge bei Pareto-Optimierung
-% (Erleichtert spätere Auswertung)
-I_fval_pareto_obj_all = zeros(length(Set.optimization.objective),1);
-if length(Set.optimization.objective) > 1
-  obj_names_all = {'mass', 'energy', 'actforce', 'condition', 'jointrange', 'stiffness'};
-  for i = 1:length(Set.optimization.objective)
-    I_fval_pareto_obj_all(i) = find(strcmp(Set.optimization.objective{i},obj_names_all));
+% Bestimme Zuordnung der Fitness-Vektor-Einträge zu den Leistungsmerkmalen
+% (Erleichtert spätere Auswertung bei Pareto-Optimierung)
+I_fval_obj_all = zeros(length(Set.optimization.objective),1);
+obj_names_all = {'mass', 'energy', 'actforce', 'condition', 'jointrange', 'stiffness'};
+for i = 1:length(Set.optimization.objective)
+  II_i = strcmp(Set.optimization.objective{i},obj_names_all);
+  if any(II_i) % Bei Zielfunktion valid_act wird kein Leistungsmerkmal berechnet.
+    I_fval_obj_all(i) = find(II_i);
+  end
+end
+% Prüfe ob die Zielfunktion durch Neuberechnung der Leistungsmerkmale
+% reproduziert werden konnte (Plausibilität der Berechnungen)
+for i = 1:length(Set.optimization.objective)
+  if I_fval_obj_all(i) == 0, continue; end % keine Prüfung möglich.
+  test_fval_i = fval(i) - fval_obj_all(I_fval_obj_all(i));
+  if abs(test_fval_i) > 1e-6
+    save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
+      sprintf('%d_%s', Structure.Number, Structure.Name), 'fvalreprowarning.mat'));
+    cds_log(-1, sprintf(['[dimsynth] Zielfunktionswert %d (%s) nicht aus Neu', ...
+      'berechnung der Leistungsmerkmale reproduzierbar. Aus PSO: %1.5f, neu: %1.5f.'], ...
+      i, obj_names_all{I_fval_obj_all(i)}, fval(i), fval_obj_all(I_fval_obj_all(i))));
   end
 end
 %% Ausgabe der Ergebnisse
@@ -1228,7 +1280,7 @@ RobotOptRes = struct( ...
   'fval_pareto', fval_pareto, ... % Alle Fitness-Werte der Pareto-Front
   'physval_pareto', physval_pareto, ... % physikalische Werte dazu
   'p_val_pareto', p_val_pareto, ... % Alle Parametervektoren der P.-Front
-  'I_fval_pareto_obj_all', I_fval_pareto_obj_all, ... % Zuordnung der Pareto-Fitness-Einträge zu fval_obj_all
+  'I_fval_obj_all', I_fval_obj_all, ... % Zuordnung der Fitness-Einträge zu fval_obj_all
   'p_limits', varlim, ... % Grenzen für die Parameterwerte
   'options', options, ... % Optionen des Optimierungs-Algorithmus
   'q0', q, ... % Anfangs-Gelenkwinkel für Lösung der IK

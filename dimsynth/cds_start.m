@@ -16,11 +16,11 @@ warning('off', 'Coder:MATLAB:nearlySingularMatrix');
 warning('off', 'Coder:MATLAB:rankDeficientMatrix');
 warning('off', 'Coder:MATLAB:rankDeficientMatrix');
 
+%% Eingabe prüfen
 if ~exist('Set', 'var') || ~exist('Traj', 'var')
   error('Eingabevariablen des Startskriptes existieren nicht');
 end
 
-% Eingabe prüfen
 Set_default = cds_settings_defaults(struct('DoF', Set.structures.DoF));
 for subconf = fields(Set_default)'
   for ftmp = fields(Set.(subconf{1}))'
@@ -66,7 +66,7 @@ if size(Set.optimization.obj_limit,2) > 1
   error('obj_limit muss %d x 1 Vektor sein', length(Set.optimization.objective));
 end
 
-% Menge der Roboter laden
+%% Menge der Roboter laden
 Structures = cds_gen_robot_list(Set);
 
 if isempty(Structures)
@@ -77,7 +77,7 @@ if isempty(Structures)
   return
 end
 
-% Berechnung auf PBS-Cluster vorbereiten und durchführen
+%% Berechnung auf PBS-Cluster vorbereiten und durchführen
 if Set.general.computing_cluster
   % Bereite eine Einstellungs-Datei vor
   % Folgende Zeile scheitert auf dem Cluster, da Pfad dort nicht gesetzt.
@@ -128,6 +128,7 @@ if Set.general.computing_cluster
   return;
 end
 
+%% Vorbereitung und Durchführung der lokalen Optimierung
 % Bei paralleler Berechnung dürfen keine Dateien geschrieben werden um
 % Konflikte zu vermeiden
 if Set.general.parcomp_struct && ... % Parallele Rechnung ist ausgewählt
@@ -167,6 +168,8 @@ if ~isempty(Set.structures.whitelist)
   for i = 1:length(Structures), Names_in_Struct{i} = Structures{i}.Name; end %#ok<SAGROW>
   if length(Set.structures.whitelist) ~= length(unique(Names_in_Struct))
     warning('Es wurde eine Positiv-Liste übergeben, aber nicht alle dieser Strukturen wurden gewählt.');
+    disp('Gültige PKM:');
+    disp(intersect(Set.structures.whitelist, Names_in_Struct));
   end
 end
 
@@ -253,7 +256,7 @@ if isempty(Structures)
   return
 end
 
-% Ergebnisse darstellen
+%% Ergebnisse darstellen
 cds_results_table(Set, Traj, Structures)
 cds_vis_results(Set, Traj, Structures);
 cds_create_evolution_videos(Set, Traj, Structures)
