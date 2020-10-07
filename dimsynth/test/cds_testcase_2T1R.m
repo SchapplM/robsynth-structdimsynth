@@ -43,7 +43,9 @@ for debugcalc = [0 1]
       tmp=load(resdat, 'RobotOptRes', 'Set', 'Traj');
       clear cds_save_particle_details cds_fitness cds_log % notwendig, da Dimensionsänderung in persistenten Variablen
       fval_rtest = tmp.RobotOptRes.fitnessfcn(tmp.RobotOptRes.p_val);
-      if any(abs(fval_rtest - tmp.RobotOptRes.fval) > 1e-6)
+      abserr_fval = fval_rtest - tmp.RobotOptRes.fval;
+      relerr_fval = abserr_fval./tmp.RobotOptRes.fval;
+      if abs(abserr_fval) > 1e-4 && abs(relerr_fval) > 1e-2
         error('Fitness-Wert für %s nicht reproduzierbar', Structures{j}.Name);
       end
       if any(tmp.RobotOptRes.fval > 1e3)

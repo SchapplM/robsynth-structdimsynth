@@ -14,13 +14,13 @@ Set.task.Ts = 1e-2;
 Set.task.Tv = 1e-1;
 Set.optimization.NumIndividuals = 30;
 Set.optimization.MaxIter = 10;
+Set.general.matfile_verbosity = 1;
 Set.general.plot_details_in_fitness = 1e3;
 Set.general.plot_robot_in_fitness = 1e3;
 Set.general.save_robot_details_plot_fitness_file_extensions = {'fig'};
 Set.general.save_animation_file_extensions = {'mp4', 'gif'};
 % Liste mit verschiedenen Beinketten und Koppelpunkten
-whitelist_all = {'P3PRRRR1G1P3A1', 'P3PRRRR8G1P1A1', 'P3PRRRR4G2P2A1', ...
-  'P3RRRRR1G3P3A2', 'P3RPRRR8G4P2A1', 'P3RRRRR10G2P2A1'};
+whitelist_all = {'P3PRRRR1G1P3A1', 'P3RPRRR8G4P2A1', 'P3RRRRR1G3P3A2'};
 Traj = cds_gen_traj(DoF, 1, Set.task);
 for debugcalc = [0 1]
   for obj_name = {'valid_act', 'mass', 'energy', 'condition', 'actforce', 'stiffness', 'jointrange'}
@@ -41,7 +41,9 @@ for debugcalc = [0 1]
       tmp=load(resdat, 'RobotOptRes', 'Set', 'Traj');
       clear cds_save_particle_details cds_fitness cds_log % notwendig, da Dimensionsänderung in persistenten Variablen
       fval_rtest = tmp.RobotOptRes.fitnessfcn(tmp.RobotOptRes.p_val);
-      if any(abs(fval_rtest - tmp.RobotOptRes.fval) > 1e-6)
+      abserr_fval = fval_rtest - tmp.RobotOptRes.fval;
+      relerr_fval = abserr_fval./tmp.RobotOptRes.fval;
+      if abs(abserr_fval) > 1e-4 && abs(relerr_fval) > 1e-2
         error('Fitness-Wert für %s nicht reproduzierbar', Structures{j}.Name);
       end
       if any(tmp.RobotOptRes.fval > 1e3)

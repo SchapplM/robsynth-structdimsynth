@@ -7,7 +7,7 @@
 
 
 % Aufgaben-FG
-DoF = [1 1 1 0 0 1];
+DoF = [1 1 1 1 1 1];
 
 Set = cds_settings_defaults(struct('DoF', DoF));
 Set.task.Ts = 1e-2;
@@ -18,6 +18,7 @@ Set.general.plot_details_in_fitness = 1e3;
 Set.general.plot_robot_in_fitness = 1e3;
 Set.general.save_robot_details_plot_fitness_file_extensions = {'fig'};
 Set.general.save_animation_file_extensions = {'mp4', 'gif'};
+Set.general.matfile_verbosity = 1;
 % Liste mit verschiedenen Beinketten und Koppelpunkten
 whitelist_all = {'S6RRRRRR10V2', 'S6RRRRRR10', 'P6PRRRRR6G8P1A1', ...
   'P6PRRRRR6V2G8P4A1', 'P6RRRRRR10V3G1P1A1', 'P6RRRRRR10G1P1A1'};
@@ -41,7 +42,9 @@ for debugcalc = [0 1]
       tmp=load(resdat, 'RobotOptRes', 'Set', 'Traj');
       clear cds_save_particle_details cds_fitness cds_log % notwendig, da Dimensionsänderung in persistenten Variablen
       fval_rtest = tmp.RobotOptRes.fitnessfcn(tmp.RobotOptRes.p_val);
-      if any(abs(fval_rtest - tmp.RobotOptRes.fval) > 1e-6)
+      abserr_fval = fval_rtest - tmp.RobotOptRes.fval;
+      relerr_fval = abserr_fval./tmp.RobotOptRes.fval;
+      if abs(abserr_fval) > 1e-4 && abs(relerr_fval) > 1e-2
         error('Fitness-Wert für %s nicht reproduzierbar', Structures{j}.Name);
       end
       if any(tmp.RobotOptRes.fval > 1e3)
