@@ -114,13 +114,15 @@ else % PKM
         error(['Ausgabevariable QD aus invkin_traj vs invkin2_traj stimmt nicht. ', ...
           'Max Fehler %1.1e.'], max(abs(test_QD(:))));
       end
-      test_QDD = QDD-QDD_debug;
-      if any(abs(test_QDD(:))>1e-3)
+      test_QDD_abs = QDD-QDD_debug; % nahe Singularität große Zahlenwerte für QDD ...
+      test_QDD_rel = test_QDD_abs./QDD; % ... dadurch Numerik-Probleme möglich.
+      I_err = abs(test_QDD_abs)>1e-3 & abs(test_QDD_rel)>1e-3; % 0,1% Abweichung erlaubt
+      if any(I_err(:))
         if Set.general.matfile_verbosity > 0
           save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_trajqDD_error_debug.mat'));
         end
         error(['Ausgabevariable QDD aus invkin_traj vs invkin2_traj stimmt nicht. ', ...
-          'Max Fehler %1.1e.'], max(abs(test_QDD(:))));
+          'Max Fehler abs %1.1e., rel %1.4f%%'], max(abs(test_QDD_abs(:))), 100*max(abs(test_QDD_rel(:))));
       end
       test_JPtraj = JP-JP_debug;
       if any(abs(test_JPtraj(:))>1e-6)
