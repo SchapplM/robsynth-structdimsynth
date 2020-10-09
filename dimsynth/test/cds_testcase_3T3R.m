@@ -24,7 +24,12 @@ whitelist_all = {'S6RRRRRR10V2', 'S6RRRRRR10', 'P6PRRRRR6G8P1A1', ...
   'P6PRRRRR6V2G8P4A1', 'P6RRRRRR10V3G1P1A1', 'P6RRRRRR10G1P1A1'};
 Traj = cds_gen_traj(DoF, 1, Set.task);
 for debugcalc = [0 1]
-  for obj_name = {'valid_act', 'mass', 'energy', 'condition', 'actforce', 'stiffness', 'jointrange'}
+  % Optimiere jedes mögliche Zielkriterium einzeln
+  obj_list = {'valid_act', 'mass', 'energy', 'condition', 'actforce', ...
+    'stiffness', 'jointrange'};
+  % Speichere Erfolg aller Maßsynthese-Versuche ab. Auswertung unten.
+  success_matrix = false(length(whitelist_all), length(obj_list));
+  for obj_name = obj_list
     if strcmp(obj_name, 'valid_act') % nur für parallele Roboter
       Set.structures.whitelist = whitelist_all(~contains(whitelist_all, 'S'));
     else % für alle Roboter
@@ -48,8 +53,25 @@ for debugcalc = [0 1]
         error('Fitness-Wert für %s nicht reproduzierbar', Structures{j}.Name);
       end
       if any(tmp.RobotOptRes.fval > 1e3)
-        error('Keine Lösung in Maßsynthese für %s gefunden. Fehler?', Structures{j}.Name);
+        warning('Keine Lösung in Maßsynthese für %s gefunden. Muss kein Fehler sein.', Structures{j}.Name);
+      else
+        success_matrix(strcmp(Structures{j}.Name,whitelist_all), ...
+          strcmp(obj_name,obj_list)) = true;
       end
+    end
+  end
+  % Prüfe, ob für einen Roboter nie eine Lösung gefunden wurde. Annahme:
+  % Bei so vielen Zielkriterien muss durch Zufall für jeden einmal eine
+  % gültige Lösung gefunden werden. Ansonsten ist die Auswahl oben schlecht.
+  for j = 1:length(whitelist_all)
+    if ~any(success_matrix(j,:))
+      error('Für Rob %d (%s) wurde nie eine gültige Lösung gefunden.', j, whitelist_all{j});
+    elseif ~all(success_matrix(j,:))
+      warning('Für Rob %d (%s) führten nur %d/%d Optimierungen zu einer gültigen Lösung.', ...
+        j, whitelist_all{j}, sum(success_matrix(j,:)), size(success_matrix,2));
+    else
+      fprintf('Maßsynthese für Rob %d (%s) %d mal erfolgreich\n', ...
+        j, whitelist_all{j}, sum(success_matrix(j,:)));
     end
   end
 end
