@@ -1259,6 +1259,7 @@ end
 % reproduziert werden konnte (Plausibilität der Berechnungen)
 for i = 1:length(Set.optimization.objective)
   if I_fval_obj_all(i) == 0, continue; end % keine Prüfung möglich.
+  if fval(i) > 1e3, continue; end % Leistungsmerkmal steht nicht in Zielfunktion (NB-Verletzung)
   test_fval_i = fval(i) - fval_obj_all(I_fval_obj_all(i));
   if abs(test_fval_i) > 1e-6
     save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
