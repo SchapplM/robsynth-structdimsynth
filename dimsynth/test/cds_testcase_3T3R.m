@@ -24,7 +24,7 @@ whitelist_all = {'S6RRRRRR10V2', 'S6RRRRRR10', 'P6PRRRRR6G8P1A1', ...
   'P6PRRRRR6V2G8P4A1', 'P6RRRRRR10V3G1P1A1', 'P6RRRRRR10G1P1A1'};
 Traj = cds_gen_traj(DoF, 1, Set.task);
 for debugcalc = [0 1]
-  % Optimiere jedes mögliche Zielkriterium einzeln
+  %% Optimiere jedes mögliche Zielkriterium einzeln
   obj_list = {'valid_act', 'mass', 'energy', 'condition', 'actforce', ...
     'stiffness', 'jointrange'};
   % Speichere Erfolg aller Maßsynthese-Versuche ab. Auswertung unten.
@@ -60,15 +60,16 @@ for debugcalc = [0 1]
       end
     end
   end
-  % Prüfe, ob für einen Roboter nie eine Lösung gefunden wurde. Annahme:
-  % Bei so vielen Zielkriterien muss durch Zufall für jeden einmal eine
+  %% Prüfe, ob für einen Roboter nie eine Lösung gefunden wurde. 
+  % Annahme: Bei so vielen Zielkriterien muss durch Zufall für jeden einmal eine
   % gültige Lösung gefunden werden. Ansonsten ist die Auswahl oben schlecht.
   for j = 1:length(whitelist_all)
     if ~any(success_matrix(j,:))
       error('Für Rob %d (%s) wurde nie eine gültige Lösung gefunden.', j, whitelist_all{j});
     elseif ~all(success_matrix(j,:))
-      warning('Für Rob %d (%s) führten nur %d/%d Optimierungen zu einer gültigen Lösung.', ...
+      warning('Für Rob %d (%s) führten nur %d/%d Optimierungen zu einer gültigen Lösung. Nicht gültig:', ...
         j, whitelist_all{j}, sum(success_matrix(j,:)), size(success_matrix,2));
+      disp(obj_list(~success_matrix(j,:)));
     else
       fprintf('Maßsynthese für Rob %d (%s) %d mal erfolgreich\n', ...
         j, whitelist_all{j}, sum(success_matrix(j,:)));
