@@ -106,8 +106,8 @@ if structset.use_serial
     end
     
     ii = ii + 1;
-    fprintf('%d: %s\n', ii, SName);
-    Structures{ii} = struct('Name', SName, 'Type', 0, 'Number', ii);
+    if verblevel >= 2, fprintf('%d: %s\n', ii, SName); end
+    Structures{ii} = struct('Name', SName, 'Type', 0, 'Number', ii); %#ok<AGROW>
   end
 end
 %% Parallele Roboter aus Liste laden
