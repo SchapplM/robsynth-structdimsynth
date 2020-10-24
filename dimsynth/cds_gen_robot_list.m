@@ -47,10 +47,10 @@ end
 
 EE_FG = structset.DoF;
 EE_FG_Mask = [1 1 1 1 1 1]; % Die FG müssen genauso auch vom Roboter erfüllt werden (0 darf nicht auch 1 sein)
-if all(structset.DoF == [1 1 1 1 1 0])
-  EE_FG      = [[1 1 1], [1 1 1], [1 1 1]];
-  EE_FG_Mask = [[1 1 1], [1 1 1], [1 1 0]];
-end
+% if all(structset.DoF == [1 1 1 1 1 0])
+%   EE_FG      = [[1 1 1], [1 1 1], [1 1 1]];
+%   EE_FG_Mask = [[1 1 1], [1 1 1], [1 1 0]];
+% end
 
 ii = 0; % Laufende Nummer für alle Roboterstrukturen (seriell und parallel)
 
@@ -132,7 +132,7 @@ if structset.use_parallel
     [~, LEG_Names, Actuation, Coupling, ~, ~, ~, ~, ~, AdditionalInfo_Akt] ...
       = parroblib_load_robot(PNames_Akt{j});
     % Prüfe Koppelpunkt-Eigenschaften
-    if ~any(Coupling(1) == 1:8) || ~any(Coupling(2) == 1:6)
+    if ~any(Coupling(1) == [1:9]) || ~any(Coupling(2) == [1:6, 8])
       if verblevel >= 3, fprintf('%s hat eine nicht implementierte Koppelpunkt-Variante\n', PNames_Akt{j}); end
       continue % Robotermodell kann in Optimierung nicht generiert werden.
     end
@@ -281,7 +281,8 @@ if structset.use_parallel
     end
     if strcmp(Set.optimization.objective, 'valid_act') % Prüfe Laufgrad der PKM (sonst ist die Info schon vorhanden)
       if any(I_theta) && ... % es gibt (mindestens) einen theta-Parameter
-          all(structset.DoF(1:5) == [1 1 1 0 0]) % 3T0R/3T1R (nur dort vorauss. relevant)
+          (all(structset.DoF(1:5) == [1 1 1 0 0]) || ... % 3T0R/3T1R
+           all(structset.DoF(1:6) == [1 1 1 1 1 0])) % 3T2R (vermutlich hier relevant)
         % Falls theta ein variabler Parameter ist, werden verschiedene An- 
         % nahmen für theta getroffen und alle einzeln geprüft.
         theta_values = [1 2 4]; % verschiedene Einstellungen. Siehe parroblib_load_robot

@@ -27,7 +27,8 @@
 %   5e3...6e3: Geschwindigkeitsgrenzen
 %   6e3...9e3: Gelenkwinkelgrenzen in Trajektorie
 %   9e3...1e4: Parasitäre Bewegung (Roboter strukturell unpassend)
-%   1e4...1e5: IK in Trajektorie nicht lösbar
+%   1e4...4e4: Inkonsistente Pos./Geschw./Beschl. in Traj.-IK. für Beink. 1
+%   4e4...1e5: IK in Trajektorie nicht lösbar (später mit vorherigem zusammengefasst)
 %   1e5...1e9: Nicht belegt (siehe cds_constraints.m)
 % Q,QD,QDD
 %   Gelenkpositionen und -geschwindigkeiten des Roboters (für PKM auch
@@ -52,7 +53,7 @@ constrvioltext = '';
 s = struct('normalize', false, ... % nicht notwendig, da Prüfen der Winkel-Spannweite. Außerdem sonst Sprung in Traj
   'retry_limit', 0, ... % keine Zufalls-Zahlen. Würde sowieso einen Sprung erzeugen.
   'n_max', 1000, ... % moderate Anzahl Iterationen
-  'Phit_tol', 1e-8, 'Phir_tol', 1e-8);
+  'Phit_tol', 1e-10, 'Phir_tol', 1e-10);
 if R.Type == 0 % Seriell
   qlim = R.qlim;
   [Q, QD, QDD, PHI, JP] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
@@ -61,7 +62,7 @@ else % PKM
   qlim = cat(1,R.Leg(:).qlim);
   [Q, QD, QDD, PHI, Jinv_ges, ~, JP] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
   if Set.general.debug_calc % Rechne nochmal mit Klassenmethode nach
-    [Q_debug, QD_debug, QDD_debug, PHI_debug, ~, ~, JP_debug] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+    [Q_debug, QD_debug, QDD_debug, PHI_debug, ~, ~, JP_debug] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s); %#ok<ASGLU>
     ik_res_ik2 = (all(max(abs(PHI(:,R.I_constr_t_red)))<s.Phit_tol) && ...
         all(max(abs(PHI(:,R.I_constr_r_red)))<s.Phir_tol));% IK-Status Funktionsdatei
     ik_res_iks = (all(max(abs(PHI_debug(:,R.I_constr_t_red)))<s.Phit_tol) && ... 
@@ -133,6 +134,11 @@ else % PKM
           'Max Fehler %1.1e.'], max(abs(test_JPtraj(:))));
       end
     end
+    test_QDDtraj = QDD-QDD_debug;
+    if any(abs(test_QDDtraj(:))>1e-6)
+      Ifirst = find(any(abs(test_QDDtraj)>1e-6,2),1,'first');
+      error('Ausgabevariable QDD aus invkin_traj vs invkin2_traj stimmt nicht. Zuerst in Zeitschritt %d.', Ifirst);
+    end
   end
 end
 % Anfangswerte nochmal neu speichern, damit der Anfangswert exakt der
@@ -152,20 +158,109 @@ if any(I_ZBviol)
   IdxFirst = find(I_ZBviol, 1 );
   % Umrechnung in Prozent der Traj.
   Failratio = 1-IdxFirst/length(Traj_0.t); % Wert zwischen 0 und 1
-  fval = 1e4*(1+9*Failratio); % Wert zwischen 1e4 und 1e5
+  fval = 1e4*(4+6*Failratio); % Wert zwischen 4e4 und 1e5.
   % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
   constrvioltext = sprintf('Keine IK-Konvergenz in Traj. Bis %1.0f%% (%d/%d) gekommen.', ...
     (1-Failratio)*100, IdxFirst, length(Traj_0.t));
   return
 end
-%% Prüfe, ob eine parasitäre Bewegung in der Trajektorie vorliegt
+% Plattform-Bewegung neu für 3T2R-Roboter berechnen (der letzte Euler-Winkel
+% ist nicht definiert und kann beliebige Werte einnehmen).
+if all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
+  [X2,XD2,XDD2] = R.fkineEE2_traj(Q, QD, QDD);
+  % Teste nur die ersten fünf Einträge (sind vorgegeben). Der sechste
+  % Wert wird an dieser Stelle erst berechnet und kann nicht verglichen werden.
+  % Hier wird nur eine Hin- und Rückrechnung (InvKin/DirKin) gemacht. 
+  test_X = Traj_0.X(:,1:5) - X2(:,1:5);
+  if any(abs(test_X(:))>1e-6)
+    % Bestimme die mittlere Abweichung zwischen Position des Endeffektors
+    % aus inverser und direkter Kinematik
+    % Dieser Fall darf eigentlich gar nicht auftreten, wenn invkin und
+    % fkin korrekt implementiert sind.
+    fval_x = mean(test_X(:));
+    fval_x_norm = 2/pi*atan(fval_x*70); % Normierung auf 0 bis 1. 0.1 -> 0.9
+    fval = 1e4*(3+fval_x_norm); % Werte zwischen 3e4 und 4e4
+    constrvioltext=sprintf(['Fehler der EE-Lage der ersten Beinkette ', ...
+      'zwischen invkin und fkine. Max Fehler %1.2e'], max(abs(test_X(:))));
+    return
+  end
+  test_XD = Traj_0.XD(:,1:5) - XD2(:,1:5);
+  if any(abs(test_XD(:))>1e-6)
+    % Bestimme die mittlere Abweichung zwischen Geschwindigkeit des Endeffektors
+    % aus inverser und direkter differentieller Kinematik. Darf
+    % eigentlich nicht passieren (s.o.).
+    fval_xD = mean(test_XD(:));
+    fval_xD_norm = 2/pi*atan(fval_xD*70); % Normierung auf 0 bis 1. 0.1 -> 0.9
+    fval = 1e4*(2+fval_xD_norm); % Werte zwischen 2e4 und 3e4
+    constrvioltext=sprintf(['Fehler der EE-Geschwindigkeit der ersten Beinkette ', ...
+      'zwischen invkin und fkine. Max Fehler %1.2e'], max(abs(test_XD(:))));
+    return
+  end
+  test_XDD = Traj_0.XDD(:,1:5) - XDD2(:,1:5);
+  if any(abs(test_XDD(:))>1e-6)
+    % Bestimme die mittlere Abweichung zwischen Beschleunigung des Endeffektors
+    % aus inverser und direkter differentieller Kinematik. Darf
+    % eigentlich nicht passieren (s.o.).
+    fval_xDD = mean(test_XDD(:));
+    fval_xDD_norm = 2/pi*atan(fval_xDD*70); % Normierung auf 0 bis 1. 0.1 -> 0.9
+    fval = 1e4*(1+fval_xDD_norm); % Werte zwischen 1e4 und 2e4
+    constrvioltext=sprintf(['Fehler der EE-Beschleunigung der ersten Beinkette ', ...
+      'zwischen invkin und fkine. Max Fehler %1.2e'], max(abs(test_XDD(:))));
+    return
+  end
+  % Eintragen des dritten Euler-Winkels, damit spätere Vergleiche funktionieren.
+  if all(R.I_EE_Task == [1 1 1 1 1 0])
+    Traj_0.X(:,6) = X2(:,6);
+    Traj_0.XD(:,6) = XD2(:,6);
+    Traj_0.XDD(:,6) = XDD2(:,6);
+  end
+end
+%% Prüfe, ob eine Verletzung der Geschwindigkeits-Zwangsbedingungen vorliegt
+% Bei 3T2R-PKM kann eine Positions-ZB ungleich Null für die z-Rotation
+% korrekt sein. Diese muss aber konstant bleiben und darf sich nicht
+% ändern. Durch die Prüfung der ZB-Zeitableitung wird geprüft, ob QD und XD
+% konsistent sind.
 if any(strcmp(Set.optimization.objective, 'valid_act')) && R.Type ~= 0 % nur sinnvoll bei PKM-Struktursynthese
-  for jj = 1:length(Traj_0.t)
-    [~,PhiD_jj] = R.constr4D(Q(jj,:)', QD(jj,:)', Traj_0.X(jj,:)',Traj_0.XD(jj,:)');
-    if any(abs(PhiD_jj)> min(s.Phir_tol,s.Phit_tol))
-      fval = 1e4; % Konstanter Wert (Bereich 9e3...1e4 erstmal ungenutzt)
-      constrvioltext = sprintf('Es gibt eine parasitäre Bewegung.');
-      return
+  % Geschwindigkeits-Zwangsbedingungen der Koppelpunkte.
+  PHI4D_ges = R.constr4D2_traj(Q, QD, Traj_0.X, Traj_0.XD);
+  % Zum Debuggen: Weitere Zwangsbedingungen
+%   PHI1D_ges=NaN(size(PHI4D_ges)); PHI2D_ges=PHI1D_ges;
+%   for jj = 1:length(Traj_0.t)
+%     [~,PHI1D_ges(jj,:)] = R.constr1D(Q(jj,:)', QD(jj,:)', Traj_0.X(jj,:)',Traj_0.XD(jj,:)');
+%     [~,PHI2D_ges(jj,:)] = R.constr2D(Q(jj,:)', QD(jj,:)', Traj_0.X(jj,:)',Traj_0.XD(jj,:)');
+%   end
+  if any(abs(PHI4D_ges(:))>1e-6)
+    % Bilde Kennzahl aus Schwere der parasitären Bewegung
+    fval_paras = mean(abs(PHI4D_ges(:)));
+    fval_paras_norm = 2/pi*atan(fval_paras*700); % Normierung auf 0 bis 1. 0.01 -> 0.9
+    fval = 9e3*(1+1/9*fval_paras_norm); % Normierung auf 9e3...1e4
+    constrvioltext = sprintf(['Es gibt eine parasitäre Bewegung in %d/%d ', ...
+      'Zeitschritten. Im Mittel %1.4f (rad/s bzw. m/s). Zuerst bei Zeitschritt %d.'], ...
+      sum(any(abs(PHI4D_ges)>1e-3,2)), length(Traj_0.t), fval_paras, ...
+      find(any(abs(PHI4D_ges)>1e-6,2),1,'first'));
+    return
+  end
+  % Debuggen der Geschwindigkeits-Konsistenz: Vergleiche EE-Trajektorie von
+  % verschiedenen Beinketten aus berechnet.
+  if Set.general.debug_calc
+    for j = 2:R.NLEG
+      [X3,XD3,~] = R.fkineEE2_traj(Q, QD, QDD, uint8(j));
+      test_X = Traj_0.X(:,1:5) - X3(:,1:5);
+      test_XD = Traj_0.XD(:,1:6) - XD3(:,1:6);
+      % test_XDD = Traj_0.XDD(:,1:6) - XDD3(:,1:6);
+      if any(abs(test_X(:))>1e-6)
+        if Set.general.matfile_verbosity > 0
+          save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_xtraj_legs_inconsistency.mat'));
+        end
+        error(['Die Endeffektor-Trajektorie X aus Beinkette %d stimmt nicht ', ...
+          'gegen Beinkette 1. Zuerst in Zeitschritt %d/%d.'], j, ...
+          find(any(abs(test_X)>1e-6,2),1,'first'), length(Traj_0.t));
+      end
+      if any(abs(test_XD(:))>1e-6)
+        error(['Die Endeffektor-Trajektorie XD aus Beinkette %d stimmt nicht ', ...
+          'gegen Beinkette 1. Zuerst in Zeitschritt %d/%d.'], j, ...
+          find(any(abs(test_XD)>1e-6,2),1,'first'), length(Traj_0.t));
+      end
     end
   end
 end
@@ -261,6 +356,8 @@ if any(corrQD < 0.95) || any(corrQ < 0.98)
   constrvioltext = sprintf('Konfiguration scheint zu springen. Korrelation Geschw. min. %1.2f, Position %1.2f', ...
     min(corrQD), min(corrQ));
   if fval < Set.general.plot_details_in_fitness
+    % Geschwindigkeit neu mit Trapezregel berechnen (Integration)
+    QD_num2 = repmat(QD(1,:),size(QD,1),1)+cumtrapz(Traj_0.t, QDD);
     RP = ['R', 'P'];
     change_current_figure(1001);clf;
     for i = 1:R.NJ
@@ -268,11 +365,13 @@ if any(corrQD < 0.95) || any(corrQ < 0.98)
       legjointnum = i-(R.I1J_LEG(legnum)-1);
       subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
       hold on; grid on;
-      plot(Traj_0.t, QD(:,i), '-');
-      plot(Traj_0.t, QD_num(:,i), '--');
-      plot(Traj_0.t([1,end]), repmat(Structure.qDlim(i,:),2,1), 'r--');
+      hdl1=plot(Traj_0.t, QD(:,i), '-');
+      hdl2=plot(Traj_0.t, QD_num(:,i), '--');
+      hdl3=plot(Traj_0.t, QD_num2(:,i), ':');
+      plot(Traj_0.t([1,end]), repmat(Structure.qDlim(i,:),2,1), 'r-');
       ylim(minmax2([QD_num(:,i);QD_num(:,i)]'));
       title(sprintf('qD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+      if i == length(q), legend([hdl1;hdl2;hdl3], {'qD','diff(q)', 'int(qDD)'}); end
     end
     linkxaxes
     sgtitle('Vergleich Gelenkgeschw.');
@@ -280,9 +379,10 @@ if any(corrQD < 0.95) || any(corrQ < 0.98)
     for i = 1:R.NJ
       subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
       hold on; grid on;
-      plot(Traj_0.t, Q(:,i), '-');
-      plot(Traj_0.t, Q_num(:,i), '--');
+      hdl1=plot(Traj_0.t, Q(:,i), '-');
+      hdl2=plot(Traj_0.t, Q_num(:,i), '--');
       title(sprintf('q %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+      if i == length(q), legend([hdl1;hdl2], {'q','int(qD)'}); end
     end
     linkxaxes
     sgtitle('Verlauf Gelenkkoordinaten');
