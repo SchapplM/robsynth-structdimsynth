@@ -19,3 +19,7 @@ tmpdirpath=tmpdirpath(1:end-1); % Zeilenumbruch entfernen
 run(fullfile(tmpdirpath, 'parrob_mdlbib', 'parroblib_path_init.m'));
 % Struktursynthese-Hauptordner hinzufügen
 addpath(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'struktsynth_par'));
+
+% Beim Start von Matlab ist der RNG immer auf denselben Wert initialisiert.
+% Zufällige Neu-Initialisierung, damit Zufallszahlen in Parallel-Instanzen nicht identisch sind.
+rng('shuffle');

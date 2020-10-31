@@ -2,3 +2,7 @@
 % erzeugt werden. Diese Datei muss ohne die Endung .template am selben Ort liegen.
 run('/bigwork/nhkbscha/REPO/scripts/startup_cluster.m'); % TODO: Pfad-Initialisierung an tatsächlichen Namen anpassen
 addpath(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'struktsynth_par'));
+
+% Beim Start von Matlab ist der RNG immer auf denselben Wert initialisiert.
+% Zufällige Neu-Initialisierung, damit Zufallszahlen in Parallel-Instanzen nicht identisch sind.
+rng('shuffle');

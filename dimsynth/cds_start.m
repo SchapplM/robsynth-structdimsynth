@@ -219,8 +219,11 @@ if ~Set.general.regenerate_summmary_only
       % Rechnung zu Konflikten führen)
       t1 = tic(); % Beginn der Prüfung auf Datei-Existenz
       t_ll = t1; % Zeitpunkt der letzten Log-Ausgabe diesbezüglich
-      III = 1:length(Names); % Zufällige Reihenfolge, damit besser parallelisierbar (Cluster)
-      III = III(randperm(length(III))); % (betrifft unabhängige Parallelinstanzen von Matlab)
+      % Zufällige Reihenfolge, damit besser parallelisierbar (Cluster). Be-
+      % trifft unabhängige Parallelinstanzen von Matlab.
+      % Voraussetzung: rng('shuffle') vor Aufruf dieses Skripts
+      III = 1:length(Names); 
+      III = III(randperm(length(III)));
       for i = III
         if type == 0 % Serieller Roboter
           R = serroblib_create_robot_class(Names{i});
