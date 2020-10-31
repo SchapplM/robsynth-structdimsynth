@@ -184,10 +184,6 @@ if Structure.Type == 0 % Seriell
   mounting = Set.structures.mounting_serial;
 else % PKM
   mounting = Set.structures.mounting_parallel;
-  if strcmp(mounting, 'ceiling') && all(Set.structures.DoF(4:6)==[0 0 1])
-    error('Deckenmontage für %dT%dR-PKM noch nicht korrekt implementiert', ...
-      sum(Set.structures.DoF(1:3)), sum(Set.structures.DoF(4:6)));
-  end
 end
 if ~Set.optimization.rotate_base
   if strcmp(mounting, 'floor')
