@@ -78,6 +78,12 @@ for jj = 1:length(Set.optimization.objective)
     else
       obj_units{jj} = 'rad or m'; % Einheit nicht bestimmbar und evtl gemischt
     end
+  elseif strcmp(Set.optimization.objective{jj}, 'manipulability')
+    obj_units{jj} = 'units of cond(J)';
+  elseif strcmp(Set.optimization.objective{jj}, 'minjacsingval')
+    obj_units{jj} = 'units of cond(J)';
+  else
+    error('Zielfunktion %s nicht vorgesehen', Set.optimization.objective{jj});
   end
 end
 %% Parallele Durchführung der Plots vorbereiten

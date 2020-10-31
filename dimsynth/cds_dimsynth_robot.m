@@ -1185,24 +1185,36 @@ end
 if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   % Masseparameter belegen, falls das nicht vorher passiert ist.
   % Nachbildung der Bedingungen für Belegung der Masseparameter in cds_fitness.m
+  % Stelle fest, ob die Zielfunktion rein kinematisch ist; dann werden die
+  % Dynamikparameter nicht in der Fitness-Funktion belegt:
+  % ... mehrkriteriell und nur kinematische Zielfunktionen ...
+  only_kinematic_objective = length(intersect(Set.optimization.objective, ...
+    {'condition', 'jointrange', 'manipulability', 'minjacsingval'}))==4;
+  % einkriteriell und kinematische ZF
+  only_kinematic_objective = only_kinematic_objective || ...
+    length(Set.optimization.objective) == 1 && any(strcmp(Set.optimization.objective, ...
+    {'condition', 'jointrange', 'manipulability', 'minjacsingval'}));
   if any(fval > 1e3) ...% irgendeine Nebenbedingung wurde immer verletzt. ...
-      || length(intersect(Set.optimization.objective, {'condition', 'jointrange'}))==2 ...% ... oder mehrkriteriell und nur kinematische Zielfunktionen ...
-      || length(Set.optimization.objective) == 1 && any(strcmp(Set.optimization.objective, {'condition', 'jointrange'})) % ... oder einkriteriell und kinematische ZF
+      || only_kinematic_objective % ... oder nur kinematische Zielfunktion ...
     cds_dimsynth_design(R, Q, Set, Structure); % ...  Daher nie bis zu diesem Funktionsaufruf gekommen.
   end
   data_dyn = cds_obj_dependencies(R, Traj_0, Set, Structure_tmp, Q, QD, QDD, Jinv_ges);
   % Einzelne Zielfunktionen aufrufen
-  [fval_energy,~, ~, physval_energy] = cds_obj_energy(R, Set, Structure, Traj_0, data_dyn.TAU, QD);
-  [fval_cond,~, ~, physval_cond] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
   [fval_mass,~, ~, physval_mass] = cds_obj_mass(R);
+  [fval_energy,~, ~, physval_energy] = cds_obj_energy(R, Set, Structure, Traj_0, data_dyn.TAU, QD);
   [fval_actforce,~, ~, physval_actforce] = cds_obj_actforce(data_dyn.TAU);
+  [fval_cond,~, ~, physval_cond] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
+  [fval_mani,~, ~, physval_mani] = cds_obj_manipulability(R, Set, Jinv_ges, Traj_0, Q);
+  [fval_msv,~, ~, physval_msv] = cds_obj_minjacsingval(R, Set, Jinv_ges, Traj_0, Q);
   [fval_jrange,~, ~, physval_jrange] = cds_obj_jointrange(R, Set, Structure, Q);
   [fval_stiff,~, ~, physval_stiff] = cds_obj_stiffness(R, Set, Q);
   [~, ~, f_maxstrengthviol] = cds_constr_yieldstrength(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
   % Reihenfolge siehe Variable Set.optimization.constraint_obj aus cds_settings_defaults
-  fval_obj_all = [fval_mass; fval_energy; fval_actforce; fval_cond; fval_jrange; fval_stiff];
+  fval_obj_all = [fval_mass; fval_energy; fval_actforce; fval_cond; ...
+    fval_mani; fval_msv; fval_jrange; fval_stiff];
+  physval_obj_all = [physval_mass; physval_energy; physval_actforce; physval_cond; ...
+    physval_jrange; physval_stiff; physval_mani; physval_msv];
   fval_constr_all = f_maxstrengthviol;
-  physval_obj_all = [physval_mass; physval_energy; physval_actforce; physval_cond; physval_jrange; physval_stiff];
   % Vergleiche neu berechnete Werte mit den zuvor abgespeicherten (müssen
   % übereinstimmen)
   test_Jcond = PSO_Detail_Data.constraint_obj_val(dd_optind, 4, dd_optgen) - physval_cond;
@@ -1222,9 +1234,9 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
 else
   % Keine Berechnung der Leistungsmerkmale möglich, da keine zulässige Lösung
   % gefunden wurde.
-  fval_obj_all = NaN(6,1);
+  fval_obj_all = NaN(8,1);
+  physval_obj_all = NaN(8,1);
   fval_constr_all = NaN(1,1);
-  physval_obj_all = NaN(6,1);
 end
 % Prüfe auf Plausibilität, ob die Optimierungsziele erreicht wurden. Neben-
 % bedingungen nur prüfen, falls überhaupt gültige Lösung erreicht wurde.
@@ -1243,7 +1255,8 @@ end
 % Bestimme Zuordnung der Fitness-Vektor-Einträge zu den Leistungsmerkmalen
 % (Erleichtert spätere Auswertung bei Pareto-Optimierung)
 I_fval_obj_all = zeros(length(Set.optimization.objective),1);
-obj_names_all = {'mass', 'energy', 'actforce', 'condition', 'jointrange', 'stiffness'};
+obj_names_all = {'mass', 'energy', 'actforce', 'condition', 'manipulability', ...
+  'minjacsingval', 'jointrange', 'stiffness'};
 for i = 1:length(Set.optimization.objective)
   II_i = strcmp(Set.optimization.objective{i},obj_names_all);
   if any(II_i) % Bei Zielfunktion valid_act wird kein Leistungsmerkmal berechnet.

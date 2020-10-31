@@ -23,7 +23,8 @@ Set.general.save_animation_file_extensions = {'mp4', 'gif'};
 whitelist_all = {'P3PRRRR1G1P3A1', 'P3RPRRR8G4P2A1', 'P3RRRRR1G3P3A2'};
 Traj = cds_gen_traj(DoF, 1, Set.task);
 for debugcalc = [0 1]
-  for obj_name = {'valid_act', 'mass', 'energy', 'condition', 'actforce', 'stiffness', 'jointrange'}
+  for obj_name = {'valid_act', 'mass', 'energy', 'condition', 'actforce', ...
+      'stiffness', 'jointrange', 'manipulability', 'minjacsingval'}
     if strcmp(obj_name, 'valid_act') % nur für parallele Roboter
       Set.structures.whitelist = whitelist_all(~contains(whitelist_all, 'S'));
     else % für alle Roboter
