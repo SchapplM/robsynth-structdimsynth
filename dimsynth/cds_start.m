@@ -200,7 +200,9 @@ if ~Set.general.regenerate_summmary_only
     % funktioniert nicht aufgrund von Dateikonflikten, autom. Ordnerlöschung.
     if Set.general.create_template_functions
       fprintf('Erstelle kompilierbare Funktionsdateien aus Vorlagen für %d Roboter\n', length(Names));
-      for i = 1:length(Names)
+      III = 1:length(Names); % Zufällige Reihenfolge, damit besser parallelisierbar (Cluster)
+      III = III(randperm(length(III)));
+      for i = III
         if type == 0 % Serieller Roboter
           serroblib_create_template_functions(Names(i), false, false);
         else % PKM
@@ -217,7 +219,9 @@ if ~Set.general.regenerate_summmary_only
       % Rechnung zu Konflikten führen)
       t1 = tic(); % Beginn der Prüfung auf Datei-Existenz
       t_ll = t1; % Zeitpunkt der letzten Log-Ausgabe diesbezüglich
-      for i = 1:length(Names)
+      III = 1:length(Names); % Zufällige Reihenfolge, damit besser parallelisierbar (Cluster)
+      III = III(randperm(length(III))); % (betrifft unabhängige Parallelinstanzen von Matlab)
+      for i = III
         if type == 0 % Serieller Roboter
           R = serroblib_create_robot_class(Names{i});
         else % PKM
@@ -234,7 +238,7 @@ if ~Set.general.regenerate_summmary_only
         end
         if toc(t_ll) > 20
           fprintf('%d/%d Roboter vom Typ %d auf Existenz der Dateien geprüft. Dauer bis hier: %1.1fs\n', ...
-            i, length(Names), type, toc(t1));
+            find(III==i,1,'first'), length(Names), type, toc(t1));
           t_ll = tic();
         end
       end
