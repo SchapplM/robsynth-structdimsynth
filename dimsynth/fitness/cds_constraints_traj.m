@@ -167,11 +167,16 @@ end
 % Plattform-Bewegung neu für 3T2R-Roboter berechnen (der letzte Euler-Winkel
 % ist nicht definiert und kann beliebige Werte einnehmen).
 if all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
-  [X2,XD2,XDD2] = R.fkineEE2_traj(Q, QD, QDD);
+  if R.Type == 0 % Seriell
+    [X2,XD2,XDD2] = R.fkineEE_traj(Q, QD, QDD);
+  else
+    [X2,XD2,XDD2] = R.fkineEE2_traj(Q, QD, QDD);
+  end
   % Teste nur die ersten fünf Einträge (sind vorgegeben). Der sechste
   % Wert wird an dieser Stelle erst berechnet und kann nicht verglichen werden.
   % Hier wird nur eine Hin- und Rückrechnung (InvKin/DirKin) gemacht. 
   test_X = Traj_0.X(:,1:5) - X2(:,1:5);
+  test_X([false(size(test_X,1),3),abs(abs(test_X(:,4:5))-2*pi)<1e-3]) = 0; % 2pi-Fehler entfernen
   if any(abs(test_X(:))>1e-6)
     % Bestimme die mittlere Abweichung zwischen Position des Endeffektors
     % aus inverser und direkter Kinematik
@@ -246,6 +251,7 @@ if any(strcmp(Set.optimization.objective, 'valid_act')) && R.Type ~= 0 % nur sin
     for j = 2:R.NLEG
       [X3,XD3,~] = R.fkineEE2_traj(Q, QD, QDD, uint8(j));
       test_X = Traj_0.X(:,1:5) - X3(:,1:5);
+      test_X([false(size(test_X,1),3),abs(abs(test_X(:,4:5))-2*pi)<1e-3]) = 0; % 2pi-Fehler entfernen
       test_XD = Traj_0.XD(:,1:6) - XD3(:,1:6);
       % test_XDD = Traj_0.XDD(:,1:6) - XDD3(:,1:6);
       if any(abs(test_X(:))>1e-6)
@@ -253,13 +259,13 @@ if any(strcmp(Set.optimization.objective, 'valid_act')) && R.Type ~= 0 % nur sin
           save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_xtraj_legs_inconsistency.mat'));
         end
         error(['Die Endeffektor-Trajektorie X aus Beinkette %d stimmt nicht ', ...
-          'gegen Beinkette 1. Zuerst in Zeitschritt %d/%d.'], j, ...
-          find(any(abs(test_X)>1e-6,2),1,'first'), length(Traj_0.t));
+          'gegen Beinkette 1. Zuerst in Zeitschritt %d/%d. Fehler max. %1.1e.'], j, ...
+          find(any(abs(test_X)>1e-6,2),1,'first'), length(Traj_0.t), max(abs(test_X(:))));
       end
       if any(abs(test_XD(:))>1e-6)
         error(['Die Endeffektor-Trajektorie XD aus Beinkette %d stimmt nicht ', ...
-          'gegen Beinkette 1. Zuerst in Zeitschritt %d/%d.'], j, ...
-          find(any(abs(test_XD)>1e-6,2),1,'first'), length(Traj_0.t));
+          'gegen Beinkette 1. Zuerst in Zeitschritt %d/%d. Fehler max. %1.1e.'], j, ...
+          find(any(abs(test_XD)>1e-6,2),1,'first'), length(Traj_0.t), max(abs(test_XD(:))));
       end
     end
   end
@@ -272,7 +278,7 @@ if R.Type ~= 0
       [X3,XD3,~] = R.fkineEE2_traj(Q, QD, QDD, uint8(j));
       test_X = Traj_0.X(:,1:5) - X3(:,1:5);
       test_XD = Traj_0.XD(:,1:6) - XD3(:,1:6);
-      test_X([false(size(test_X,1),3),abs(test_X(:,4:5)-2*pi)<1e-3]) = 0; % 2pi-Fehler entfernen
+      test_X([false(size(test_X,1),3),abs(abs(test_X(:,4:5))-2*pi)<1e-3]) = 0; % 2pi-Fehler entfernen
       % test_XDD = Traj_0.XDD(:,1:6) - XDD3(:,1:6);
       if any(abs(test_X(:))>1e-6)
         if Set.general.matfile_verbosity > 0

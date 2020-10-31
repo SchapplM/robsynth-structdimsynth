@@ -965,7 +965,7 @@ clear cds_fitness
 if Set.general.matfile_verbosity > 0
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat'));
 end
-if false
+if false % Debug (manueller Einstieg hier);
   % Falls der PSO abbricht: Zwischenergebnisse laden und daraus Endergebnis
   % erzeugen. Dafür ist ein manuelles Eingreifen mit den Befehlen in diesem
   % Block erforderlich. Danach kann die Funktion zu Ende ausgeführt werden.
@@ -975,36 +975,35 @@ if false
   p_val = lastres.optimValues.bestx;
   fval = lastres.optimValues.bestfval;
   exitflag = -6;
-else  % PSO wird ganz normal ausgeführt.
-  if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO
-    % Durchführung mit MOPSO; Einstellungen siehe [SierraCoe2005]
-    % Und Beispiele aus Matlab File Exchange
-    MOPSO_set1 = struct('Np', NumIndividuals, 'Nr', NumIndividuals, ...
-      'maxgen', Set.optimization.MaxIter, 'W', 0.4, 'C1', 2, 'C2', 2, 'ngrid', 20, ...
-      'maxvel', 5, 'u_mut', 1/nvars); % [SierraCoe2005] S. 4
-    MOPSO_set2 = struct('fun', fitnessfcn_vec, 'nVar', nvars, ...
-      'var_min', varlim(:,1), 'var_max', varlim(:,2));
-    output = MOPSO(MOPSO_set1, MOPSO_set2);
-    p_val_pareto = output.pos;
-    fval_pareto = output.pos_fit;
-    cds_log(1, sprintf('[dimsynth] Optimierung mit MOPSO beendet. %d Punkte auf Pareto-Front.', size(p_val_pareto,1)));
-    exitflag = -1; % Nehme an, dass kein vorzeitiger Abbruch erfolgte
-    % Alternative: Durchführung mit gamultiobj (konvergiert schlechter)
+end
+if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO
+  % Durchführung mit MOPSO; Einstellungen siehe [SierraCoe2005]
+  % Und Beispiele aus Matlab File Exchange
+  MOPSO_set1 = struct('Np', NumIndividuals, 'Nr', NumIndividuals, ...
+    'maxgen', Set.optimization.MaxIter, 'W', 0.4, 'C1', 2, 'C2', 2, 'ngrid', 20, ...
+    'maxvel', 5, 'u_mut', 1/nvars); % [SierraCoe2005] S. 4
+  MOPSO_set2 = struct('fun', fitnessfcn_vec, 'nVar', nvars, ...
+    'var_min', varlim(:,1), 'var_max', varlim(:,2));
+  output = MOPSO(MOPSO_set1, MOPSO_set2);
+  p_val_pareto = output.pos;
+  fval_pareto = output.pos_fit;
+  cds_log(1, sprintf('[dimsynth] Optimierung mit MOPSO beendet. %d Punkte auf Pareto-Front.', size(p_val_pareto,1)));
+  exitflag = -1; % Nehme an, dass kein vorzeitiger Abbruch erfolgte
+  % Alternative: Durchführung mit gamultiobj (konvergiert schlechter)
 %     [p_val_pareto,fval_pareto,exitflag,output] = gamultiobj(fitnessfcn, nvars, [], [], [], [],varlim(:,1),varlim(:,2), options);
 %     cds_log(1, sprintf('[dimsynth] Optimierung beendet. generations=%d, funccount=%d, message: %s', ...
 %       output.generations, output.funccount, output.message));
-    % Gleiche das Rückgabeformat zwischen MO und SO Optimierung an. Es muss
-    % immer ein einzelnes Endergebnis geben (nicht nur Pareto-Front)
-    p_val = p_val_pareto(1,:)'; % nehme nur das erste Individuum damit Code funktioniert.
-    fval = fval_pareto(1,:)'; % ... kann unten noch überschrieben werden.
-  else % Einkriteriell: PSO
-    [p_val,fval,exitflag,output] = particleswarm(fitnessfcn,nvars,varlim(:,1),varlim(:,2),options);
-    cds_log(1, sprintf('[dimsynth] Optimierung beendet. iterations=%d, funccount=%d, message: %s', ...
-      output.iterations, output.funccount, output.message));
-    p_val_pareto = [];
-    fval_pareto = [];
-    p_val = p_val(:); % stehender Vektor
-  end
+  % Gleiche das Rückgabeformat zwischen MO und SO Optimierung an. Es muss
+  % immer ein einzelnes Endergebnis geben (nicht nur Pareto-Front)
+  p_val = p_val_pareto(1,:)'; % nehme nur das erste Individuum damit Code funktioniert.
+  fval = fval_pareto(1,:)'; % ... kann unten noch überschrieben werden.
+else % Einkriteriell: PSO
+  [p_val,fval,exitflag,output] = particleswarm(fitnessfcn,nvars,varlim(:,1),varlim(:,2),options);
+  cds_log(1, sprintf('[dimsynth] Optimierung beendet. iterations=%d, funccount=%d, message: %s', ...
+    output.iterations, output.funccount, output.message));
+  p_val_pareto = [];
+  fval_pareto = [];
+  p_val = p_val(:); % stehender Vektor
 end
 % Detail-Ergebnisse extrahieren (persistente Variable in Funktion)
 PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, NaN, 'output');
@@ -1102,7 +1101,7 @@ if max_retry > 0 % nur sinnvoll, falls Fitness nach Optimierungs-Ende neu berech
   test_q0 = q0_ik - q0_ik2;
   test_q0(abs(abs(test_q0)-2*pi)<1e-6) = 0; % entferne 2pi-Fehler
   if any(abs(test_q0)>1e-10) && all(fval<1e9) % nur bei erfolgreicher Berechnung der IK ist der gespeicherte Wert sinnvoll
-    cds_log(-1, sprintf(['[dimsynth] IK-Anfangswinkeln sind bei erneuter ', ...
+    cds_log(-1, sprintf(['[dimsynth] IK-Anfangswinkel sind bei erneuter ', ...
       'Berechnung anders. Kann passieren, aber nachteilig für Reproduzierbar', ...
       'keit des Ergebnisses. max. Abweichung: %1.2e.'], max(abs(test_q0))));
   end
