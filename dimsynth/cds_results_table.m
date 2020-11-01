@@ -33,7 +33,9 @@ Descr_Row = {'', '', '', '', '', '', 'Zielfunktion der Optimierung', '', ...
   '(normiert)', 'in rad', 'transl., normiert',  'in mm/N',  'in N/mm', ...
   'Ausnutzung der Materialgrenzen; 1=max', '', '', 'Rechenzeit der Fitness-Auswertungen'};
 ResTab = [ResTab; Descr_Row];
-  
+physval_unitmult = ones(9,1);
+physval_unitmult(7) = 1e6; % Positionsfehler (in µm)
+
 % Alle Ergebnisse durchgehen und Tabelle erstellen
 for i = 1:length(Structures)
   Structure = Structures{i};
@@ -78,7 +80,8 @@ for i = 1:length(Structures)
     tmp.RobotOptRes.timestamps_start_end(3), f, fval_text};
   % Hole andere Zielfunktionen aus den Ergebnissen
   for ii = 1:length(tmp.RobotOptRes.fval_obj_all)
-    Row_i = [Row_i, {tmp.RobotOptRes.fval_obj_all(ii), tmp.RobotOptRes.physval_obj_all(ii)}]; %#ok<AGROW>
+    Row_i = [Row_i, {tmp.RobotOptRes.fval_obj_all(ii), physval_unitmult(ii)*...
+      tmp.RobotOptRes.physval_obj_all(ii)}]; %#ok<AGROW>
   end
   % Zusätzliche Nennung der Steifigkeit (Nachgiebigkeit nicht so
   % aussagekräftig)
