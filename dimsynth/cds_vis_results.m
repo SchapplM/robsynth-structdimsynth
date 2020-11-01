@@ -57,7 +57,9 @@ ResTab = readtable(restabfile, 'Delimiter', ';');
 obj_units = cell(1,length(Set.optimization.objective));
 objscale = ones(length(Set.optimization.objective),1);
 for jj = 1:length(Set.optimization.objective)
-  if strcmp(Set.optimization.objective{jj}, 'mass')
+  if strcmp(Set.optimization.objective{jj}, 'valid_act')
+    obj_units{jj} = 'unitless'; % Rangverlust ist nur eine Zahl. Plot nicht vorgesehen.
+  elseif strcmp(Set.optimization.objective{jj}, 'mass')
     obj_units{jj} = 'kg';
   elseif strcmp(Set.optimization.objective{jj}, 'condition')
     obj_units{jj} = 'units of cond(J)';
@@ -70,7 +72,7 @@ for jj = 1:length(Set.optimization.objective)
   elseif strcmp(Set.optimization.objective{jj}, 'jointrange')
     if Set.optimization.obj_jointrange.only_revolute || ...
         Set.optimization.obj_jointrange.only_passive
-      % Annahme: Es gibt keine passiven Drehgelenke.
+      % Annahme: Es gibt keine passiven Schubgelenke.
       obj_units{jj} = 'deg';
       objscale(jj) = 180/pi;
     else
