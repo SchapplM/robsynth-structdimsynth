@@ -24,7 +24,9 @@
 %   Zusatz-Informationen, die im Debug-Bild des Roboters angezeigt werden
 % f_mani1 [1x1]
 %   Physikalischer Wert, der dem Zielfunktionswert zugrunde liegt
-%   Hier: Minimale Manipulierbarkeit der Jacobi-Matrix
+%   Hier: Kehrwert der minimale Manipulierbarkeit der Jacobi-Matrix
+%   (Kehrwert, da die Größe minimiert werden soll und größere
+%   Manipulierbarkeit besser ist)
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-10
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
@@ -51,7 +53,7 @@ else % PKM
 end
 % Schlechtester Wert der Manipulierbarkeit ist Kennzahl
 % Nehme Kehrwert, da Manipulierbarkeit oft sehr groß ist und große Werte besser sind.
-f_mani1 = min(muges);
-f_mani_norm = 2/pi*atan((1/f_mani1)/10); % Normierung auf 0 bis 1; 70 ist 0.9.
+f_mani1 = 1/min(muges);
+f_mani_norm = 2/pi*atan(f_mani1/10); % Normierung auf 0 bis 1; 70 ist 0.9.
 fval = 1e3*f_mani_norm; % Normiert auf 0 bis 1e3
-fval_debugtext = sprintf('Schlechteste Manipulierbarkeit %1.3e.', f_mani1);
+fval_debugtext = sprintf('Kleinste Manipulierbarkeit %1.3e (Kehrwert %1.3e).', 1/f_mani1, f_mani1);

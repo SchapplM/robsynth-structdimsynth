@@ -24,7 +24,9 @@
 %   Zusatz-Informationen, die im Debug-Bild des Roboters angezeigt werden
 % f_msv1 [1x1]
 %   Physikalischer Wert, der dem Zielfunktionswert zugrunde liegt
-%   Hier: Minimaler Singulärwert der Jacobi-Matrix (über die Trajektorie)
+%   Hier: Kehrwert des minimaler Singulärwerts der Jacobi-Matrix (über die
+%   Trajektorie). Kehrwert, da große Singulärwerte besser sind, hier aber
+%   ein Minimierungsproblem formuliert wird.
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-10
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
@@ -52,7 +54,7 @@ else % PKM
 end
 % Schlechtester (kleinster) Wert des (kleinsten Jacobi-) Singulärwerts ist Kennzahl
 % Nehme Kehrwert, da Wert nicht begrenzt ist und große Werte besser sind.
-f_msv1 = min(msvges);
-f_msv_norm = 2/pi*atan((1/f_msv1)/10); % Normierung auf 0 bis 1; 70 ist 0.9.
+f_msv1 = 1/min(msvges);
+f_msv_norm = 2/pi*atan(f_msv1/10); % Normierung auf 0 bis 1; 70 ist 0.9.
 fval = 1e3*f_msv_norm; % Normiert auf 0 bis 1e3
-fval_debugtext = sprintf('Schlechtester (Jacobi-)Singulärwert %1.3e.', f_msv1);
+fval_debugtext = sprintf('Kleinster (Jacobi-)Singulärwert %1.3e (Kehrwert %1.3e).', 1/f_msv1, f_msv1);
