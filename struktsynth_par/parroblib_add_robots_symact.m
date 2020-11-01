@@ -37,8 +37,8 @@ settings_default = struct( ...
   'parcomp_structsynth', 1, ... % parfor-Struktursynthese (schneller, aber mehr Speicher notwendig)
   'parcomp_mexcompile', 1, ... % parfor-Mex-Kompilierung (schneller, aber Dateikonflikt möglich)
   'max_actuation_idx', 4, ... % Aktuierung bis zum vierten Gelenk-FG zulassen
-  'base_couplings', 1:8, ... % nur Methode 1 bis 4; siehe ParRob/align_base_coupling
-  'plf_couplings', 1:6 ... % nur Methode 1 bis 3; siehe ParRob/align_platform_coupling
+  'base_couplings', 1:9, ... % siehe ParRob/align_base_coupling
+  'plf_couplings', [1:6 8] ... % siehe ParRob/align_platform_coupling
   );
 
 %% Benutzereingabe verwalten
@@ -100,15 +100,15 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
   [Cpl1_grid,Cpl2_grid] = ndgrid(settings.base_couplings,settings.plf_couplings);
   % Binär-Matrix zum Entfernen von Koppelpunkt-Kombinationen
   I1del = false(size(Cpl1_grid)); I2del = I1del;
-  if settings.EE_FG_Nr==1 % 2T1R: Nur G1P1 ist sinnvoll.
+  if iFG==1 % 2T1R: Nur G1P1 ist sinnvoll.
     I1del(Cpl1_grid>1) = true;
     I2del(Cpl2_grid>1) = true;
   end
-  if any(settings.EE_FG_Nr==[2 3]) % 3T0R oder 3T1R
-    I1del(Cpl1_grid>4) = true; % nur Methode 1 bis 4 ist sinnvoll
-    I2del(Cpl2_grid>3) = true; % nur Methode 1 bis 3 ist sinnvoll
+  if any(iFG==[2 3]) % 3T0R oder 3T1R: keine paarweise Anordnung
+    I1del(Cpl1_grid>4&Cpl1_grid<9) = true; % nur Methode 1 bis 4 oder 9 ist sinnvoll
+    I2del(Cpl2_grid>3&Cpl2_grid<8) = true; % nur Methode 1 bis 3 oder 8 ist sinnvoll
   end
-  if any(settings.EE_FG_Nr==4) % 3T2R
+  if any(iFG==4) % 3T2R: keine paarweise Anordnung
     I1del(Cpl1_grid>4&Cpl1_grid<9) = true; % nur Methode 1 bis 4 oder 9 ist sinnvoll
     I2del(Cpl2_grid>3&Cpl2_grid<8) = true; % nur Methode 1 bis 3 oder 8 ist sinnvoll
   end
