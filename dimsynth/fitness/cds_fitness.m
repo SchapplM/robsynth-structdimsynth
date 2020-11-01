@@ -372,6 +372,12 @@ for iIKC = 1:size(Q0,1)
     physval_IKC(iIKC,strcmp(Set.optimization.objective, 'minjacsingval')) = physval_msv;
     fval_debugtext = [fval_debugtext, ' ', fval_debugtext_msv]; %#ok<AGROW>
   end
+  if any(strcmp(Set.optimization.objective, 'positionerror'))
+    [fval_pe, fval_debugtext_pe, debug_info, physval_pe] = cds_obj_positionerror(R, Set, Jinv_ges, Traj_0, Q);
+    fval_IKC(iIKC,strcmp(Set.optimization.objective, 'positionerror')) = fval_pe;
+    physval_IKC(iIKC,strcmp(Set.optimization.objective, 'positionerror')) = physval_pe;
+    fval_debugtext = [fval_debugtext, ' ', fval_debugtext_pe]; %#ok<AGROW>
+  end
   fval_debugtext_IKC{iIKC} = fval_debugtext;
   if any(fval_IKC(iIKC,:)>1e3)
     error('Zielfunktion "%s" nicht definiert', Set.optimization.objective{fval_IKC(iIKC,:)>1e3});

@@ -83,6 +83,9 @@ for jj = 1:length(Set.optimization.objective)
     obj_units{jj} = 'units of cond(J)';
   elseif strcmp(Set.optimization.objective{jj}, 'minjacsingval')
     obj_units{jj} = 'units of cond(J)';
+  elseif strcmp(Set.optimization.objective{jj}, 'positionerror')
+    obj_units{jj} = 'µm';
+    objscale(jj) = 1e-6;
   else
     error('Zielfunktion %s nicht vorgesehen', Set.optimization.objective{jj});
   end
