@@ -263,13 +263,31 @@ if Structure.Type == 0 || Structure.Type == 2
   % falls das durch die Struktursynthese vorgegeben ist (z.B. auf 0).
   % Bei 3T0R- und 3T1R-PKM ist die Parallelität der Gelenke in den Beinketten
   % besonders wichtig. Bei 3T3R darf es eigentlich keinen Einfluss haben.
-  II_theta = find(R_pkin.pkin_types==5);
-  if Structure.Type == 2 && ... % PKM
-     any(Structure.angle1_values==1:3) % theta muss konstanter Wert sein; siehe parroblib_load_robot und cds_gen_robot_list
-    if length(II_theta) > 1
-      warning('Es gibt mehr als einen Parameter theta. Fall nicht explizit definiert.');
+  if Structure.Type == 2 && ~isempty(Structure.angles_values)
+    % Sortiere pkin entsprechend der Reihenfolge der freien Parameter:
+    % Gelenkweise, erst alpha, dann theta
+    [~,pkin_jointnumber] = R_pkin.get_pkin_parameter_type();
+    sortstr = cell(length(R_pkin.pkin_names),1);
+    for k = 1:length(sortstr)
+      sortstr{k} = sprintf('%d%s', pkin_jointnumber(k),R_pkin.pkin_names{k});
     end
-    Ipkinrel(II_theta(1)) = false; % Nehme die "1" bei ersten einstellbarem theta weg.
+    [~,III] = sort(sortstr); % Indizes zum Sortieren
+    I_alphatheta = R_pkin.pkin_types==3 | R_pkin.pkin_types==5;
+    II_alphatheta = find(I_alphatheta);
+    iik = 0; % Zähler für Variable Structure.angles_values
+    for kk = III' % Gehe alle Kinematikparameter durch (in veränderter REihenfolge)
+      if ~I_alphatheta(kk)
+        continue % kein freier alpha-/theta-Parameter
+      end
+      iik = iik + 1; % Index in den gespeicherten Konfigurationen für alpha und theta in der ParRobLib
+      if ~strcmp(Structure.angles_values(iik), 'a') % "a"="arbitrary"
+        % Winkel alpha/theta ist fest auf 0 oder pi/2 gestellt.
+        Ipkinrel(II_alphatheta(iik)) = false; % Nehme die "1" bei einstellbarem alpha/theta weg.
+      end
+    end
+    if iik ~= length(Structure.angles_values)
+      error('Nicht alle Elemente von Structure.angles_values wurden ausgelesen.');
+    end
   end
   % Setze die a1/d1-Parameter für PKM-Beinketten auf Null. diese sind
   % redundant zur Einstellung der Basis-Position oder -Größe
@@ -302,26 +320,27 @@ if Structure.Type == 0 || Structure.Type == 2
 
   pkin_init = R_pkin.pkin;
   pkin_init(~Ipkinrel) = 0; % nicht relevante Parameter Null setzen
-  % Sonderregeln: nicht relevanten theta-Parameter auf 0 oder pi/2 setzen.
+  % Nicht relevanten alpha- oder theta-Parameter auf 0 oder pi/2 setzen.
   if Structure.Type == 2
-    if     Structure.angle1_values==1 % nur Wert 0 ist zulässig
-      pkin_init(II_theta(1)) = 0;
-    elseif Structure.angle1_values==2 % nur Wert +/- 90 ist zulässig
-      pkin_init(II_theta(1)) = pi/2;
-    elseif Structure.angle1_values==3 % nur Wert 0 oder 90 ist zulässig
-      cds_log(-1, sprintf(['[dimsynth] Winkel theta als 0 und 90 zulässig ', ...
-        'gegeben. Wähle eine Alternative (0). Das sollte eigentlich nicht mehr vorkommen.']));
-      pkin_init(II_theta(1)) = 0; % Nehme die 0
-    else % Entweder 0 (nicht definiert) oder 4 (alles erlaubt)
-      % Mache gar nichts. Parameter wird ganz normal optimiert.
+    iik = 0; % Zähler für Variable Structure.angles_values
+    for kk = III' % Gehe alle Kinematikparameter durch (in veränderter REihenfolge)
+      if ~I_alphatheta(kk)
+        continue % kein freier alpha-/theta-Parameter
+      end
+      iik = iik + 1;
+      if strcmp(Structure.angles_values(iik), 'p') % nur Wert 0 ist zulässig
+        pkin_init(II_alphatheta(iik)) = 0;
+        % Winkel alpha/theta ist fest auf 0 oder pi/2 gestellt.
+      elseif strcmp(Structure.angles_values(iik), 'o') % nur Wert +/- 90 ist zulässig
+        pkin_init(II_alphatheta(iik)) = pi/2;
+      elseif strcmp(Structure.angles_values(iik), 'b') % nur Wert 0 oder 90 ist zulässig
+        cds_log(-1, sprintf(['[dimsynth] Winkel %s als 0 und 90 zulässig ', ...
+          'gegeben. Wähle eine Alternative (0). Das sollte eigentlich nicht mehr vorkommen.'], R_pkin.pkin_names{kk}));
+        pkin_init(II_alphatheta(iik)) = 0; % Nehme die 0
+      else % Entweder 0 (nicht definiert) oder 4 (alles erlaubt)
+        % Mache gar nichts. Parameter wird ganz normal optimiert.
+      end
     end
-  end
-  % Setze alpha-Parameter bei PKM auf 90°. Der frei wählbare Parameter führt
-  % nicht zu gültigen PKM. Annahme: Frei wählbar heißt ungleich Null.
-  if Structure.Type == 2
-    I_alpha = R_pkin.pkin_types==3;
-    pkin_init(I_alpha) = pi/2;
-    Ipkinrel = Ipkinrel & ~I_alpha; % Nehme die "1" bei alpha weg.
   end
   if Structure.Type == 0
     R.update_mdh(pkin_init);
@@ -345,14 +364,18 @@ if Structure.Type == 0 || Structure.Type == 2
       % negative DH-Längen und negative Winkel redundant. Es wird nur die
       % Parallelität der Gelenke eingestellt.
       plim(i,:) = [0, pi/2];
+      % Sonderfall Struktursynthese: Die Fälle 0° und 90° sollen ausge- 
+      % schlossen werden, da diese eine strukturelle Eigenschaft sind.
+      % Dafür werden theta-Parameter separat optimiert.
+      if any(strcmp(Set.optimization.objective, 'valid_act'))
+        plim(i,:) = [5, 85]*pi/180; % 5° Abstand von den rechten Winkeln
+      end
     elseif R_pkin.pkin_types(i) == 5
       % Winkel-Parameter theta. Nur Begrenzung auf [-pi/2,pi/2].
       % Durch Möglichkeit negativer DH-Längen ist jede beliebige
       % Ausrichtung des folgenden Gelenks möglich.
       plim(i,:) = [-pi/2, pi/2];
-      % Sonderfall Struktursynthese: Die Fälle 0° und 90° sollen ausge- 
-      % schlossen werden, da diese eine strukturelle Eigenschaft sind.
-      % Dafür werden theta-Parameter separat optimiert.
+      % Sonderfall Struktursynthese: Siehe oben bei alpha
       if any(strcmp(Set.optimization.objective, 'valid_act'))
         plim(i,:) = [5, 85]*pi/180; % 5° Abstand von den rechten Winkeln
       end

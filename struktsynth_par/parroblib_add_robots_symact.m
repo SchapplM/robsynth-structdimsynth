@@ -558,7 +558,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       % kann mehrfach in der Ergebnisliste enthalten sein, wenn
       % verschiedene Fälle für freie Winkelparameter untersucht werden.
       fval_jjj = []; % Zielfunktionswert der Ergebnisse für diese PKM in der Ergebnisliste
-      theta1_jjj = []; % gespeicherte Werte für ersten freien theta-Parameter (wird variiert)
+      angles_jjj = {}; % gespeicherte Werte für freie alpha- und theta-Parameter (wird variiert)
       for jj = 1:length(Ergebnisliste)
         if contains(Ergebnisliste(jj).name,Name)
           % Ergebnisse aus Datei laden
@@ -566,7 +566,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           tmp = load(resfile, 'RobotOptRes');
           RobotOptRes = tmp.RobotOptRes;
           fval_jjj = [fval_jjj; RobotOptRes.fval]; %#ok<AGROW>
-          theta1_jjj = [theta1_jjj; tmp.RobotOptRes.Structure.angle1_values]; %#ok<AGROW>
+          angles_jjj = [angles_jjj; tmp.RobotOptRes.Structure.angles_values]; %#ok<AGROW>
         elseif isempty(fval_jjj) && jj == length(Ergebnisliste)
           warning('Ergebnisdatei zu %s nicht gefunden', Name);
           continue; % kann im Offline-Modus passieren, falls unvollständige Ergebnisse geladen werden.
@@ -581,28 +581,26 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         end
       end
       %% Daten für freien Winkelparameter bestimmen
-      [theta1_jjj_u, I] = unique(theta1_jjj);
-      if length(theta1_jjj_u) ~= length(theta1_jjj)
+      [angles_jjj_u, I] = unique(angles_jjj);
+      if length(angles_jjj_u) ~= length(angles_jjj)
         warning(['Min. ein Fall für %s wurde mehrfach überprüft. %d Ergebnisse,', ...
           'aber nur %d eindeutige. Hier stimmt etwas nicht.'], Name, ...
-          length(theta1_jjj), length(theta1_jjj_u));
-        II = false(length(theta1_jjj),1);
+          length(angles_jjj), length(angles_jjj_u));
+        II = false(length(angles_jjj),1);
         II(I) = true; % Binär-Indizes der ersten eindeutigen Ergebnisse
-        theta1_jjj(~II) = 5; %#ok<SAGROW> % Markiere doppelte, damit die Logik unten noch stimmt
+        angles_jjj(~II) = '?'; %#ok<SAGROW> % Markiere doppelte, damit die Logik unten noch stimmt
       end
-      if length(theta1_jjj) == 1 && theta1_jjj(1) == 0
-        values_angle1 = ''; % Wert ist nicht definiert. Ignorieren.
-      elseif fval_jjj(theta1_jjj==4) < 1e3
-        values_angle1 = '*'; % alle Werte möglich
-      elseif any(theta1_jjj==1) && any(theta1_jjj==2) && ... % Die Untersuchung von 0° und 90° wurde durchgeführt
-          fval_jjj(theta1_jjj==1) < 1e3 && fval_jjj(theta1_jjj==2) < 1e3 % beide sind erfolgreich
-        values_angle1 = '090'; % 0 oder 90° gehen beide (aber nichts dazwischen)
-      elseif fval_jjj(theta1_jjj==2) < 1e3
-        values_angle1 = '90'; % nur 90° geht
-      elseif fval_jjj(theta1_jjj==1) < 1e3
-        values_angle1 = '0'; % nur 0° geht
-      else % Kein Wert hat funktioniert. Wird sowieso nicht benutzt.
-        values_angle1 = '';
+      % TODO: Logik zur Reduktion der Fälle: Symbolisches Rechnen.
+      % Vorerst alle Fälle ungeprüft übernehmen
+      I_valid = fval_jjj < 1e3;
+      angles_jjj_valid = angles_jjj(I_valid);
+
+      % Zeichenkette erstellen, die in die actuation.csv geschrieben wird.
+      % Enthält alle funktionierenden Konfigurationen
+      structparamstr = '';
+      for iii = 1:length(angles_jjj_valid)
+        structparamstr=[structparamstr, angles_jjj_valid{iii}]; %#ok<AGROW>
+        if iii < length(angles_jjj_valid), structparamstr=[structparamstr,',']; end %#ok<AGROW>
       end
       %% Ergebnis der Maßsynthese auswerten
       remove = false;
@@ -624,7 +622,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         if min(fval_jjj) < 1e3
           fprintf('Rangdefizit der Jacobi für Beispiel-Punkte ist %1.0f\n', min(fval_jjj)/100);
           parroblib_change_properties(Name, 'rankloss', sprintf('%1.0f', min(fval_jjj)/100));
-          parroblib_change_properties(Name, 'values_angle1', values_angle1);
+          parroblib_change_properties(Name, 'values_angles', structparamstr);
           parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 0, 0);
           num_rankloss = num_rankloss + 1;
         elseif min(fval_jjj) > 1e10
@@ -661,7 +659,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       else
         fprintf('%d/%d: PKM %s hat laut Maßsynthese vollen Laufgrad\n', jjj, length(Structures_Names), Name);
         parroblib_change_properties(Name, 'rankloss', '0');
-        parroblib_change_properties(Name, 'values_angle1', values_angle1);
+        parroblib_change_properties(Name, 'values_angles', structparamstr);
         parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 0, 1);
         num_fullmobility = num_fullmobility + 1;
       end
