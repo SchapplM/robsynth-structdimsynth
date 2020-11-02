@@ -13,7 +13,7 @@ warning('off', 'MATLAB:illConditionedMatrix');
 warning('off', 'MATLAB:rankDeficientMatrix');
 warning('off', 'Coder:MATLAB:singularMatrix');
 warning('off', 'Coder:MATLAB:nearlySingularMatrix');
-warning('off', 'Coder:MATLAB:rankDeficientMatrix');
+warning('off', 'Coder:MATLAB:illConditionedMatrix');
 warning('off', 'Coder:MATLAB:rankDeficientMatrix');
 
 %% Eingabe prüfen

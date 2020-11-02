@@ -134,11 +134,6 @@ else % PKM
           'Max Fehler %1.1e.'], max(abs(test_JPtraj(:))));
       end
     end
-    test_QDDtraj = QDD-QDD_debug;
-    if any(abs(test_QDDtraj(:))>1e-6)
-      Ifirst = find(any(abs(test_QDDtraj)>1e-6,2),1,'first');
-      error('Ausgabevariable QDD aus invkin_traj vs invkin2_traj stimmt nicht. Zuerst in Zeitschritt %d.', Ifirst);
-    end
   end
 end
 % Anfangswerte nochmal neu speichern, damit der Anfangswert exakt der
