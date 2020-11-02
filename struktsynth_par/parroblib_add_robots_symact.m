@@ -351,8 +351,12 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       settings_cluster.parcomp_mexcompile = false;
       save(fullfile(jobdir, [computation_name,'.mat']), 'settings_cluster');
       % Matlab-Skript erzeugen
-      copyfile(fullfile(jobdir,'..','..','structsynth_cluster_header.m'), ...
-               targetfile);
+      chf = fullfile(clean_absolute_path(fullfile(jobdir,'..','..')), ...
+        'structsynth_cluster_header.m');
+      if ~exist(chf, 'file')
+        error('Datei %s muss aus Vorlage erzeugt werden', chf);
+      end
+      copyfile(chf, targetfile);
       fid = fopen(targetfile, 'a');
       fprintf(fid, 'tmp=load(''%s'');\n', [computation_name,'.mat']);
       fprintf(fid, 'settings=tmp.settings_cluster;\n');
