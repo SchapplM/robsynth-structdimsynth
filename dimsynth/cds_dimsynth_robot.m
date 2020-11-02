@@ -1100,7 +1100,7 @@ if max_retry > 0 % nur sinnvoll, falls Fitness nach Optimierungs-Ende neu berech
   else,                   q0_ik2 = cat(1,R.Leg.qref); end
   test_q0 = q0_ik - q0_ik2;
   test_q0(abs(abs(test_q0)-2*pi)<1e-6) = 0; % entferne 2pi-Fehler
-  if any(abs(test_q0)>1e-10) && all(fval<1e9) % nur bei erfolgreicher Berechnung der IK ist der gespeicherte Wert sinnvoll
+  if any(abs(test_q0)>1e-10) && all(fval<1e10) % nur bei erfolgreicher Berechnung der IK ist der gespeicherte Wert sinnvoll
     cds_log(-1, sprintf(['[dimsynth] IK-Anfangswinkel sind bei erneuter ', ...
       'Berechnung anders. Kann passieren, aber nachteilig für Reproduzierbar', ...
       'keit des Ergebnisses. max. Abweichung: %1.2e.'], max(abs(test_q0))));
@@ -1142,7 +1142,7 @@ else % Parallel
 end
 test_q = abs(Q(1,:)'-q0_ik);
 test_q(abs(abs(test_q)-2*pi)<1e-2) = 0; % entferne 2pi-Fehler, großzügige Toleranz
-if any(test_q > 1e-6)
+if any(test_q > 1e-6) && all(fval<1e10) % nur wenn IK erfolgreich war testen
   cds_log(-1, sprintf(['[dimsynth] Die Neu berechneten IK-Werte (q0) der Trajektorie stimmen nicht ', ...
     'mehr mit den ursprünglich berechneten überein. Max diff.: %1.4e'], max(test_q)));
 end
