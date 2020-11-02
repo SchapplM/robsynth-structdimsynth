@@ -54,6 +54,7 @@ end
 % Berechne Steifigkeit über Trajektorie
 Keigges = NaN(size(Q,1), 3);
 % Berechne Steifigkeit für alle Punkte der Bahn
+i_warn = 0;
 for i = 1:size(Q,1)
   % Kartesische Steifigkeitsmatrix (6x6)
   K_ges = R.stiffness(Q(i,:)');
@@ -61,16 +62,19 @@ for i = 1:size(Q,1)
   % (damit Zahlenwerte eher im Bereich 1 liegen)
   K_trans_norm = 1e-3*K_ges(1:3,1:3);
   if any(isnan(K_trans_norm(:))) || any(isinf(K_trans_norm(:)))
+    if i_warn == 0 % Nur einmal Debug-Speicherung der Warnung.
     repopath = fileparts(which('structgeomsynth_path_init.m'));
     save(fullfile(repopath, 'tmp', 'cds_obj_stiffness_infnan_error.mat'));
-    warning('Matrix ist Inf oder NaN. Darf nicht sein');
+    cds_log(-1, '[cds_obj_fitness] Matrix ist Inf oder NaN. Darf nicht sein');
+      i_warn = i;
+    end
     continue
   end
   Keigges(i,1:3) = sort(eig(K_trans_norm)); % Eigenwert der transl. St. in N/mm
   if any(Keigges(i,1:3)<0)
     repopath = fileparts(which('structgeomsynth_path_init.m'));
     save(fullfile(repopath, 'tmp', 'cds_obj_stiffness_ew_error.mat'));
-    error('Die Steifigkeitsmatrix kann keine negativen EW haben!');
+    error('Die Steifigkeitsmatrix hat negativen EW. Darf nicht sein.');
   end
   
   % Alternative Berechnung: Volumen des Steifigkeit-Ellipsoids
@@ -85,6 +89,7 @@ if num_invalid > 0
   % Normiere Marker für ungültiges Ergebnis im Bereich 1e2 bis 1e3
   f_invalid_norm = num_invalid/size(Q,1);
   fval = 1e2*(1+9*f_invalid_norm);
+  fval_phys = NaN;
   fval_debugtext = sprintf('In %d/%d Fällen keine Steifigkeit bestimmbar.', num_invalid, size(Q,1));
   return
 end
