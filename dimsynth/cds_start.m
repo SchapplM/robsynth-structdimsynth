@@ -20,7 +20,7 @@ warning('off', 'Coder:MATLAB:rankDeficientMatrix');
 if ~exist('Set', 'var') || ~exist('Traj', 'var')
   error('Eingabevariablen des Startskriptes existieren nicht');
 end
-
+fprintf('Starte Maßsynthese %s\n', Set.optimization.optname);
 Set_default = cds_settings_defaults(struct('DoF', Set.structures.DoF));
 for subconf = fields(Set_default)'
   for ftmp = fields(Set.(subconf{1}))'
