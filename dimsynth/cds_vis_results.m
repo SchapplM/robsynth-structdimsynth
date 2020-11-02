@@ -19,18 +19,19 @@
 %   Eigenschaften der Roboterstrukturen (alle an Optimierung beteiligten)
 %   Siehe cds_gen_robot_list.m
 % 
-% Erzeugt Bilder für jeden Roboter:
+% Erzeugt Bilder für jeden Roboter. In Klamern: Schalter in eval_figures
+% zum Auswählen des Bildes.
 % 1: Statistik der Ergebnisse ('histogram')
-% 2, 3: Animation ('animation')
+% 2, 3: Animation (gesteuert durch Set.general.animation_styles)
 % 4: Trägheitsellipsen ('robvisu')
 % 5: Gelenkverläufe ('jointtraj')
 % 6: Diverse Auswertungen zur Fitness-Funktion ('fitness_various')
 %    (Daten, die in cds_save_particle_details.m gespeichert werden:
 %    Zeitauswertung, Kondition, Materialbelastung)
-% 7: 2D-Pareto-Front (nur bei mehrkriterieller Optimierung)
-% 8: 3D-Pareto-Front (nur falls 3 oder mehr Kriterien)
+% 7-8: 2D-Pareto-Front (nur bei mehrkriterieller Optimierung) ('pareto')
+% 9: 3D-Pareto-Front (nur falls 3 oder mehr Kriterien) ('pareto')
 % Bilder für alle Roboter:
-% 9: Pareto-Front
+% 10-11: Pareto-Front
 % 
 % Speichert die Bilder für jeden Roboter in einem eigenen Unterordner
 
@@ -57,7 +58,9 @@ ResTab = readtable(restabfile, 'Delimiter', ';');
 obj_units = cell(1,length(Set.optimization.objective));
 objscale = ones(length(Set.optimization.objective),1);
 for jj = 1:length(Set.optimization.objective)
-  if strcmp(Set.optimization.objective{jj}, 'mass')
+  if strcmp(Set.optimization.objective{jj}, 'valid_act')
+    obj_units{jj} = 'unitless'; % Rangverlust ist nur eine Zahl. Plot nicht vorgesehen.
+  elseif strcmp(Set.optimization.objective{jj}, 'mass')
     obj_units{jj} = 'kg';
   elseif strcmp(Set.optimization.objective{jj}, 'condition')
     obj_units{jj} = 'units of cond(J)';
@@ -70,12 +73,21 @@ for jj = 1:length(Set.optimization.objective)
   elseif strcmp(Set.optimization.objective{jj}, 'jointrange')
     if Set.optimization.obj_jointrange.only_revolute || ...
         Set.optimization.obj_jointrange.only_passive
-      % Annahme: Es gibt keine passiven Drehgelenke.
+      % Annahme: Es gibt keine passiven Schubgelenke.
       obj_units{jj} = 'deg';
       objscale(jj) = 180/pi;
     else
       obj_units{jj} = 'rad or m'; % Einheit nicht bestimmbar und evtl gemischt
     end
+  elseif strcmp(Set.optimization.objective{jj}, 'manipulability')
+    obj_units{jj} = 'units of cond(J)';
+  elseif strcmp(Set.optimization.objective{jj}, 'minjacsingval')
+    obj_units{jj} = 'units of cond(J)';
+  elseif strcmp(Set.optimization.objective{jj}, 'positionerror')
+    obj_units{jj} = 'µm';
+    objscale(jj) = 1e6;
+  else
+    error('Zielfunktion %s nicht vorgesehen', Set.optimization.objective{jj});
   end
 end
 %% Parallele Durchführung der Plots vorbereiten
@@ -453,36 +465,53 @@ parfor (i = 1:length_Structures, parfor_numworkers)
   end
 
   %% (2D)-Pareto-Fronten für die Zielkriterien
-  if length(Set.optimization.objective) > 1 % Mehrkriterielle Optimierung
+  if any(strcmp(Set.general.eval_figures, 'pareto')) && ...
+     length(Set.optimization.objective) > 1 % Mehrkriterielle Optimierung
     % Gehe alle Kombinationen von zwei Zielkriterien durch (falls mehr als
     % zwei gewählt).
     objcomb = allcomb(1:length(Set.optimization.objective), 1:length(Set.optimization.objective));
     objcomb(objcomb(:,1)==objcomb(:,2),:) = [];
     objcomb(objcomb(:,1)>objcomb(:,2),:) = [];
-    figure(10*i+7);clf;hold all;
+    for pffig = 1:2 % Zwei Bilder: Physikalische Werte und normierte Werte
+    figure(10*i+6+pffig);clf;hold all;
     sprows = floor(sqrt(size(objcomb,1)));
     spcols = ceil(size(objcomb,1)/sprows);
     for kk = 1:size(objcomb,1)
       kk1 = objcomb(kk,1); kk2 = objcomb(kk,2);
       subplot(sprows,spcols,kk);
-      plot(objscale(kk1)*RobotOptRes.physval_pareto(:,kk1), ...
-           objscale(kk2)*RobotOptRes.physval_pareto(:,kk2), 'm*');
-      xlabel(sprintf('Zielf. %d (%s) in %s', kk1, Set.optimization.objective{kk1}, obj_units{kk1}));
-      ylabel(sprintf('Zielf. %d (%s) in %s', kk2, Set.optimization.objective{kk2}, obj_units{kk2}));
+      if pffig == 1 % Bild mit physikalischen Werten
+        plot(objscale(kk1)*RobotOptRes.physval_pareto(:,kk1), ...
+             objscale(kk2)*RobotOptRes.physval_pareto(:,kk2), 'm*'); %#ok<PFBNS>
+        xlabel(sprintf('Zielf. %d (%s) in %s', kk1, Set.optimization.objective{kk1}, obj_units{kk1})); %#ok<PFBNS>
+        ylabel(sprintf('Zielf. %d (%s) in %s', kk2, Set.optimization.objective{kk2}, obj_units{kk2}));
+      else % Bild mit normierten Zielfunktionswerten
+        plot(RobotOptRes.fval_pareto(:,kk1), ...
+             RobotOptRes.fval_pareto(:,kk2), 'm*');
+        xlabel(sprintf('Zielf. %d (%s) (normiert)', kk1, Set.optimization.objective{kk1}));
+        ylabel(sprintf('Zielf. %d (%s)(normiert)', kk2, Set.optimization.objective{kk2}));
+      end
       grid on;
     end
-    sgtitle(sprintf('Rob. %d: Pareto-Fronten für mehrkrit. Opt.', i));
-    saveas(10*i+7,     fullfile(resrobdir, sprintf('Rob%d_%s_Pareto2D.fig', i, Name)));
-    export_fig(10*i+7, fullfile(resrobdir, sprintf('Rob%d_%s_Pareto2D.png', i, Name)));
+    if pffig == 1 
+      sgtitle(sprintf('Rob. %d: Pareto-Fronten für mehrkrit. Opt. (Physikalische Werte)', i));
+      name_suffix = 'phys';
+    else
+      sgtitle(sprintf('Rob. %d: Pareto-Fronten für mehrkrit. Opt. (Normierte Werte)', i));
+      name_suffix = 'fval';
+    end
+    saveas(10*i+6+pffig,     fullfile(resrobdir, sprintf('Rob%d_%s_Pareto2D_%s.fig', i, Name, name_suffix)));
+    export_fig(10*i+6+pffig, fullfile(resrobdir, sprintf('Rob%d_%s_Pareto2D_%s.png', i, Name, name_suffix)));
+    end
   end
   %% (3D)-Pareto-Fronten für die Zielkriterien
-  if length(Set.optimization.objective) > 2 % Mehrkriterielle Optimierung
+  if any(strcmp(Set.general.eval_figures, 'pareto')) && ...
+   length(Set.optimization.objective) > 2 % Mehrkriterielle Optimierung
     objcomb = allcomb(1:length(Set.optimization.objective), 1:length(Set.optimization.objective), ...
       1:length(Set.optimization.objective));
     objcomb(objcomb(:,1)==objcomb(:,2) | objcomb(:,2)==objcomb(:,3),:) = [];
     objcomb(objcomb(:,1)>objcomb(:,2),:) = [];
     objcomb(objcomb(:,2)>objcomb(:,3),:) = [];
-    figure(10*i+8);clf;hold all;
+    figure(10*i+9);clf;hold all;
     sprows = floor(sqrt(size(objcomb,1)));
     spcols = ceil(size(objcomb,1)/sprows);
     for kk = 1:size(objcomb,1)
@@ -497,8 +526,8 @@ parfor (i = 1:length_Structures, parfor_numworkers)
       grid on;
     end
     sgtitle(sprintf('Rob. %d: Pareto-Fronten (3D) für mehrkrit. Opt.', i));
-    saveas(10*i+8,     fullfile(resrobdir, sprintf('Rob%d_%s_Pareto3D.fig', i, Name)));
-    export_fig(10*i+8, fullfile(resrobdir, sprintf('Rob%d_%s_Pareto3D.png', i, Name)));
+    saveas(10*i+9,     fullfile(resrobdir, sprintf('Rob%d_%s_Pareto3D.fig', i, Name)));
+    export_fig(10*i+9, fullfile(resrobdir, sprintf('Rob%d_%s_Pareto3D.png', i, Name)));
   end
 
   %% Finalisierung
@@ -515,10 +544,14 @@ parfor (i = 1:length_Structures, parfor_numworkers)
 end
 %% Erzeuge Pareto-Diagramme für alle Roboter (2D)
 if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriterien gleichzeitig nicht sinnvoll
-  change_current_figure(9); clf; hold on; grid on;
-  set(9, 'name', 'Pareto_Gesamt', 'NumberTitle', 'off', 'color','w');
-  if ~strcmp(get(9, 'windowstyle'), 'docked')
-    set(9,'units','normalized','outerposition',[0 0 1 1]);
+  for pffig = 1:2 % Zwei Bilder: Physikalische Werte und normierte Werte
+  if pffig == 1, name_suffix = 'phys';
+  else,          name_suffix = 'fval'; end
+  change_current_figure(9+pffig); clf; hold on; grid on;
+  set(9+pffig, 'name', sprintf('Pareto_Gesamt_%s',name_suffix), ...
+    'NumberTitle', 'off', 'color','w');
+  if ~strcmp(get(9+pffig, 'windowstyle'), 'docked')
+    set(9+pffig,'units','normalized','outerposition',[0 0 1 1]);
   end
   leghdl = []; legstr = {}; % Für Erstellung der Legende am Ende
   countmarker = 0; % Stelle Marker für jeden Roboter zusammen
@@ -544,27 +577,58 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     marker = [markerlist{im}, colorlist{ic}];
     % Pareto-Front für diesen Roboter einzeichnen
     if length(Set.optimization.objective) == 2
-      hdl=plot(objscale(1)*tmp.RobotOptRes.physval_pareto(:,1), ...
-                  objscale(2)*tmp.RobotOptRes.physval_pareto(:,2), marker);
+      if pffig == 1 % Bild mit physikalischen Werten
+        hdl=plot(objscale(1)*tmp.RobotOptRes.physval_pareto(:,1), ...
+                 objscale(2)*tmp.RobotOptRes.physval_pareto(:,2), marker);
+      else % Bild mit normierten Zielfunktionswerten
+        hdl=plot(tmp.RobotOptRes.fval_pareto(:,1), ...
+                 tmp.RobotOptRes.fval_pareto(:,2), marker);
+      end
     else % length(Set.optimization.objective) == 3
-      hdl=plot3(objscale(1)*tmp.RobotOptRes.physval_pareto(:,1), ...
-                   objscale(2)*tmp.RobotOptRes.physval_pareto(:,2), ...
-                   objscale(3)*tmp.RobotOptRes.physval_pareto(:,3), marker);
+      if pffig == 1 % Bild mit physikalischen Werten
+        hdl=plot3(objscale(1)*tmp.RobotOptRes.physval_pareto(:,1), ...
+                  objscale(2)*tmp.RobotOptRes.physval_pareto(:,2), ...
+                  objscale(3)*tmp.RobotOptRes.physval_pareto(:,3), marker);
+      else % Bild mit normierten Zielfunktionswerten
+        hdl=plot3(tmp.RobotOptRes.fval_pareto(:,1), ...
+                  tmp.RobotOptRes.fval_pareto(:,2), ...
+                  tmp.RobotOptRes.fval_pareto(:,3), marker);
+      end
     end
     leghdl(countmarker,:) = hdl; %#ok<AGROW>
     legstr{countmarker} = sprintf('%d/%d (%s)', i, length_Structures, Structures{i}.Name); %#ok<AGROW>
   end
-  xlabel(sprintf('%s in %s', Set.optimization.objective{1}, obj_units{1}));
-  ylabel(sprintf('%s in %s', Set.optimization.objective{2}, obj_units{2}));
-  if length(Set.optimization.objective) == 2
-    title(sprintf('Pareto-Front %s vs %s (Fitness-Werte physikalisch)', ...
-      Set.optimization.objective{1}, Set.optimization.objective{2}));
+  if pffig == 1
+    xlabel(sprintf('%s in %s', Set.optimization.objective{1}, obj_units{1}));
+    ylabel(sprintf('%s in %s', Set.optimization.objective{2}, obj_units{2}));
   else
-    zlabel(sprintf('%s in %s', Set.optimization.objective{3}, obj_units{3}));
-    title(sprintf('Pareto-Front %s vs %s vs %s (Fitness-Werte physikalisch)', ...
-      Set.optimization.objective{1}, Set.optimization.objective{2}, Set.optimization.objective{3}));
+    xlabel(sprintf('%s (normiert)', Set.optimization.objective{1}));
+    ylabel(sprintf('%s (normiert)', Set.optimization.objective{2}));
+  end
+  if length(Set.optimization.objective) == 2
+    if pffig == 1
+      title(sprintf('Pareto-Front %s vs %s (Fitness-Werte physikalisch)', ...
+        Set.optimization.objective{1}, Set.optimization.objective{2}));
+    else
+      title(sprintf('Pareto-Front %s vs %s (Fitness-Werte normiert)', ...
+        Set.optimization.objective{1}, Set.optimization.objective{2}));
+    end
+  else
+    if pffig == 1
+      zlabel(sprintf('%s in %s', Set.optimization.objective{3}, obj_units{3}));
+    else
+      zlabel(sprintf('%s (normiert)', Set.optimization.objective{3}));
+    end
+    if pffig == 1
+      title(sprintf('Pareto-Front %s vs %s vs %s (Fitness-Werte physikalisch)', ...
+        Set.optimization.objective{1}, Set.optimization.objective{2}, Set.optimization.objective{3}));
+    else
+      title(sprintf('Pareto-Front %s vs %s vs %s (Fitness-Werte normiert)', ...
+        Set.optimization.objective{1}, Set.optimization.objective{2}, Set.optimization.objective{3}));
+    end
   end
   legend(leghdl, legstr);
-  saveas(9,     fullfile(resmaindir, 'Pareto_Gesamt.fig'));
-  export_fig(9, fullfile(resmaindir, 'Pareto_Gesamt.png'));
+  saveas(9+pffig,     fullfile(resmaindir, sprintf('Pareto_Gesamt_%s.fig',name_suffix)));
+  export_fig(9+pffig, fullfile(resmaindir, sprintf('Pareto_Gesamt_%s.png',name_suffix)));
+  end
 end

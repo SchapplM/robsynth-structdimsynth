@@ -26,7 +26,7 @@ Traj = cds_gen_traj(DoF, 1, Set.task);
 for debugcalc = [0 1]
   %% Optimiere jedes mögliche Zielkriterium einzeln
   obj_list = {'valid_act', 'mass', 'energy', 'condition', 'actforce', ...
-    'stiffness', 'jointrange'};
+    'stiffness', 'jointrange', 'manipulability', 'minjacsingval', 'positionerror'};
   % Speichere Erfolg aller Maßsynthese-Versuche ab. Auswertung unten.
   success_matrix = false(length(whitelist_all), length(obj_list));
   for obj_name = obj_list
