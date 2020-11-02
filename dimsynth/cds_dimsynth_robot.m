@@ -321,7 +321,7 @@ if Structure.Type == 0 || Structure.Type == 2
   pkin_init = R_pkin.pkin;
   pkin_init(~Ipkinrel) = 0; % nicht relevante Parameter Null setzen
   % Nicht relevanten alpha- oder theta-Parameter auf 0 oder pi/2 setzen.
-  if Structure.Type == 2
+  if Structure.Type == 2 && ~isempty(Structure.angles_values)
     iik = 0; % Zähler für Variable Structure.angles_values
     for kk = III' % Gehe alle Kinematikparameter durch (in veränderter REihenfolge)
       if ~I_alphatheta(kk)
