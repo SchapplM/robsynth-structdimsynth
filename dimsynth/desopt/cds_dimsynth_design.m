@@ -357,6 +357,19 @@ end
 m_ges = m_ges_Zus + m_ges_Link + m_ges_PStator + m_ges_PAbtrieb;
 mrS_ges = mrS_ges_Zus + mrS_ges_Link + mrS_ges_PStator + mrS_ges_PAbtrieb;
 If_ges = If_ges_Zus + If_ges_Link + If_ges_PStator + If_ges_PAbtrieb;
+% Parameter zu Null setzen
+if R.Type == 0
+  if Set.optimization.nolinkmass
+    m_ges(:) = 0; mrS_ges(:) = 0; If_ges(:) = 0;
+  end
+else
+  if Set.optimization.nolinkmass
+    m_ges(1:end-1) = 0; mrS_ges(1:end-1,:) = 0; If_ges(1:end-1,:) = 0;
+  end
+  if Set.optimization.noplatformmass
+    m_ges(end-1) = 0; mrS_ges(end-1,:) = 0; If_ges(end-1,:) = 0;
+  end
+end
 if any(m_ges<0)
   error('Eine Masse ist kleiner Null. Vorher war ein Fehler');
 end
