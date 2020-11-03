@@ -274,6 +274,11 @@ if Structure.Type == 0 || Structure.Type == 2
     [~,III] = sort(sortstr); % Indizes zum Sortieren
     I_alphatheta = R_pkin.pkin_types==3 | R_pkin.pkin_types==5;
     II_alphatheta = find(I_alphatheta);
+    if length(II_alphatheta) ~= length(Structure.angles_values)
+      error(['Anzahl der freien alpha-/theta-Parameter der Beinkette stimmt ', ...
+        'nicht (%d in Beinkette, %d in Datenbank: "%s")'], length(II_alphatheta), ...
+        length(Structure.angles_values), Structure.angles_values)
+    end
     iik = 0; % Zähler für Variable Structure.angles_values
     for kk = III' % Gehe alle Kinematikparameter durch (in veränderter REihenfolge)
       if ~I_alphatheta(kk)
