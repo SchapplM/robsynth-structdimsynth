@@ -602,17 +602,18 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         II(I) = true; % Binär-Indizes der ersten eindeutigen Ergebnisse
         angles_jjj(~II) = '?'; %#ok<SAGROW> % Markiere doppelte, damit die Logik unten noch stimmt
       end
-      % TODO: Logik zur Reduktion der Fälle: Symbolisches Rechnen.
-      % Vorerst alle Fälle ungeprüft übernehmen
+      % Logik zur Reduktion der Fälle: Symbolisches Rechnen.
+      % nur Parameter mit gültigem Ergebnis auswählen. Annahme: Keine Unter-
+      % scheidung zwischen Rangverlust und voller Rang hier.
       I_valid = fval_jjj < 1e3;
       angles_jjj_valid = angles_jjj(I_valid);
-
+      angles_jjj_vr = structparam_combine(angles_jjj_valid);
       % Zeichenkette erstellen, die in die actuation.csv geschrieben wird.
       % Enthält alle funktionierenden Konfigurationen
       structparamstr = '';
-      for iii = 1:length(angles_jjj_valid)
-        structparamstr=[structparamstr, angles_jjj_valid{iii}]; %#ok<AGROW>
-        if iii < length(angles_jjj_valid), structparamstr=[structparamstr,',']; end %#ok<AGROW>
+      for iii = 1:length(angles_jjj_vr)
+        structparamstr=[structparamstr, angles_jjj_vr{iii}]; %#ok<AGROW>
+        if iii < length(angles_jjj_vr), structparamstr=[structparamstr,',']; end %#ok<AGROW>
       end
       %% Ergebnis der Maßsynthese auswerten
       remove = false;
