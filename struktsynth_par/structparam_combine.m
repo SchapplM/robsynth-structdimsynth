@@ -22,6 +22,10 @@
 
 function angles_valid_red = structparam_combine(angles_valid)
 % Dummy-Namen der Parameter vorbereiten
+if isempty(angles_valid)
+  angles_valid_red = angles_valid;
+  return
+end
 params_names = cell(1,length(angles_valid{1}));
 for i = 1:length(params_names)
   % Laufende Nummer des Parameters. Wahl des Namens auch in der Form

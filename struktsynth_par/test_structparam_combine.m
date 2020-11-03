@@ -8,9 +8,12 @@
 clear
 clc
 
-for i = 1:7
+for i = 0:7
   % Testfälle durchgehen
-  if i == 1
+  if i == 0
+    angles_valid = {};
+    angles_red_gt = {};
+  elseif i == 1
     angles_valid = {'p','o','a'};
     angles_red_gt = {'a'};
   elseif i == 2
