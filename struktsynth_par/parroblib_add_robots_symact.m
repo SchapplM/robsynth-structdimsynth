@@ -482,7 +482,13 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         % Prüfe, wie viele passende Ergebnisse in dem Ordner sind
         Whitelist_PKM_match = false(length(Whitelist_PKM),1);
         reslist_pkm = dir(fullfile(reslist(i).folder, reslist(i).name, 'Rob*_Endergebnis.mat'));
+        reslist_pkm_names = cell(length(reslist_pkm),1); % PKM-Namen der Ergebnisse
         for j = 1:length(reslist_pkm) % Alle Endergebnisse
+          % Bestimme den PKM-Namen zu diesem Ergebnis
+          [tokens, match] = regexp(reslist_pkm(j).name, ...
+            'Rob[\d]+_([A-Za-z0-9_]+)_Endergebnis\.mat', 'tokens', 'match');
+          reslist_pkm_names{j} = tokens{1}{1};
+          % Prüfe, ob die gesuchten PKM zu diesem Ergebnis passen
           for k = find(~Whitelist_PKM_match)' % Suche nur nach bisher noch nicht gefundenen
             if contains(reslist_pkm(j).name, Whitelist_PKM{k})
               Whitelist_PKM_match(k) = true; % für gesuchte PKM liegt ein Endergebnis vor
@@ -491,9 +497,15 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           end
         end
         reslist_nummatch(i) = sum(Whitelist_PKM_match); % Anzahl der Treffer
-        reslist_rationomatch(i) = 1 - reslist_nummatch(i)/length(reslist_pkm);
+        % Verhältnis der gefundenen PKM: Berücksichtige freie alpha-/theta-
+        % Parameter, die zu doppelten Ergebnissen für einen Namen führen.
+        reslist_rationomatch(i) = 1 - reslist_nummatch(i)/length(unique(reslist_pkm_names));
         % Alter des Ordners bestimmen (aus bekanntem Namensschema)
         [datestr_match, ~] = regexp(reslist(i).name,'[A-Za-z0-9_]*_tmp_(\d+)_(\d+)', 'tokens','match');
+        if isempty(datestr_match)
+          warning('Ergebnis-Ordner "%s" passt nicht ins Datums-Namensschema. Überspringe.', reslist(i).name);
+          continue
+        end
         date_i = datenum([datestr_match{1}{1}, ' ', datestr_match{1}{2}], 'yyyymmdd HHMMSS');
         reslist_age(i) = now() - date_i; % Alter in Tagen
       end
@@ -507,7 +519,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       fprintf(['Ergebnis-Ordner %s zur Offline-Auswertung gewählt. Enthält ', ...
         '%d/%d passende Ergebnisse (%1.0f%% unpassende Ergebnisse) und ist %1.1f ', ...
         'Tage alt\n'], Set.optimization.optname, reslist_nummatch(I), ...
-        length(Whitelist_PKM), reslist_rationomatch(I), reslist_age(I));
+        length(Whitelist_PKM), 100*reslist_rationomatch(I), reslist_age(I));
       % Erstelle Variablen, die sonst in cds_start entstehen
       roblist = dir(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
         'Rob*_*')); % Die Namen aller Roboter sind in den Ordnernamen enthalten.
