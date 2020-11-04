@@ -615,6 +615,14 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         structparamstr=[structparamstr, angles_jjj_vr{iii}]; %#ok<AGROW>
         if iii < length(angles_jjj_vr), structparamstr=[structparamstr,',']; end %#ok<AGROW>
       end
+      if ~isempty(angles_jjj_valid) && length(intersect(angles_jjj_vr,angles_jjj_valid)) ~= length(angles_jjj_valid)
+        structparamstr_orig = '';
+        for iii = 1:length(angles_jjj_valid)
+          structparamstr_orig=[structparamstr_orig, angles_jjj_valid{iii}]; %#ok<AGROW>
+          if iii < length(angles_jjj_valid), structparamstr_orig=[structparamstr_orig,',']; end %#ok<AGROW>
+        end
+        fprintf('Freie Winkelparameter kombiniert: "%s" -> "%s"\n', structparamstr_orig, structparamstr);
+      end
       %% Ergebnis der Maßsynthese auswerten
       remove = false;
       try

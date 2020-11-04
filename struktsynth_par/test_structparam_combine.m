@@ -8,7 +8,7 @@
 clear
 clc
 
-for i = 0:7
+for i = 0:8
   % Testfälle durchgehen
   if i == 0
     angles_valid = {};
@@ -34,6 +34,9 @@ for i = 0:7
   elseif i == 7
     angles_valid = {'ap','pa'};
     angles_red_gt = {'ap','pa'};
+  elseif i == 8
+    angles_valid = {'ppp', 'ppo', 'ppa'};
+    angles_red_gt = {'ppa'};
   end
   % Zusammenfassung der Strukturparameter per Funktionsaufruf
   angles_red = structparam_combine(angles_valid);
@@ -46,3 +49,4 @@ for i = 0:7
     error('Die Zusammenfassung der Strukturparameter passt nicht.');
   end
 end
+fprintf('Alle Testfälle für structparam_combine erfolgreich\n');
