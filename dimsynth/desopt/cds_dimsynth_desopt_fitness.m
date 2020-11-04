@@ -68,7 +68,10 @@ if fval == 0 && Structure.calc_reg
   if Set.general.debug_calc
     % Zu Testzwecken die Dynamik neu ohne Regressorform berechnen und mit
     % Regressor-Berechnung vergleichen
-    data_dyn2 = cds_obj_dependencies(R, Traj_0, Set, Structure, Q, QD, QDD, Jinv_ges);
+    Structure_tmp = Structure;
+    Structure_tmp.calc_dyn_act = true;
+    Structure_tmp.calc_reg = false;
+    data_dyn2 = cds_obj_dependencies(R, Traj_0, Set, Structure_tmp, Q, QD, QDD, Jinv_ges);
     test_TAU = data_dyn2.TAU - data_dyn.TAU;
     if any(abs(test_TAU(:))>1e-8)
       error('Antriebskräfte aus Regressorform stimmt nicht');
