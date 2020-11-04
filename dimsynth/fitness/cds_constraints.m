@@ -154,6 +154,9 @@ else % PKM
     s = struct('Phit_tol', 1e-9, 'Phir_tol', 1e-9, 'retry_limit', 10, ...
       'normalize', false, 'n_max', 5000, 'rng_seed', 0);
   end
+  % Abbruch der IK-Berechnung, wenn eine Beinkette nicht erfolgreich war.
+  % Dadurch wesentlich schnellerer Durchlauf der PKM-IK
+  s_par = struct('abort_firstlegerror', true);
   JPE = NaN(size(Traj_0.XE,1), (R.NL-1+R.NLEG)*3);
 end
 n_jic = 30;
@@ -211,9 +214,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       [q, Phi, Tc_stack] = R.invkin2(Traj_0.XE(i,:)', q0, s);
     else
       q0(R.I1J_LEG(2):end) = NaN; % Für Beinkette 2 Ergebnis von BK 1 nehmen
-      [q, Phi, Tc_stack] = R.invkin2(Traj_0.XE(i,:)', q0, s); % kompilierter Aufruf
+      [q, Phi, Tc_stack] = R.invkin2(Traj_0.XE(i,:)', q0, s, s_par); % kompilierter Aufruf
       if Set.general.debug_calc
-        [~, Phi_debug, ~] = R.invkin_ser(Traj_0.XE(i,:)', q0, s); % Klassenmethode
+        [~, Phi_debug, ~] = R.invkin_ser(Traj_0.XE(i,:)', q0, s, s_par); % Klassenmethode
         ik_res_ik2 = (all(abs(Phi(R.I_constr_t_red))<s.Phit_tol) && ...
             all(abs(Phi(R.I_constr_r_red))<s.Phir_tol));% IK-Status Funktionsdatei
         ik_res_iks = (all(abs(Phi_debug(R.I_constr_t_red))<s.Phit_tol) && ... 
