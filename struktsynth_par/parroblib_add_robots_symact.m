@@ -347,8 +347,12 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       settings_cluster.comp_cluster = false;
       settings_cluster.dryrun = false;
       settings_cluster.isoncluster = true;
+      % Struktursynthese auf dem Cluster parallel rechnen
       settings_cluster.parcomp_structsynth = true;
-      settings_cluster.parcomp_mexcompile = false;
+      % Parallele mex-Kompilierung immer auf dem Cluster. Voraussetzung:
+      % ParRobLib wird in eigenes Temp-Verzeichnis kopiert. Dann keine
+      % Schreibkonflikte mit parallel berechneten G-/P-Nummern
+      settings_cluster.parcomp_mexcompile = true;
       save(fullfile(jobdir, [computation_name,'.mat']), 'settings_cluster');
       % Matlab-Skript erzeugen
       chf = fullfile(clean_absolute_path(fullfile(jobdir,'..','..')), ...
@@ -407,6 +411,8 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           % Lesen der csv-Tabelle für Funktionskompilierung notwendig.
           % Hoffe, dass direkt beim Freiwerden nicht schon wieder
           % geschrieben wird (deshalb oben an gleichwertiger Stelle Pause)
+          % (unproblematisch, wenn Parallelinstanz auf eigener Kopie der
+          % ParRobLib arbeitet)
           parroblib_writelock('check', 'csv', logical(EE_FG), 10*60, true);
           % Erzeuge Klasse. Dafür Aktuierung A1 angenommen. Ist aber für
           % Generierung der Funktionen egal.
