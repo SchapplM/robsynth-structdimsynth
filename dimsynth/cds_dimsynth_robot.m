@@ -1062,6 +1062,7 @@ for i = 1:max_retry
   % Eigentlich darf sich das Ergebnis aber nicht ändern (wegen der
   % Zufallszahlen-Initialisierung in cds_fitness). Es kann rundungsbedingte
   % Aenderungen des Ergebnisses geben.
+  clear cds_fitness % persistente Variable in fitnessfcn löschen (falls Grenzwert erreicht wurde wird sonst inf zurückgegeben)
   [fval_test, ~, Q_test] = fitnessfcn(p_val);
   if any(abs(fval_test-fval)>1e-8)
     if all(fval_test < fval)
