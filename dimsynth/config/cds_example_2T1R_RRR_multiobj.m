@@ -23,7 +23,11 @@ Set.optimization.constraint_collisions = true;
 Set.general.animation_styles = {'3D'};
 Set.structures.whitelist = {'S3RRR1', 'P3RRR1G1P1A1'};
 Traj = cds_gen_traj(DoF, 1, Set.task);
-for obj_case = 1:4
+for obj_case = 1:5
+  % Variablen zurücksetzen, die sonst als mit falscher Dimension gesetzt
+  % erkannt werden.
+  Set.optimization.obj_limit_physval = 0;
+  Set.optimization.obj_limit = 0;
   switch obj_case
     case 1
       Set.optimization.objective = {'mass', 'condition'};
