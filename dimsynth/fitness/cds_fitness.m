@@ -137,7 +137,7 @@ for iIKC = 1:size(Q0,1)
     fval_IKC(iIKC,:) = fval_trajconstr;
   else
     Q = QE_iIKC(:,:,iIKC);
-    QD = 0*QE_iIKC; QDD = QD;
+    QD = 0*Q; QDD = QD;
     fval_trajconstr = 0; % Alle Nebenbedingungen bereits in cds_constraints oben geprüft
     % Es liegt keine Trajektorie vor. Es reicht also, das Ergebnis der IK von
     % der Eckpunkt-Berechnung zu benutzen um die Jacobi-Matrix zu berechnen
