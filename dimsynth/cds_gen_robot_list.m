@@ -275,7 +275,18 @@ if structset.use_parallel
     end
     % Stelle mögliche Werte für den Strukturparameter theta1 zusammen.
     csvline = serroblib_bits2csvline(l.BitArrays_Ndof(ilc,:)); % DH-Parameter der Beinkette aus csv-Datei
+    % Die Indizes beziehen sich auf die MDH-Parameter in der CSV-Datei.
+    % Sie sind daher schon passend sortiert (erst Gelenkreihenfolge, dann
+    % alpha/theta)
     I_param = contains(csvline, 'theta') | contains(csvline, 'alpha');
+    params_str = '';
+    II_param = find(I_param);
+    for kk = 1:length(II_param)
+      params_str = [params_str, csvline{II_param(kk)}]; %#ok<AGROW>
+      if kk < length(II_param)
+        params_str = [params_str, '/']; %#ok<AGROW>
+      end
+    end
     if strcmp(Set.optimization.objective, 'valid_act') % Prüfe Laufgrad der PKM (sonst ist die Info schon vorhanden)
       if any(I_param) && ... % es gibt (mindestens) einen freien Struktur-Parameter
           (all(structset.DoF(1:5) == [1 1 1 0 0]) || ... % 3T0R/3T1R
@@ -291,21 +302,27 @@ if structset.use_parallel
             angles_values = [angles_values; [a1{i1},a2{i1}]]; %#ok<AGROW>
           end
         end
-      else % theta muss nicht betrachtet werden
-        % Setze den Fall für theta auf nicht definiert
-        angles_values = {};
+      else % 3T3R: theta muss nicht betrachtet werden
+        % Setze den Fall für alpha/theta auf beliebig
+        angles_values = {repmat('a', 1, sum(I_param))};
       end
     else % Normaler Fall der Maßsynthese. Lade Information aus Datenbank
       % Siehe parroblib_load_robot
-      angles_values = StructuralDHParam;
-    end
-    params_str = '';
-    II_param = find(I_param);
-    for kk = 1:length(II_param)
-      params_str = [params_str, csvline{II_param(kk)}]; %#ok<AGROW>
-      if kk < length(II_param)
-        params_str = [params_str, '/']; %#ok<AGROW>
+      if isempty(StructuralDHParam) || isempty(StructuralDHParam{1})
+        % Leerer Eintrag. Setze alle Werte auf beliebig
+        angles_values = {repmat('a', 1, sum(I_param))};
+      elseif length(StructuralDHParam) ~= sum(I_param)
+        % Ungültiger Eintrag
+        error(['In PKM-Datenbank stimmt für %s die Anzahl der freien ', ...
+          'Parameter nicht. Parameter: "%s"; Gegeben: "%s" (erster Eintrag).'], PNames_Akt{j},...
+          params_str, StructuralDHParam{1});
+      else
+        % Gültiger Eintrag in ParRobLib
+        angles_values = StructuralDHParam;
       end
+    end
+    if isempty(angles_values) % Fall darf nicht vorkommen
+      error('Es würde kein Eintrag für %s hinzugefügt werden.', PNames_Akt{j});
     end
     for avtmp = angles_values(:)' % Gehe alle möglichen Werte für theta durch und trage als eigene PKM ein.
       av = avtmp{1};
