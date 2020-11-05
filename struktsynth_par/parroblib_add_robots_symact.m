@@ -581,6 +581,10 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       fprintf(fid, 'tmp=load(''%s'');\n', [computation_name,'.mat']);
       fprintf(fid, 'settings=tmp.settings_cluster;\n');
       fprintf(fid, 'parroblib_add_robots_symact;\n');
+      % Schließen des ParPools auch in Datei hineinschreiben
+      fprintf(fid, 'parpool_writelock(''lock'', 300, true);\n');
+      fprintf(fid, 'delete(gcp(''nocreate''));\n');
+      fprintf(fid, 'parpool_writelock(''free'', 0, true);\n');
       fclose(fid);
       % Matlab-Skript auf Cluster starten.
       % Schätze die Rechenzeit: 30min pro PKM aufgeteilt auf 12 parallele
