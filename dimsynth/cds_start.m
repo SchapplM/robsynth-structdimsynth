@@ -256,6 +256,10 @@ if ~Set.general.regenerate_summmary_only
   resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
   mkdirs(resdir_main); % Ergebnis-Ordner für diese Optimierung erstellen
   t1 = tic();
+  % Einstellungen dieser kombinierten Synthese speichern. Damit ist im
+  % Nachhinein nachvollziehbar, welche Roboter eventuell fehlen
+  save(fullfile(resdir_main, sprintf('%s_settings.mat', Set.optimization.optname)), ...
+    'Set', 'Traj', 'Structures');
   parfor (i = 1:length(Structures), parfor_numworkers)
     % Maßsynthese für diesen Roboter starten
     fprintf('Starte Maßsynthese für Roboter %d (%s)\n', i, Structures{i}.Name);
