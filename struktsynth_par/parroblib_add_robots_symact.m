@@ -29,6 +29,7 @@ settings_default = struct( ...
   'selectgeneral', true, ... % Auch allgemeine Modelle wählen
   'selectvariants', true, ... % Auch alle Varianten wählen
   'comp_cluster', false, ... % Rechne auf PBS-Rechen-Cluster. Parallel-Instanz für G-/P-Kombis
+  'only_cluster_if_fulldata_olderthan', 2, ... % Falls in den letzten zwei Tagen bereits ein vollständiger Durchlauf gemacht wurde, dann nicht nochmal auf dem Cluster rechnen.
   'isoncluster', false, ... % Marker um festzustellen, dass gerade auf Cluster parallel gerechnet wird
   'dryrun', false, ... % Falls true: Nur Anzeige, was gemacht werden würde
   'offline', false, ... % Falls true: Keine Optimierung durchführen, stattdessen letztes passendes Ergebnis laden
@@ -66,9 +67,14 @@ settings = settings_new;
 assert(isscalar(settings.max_actuation_idx), 'max_actuation_idx muss Skalar sein');
 % Eingaben nachverarbeiten
 if settings.comp_cluster
-  % Die Datenbank muss lokal nicht geändert werden. Es wird alles auf dem
-  % Cluster gemacht.
-  settings.dryrun = true;
+  % Die Datenbank muss lokal geändert werden, um die Namen der neu zu
+  % erstellenden PKM festzustellen. Sonst lässt sich nicht feststellen, ob
+  % schon Ergebnisse vorliegen. Die Datenbank muss also eventuell vor der
+  % Auswertung wieder zurückgesetzt werden.
+  if settings.dryrun
+    error('Option "dryrun" nicht zusammen mit "comp_cluster" möglich.');
+  end
+  settings.offline = true; % Es werden offline vorhandene Ergebnisse geprüft.
 end
 %% Initialisierung
 EE_FG_ges = [1 1 0 0 0 1; ...
@@ -328,56 +334,6 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     % Zeichenfolge zum Erstellen von eindeutigen Namen
     if settings.selectvariants, varstr = 'v'; else, varstr = ''; end
     if settings.selectgeneral, genstr = 'g'; else, genstr = ''; end
-    %% LUIS-Cluster vorbereiten
-    if settings.comp_cluster
-      % Führe die Maßsynthese für die Struktursynthese auf dem Cluster durch.
-      % Bereite eine Einstellungs-Datei vor
-      cluster_repo_path = computingcluster_repo_path();
-      % Eindeutige Bezeichnung für diesen Versuchslauf
-      computation_name = sprintf('structsynth_par_%s_G%dP%d_%s_%s%s', EE_FG_Name, ...
-        Coupling(1), Coupling(2),  datestr(now,'yyyymmdd_HHMMSS'), genstr, varstr);
-      jobdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
-        'struktsynth_par', 'cluster_jobs', computation_name);
-      mkdirs(fullfile(jobdir, 'results')); % Unterordner notwendig für Cluster-Dateisynchronisation
-      targetfile = fullfile(jobdir, [computation_name,'.m']);
-      settings_cluster = settings;
-      % Für jede G-P-Nummer wird ein Cluster-Job erzeugt.
-      settings_cluster.base_couplings = Coupling(1);
-      settings_cluster.plf_couplings = Coupling(2);
-      settings_cluster.comp_cluster = false;
-      settings_cluster.dryrun = false;
-      settings_cluster.isoncluster = true;
-      % Struktursynthese auf dem Cluster parallel rechnen
-      settings_cluster.parcomp_structsynth = true;
-      % Parallele mex-Kompilierung immer auf dem Cluster. Voraussetzung:
-      % ParRobLib wird in eigenes Temp-Verzeichnis kopiert. Dann keine
-      % Schreibkonflikte mit parallel berechneten G-/P-Nummern
-      settings_cluster.parcomp_mexcompile = true;
-      save(fullfile(jobdir, [computation_name,'.mat']), 'settings_cluster');
-      % Matlab-Skript erzeugen
-      chf = fullfile(clean_absolute_path(fullfile(jobdir,'..','..')), ...
-        'structsynth_cluster_header.m');
-      if ~exist(chf, 'file')
-        error('Datei %s muss aus Vorlage erzeugt werden', chf);
-      end
-      copyfile(chf, targetfile);
-      fid = fopen(targetfile, 'a');
-      fprintf(fid, 'tmp=load(''%s'');\n', [computation_name,'.mat']);
-      fprintf(fid, 'settings=tmp.settings_cluster;\n');
-      fprintf(fid, 'parroblib_add_robots_symact;\n');
-      fclose(fid);
-      % Matlab-Skript auf Cluster starten.
-      % Schätze die Rechenzeit: 30min pro PKM aufgeteilt auf 12 parallele
-      % Kerne und 12h Reserve für allgemeine Aufgaben, z.B. Warten. Eher zu 
-      % große Einschätzung der Rechenzeit.
-      fprintf('Starte die Berechnung der Struktursynthese auf dem Rechencluster: %s\n', computation_name);
-      addpath(cluster_repo_path);
-      jobStart(struct('name', computation_name, ...
-                      'matFileName', [computation_name, '.m'], ...
-                      'locUploadFolder', jobdir, ...
-                      'time', 12+length(Whitelist_PKM)*0.5/12));
-      rmpath_genpath(cluster_repo_path, false);
-    end
     
     if settings.dryrun, continue; end
     %% Alle Matlab-Funktionen generieren
@@ -469,6 +425,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         '%d Roboter\n'], length(Whitelist_PKM));
       cds_start
     else
+      offline_result_complete = false;
       % Debug: Lade Ergebnisse aus temporärem Cluster-Download-Ordner
       % Set.optimization.resdir = '/mnt/FP500/IMES/CLUSTER/REPO/structgeomsynth/dimsynth/results';
       % Finde den Namen der letzten Optimierung. Nur der Zeitstempel darf
@@ -476,77 +433,99 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       reslist = dir(fullfile(Set.optimization.resdir,[Set.optimization.optname(1:29),'*']));
       % Suche das neuste Ergebnis aus der Liste und benutze es als Namen
       if isempty(reslist)
-        warning(['Offline-Modus gewählt, aber keine Ergebnisse für %s* im ', ...
-          'passenden Ordner.'], Set.optimization.optname(1:end-15));
-        continue % Beendet Prüfung dieser Koppelgelenk-Kombination
-      end
-      % Suche den Ergebnis-Ordner mit der größten Übereinstimmung
-      reslist_nummatch = zeros(length(reslist),1); % Anzahl der Treffer
-      reslist_rationomatch = zeros(length(reslist),1); % Anzahl der unpassenden Ergebnisse im Ordner
-      reslist_age = zeros(length(reslist),1); % Alter der durchgeführten Optimierungen in Ergebnisordner
-      for i = 1:length(reslist) % Alle Ergebnis-Ordner durchgehen
-        % Prüfe, wie viele passende Ergebnisse in dem Ordner sind
-        Whitelist_PKM_match = false(length(Whitelist_PKM),1);
-        reslist_pkm = dir(fullfile(reslist(i).folder, reslist(i).name, 'Rob*_Endergebnis.mat'));
-        reslist_pkm_names = cell(length(reslist_pkm),1); % PKM-Namen der Ergebnisse
-        for j = 1:length(reslist_pkm) % Alle Endergebnisse
-          % Bestimme den PKM-Namen zu diesem Ergebnis
-          [tokens, match] = regexp(reslist_pkm(j).name, ...
-            'Rob[\d]+_([A-Za-z0-9_]+)_Endergebnis\.mat', 'tokens', 'match');
-          reslist_pkm_names{j} = tokens{1}{1};
-          % Prüfe, ob die gesuchten PKM zu diesem Ergebnis passen
-          for k = find(~Whitelist_PKM_match)' % Suche nur nach bisher noch nicht gefundenen
-            if contains(reslist_pkm(j).name, Whitelist_PKM{k})
-              Whitelist_PKM_match(k) = true; % für gesuchte PKM liegt ein Endergebnis vor
-              break;
+        if ~settings.comp_cluster
+          % Falls auf Cluster gerechnet werden soll, war das hier nur eine
+          % Prüfung.
+          warning(['Offline-Modus gewählt, aber keine Ergebnisse für %s* im ', ...
+            'passenden Ordner.'], Set.optimization.optname(1:end-15));
+          continue % Beendet Prüfung dieser Koppelgelenk-Kombination
+        end
+      else
+        % Suche den Ergebnis-Ordner mit der größten Übereinstimmung
+        reslist_nummatch = zeros(length(reslist),1); % Anzahl der Treffer
+        reslist_rationomatch = zeros(length(reslist),1); % Anzahl der unpassenden Ergebnisse im Ordner
+        reslist_age = zeros(length(reslist),1); % Alter der durchgeführten Optimierungen in Ergebnisordner
+        for i = 1:length(reslist) % Alle Ergebnis-Ordner durchgehen
+          % Prüfe, wie viele passende Ergebnisse in dem Ordner sind
+          Whitelist_PKM_match = false(length(Whitelist_PKM),1);
+          reslist_pkm = dir(fullfile(reslist(i).folder, reslist(i).name, 'Rob*_Endergebnis.mat'));
+          reslist_pkm_names = cell(length(reslist_pkm),1); % PKM-Namen der Ergebnisse
+          for j = 1:length(reslist_pkm) % Alle Endergebnisse
+            % Bestimme den PKM-Namen zu diesem Ergebnis
+            [tokens, match] = regexp(reslist_pkm(j).name, ...
+              'Rob[\d]+_([A-Za-z0-9_]+)_Endergebnis\.mat', 'tokens', 'match');
+            reslist_pkm_names{j} = tokens{1}{1};
+            % Prüfe, ob die gesuchten PKM zu diesem Ergebnis passen
+            for k = find(~Whitelist_PKM_match)' % Suche nur nach bisher noch nicht gefundenen
+              if contains(reslist_pkm(j).name, Whitelist_PKM{k})
+                Whitelist_PKM_match(k) = true; % für gesuchte PKM liegt ein Endergebnis vor
+                break;
+              end
             end
           end
+          reslist_nummatch(i) = sum(Whitelist_PKM_match); % Anzahl der Treffer
+          % Verhältnis der gefundenen PKM: Berücksichtige freie alpha-/theta-
+          % Parameter, die zu doppelten Ergebnissen für einen Namen führen.
+          reslist_rationomatch(i) = 1 - reslist_nummatch(i)/length(unique(reslist_pkm_names));
+          % Alter des Ordners bestimmen (aus bekanntem Namensschema)
+          [datestr_match, ~] = regexp(reslist(i).name,'[A-Za-z0-9_]*_tmp_(\d+)_(\d+)', 'tokens','match');
+          if isempty(datestr_match)
+            warning('Ergebnis-Ordner "%s" passt nicht ins Datums-Namensschema. Überspringe.', reslist(i).name);
+            continue
+          end
+          date_i = datenum([datestr_match{1}{1}, ' ', datestr_match{1}{2}], 'yyyymmdd HHMMSS');
+          reslist_age(i) = now() - date_i; % Alter in Tagen
         end
-        reslist_nummatch(i) = sum(Whitelist_PKM_match); % Anzahl der Treffer
-        % Verhältnis der gefundenen PKM: Berücksichtige freie alpha-/theta-
-        % Parameter, die zu doppelten Ergebnissen für einen Namen führen.
-        reslist_rationomatch(i) = 1 - reslist_nummatch(i)/length(unique(reslist_pkm_names));
-        % Alter des Ordners bestimmen (aus bekanntem Namensschema)
-        [datestr_match, ~] = regexp(reslist(i).name,'[A-Za-z0-9_]*_tmp_(\d+)_(\d+)', 'tokens','match');
-        if isempty(datestr_match)
-          warning('Ergebnis-Ordner "%s" passt nicht ins Datums-Namensschema. Überspringe.', reslist(i).name);
-          continue
+        reslist_rationomatch(isnan(reslist_rationomatch)) = 0;
+        % Bestimme das am sinnvollsten auszuwählendste Ergebnis:
+        [~, I] = max(reslist_nummatch/length(Whitelist_PKM) ... % Nehme möglichst vollständige Ordner
+          - reslist_age*0.05 ... aber ziehe 5% für jeden vergangenen Tag ab, ...
+            ... % damit nicht ein sehr altes vollständiges Ergebnis immer genommen wird
+          - reslist_rationomatch*0.10); % Bestrafe nicht passende Einträge
+        Set.optimization.optname = reslist(I).name;
+        fprintf(['Ergebnis-Ordner %s zur Offline-Auswertung gewählt. Enthält ', ...
+          '%d/%d passende Ergebnisse (%1.0f%% unpassende Ergebnisse) und ist %1.1f ', ...
+          'Tage alt\n'], Set.optimization.optname, reslist_nummatch(I), ...
+          length(Whitelist_PKM), 100*reslist_rationomatch(I), reslist_age(I));
+        % Erstelle Variablen, die sonst in cds_start entstehen
+        roblist = dir(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+          'Rob*_*')); % Die Namen aller Roboter sind in den Ordnernamen enthalten.
+        [tokens, ~] = regexp({roblist([roblist.isdir]).name},'Rob(\d+)_([A-Za-z0-9]*)','tokens','match');
+        % Nach Nummer der Roboter sortieren (für nachträgliche Erzeugung der
+        % Ergebnis-Tabelle zum korrekten Laden der mat-Dateien)
+        robnum_ges = zeros(length(tokens),1);
+        for i = 1:length(tokens)
+          robnum_ges(i) = str2double(tokens{i}{1}{1});
         end
-        date_i = datenum([datestr_match{1}{1}, ' ', datestr_match{1}{2}], 'yyyymmdd HHMMSS');
-        reslist_age(i) = now() - date_i; % Alter in Tagen
-      end
-      reslist_rationomatch(isnan(reslist_rationomatch)) = 0;
-      % Bestimme das am sinnvollsten auszuwählendste Ergebnis:
-      [~, I] = max(reslist_nummatch/length(Whitelist_PKM) ... % Nehme möglichst vollständige Ordner
-        - reslist_age*0.05 ... aber ziehe 5% für jeden vergangenen Tag ab, ...
-          ... % damit nicht ein sehr altes vollständiges Ergebnis immer genommen wird
-        - reslist_rationomatch*0.10); % Bestrafe nicht passende Einträge
-      Set.optimization.optname = reslist(I).name;
-      fprintf(['Ergebnis-Ordner %s zur Offline-Auswertung gewählt. Enthält ', ...
-        '%d/%d passende Ergebnisse (%1.0f%% unpassende Ergebnisse) und ist %1.1f ', ...
-        'Tage alt\n'], Set.optimization.optname, reslist_nummatch(I), ...
-        length(Whitelist_PKM), 100*reslist_rationomatch(I), reslist_age(I));
-      % Erstelle Variablen, die sonst in cds_start entstehen
-      roblist = dir(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
-        'Rob*_*')); % Die Namen aller Roboter sind in den Ordnernamen enthalten.
-      [tokens, ~] = regexp({roblist([roblist.isdir]).name},'Rob(\d+)_([A-Za-z0-9]*)','tokens','match');
-      % Nach Nummer der Roboter sortieren (für nachträgliche Erzeugung der
-      % Ergebnis-Tabelle zum korrekten Laden der mat-Dateien)
-      robnum_ges = zeros(length(tokens),1);
-      for i = 1:length(tokens)
-        robnum_ges(i) = str2double(tokens{i}{1}{1});
-      end
-      [~,I_sortres] = sort(robnum_ges);
-      % Erstelle Cell-Array mit allen Roboter-Strukturen (Platzhalter-Var.)
-      Structures = {}; istr = 0;
-      for i = I_sortres(:)'
-        istr = istr + 1;
-        Structures{istr} = struct('Name', tokens{i}{1}{2}, 'Type', 2); %#ok<SAGROW>
-      end
-      % Erstelle auch die csv-Tabelle aus den Ergebnissen (falls fehlend)
-      if ~exist(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
-          sprintf('%s_results_table.csv', Set.optimization.optname)), 'file')
-        cds_results_table(Set, Traj, Structures);
+        [~,I_sortres] = sort(robnum_ges);
+        % Erstelle Cell-Array mit allen Roboter-Strukturen (Platzhalter-Var.)
+        Structures = {}; istr = 0;
+        for i = I_sortres(:)'
+          istr = istr + 1;
+          Structures{istr} = struct('Name', tokens{i}{1}{2}, 'Type', 2); %#ok<SAGROW>
+        end
+        % Erstelle auch die csv-Tabelle aus den Ergebnissen (falls fehlend)
+        if ~exist(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+            sprintf('%s_results_table.csv', Set.optimization.optname)), 'file')
+          cds_results_table(Set, Traj, Structures);
+        end
+        % Stelle fest, ob das Ergebnis vollständig ist
+        offline_result_complete = false;
+        settingsfile=fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+          sprintf('%s_settings.mat', Set.optimization.optname));
+        if exist(settingsfile, 'file')
+          tmpset = load(settingsfile, 'Structures');
+          % Vergleiche die Anzahl der geplant durchgeführten Optimierungen
+          % mit den tatsächlich durchgeführten (mit Endergebnis.mat). Wenn
+          % identisch, dann vollständiger Durchlauf
+          if length(tmpset.Structures) == length(Structures)
+            offline_result_complete = true;
+          end
+        elseif reslist_nummatch(I) == length(Whitelist_PKM) && reslist_age(I) < 5
+          % Provisorisch: Falls Einstellungs-Datei bei alten Ergebnissen
+          % noch nicht existiert. TODO: Option wieder entfernen.
+          offline_result_complete = true;
+        end
       end
     end
     % Ergebnisse der Struktursynthese (bzw. als solcher durchgeführten
@@ -555,6 +534,68 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     Ergebnisliste = dir(fullfile(resmaindir,'*_Endergebnis.mat'));
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
       sprintf('parroblib_add_robots_symact_%s_3.mat', EE_FG_Name)));
+    %% LUIS-Cluster vorbereiten
+    if settings.comp_cluster && offline_result_complete && ...
+        reslist_age(I) < settings.only_cluster_if_fulldata_olderthan && ...
+        reslist_rationomatch(I) == 0.0 && ...
+        reslist_nummatch(I) == length(Whitelist_PKM)
+      % Prüfe Bedingungen, bei denen nicht auf dem Cluster gerechnet werden
+      % soll, weil die Ergebnisse lokal schon vorliegen. Kann gemacht
+      % werden, wenn die Rechnung auf dem Cluster für manche G-/P-Nummern
+      % schon erfolgreich war.
+      fprintf(['Das bereits vorhandene Ergebnis ist vollständig und aktuell. ', ...
+        'Keine Neuberechnung auf dem Cluster.\n']);
+    elseif settings.comp_cluster
+      % Führe die Maßsynthese für die Struktursynthese auf dem Cluster durch.
+      % Bereite eine Einstellungs-Datei vor
+      cluster_repo_path = computingcluster_repo_path();
+      % Eindeutige Bezeichnung für diesen Versuchslauf
+      computation_name = sprintf('structsynth_par_%s_G%dP%d_%s_%s%s', EE_FG_Name, ...
+        Coupling(1), Coupling(2),  datestr(now,'yyyymmdd_HHMMSS'), genstr, varstr);
+      jobdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+        'struktsynth_par', 'cluster_jobs', computation_name);
+      mkdirs(fullfile(jobdir, 'results')); % Unterordner notwendig für Cluster-Dateisynchronisation
+      targetfile = fullfile(jobdir, [computation_name,'.m']);
+      settings_cluster = settings;
+      % Für jede G-P-Nummer wird ein Cluster-Job erzeugt.
+      settings_cluster.base_couplings = Coupling(1);
+      settings_cluster.plf_couplings = Coupling(2);
+      settings_cluster.comp_cluster = false;
+      settings_cluster.dryrun = false;
+      settings_cluster.isoncluster = true;
+      % Struktursynthese auf dem Cluster parallel rechnen
+      settings_cluster.parcomp_structsynth = true;
+      % Parallele mex-Kompilierung immer auf dem Cluster. Voraussetzung:
+      % ParRobLib wird in eigenes Temp-Verzeichnis kopiert. Dann keine
+      % Schreibkonflikte mit parallel berechneten G-/P-Nummern
+      settings_cluster.parcomp_mexcompile = true;
+      save(fullfile(jobdir, [computation_name,'.mat']), 'settings_cluster');
+      % Matlab-Skript erzeugen
+      chf = fullfile(clean_absolute_path(fullfile(jobdir,'..','..')), ...
+        'structsynth_cluster_header.m');
+      if ~exist(chf, 'file')
+        error('Datei %s muss aus Vorlage erzeugt werden', chf);
+      end
+      copyfile(chf, targetfile);
+      fid = fopen(targetfile, 'a');
+      fprintf(fid, 'tmp=load(''%s'');\n', [computation_name,'.mat']);
+      fprintf(fid, 'settings=tmp.settings_cluster;\n');
+      fprintf(fid, 'parroblib_add_robots_symact;\n');
+      fclose(fid);
+      % Matlab-Skript auf Cluster starten.
+      % Schätze die Rechenzeit: 30min pro PKM aufgeteilt auf 12 parallele
+      % Kerne und 12h Reserve für allgemeine Aufgaben, z.B. Warten. Eher zu 
+      % große Einschätzung der Rechenzeit.
+      fprintf('Starte die Berechnung der Struktursynthese auf dem Rechencluster: %s\n', computation_name);
+      addpath(cluster_repo_path);
+      jobStart(struct('name', computation_name, ...
+                      'matFileName', [computation_name, '.m'], ...
+                      'locUploadFolder', jobdir, ...
+                      'time', 12+length(Whitelist_PKM)*0.5/12));
+      rmpath_genpath(cluster_repo_path, false);
+      continue % Nachfolgendes muss nicht gemacht werden
+    end
+    
     %% Nachverarbeitung der Ergebnis-Liste
     % Stelle die Liste der Roboter zusammen. Ist nicht identisch mit Dateiliste,
     % da PKM mehrfach geprüft werden können.
