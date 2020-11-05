@@ -561,6 +561,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       settings_cluster.base_couplings = Coupling(1);
       settings_cluster.plf_couplings = Coupling(2);
       settings_cluster.comp_cluster = false;
+      settings_cluster.offline = false; % sonst versucht die Cluster-Instanz bestehende Ergebnisse zu laden
       settings_cluster.dryrun = false;
       settings_cluster.isoncluster = true;
       % Struktursynthese auf dem Cluster parallel rechnen
