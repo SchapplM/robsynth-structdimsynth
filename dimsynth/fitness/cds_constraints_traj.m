@@ -240,54 +240,39 @@ if any(strcmp(Set.optimization.objective, 'valid_act')) && R.Type ~= 0 % nur sin
       find(any(abs(PHI4D_ges)>1e-6,2),1,'first'));
     return
   end
-  % Debuggen der Geschwindigkeits-Konsistenz: Vergleiche EE-Trajektorie von
-  % verschiedenen Beinketten aus berechnet.
-  if Set.general.debug_calc
-    for j = 2:R.NLEG
-      [X3,XD3,~] = R.fkineEE2_traj(Q, QD, QDD, uint8(j));
-      test_X = Traj_0.X(:,1:5) - X3(:,1:5);
-      test_X([false(size(test_X,1),3),abs(abs(test_X(:,4:5))-2*pi)<1e-3]) = 0; % 2pi-Fehler entfernen
-      test_XD = Traj_0.XD(:,1:6) - XD3(:,1:6);
-      % test_XDD = Traj_0.XDD(:,1:6) - XDD3(:,1:6);
-      if any(abs(test_X(:))>1e-6)
-        if Set.general.matfile_verbosity > 0
-          save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_xtraj_legs_inconsistency.mat'));
-        end
-        error(['Die Endeffektor-Trajektorie X aus Beinkette %d stimmt nicht ', ...
-          'gegen Beinkette 1. Zuerst in Zeitschritt %d/%d. Fehler max. %1.1e.'], j, ...
-          find(any(abs(test_X)>1e-6,2),1,'first'), length(Traj_0.t), max(abs(test_X(:))));
-      end
-      if any(abs(test_XD(:))>1e-6)
-        error(['Die Endeffektor-Trajektorie XD aus Beinkette %d stimmt nicht ', ...
-          'gegen Beinkette 1. Zuerst in Zeitschritt %d/%d. Fehler max. %1.1e.'], j, ...
-          find(any(abs(test_XD)>1e-6,2),1,'first'), length(Traj_0.t), max(abs(test_XD(:))));
-      end
-    end
-  end
 end
-if R.Type ~= 0
+if R.Type ~= 0 && Set.general.debug_calc
   % Debuggen der Geschwindigkeits-Konsistenz: Vergleiche EE-Trajektorie von
   % verschiedenen Beinketten aus berechnet.
-  if Set.general.debug_calc
-    for j = 2:R.NLEG
-      [X3,XD3,~] = R.fkineEE2_traj(Q, QD, QDD, uint8(j));
-      test_X = Traj_0.X(:,1:5) - X3(:,1:5);
-      test_XD = Traj_0.XD(:,1:6) - XD3(:,1:6);
-      test_X([false(size(test_X,1),3),abs(abs(test_X(:,4:5))-2*pi)<1e-3]) = 0; % 2pi-Fehler entfernen
-      % test_XDD = Traj_0.XDD(:,1:6) - XDD3(:,1:6);
-      if any(abs(test_X(:))>1e-6)
-        if Set.general.matfile_verbosity > 0
-          save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_xtraj_legs_inconsistency.mat'));
-        end
-        error(['Die Endeffektor-Trajektorie X aus Beinkette %d stimmt nicht ', ...
-          'gegen Beinkette 1. Zuerst in Zeitschritt %d/%d.'], j, ...
-          find(any(abs(test_X)>1e-6,2),1,'first'), length(Traj_0.t));
+  for j = 2:R.NLEG
+    [X3,XD3,XDD3] = R.fkineEE2_traj(Q, QD, QDD, uint8(j));
+    test_X = Traj_0.X(:,1:6) - X3(:,1:6);
+    test_X([false(size(test_X,1),3),abs(abs(test_X(:,4:6))-2*pi)<1e-3]) = 0; % 2pi-Fehler entfernen
+    test_XD = Traj_0.XD(:,1:6) - XD3(:,1:6);
+    test_XDD = Traj_0.XDD(:,1:6) - XDD3(:,1:6);
+    if any(abs(test_X(:))>1e-6)
+      if Set.general.matfile_verbosity > 0
+        save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_xtraj_legs_inconsistency.mat'));
       end
-      if any(abs(test_XD(:))>1e-6)
-        error(['Die Endeffektor-Trajektorie XD aus Beinkette %d stimmt nicht ', ...
-          'gegen Beinkette 1. Zuerst in Zeitschritt %d/%d.'], j, ...
-          find(any(abs(test_XD)>1e-6,2),1,'first'), length(Traj_0.t));
+      error(['Die Endeffektor-Trajektorie X aus Beinkette %d stimmt nicht ', ...
+        'gegen Beinkette 1. Zuerst in Zeitschritt %d/%d. Fehler max. %1.1e.'], j, ...
+        find(any(abs(test_X)>1e-6,2),1,'first'), length(Traj_0.t), max(abs(test_X(:))));
+    end
+    if any(abs(test_XD(:))>1e-6)
+      if Set.general.matfile_verbosity > 0
+        save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_xDtraj_legs_inconsistency.mat'));
       end
+      error(['Die Endeffektor-Trajektorie XD aus Beinkette %d stimmt nicht ', ...
+        'gegen Beinkette 1. Zuerst in Zeitschritt %d/%d. Fehler max. %1.1e.'], j, ...
+        find(any(abs(test_XD)>1e-6,2),1,'first'), length(Traj_0.t), max(abs(test_XD(:))));
+    end
+    if any(abs(test_XDD(:))>1e-6)
+      if Set.general.matfile_verbosity > 0
+        save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_xDDtraj_legs_inconsistency.mat'));
+      end
+      error(['Die Endeffektor-Trajektorie XDD aus Beinkette %d stimmt nicht ', ...
+        'gegen Beinkette 1. Zuerst in Zeitschritt %d/%d. Fehler max. %1.1e.'], j, ...
+        find(any(abs(test_XDD)>1e-6,2),1,'first'), length(Traj_0.t), max(abs(test_XDD(:))));
     end
   end
 end
@@ -387,6 +372,19 @@ if any(corrQD < 0.95) || any(corrQ < 0.98)
     end
     linkxaxes
     sgtitle('Verlauf Gelenkkoordinaten');
+    change_current_figure(1003);clf;
+    QDD_num = zeros(size(Q)); % Differenzenquotient
+    QDD_num(2:end,:) = diff(QD(:,:))./ repmat(diff(Traj_0.t), 1, R.NJ);
+    for i = 1:R.NJ
+      subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
+      hold on; grid on;
+      hdl1=plot(Traj_0.t, QDD(:,i), '-');
+      hdl2=plot(Traj_0.t, QDD_num(:,i), '--');
+      title(sprintf('q %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+      if i == length(q), legend([hdl1;hdl2], {'qDD','diff(qD)'}); end
+    end
+    linkxaxes
+    sgtitle('Verlauf Gelenkbeschleunigungen');
   end
   return
 end
