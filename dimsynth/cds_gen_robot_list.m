@@ -129,8 +129,8 @@ if structset.use_parallel
     end
     
     % Lade Detailierte Informationen des Robotermodells
-    [~, LEG_Names, Actuation, Coupling, ~, ~, ~, ~, ~, AdditionalInfo_Akt] ...
-      = parroblib_load_robot(PNames_Akt{j});
+    [~, LEG_Names, Actuation, Coupling, ~, ~, ~, ~, ~, AdditionalInfo_Akt, ...
+      StructuralDHParam] = parroblib_load_robot(PNames_Akt{j});
     % Prüfe Koppelpunkt-Eigenschaften
     if ~any(Coupling(1) == [1:9]) || ~any(Coupling(2) == [1:6, 8])
       if verblevel >= 3, fprintf('%s hat eine nicht implementierte Koppelpunkt-Variante\n', PNames_Akt{j}); end
@@ -275,39 +275,67 @@ if structset.use_parallel
     end
     % Stelle mögliche Werte für den Strukturparameter theta1 zusammen.
     csvline = serroblib_bits2csvline(l.BitArrays_Ndof(ilc,:)); % DH-Parameter der Beinkette aus csv-Datei
-    I_theta = find(contains(csvline, 'theta'));
-    if length(I_theta) > 1
-      warning('Es gibt mehr als einen freien Parameter theta. Mehr als ein Schubgelenk in PKM-Beinkette. Fall noch nicht definiert.');
+    % Die Indizes beziehen sich auf die MDH-Parameter in der CSV-Datei.
+    % Sie sind daher schon passend sortiert (erst Gelenkreihenfolge, dann
+    % alpha/theta)
+    I_param = contains(csvline, 'theta') | contains(csvline, 'alpha');
+    params_str = '';
+    II_param = find(I_param);
+    for kk = 1:length(II_param)
+      params_str = [params_str, csvline{II_param(kk)}]; %#ok<AGROW>
+      if kk < length(II_param)
+        params_str = [params_str, '/']; %#ok<AGROW>
+      end
     end
     if strcmp(Set.optimization.objective, 'valid_act') % Prüfe Laufgrad der PKM (sonst ist die Info schon vorhanden)
-      if any(I_theta) && ... % es gibt (mindestens) einen theta-Parameter
+      if any(I_param) && ... % es gibt (mindestens) einen freien Struktur-Parameter
           (all(structset.DoF(1:5) == [1 1 1 0 0]) || ... % 3T0R/3T1R
            all(structset.DoF(1:6) == [1 1 1 1 1 0])) % 3T2R (vermutlich hier relevant)
+        % Siehe parroblib_load_robot
         % Falls theta ein variabler Parameter ist, werden verschiedene An- 
         % nahmen für theta getroffen und alle einzeln geprüft.
-        theta_values = [1 2 4]; % verschiedene Einstellungen. Siehe parroblib_load_robot
-      else % theta muss nicht betrachtet werden
-        % Setze den Fall für theta auf Null (nicht definiert)
-        theta_values = 0;
+        angles_values = {'p', 'o', 'a'};
+        for jj = 1:sum(I_param)-1 % Füge für jeden weiteren Parameter alle Kombinationen hinzu
+          [a1,a2] = ndgrid(angles_values,{'p', 'o', 'a'});
+          angles_values = {};
+          for i1 = 1:length(a1(:))
+            angles_values = [angles_values; [a1{i1},a2{i1}]]; %#ok<AGROW>
+          end
+        end
+      else % 3T3R: theta muss nicht betrachtet werden
+        % Setze den Fall für alpha/theta auf beliebig
+        angles_values = {repmat('a', 1, sum(I_param))};
       end
     else % Normaler Fall der Maßsynthese. Lade Information aus Datenbank
-      theta_values = AdditionalInfo_Akt(2);
-      if theta_values == 3 % Es gehen 0° und 90°. Führe Optimierung für beide ...
-        theta_values = [1 2]; % ... Alternativen durch. Willkürliche Wahl beschränkt.
+      % Siehe parroblib_load_robot
+      if isempty(StructuralDHParam) || isempty(StructuralDHParam{1})
+        % Leerer Eintrag. Setze alle Werte auf beliebig
+        angles_values = {repmat('a', 1, sum(I_param))};
+      elseif length(StructuralDHParam) ~= sum(I_param)
+        % Ungültiger Eintrag
+        error(['In PKM-Datenbank stimmt für %s die Anzahl der freien ', ...
+          'Parameter nicht. Parameter: "%s"; Gegeben: "%s" (erster Eintrag).'], PNames_Akt{j},...
+          params_str, StructuralDHParam{1});
+      else
+        % Gültiger Eintrag in ParRobLib
+        angles_values = StructuralDHParam;
       end
     end
-    for kkk = theta_values % Gehe alle möglichen Werte für theta durch und trage als eigene PKM ein.
+    if isempty(angles_values) % Fall darf nicht vorkommen
+      error('Es würde kein Eintrag für %s hinzugefügt werden.', PNames_Akt{j});
+    end
+    for avtmp = angles_values(:)' % Gehe alle möglichen Werte für theta durch und trage als eigene PKM ein.
+      av = avtmp{1};
       ii = ii + 1;
-      if any(I_theta) && kkk ~= 0
-        theta_str = {'0', '90', '0/90', '*'};
-        theta_logstr = sprintf(' (%s=%s; Fall %d (%d/%d))', csvline{I_theta(1)}, ...
-          theta_str{kkk}, kkk, find(kkk==theta_values,1,'first'), length(theta_values));
+      if any(I_param) && ~strcmp(av,'')
+        theta_logstr = sprintf('Fall %d/%d; %s = %s', find(strcmp(av,angles_values),1,'first'), ...
+          length(angles_values), params_str, av);
       else
         theta_logstr = '';
       end
-      if verblevel >= 2, fprintf('%d: %s%s\n', ii, PNames_Akt{j}, theta_logstr); end
+      if verblevel >= 2, fprintf('%d: %s; %s\n', ii, PNames_Akt{j}, theta_logstr); end
       Structures{ii} = struct('Name', PNames_Akt{j}, 'Type', 2, 'Number', ii, ...
-        'Coupling', Coupling, 'angle1_values', kkk); %#ok<AGROW>
+        'Coupling', Coupling, 'angles_values', av); %#ok<AGROW>
     end
   end
 end

@@ -111,6 +111,10 @@ if Set.general.computing_cluster
   fprintf(fid, ['Set.optimization.resdir=fullfile(fileparts(', ...
     'which(''structgeomsynth_path_init.m'')),''dimsynth'',''results'');\n']);
   fprintf(fid, 'cds_start;\n');
+  % Schließen des ParPools auch in Datei hineinschreiben
+  fprintf(fid, 'parpool_writelock(''lock'', 300, true);\n');
+  fprintf(fid, 'delete(gcp(''nocreate''));\n');
+  fprintf(fid, 'parpool_writelock(''free'', 0, true);\n');
   fclose(fid);
   % Schätze die Rechenzeit: Im Mittel 2s pro Parametersatz aufgeteilt auf
   % 12 parallele Kerne, 30min für Bilderstellung und 6h Reserve/Allgemeines
@@ -141,7 +145,9 @@ if Set.general.parcomp_struct && ... % Parallele Rechnung ist ausgewählt
   % Keine (allgemeinen) mat-Dateien speichern
   Set.general.matfile_verbosity = 0;
   try %#ok<TRYNC>
+    parpool_writelock('lock', 180, true); % Synchronisationsmittel für ParPool
     parpool(Set.general.parcomp_maxworkers);
+    parpool_writelock('free', 0, true);
   end
   Pool=gcp();
   parfor_numworkers = Pool.NumWorkers;
@@ -250,6 +256,10 @@ if ~Set.general.regenerate_summmary_only
   resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
   mkdirs(resdir_main); % Ergebnis-Ordner für diese Optimierung erstellen
   t1 = tic();
+  % Einstellungen dieser kombinierten Synthese speichern. Damit ist im
+  % Nachhinein nachvollziehbar, welche Roboter eventuell fehlen
+  save(fullfile(resdir_main, sprintf('%s_settings.mat', Set.optimization.optname)), ...
+    'Set', 'Traj', 'Structures');
   parfor (i = 1:length(Structures), parfor_numworkers)
     % Maßsynthese für diesen Roboter starten
     fprintf('Starte Maßsynthese für Roboter %d (%s)\n', i, Structures{i}.Name);
