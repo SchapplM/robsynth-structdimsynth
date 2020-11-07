@@ -29,7 +29,7 @@ settings_default = struct( ...
   'selectgeneral', true, ... % Auch allgemeine Modelle wählen
   'selectvariants', true, ... % Auch alle Varianten wählen
   'comp_cluster', false, ... % Rechne auf PBS-Rechen-Cluster. Parallel-Instanz für G-/P-Kombis
-  'only_cluster_if_fulldata_olderthan', 2, ... % Falls in den letzten zwei Tagen bereits ein vollständiger Durchlauf gemacht wurde, dann nicht nochmal auf dem Cluster rechnen.
+  'clustercomp_if_res_olderthan', 2, ... % Falls in den letzten zwei Tagen bereits ein vollständiger Durchlauf gemacht wurde, dann nicht nochmal auf dem Cluster rechnen. Deaktivieren durch Null-Setzen
   'isoncluster', false, ... % Marker um festzustellen, dass gerade auf Cluster parallel gerechnet wird
   'dryrun', false, ... % Falls true: Nur Anzeige, was gemacht werden würde
   'offline', false, ... % Falls true: Keine Optimierung durchführen, stattdessen letztes passendes Ergebnis laden
@@ -71,10 +71,25 @@ if settings.comp_cluster
   % erstellenden PKM festzustellen. Sonst lässt sich nicht feststellen, ob
   % schon Ergebnisse vorliegen. Die Datenbank muss also eventuell vor der
   % Auswertung wieder zurückgesetzt werden.
-  if settings.dryrun
-    error('Option "dryrun" nicht zusammen mit "comp_cluster" möglich.');
+  if settings.clustercomp_if_res_olderthan > 0
+    if settings.dryrun && clustercomp_if_res_olderthan == 0
+      error(['Option "dryrun" nicht zusammen mit "comp_cluster" und ', ...
+        '"clustercomp_if_res_olderthan" möglich.']);
+    end
+    if settings.offline == false || settings.dryrun == true
+      warning(['Einstellungen offline (%d->%d) und dryrun (%d->%d) werden ', ...
+        'neu gesetzt'], settings.offline, 1, settings.dryrun, 0);
+    end
+    settings.offline = true; % Es werden offline vorhandene Ergebnisse geprüft.
+    settings.dryrun = false; % Dazu muss die Datenbank gefüllt werden
+  else % Keine Prüfung der Offline-Ergebnisse
+    if settings.offline == true || settings.dryrun == false
+      warning(['Einstellungen offline (%d->%d) und dryrun (%d->%d) werden ', ...
+        'neu gesetzt'], settings.offline, 0, settings.dryrun, 1);
+    end
+    settings.offline = false; % Kein Laden vorheriger Ergebnisse
+    settings.dryrun = true; % Dann kein Füllen der Datenbank notwendig
   end
-  settings.offline = true; % Es werden offline vorhandene Ergebnisse geprüft.
 end
 %% Initialisierung
 EE_FG_ges = [1 1 0 0 0 1; ...
@@ -335,7 +350,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     if settings.selectvariants, varstr = 'v'; else, varstr = ''; end
     if settings.selectgeneral, genstr = 'g'; else, genstr = ''; end
     
-    if settings.dryrun, continue; end
+    if settings.dryrun && ~settings.comp_cluster, continue; end
     %% Alle Matlab-Funktionen generieren
     % Muss hier gemacht werden, da später nicht mehr zwischen den G-/P-Nummern
     % unterschieden wird. Die Kinematik-Funktionen sind dort identisch.
@@ -350,10 +365,10 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     end
     % Duplikate entfernen (falls mehr als eine Aktuierung erzeugt wird)
     Whitelist_Kin = unique(Whitelist_Kin);
-    fprintf('Generiere Template-Funktionen für %d Roboter und kompiliere anschließend.\n', length(Whitelist_Kin));
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
       sprintf('parroblib_add_robots_symact_%s_1.mat', EE_FG_Name)));
-    if ~settings.offline
+    if ~settings.offline && ~settings.comp_cluster
+      fprintf('Generiere Template-Funktionen für %d Roboter und kompiliere anschließend.\n', length(Whitelist_Kin));
       % Erzeuge alle Template-Dateien neu (ohne Kompilierung). Dadurch wird
       % sichergestellt, dass sie die richtige Version haben.
       for i = 1:length(Whitelist_Kin)
@@ -410,7 +425,9 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.general.plot_details_in_fitness = 0e3;
     Set.general.plot_robot_in_fitness = 0e3;
     Set.general.noprogressfigure = true;
-    Set.general.verbosity = 3;
+    % Reduziere Log-Level der Konsolen-Ausgabe. Bei massiv paralleler
+    % Struktursynthese läuft der Speicher auf dem Cluster sonst voll.
+    Set.general.verbosity = 1;
     Set.general.matfile_verbosity = 0;
     Set.general.nosummary = true; % Keine Bilder erstellen.
     Set.structures.whitelist = Whitelist_PKM; % nur diese PKM untersuchen
@@ -420,12 +437,12 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.general.parcomp_struct = settings.parcomp_structsynth;
     Set.general.use_mex = true;
     Set.general.compile_missing_functions = false; % wurde schon weiter oben gemacht.
-    if ~settings.offline
+    offline_result_complete = false;
+    if ~settings.offline && ~settings.comp_cluster
       fprintf(['Starte Prüfung des Laufgrads der PKM mit Maßsynthese für ', ...
         '%d Roboter\n'], length(Whitelist_PKM));
       cds_start
-    else
-      offline_result_complete = false;
+    elseif settings.offline
       % Debug: Lade Ergebnisse aus temporärem Cluster-Download-Ordner
       % Set.optimization.resdir = '/mnt/FP500/IMES/CLUSTER/REPO/structgeomsynth/dimsynth/results';
       % Finde den Namen der letzten Optimierung. Nur der Zeitstempel darf
@@ -483,14 +500,10 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
             ... % damit nicht ein sehr altes vollständiges Ergebnis immer genommen wird
           - reslist_rationomatch*0.10); % Bestrafe nicht passende Einträge
         Set.optimization.optname = reslist(I).name;
-        fprintf(['Ergebnis-Ordner %s zur Offline-Auswertung gewählt. Enthält ', ...
-          '%d/%d passende Ergebnisse (%1.0f%% unpassende Ergebnisse) und ist %1.1f ', ...
-          'Tage alt\n'], Set.optimization.optname, reslist_nummatch(I), ...
-          length(Whitelist_PKM), 100*reslist_rationomatch(I), reslist_age(I));
         % Erstelle Variablen, die sonst in cds_start entstehen
         roblist = dir(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
-          'Rob*_*')); % Die Namen aller Roboter sind in den Ordnernamen enthalten.
-        [tokens, ~] = regexp({roblist([roblist.isdir]).name},'Rob(\d+)_([A-Za-z0-9]*)','tokens','match');
+          'Rob*_Endergebnis.mat')); % Die Namen aller Roboter sind in den Ergebnis-Dateien enthalten.
+        [tokens, ~] = regexp({roblist(:).name},'Rob(\d+)_([A-Za-z0-9]+)_Endergebnis\.mat','tokens','match');
         % Nach Nummer der Roboter sortieren (für nachträgliche Erzeugung der
         % Ergebnis-Tabelle zum korrekten Laden der mat-Dateien)
         robnum_ges = zeros(length(tokens),1);
@@ -507,7 +520,11 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         % Erstelle auch die csv-Tabelle aus den Ergebnissen (falls fehlend)
         if ~exist(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
             sprintf('%s_results_table.csv', Set.optimization.optname)), 'file')
-          cds_results_table(Set, Traj, Structures);
+          try
+            cds_results_table(Set, Traj, Structures);
+          catch err
+            warning('Ergebnis-Tabelle konnte nicht erstellt werden. Vermutlich Daten mit alter Version erzeugt.');
+          end
         end
         % Stelle fest, ob das Ergebnis vollständig ist
         offline_result_complete = false;
@@ -518,14 +535,21 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           % Vergleiche die Anzahl der geplant durchgeführten Optimierungen
           % mit den tatsächlich durchgeführten (mit Endergebnis.mat). Wenn
           % identisch, dann vollständiger Durchlauf
+          complstr = sprintf('Dabei %d/%d Maßsynthesen durchgeführt. ', ...
+            length(Structures), length(tmpset.Structures));
           if length(tmpset.Structures) == length(Structures)
             offline_result_complete = true;
+            complstr = [complstr,'Der Durchlauf ist vollständig.']; %#ok<AGROW>
+          else
+            complstr = [complstr,'Der Durchlauf ist nicht vollständig.']; %#ok<AGROW>
           end
-        elseif reslist_nummatch(I) == length(Whitelist_PKM) && reslist_age(I) < 5
-          % Provisorisch: Falls Einstellungs-Datei bei alten Ergebnissen
-          % noch nicht existiert. TODO: Option wieder entfernen.
-          offline_result_complete = true;
+        else
+          complstr = 'Keine Aussage über Vollständigkeit des Ergebnisses möglich.';
         end
+        fprintf(['Ergebnis-Ordner %s zur Offline-Auswertung gewählt. Enthält ', ...
+          '%d/%d passende Ergebnisse (%1.0f%% unpassende Ergebnisse) und ist %1.1f ', ...
+          'Tage alt. %s\n'], Set.optimization.optname, reslist_nummatch(I), ...
+          length(Whitelist_PKM), 100*reslist_rationomatch(I), reslist_age(I), complstr);
       end
     end
     % Ergebnisse der Struktursynthese (bzw. als solcher durchgeführten
@@ -536,7 +560,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       sprintf('parroblib_add_robots_symact_%s_3.mat', EE_FG_Name)));
     %% LUIS-Cluster vorbereiten
     if settings.comp_cluster && offline_result_complete && ...
-        reslist_age(I) < settings.only_cluster_if_fulldata_olderthan && ...
+        reslist_age(I) < settings.clustercomp_if_res_olderthan && ...
         reslist_rationomatch(I) == 0.0 && ...
         reslist_nummatch(I) == length(Whitelist_PKM)
       % Prüfe Bedingungen, bei denen nicht auf dem Cluster gerechnet werden
@@ -545,7 +569,10 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       % schon erfolgreich war.
       fprintf(['Das bereits vorhandene Ergebnis ist vollständig und aktuell. ', ...
         'Keine Neuberechnung auf dem Cluster.\n']);
+      continue % Nachfolgendes muss nicht gemacht werden
     elseif settings.comp_cluster
+      fprintf(['Vorhandener Ergebnis-Ordner ist nicht passend. Starte ', ...
+        'Struktursynthese auf Cluster\n']);
       % Führe die Maßsynthese für die Struktursynthese auf dem Cluster durch.
       % Bereite eine Einstellungs-Datei vor
       cluster_repo_path = computingcluster_repo_path();

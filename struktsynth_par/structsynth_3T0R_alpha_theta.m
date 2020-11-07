@@ -2,7 +2,7 @@
 % mit freien alpha- und theta-Parameter enthalten
 
 % Ketten zum Testen:
-% * S5RRRRR10V1 - Delta-Roboter - ein Parameter (alpha2)
+% * S5RRRRR10V1 - Delta-Roboter (P3RRPRR10V1G2P2A1) - ein Parameter (alpha2)
 % * S5PRRRR8V1 - ein Parameter (theta1)
 % * S5PRRRR8 - zwei Parameter (theta1,alpha2)
 % * S5RRRRR12 - zwei Parameter (alpha2,alpha3)
@@ -36,14 +36,14 @@ return
 % haben
 serroblibpath=fileparts(which('serroblib_path_init.m'));
 whitelist = {};
-for i = 3:6
+for i = 3:5
   mdllistfile_Ndof = fullfile(serroblibpath, sprintf('mdl_%ddof', i), sprintf('S%d_list.mat',i));
   l = load(mdllistfile_Ndof);
   for j = 1:length(l.Names_Ndof)
     % Debug: Nehme nur Beinketten mit P-Gelenk oder R-Gelenk am Anfang
     % (Auskommentieren für Deaktivierung des Filters)
-    % if ~strcmp(l.Names_Ndof{j}(3), 'P'), continue; end
-    if ~strcmp(l.Names_Ndof{j}(3), 'R'), continue; end
+    % if ~strcmp(l.Names_Ndof{j}(3), 'P'), continue; end % nur P-Gelenk am Anfang
+    % if ~strcmp(l.Names_Ndof{j}(3), 'R'), continue; end % nur R-Gelenk am Anfang
     csvline = serroblib_bits2csvline(l.BitArrays_Ndof(j,:));
     if any(contains(csvline, 'alpha')) || any(contains(csvline, 'theta'))
       whitelist = [whitelist, l.Names_Ndof{j}];
@@ -53,14 +53,15 @@ end
 fprintf('%d Strukturen in Positiv-Liste\n', length(whitelist));
 % Starte die Struktursynthese für alle PKM neu
 settings = struct('whitelist_SerialKin', {whitelist});
-% settings.whitelist_SerialKin = {'S5RRPRR10V1'}; % Zum Debuggen
+% settings.whitelist_SerialKin = {'S5RRRRR10V1'}; % Zum Debuggen
 for select_variants = [false, true]
   settings = struct( ...
-    'EE_FG_Nr', 2, ... % 3T0R
+    'EE_FG_Nr', 3, ...%: 2=3T0R, 3=3T1R, 4=3T2R
     'dryrun', false, ...
     'check_existing', true, ...
-    ... %'base_couplings', 2, ... % Zum nachträglichen Testen einzelner PKM
-    ... %'plf_couplings', 2, ... % zum Debuggen
+    ... 'base_couplings', 2, ... % Zum nachträglichen Testen einzelner PKM
+    ... 'plf_couplings', 3, ... % zum Debuggen
+    'clustercomp_if_res_olderthan', 2, ... % Nicht die alten Ergebnisse anschauen zur Vermeidung der Cluster-Berechnung
     'check_missing', true, ...
     'comp_cluster', false, ... % auf Cluster rechnen: true; Offline-Auswertung: false
     'offline', true, ... % Nach dem Herunterladen der Ergebnisse vom Cluster auf true; für Rechnen auf Cluster: false
