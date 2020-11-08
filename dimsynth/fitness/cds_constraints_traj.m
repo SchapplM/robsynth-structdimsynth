@@ -233,7 +233,7 @@ if any(strcmp(Set.optimization.objective, 'valid_act')) && R.Type ~= 0 % nur sin
     % Bilde Kennzahl aus Schwere der parasitären Bewegung
     fval_paras = mean(abs(PHI4D_ges(:)));
     fval_paras_norm = 2/pi*atan(fval_paras*700); % Normierung auf 0 bis 1. 0.01 -> 0.9
-    fval = 9e3*(1+1/9*fval_paras_norm); % Normierung auf 9e3...1e4
+    fval = 1e3*(9+1*fval_paras_norm); % Normierung auf 9e3...1e4
     constrvioltext = sprintf(['Es gibt eine parasitäre Bewegung in %d/%d ', ...
       'Zeitschritten. Im Mittel %1.4f (rad/s bzw. m/s). Zuerst bei Zeitschritt %d.'], ...
       sum(any(abs(PHI4D_ges)>1e-3,2)), length(Traj_0.t), fval_paras, ...
@@ -313,7 +313,7 @@ if any(~isinf(Structure.qDlim(:)))
   [f_qD_exc,ifmax] = max(qD_max./qD_lim);
   if f_qD_exc>1
     f_qD_exc_norm = 2/pi*atan((f_qD_exc-1)); % Normierung auf 0 bis 1; 1->0.5; 10->0.94
-    fval = 3e3*(5+1*f_qD_exc_norm); % Wert zwischen 5e3 und 6e3
+    fval = 1e3*(5+1*f_qD_exc_norm); % Wert zwischen 5e3 und 6e3
     % Weitere Berechnungen voraussichtlich wenig sinnvoll, da vermutlich eine
     % Singularität vorliegt
     constrvioltext = sprintf('Geschwindigkeit eines Gelenks zu hoch: max Verletzung %1.1f%% (Gelenk %d)', ...
