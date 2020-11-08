@@ -146,7 +146,9 @@ for i = 1:size(collbodies.type,1)
     legh(2) = h(1);
   end
 end
-legend(legh, {'Bauraum (außerhalb unzulässig)', 'Hindernisse'});
+if ~all(isnan(legh))
+  legend(legh, {'Bauraum (außerhalb unzulässig)', 'Hindernisse'});
+end
 sgtitle('Trajektorie und Objekte');
 axis auto; 
 drawnow();
