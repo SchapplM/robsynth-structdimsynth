@@ -685,12 +685,19 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           resfile = fullfile(resmaindir, Ergebnisliste(jj).name);
           tmp = load(resfile, 'RobotOptRes');
           RobotOptRes = tmp.RobotOptRes;
-          fval_jjj = [fval_jjj; RobotOptRes.fval]; %#ok<AGROW>
-          angles_jjj = [angles_jjj; tmp.RobotOptRes.Structure.angles_values]; %#ok<AGROW>
+          fval_jjj = [fval_jjj, RobotOptRes.fval]; %#ok<AGROW>
+          if isempty(angles_jjj) % Syntax-Fehler vermeiden bei leerem char als erstem
+            angles_jjj = {tmp.RobotOptRes.Structure.angles_values};
+          else
+            angles_jjj = [angles_jjj, tmp.RobotOptRes.Structure.angles_values]; %#ok<AGROW>
+          end
         elseif isempty(fval_jjj) && jj == length(Ergebnisliste)
           warning('Ergebnisdatei zu %s nicht gefunden', Name);
           continue; % kann im Offline-Modus passieren, falls unvollständige Ergebnisse geladen werden.
         end
+      end
+      if length(fval_jjj) ~= length(angles_jjj)
+        error('Variablen fval_jjj und angles_jjj sind nicht konsistent');
       end
       if isempty(fval_jjj)
         if settings.offline
