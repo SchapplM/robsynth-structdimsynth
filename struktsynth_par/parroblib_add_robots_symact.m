@@ -28,6 +28,7 @@ settings_default = struct( ...
   ... % Optionen zur Wahl nach anderen Kriterien
   'selectgeneral', true, ... % Auch allgemeine Modelle wählen
   'selectvariants', true, ... % Auch alle Varianten wählen
+  'ignore_check_leg_dof', false, ... % Plausibilitätsregeln aus parrob_structsynth_check_leg_dof können ignoriert werden
   'comp_cluster', false, ... % Rechne auf PBS-Rechen-Cluster. Parallel-Instanz für G-/P-Kombis
   'clustercomp_if_res_olderthan', 2, ... % Falls in den letzten zwei Tagen bereits ein vollständiger Durchlauf gemacht wurde, dann nicht nochmal auf dem Cluster rechnen. Deaktivieren durch Null-Setzen
   'isoncluster', false, ... % Marker um festzustellen, dass gerade auf Cluster parallel gerechnet wird
@@ -278,12 +279,14 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
 
       % Plausibilitäts-Prüfungen basierend auf Beinketten und Kopplung
       % Beinketten-FG auf Plausibilität prüfen
-      leg_success = parrob_structsynth_check_leg_dof(SName, Coupling, EE_FG, EE_dof_legchain);
-      if ~leg_success
-        fprintf('Beinkette %s mit Koppelpunkt-Nr. %d-%d wird aufgrund geometrischer Überlegungen verworfen.\n', ...
-          SName, Coupling(1), Coupling(2));
-        parroblib_update_csv({SName}, Coupling, logical(EE_FG), 2, 0);
-        continue
+      if ~settings.ignore_check_leg_dof % Kann testweise deaktiviert werden
+        leg_success = parrob_structsynth_check_leg_dof(SName, Coupling, EE_FG, EE_dof_legchain);
+        if ~leg_success
+          fprintf('Beinkette %s mit Koppelpunkt-Nr. %d-%d wird aufgrund geometrischer Überlegungen verworfen.\n', ...
+            SName, Coupling(1), Coupling(2));
+          parroblib_update_csv({SName}, Coupling, logical(EE_FG), 2, 0);
+          continue
+        end
       end
       for jj = Actuation_possib % Schleife über mögliche Aktuierungen
         ii = ii + 1;
