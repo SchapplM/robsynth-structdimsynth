@@ -28,6 +28,7 @@ settings_default = struct( ...
   ... % Optionen zur Wahl nach anderen Kriterien
   'selectgeneral', true, ... % Auch allgemeine Modelle wählen
   'selectvariants', true, ... % Auch alle Varianten wählen
+  'ignore_check_leg_dof', false, ... % Plausibilitätsregeln aus parrob_structsynth_check_leg_dof können ignoriert werden
   'comp_cluster', false, ... % Rechne auf PBS-Rechen-Cluster. Parallel-Instanz für G-/P-Kombis
   'clustercomp_if_res_olderthan', 2, ... % Falls in den letzten zwei Tagen bereits ein vollständiger Durchlauf gemacht wurde, dann nicht nochmal auf dem Cluster rechnen. Deaktivieren durch Null-Setzen
   'isoncluster', false, ... % Marker um festzustellen, dass gerade auf Cluster parallel gerechnet wird
@@ -278,12 +279,14 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
 
       % Plausibilitäts-Prüfungen basierend auf Beinketten und Kopplung
       % Beinketten-FG auf Plausibilität prüfen
-      leg_success = parrob_structsynth_check_leg_dof(SName, Coupling, EE_FG, EE_dof_legchain);
-      if ~leg_success
-        fprintf('Beinkette %s mit Koppelpunkt-Nr. %d-%d wird aufgrund geometrischer Überlegungen verworfen.\n', ...
-          SName, Coupling(1), Coupling(2));
-        parroblib_update_csv({SName}, Coupling, logical(EE_FG), 2, 0);
-        continue
+      if ~settings.ignore_check_leg_dof % Kann testweise deaktiviert werden
+        leg_success = parrob_structsynth_check_leg_dof(SName, Coupling, EE_FG, EE_dof_legchain);
+        if ~leg_success
+          fprintf('Beinkette %s mit Koppelpunkt-Nr. %d-%d wird aufgrund geometrischer Überlegungen verworfen.\n', ...
+            SName, Coupling(1), Coupling(2));
+          parroblib_update_csv({SName}, Coupling, logical(EE_FG), 2, 0);
+          continue
+        end
       end
       for jj = Actuation_possib % Schleife über mögliche Aktuierungen
         ii = ii + 1;
@@ -407,7 +410,20 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.task.Tv = 1e-1;
     Set.task.profile = 1; % Komplette Trajektorie mit Geschwindigkeit und Zeitverlauf
     Set.task.maxangle = 5*pi/180; % Reduzierung der Winkel auf 5 Grad (ist für FG-Untersuchung ausreichend)
+    if all(EE_FG==[1 1 1 1 1 0])
+      Set.task.maxangle = 3*pi/180;
+    end
     Traj = cds_gen_traj(EE_FG, 1, Set.task);
+    if all(EE_FG==[1 1 1 1 1 0])
+      % Verändere die Trajektorie so, dass keine parallele Stellung der
+      % Plattform zum Gestell auftritt. Bei den meisten 3T2R-PKM ist das
+      % eine Singularität. Dann springen die Gelenkwinkel wegen numerischer 
+      % Probleme. TODO: Besser abfangen. Auch klären: Ist die Eignung auch 
+      % in Null-Stellung Voraussetzung für erfolgreiche Struktursynthese?
+      Traj.X(:,4:5) = Traj.X(:,4:5) + 4*pi/180;
+      Traj.XE(:,4:5) = Traj.XE(:,4:5) + 4*pi/180;
+    end
+    % cds_show_task(Traj, Set.task);
     Set.optimization.objective = 'valid_act';
     rs = ['a':'z', 'A':'Z', '0':'9'];
     Set.optimization.optname = sprintf('add_robots_sym_%s_G%dP%d_tmp_%s_%s%s_%s', ...
@@ -418,16 +434,32 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.optimization.ee_rotation = false;
     Set.optimization.ee_translation = false;
     Set.optimization.movebase = false;
-    Set.optimization.base_size = false;
-    Set.optimization.platform_size = false;
+    % Die Größe von Plattform und Gestell muss mit optimiert werden. Sonst
+    % ist alles von der Standard-Einstellung abhängig (bei 3T2R dann z.B.
+    % Gelenkgeschwindigkeiten immer zu groß, da anscheinend stark durch
+    % Plattform-Geometrie und weniger durch Beinketten beeinflusst).
+    Set.optimization.base_size = true;
+    Set.optimization.platform_size = true;
+    % Volle Umdrehungen der Drehgelenke erlauben (geht eher um
+    % mathematische Plausibilität der PKM
     Set.optimization.max_range_active_revolute = 2*pi;
     Set.general.max_retry_bestfitness_reconstruction = 1;
     Set.general.plot_details_in_fitness = 0e3;
     Set.general.plot_robot_in_fitness = 0e3;
     Set.general.noprogressfigure = true;
-    % Reduziere Log-Level der Konsolen-Ausgabe. Bei massiv paralleler
-    % Struktursynthese läuft der Speicher auf dem Cluster sonst voll.
-    Set.general.verbosity = 1;
+    % Reduziere Log-Level der Konsolen-Ausgabe auf Cluster. Bei massiv par-
+    % alleler Struktursynthese läuft der Speicher auf dem Cluster sonst voll.
+    if settings.comp_cluster
+      Set.general.verbosity = 1;
+    else % Lokal immer volle Ausgabe, da meistens zum Debugging benutzt
+      Set.general.verbosity = 3;
+    end
+    % Erhöhe Grenzen für maximale Geschwindigkeiten. Für Erfolg der Struktur-
+    % synthese zählt eher die Plausibilität (Sprünge, Singularitäten) als
+    % die technische Umsetzbarkeit für die Beispiel-Trajektorie
+    Set.optimization.max_velocity_active_revolute = 50;
+    Set.optimization.max_velocity_passive_revolute = 50;
+    Set.optimization.max_velocity_active_prismatic = 20;
     Set.general.matfile_verbosity = 0;
     Set.general.nosummary = true; % Keine Bilder erstellen.
     Set.structures.whitelist = Whitelist_PKM; % nur diese PKM untersuchen
@@ -656,12 +688,19 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           resfile = fullfile(resmaindir, Ergebnisliste(jj).name);
           tmp = load(resfile, 'RobotOptRes');
           RobotOptRes = tmp.RobotOptRes;
-          fval_jjj = [fval_jjj; RobotOptRes.fval]; %#ok<AGROW>
-          angles_jjj = [angles_jjj; tmp.RobotOptRes.Structure.angles_values]; %#ok<AGROW>
+          fval_jjj = [fval_jjj, RobotOptRes.fval]; %#ok<AGROW>
+          if isempty(angles_jjj) % Syntax-Fehler vermeiden bei leerem char als erstem
+            angles_jjj = {tmp.RobotOptRes.Structure.angles_values};
+          else
+            angles_jjj = [angles_jjj, tmp.RobotOptRes.Structure.angles_values]; %#ok<AGROW>
+          end
         elseif isempty(fval_jjj) && jj == length(Ergebnisliste)
           warning('Ergebnisdatei zu %s nicht gefunden', Name);
           continue; % kann im Offline-Modus passieren, falls unvollständige Ergebnisse geladen werden.
         end
+      end
+      if length(fval_jjj) ~= length(angles_jjj)
+        error('Variablen fval_jjj und angles_jjj sind nicht konsistent');
       end
       if isempty(fval_jjj)
         if settings.offline
