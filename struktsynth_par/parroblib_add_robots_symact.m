@@ -755,7 +755,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           'hinzugefügt werden sollte. Fehler.\n'], jjj, length(Structures_Names), Name);
         continue
       end
-      if all(fval_jjj > 50)
+      if all(fval_jjj > 50) % Definition der Werte für fval_jjj, siehe cds_constraints_traj, cds_fitness
         fprintf(['%d/%d: Für PKM %s konnte in der Maßsynthese keine funktio', ...
           'nierende Lösung gefunden werden.\n'], jjj, length(Structures_Names), Name);
         if min(fval_jjj) < 1e3

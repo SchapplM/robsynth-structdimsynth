@@ -27,8 +27,9 @@
 %   5e3...6e3: Geschwindigkeitsgrenzen
 %   6e3...9e3: Gelenkwinkelgrenzen in Trajektorie
 %   9e3...1e4: Parasitäre Bewegung (Roboter strukturell unpassend)
-%   1e4...4e4: Inkonsistente Pos./Geschw./Beschl. in Traj.-IK. für Beink. 1
-%   4e4...1e5: IK in Trajektorie nicht lösbar (später mit vorherigem zusammengefasst)
+%   1e4...4e4: Inkonsistente Pos./Geschw./Beschl. in Traj.-IK. für Beink. 1 (Sonderfall 3T2R)
+%   4e4...5e4: Singularität in Beinkette (obige Betrachtung daher sinnlos)
+%   5e4...1e5: IK in Trajektorie nicht lösbar (später mit vorherigem zusammengefasst)
 %   1e5...1e9: Nicht belegt (siehe cds_constraints.m)
 % Q,QD,QDD
 %   Gelenkpositionen und -geschwindigkeiten des Roboters (für PKM auch
@@ -153,14 +154,52 @@ if any(I_ZBviol)
   IdxFirst = find(I_ZBviol, 1 );
   % Umrechnung in Prozent der Traj.
   Failratio = 1-IdxFirst/length(Traj_0.t); % Wert zwischen 0 und 1
-  fval = 1e4*(4+6*Failratio); % Wert zwischen 4e4 und 1e5.
+  fval = 1e4*(5+5*Failratio); % Wert zwischen 5e4 und 1e5.
   % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
   constrvioltext = sprintf('Keine IK-Konvergenz in Traj. Bis %1.0f%% (%d/%d) gekommen.', ...
     (1-Failratio)*100, IdxFirst, length(Traj_0.t));
   return
 end
-% Plattform-Bewegung neu für 3T2R-Roboter berechnen (der letzte Euler-Winkel
-% ist nicht definiert und kann beliebige Werte einnehmen).
+%% Singularität der Beinketten prüfen (für PKM)
+% Im Gegensatz zu cds_obj_condition wird hier die gesamte Beinkette
+% betrachtet. Entspricht Singularität der direkten Kinematik der Beinkette.
+IdxFirst = 0;
+if R.Type == 2 % nur PKM; TODO: Auch für seriell prüfen?
+  for jj = 1:length(Traj_0.t)
+    Jinv_jj = reshape(Jinv_ges(jj,:), R.NJ, sum(R.I_EE));
+    for kk = 1:R.NLEG
+      % Jacobi-Matrix für alle Gelenke der Beinkette (bezug zu XD des EE)
+      Jinv_kk = Jinv_jj(R.I1J_LEG(kk):R.I2J_LEG(kk),:);
+      kappa_jjkk = cond(Jinv_kk);
+      if Set.general.debug_calc
+        % Probe, ob es die Jinv richtig ist
+        qD_kk2 = Jinv_kk*Traj_0.XD(jj,R.I_EE)';
+        qD_kk1 = QD(jj,R.I1J_LEG(kk):R.I2J_LEG(kk))';
+        if any(abs(qD_kk1-qD_kk2) > 1e-8)
+          error('Neu berechnete Geschwindigkeit aus Beinketten-Jacobi-Matrix stimmt nicht');
+        end
+      end
+      if kappa_jjkk > 1e8
+        IdxFirst = jj;
+        break;
+      end
+    end
+    if IdxFirst ~= 0
+      break;
+    end
+  end
+end
+if IdxFirst ~= 0
+  Failratio = 1-IdxFirst/length(Traj_0.t); % Wert zwischen 0 und 1
+  fval = 1e4*(4+1*Failratio); % Wert zwischen 4e4 und 5e4.
+  % Singularität in Beinkette. Weitere Rechnungen ergeben keinen Sinn
+  % (Geschwindigkeit der Gelenke kann beliebig springen)
+  constrvioltext = sprintf('Singularität in Beinkette %d (cond=%1.1e). Bis %1.0f%% (%d/%d) gekommen.', ...
+    kk, kappa_jjkk, (1-Failratio)*100, IdxFirst, length(Traj_0.t));
+  return
+end
+%% Plattform-Bewegung neu für 3T2R-Roboter berechnen
+% der letzte Euler-Winkel ist nicht definiert und kann beliebige Werte einnehmen).
 if all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
   if R.Type == 0 % Seriell
     [X2,XD2,XDD2] = R.fkineEE_traj(Q, QD, QDD);

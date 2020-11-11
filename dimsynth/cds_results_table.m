@@ -48,22 +48,26 @@ for i = 1:length(Structures)
   end
   tmp = load(resfile, 'RobotOptRes', 'Set', 'Traj', 'PSO_Detail_Data');
   % Text zu Optimierungsergebnis (insbes. Ausschlussgrund). Siehe
-  % cds_vis_results, cds_constraints, cds_fitness
+  % cds_constraints, cds_constraints_traj, cds_fitness, cds_vis_results
   f = mean(tmp.RobotOptRes.fval); % Falls mehrkriteriell abfangen mit `mean`
-  if f < 1e3,     fval_text = 'i.O.';
+  if f < 1e3,     fval_text = 'i.O.'; % ab hier aus cds_fitness.m
   elseif f < 1e4, fval_text = 'NB-Verl. Zielf.';
   elseif f < 1e5, fval_text = 'NB-Verl. Zielf. EO';
   elseif f < 1e6, fval_text = 'Festigkeit Segmente';
   elseif f < 1e7, fval_text = 'Kinematik-NB (Kond.)';
-  elseif f < 1e4*2e3, fval_text = 'AR-Hindernis Traj.'; % ab hier aus cds_constraints
+  elseif f < 1e4*2e3, fval_text = 'AR-Hindernis Traj.'; % ab hier aus cds_constraints_traj.m
   elseif f < 1e4*3e3, fval_text = 'Bauraum-verl. Traj.';
   elseif f < 1e4*4e3, fval_text = 'Selbstkoll. Traj.';
   elseif f < 1e4*5e3, fval_text = 'Konfig. springt.';
   elseif f < 1e4*6e3, fval_text = 'Gel.-Geschw. Grenze Traj.';
   elseif f < 1e4*9e3, fval_text = 'Gel.-Pos.-Grenze Traj.';
   elseif f < 1e4*1e4, fval_text = 'Parasitäre Bew.';
+  elseif f < 1e4*2e4, fval_text = 'Traj.-IK Fehler (Beschl. 3T2R)';
+  elseif f < 1e4*3e4, fval_text = 'Traj.-IK Fehler (Geschw. 3T2R)';
+  elseif f < 1e4*4e4, fval_text = 'Traj.-IK Fehler (Pos. 3T2R)';
+  elseif f < 1e4*5e4, fval_text = 'Traj.-IK Fehler (Sing.)';
   elseif f < 1e4*1e5, fval_text = 'Traj.-IK Fehler';
-  elseif f < 1e4*2e5, fval_text = 'AR-Hindernis Eckpkt.';
+  elseif f < 1e4*2e5, fval_text = 'AR-Hindernis Eckpkt.'; % ab hier aus cds_constraints.m
   elseif f < 1e4*3e5, fval_text = 'Bauraum-verl. Eckpkt.';
   elseif f < 1e4*4e5, fval_text = 'Selbstkoll. Eckpkt.';
   elseif f < 1e4*5e5, fval_text = 'Gestelldurchmesser Eckpkt.';
