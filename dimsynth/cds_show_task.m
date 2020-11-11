@@ -99,26 +99,28 @@ for i = 1:(n_iobj+n_cobj)
 end
 legh = NaN(2,1); % Handles für Legende
 for i = 1:size(collbodies.type,1)
+  params_W = collbodies.params(i,:);
   if i <= n_iobj % Bauraum
     color = 'g';
   else % Hindernisse
     color = 'r';
   end
   switch collbodies.type(i)
+    case 4
+      r = collbodies.params(i,4);
+      h=drawSphere([params_W(1:3),r],'FaceColor', color, 'FaceAlpha', 0.3);
     case 6
       r = collbodies.params(i,1)*3; % Vergrößere den Radius für den Plot
-      h=drawCapsule([pts_W(1:3)',pts_W(4:6)',r],'FaceColor', color, 'FaceAlpha', 0.3);
+      h=drawCapsule([params_W(1:3),params_W(4:6),r],'FaceColor', color, 'FaceAlpha', 0.3);
     case 9
-      % Zweiter Punkt des Punktepaars, das für den Kollisionskörper aus den
-      % KS-Ursprüngen gespeichert wurde. (erster ist Vorgänger).
-      plot3(pts_W(4), pts_W(5), pts_W(6), [color,'x'], 'markersize', 20);
+      plot3(params_W(4), params_W(5), params_W(6), [color,'x'], 'markersize', 20);
     case 10
       % Parameter auslesen. Transformation ins Welt-KS für Plot
-      q_W = eye(3,4)*[collbodies.params(i,1:3)';1];
-      u1_W = collbodies.params(i,4:6)';
-      u2_W = collbodies.params(i,7:9)';
+      q_W = eye(3,4)*[params_W(1:3)';1];
+      u1_W = params_W(4:6)';
+      u2_W = params_W(7:9)';
       % letzte Kante per Definition senkrecht auf anderen beiden.
-      u3_W = cross(u1_W,u2_W); u3_W = u3_W/norm(u3_W)*collbodies.params(i,10);
+      u3_W = cross(u1_W,u2_W); u3_W = u3_W/norm(u3_W)*params_W(10);
       % Umrechnen in Format der plot-Funktion
       cubpar_c = q_W(:)+(u1_W(:)+u2_W(:)+u3_W(:))/2; % Mittelpunkt des Quaders
       cubpar_l = [norm(u1_W); norm(u2_W); norm(u3_W)]; % Dimension des Quaders
@@ -127,15 +129,15 @@ for i = 1:size(collbodies.type,1)
         'FaceColor', color, 'FaceAlpha', 0.1);
     case 12
       % Transformation ins Welt-KS
-      p1 = eye(3,4)*[collbodies.params(i,1:3)';1];
-      p2 = eye(3,4)*[collbodies.params(i,4:6)';1];
-      h=drawCylinder([p1', p2', collbodies.params(i,7)], ...
+      p1 = eye(3,4)*[params_W(1:3)';1];
+      p2 = eye(3,4)*[params_W(4:6)';1];
+      h=drawCylinder([p1', p2', params_W(7)], ...
         'FaceColor', color, 'FaceAlpha', 0.2);
     case 13
       % Transformation ins Welt-KS
-      p1 = eye(3,4)*[collbodies.params(i,1:3)';1];
-      p2 = eye(3,4)*[collbodies.params(i,4:6)';1];
-      h=drawCapsule([p1', p2', collbodies.params(i,7)], ...
+      p1 = eye(3,4)*[params_W(1:3)';1];
+      p2 = eye(3,4)*[params_W(4:6)';1];
+      h=drawCapsule([p1', p2', params_W(7)], ...
         'FaceColor', color, 'FaceAlpha', 0.2);
     otherwise
       error('Der Fall %d darf nicht auftreten', collbodies.type(i));
@@ -146,8 +148,10 @@ for i = 1:size(collbodies.type,1)
     legh(2) = h(1);
   end
 end
-if ~all(isnan(legh))
-  legend(legh, {'Bauraum (außerhalb unzulässig)', 'Hindernisse'});
+I_legh = ~isnan(legh);
+if any(I_legh)
+  lgtxt={'Bauraum (außerhalb unzulässig)', 'Hindernisse'};
+  legend(legh(I_legh), lgtxt(I_legh));
 end
 sgtitle('Trajektorie und Objekte');
 axis auto; 

@@ -80,6 +80,11 @@ for i = 1:size(Set.task.obstacles.type,1)
     % Setze Typ auf "Kapsel im Basis-KS". Information ist notwendig für
     % automatische Verarbeitung (im Gegensatz zu "körperfeste Kapsel").
     type_i = uint8(13);
+  elseif type_i == 4 % Kugel
+    params_0 = transform_sphere(params_W, T_0_W);
+    % Setze Typ auf "Kugel im Basis-KS". Information ist notwendig für
+    % automatische Verarbeitung (im Gegensatz zu "körperfeste Kugel").
+    type_i = uint8(15);
   else
     error('Fall %d nicht definiert', type_i);
   end
@@ -158,7 +163,7 @@ end
 num_coll_plot = 0; % zum Debuggen, s.u.
 for i = 1:size(collbodies.link,1)
   % Anfangs- und Endpunkt des Ersatzkörpers bestimmen
-  if all(collbodies.type(i) ~= [6 9 10 12 13])
+  if all(collbodies.type(i) ~= [6 9 10 12 13 15])
     warning('Methode %d nicht implementiert', collbodies.type(i));
     continue
   end
@@ -220,6 +225,10 @@ for i = 1:size(collbodies.link,1)
       p2 = eye(3,4)*R.T_W_0*[collbodies.params(i,4:6)';1];
       drawCapsule([p1', p2', collbodies.params(i,7)], ...
         'FaceColor', color, 'FaceAlpha', 0.2);
+    case 15
+      c = eye(3,4)*R.T_W_0*[collbodies.params(i,1:3)';1];
+      r = collbodies.params(i,4);
+      drawSphere([c',r],'FaceColor', color, 'FaceAlpha', 0.3);
     otherwise
       error('Dieser Fall darf nicht auftreten');
   end
@@ -257,3 +266,9 @@ function params_0 = transform_capsule(params_W, T_0_W)
 % identische Funktion wie für Zylinder
 params_0 = transform_cylinder(params_W, T_0_W);
 end
+function params_0 = transform_sphere(params_W, T_0_W)
+params_0 = [eye(3,4)*T_0_W*[params_W(1:3)';1]; ... % Mittelpunkt transformieren
+  params_W(4); NaN(6,1)]'; % Radius, auffüllen auf Array-Größe
+end
+
+
