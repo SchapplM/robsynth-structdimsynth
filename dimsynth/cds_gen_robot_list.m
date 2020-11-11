@@ -47,26 +47,24 @@ end
 
 EE_FG = structset.DoF;
 EE_FG_Mask = [1 1 1 1 1 1]; % Die FG müssen genauso auch vom Roboter erfüllt werden (0 darf nicht auch 1 sein)
-% if all(structset.DoF == [1 1 1 1 1 0])
-%   EE_FG      = [[1 1 1], [1 1 1], [1 1 1]];
-%   EE_FG_Mask = [[1 1 1], [1 1 1], [1 1 0]];
-% end
+% Die FG in der SerRobLib sind anders kodiert: v_xyz, w_xyz, phiD_xyz
+% TODO: Vereinheitlichen mit ParRobLib
+if all(structset.DoF == [1 1 1 1 1 0])
+  EE_FG_ser      = [[1 1 1], [1 1 1], [1 1 1]];
+  EE_FG_Mask_ser = [[1 1 1], [1 1 1], [1 1 0]];
+else
+  EE_FG_ser = EE_FG;
+  EE_FG_Mask_ser = EE_FG_Mask;
+end
 
 ii = 0; % Laufende Nummer für alle Roboterstrukturen (seriell und parallel)
-
-%% Serielle aus Liste Roboter laden
-% serroblibpath=fileparts(which('serroblib_path_init.m'));
-% mdllistfile = fullfile(serroblibpath, 'lists', sprintf('structsynth_%s.csv',task_str));
-
-% res = xlsread(mdllistfile);
-% res = csvread(mdllistfile);
 
 %% Serielle Roboter laden
 if structset.use_serial
   N_JointDoF = sum(structset.DoF); % Beinketten ohne irgendeine Redundanz (so viele Gelenke wie EE FG)
   mdllistfile_Ndof = fullfile(serroblibpath, sprintf('mdl_%ddof', N_JointDoF), sprintf('S%d_list.mat',N_JointDoF));
   l = load(mdllistfile_Ndof, 'Names_Ndof', 'AdditionalInfo');
-  [~,I_FG] = serroblib_filter_robots(N_JointDoF, EE_FG, EE_FG_Mask);
+  [~,I_FG] = serroblib_filter_robots(N_JointDoF, EE_FG_ser, EE_FG_Mask_ser);
   I_novar = (l.AdditionalInfo(:,2) == 0);
   I = I_FG;
   % Varianten von Robotern in der Datenbank
