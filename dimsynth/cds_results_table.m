@@ -49,6 +49,7 @@ for i = 1:length(Structures)
   tmp = load(resfile, 'RobotOptRes', 'Set', 'Traj', 'PSO_Detail_Data');
   % Text zu Optimierungsergebnis (insbes. Ausschlussgrund). Siehe
   % cds_constraints, cds_constraints_traj, cds_fitness, cds_vis_results
+  % Strafterme aus den NB-Funktionen werden in cds_fitness erhöht.
   f = mean(tmp.RobotOptRes.fval); % Falls mehrkriteriell abfangen mit `mean`
   if f < 1e3,     fval_text = 'i.O.'; % ab hier aus cds_fitness.m
   elseif f < 1e4, fval_text = 'NB-Verl. Zielf.';

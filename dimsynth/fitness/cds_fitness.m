@@ -76,9 +76,10 @@ cds_update_robot_parameters(R, Set, Structure, p);
 Traj_0 = cds_transform_traj(R, Traj_W);
 
 %% Nebenbedingungen prüfen (für Eckpunkte)
-% NB-Verletzung wird in Ausgabe mit Werten von 1e3 aufwärts angegeben.
-% Umwandlung in Werte von 1e6 aufwärts.
 [fval_constr,QE_iIKC, Q0, constrvioltext] = cds_constraints(R, Traj_0, Set, Structure);
+% NB-Verletzung in Eckpunkt-IK wird in Ausgabe mit Werten von 1e5 aufwärts
+% angegeben. Umwandlung in Werte von 1e9 aufwärts.
+% Ursache: Nachträgliches Einfügen von weiteren Nebenbedingungen.
 fval(:) = fval_constr*1e4; % Erhöhung, damit später kommende Funktionswerte aus Entwurfsoptimierung kleiner sein können
 if fval_constr > 1000 % Nebenbedingungen verletzt.
   % Speichere die Anfangs-Winkelstellung in der Roboterklasse für später.
@@ -134,7 +135,10 @@ for iIKC = 1:size(Q0,1)
   if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
     [fval_trajconstr,Q,QD,QDD,Jinv_ges,constrvioltext_IKC{iIKC}] = cds_constraints_traj( ...
       R, Traj_0, Q0(iIKC,:)', Set, Structure);
-    fval_IKC(iIKC,:) = fval_trajconstr;
+    % NB-Verletzung in Traj.-IK wird in Ausgabe mit Werten von 1e3 aufwärts
+    % angegeben. Umwandlung in Werte von 1e7 aufwärts.
+    % Ursache: Nachträgliches Einfügen von weiteren Nebenbedingungen.
+    fval_IKC(iIKC,:) = 1e4*fval_trajconstr;
   else
     Q = QE_iIKC(:,:,iIKC);
     QD = 0*Q; QDD = QD;

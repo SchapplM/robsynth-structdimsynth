@@ -17,7 +17,7 @@
 %   Strafterm in der Fitnessfunktion bei Verletzung der Nebenbedingungen
 %   Werte:
 %   1e3: Keine Verletzung der Nebenbedingungen. Alles i.O.
-%   1e3...1e5: Nicht belegt (siehe cds_constraints_traj)
+%   1e3...1e5: Nicht belegt (siehe cds_fitness)
 %   1e5...2e5: Arbeitsraum-Hindernis-Kollision in Einzelpunkten
 %   2e5...3e5: Bauraumverletzung in Einzelpunkten
 %   3e5...4e5: Selbstkollision in Einzelpunkten
