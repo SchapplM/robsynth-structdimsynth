@@ -38,7 +38,7 @@ general = struct( ...
   'save_robot_details_plot_fitness_file_extensions', {''}, ... % Speichern des durch vorherige Einstellung erstellten Bildes
   'save_animation_file_extensions', {{'gif', 'mp4'}}, ... % Format, in denen die Animationen gespeichert werden
   'animation_styles', {{'stick'}}, ... % Visualisierungsarten im Video: stick,3D,collision; bei mehr als einem: Syntax {{'1.','2.'}}
-  'maxduration_animation', 10, ... % Die Animation soll max. 30s dauern (als Videodatei)
+  'maxduration_animation', 10, ... % Die Animation soll max. 10s dauern (als Videodatei)
   'save_evolution_video', false, ... % Video mit Evolution der Roboter
   'max_retry_bestfitness_reconstruction', 10, ...
   'regenerate_summmary_only', false, ... % Nur die Videos und Zusammenfassungsbilder neu generieren. Keine Optimierung durchführen.
@@ -59,19 +59,18 @@ general = struct( ...
 % overconstraint: Anzahl der Beingelenke, die die EE-FG übersteigen
 % task redundancy: Anzahl der EE-FG, die die Aufgaben-FG übersteigen
 structures = struct( ...
-  'use_serial', true, ...
-  'use_parallel', true, ...
+  'use_serial', true, ... % Wähle serielle Roboter
+  'use_parallel', true, ... % Wähle parallele Roboter
   'use_parallel_rankdef', false, ... Nehme auch parallele Roboter, die mit Rangverlust in der Datenbank stehen
   'onlylegchain_from_synthesis', true, ... % Nehme keine seriellen Ketten als Beinkette, die nur manuell in die SerRobLib eingetragen wurden
   'use_kinematic_variants', true, ... % Nehme auch serielle Ketten, die eine Variante eines allgemeinen Modells sind
-  'maxnumprismatic', 1, ...
-  'max_overconstraint', 3, ...
+  'maxnumprismatic', 1, ... % Maximal ein Schubgelenk in Roboter (bzw. PKM-Beinkette)
   'max_task_redundancy', 0, ... % Zulässiger Grad der Aufgabenredundanz
   'max_kin_redundancy', 0, ... % Zulässiger Grad der kinematischen Redundanz
-  'DoF', input_settings.DoF, ...
+  'DoF', input_settings.DoF, ... % FG des Roboters in Notation [1 1 1 0 0 1] (Geschw., Winkelgeschw.)
   'joint_filter', '******', ... % Vorgabe von Gelenktypen ("R", "P", "*").
   'parrob_basejointfilter', 1:9, ... % Vorgabe zum Gestell-Koppelgelenktyp einer PKM
-  'nopassiveprismatic', true, ...
+  'nopassiveprismatic', true, ... % Schubgelenke dürfen nicht passiv sein
   'activenotlastjoint', true, ... % Verhindert ein aktives Plattform-Koppelgelenk
   'max_index_active', 6, ... % Setzt den maximalen Index aktuierter Gelenke fest (nachrrangig gegen vorherige Option)
   'mounting_serial', {'floor'}, ... % Montageort für serielle Roboter: floor, ceiling, wall
@@ -101,7 +100,6 @@ optimization = struct( ...
   'base_morphology', false, ... % Aussehen des Gestells (z.B. Schrägheit, Gelenkpaarabstand)
   'platform_morphology', false, ... % Aussehen der Plattform (z.B. Gelenkpaarabstand)
   'rotate_base', false, ... % Orientierung der Roboter-Basis
-  'rotate_coupling', true, ... % Koppel-Punkt-Orientierung für PKM
   'max_range_active_revolute', 270*pi/180, ... % Maximaler Drehwinkel aktiver Drehgelenke
   'max_range_passive_revolute', 360*pi/180, ... % Maximaler Drehwinkel passiver Drehgelenke
   'max_velocity_passive_revolute', 20, ... % [rad/s] Maximale Drehgeschw. (zur Singularitätsvermeidung)
@@ -112,8 +110,8 @@ optimization = struct( ...
   'constraint_collisions', false, ... Schalter für Kollisionsprüfung
   'obj_limit', 0, ... % Grenze des Fitness-Wertes zum Beenden der Simulation
   'obj_limit_physval', 0, ... % Grenze für den physikalischen Wert zum Beenden
-  'NumIndividuals', 50, ...
-  'MaxIter', 10, ...
+  'NumIndividuals', 50, ... % Anzahl der Partikel im PSO
+  'MaxIter', 10, ... % Anzahl der Iterationen im PSO (zusätzlich zur initialen)
   'static_force_only', false, ... % Betrachte nur statische Kraft, keine Dynamik (egal ob Geschwindigkeit/Beschleunigung gegeben)
   'nolinkmass', false, ... % Setze die Masse der Robotersegmente auf Null.
   'noplatformmass', false, ... % Setze die Masse der PKM-Plattform auf Null.
@@ -123,11 +121,11 @@ optimization = struct( ...
 
 %% Einstellungen für Aufgabe (Trajektorie, Bauraum, Hindernisse)
 task = struct( ...
-  'profile', 1, ... % Beschleunigungs-Trapez
-  'vmax', 1, ...
-  'amax', 3, ...
-  'Tv', 0.01, ...
-  'Ts', 1e-3, ...
+  'profile', 1, ... % Beschleunigungs-Trapez für Kartesische Eckpunkte
+  'vmax', 1, ... % maximale Geschwindigkeit (m/s oder rad/s)
+  'amax', 3, ... % maximale Beschleunigung (m/s² oder rad/s²)
+  'Tv', 0.01, ... % Verschliffzeit der Beschleunigung (für Ruckbegrenzung)
+  'Ts', 1e-3, ... % Abtastzeit der Trajektorie
   'maxangle', 2*pi, ... % Keine Einschränkung für die maximalen Winkel
   'installspace', struct( ... % Konfiguration des möglichen Bauraums
     'links', {{}}, ... % jew. Liste der von der Basis gezählten Segmente (Bsp.: alle erlaubt ist 0:6)
