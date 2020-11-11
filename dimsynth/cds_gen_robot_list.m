@@ -309,7 +309,7 @@ if structset.use_parallel
       if isempty(StructuralDHParam) || isempty(StructuralDHParam{1})
         % Leerer Eintrag. Setze alle Werte auf beliebig
         angles_values = {repmat('a', 1, sum(I_param))};
-      elseif length(StructuralDHParam) ~= sum(I_param)
+      elseif length(StructuralDHParam{1}) ~= sum(I_param)
         % Ungültiger Eintrag
         error(['In PKM-Datenbank stimmt für %s die Anzahl der freien ', ...
           'Parameter nicht. Parameter: "%s"; Gegeben: "%s" (erster Eintrag).'], PNames_Akt{j},...
