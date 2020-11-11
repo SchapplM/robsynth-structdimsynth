@@ -51,6 +51,7 @@ general = struct( ...
   'parcomp_plot', 0, ... % Parallele Erzeugung der Ergebnisbilder und -videos
   'parcomp_maxworkers', inf, ... % Beschränkung der Anzahl paralleler Instanzen
   'computing_cluster', false, ... % Berechnung auf PBS-Cluster (Hochladen auf Server)
+  'cluster_maxrobotspernode', inf, ... % Unbegrenzte Anzahl von Robotern auf jeder Cluster-Node. Niedrigere Zahl dient zur stärkeren Parallelisierung
   'compile_missing_functions', true, ... % Bei Start alle mex-Funktionen kompilieren
   'create_template_functions', false, ... % Erzeuge Funktionen neu aus Vorlagen-Dateien
   'use_mex', true);

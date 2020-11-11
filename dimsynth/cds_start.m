@@ -86,52 +86,80 @@ if Set.general.computing_cluster
     error('Datei computingcluster_repo_path.m existiert nicht. Muss manuell aus template-Datei erstellt werden.');
   end
   cluster_repo_path = computingcluster_repo_path();
-  computation_name = sprintf('dimsynth_%s_%s', ...
-    datestr(now,'yyyymmdd_HHMMSS'), Set.optimization.optname);
-  jobdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
-    'dimsynth', 'cluster_jobs', computation_name);
-  mkdirs(fullfile(jobdir, 'results')); % Unterordner notwendig für Cluster-Transfer-Toolbox
-  targetfile = fullfile(jobdir, [computation_name,'.m']);
-  Set_cluster = Set;
-  Set_cluster.general.computing_cluster = false; % auf Cluster muss "lokal" gerechnet werden
-  Set_cluster.general.parcomp_struct = true; % parallele Berechnung auf Cluster (sonst sinnlos)
-  Set_cluster.general.parcomp_plot = true; % paralleles Plotten auf Cluster (ist dort gleichwertig und schneller)
-  save(fullfile(jobdir, [computation_name,'.mat']), 'Set_cluster', 'Traj');
-  % Matlab-Skript erzeugen
-  clusterheaderfile=fullfile(jobdir,'..','..','dimsynth_cluster_header.m');
-  if ~exist(clusterheaderfile, 'file')
-    error('Datei %s existiert nicht. Muss manuell aus template-Datei erstellt werden.', clusterheaderfile);
+  % Erzeuge Liste aller oben zur Optimierung gefundener Roboter
+  Names = {};
+  for k = 1:length(Structures)
+    Names = [Names, Structures{k}.Name]; %#ok<AGROW>
   end
-  copyfile(clusterheaderfile, targetfile);
-  fid = fopen(targetfile, 'a');
-  fprintf(fid, 'tmp=load(''%s'');\n', [computation_name,'.mat']);
-  fprintf(fid, 'Set=tmp.Set_cluster;\nTraj=tmp.Traj;\n');
-  % Ergebnis-Ordner neu setzen. Ansonsten ist der Pfad des Rechners
-  % gesetzt, von dem der Job gestartet wird.
-  fprintf(fid, ['Set.optimization.resdir=fullfile(fileparts(', ...
-    'which(''structgeomsynth_path_init.m'')),''dimsynth'',''results'');\n']);
-  fprintf(fid, 'cds_start;\n');
-  % Schließen des ParPools auch in Datei hineinschreiben
-  fprintf(fid, 'parpool_writelock(''lock'', 300, true);\n');
-  fprintf(fid, 'delete(gcp(''nocreate''));\n');
-  fprintf(fid, 'parpool_writelock(''free'', 0, true);\n');
-  fclose(fid);
-  % Schätze die Rechenzeit: Im Mittel 2s pro Parametersatz aufgeteilt auf
-  % 12 parallele Kerne, 30min für Bilderstellung und 6h Reserve/Allgemeines
-  comptime_est = (Set.optimization.NumIndividuals*(1+Set.optimization.MaxIter)* ...
-    2+30*60)*length(Structures)/12 + 6*3600;
-  % Matlab-Skript auf Cluster starten.
-  addpath(cluster_repo_path);
-  jobStart(struct('name', computation_name, ...
-                  'matFileName', [computation_name, '.m'], ...
-                  'locUploadFolder', jobdir, ...
-                  'time',comptime_est/3600)); % Angabe in h
-  fprintf(['Berechnung von %d Robotern wurde auf Cluster hochgeladen. Ende. ', ...
-    'Die Ergebnisse müssen nach Beendigung der Rechnung manuell heruntergeladen ', ...
-    'werden.\n'], length(Structures));
+  % Erzeuge Positiv-Liste für Cluster aus bereits ausgelesener Roboter-DB
+  % Teile diese Liste so auf, dass mehrere Cluster-Instanzen parallel
+  % gestartet werden können.
+  I1_Struct = 1:Set.general.cluster_maxrobotspernode:length(Structures);
+  for kk = 1:length(I1_Struct)
+    I1_kk = I1_Struct(kk); % Anfangs-Index in allen Roboter-Namen
+    if kk < length(I1_Struct) % Bestimme End-Index
+      I2_kk = I1_Struct(kk+1)-1;
+    else
+      I2_kk = length(Structures);
+    end
+    if length(I1_Struct) == 1 % Die Rechnung wird nicht aufgeteilt. Lasse den Namen wie er ist
+      suffix = '';
+    else % Rechnung aufgeteilt auf die verschiedenen Roboter. Suffix für Part-Nummer.
+      suffix = sprintf('_p%d',kk);
+    end
+    computation_name = sprintf('dimsynth_%s_%s%s', ...
+      datestr(now,'yyyymmdd_HHMMSS'), Set.optimization.optname, suffix);
+    jobdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+      'dimsynth', 'cluster_jobs', computation_name);
+    mkdirs(fullfile(jobdir, 'results')); % Unterordner notwendig für Cluster-Transfer-Toolbox
+    targetfile = fullfile(jobdir, [computation_name,'.m']);
+    Set_cluster = Set;
+    Set_cluster.general.computing_cluster = false; % auf Cluster muss "lokal" gerechnet werden
+    Set_cluster.general.parcomp_struct = true; % parallele Berechnung auf Cluster (sonst sinnlos)
+    Set_cluster.general.parcomp_plot = true; % paralleles Plotten auf Cluster (ist dort gleichwertig und schneller)
+    % Wähle nur einen Bereich aller möglicher Roboter aus für diesen Lauf.
+    Set_cluster.structures.whitelist = Names(I1_kk:I2_kk);
+
+    save(fullfile(jobdir, [computation_name,'.mat']), 'Set_cluster', 'Traj');
+    % Matlab-Skript erzeugen
+    clusterheaderfile=fullfile(jobdir,'..','..','dimsynth_cluster_header.m');
+    if ~exist(clusterheaderfile, 'file')
+      error('Datei %s existiert nicht. Muss manuell aus template-Datei erstellt werden.', clusterheaderfile);
+    end
+    copyfile(clusterheaderfile, targetfile);
+    fid = fopen(targetfile, 'a');
+    fprintf(fid, 'tmp=load(''%s'');\n', [computation_name,'.mat']);
+    fprintf(fid, 'Set=tmp.Set_cluster;\nTraj=tmp.Traj;\n');
+    % Ergebnis-Ordner neu setzen. Ansonsten ist der Pfad des Rechners
+    % gesetzt, von dem der Job gestartet wird.
+    fprintf(fid, ['Set.optimization.resdir=fullfile(fileparts(', ...
+      'which(''structgeomsynth_path_init.m'')),''dimsynth'',''results'');\n']);
+    fprintf(fid, 'cds_start;\n');
+    % Schließen des ParPools auch in Datei hineinschreiben
+    fprintf(fid, 'parpool_writelock(''lock'', 300, true);\n');
+    fprintf(fid, 'delete(gcp(''nocreate''));\n');
+    fprintf(fid, 'parpool_writelock(''free'', 0, true);\n');
+    fclose(fid);
+    % Schätze die Rechenzeit: Im Mittel 2s pro Parametersatz aufgeteilt auf
+    % 12 parallele Kerne, 30min für Bilderstellung und 6h Reserve/Allgemeines
+    comptime_est = (Set.optimization.NumIndividuals*(1+Set.optimization.MaxIter)* ...
+      2+30*60)*length(Set_cluster.structures.whitelist)/12 + 6*3600;
+    % Matlab-Skript auf Cluster starten.
+    addpath(cluster_repo_path);
+    jobStart(struct('name', computation_name, ...
+                    'matFileName', [computation_name, '.m'], ...
+                    'locUploadFolder', jobdir, ...
+                    'time',comptime_est/3600)); % Angabe in h
+    fprintf(['Berechnung von %d Robotern wurde auf Cluster hochgeladen. Ende. ', ...
+      'Die Ergebnisse müssen nach Beendigung der Rechnung manuell heruntergeladen ', ...
+      'werden.\n'], length(Set_cluster.structures.whitelist));
+  end
+  if length(I1_Struct) > 1
+    fprintf('Insgesamt %d Optimierungen mit in Summe %d Robotern hochgeladen\n',...
+      length(I1_Struct), length(Structures));
+  end
   return;
 end
-
 %% Vorbereitung und Durchführung der lokalen Optimierung
 % Bei paralleler Berechnung dürfen keine Dateien geschrieben werden um
 % Konflikte zu vermeiden
