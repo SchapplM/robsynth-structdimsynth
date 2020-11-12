@@ -78,7 +78,17 @@ end
 if size(Set.task.obstacles.params,1) ~= length(Set.task.obstacles.type)
   error('Set.task.obstacles: Länge von Feldern params und type stimmt nicht überein');
 end
-
+% Prüfe das Namensformat von Robotern auf der Positiv-Liste
+for i = 1:length(Set.structures.whitelist)
+  Name_i = Set.structures.whitelist{i};
+  expression_P = 'P[\d][RP]+[\d]+[V]?[\d]*G[\d]+P[\d]+A[\d]+';
+  expression_S = 'S[\d][RP]+[\d]+[V]?[\d]*';
+  match_P = regexp(Name_i,expression_P,'match');
+  match_S = regexp(Name_i,expression_S,'match');
+  if isempty(match_P) && isempty(match_S)
+    error('Roboter %s auf Positiv-Liste entspricht nicht dem Namensformat', Name_i);
+  end
+end
 %% Menge der Roboter laden
 Structures = cds_gen_robot_list(Set);
 
@@ -108,6 +118,12 @@ if Set.general.computing_cluster
   % Teile diese Liste so auf, dass mehrere Cluster-Instanzen parallel
   % gestartet werden können.
   I1_Struct = 1:Set.general.cluster_maxrobotspernode:length(Structures);
+  if length(I1_Struct) > 1
+    fprintf(['Teile die Optimierung von %d Robotern auf %d parallele Cluster-', ...
+      'Instanzen auf\n'], length(Structures), length(I1_Struct));
+  else
+    fprintf('Lade die Optimierung von %d Robotern auf das Cluster hoch\n', length(Structures));
+  end
   for kk = 1:length(I1_Struct)
     I1_kk = I1_Struct(kk); % Anfangs-Index in allen Roboter-Namen
     if kk < length(I1_Struct) % Bestimme End-Index
@@ -127,6 +143,7 @@ if Set.general.computing_cluster
     mkdirs(fullfile(jobdir, 'results')); % Unterordner notwendig für Cluster-Transfer-Toolbox
     targetfile = fullfile(jobdir, [computation_name,'.m']);
     Set_cluster = Set;
+    Set_cluster.optimization.optname = [Set.optimization.optname, suffix]; % sonst wird bei Zerlegung mehrfach der gleiche Name benutzt.
     Set_cluster.general.computing_cluster = false; % auf Cluster muss "lokal" gerechnet werden
     Set_cluster.general.parcomp_struct = true; % parallele Berechnung auf Cluster (sonst sinnlos)
     Set_cluster.general.parcomp_plot = true; % paralleles Plotten auf Cluster (ist dort gleichwertig und schneller)
