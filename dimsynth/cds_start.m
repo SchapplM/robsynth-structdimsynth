@@ -66,6 +66,19 @@ if size(Set.optimization.obj_limit,2) > 1
   error('obj_limit muss %d x 1 Vektor sein', length(Set.optimization.objective));
 end
 
+if size(Set.task.installspace.params,1) ~= length(Set.task.installspace.type)
+  error('Set.task.installspace: Länge von Feldern "params" und "type" stimmt nicht überein');
+end
+if length(Set.task.installspace.links) ~= length(Set.task.installspace.type)
+  error('Set.task.installspace: Länge von Feldern "links" und "type" stimmt nicht überein');
+end
+if ~isa(Set.task.installspace.links, 'cell')
+  error('Set.task.installspace: Feld "links" muss cell Array sein');
+end
+if size(Set.task.obstacles.params,1) ~= length(Set.task.obstacles.type)
+  error('Set.task.obstacles: Länge von Feldern params und type stimmt nicht überein');
+end
+
 %% Menge der Roboter laden
 Structures = cds_gen_robot_list(Set);
 
@@ -273,7 +286,7 @@ if ~Set.general.regenerate_summmary_only
         if type == 2 % Sperrschutz für PKM aufheben
           parroblib_writelock('free', Names{i}, logical(Set.structures.DoF));
         end
-        if toc(t_ll) > 20
+        if toc(t_ll) > 20 || i == III(end)
           fprintf('%d/%d Roboter vom Typ %d auf Existenz der Dateien geprüft. Dauer bis hier: %1.1fs\n', ...
             find(III==i,1,'first'), length(Names), type, toc(t1));
           t_ll = tic();

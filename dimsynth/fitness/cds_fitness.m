@@ -57,8 +57,10 @@ if isempty(abort_fitnesscalc)
   abort_fitnesscalc = false;
 elseif abort_fitnesscalc
   fval(:) = Inf;
-  cds_log(2,sprintf(['[fitness] Fitness-Evaluation in %1.1fs. fval=[%s]. ', ...
-    'Bereits anderes Gut-Partikel berechnet.'], toc(t1), disp_array(fval', '%1.3e')));
+  if length(fval)>1, fvalstr=['[',disp_array(fval', '%1.3e'),']'];
+  else,              fvalstr=sprintf('%1.3e', fval); end
+  cds_log(2,sprintf(['[fitness] Fitness-Evaluation in %1.1fs. fval=%s. ', ...
+    'Bereits anderes Gut-Partikel berechnet.'], toc(t1), fvalstr));
   cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, f_maxstrengthviol);
   return;
 end
@@ -517,9 +519,11 @@ else % PKM
 end
 
 if all(fval<1e3)
-  cds_log(2,sprintf(['[fitness] Fitness-Evaluation in %1.1fs. fval=[%s]. Erfolg', ...
+  if length(fval)>1, fvalstr=['[',disp_array(fval', '%1.3e'),']'];
+  else,              fvalstr=sprintf('%1.3e', fval); end
+  cds_log(2,sprintf(['[fitness] Fitness-Evaluation in %1.1fs. fval=%s. Erfolg', ...
     'reich. %s Auswahl aus %d IK-Konfigurationen (davon %d i.O., %d optimal)'], ...
-    toc(t1), disp_array(fval', '%1.3e'), fval_debugtext_IKC{iIKCbest}(2:end), ...
+    toc(t1), fvalstr, fval_debugtext_IKC{iIKCbest}(2:end), ...
     size(fval_IKC,1), n_fval_iO, n_fval_opt));
 else
   cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', ...

@@ -157,11 +157,15 @@ for k = 1:NLEG
       if R_cc.islegchain
         % Transformation der Parameter ins Basis-KS der PKM. Das ist für
         % die Kollisionsprüfung einfacher.
-        T_0_0i = R_cc.T_W_0;
+        T_0_0i = R_cc.T_W_0; % Trafo von PKM-Basis zu Beinketten-Basis
         pts_0i = R_cc.collbodies.params(1,1:6);
         pts_0 = [eye(3,4)*T_0_0i*[pts_0i(1:3)';1]; ...   % Punkt 1
                  eye(3,4)*T_0_0i*[pts_0i(4:6)';1]]'; ... % Punkt 2
         collbodies_params_mod(1,1:6) = pts_0;
+      else
+        % Keine Anpassung notwendig. Führungsschiene ist bereits bezogen auf
+        % Roboter-Basis-KS
+        pts_0 = R_cc.collbodies.params(1,1:6);
       end
     else
       error('Fall noch nicht vorhergesehen');
@@ -169,6 +173,8 @@ for k = 1:NLEG
     if update_installspcbodies
       % Ändere den Eintrag in der Liste der Bauraum-Objekte: Trage Anfangs-
       % und Endpunkt des Kapsel-Objekts als zwei Punkte ein.
+      % Dadurch wird geprüft, ob Anfang und Ende der Schiene im Bauraum
+      % liegen. Reicht als Prüfung (bei konvexem Bauraum).
       collbodies_instspc.params(isidx:isidx+1,1:3) = reshape(pts_0(1:6), 3, 2)';
       isidx = isidx + 2;
     end
@@ -186,7 +192,7 @@ end
 if update_installspcbodies
   Structure.installspace_collbodies = collbodies_instspc;
 end
-% collbodies_instspc.params
+
 %% Debug: Bauraum-Ersatzpunkte zeichnen
 % Hiermit kann geprüft werden, ob die Punkt-Transformation korrekt ist.
 % Die Führungsschienen sind im Plot länger, da sie aus qlim bestimmt werden

@@ -673,8 +673,8 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         % Umrechnung der Parameter ins Welt-KS: Notwendig. Aber hier
         % ignoriert.
       else
-        warning(['Die Kollisionsprüfung für die Führungsschiene des P-Gelenks ', ...
-          'an Stelle %d ist nicht definiert. Wird vorerst ignoriert.'], i);
+        cds_log(-1, sprintf(['[dimsynth] Die Kollisionsprüfung für die Führungsschiene des P-Gelenks ', ...
+          'an Stelle %d ist nicht definiert. Wird vorerst ignoriert.'], i));
         continue
         % Kapsel, zwei Punkte (im mitbewegten Körper-KS)
         collbodies.type = [collbodies.type; uint8(3)]; %#ok<UNRCH>
@@ -796,7 +796,8 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     % TODO: Kollision Beinketten mit Plattform und Gestell
   end
   if isempty(selfcollchecks_bodies)
-    warning('Es sind keine Kollisionskörpern eingetragen, obwohl Kollisionen geprüft werden sollen.');
+    cds_log(-1, sprintf(['[dimsynth] Es sind keine Kollisionskörpern eingetragen, ', ...
+      'obwohl Kollisionen geprüft werden sollen.']));
   elseif any(selfcollchecks_bodies(:,1)==selfcollchecks_bodies(:,2))
     error('Prüfung eines Körpers mit sich selbst ergibt keinen Sinn');
   end
@@ -833,7 +834,8 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       uint8([Structure.selfcollchecks_collbodies; CheckCombinations]);
   end
   if isempty(Structure.selfcollchecks_collbodies)
-    warning('Es sind keine Prüfungen von Kollisionskörpern vorgesehen');
+    cds_log(-1, sprintf(['[dimsynth] Es sind keine Prüfungen von Kollisions', ...
+      'körpern vorgesehen']));
     % Deaktiviere die Kollisionsprüfungen wieder
     Set.optimization.constraint_collisions = false;
     Set.task.obstacles.type = [];
