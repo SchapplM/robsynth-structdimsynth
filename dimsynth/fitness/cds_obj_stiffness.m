@@ -113,7 +113,7 @@ fval_phys = 1e-3 * f_com; % Umrechnung in äquivalenten physikalischen Wert (mm/
 debug_info = {sprintf('min. Steifigkeit: %1.3f N/mm', 1/f_com)};
 
 %% Debug-Zeichnung erstellen
-if fval < Set.general.plot_details_in_fitness
+if 1e4*fval < Set.general.plot_details_in_fitness
   change_current_figure(205); clf; hold all;
   if ~strcmp(get(205, 'windowstyle'), 'docked')
     % set(202,'units','normalized','outerposition',[0 0 1 1]);

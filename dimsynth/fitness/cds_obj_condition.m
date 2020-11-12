@@ -65,7 +65,7 @@ fval_debugtext = sprintf('Schlechteste Konditionszahl %1.3e.', f_cond1);
 
 %% Debug-Plot (nur für PKM)
 if R.Type == 2
-  if fval < Set.general.plot_details_in_fitness
+  if 1e4*fval < Set.general.plot_details_in_fitness
     % Debug-Werte berechnen
     det_ges = NaN(size(Jinvges,1), 1);
     for i = 1:size(Jinvges,1)

@@ -69,7 +69,7 @@ fval_debugtext = sprintf('Energieverbrauch %1.1f J.', E_Netz_res);
 % TODO: Falls NaN auftritt, Zeitpunkt innerhalb Gesamt-Traj kodieren
 % im Bereich 100-1000. Energie-Wert erst bei 0 bis 100
 if isnan(fval), fval = 1000-eps(1000); end
-if fval < Set.general.plot_details_in_fitness
+if 1e4*fval < Set.general.plot_details_in_fitness
   E_Netz = cumtrapz(Traj_0.t, P_Netz);
   change_current_figure(202); clf;
   if ~strcmp(get(202, 'windowstyle'), 'docked')

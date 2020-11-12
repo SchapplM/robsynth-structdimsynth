@@ -143,7 +143,7 @@ else
   fval = scale(1) + (scale(2)-scale(1))*f_constr_norm;
 end
 %% Debug: Zeichnen der Situation
-if fval == 0 || fval >= Set.general.plot_details_in_fitness
+if fval == 0 || 1e4*fval >= Set.general.plot_details_in_fitness
   return
 end
 % Suche Datenpunkt mit weitester Entfernung vom Bauraum (schlechtester Fall)
