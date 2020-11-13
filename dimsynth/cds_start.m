@@ -100,6 +100,16 @@ if isempty(Structures)
   return
 end
 
+%% Ergebnis-Speicherort vorbereiten
+resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
+mkdirs(resdir_main); % Ergebnis-Ordner für diese Optimierung erstellen
+% Einstellungen dieser kombinierten Synthese speichern. Damit ist im
+% Nachhinein nachvollziehbar, welche Roboter eventuell fehlen. Bereits hier
+% oben machen. Dann passt die Variable Structures auch für den Fall, dass
+% die Maßsynthese im folgenden Schritt aufgeteilt wird.
+save(fullfile(resdir_main, sprintf('%s_settings.mat', Set.optimization.optname)), ...
+  'Set', 'Traj', 'Structures');
+
 %% Berechnung auf PBS-Cluster vorbereiten und durchführen
 if Set.general.computing_cluster
   % Bereite eine Einstellungs-Datei vor
@@ -202,11 +212,13 @@ if Set.general.parcomp_struct && ... % Parallele Rechnung ist ausgewählt
   Set.general.noprogressfigure = true;
   % Keine (allgemeinen) mat-Dateien speichern
   Set.general.matfile_verbosity = 0;
-  try %#ok<TRYNC>
-    parpool_writelock('lock', 180, true); % Synchronisationsmittel für ParPool
-    parpool(Set.general.parcomp_maxworkers);
-    parpool_writelock('free', 0, true);
+  parpool_writelock('lock', 180, true); % Synchronisationsmittel für ParPool
+  try
+    parpool([1,Set.general.parcomp_maxworkers]);
+  catch err
+    fprintf('Fehler beim Starten des parpool: %s\n', err.message);
   end
+  parpool_writelock('free', 0, true);
   Pool=gcp();
   parfor_numworkers = Pool.NumWorkers;
   if ~isinf(Set.general.parcomp_maxworkers) && parfor_numworkers ~= Set.general.parcomp_maxworkers
@@ -311,13 +323,7 @@ if ~Set.general.regenerate_summmary_only
       end
     end
   end
-  resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
-  mkdirs(resdir_main); % Ergebnis-Ordner für diese Optimierung erstellen
   t1 = tic();
-  % Einstellungen dieser kombinierten Synthese speichern. Damit ist im
-  % Nachhinein nachvollziehbar, welche Roboter eventuell fehlen
-  save(fullfile(resdir_main, sprintf('%s_settings.mat', Set.optimization.optname)), ...
-    'Set', 'Traj', 'Structures');
   parfor (i = 1:length(Structures), parfor_numworkers)
     % Maßsynthese für diesen Roboter starten
     fprintf('Starte Maßsynthese für Roboter %d (%s)\n', i, Structures{i}.Name);
