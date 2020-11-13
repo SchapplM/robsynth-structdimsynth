@@ -331,6 +331,8 @@ parfor (i = 1:length_Structures, parfor_numworkers)
             'FaceColor', color, 'FaceAlpha', 0.1);
         case 3 % Kapsel
           drawCapsule(collobjset.params(jj,1:7),'FaceColor', color, 'FaceAlpha', 0.1);
+        case 4 % Kugel
+          drawSphere(collobjset.params(jj,1:4),'FaceColor', color, 'FaceAlpha', 0.1);
         otherwise
           warning('Geometrie mit Nummer %d kann nicht gezeichnet werden', collobjset.type(jj));
       end
