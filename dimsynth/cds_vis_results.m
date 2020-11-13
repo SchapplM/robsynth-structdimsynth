@@ -22,7 +22,7 @@
 % Erzeugt Bilder für jeden Roboter. In Klamern: Schalter in eval_figures
 % zum Auswählen des Bildes.
 % 1: Statistik der Ergebnisse ('histogram')
-% 2, 3: Animation (gesteuert durch Set.general.animation_styles)
+% 2, 3: Animation (gesteuert durch Set.general.animation_styles) ('robvisuanim')
 % 4: Trägheitsellipsen ('robvisu')
 % 5: Gelenkverläufe ('jointtraj')
 % 6: Diverse Auswertungen zur Fitness-Funktion ('fitness_various')
@@ -373,8 +373,10 @@ parfor (i = 1:length_Structures, parfor_numworkers)
     error('Modus %s für Animation nicht definiert', anim_mode);
   end
   R.anim( Q(I_anim,:), Traj_0.X(I_anim,:), s_anim, s_plot);
+  if any(strcmp(Set.general.eval_figures, 'robvisuanim')) % nur speichern, wenn gewünscht.
   saveas(10*i+1+kk,     fullfile(resrobdir, sprintf('Rob%d_%s_Skizze_%s.fig', i, Name, anim_mode)));
   export_fig(10*i+1+kk, fullfile(resrobdir, sprintf('Rob%d_%s_Skizze_%s.png', i, Name, anim_mode)));
+  end
   fprintf('%d/%d: Animation für %s gespeichert nach %s. Dauer: %1.1fs\n', ...
     i, length_Structures, Name, resrobdir, toc(t1));
   end
