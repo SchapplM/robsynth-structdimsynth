@@ -1188,7 +1188,8 @@ if ~any(strcmp(Set.optimization.objective, 'valid_act')) && ...
       'oder nicht gültig (ZB-Verletzung). Max IK-Fehler: %1.1e. %d Fehler > 1e-6. %d mal NaN.'], ...
       max(abs(PHI(:))), sum(sum(abs(PHI)>1e-6,2)>0), sum(isnan(Q(:))) ));
     % Vergleiche die neu berechnete Trajektorie und die aus der Fitness-Funktion
-    if Set.general.max_retry_bestfitness_reconstruction > 0
+    if Set.general.max_retry_bestfitness_reconstruction > 0 && ~isempty(Q_test) && ...
+        ~Set.general.isoncluster
       change_current_figure(654); clf;
       for i = 1:R.NJ
         subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i); hold on;

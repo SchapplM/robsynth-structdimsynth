@@ -155,6 +155,7 @@ if Set.general.computing_cluster
     Set_cluster = Set;
     Set_cluster.optimization.optname = [Set.optimization.optname, suffix]; % sonst wird bei Zerlegung mehrfach der gleiche Name benutzt.
     Set_cluster.general.computing_cluster = false; % auf Cluster muss "lokal" gerechnet werden
+    Set_cluster.general.isoncluster = true; % Damit einige Debug-Bilder reduziert werden können
     Set_cluster.general.parcomp_struct = true; % parallele Berechnung auf Cluster (sonst sinnlos)
     Set_cluster.general.parcomp_plot = true; % paralleles Plotten auf Cluster (ist dort gleichwertig und schneller)
     % Wähle nur einen Bereich aller möglicher Roboter aus für diesen Lauf.
