@@ -46,8 +46,8 @@ end
 if Set.general.matfile_verbosity > 2 + (~use_default_link_param) % weniger oft speichern, wenn Aufruf in desopt_fitness
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_design.mat'));
 end
-% Debug:
-% function R=cds_dimsynth_desopt()
+% Debug (dafür obiges auskommentieren und folgendes einkommentieren):
+% function R=cds_dimsynth_design()
 % desopt_debug = true;
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_design.mat'));
 
@@ -97,10 +97,15 @@ end
 
 %% Debug: Roboter zeichnen; in dieses Bild werden Debug-KS eingezeichnet
 if desopt_debug
-  figure(3000);clf;
+  change_current_figure(3000);clf;
+  subplot(1,2,1); hold on; view(3); axis auto; grid on; view([0,90])
   s = struct('mode', 1, 'ks', 1:R.NJ, 'straight', false);
-  R_pkin.plot(Q(1,1:R_pkin.NJ)', s); xlabel('x');ylabel('y');zlabel('z');
-  view([0,90])
+  R_pkin.plot(Q(1,1:R_pkin.NJ)', s); xlabel('x in m');ylabel('y in m');zlabel('z in m');
+  title('winklig (a/d erkennbar)');
+  subplot(1,2,2); hold on; view(3); axis auto; grid on; view([0,90])
+  s = struct('mode', 1, 'ks', 1:R.NJ, 'straight', true);
+  R_pkin.plot(Q(1,1:R_pkin.NJ)', s); xlabel('x in m');ylabel('y in m');zlabel('z in m');
+  title('direkt (Modell)');
 end
 
 %% EE-Zusatzlast
@@ -219,17 +224,23 @@ for i = 1:length(m_ges_Link)
         end
       end
     end
-    % Probe, ob Orientierung (R_i_Si) und berechnetes Ende des Segments (r_i_i_D)stimmen
+    % Berücksichtige den beta-Parameter (MDH-Notation nach Khalil). Das
+    % vorher benutzte KS i ist das KS vor Berücksichtigung der beta-Trafo
+    if R_pkin.MDH.beta(i) ~= 0
+      R_i_Si = rotz(R_pkin.MDH.beta(i))*R_i_Si;
+      r_i_i_D = rotz(R_pkin.MDH.beta(i))*r_i_i_D;
+    end
+    % Probe, ob Orientierung (R_i_Si) und berechnetes Ende des Segments (r_i_i_D) stimmen
     if any( abs(r_i_i_D - R_i_Si*[norm(r_i_i_D);0;0] ) > 1e-10)
       save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_design_error.mat'));
       error('Richtung des Segments stimmt nicht');
     end
-    % Probe: [A]/(10) (nur für Drehgelenke; wegen Maximallänge bei
-    % Schubgelenk
+    % Probe: [A]/(10) (nur für Drehgelenke; wegen Maximallänge bei Schubgelenk)
     r_i_i_ip1_test = R_i_Si*[norm(r_i_i_D);0;0];
     Tges=R_pkin.jtraf(zeros(R_pkin.NJ,1));
     r_i_i_ip1 = Tges(1:3,4,i);
     if R_pkin.MDH.sigma(i) == 0 && any(abs(r_i_i_ip1_test-r_i_i_ip1) > 1e-10)
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_design_error.mat'));
       error('Segment-Darstellung stimmt nicht');
     end
     %% Bestimme zusätzliche Dynamikparameter für Schubgelenke:
@@ -395,11 +406,11 @@ else
 end
 %% Debug: Bilder der verschiedenen Dynamikparameter
 if desopt_debug
-  figure(2000);clf;
+  change_current_figure(2000);clf;
   sphdl = NaN(2,3);
   for i = 1:6
-    sphdl(i) = subplot(2,3,i);
-    s = struct('mode', 3, 'ks', 1:R.NJ, 'straight', false);
+    sphdl(i) = subplot(2,3,i); hold on;
+    s = struct('mode', 3, 'ks', 1:R.NJ, 'straight', true);
     % Setze in die Roboterklasse nach und nach die einzelnen Komponenten
     % der Dynamikparameter ein und plotte jeweils. Am Ende Gesamt-Parameter
     % einsetzen (damit keine Beeinflussung folgender Berechnungen)
