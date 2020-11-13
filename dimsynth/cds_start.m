@@ -154,6 +154,10 @@ if Set.general.computing_cluster
     targetfile = fullfile(jobdir, [computation_name,'.m']);
     Set_cluster = Set;
     Set_cluster.optimization.optname = [Set.optimization.optname, suffix]; % sonst wird bei Zerlegung mehrfach der gleiche Name benutzt.
+    Set_cluster.general.noprogressfigure = true; % Fortschritts-Bild des PSO auf Cluster nicht notwendig
+    Set_cluster.general.plot_details_in_fitness = 0; % Keine Debug-Bilder
+    Set_cluster.general.plot_robot_in_fitness = 0;
+    Set_cluster.general.save_robot_details_plot_fitness_file_extensions = {}; % Auch nichts zum Debuggen speichern
     Set_cluster.general.computing_cluster = false; % auf Cluster muss "lokal" gerechnet werden
     Set_cluster.general.isoncluster = true; % Damit einige Debug-Bilder reduziert werden können
     Set_cluster.general.parcomp_struct = true; % parallele Berechnung auf Cluster (sonst sinnlos)
