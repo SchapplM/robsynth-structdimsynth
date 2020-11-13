@@ -303,7 +303,7 @@ parfor (i = 1:length_Structures, parfor_numworkers)
   if ~strcmp(get(10*i+1+kk, 'windowstyle'), 'docked')
     set(10*i+1+kk,'units','normalized','outerposition',[0 0 1 1]);
   end
-  title(sprintf('Rob. %d: fval=%s (%s)', i, fval_str, fval_text));
+  title(sprintf('Rob.%d %s: fval=%s (%s)', i, Name, fval_str, fval_text));
   view(3);
   axis auto
   hold on;grid on;
