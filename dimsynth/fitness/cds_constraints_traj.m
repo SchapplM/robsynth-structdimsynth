@@ -51,7 +51,10 @@ constrvioltext = '';
 
 %% Inverse Kinematik der Trajektorie berechnen
 % Einstellungen für IK in Trajektorien
-s = struct('normalize', false, ... % nicht notwendig, da Prüfen der Winkel-Spannweite. Außerdem sonst Sprung in Traj
+s = struct( ...
+  ... % kein Winkel-Normalisierung, da dadurch Sprung in Trajektorie und keine 
+  ... % Prüfung gegen vollständige Umdrehungen möglich
+  'normalize', false, ... 
   'retry_limit', 0, ... % keine Zufalls-Zahlen. Würde sowieso einen Sprung erzeugen.
   'n_max', 1000, ... % moderate Anzahl Iterationen
   'Phit_tol', 1e-10, 'Phir_tol', 1e-10);
@@ -316,10 +319,11 @@ if R.Type ~= 0 && Set.general.debug_calc
   end
 end
 %% Prüfe, ob die Gelenkwinkelgrenzen verletzt werden
-% Gleiche Prüfung wie in cds_constraints.m
-q_range_T = NaN(1, R.NJ);
-q_range_T(R.MDH.sigma==1) = diff(minmax2(Q(:,R.MDH.sigma==1)')');
-q_range_T(R.MDH.sigma==0) = angle_range( Q(:,R.MDH.sigma==0));
+% Andere Prüfung als in cds_constraints.m. Gehe davon aus, dass die
+% Trajektorie stetig und sprungfrei ist. Ist eine Winkelspannweite von mehr
+% als 360° erlaubt, ist die Prüfung auf Winkelspannweite mit angle_range
+% immer erfolgreich, auch wenn sich Gelenke mehrfach umdrehen.
+q_range_T = diff(minmax2(Q')');
 qlimviol_T = (qlim(:,2)-qlim(:,1))' - q_range_T;
 I_qlimviol_T = (qlimviol_T < 0);
 if any(I_qlimviol_T)
