@@ -39,7 +39,7 @@ msvges = NaN(length(Traj_0.t), 1);
 if R.Type == 0 % Seriell
   % Berechne Manipulierbarkeit für alle Punkte der Bahn
   for i = 1:length(Traj_0.t)
-    J_3T3R = R.jacobig(Q(i,:)');
+    J_3T3R = R.jacobia(Q(i,:)'); % analytisch wegen 3T2R; für alle anderen geht auch jacobig
     J_task = J_3T3R(Set.structures.DoF,:);
     msvges(i,:) = min(svd(J_task));
   end

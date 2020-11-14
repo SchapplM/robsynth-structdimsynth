@@ -27,7 +27,7 @@
 %   Hier: Maximaler Positionsfehler des Endeffektors (in Trajektorie)
 % 
 % Quelle:
-% * Skript Robotik II (Prof. Ortmaier, Uni Hannover), Kap. 1.6.3
+% * [Rob2LUH] Skript Robotik II (Prof. Ortmaier, Uni Hannover), Kap. 1.6.3
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-10
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
@@ -59,9 +59,9 @@ deltapges = NaN(length(Traj_0.t), 1);
 if R.Type == 0 % Seriell
   % Berechne Manipulierbarkeit für alle Punkte der Bahn
   for i = 1:length(Traj_0.t)
-    J_3T3R = R.jacobig(Q(i,:)');
-    J_transl = J_3T3R(Set.structures.DoF&logical([1 1 1 0 0 0]),:);
-    % Wähle translatorischen Teil der Jacobi aus
+    J_3T = R.jacobit(Q(i,:)'); % nur translatorisch
+    J_transl = J_3T(Set.structures.DoF(1:3),:);
+    % Berechne Positionsfehler (siehe [Rob2LUH])
     deltapges(i,:) = norm(abs(J_transl)*delta_qa);
   end
 else % PKM
@@ -69,9 +69,9 @@ else % PKM
   for i = 1:length(Traj_0.t)
     Jinv_IK = reshape(Jinvges(i,:), R.NJ, sum(R.I_EE));
     J = inv(Jinv_IK(R.I_qa,:));
-    J_transl = J(1:sum(Set.structures.DoF(1:3)),:);
-    % Determinante der Jacobi ist Kehrwert der Determinante der J.-Inversen
-    deltapges(i,:) = norm(abs(J_transl)*delta_qa);
+    % Wähle translatorischen Teil der Jacobi aus
+    J_transl = J(Set.structures.DoF(1:3),:);
+    deltapges(i,:) = norm(abs(J_transl)*delta_qa); % siehe [Rob2LUH]
   end
 end
 % Maximaler Fehler (über Trajektorie) ist Kennzahl
