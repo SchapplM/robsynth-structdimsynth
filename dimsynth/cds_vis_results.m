@@ -180,7 +180,9 @@ parfor (i = 1:length_Structures, parfor_numworkers)
   Erg_Zul_Gen_Hist = zeros(size(Erg_All_Gen2,1), length(edges)-1);
   for ii = 1:size(Erg_Zul_Gen_Hist,1)
     for jj = 2:length(edges)
-      Erg_Zul_Gen_Hist(ii,jj-1) = sum((Erg_All_Gen2(ii,:) > edges(jj-1)) & (Erg_All_Gen2(ii,:) < edges(jj)));
+      % Zähle die Partikel, die innerhalb der Grenze liegen oder auf der
+      % oberen Grenze liegen (falls eine NB "unendlich" (inf) schlecht ist).
+      Erg_Zul_Gen_Hist(ii,jj-1) = sum((Erg_All_Gen2(ii,:) > edges(jj-1)) & (Erg_All_Gen2(ii,:) <= edges(jj)));
     end
   end
 

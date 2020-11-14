@@ -50,32 +50,36 @@ for i = 1:length(Structures)
   % Text zu Optimierungsergebnis (insbes. Ausschlussgrund). Siehe
   % cds_constraints, cds_constraints_traj, cds_fitness, cds_vis_results
   % Strafterme aus den NB-Funktionen werden in cds_fitness erhöht.
+  % Die Zuordnung erfolgt mit "<=", da die Strafterme aus dem Bereich
+  % (0,1] kommen ("1" ist also möglich) und in den Zielbereich skaliert
+  % werden.
   f = mean(tmp.RobotOptRes.fval); % Falls mehrkriteriell abfangen mit `mean`
-  if f < 1e3,     fval_text = 'i.O.'; % ab hier aus cds_fitness.m
-  elseif f < 1e4, fval_text = 'NB-Verl. Zielf.';
-  elseif f < 1e5, fval_text = 'NB-Verl. Zielf. EO';
-  elseif f < 1e6, fval_text = 'Festigkeit Segmente';
-  elseif f < 1e7, fval_text = 'Kinematik-NB (Kond.)';
-  elseif f < 1e4*2e3, fval_text = 'AR-Hindernis Traj.'; % ab hier aus cds_constraints_traj.m
-  elseif f < 1e4*3e3, fval_text = 'Bauraum-verl. Traj.';
-  elseif f < 1e4*4e3, fval_text = 'Selbstkoll. Traj.';
-  elseif f < 1e4*5e3, fval_text = 'Konfig. springt.';
-  elseif f < 1e4*6e3, fval_text = 'Gel.-Geschw. Grenze Traj.';
-  elseif f < 1e4*9e3, fval_text = 'Gel.-Pos.-Grenze Traj.';
-  elseif f < 1e4*1e4, fval_text = 'Parasitäre Bew.';
-  elseif f < 1e4*2e4, fval_text = 'Traj.-IK Fehler (Beschl. 3T2R)';
-  elseif f < 1e4*3e4, fval_text = 'Traj.-IK Fehler (Geschw. 3T2R)';
-  elseif f < 1e4*4e4, fval_text = 'Traj.-IK Fehler (Pos. 3T2R)';
-  elseif f < 1e4*5e4, fval_text = 'Traj.-IK Fehler (Sing.)';
-  elseif f < 1e4*1e5, fval_text = 'Traj.-IK Fehler';
-  elseif f < 1e4*2e5, fval_text = 'AR-Hindernis Eckpkt.'; % ab hier aus cds_constraints.m
-  elseif f < 1e4*3e5, fval_text = 'Bauraum-verl. Eckpkt.';
-  elseif f < 1e4*4e5, fval_text = 'Selbstkoll. Eckpkt.';
-  elseif f < 1e4*5e5, fval_text = 'Gestelldurchmesser Eckpkt.';
-  elseif f < 1e4*1e6, fval_text = 'Gel.-Pos.-Grenze Eckpkt.';
-  elseif f < 1e4*1e7, fval_text = 'Eckpkt.-IK Fehler';
-  elseif f < 1e4*1e8, fval_text = 'Geom. Plausib.-Fehler 2.';
-  elseif f < 1e4*1e9, fval_text = 'Geom. Plausib.-Fehler 1.';
+  if     f <= 1e3,     fval_text = 'i.O.'; % ab hier aus cds_fitness.m
+  elseif f <= 1e4, fval_text = 'NB-Verl. Zielf.';
+  elseif f <= 1e5, fval_text = 'NB-Verl. Zielf. EO';
+  elseif f <= 1e6, fval_text = 'Festigkeit Segmente';
+  elseif f <= 1e7, fval_text = 'Kinematik-NB (Kond.)';
+  elseif f <= 1e4*2e3, fval_text = 'AR-Hindernis Traj.'; % ab hier aus cds_constraints_traj.m
+  elseif f <= 1e4*3e3, fval_text = 'Bauraum-verl. Traj.';
+  elseif f <= 1e4*4e3, fval_text = 'Selbstkoll. Traj.';
+  elseif f <= 1e4*5e3, fval_text = 'Konfig. springt.';
+  elseif f <= 1e4*6e3, fval_text = 'Gel.-Geschw. Grenze Traj.';
+  elseif f <= 1e4*9e3, fval_text = 'Gel.-Pos.-Grenze Traj.';
+  elseif f <= 1e4*1e4, fval_text = 'Parasitäre Bew.';
+  elseif f <= 1e4*2e4, fval_text = 'Traj.-IK Fehler (Beschl. 3T2R)';
+  elseif f <= 1e4*3e4, fval_text = 'Traj.-IK Fehler (Geschw. 3T2R)';
+  elseif f <= 1e4*4e4, fval_text = 'Traj.-IK Fehler (Pos. 3T2R)';
+  elseif f <= 1e4*5e4, fval_text = 'Traj.-IK Fehler (Sing.)';
+  elseif f <= 1e4*1e5, fval_text = 'Traj.-IK Fehler';
+  elseif f <= 1e4*2e5, fval_text = 'AR-Hindernis Eckpkt.'; % ab hier aus cds_constraints.m
+  elseif f <= 1e4*3e5, fval_text = 'Bauraum-verl. Eckpkt.';
+  elseif f <= 1e4*4e5, fval_text = 'Selbstkoll. Eckpkt.';
+  elseif f <= 1e4*5e5, fval_text = 'Gestelldurchmesser Eckpkt.';
+  elseif f <= 1e4*1e6, fval_text = 'Gel.-Pos.-Grenze Eckpkt.';
+  elseif f <= 1e4*1e7, fval_text = 'Eckpkt.-IK Fehler';
+  elseif f <= 1e4*1e8, fval_text = 'Geom. Plausib.-Fehler 2.';
+  elseif f <= 1e4*1e9, fval_text = 'Geom. Plausib.-Fehler 1.';
+  else,                fval_text = 'Nicht definierter Fall';  
   end
   
   % Allgemeine Daten des Optimierungsergebnisses
