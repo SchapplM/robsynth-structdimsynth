@@ -46,7 +46,6 @@ if structset.max_kin_redundancy > 0
 end
 
 EE_FG = structset.DoF;
-EE_FG_Mask = [1 1 1 1 1 1]; % Die FG müssen genauso auch vom Roboter erfüllt werden (0 darf nicht auch 1 sein)
 % Die FG in der SerRobLib sind anders kodiert: v_xyz, w_xyz, phiD_xyz
 % TODO: Vereinheitlichen mit ParRobLib
 if all(structset.DoF == [1 1 1 1 1 0])
@@ -54,7 +53,7 @@ if all(structset.DoF == [1 1 1 1 1 0])
   EE_FG_Mask_ser = [[1 1 1], [1 1 1], [1 1 0]];
 else
   EE_FG_ser = EE_FG;
-  EE_FG_Mask_ser = EE_FG_Mask;
+  EE_FG_Mask_ser = [1 1 1 1 1 1]; % Die FG müssen genauso auch vom Roboter erfüllt werden (0 darf nicht auch 1 sein)
 end
 
 ii = 0; % Laufende Nummer für alle Roboterstrukturen (seriell und parallel)
@@ -119,7 +118,7 @@ if structset.use_parallel
   else
     max_rankdeficit = 0;
   end
-  [~, PNames_Akt] = parroblib_filter_robots(sum(EE_FG), EE_FG, EE_FG_Mask, max_rankdeficit);
+  [~, PNames_Akt] = parroblib_filter_robots(EE_FG, max_rankdeficit);
   for j = 1:length(PNames_Akt)
     if ~isempty(structset.whitelist) && ~any(strcmp(structset.whitelist, PNames_Akt{j}))
       % Es gibt eine Liste von Robotern, dieser ist nicht dabei.

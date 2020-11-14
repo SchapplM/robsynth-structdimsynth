@@ -330,7 +330,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
             [Name, new] = parroblib_add_robot(N_Legs, LEG_Names, Actuation, Coupling, EE_FG);
             if new, fprintf('PKM %s zur Datenbank hinzugefügt. Jetzt weitere Untersuchung\n', Name);
             else,   error('PKM erst angeblich nicht in DB enthalten, jetzt aber doch'); end
-            [~, PNames_Akt] = parroblib_filter_robots(sum(EE_FG), EE_FG, EE_FG_Mask, 6);
+            [~, PNames_Akt] = parroblib_filter_robots(EE_FG, 6);
             Icheck = find(strcmp(PNames_Akt, Name));
           else
             fprintf('Der Roboter %s würde zur Datenbank hinzugefügt werden\n', PName);
