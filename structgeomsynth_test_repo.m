@@ -15,6 +15,7 @@ addpath(fullfile(this_repo_path, 'dimsynth', 'config'));
 cds_testcase_2T1R; close all;
 cds_testcase_3T0R; close all;
 cds_testcase_3T1R; close all;
+cds_testcase_3T2R; close all;
 cds_testcase_3T3R; close all;
 
 %% Testfälle zum Reproduzieren eines definierten Ergebnisses
