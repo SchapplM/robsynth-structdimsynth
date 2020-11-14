@@ -344,6 +344,8 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         Whitelist_PKM = [Whitelist_PKM;{Name}]; %#ok<AGROW>
       end
     end
+    % Aktualisiere die mat-Dateien (werden für die Maßsynthese benötigt)
+    if ~settings.dryrun, parroblib_gen_bitarrays(logical(EE_FG)); end
     parroblib_writelock('free', 'csv', logical(EE_FG), 0, true);
     if isempty(Whitelist_PKM)
       fprintf('Für FG %s und G%dP%d gibt es keine PKM.\n', EE_FG_Name, Coupling(1), Coupling(2));
@@ -811,6 +813,8 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         end
       end
     end
+    % Aktualisiere die mat-Dateien (neue Information zu Rangverlust/neue PKM)
+    parroblib_gen_bitarrays(logical(EE_FG));
     parroblib_writelock('free', 'csv', logical(EE_FG), 0, true);
     fprintf(['Fertig mit %s-PKM-Synthese für Koppelgelenk G%dP%d.\n', ...
       'Zusammenfassung: %d PKM funktionieren, %d nicht steuerbar, bei %d keine ', ...
