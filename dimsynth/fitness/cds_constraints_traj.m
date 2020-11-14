@@ -361,14 +361,20 @@ if any(~isinf(Structure.qDlim(:)))
       RP = ['R', 'P'];
       change_current_figure(1004);clf;
       for i = 1:R.NJ
-        legnum = find(i>=R.I1J_LEG, 1, 'last');
-        legjointnum = i-(R.I1J_LEG(legnum)-1);
+        if R.Type ~= 0
+          legnum = find(i>=R.I1J_LEG, 1, 'last');
+          legjointnum = i-(R.I1J_LEG(legnum)-1);
+        end
         subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
         hold on; grid on;
         plot(Traj_0.t, QD(:,i), '-');
         plot(Traj_0.t([1,end]), repmat(Structure.qDlim(i,:),2,1), 'r-');
         ylim(minmax2([QD(:,i);QD(:,i)]'));
-        title(sprintf('qD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+        if R.Type == 0
+          title(sprintf('qD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+        else
+          title(sprintf('qD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+        end
       end
       linkxaxes
       sgtitle('Gelenkgeschwindigkeiten');
