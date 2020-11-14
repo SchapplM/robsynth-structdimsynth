@@ -199,7 +199,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   % Startwert für die Trajektorien-IK)
   for i = size(Traj_0.XE,1):-1:1
     if Set.task.profile ~= 0 % Trajektorie wird weiter unten berechnet
-      if i == size(Traj_0.XE,1)-1
+      if i == size(Traj_0.XE,1)-1 % zweiter Berechneter Wert
         % Annahme: Kein Neuversuch der IK. Wenn die Gelenkwinkel zufällig neu
         % gewählt werden, springt die Konfiguration voraussichtlich. Dann ist
         % die Durchführung der Trajektorie unrealistisch.
@@ -247,6 +247,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         end
       end
     end
+    % Normalisiere den Winkel. Bei manchen Robotern springt das IK-Ergebnis
+    % sehr stark. Dadurch wird die Gelenkspannweite sonst immer verletzt.
+    q(R.MDH.sigma==0) = normalize_angle(q(R.MDH.sigma==0));
     Phi_E(i,:) = Phi;
     if ~any(isnan(q))
       q0 = q; % Annahme: Startwert für nächsten Eckwert nahe aktuellem Eckwert

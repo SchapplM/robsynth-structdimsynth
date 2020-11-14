@@ -102,8 +102,10 @@ optimization = struct( ...
   'base_morphology', false, ... % Aussehen des Gestells (z.B. Schrägheit, Gelenkpaarabstand)
   'platform_morphology', false, ... % Aussehen der Plattform (z.B. Gelenkpaarabstand)
   'rotate_base', false, ... % Orientierung der Roboter-Basis
-  'max_range_active_revolute', 270*pi/180, ... % Maximaler Drehwinkel aktiver Drehgelenke
-  'max_range_passive_revolute', 360*pi/180, ... % Maximaler Drehwinkel passiver Drehgelenke
+  ... % Begrenzung des Drehbereichs von Gelenken. Größere Drehung für Gelenk
+  ... % selbst unproblematisch. Eher Kollision bei mehrfacher Drehung schwer zu kontrollieren
+  'max_range_active_revolute', 400*pi/180, ... % Maximaler Drehwinkel aktiver Drehgelenke (mehr als volle Drehung für Motoren unproblematisch)
+  'max_range_passive_revolute', 720*pi/180, ... % Maximaler Drehwinkel passiver Drehgelenke (mechanisch geht unendlich oft bei Drehgelenken, bei Kugel/Kardan deutlich weniger)
   'max_velocity_passive_revolute', 20, ... % [rad/s] Maximale Drehgeschw. (zur Singularitätsvermeidung)
   'max_velocity_active_revolute', 8, ... % [rad/s] Maximale Drehgeschw. (zur Singularitätsvermeidung)
   'max_velocity_active_prismatic', 5, ... % [m/s] Maximale Geschw. (zur Singularitätsvermeidung)
