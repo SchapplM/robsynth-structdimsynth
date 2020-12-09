@@ -65,91 +65,6 @@ if R.Type == 0 % Seriell
 else % PKM
   qlim = cat(1,R.Leg(:).qlim);
   [Q, QD, QDD, PHI, Jinv_ges, ~, JP] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
-  if Set.general.debug_calc % Rechne nochmal mit Klassenmethode nach
-    [Q_debug, QD_debug, QDD_debug, PHI_debug, ~, ~, JP_debug] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s); %#ok<ASGLU>
-    ik_res_ik2 = (all(max(abs(PHI(:,R.I_constr_t_red)))<s.Phit_tol) && ...
-        all(max(abs(PHI(:,R.I_constr_r_red)))<s.Phir_tol));% IK-Status Funktionsdatei
-    ik_res_iks = (all(max(abs(PHI_debug(:,R.I_constr_t_red)))<s.Phit_tol) && ... 
-        all(max(abs(PHI_debug(:,R.I_constr_r_red)))<s.Phir_tol)); % IK-Status Klassenmethode
-    if ik_res_ik2 ~= ik_res_iks % Vergleiche IK-Status (Erfolg / kein Erfolg)
-      if Set.general.matfile_verbosity > 0
-        save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_trajik_error_debug.mat'));
-      end
-      % Hier keine Warnung wie oben. Traj.-IK darf nicht von Zufall abhängen.
-      % TODO: Wirklich Fehlermeldung einsetzen. Erstmal so lassen, da
-      % nicht kritisch.
-      cds_log(-1, sprintf(['Traj.-IK-Berechnung mit Funktionsdatei hat anderen ', ...
-        'Status (%d) als Klassenmethode (%d).'], ik_res_ik2, ik_res_iks));
-    end
-    % Prüfe, ob die ausgegebenen Gelenk-Positionen auch stimmen
-    for i = 1:size(Q,1)
-      JointPos_all_i_frominvkin = reshape(JP(i,:)',3,1+R.NJ+R.NLEG);
-      Tc_Lges = R.fkine_legs(Q(i,:)');
-      JointPos_all_i_fromdirkin = [zeros(3,1), squeeze(Tc_Lges(1:3,4,1:end))];
-      % Vergleiche die Positionen. In fkine_legs wird zusätzlich ein
-      % virtuelles EE-KS ausgegeben, nicht aber in invkin_ser.
-      for kk = 1:R.NLEG
-        test_JP = JointPos_all_i_frominvkin(:,kk+(-1+R.I1J_LEG(kk):R.I2J_LEG(kk))) - ...
-        JointPos_all_i_fromdirkin(:,kk*2+(-2+R.I1J_LEG(kk):-1+R.I2J_LEG(kk)));
-        if any(abs(test_JP(:)) > 1e-8)
-          if Set.general.matfile_verbosity > 0
-            save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_trajjointpos_error_debug.mat'));
-          end
-          error(['Ausgegebene Gelenkpositionen stimmen nicht gegen direkte ', ...
-            'Kinematik. Zeitpunkt %d, Beinkette %d. Max Fehler %1.1e'], i, kk, max(abs(test_JP(:))));
-        end
-      end
-    end
-    % Prüfe ob die Gelenk-Positionen aus Klasse und Vorlage stimmen
-    % (nur prüfen, wenn die IK erfolgreich war. Sonst große Fehler bei
-    % Zeitschritt des Abbruchs der Berechnung)
-    if ik_res_ik2 && ik_res_iks 
-      test_Q = Q-Q_debug;
-      if any(abs(test_Q(:))>1e-3)
-        if Set.general.matfile_verbosity > 0
-          save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_trajq_error_debug.mat'));
-        end
-        % Nur eine Warnung ausgeben. Bei schlecht konditionierten PKM oder
-        % bei Verzweigungspunkten der IK-Lösung können verschiedene
-        % Lösungen entstehen (durch numerische Abweichungen in der
-        % Implementierung). Dann springen Winkel um unterschiedliche Viel-
-        % fache von pi.
-        cds_log(-1,sprintf(['Ausgabevariable Q aus invkin_traj vs invkin2_traj stimmt nicht. ', ...
-          'Max Fehler %1.4e.'], max(abs(test_Q(:)))));
-      end
-      test_QD = QD-QD_debug;
-      if any(abs(test_QD(:))>1e-3) && ~any(abs(test_Q(:))>1e-3)
-        % Nur Geschwindigkeit testen, wenn Position erfolgreich war
-        if Set.general.matfile_verbosity > 0
-          save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_trajqD_error_debug.mat'));
-        end
-        error(['Ausgabevariable QD aus invkin_traj vs invkin2_traj stimmt nicht. ', ...
-          'Max Fehler %1.4e.'], max(abs(test_QD(:))));
-      end
-      test_QDD_abs = QDD-QDD_debug; % nahe Singularität große Zahlenwerte für QDD ...
-      test_QDD_rel = test_QDD_abs./QDD; % ... dadurch Numerik-Probleme möglich.
-      I_err = abs(test_QDD_abs)>1e-3 & abs(test_QDD_rel)>1e-3; % 0,1% Abweichung erlaubt
-      if any(I_err(:)) && ~any(abs(test_Q(:))>1e-3)
-        % Nur Beschleunigung testen, wenn Position erfolgreich war
-        if Set.general.matfile_verbosity > 0
-          save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_trajqDD_error_debug.mat'));
-        end
-        error(['Ausgabevariable QDD aus invkin_traj vs invkin2_traj stimmt nicht. ', ...
-          'Max Fehler abs %1.4e., rel %1.4f%%. Zuerst Zeitschritt %d.'], ...
-          max(abs(test_QDD_abs(:))), 100*max(abs(test_QDD_rel(:))), ...
-          find(any(I_err,2),1,'first'));
-      end
-      test_JPtraj = JP-JP_debug;
-      if any(abs(test_JPtraj(:))>1e-6) && ~any(abs(test_Q(:))>1e-3)
-        % Nur testen, wenn Gelenkkoordinaten übereinstimmen
-        if Set.general.matfile_verbosity > 0
-          save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_trajjointpos2_error_debug.mat'));
-        end
-        error(['Ausgabevariable JP aus invkin_traj vs invkin2_traj stimmt nicht. ', ...
-          'Max Fehler %1.1e.'], max(abs(test_JPtraj(:))));
-      end
-    end
-  end
 end
 % Anfangswerte nochmal neu speichern, damit der Anfangswert exakt der
 % Wert ist, der für die Neuberechnung gebraucht wird. Ansonsten ist die
@@ -193,7 +108,7 @@ if R.Type == 2 % nur PKM; TODO: Auch für seriell prüfen?
           error('Neu berechnete Geschwindigkeit aus Beinketten-Jacobi-Matrix stimmt nicht');
         end
       end
-      if kappa_jjkk > 1e8
+      if kappa_jjkk > 1e4
         IdxFirst = jj;
         break;
       end
@@ -212,6 +127,97 @@ if IdxFirst ~= 0
     kk, kappa_jjkk, (1-Failratio)*100, IdxFirst, length(Traj_0.t));
   return
 end
+
+%% IK mit zweiter Implementierung prüfen (nur Debug, für PKM)
+% Dieser Test wird nach der Prüfung der Jacobi-Matrix der Beinkette
+% durchgeführt. Annahme: Ist diese schlecht konditioniert, können bei den
+% beiden IK-Implementierungen verschiedene Ergebnisse herauskommen.
+if R.Type == 2 && Set.general.debug_calc % PKM; Rechne nochmal mit Klassenmethode nach
+  [Q_debug, QD_debug, QDD_debug, PHI_debug, ~, ~, JP_debug] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+  ik_res_ik2 = (all(max(abs(PHI(:,R.I_constr_t_red)))<s.Phit_tol) && ...
+      all(max(abs(PHI(:,R.I_constr_r_red)))<s.Phir_tol));% IK-Status Funktionsdatei
+  ik_res_iks = (all(max(abs(PHI_debug(:,R.I_constr_t_red)))<s.Phit_tol) && ... 
+      all(max(abs(PHI_debug(:,R.I_constr_r_red)))<s.Phir_tol)); % IK-Status Klassenmethode
+  if ik_res_ik2 ~= ik_res_iks % Vergleiche IK-Status (Erfolg / kein Erfolg)
+    if Set.general.matfile_verbosity > 0
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_trajik_error_debug.mat'));
+    end
+    % Hier keine Warnung wie oben. Traj.-IK darf nicht von Zufall abhängen.
+    % TODO: Wirklich Fehlermeldung einsetzen. Erstmal so lassen, da
+    % nicht kritisch.
+    cds_log(-1, sprintf(['Traj.-IK-Berechnung mit Funktionsdatei hat anderen ', ...
+      'Status (%d) als Klassenmethode (%d).'], ik_res_ik2, ik_res_iks));
+  end
+  % Prüfe, ob die ausgegebenen Gelenk-Positionen auch stimmen
+  for i = 1:size(Q,1)
+    JointPos_all_i_frominvkin = reshape(JP(i,:)',3,1+R.NJ+R.NLEG);
+    Tc_Lges = R.fkine_legs(Q(i,:)');
+    JointPos_all_i_fromdirkin = [zeros(3,1), squeeze(Tc_Lges(1:3,4,1:end))];
+    % Vergleiche die Positionen. In fkine_legs wird zusätzlich ein
+    % virtuelles EE-KS ausgegeben, nicht aber in invkin_ser.
+    for kk = 1:R.NLEG
+      test_JP = JointPos_all_i_frominvkin(:,kk+(-1+R.I1J_LEG(kk):R.I2J_LEG(kk))) - ...
+      JointPos_all_i_fromdirkin(:,kk*2+(-2+R.I1J_LEG(kk):-1+R.I2J_LEG(kk)));
+      if any(abs(test_JP(:)) > 1e-8)
+        if Set.general.matfile_verbosity > 0
+          save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_trajjointpos_error_debug.mat'));
+        end
+        error(['Ausgegebene Gelenkpositionen stimmen nicht gegen direkte ', ...
+          'Kinematik. Zeitpunkt %d, Beinkette %d. Max Fehler %1.1e'], i, kk, max(abs(test_JP(:))));
+      end
+    end
+  end
+  % Prüfe ob die Gelenk-Positionen aus Klasse und Vorlage stimmen
+  % (nur prüfen, wenn die IK erfolgreich war. Sonst große Fehler bei
+  % Zeitschritt des Abbruchs der Berechnung)
+  if ik_res_ik2 && ik_res_iks 
+    test_Q = Q-Q_debug;
+    if any(abs(test_Q(:))>1e-3)
+      if Set.general.matfile_verbosity > 0
+        save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_trajq_error_debug.mat'));
+      end
+      % Bei schlecht konditionierten PKM oder bei Verzweigungspunkten der
+      % IK-Lösung können verschiedene Lösungen entstehen (durch numerische 
+      % Abweichungen in der Implementierung). Dann springen Winkel um
+      % unterschiedliche Vielfache von pi. Darf hier nicht passieren, da
+      % Jacobi oben geprüft wurde.
+      error(['Ausgabevariable Q aus invkin_traj vs invkin2_traj stimmt nicht. ', ...
+        'Max Fehler %1.4e.'], max(abs(test_Q(:))));
+    end
+    test_QD = QD-QD_debug;
+    if any(abs(test_QD(:))>1e-3) && ~any(abs(test_Q(:))>1e-3)
+      % Nur Geschwindigkeit testen, wenn Position erfolgreich war
+      if Set.general.matfile_verbosity > 0
+        save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_trajqD_error_debug.mat'));
+      end
+      error(['Ausgabevariable QD aus invkin_traj vs invkin2_traj stimmt nicht. ', ...
+        'Max Fehler %1.4e.'], max(abs(test_QD(:))));
+    end
+    test_QDD_abs = QDD-QDD_debug; % nahe Singularität große Zahlenwerte für QDD ...
+    test_QDD_rel = test_QDD_abs./QDD; % ... dadurch Numerik-Probleme möglich.
+    I_err = abs(test_QDD_abs)>1e-3 & abs(test_QDD_rel)>1e-3; % 0,1% Abweichung erlaubt
+    if any(I_err(:)) && ~any(abs(test_Q(:))>1e-3)
+      % Nur Beschleunigung testen, wenn Position erfolgreich war
+      if Set.general.matfile_verbosity > 0
+        save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_trajqDD_error_debug.mat'));
+      end
+      error(['Ausgabevariable QDD aus invkin_traj vs invkin2_traj stimmt nicht. ', ...
+        'Max Fehler abs %1.4e., rel %1.4f%%. Zuerst Zeitschritt %d.'], ...
+        max(abs(test_QDD_abs(:))), 100*max(abs(test_QDD_rel(:))), ...
+        find(any(I_err,2),1,'first'));
+    end
+    test_JPtraj = JP-JP_debug;
+    if any(abs(test_JPtraj(:))>1e-6) && ~any(abs(test_Q(:))>1e-3)
+      % Nur testen, wenn Gelenkkoordinaten übereinstimmen
+      if Set.general.matfile_verbosity > 0
+        save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_trajjointpos2_error_debug.mat'));
+      end
+      error(['Ausgabevariable JP aus invkin_traj vs invkin2_traj stimmt nicht. ', ...
+        'Max Fehler %1.1e.'], max(abs(test_JPtraj(:))));
+    end
+  end
+end
+
 %% Plattform-Bewegung neu für 3T2R-Roboter berechnen
 % der letzte Euler-Winkel ist nicht definiert und kann beliebige Werte einnehmen).
 if all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
