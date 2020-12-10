@@ -43,7 +43,7 @@ general = struct( ...
   'max_retry_bestfitness_reconstruction', 10, ...
   'regenerate_summmary_only', false, ... % Nur die Videos und Zusammenfassungsbilder neu generieren. Keine Optimierung durchführen.
   'nosummary', false, ... % Kompletter Verzicht auf die graphische Endauswertung
-  'eval_figures', {{'histogram', 'fitness_various', 'jointtraj'}}, ... % Liste der zu erstellenden Bilder. Auswahl, siehe cds_vis_results.m
+  'eval_figures', {{'histogram', 'fitness_various', 'jointtraj', 'robvisuanim'}}, ... % Liste der zu erstellenden Bilder. Auswahl, siehe cds_vis_results.m
   'only_save_summary_figures', true, ... % Bilderzeugung dient hauptsächlich der Speicherung. Schließe alle Bilder nach Speicherung
   'noprogressfigure', false, ... % Verzicht auf Fortschritts-Bild des PSO
   'debug_calc', false, ... % Doppelte Berechnung zur Prüfung von Funktionen
@@ -51,6 +51,8 @@ general = struct( ...
   'parcomp_plot', 0, ... % Parallele Erzeugung der Ergebnisbilder und -videos
   'parcomp_maxworkers', inf, ... % Beschränkung der Anzahl paralleler Instanzen
   'computing_cluster', false, ... % Berechnung auf PBS-Cluster (Hochladen auf Server)
+  'isoncluster', false, ... % Merker, ob gerade auf dem Cluster gerechnet wird. Dann sind einige Bilder und Debug-Auswertungen unnötig.
+  'cluster_maxrobotspernode', inf, ... % Unbegrenzte Anzahl von Robotern auf jeder Cluster-Node. Niedrigere Zahl dient zur stärkeren Parallelisierung
   'compile_missing_functions', true, ... % Bei Start alle mex-Funktionen kompilieren
   'create_template_functions', false, ... % Erzeuge Funktionen neu aus Vorlagen-Dateien
   'use_mex', true);
@@ -100,8 +102,10 @@ optimization = struct( ...
   'base_morphology', false, ... % Aussehen des Gestells (z.B. Schrägheit, Gelenkpaarabstand)
   'platform_morphology', false, ... % Aussehen der Plattform (z.B. Gelenkpaarabstand)
   'rotate_base', false, ... % Orientierung der Roboter-Basis
-  'max_range_active_revolute', 270*pi/180, ... % Maximaler Drehwinkel aktiver Drehgelenke
-  'max_range_passive_revolute', 360*pi/180, ... % Maximaler Drehwinkel passiver Drehgelenke
+  ... % Begrenzung des Drehbereichs von Gelenken. Größere Drehung für Gelenk
+  ... % selbst unproblematisch. Eher Kollision bei mehrfacher Drehung schwer zu kontrollieren
+  'max_range_active_revolute', 400*pi/180, ... % Maximaler Drehwinkel aktiver Drehgelenke (mehr als volle Drehung für Motoren unproblematisch)
+  'max_range_passive_revolute', 720*pi/180, ... % Maximaler Drehwinkel passiver Drehgelenke (mechanisch geht unendlich oft bei Drehgelenken, bei Kugel/Kardan deutlich weniger)
   'max_velocity_passive_revolute', 20, ... % [rad/s] Maximale Drehgeschw. (zur Singularitätsvermeidung)
   'max_velocity_active_revolute', 8, ... % [rad/s] Maximale Drehgeschw. (zur Singularitätsvermeidung)
   'max_velocity_active_prismatic', 5, ... % [m/s] Maximale Geschw. (zur Singularitätsvermeidung)

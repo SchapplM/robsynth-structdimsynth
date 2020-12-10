@@ -71,7 +71,7 @@ else
   fval = 0;
 end
 %% Debug: Zeichnen der Situation
-if fval == 0 || fval >= Set.general.plot_details_in_fitness
+if fval == 0 || 1e4*fval >= Set.general.plot_details_in_fitness
   return
 end
 % Suche Datenpunkt mit größter Kollision

@@ -22,7 +22,7 @@
 % Erzeugt Bilder für jeden Roboter. In Klamern: Schalter in eval_figures
 % zum Auswählen des Bildes.
 % 1: Statistik der Ergebnisse ('histogram')
-% 2, 3: Animation (gesteuert durch Set.general.animation_styles)
+% 2, 3: Animation (gesteuert durch Set.general.animation_styles) ('robvisuanim')
 % 4: Trägheitsellipsen ('robvisu')
 % 5: Gelenkverläufe ('jointtraj')
 % 6: Diverse Auswertungen zur Fitness-Funktion ('fitness_various')
@@ -180,7 +180,9 @@ parfor (i = 1:length_Structures, parfor_numworkers)
   Erg_Zul_Gen_Hist = zeros(size(Erg_All_Gen2,1), length(edges)-1);
   for ii = 1:size(Erg_Zul_Gen_Hist,1)
     for jj = 2:length(edges)
-      Erg_Zul_Gen_Hist(ii,jj-1) = sum((Erg_All_Gen2(ii,:) > edges(jj-1)) & (Erg_All_Gen2(ii,:) < edges(jj)));
+      % Zähle die Partikel, die innerhalb der Grenze liegen oder auf der
+      % oberen Grenze liegen (falls eine NB "unendlich" (inf) schlecht ist).
+      Erg_Zul_Gen_Hist(ii,jj-1) = sum((Erg_All_Gen2(ii,:) > edges(jj-1)) & (Erg_All_Gen2(ii,:) <= edges(jj)));
     end
   end
 
@@ -303,7 +305,7 @@ parfor (i = 1:length_Structures, parfor_numworkers)
   if ~strcmp(get(10*i+1+kk, 'windowstyle'), 'docked')
     set(10*i+1+kk,'units','normalized','outerposition',[0 0 1 1]);
   end
-  title(sprintf('Rob. %d: fval=%s (%s)', i, fval_str, fval_text));
+  title(sprintf('Rob.%d %s: fval=%s (%s)', i, Name, fval_str, fval_text));
   view(3);
   axis auto
   hold on;grid on;
@@ -331,6 +333,8 @@ parfor (i = 1:length_Structures, parfor_numworkers)
             'FaceColor', color, 'FaceAlpha', 0.1);
         case 3 % Kapsel
           drawCapsule(collobjset.params(jj,1:7),'FaceColor', color, 'FaceAlpha', 0.1);
+        case 4 % Kugel
+          drawSphere(collobjset.params(jj,1:4),'FaceColor', color, 'FaceAlpha', 0.1);
         otherwise
           warning('Geometrie mit Nummer %d kann nicht gezeichnet werden', collobjset.type(jj));
       end
@@ -373,8 +377,10 @@ parfor (i = 1:length_Structures, parfor_numworkers)
     error('Modus %s für Animation nicht definiert', anim_mode);
   end
   R.anim( Q(I_anim,:), Traj_0.X(I_anim,:), s_anim, s_plot);
+  if any(strcmp(Set.general.eval_figures, 'robvisuanim')) % nur speichern, wenn gewünscht.
   saveas(10*i+1+kk,     fullfile(resrobdir, sprintf('Rob%d_%s_Skizze_%s.fig', i, Name, anim_mode)));
   export_fig(10*i+1+kk, fullfile(resrobdir, sprintf('Rob%d_%s_Skizze_%s.png', i, Name, anim_mode)));
+  end
   fprintf('%d/%d: Animation für %s gespeichert nach %s. Dauer: %1.1fs\n', ...
     i, length_Structures, Name, resrobdir, toc(t1));
   end

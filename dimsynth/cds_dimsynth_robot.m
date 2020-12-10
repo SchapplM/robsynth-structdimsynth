@@ -590,14 +590,14 @@ end
 % Plattform-Morphologie-Parameter (z.B. Gelenkpaarabstand).
 % Siehe align_platform_coupling.m
 if Structure.Type == 2 && Set.optimization.platform_morphology
-  if R.DesPar.platform_method == 1 % keine Parameter bei Kreis
-  elseif R.DesPar.platform_method == 4
+  if any(R.DesPar.platform_method == [1:3, 8]) % keine Parameter bei Kreis
+  elseif any(R.DesPar.platform_method == 4:6) % Parameter ist Gelenkpaarabstand (6FG-PKM)
     nvars = nvars + 1;
     vartypes = [vartypes; 9];
     varlim = [varlim; [0.2,0.8]]; % Gelenkpaarabstand. Relativ zu Plattform-Radius.
     varnames = {varnames{:}, 'platform_morph'}; %#ok<CCAT>
   else
-    error('platform_morphology Nicht implementiert');
+    error('Parameter "platform_morphology" für Platform-Methode %d nicht implementiert', R.DesPar.platform_method);
   end
 end
 % Variablen-Typen speichern
@@ -673,8 +673,8 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         % Umrechnung der Parameter ins Welt-KS: Notwendig. Aber hier
         % ignoriert.
       else
-        warning(['Die Kollisionsprüfung für die Führungsschiene des P-Gelenks ', ...
-          'an Stelle %d ist nicht definiert. Wird vorerst ignoriert.'], i);
+        cds_log(-1, sprintf(['[dimsynth] Die Kollisionsprüfung für die Führungsschiene des P-Gelenks ', ...
+          'an Stelle %d ist nicht definiert. Wird vorerst ignoriert.'], i));
         continue
         % Kapsel, zwei Punkte (im mitbewegten Körper-KS)
         collbodies.type = [collbodies.type; uint8(3)]; %#ok<UNRCH>
@@ -796,7 +796,8 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     % TODO: Kollision Beinketten mit Plattform und Gestell
   end
   if isempty(selfcollchecks_bodies)
-    warning('Es sind keine Kollisionskörpern eingetragen, obwohl Kollisionen geprüft werden sollen.');
+    cds_log(-1, sprintf(['[dimsynth] Es sind keine Kollisionskörpern eingetragen, ', ...
+      'obwohl Kollisionen geprüft werden sollen.']));
   elseif any(selfcollchecks_bodies(:,1)==selfcollchecks_bodies(:,2))
     error('Prüfung eines Körpers mit sich selbst ergibt keinen Sinn');
   end
@@ -833,7 +834,8 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       uint8([Structure.selfcollchecks_collbodies; CheckCombinations]);
   end
   if isempty(Structure.selfcollchecks_collbodies)
-    warning('Es sind keine Prüfungen von Kollisionskörpern vorgesehen');
+    cds_log(-1, sprintf(['[dimsynth] Es sind keine Prüfungen von Kollisions', ...
+      'körpern vorgesehen']));
     % Deaktiviere die Kollisionsprüfungen wieder
     Set.optimization.constraint_collisions = false;
     Set.task.obstacles.type = [];
@@ -1186,7 +1188,8 @@ if ~any(strcmp(Set.optimization.objective, 'valid_act')) && ...
       'oder nicht gültig (ZB-Verletzung). Max IK-Fehler: %1.1e. %d Fehler > 1e-6. %d mal NaN.'], ...
       max(abs(PHI(:))), sum(sum(abs(PHI)>1e-6,2)>0), sum(isnan(Q(:))) ));
     % Vergleiche die neu berechnete Trajektorie und die aus der Fitness-Funktion
-    if Set.general.max_retry_bestfitness_reconstruction > 0
+    if Set.general.max_retry_bestfitness_reconstruction > 0 && ~isempty(Q_test) && ...
+        ~Set.general.isoncluster
       change_current_figure(654); clf;
       for i = 1:R.NJ
         subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i); hold on;
