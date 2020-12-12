@@ -153,6 +153,13 @@ if R.Type ~= 0 && (Structure.calc_dyn_cut && ~Structure.calc_reg || Set.general.
   Wges = R.internforce_traj(Q, QD, QDD, TAU);
 end
 
+% Drehfeder in Gelenken berücksichtigen (nur PKM)
+if R.Type ~= 0 && Set.optimization.joint_stiffness_passive_revolute
+  TAU_spring = R.springtorque_actjoint_traj(Q, XP, JinvP_ges);
+  TAU = TAU + TAU_spring;
+end
+
+% Ausgabe belegen 
 if ~Structure.calc_reg && Structure.calc_dyn_act
   data_dyn.TAU = TAU;
   if Structure.calc_dyn_cut

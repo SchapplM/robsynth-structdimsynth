@@ -256,6 +256,14 @@ for iIKC = 1:size(Q0,1)
   % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_fitness_3.mat'));
 
   %% Berechnungen für Zielfunktionen
+  % Gelenk-Steifigkeit einsetzen (Sonderfall für Starrkörpergelenke)
+  if R.Type ~= 0 && Set.optimization.joint_stiffness_passive_revolute
+    % Ruhelage der Feder ist Mittelstellung der Gelenk-Trajektorie (erzeugt
+    % minimale Federmomente)
+    for i = 1:R.NLEG
+      R.Leg(i).DesPar.joint_stiffness_qref = mean(R.Leg(i).qlim,2);
+    end
+  end
   if ~Structure.calc_reg
     data_dyn2 = cds_obj_dependencies(R, Traj_0, Set, Structure, Q, QD, QDD, Jinv_ges);
   else

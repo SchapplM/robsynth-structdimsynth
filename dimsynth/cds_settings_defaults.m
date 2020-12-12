@@ -117,6 +117,7 @@ optimization = struct( ...
   'NumIndividuals', 50, ... % Anzahl der Partikel im PSO
   'MaxIter', 10, ... % Anzahl der Iterationen im PSO (zusätzlich zur initialen)
   'static_force_only', false, ... % Betrachte nur statische Kraft, keine Dynamik (egal ob Geschwindigkeit/Beschleunigung gegeben)
+  'joint_stiffness_passive_revolute', 0, ... % Zur Annahme von Drehfedern in den Gelenken. Ist Sonderfall für Festkörpergelenke.
   'nolinkmass', false, ... % Setze die Masse der Robotersegmente auf Null.
   'noplatformmass', false, ... % Setze die Masse der PKM-Plattform auf Null.
   'ElectricCoupling', true, ... % Kopplung der Achsen für Energieberechnung. TODO

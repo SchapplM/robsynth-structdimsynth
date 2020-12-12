@@ -19,6 +19,8 @@
 % [SierraCoe2005] Improving PSO-based multi-objective optimization 
 % using crowding, mutation and ϵ-dominance (2005)
 
+% Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
+% (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
 function RobotOptRes = cds_dimsynth_robot(Set, Traj, Structure)
 t1 = tic();
@@ -217,6 +219,16 @@ end
 %   R.update_base([0;0;0.5*Lref]);
 %   R.update_EE([0;0;-0.5*Lref]);
 % end
+
+% Gelenk-Steifigkeit einsetzen (Sonderfall für Starrkörpergelenke)
+if R.Type ~= 0 && Set.optimization.joint_stiffness_passive_revolute
+  for k = 1:R.NLEG
+    % Ruhelage der Feder muss erst später eingestellt werden (nach IK)
+    % Federsteifigkeit auf vorgegebenen Wert setzen.
+    R.Leg(k).DesPar.joint_stiffness(R.Leg(k).MDH.sigma==0) = ...
+      Set.optimization.joint_stiffness_passive_revolute;
+  end
+end
 %% Umfang der Berechnungen prüfen: Schnittkraft / Regressorform / Dynamik
 % Schalter zum Berechnen der Dynamik bezogen auf Antriebe
 calc_dyn_act = false;
