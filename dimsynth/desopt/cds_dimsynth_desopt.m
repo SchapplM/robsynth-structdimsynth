@@ -76,7 +76,7 @@ tic();
 fval_minpar = fitnessfcn_desopt(InitPop(1,:)');
 T2 = toc();
 avoid_optimization = false;
-if Set.optimization.constraint_link_yieldstrength > 0 && fval_minpar<1e3 && ...
+if Set.optimization.constraint_obj(6) > 0 && fval_minpar<1e3 && ...
   ~strcmp(Set.optimization.objective, 'stiffness') && Set.optimization.constraint_obj(5) == 0
   % Das schwächste Segment erfüllt alle Nebenbedingungen. Das Ergebnis muss
   % damit optimal sein (alle Zielfunktionen wollen Materialstärke minimieren)
@@ -85,7 +85,7 @@ if Set.optimization.constraint_link_yieldstrength > 0 && fval_minpar<1e3 && ...
   fval_opt = fval_minpar;
   p_val_opt = InitPop(1,:)';
 end
-if Set.optimization.constraint_link_yieldstrength == 0 && ...
+if Set.optimization.constraint_obj(6) == 0 && ...
   (strcmp(Set.optimization.objective, 'stiffness') || Set.optimization.constraint_obj(5) == 0)
   % Optimierung der Steifigkeit ohne Prüfung der Materialstärke. Die
   % stärkste Segmentauslegung könnte das Optimum darstellen.

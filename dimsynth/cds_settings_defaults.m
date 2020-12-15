@@ -84,12 +84,12 @@ structures = struct( ...
 % Optimierungsvariablen und Annahmen über die Roboter, die getroffen werden
 optimization = struct( ...
   'objective', {'energy'}, ... % Zielfunktion. Möglich: mass, energy, condition, 
-   ... % valid_kin, valid_act, actforce, stiffness, jointrange, manipulability, 
+   ... % valid_kin, valid_act, actforce, materialstress, stiffness, jointrange, manipulability, 
    ... % minjacsingval, positionerror; auch mehrere gleichzeitig möglich.
   'obj_jointrange', ... % Zusatzeinstellungen für die Zielfunktion "jointrange"
     struct( 'only_revolute', true, ... % Minimiere nur Wertebereich von Drehgelenken
             'only_passive', true), ... % Minimiere nur Wertebereich passiver Gelenke
-  'constraint_obj', zeros(5,1), ... % Nebenbedingungen, 1=Mass, 2=Energy, 3=Actforce, 4=Condition, 5=Stiffness; Eintrag entspricht physikalischem Wert
+  'constraint_obj', zeros(6,1), ... % Nebenbedingungen, 1=Mass, 2=Energy, 3=Actforce, 4=Condition, 5=Stiffness, 6=MaterialStress; Eintrag entspricht physikalischem Wert
   'movebase', true, ... % Position der Roboter-Basis
   'basepos_limits', NaN(3,2), ... % Grenzen für Basis-Position (Absolut, im Welt-KS)
   'ee_translation', true, ... % Freie Verschiebung des EE
@@ -110,7 +110,7 @@ optimization = struct( ...
   'max_velocity_active_revolute', 8, ... % [rad/s] Maximale Drehgeschw. (zur Singularitätsvermeidung)
   'max_velocity_active_prismatic', 5, ... % [m/s] Maximale Geschw. (zur Singularitätsvermeidung)
   'use_desopt', false, ... % Schalter für eigene Optimierung der Entwurfsparameter
-  'constraint_link_yieldstrength', 0, ... % Sicherheitsfaktor für Streckgrenze der Segmente als Nebenbedingung. 0=keine Berechnung
+  'safety_link_yieldstrength', 1, ... % Sicherheitsfaktor für Streckgrenze der Segmente als Nebenbedingung. Berechnung gesteuert über constraint_obj(6)
   'constraint_collisions', false, ... Schalter für Kollisionsprüfung
   'obj_limit', 0, ... % Grenze des Fitness-Wertes zum Beenden der Simulation
   'obj_limit_physval', 0, ... % Grenze für den physikalischen Wert zum Beenden

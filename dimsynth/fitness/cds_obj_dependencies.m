@@ -162,9 +162,9 @@ end
 % Ausgabe belegen 
 if ~Structure.calc_reg && Structure.calc_dyn_act
   data_dyn.TAU = TAU;
-  if Structure.calc_dyn_cut
-    data_dyn.Wges = Wges;
-  end
+end
+if ~Structure.calc_reg && Structure.calc_dyn_cut
+  data_dyn.Wges = Wges;
 end
 if Structure.calc_reg || Set.general.debug_calc
   if ~Structure.calc_dyn_cut && Structure.calc_dyn_act

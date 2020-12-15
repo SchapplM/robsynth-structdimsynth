@@ -19,9 +19,6 @@
 %   Enthält alle physikalischen Werte zu als Nebenbedingung möglichen Güte-
 %   kriterien. Siehe cds_settings_defaults. Reihenfolge: 
 %   1=Mass, 2=Energy, 3=Actforce, 4=Condition, 5=Stiffness;
-% f_maxstrengthviol
-%   Beansprachung der Materialspannung (1=Materialversagen)
-%   Aus cds_constr_yieldstrength.m
 % option
 %   Steuerungsparameter für das Verhalten der Funktion
 %   output: Nur Ausgabe der gespeicherten persistenten Variable
@@ -37,7 +34,7 @@
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
 function PSO_Detail_Data_output = cds_save_particle_details(Set, R, comptime, ...
-  fval, pval, physval, constraint_obj_val, f_maxstrengthviol, option)
+  fval, pval, physval, constraint_obj_val, option)
 if isnan(comptime) || any(isnan(fval))
   error('Rechenzeit darf nicht NaN sein');
 end
@@ -45,7 +42,7 @@ end
 persistent PSO_Detail_Data
 PSO_Detail_Data_output = [];
 % Eingabe verarbeiten
-if nargin < 9
+if nargin < 8
   option = 'iter';
 end
 if strcmp(option, 'output')
@@ -66,7 +63,6 @@ if isempty(PSO_Detail_Data) || strcmp(option, 'reset')
     'pval', NaN(size_data(2), length(pval), size_data(1)), ...
     'physval', NaN(size_data(2), length(fval), size_data(1)), ...
     'constraint_obj_val', NaN(size_data(2), length(constraint_obj_val), size_data(1)), ...
-    'f_maxstrengthviol', NaN(size_data), ...
     'q0_ik', NaN(size_data(2), length(q0), size_data(1)) );
   if strcmp(option, 'reset')
     return
@@ -85,5 +81,4 @@ PSO_Detail_Data.fval(j,:,i) = fval; % vollständiger Vektor bei mehrkriteriell
 PSO_Detail_Data.pval(j,:,i) = pval; % Parametersatz zu fval
 PSO_Detail_Data.physval(j,:,i) = physval; % physikalische Werte zu fval (ohne Sättigung/Normierung)
 PSO_Detail_Data.constraint_obj_val(j,:,i) = constraint_obj_val; % physikalische Werte zu Set.optimization.constraint_obj
-PSO_Detail_Data.f_maxstrengthviol(i,j) = f_maxstrengthviol; % Materialbelastung
 PSO_Detail_Data.q0_ik(j,:,i) = q0; % IK-Anfangswerte

@@ -44,7 +44,7 @@ constrvioltext = '';
 
 %% Konstanten, Definitionen
 % Sicherheitsfaktor für Materialspannung
-safety_factor = Set.optimization.constraint_link_yieldstrength;
+safety_factor = Set.optimization.safety_link_yieldstrength;
 % Dehngrenze von Aluminium-Legierung. Quellen:
 % https://de.wikipedia.org/wiki/Streckgrenze
 % https://de.wikipedia.org/wiki/Aluminium-Kupfer-Legierung
@@ -53,9 +53,6 @@ if R.Type == 0
 else
   R_e=R.Leg(1).DesPar.material(4);
 end
-
-% Reduziere wirksame Materialspannungsgrenze mit Sicherheitsfaktor
-R_e_eff = R_e / safety_factor;
 
 %% Berechnung der Materialspannung
 if R.Type == 0 % Seriell
@@ -127,6 +124,8 @@ end
 %% Debug-Plot für Schnittkräfte
 if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_details_in_desopt) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
    Set.general.plot_details_in_desopt > 0 && fval <= abs(Set.general.plot_details_in_desopt) % Gütefunktion ist besser als Schwellwert: Zeichne
+  % Reduziere wirksame Materialspannungsgrenze mit Sicherheitsfaktor
+  R_e_eff = R_e / safety_factor; % nur zum Plotten
   % Zeichne Materialspannungen (maßgeblich für Auslegung)
   change_current_figure(1999);clf;
   set(1999, 'Name', 'Materialspannung', 'NumberTitle', 'off');

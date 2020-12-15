@@ -68,6 +68,9 @@ for jj = 1:length(Set.optimization.objective)
     obj_units{jj} = 'J';
   elseif strcmp(Set.optimization.objective{jj}, 'actforce')
     obj_units{jj} = 'N or Nm';
+  elseif strcmp(Set.optimization.objective{jj}, 'materialstress')
+    obj_units{jj} = 'in %';
+    objscale(jj) = 100;
   elseif strcmp(Set.optimization.objective{jj}, 'stiffness')
     obj_units{jj} = 'm/N';
   elseif strcmp(Set.optimization.objective{jj}, 'jointrange')
@@ -275,14 +278,15 @@ parfor (i = 1:length_Structures, parfor_numworkers)
   % Verteilung der Materialbeanspruchung gegen die Jacobi-Konditionszahl
   % Streudiagramm
   subplot(2,2,3); hold all;
-  plot(log10(Jcond_all(:)), 100*PSO_Detail_Data.f_maxstrengthviol(:), 'kx');
+  f_maxstrengthviol_all = PSO_Detail_Data.constraint_obj_val(:, 6, :);
+  plot(log10(Jcond_all(:)), 100*f_maxstrengthviol_all(:), 'kx');
   plot([0;log10(max(Jcond_all(:)))], [100;100], 'g--'); % Grenze Material
   plot(log10(Set.optimization.constraint_obj(4))*[1;1], [0;100], 'r--'); % Grenze für Jacobi
   if sum(~isnan(unique(Jcond_all))) > 1
     xlim(log10(minmax2(Jcond_all(:)'))); % geht nur, wenn zwei Werte da sind
   end
-  if sum(~isnan(unique(PSO_Detail_Data.f_maxstrengthviol))) > 1
-    ylim(100*minmax2(PSO_Detail_Data.f_maxstrengthviol(:)'));
+  if sum(~isnan(unique(f_maxstrengthviol_all(:)))) > 1
+    ylim(100*minmax2(f_maxstrengthviol_all(:)'));
   end
   xlabel('Konditionszahl (log)');
   ylabel('Materialbeanspruchung in Prozent');
