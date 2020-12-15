@@ -65,7 +65,7 @@ end
 if fval == 0 && Structure.calc_reg
   % Abhängigkeiten neu berechnen (Dynamik)
   data_dyn = cds_obj_dependencies_regmult(R, data_dyn_reg);
-  if Set.general.debug_calc
+  if Set.general.debug_calc && Set.optimization.joint_stiffness_passive_revolute==0
     % Zu Testzwecken die Dynamik neu ohne Regressorform berechnen und mit
     % Regressor-Berechnung vergleichen
     Structure_tmp = Structure;
