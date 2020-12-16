@@ -23,7 +23,7 @@ Set.general.matfile_verbosity = 1;
 whitelist_all = {'S5PRRRR8V2', 'S5RPRRR7V1', 'S5RRRRR10', ...
    'P5PRRRR4G1P8A1', 'P5PRRRR6G9P8A1', 'P5RRPRR4G2P8A1', 'P5RRRRR5G2P8A1'};
 Traj = cds_gen_traj(DoF, 3, Set.task);
-cds_show_task(Traj, Set.task);
+cds_show_task(Traj, Set);
 for debugcalc = [0 1]
   for obj_name = {'condition', 'valid_act', 'mass', 'energy', 'actforce', 'materialstress', ...
       'stiffness', 'jointrange', 'manipulability', 'minjacsingval', 'positionerror'}

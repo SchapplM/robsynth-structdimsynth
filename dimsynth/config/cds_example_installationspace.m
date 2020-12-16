@@ -36,7 +36,7 @@ Set.task.obstacles = struct( ...
 Traj = cds_gen_traj(DoF, Traj_no, Set.task);
 Set.task.obstacles.type = [Set.task.obstacles.type; uint8(4)];
 Set.task.obstacles.params = [Set.task.obstacles.params; [0.5, 0.5, 0.7, 0.3, NaN(1,3)]];
-cds_show_task(Traj, Set.task); % Debug: Aufgabe anzeigen lassen
+cds_show_task(Traj, Set); % Debug: Aufgabe anzeigen lassen
 
 % Ziehe Trajektorie (ursprünglich Mittelpunkt [0.5 0.5 0]) auf [0 0 0.1]
 % Trajektorie muss in Bauraum liegen

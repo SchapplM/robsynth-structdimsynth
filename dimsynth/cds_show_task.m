@@ -3,8 +3,8 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-07
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function cds_show_task(Traj, TaskSet)
-
+function cds_show_task(Traj, Set)
+TaskSet = Set.task;
 
 %% Aufgabe
 T_ges = Traj.t;
@@ -97,7 +97,7 @@ for i = 1:(n_iobj+n_cobj)
     [params_W, NaN(1,10-length(params_W))]];
   collbodies.type = [collbodies.type; type_i];
 end
-legh = NaN(2,1); % Handles für Legende
+legh = NaN(3,1); % Handles für Legende
 for i = 1:size(collbodies.type,1)
   params_W = collbodies.params(i,:);
   if i <= n_iobj % Bauraum
@@ -148,11 +148,26 @@ for i = 1:size(collbodies.type,1)
     legh(2) = h(1);
   end
 end
+% Mögliche Basis-Positionen des Roboters
+bpmean = mean(Set.optimization.basepos_limits,2);
+if ~any(diff(Set.optimization.basepos_limits'))
+  % Basis ist als Punkt festgelegt.
+  legh(3) = plot3(bpmean(1),bpmean(2),bpmean(3), 'kx', 'MarkerSize', 3);
+else
+  % Basis kann in festgelegten Grenzen liegen
+  plot3(Set.optimization.basepos_limits(1,:)',bpmean(2)*[1;1],...
+    bpmean(3)*[1;1], 'k--', 'LineWidth', 3);
+  plot3(bpmean(1)*[1;1],Set.optimization.basepos_limits(2,:)',...
+    bpmean(3)*[1;1], 'k--', 'LineWidth', 3);
+  legh(3) = plot3(bpmean(1)*[1;1],bpmean(2)*[1;1],Set.optimization.basepos_limits(3,:)', ...
+    'k--', 'LineWidth', 3);
+end
 I_legh = ~isnan(legh);
 if any(I_legh)
-  lgtxt={'Bauraum (außerhalb unzulässig)', 'Hindernisse'};
+  lgtxt={'Bauraum (außerhalb unzulässig)', 'Hindernisse', 'Basis-Position'};
   legend(legh(I_legh), lgtxt(I_legh));
 end
+
 sgtitle('Trajektorie und Objekte');
 axis auto; 
 drawnow();
