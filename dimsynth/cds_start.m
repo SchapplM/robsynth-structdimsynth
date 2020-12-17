@@ -109,7 +109,13 @@ mkdirs(resdir_main); % Ergebnis-Ordner für diese Optimierung erstellen
 % die Maßsynthese im folgenden Schritt aufgeteilt wird.
 save(fullfile(resdir_main, sprintf('%s_settings.mat', Set.optimization.optname)), ...
   'Set', 'Traj', 'Structures');
-
+% Verzeichnisse zum Laden alter Ergebnisse vorbereiten
+if Set.optimization.InitPopRatioOldResults > 0
+  Set.optimization.result_dirs_for_init_pop = ...
+    [Set.optimization.result_dirs_for_init_pop, Set.optimization.resdir];
+else
+  Set.optimization.result_dirs_for_init_pop = {};
+end
 %% Berechnung auf PBS-Cluster vorbereiten und durchführen
 if Set.general.computing_cluster
   % Bereite eine Einstellungs-Datei vor

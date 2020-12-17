@@ -7,10 +7,6 @@
 %   Trajektorie (bezogen auf Welt-KS)
 % Structure
 %   Eigenschaften der Roboterstruktur
-% 
-% Ausgabe:
-% RobotOptRes
-%   Ergebnis-Struktur
 
 % Quellen:
 % [SchapplerTapOrt2019] Schappler, M. and Tappe, S., Ortmaier, T.:
@@ -22,7 +18,7 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function RobotOptRes = cds_dimsynth_robot(Set, Traj, Structure)
+function cds_dimsynth_robot(Set, Traj, Structure)
 t1 = tic();
 t_start = now(); % Anfangs-Zeitstempel der Optimierung dieses Roboters
 %% Debug: 
@@ -630,6 +626,7 @@ end
 % Variablen-Typen speichern
 Structure.vartypes = vartypes;
 Structure.varnames = varnames;
+Structure.varlim = varlim;
 assert(length(vartypes)==size(varlim,1), 'Anzahl der Variablen muss konsistent zur Anzahl der gesetzten Grenzen sein');
 assert(length(vartypes)==length(varnames), 'Abgespeicherte Variablennamen stimmen scheinbar nicht');
 assert(all(varlim(:,1)~=varlim(:,2)), 'Obere und untere Parametergrenze identisch. Optimierung nicht sinnvoll.')
@@ -957,7 +954,7 @@ end
 
 NumIndividuals = Set.optimization.NumIndividuals;
 % Generiere Anfangspopulation aus Funktion mit Annahmen bezüglich Winkel
-InitPop = cds_gen_init_pop(NumIndividuals,nvars,varlim,varnames,vartypes);
+InitPop = cds_gen_init_pop(Set, Structure);
 %% Optimierungs-Einstellungen festlegen
 if length(Set.optimization.objective) > 1 % Mehrkriteriell mit GA
   options = optimoptions('gamultiobj');
@@ -1341,13 +1338,17 @@ RobotOptRes = struct( ...
   'fval', fval, ... % Zielfunktionswert (nach dem optimiert wurde)
   'fval_obj_all', fval_obj_all, ... % Werte aller möglicher einzelner Zielf.
   'physval_obj_all', physval_obj_all, ... % Physikalische Werte aller Zielf.
-  'R', R, ... % Roboter-Klasse
   'p_val', p_val, ... % Parametervektor der Optimierung
   'fval_pareto', fval_pareto, ... % Alle Fitness-Werte der Pareto-Front
   'physval_pareto', physval_pareto, ... % physikalische Werte dazu
   'p_val_pareto', p_val_pareto, ... % Alle Parametervektoren der P.-Front
   'I_fval_obj_all', I_fval_obj_all, ... % Zuordnung der Fitness-Einträge zu fval_obj_all
   'p_limits', varlim, ... % Grenzen für die Parameterwerte
+  'timestamps_start_end', [t_start, t_end, toc(t1)], ...
+  'exitflag', exitflag, ...
+  'Structure', Structure);
+RobotOptDetails = struct( ...
+  'R', R, ... % Roboter-Klasse
   'options', options, ... % Optionen des Optimierungs-Algorithmus
   'q0', q, ... % Anfangs-Gelenkwinkel für Lösung der IK
   'Traj_Q', Q, ...
@@ -1355,8 +1356,6 @@ RobotOptRes = struct( ...
   'Traj_QDD', QDD, ...
   'Traj_PHI', PHI, ...
   'timestamps_start_end', [t_start, t_end, toc(t1)], ...
-  'exitflag', exitflag, ...
-  'Structure', Structure, ...
   'fitnessfcn', fitnessfcn);
 % Debug: Durch laden dieser Ergebnisse kann nach Abbruch des PSO das
 % Ergebnis trotzdem geladen werden
@@ -1366,7 +1365,10 @@ end
 % Gesamtergebnis der Optimierung speichern
 save(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
   sprintf('Rob%d_%s_Endergebnis.mat', Structure.Number, Structure.Name)), ...
-  'RobotOptRes', 'Set', 'Traj', 'PSO_Detail_Data');
+  'RobotOptRes');
+save(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+  sprintf('Rob%d_%s_Details.mat', Structure.Number, Structure.Name)), ...
+  'RobotOptDetails', 'PSO_Detail_Data');
 lfp = cds_log(1,sprintf(['[dimsynth] Optimierung von Rob. %d (%s) abgeschlossen. ', ...
   'Dauer: %1.1fs'], Structure.Number, Structure.Name, toc(t1)));
 % Log-Datei komprimieren und Textdatei löschen
