@@ -130,7 +130,7 @@ parfor (i = 1:length_Structures, parfor_numworkers)
   resrobdir = fullfile(resmaindir, sprintf('Rob%d_%s', i, Name));
   mkdirs(resrobdir); % Speicherort für Bilder dieses Roboters
   RobotOptRes = tmp1.RobotOptRes;
-  RobotOptDetails = tmp2.RobotOptRes;
+  RobotOptDetails = tmp2.RobotOptDetails;
   PSO_Detail_Data = tmp2.PSO_Detail_Data;
   R = RobotOptDetails.R;
   if Structure.Type == 0
