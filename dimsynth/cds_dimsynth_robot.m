@@ -101,11 +101,6 @@ elseif Structure.Type == 2 % Parallel
   % Klasse initialisierung (liest auch die csv-Dateien aus).
   R = parroblib_create_robot_class(Structure.Name, p_base(:), p_platform(:));
   NLEG = R.NLEG;
-  if Set.optimization.use_desopt && Set.optimization.constraint_obj(6) > 0
-    R.DynPar.mode = 3; % Benutze Inertialparameter-Dynamik, weil auch Schnittkräfte in Regressorform berechnet werden
-  else
-    R.DynPar.mode = 4; % Benutze Minimalparameter-Dynamikfunktionen für die PKM
-  end
   R.update_dynpar1(R.DynPar.mges, R.DynPar.rSges, R.DynPar.Icges); % Nochmal initialisieren, damit MPV definiert ist
 else
   error('Typ-Nummer nicht definiert');
@@ -158,13 +153,7 @@ for i = 1:NLEG
       Structure.qDlim = cat(1, R.Leg.qDlim);
     end
   end
-  
-  % Dynamikparameter setzen
-  if Set.optimization.use_desopt && Set.optimization.constraint_obj(6) > 0
-    R_init.DynPar.mode = 3; % Benutze Inertialparameter-Dynamik, weil auch Schnittkräfte in Regressorform berechnet werden
-  else
-    R_init.DynPar.mode = 4; % Benutze Minimalparameter-Dynamikfunktionen
-  end
+
   R_init.DesPar.joint_type((1:R_init.NJ)'==1&R_init.MDH.sigma==1) = 4; % Linearführung erste Achse
   R_init.DesPar.joint_type((1:R_init.NJ)'~=1&R_init.MDH.sigma==1) = 5; % Schubzylinder weitere Achse
   R_init.update_dynpar1(); % Nochmal initialisieren, damit MPV definiert ist
@@ -256,6 +245,28 @@ end
 Structure.calc_dyn_act = calc_dyn_act;
 Structure.calc_reg = calc_reg;
 Structure.calc_dyn_cut = calc_dyn_cut;
+
+%% Art der Dynamikparameter in der Roboter-Klasse einstellen
+if Structure.Type == 2 % Parallel
+  if calc_dyn_cut % Benutze Inertialparameter-Dynamik, weil auch Schnitt- ...
+    R.DynPar.mode = 3; % ... kräfte in Regressorform berechnet werden
+  else % Benutze Minimalparameter-Dynamikfunktionen für die PKM
+    R.DynPar.mode = 4;
+  end
+end
+for i = 1:NLEG % Das Gleiche für die seriellen Beinketten ...
+  if Structure.Type == 0
+    R_init = R; % ... oder den seriellen Roboter
+  else
+    R_init = R.Leg(i);
+  end
+  % Dynamikparameter setzen
+  if calc_dyn_cut
+    R_init.DynPar.mode = 3;
+  else
+    R_init.DynPar.mode = 4;
+  end
+end
 %% Optimierungsparameter festlegen
 nvars = 0; vartypes = []; varlim = [];
 
