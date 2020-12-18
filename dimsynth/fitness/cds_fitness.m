@@ -164,9 +164,14 @@ for iIKC = 1:size(Q0,1)
     end
   end
   Q_IKC(:,:,iIKC) = Q;
-  % Normalisieren der Winkel (erst hier durchführen, da einige Prüfungen oben
-  % davon beeinflusst werden).
-  Q(:,R.MDH.sigma==0) = wrapToPi(Q(:,R.MDH.sigma==0));
+  % Kein Normalisieren der Winkel (wenn dann erst hier durchführen, da
+  % einige Prüfungen oben davon beeinflusst werden).
+  % Falls Gelenksteifigkeiten vorgesehen sind springt das Federmoment.
+  % Normalisiere nur den ersten Wert, falls dieser bereits jenseits pi ist.
+  qoff_norm = Q(1,R.MDH.sigma==0)-wrapToPi(Q(1,R.MDH.sigma==0));
+  if any(qoff_norm)
+    Q(:,R.MDH.sigma==0) = Q(:,R.MDH.sigma==0) - repmat(qoff_norm,size(Q,1),1);
+  end
   if R.Type == 0
     R.qref(R.MDH.sigma==0) = wrapToPi(R.qref(R.MDH.sigma==0));
   else
