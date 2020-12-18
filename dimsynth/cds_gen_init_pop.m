@@ -21,6 +21,9 @@ varnames = Structure.varnames;
 vartypes = Structure.vartypes;
 nvars = length(varnames);
 %% Lade Ergebnisse bisheriger Optimierungen aus dem Ergebnis-Ordner
+t1 = tic();
+counter_optdirs = 0;
+counter_filesize = 0;
 InitPopLoadTmp = [];
 ScoreLoad = [];
 RobName = Structure.Name;
@@ -54,9 +57,11 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
     
     % Daten laden (Keine Abbruchbedingung)
     d = load(fullfile(dirname_i, resfiles(II).name));
+    counter_filesize = counter_filesize + resfiles(II).bytes;
     if ~isfield(d.RobotOptRes, 'p_val_pareto')
       continue % Altes Dateiformat
     end
+    counter_optdirs = counter_optdirs + 1;
     % Einstellungen laden
     if ~isempty(sflist)
       settings_i = load(fullfile(dirname_i, sflist(1).name));
@@ -136,8 +141,9 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
     end
     % Eigentliche Prüfung der Parametergrenzen
     I_param_iO = all(ll_repmat <= pval_i & ul_repmat >= pval_i,2);
-    cds_log(1, sprintf(['[cds_gen_init_pop] Auswertung %s geladen. Bewertung: %d. Bei %d/%d ', ...
-      'Parametergrenzen passend.'], optdirs(i).name, score_i, sum(I_param_iO), size(pval_i,1)));
+    cds_log(1, sprintf(['[cds_gen_init_pop] Auswertung %d/%d (%s) geladen. ', ...
+      'Bewertung: %d. Bei %d/%d Parametergrenzen passend.'], i, length(optdirs), ...
+      optdirs(i).name, score_i, sum(I_param_iO), size(pval_i,1)));
     if any(~I_param_iO)
       for jjj = find(~I_param_iO)'
         I_pniO = varlim(:,1)' > pval_i(jjj,:) | varlim(:,2)' < pval_i(jjj,:);
@@ -208,6 +214,7 @@ for i = 1:nvars
 end
 %% Mische die Populationen
 InitPop = [InitPopLoad(1:nIndLoad,:); InitPopRand(1:nIndRand,:)];
-cds_log(1, sprintf(['[cds_gen_init_pop] %d Partikel für Initialpopulation aus vorherigen ', ...
-  'Optimierungen geladen. Davon %d genommen. Die restlichen %d zufällig.'], ...
-  size(InitPopLoad,1), nIndLoad, nIndRand));
+cds_log(1, sprintf(['[cds_gen_init_pop] %d Partikel für Initialpopulation ', ...
+  'aus %d vorherigen Optimierungen geladen (%1.1fMB). Dauer: %1.1fs. ', ...
+  'Davon %d genommen. Die restlichen %d zufällig.'], size(InitPopLoad,1), ...
+  counter_optdirs, counter_filesize/1e6, toc(t1), nIndLoad, nIndRand));
