@@ -36,10 +36,6 @@ fighdl = get(axhdl, 'Parent');
 uihdl = findobj(fighdl, 'Type', 'UIControl');
 Selection = get(uihdl, 'Value');
 SelStr = get(uihdl,'String');
-if strcmp(SelStr(Selection), 'Auswahl')
-  fprintf('Wähle eine Auswertung vor dem Klick auf einen Datenpunkt\n');
-  return
-end
 fprintf('Starte Vorbereitung und Plot für %s/%s (Rob. %d) "%s"\n', ...
   OptName, RobName, RobNr, SelStr{Selection});
 %% Lade die Daten
@@ -119,27 +115,29 @@ p = RobotOptRes.p_val_pareto(PNr,:)';
 if isempty(RobotOptDetails)
   % Falls nur die reduzierten Ergebnis-Daten vorliegen
   [R, Structure] = cds_dimsynth_robot(Set, Traj, Structure, true);
-  [fval2, ~, Q, QD, QDD] = cds_fitness(R,Set,Traj,Structure,p);
+  [fval2, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure,p);
 else
   % Alternative Berechnung (erfordert Laden der Detail-Daten).
   % Hier ist die Reproduktion der Zielfunktion besser möglich, da Anfangs-
   % werte für die Gelenkwinkel besser passen.
-  [fval2, ~, Q, QD, QDD] = RobotOptDetails.fitnessfcn(p);
+  [fval2, ~, Q, QD, QDD, TAU] = RobotOptDetails.fitnessfcn(p);
   R = RobotOptDetails.R;
 end
 if any(abs(fval-fval2) > 1e-4)
   warning(['Fitness-Wert von [%s] aus Pareto-Front konnte nicht reproduziert ', ...
     'werden (neu: [%s])'], disp_array(fval', '%1.4f'), disp_array(fval2', '%1.4f'));
 end
-RobotOptDetails = struct('Traj_Q', Q, 'Traj_QD', QD, 'Traj_QDD', QDD, 'R', R);
+RobotOptDetails = struct('Traj_Q', Q, 'Traj_QD', QD, 'Traj_QDD', QDD, 'R', R, ...
+  'Dyn_Tau', TAU);
+
 %% Rufe die Plot-Funktion auf
 t2=tic();
-if strcmp(SelStr(Selection), 'Kinematik')
-  cds_vis_results_figures('jointtraj', Set, Traj, RobData, ResTab, ...
-    RobotOptRes, RobotOptDetails);
-end
 if strcmp(SelStr(Selection), 'Visualisierung')
   cds_vis_results_figures('robvisu', Set, Traj, RobData, ResTab, ...
+    RobotOptRes, RobotOptDetails);
+end
+if strcmp(SelStr(Selection), 'Kinematik')
+  cds_vis_results_figures('jointtraj', Set, Traj, RobData, ResTab, ...
     RobotOptRes, RobotOptDetails);
 end
 if strcmp(SelStr(Selection), 'Animation')
@@ -149,5 +147,13 @@ if strcmp(SelStr(Selection), 'Animation')
   cds_vis_results_figures('animation', Set, Traj, RobData, ResTab, ...
     RobotOptRes, RobotOptDetails);
 end
+if strcmp(SelStr(Selection), 'Dynamik')
+  cds_vis_results_figures('dynamics', Set, Traj, RobData, ResTab, ...
+    RobotOptRes, RobotOptDetails);
+end
+if strcmp(SelStr(Selection), 'Dynamikparameter')
+  cds_vis_results_figures('dynparvisu', Set, Traj, RobData, ResTab, ...
+    RobotOptRes, RobotOptDetails);
+end
 fprintf('Bilder gezeichnet. Dauer: %1.1fs zur Vorbereitung, %1.1fs zum Zeichnen.\n', ...
-  toc(t2), toc(t1)-toc(t2));
+  toc(t1)-toc(t2), toc(t2));

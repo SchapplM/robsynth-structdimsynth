@@ -40,7 +40,12 @@ else % Mehrkriteriell
   fval_str = ['[',disp_array(RobotOptRes.fval', '%1.1f'),']'];
 end
 %% Animation
-if ~strcmp(figname, 'animation')
+if strcmp(figname, 'robvisu')
+  % Die Roboter-Visualisierung ist größtenteils identisch zur Animation.
+  % Nur dass nicht animiert wird, sondern dass erste Standbild genommen
+  % wird.
+  Set.general.animation_styles = {'3D'};
+elseif ~strcmp(figname, 'animation')
   Set.general.animation_styles = {};
 end
 
@@ -124,10 +129,16 @@ for kk = 1:length(Set.general.animation_styles)
   else
     error('Modus %s für Animation nicht definiert', anim_mode);
   end
-  R.anim( RobotOptDetails.Traj_Q(I_anim,:), Traj_0.X(I_anim,:), s_anim, s_plot);
+  if strcmp(figname, 'animation')
+    R.anim( RobotOptDetails.Traj_Q(I_anim,:), Traj_0.X(I_anim,:), s_anim, s_plot);
+  else
+    R.plot( RobotOptDetails.Traj_Q(1,:)', Traj_0.X(1,:)', s_plot);
+  end
   if any(strcmp(Set.general.eval_figures, 'robvisuanim')) % nur speichern, wenn gewünscht.
-  saveas(fhdl,     fullfile(resrobdir, sprintf('Rob%d_%s_P%d_Skizze_%s.fig', RNr, Name, PNr, anim_mode)));
-  export_fig(fhdl, fullfile(resrobdir, sprintf('Rob%d_%s_P%d_Skizze_%s.png', RNr, Name, PNr, anim_mode)));
+  fname = sprintf('Rob%d_%s_P%d_Skizze_%s', RNr, Name, PNr, anim_mode);
+  saveas(fhdl,     fullfile(resrobdir, [fname, '.fig']));
+  export_fig(fhdl, fullfile(resrobdir, [fname, '.png']));
+  fprintf('Bild %s gespeichert: %s\n', fname, resrobdir);
   end
 end
 %% Kinematik-Bild
@@ -186,19 +197,120 @@ if strcmp(figname, 'jointtraj')
   plot(Traj_0.t, Traj_0.XDD);
   grid on; ylabel('xDD in m/s² oder rad/s²');
   linkxaxes;
-  saveas(fhdl,     fullfile(resrobdir, sprintf('Rob%d_%s_P%d_KinematikZeit.fig', RNr, Name, PNr)));
-  export_fig(fhdl, fullfile(resrobdir, sprintf('Rob%d_%s_P%d_KinematikZeit.png', RNr, Name, PNr)));
+  fname = sprintf('Rob%d_%s_P%d_KinematikZeit', RNr, Name, PNr);
+  saveas(fhdl,     fullfile(resrobdir, [fname, '.fig']));
+  export_fig(fhdl, fullfile(resrobdir, [fname, '.png']));
+  fprintf('Bild %s gespeichert: %s\n', fname, resrobdir);
 end
-%% Zeichnung der Roboters mit Trägheitsellipsen und Ersatzdarstellung
-if strcmp(figname, 'robvisu')
-  fhdl = figure();clf;hold all;
-  set(fhdl, 'Name', sprintf('Rob%d_P%d_Visu', RNr, PNr), 'NumberTitle', 'off', 'color','w');
+%% Rechne die Dynamik neu nach
+if strcmp(figname, 'dynamics')
+  Q = RobotOptDetails.Traj_Q;
+  QD = RobotOptDetails.Traj_QD;
+  QDD = RobotOptDetails.Traj_QDD;
+  if RobData.Type == 0
+    Dyn_C = NaN(size(Q,1),R.NJ);
+    Dyn_G = Dyn_C; Dyn_A = Dyn_C; Dyn_Tau = Dyn_C; Dyn_S = Dyn_C;
+    for i = 1:size(Q,1)
+      Dyn_C(i,:) = R.coriolisvec(Q(i,:)', QD(i,:)');
+      Dyn_G(i,:) = R.gravload(Q(i,:)');
+      Dyn_A(i,:) = R.inertia(Q(i,:)', QD(i,:)')*QDD(i,:)';
+      Dyn_Tau(i,:) = R.invdyn(Q(i,:)', QD(i,:)', QDD(i,:)');
+      Dyn_S(i,:) = 0; % keine Federn in Gelenken bei seriellen Robotern
+    end
+  else
+    Dyn_C = NaN(size(Q,1),sum(R.I_qa));
+    Dyn_G = Dyn_C; Dyn_A = Dyn_C; Dyn_Tau = Dyn_C; Dyn_S = Dyn_C;
+    for i = 1:size(Q,1)
+      % Dynamik berechnen. Siehe cds_obj_dependencies und ParRob.
+      % Trajektorie in Plattform-Koordinaten umrechnen
+      [xP, xPD, xPDD] = R.xE2xP(Traj_0.X(i,:)', Traj_0.XD(i,:)', Traj_0.XDD(i,:)');
+      % Jacobi-Matrix aufstellen (auf Plattform bezogen
+      G_q = R.constr1grad_q(Q(i,:)', xP, true);
+      G_x = R.constr1grad_x(Q(i,:)', xP, true);
+      JinvP = - G_q \ G_x; % Siehe: ParRob/jacobi_qa_x
+      Jinv_qaD_xD = JinvP(R.I_qa,:); % Auf Antriebsgelenke beziehen
+      % Jacobi-Matrix auf Winkelgeschwindigkeiten beziehen. Siehe ParRob/jacobi_qa_x
+      if size(Jinv_qaD_xD,2) == 6
+        T = [eye(3,3), zeros(3,3); zeros(3,3), euljac(xP(4:6), R.phiconv_W_E)];
+        Jinv_qaD_sD = Jinv_qaD_xD / T;
+      else
+        % Nehme an, dass keine räumliche Drehung vorliegt. TODO: Fall 3T2R
+        Jinv_qaD_sD = Jinv_qaD_xD;
+      end
+      % Einzelne Terme der Dynamik berechnen und auf Antriebe umrechnen.
+      Dyn_C(i,:) = Jinv_qaD_sD' \ R.coriolisvec2_platform(Q(i,:)', QD(i,:)', xP, xPD, JinvP);
+      Dyn_G(i,:) = Jinv_qaD_sD' \ R.gravload2_platform(Q(i,:)', xP, JinvP);
+      Dyn_A(i,:) = Jinv_qaD_sD' \ (R.inertia2_platform(Q(i,:)', xP, JinvP)*xPDD(R.I_EE));
+      Dyn_S(i,:) = Jinv_qaD_sD' \ R.springtorque_platform(Q(i,:)', xP, JinvP);
+      Dyn_Tau(i,:) = Dyn_S(i,:)' + Jinv_qaD_sD' \ ...
+        R.invdyn2_platform(Q(i,:)', QD(i,:)', QDD(i,:)', xP, xPD, xPDD);
+    end
+  end
+  % Ergebnis aus der Optimierung (Fitness-Funktion)
+  if ~isfield(RobotOptDetails, 'Dyn_Tau') || isempty(RobotOptDetails.Dyn_Tau)
+    Dyn_Tau_fitness = NaN(size(Dyn_Tau));
+  else
+    Dyn_Tau_fitness = RobotOptDetails.Dyn_Tau;
+  end
+  % Vergleiche Neuberechnung mit Daten aus der Optimierung
+  test_TAU = Dyn_Tau - Dyn_Tau_fitness;
+  if any(abs(test_TAU(:)) > 1e-6)
+    warning('Antriebsmomente konnten nicht reproduziert werden. Fehler: %1.3e', ...
+      max(abs(test_TAU(:))));
+  end
+  % Prüfe, ob Summe stimmt
+  test_TAU2 = Dyn_Tau - (Dyn_C+Dyn_G+Dyn_A+Dyn_S);
+  if any(abs(test_TAU2(:)) > 1e-6)
+    warning('Summe bei Berechnung der inversen Dynamik stimmt nicht. Fehler: %1.3e', ...
+      max(abs(test_TAU2(:))));
+  end
+end
+
+%% Dynamik-Bild
+if strcmp(figname, 'dynamics')
+  fhdl = figure(); clf; hold all;
+  set(fhdl, 'Name', sprintf('Rob%d_P%d_DynamikZeit', RNr, PNr), ...
+    'NumberTitle', 'off', 'color','w');
   if ~strcmp(get(fhdl, 'windowstyle'), 'docked')
     set(fhdl,'units','normalized','outerposition',[0 0 1 1]);
   end
   sgtitle(sprintf('Rob.%d, P.%d: fval=%s', RNr, PNr, fval_str));
-  plotmode = [1 3 4];
-  for jj = 1:3
+  ntau = size(Dyn_Tau, 2);
+  if RobData.Type == 0
+    plotunits = R.tauunit_sci;
+  else
+    units = reshape([R.Leg(:).tauunit_sci],R.NJ,1);
+    plotunits = units(R.I_qa);
+  end
+  for i = 1:ntau
+    subplot(ceil(sqrt(ntau)), ceil(ntau/ceil(sqrt(ntau))), i);
+    hold on; grid on;
+    plot(Traj_0.t, Dyn_C(:,i));
+    plot(Traj_0.t, Dyn_G(:,i));
+    plot(Traj_0.t, Dyn_A(:,i));
+    plot(Traj_0.t, Dyn_S(:,i));
+    plot(Traj_0.t, Dyn_Tau(:,i));
+    plot(Traj_0.t, Dyn_Tau_fitness(:,i), '--');
+    ylabel(sprintf('\\tau_%d in %s', i, plotunits{i}));
+  end
+  legend({'Cor.', 'Grav.', 'Acc.', 'Spring', 'Sum', 'Sum (fitness)'});
+  linkxaxes;
+  fname = sprintf('Rob%d_%s_P%d_Antriebskraft_Dynamik', RNr, Name, PNr);
+  saveas(fhdl,     fullfile(resrobdir, [fname, '.fig']));
+  export_fig(fhdl, fullfile(resrobdir, [fname, '.png']));
+  fprintf('Bild %s gespeichert: %s\n', fname, resrobdir);
+end
+%% Zeichnung der Roboters mit Trägheitsellipsen und Ersatzdarstellung
+if strcmp(figname, 'dynparvisu')
+  fhdl = figure();clf;hold all;
+  set(fhdl, 'Name', sprintf('Rob%d_P%d_DynParVisu', RNr, PNr), 'NumberTitle', 'off', 'color','w');
+  if ~strcmp(get(fhdl, 'windowstyle'), 'docked')
+    set(fhdl,'units','normalized','outerposition',[0 0 1 1]);
+  end
+  sgtitle(sprintf('Rob.%d, P.%d: fval=%s', RNr, PNr, fval_str));
+  plotmode = [1 3 4 5];
+  plotmodenames = {'Strichmodell', 'Trägheitsellipsen', 'Entwurfsparameter (3D)', 'Kollisionsobjekte'};
+  for jj = 1:4
     subplot(2,2,jj);  hold on;grid on;
     view(3); axis auto;
     if RobData.Type == 0 % Seriell
@@ -208,7 +320,10 @@ if strcmp(figname, 'robvisu')
       s_plot = struct( 'ks_legs', [], 'straight', 0, 'mode', plotmode(jj));
       R.plot(RobotOptDetails.Traj_Q(1,:)', Traj_0.X(1,:)', s_plot);
     end
+    title(plotmodenames{jj});
   end
-  saveas(fhdl,     fullfile(resrobdir, sprintf('Rob%d_%s_P%d_Skizze_Plausib.fig', RNr, Name, PNr)));
-  export_fig(fhdl, fullfile(resrobdir, sprintf('Rob%d_%s_P%d_Skizze_Plausib.png', RNr, Name, PNr)));
+  fname = sprintf('Rob%d_%s_P%d_DynParVisu', RNr, Name, PNr);
+  saveas(fhdl,     fullfile(resrobdir, [fname, '.fig']));
+  export_fig(fhdl, fullfile(resrobdir, [fname, '.png']));
+  fprintf('Bild %s gespeichert: %s\n', fname, resrobdir);
 end

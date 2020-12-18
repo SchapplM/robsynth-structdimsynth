@@ -32,7 +32,7 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function [fval, physval, Q, QD, QDD] = cds_fitness(R, Set, Traj_W, Structure, p)
+function [fval, physval, Q, QD, QDD, TAU] = cds_fitness(R, Set, Traj_W, Structure, p)
 repopath = fileparts(which('structgeomsynth_path_init.m'));
 rng(0); % Für Wiederholbarkeit der Versuche: Zufallszahlen-Initialisierung
 
@@ -281,6 +281,8 @@ for iIKC = 1:size(Q0,1)
       Set.optimization.constraint_obj(3) ~= 0 % Für NB benötigt
     TAU = data_dyn2.TAU;
 %     TAU_IKC(:,:,iIKC) = TAU; % Zum Debuggen
+  else
+    TAU = [];
   end
 
   %% Nebenbedingungen der Entwurfsvariablen berechnen: Festigkeit der Segmente

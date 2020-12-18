@@ -21,18 +21,19 @@
 % 
 % Erzeugt Bilder für jeden Roboter. In Klamern: Schalter in eval_figures
 % zum Auswählen des Bildes.
-% 1: Statistik der Ergebnisse ('histogram')
-% 2, 3: Animation (gesteuert durch Set.general.animation_styles) ('robvisuanim')
-% 4: Trägheitsellipsen ('robvisu')
-% 5: Gelenkverläufe ('jointtraj')
-% 6: Diverse Auswertungen zur Fitness-Funktion ('fitness_various')
-%    (Daten, die in cds_save_particle_details.m gespeichert werden:
-%    Zeitauswertung, Kondition, Materialbelastung)
-% 7-8: 2D-Pareto-Front (nur bei mehrkriterieller Optimierung) ('pareto')
-% 9: 3D-Pareto-Front (nur falls 3 oder mehr Kriterien) ('pareto')
-% 10: Dynamik-Komponenten in Plattform-KS
+% * Statistik der Ergebnisse ('histogram')
+% * Animation (gesteuert durch Set.general.animation_styles) ('robvisuanim')
+% * Trägheitsellipsen ('dynparvisu')
+% * Gelenkverläufe der Kinematik ('jointtraj')
+% * Antriebskraftverläufe aus Komponenten der Dynamik ('dynamics')
+% * Diverse Auswertungen zur Fitness-Funktion ('fitness_various')
+%   (Daten, die in cds_save_particle_details.m gespeichert werden:
+%   Zeitauswertung, Kondition, Materialbelastung)
+% * 2D-Pareto-Front (nur bei mehrkriterieller Optimierung) ('pareto')
+% * 3D-Pareto-Front (nur falls 3 oder mehr Kriterien) ('pareto')
+% * Dynamik-Komponenten in Plattform-KS
 % Bilder für alle Roboter:
-% 11-12: Pareto-Front
+% * Pareto-Front mit physikalischen Werten und normierten Werten der Zielf.
 % 
 % Speichert die Bilder für jeden Roboter in einem eigenen Unterordner
 
@@ -306,8 +307,8 @@ parfor (i = 1:length_Structures, parfor_numworkers)
   end
   t1 = tic();
   %% Zeichnung der Roboters mit Trägheitsellipsen und Ersatzdarstellung
-  if any(strcmp(Set.general.eval_figures, 'robvisu'))
-    cds_vis_results_figures('robvisu', Set, Traj, RobData, ...
+  if any(strcmp(Set.general.eval_figures, 'dynparvisu'))
+    cds_vis_results_figures('dynparvisu', Set, Traj, RobData, ...
       ResTab, RobotOptRes, RobotOptDetails);
   end
   %% Verlauf der Gelenkgrößen für den besten Roboter
@@ -316,7 +317,10 @@ parfor (i = 1:length_Structures, parfor_numworkers)
       ResTab, RobotOptRes, RobotOptDetails);
   end
   %% Dynamik
-  % TODO: Platzhalter.
+  if any(strcmp(Set.general.eval_figures, 'dynamics'))
+    cds_vis_results_figures('dynamics', Set, Traj, RobData, ...
+      ResTab, RobotOptRes, RobotOptDetails);
+  end
   %% (2D)-Pareto-Fronten für die Zielkriterien
   if any(strcmp(Set.general.eval_figures, 'pareto')) && ...
      length(Set.optimization.objective) > 1 % Mehrkriterielle Optimierung
@@ -488,7 +492,8 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   % Auswahlmenü für eine nachträglich zu plottende Auswertung. Wird in der
   % ButtonDownFcn bei Klicken auf einen Pareto-Punkt ausgelesen.
   uicontrol('Style', 'popupmenu', ...
-            'String', {'Auswahl', 'Dynamik', 'Kinematik', 'Animation', 'Visualisierung'}, ...
+            'String', {'Visualisierung', 'Kinematik', 'Animation', ...
+                       'Dynamik', 'Dynamikparameter'}, ...
             'Units', 'pixels', ...
             'Position', [10, 30, 120, 24]);
   legend(leghdl, legstr);
