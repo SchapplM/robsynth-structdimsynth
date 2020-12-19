@@ -220,6 +220,8 @@ if strcmp(figname, 'dynamics')
   else
     Dyn_C = NaN(size(Q,1),sum(R.I_qa));
     Dyn_G = Dyn_C; Dyn_A = Dyn_C; Dyn_Tau = Dyn_C; Dyn_S = Dyn_C;
+    Dyn_Plf_C = Dyn_C; Dyn_Plf_G = Dyn_C; Dyn_Plf_A = Dyn_C;
+    Dyn_Plf_Tau = Dyn_C; Dyn_Plf_S = Dyn_C;
     for i = 1:size(Q,1)
       % Dynamik berechnen. Siehe cds_obj_dependencies und ParRob.
       % Trajektorie in Plattform-Koordinaten umrechnen
@@ -237,13 +239,18 @@ if strcmp(figname, 'dynamics')
         % Nehme an, dass keine räumliche Drehung vorliegt. TODO: Fall 3T2R
         Jinv_qaD_sD = Jinv_qaD_xD;
       end
-      % Einzelne Terme der Dynamik berechnen und auf Antriebe umrechnen.
-      Dyn_C(i,:) = Jinv_qaD_sD' \ R.coriolisvec2_platform(Q(i,:)', QD(i,:)', xP, xPD, JinvP);
-      Dyn_G(i,:) = Jinv_qaD_sD' \ R.gravload2_platform(Q(i,:)', xP, JinvP);
-      Dyn_A(i,:) = Jinv_qaD_sD' \ (R.inertia2_platform(Q(i,:)', xP, JinvP)*xPDD(R.I_EE));
-      Dyn_S(i,:) = Jinv_qaD_sD' \ R.springtorque_platform(Q(i,:)', xP, JinvP);
-      Dyn_Tau(i,:) = Dyn_S(i,:)' + Jinv_qaD_sD' \ ...
-        R.invdyn2_platform(Q(i,:)', QD(i,:)', QDD(i,:)', xP, xPD, xPDD);
+      % Einzelne Terme der Dynamik berechnen ...
+      Dyn_Plf_C(i,:) = R.coriolisvec2_platform(Q(i,:)', QD(i,:)', xP, xPD, JinvP);
+      Dyn_Plf_G(i,:) = R.gravload2_platform(Q(i,:)', xP, JinvP);
+      Dyn_Plf_A(i,:) = R.inertia2_platform(Q(i,:)', xP, JinvP)*xPDD(R.I_EE);
+      Dyn_Plf_S(i,:) = R.springtorque_platform(Q(i,:)', xP, JinvP);
+      Dyn_Plf_Tau(i,:) = Dyn_Plf_S(i,:)' + R.invdyn2_platform(Q(i,:)', QD(i,:)', QDD(i,:)', xP, xPD, xPDD);
+      % ...und auf Antriebe umrechnen.
+      Dyn_C(i,:) = Jinv_qaD_sD' \ Dyn_Plf_C(i,:)';
+      Dyn_G(i,:) = Jinv_qaD_sD' \ Dyn_Plf_G(i,:)';
+      Dyn_A(i,:) = Jinv_qaD_sD' \ Dyn_Plf_A(i,:)';
+      Dyn_S(i,:) = Jinv_qaD_sD' \ Dyn_Plf_S(i,:)';
+      Dyn_Tau(i,:) = Jinv_qaD_sD' \ Dyn_Plf_Tau(i,:)';
     end
   end
   % Ergebnis aus der Optimierung (Fitness-Funktion)
@@ -266,10 +273,10 @@ if strcmp(figname, 'dynamics')
   end
 end
 
-%% Dynamik-Bild
+%% Dynamik-Bild (Antriebskräfte)
 if strcmp(figname, 'dynamics')
   fhdl = figure(); clf; hold all;
-  set(fhdl, 'Name', sprintf('Rob%d_P%d_DynamikZeit', RNr, PNr), ...
+  set(fhdl, 'Name', sprintf('Rob%d_P%d_Dynamik', RNr, PNr), ...
     'NumberTitle', 'off', 'color','w');
   if ~strcmp(get(fhdl, 'windowstyle'), 'docked')
     set(fhdl,'units','normalized','outerposition',[0 0 1 1]);
@@ -300,6 +307,38 @@ if strcmp(figname, 'dynamics')
   export_fig(fhdl, fullfile(resrobdir, [fname, '.png']));
   fprintf('Bild %s gespeichert: %s\n', fname, resrobdir);
 end
+
+%% Dynamik-Bild (Plattform-Kräfte, für PKM)
+if strcmp(figname, 'dynamics') && RobData.Type ~= 0
+  fhdl = figure(); clf; hold all;
+  set(fhdl, 'Name', sprintf('Rob%d_P%d_PlfDynamik', RNr, PNr), ...
+    'NumberTitle', 'off', 'color','w');
+  if ~strcmp(get(fhdl, 'windowstyle'), 'docked')
+    set(fhdl,'units','normalized','outerposition',[0 0 1 1]);
+  end
+  sgtitle(sprintf('Rob.%d, P.%d: fval=%s', RNr, PNr, fval_str));
+  ntau = size(Dyn_Plf_Tau, 2);
+  tauplf_names = {'fx', 'fy', 'fz', 'mx', 'my', 'mz'};
+  Idx_6FG = find(R.I_EE);
+  for i = 1:ntau 
+    subplot(ceil(sqrt(ntau)), ceil(ntau/ceil(sqrt(ntau))), i);
+    hold on; grid on;
+    plot(Traj_0.t, Dyn_Plf_C(:,i));
+    plot(Traj_0.t, Dyn_Plf_G(:,i));
+    plot(Traj_0.t, Dyn_Plf_A(:,i));
+    plot(Traj_0.t, Dyn_Plf_S(:,i));
+    plot(Traj_0.t, Dyn_Plf_Tau(:,i));
+    if Idx_6FG(i) < 4, plotunit = 'N'; else, plotunit = 'Nm'; end
+    ylabel(sprintf('%s in %s', tauplf_names{Idx_6FG(i)}, plotunit));
+  end
+  legend({'Cor.', 'Grav.', 'Acc.', 'Spring', 'Sum'});
+  linkxaxes;
+  fname = sprintf('Rob%d_%s_P%d_Plattformkraft_Dynamik', RNr, Name, PNr);
+  saveas(fhdl,     fullfile(resrobdir, [fname, '.fig']));
+  export_fig(fhdl, fullfile(resrobdir, [fname, '.png']));
+  fprintf('Bild %s gespeichert: %s\n', fname, resrobdir);
+end
+
 %% Zeichnung der Roboters mit Trägheitsellipsen und Ersatzdarstellung
 if strcmp(figname, 'dynparvisu')
   fhdl = figure();clf;hold all;

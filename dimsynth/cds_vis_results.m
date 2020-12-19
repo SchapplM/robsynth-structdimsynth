@@ -489,6 +489,9 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
         Set.optimization.objective{1}, Set.optimization.objective{2}, Set.optimization.objective{3}));
     end
   end
+  legend(leghdl, legstr);
+  % PNG-Export bereits hier, da Probleme mit uicontrol.
+  export_fig(10+pffig, fullfile(resmaindir, sprintf('Pareto_Gesamt_%s.png',name_suffix)));
   % Auswahlmenü für eine nachträglich zu plottende Auswertung. Wird in der
   % ButtonDownFcn bei Klicken auf einen Pareto-Punkt ausgelesen.
   uicontrol('Style', 'popupmenu', ...
@@ -496,8 +499,6 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
                        'Dynamik', 'Dynamikparameter'}, ...
             'Units', 'pixels', ...
             'Position', [10, 30, 120, 24]);
-  legend(leghdl, legstr);
   saveas(10+pffig,     fullfile(resmaindir, sprintf('Pareto_Gesamt_%s.fig',name_suffix)));
-  export_fig(10+pffig, fullfile(resmaindir, sprintf('Pareto_Gesamt_%s.png',name_suffix)));
   end
 end
