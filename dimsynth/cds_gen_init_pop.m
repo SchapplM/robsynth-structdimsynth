@@ -201,7 +201,7 @@ for i = 1:nvars
   if contains(varnames(i),{'alpha'}) % alpha parameter
     % nur 0 oder pi/2
     if varlim(i,2) >= pi/2 && varlim(i,1) <= 0
-      InitPopRand(:,i) = pi/2 * round(rand(nIndTotal,1)); 
+      InitPopRand(:,i) = pi/2 * round(rand(nIndRand,1)); 
       continue
     end
   end
