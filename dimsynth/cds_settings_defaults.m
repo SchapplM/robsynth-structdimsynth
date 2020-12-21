@@ -121,6 +121,8 @@ optimization = struct( ...
   'nolinkmass', false, ... % Setze die Masse der Robotersegmente auf Null.
   'noplatformmass', false, ... % Setze die Masse der PKM-Plattform auf Null.
   'ElectricCoupling', true, ... % Kopplung der Achsen für Energieberechnung. TODO
+  'InitPopRatioOldResults', 0.50, ... % 75% der Initialpopulation aus bisherigen Ergebnissen generieren
+  'result_dirs_for_init_pop', {{}}, ... % Zusätzliche Verzeichnisse zum Laden der Initialpopulation
   'resdir', fullfile(fileparts(which('structgeomsynth_path_init.m')), 'results'), ...
   'optname', 'unnamed');
 

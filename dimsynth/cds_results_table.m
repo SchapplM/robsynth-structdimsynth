@@ -43,19 +43,22 @@ for i = 1:length(Structures)
   Structure = Structures{i};
   Name = Structures{i}.Name;
   % Ergebnisse laden. Inhalt der Datei siehe cds_dimsynth_robot.m
-  resfile = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', i, Name));
-  if ~exist(resfile, 'file')
-    warning('Ergebnis-Datei für Roboter %d/%d (%s) existiert nicht: %s', i, length(Structures), Name, resfile);
+  resfile1 = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', i, Name));
+  resfile2 = fullfile(resmaindir, sprintf('Rob%d_%s_Details.mat', i, Name));
+  if ~exist(resfile1, 'file') || ~exist(resfile2, 'file')
+    warning('Ergebnis-Datei für Roboter %d/%d (%s) existiert nicht: %s oder %s', ...
+      i, length(Structures), Name, resfile1, resfile2);
     continue
   end
-  tmp = load(resfile, 'RobotOptRes', 'Set', 'Traj', 'PSO_Detail_Data');
+  tmp1 = load(resfile1, 'RobotOptRes');
+  tmp2 = load(resfile2, 'RobotOptDetails', 'PSO_Detail_Data');
   % Text zu Optimierungsergebnis (insbes. Ausschlussgrund). Siehe
   % cds_constraints, cds_constraints_traj, cds_fitness, cds_vis_results
   % Strafterme aus den NB-Funktionen werden in cds_fitness erhöht.
   % Die Zuordnung erfolgt mit "<=", da die Strafterme aus dem Bereich
   % (0,1] kommen ("1" ist also möglich) und in den Zielbereich skaliert
   % werden.
-  f = mean(tmp.RobotOptRes.fval); % Falls mehrkriteriell abfangen mit `mean`
+  f = mean(tmp1.RobotOptRes.fval); % Falls mehrkriteriell abfangen mit `mean`
   if     f <= 1e3,     fval_text = 'i.O.'; % ab hier aus cds_fitness.m
   elseif f <= 1e4, fval_text = 'NB-Verl. Zielf.';
   elseif f <= 1e5, fval_text = 'NB-Verl. Zielf. EO';
@@ -86,21 +89,21 @@ for i = 1:length(Structures)
   
   % Allgemeine Daten des Optimierungsergebnisses
   Row_i = {i, Name, Structure.Type, ...
-    datestr(tmp.RobotOptRes.timestamps_start_end(1),'dd.mm.yyyy HH:MM:SS'), ...
-    datestr(tmp.RobotOptRes.timestamps_start_end(2),'dd.mm.yyyy HH:MM:SS'), ...
-    tmp.RobotOptRes.timestamps_start_end(3), f, fval_text};
+    datestr(tmp1.RobotOptRes.timestamps_start_end(1),'dd.mm.yyyy HH:MM:SS'), ...
+    datestr(tmp1.RobotOptRes.timestamps_start_end(2),'dd.mm.yyyy HH:MM:SS'), ...
+    tmp1.RobotOptRes.timestamps_start_end(3), f, fval_text};
   % Hole andere Zielfunktionen aus den Ergebnissen
-  for ii = 1:length(tmp.RobotOptRes.fval_obj_all)
-    Row_i = [Row_i, {tmp.RobotOptRes.fval_obj_all(ii), physval_unitmult(ii)*...
-      tmp.RobotOptRes.physval_obj_all(ii)}]; %#ok<AGROW>
+  for ii = 1:length(tmp1.RobotOptRes.fval_obj_all)
+    Row_i = [Row_i, {tmp1.RobotOptRes.fval_obj_all(ii), physval_unitmult(ii)*...
+      tmp1.RobotOptRes.physval_obj_all(ii)}]; %#ok<AGROW>
   end
   % Zusätzliche Nennung der Steifigkeit (Nachgiebigkeit nicht so
   % aussagekräftig)
-  Row_i = [Row_i, {1/tmp.RobotOptRes.physval_obj_all(10)}]; %#ok<AGROW>
+  Row_i = [Row_i, {1/tmp1.RobotOptRes.physval_obj_all(10)}]; %#ok<AGROW>
   % Weitere Daten
-  num_succ = sum(tmp.PSO_Detail_Data.fval_mean(:) < 1e3);
-  num_fail = sum(tmp.PSO_Detail_Data.fval_mean(:) >= 1e3);
-  comptime_sum = sum(tmp.PSO_Detail_Data.comptime(~isnan(tmp.PSO_Detail_Data.comptime(:))));
+  num_succ = sum(tmp2.PSO_Detail_Data.fval_mean(:) < 1e3);
+  num_fail = sum(tmp2.PSO_Detail_Data.fval_mean(:) >= 1e3);
+  comptime_sum = sum(tmp2.PSO_Detail_Data.comptime(~isnan(tmp2.PSO_Detail_Data.comptime(:))));
   Row_i = [Row_i, {num_succ, num_fail, comptime_sum}]; %#ok<AGROW>
   % Datenzeile anhängen
   ResTab = [ResTab; Row_i]; %#ok<AGROW>

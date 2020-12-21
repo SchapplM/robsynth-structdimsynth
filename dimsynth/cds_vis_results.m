@@ -118,23 +118,27 @@ parfor (i = 1:length_Structures, parfor_numworkers)
   Structure = Structures{i};
   Name = Structures{i}.Name;
   fprintf('Visualisiere Ergebnisse für Rob %d (%s)\n', i, Name);
-  resfile = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', i, Name));
-  if ~exist(resfile, 'file')
-    warning('Ergebnis-Datei für Roboter %d (%s) existiert nicht: %s', i, Name, resfile);
+  resfile1 = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', i, Name));
+  resfile2 = fullfile(resmaindir, sprintf('Rob%d_%s_Details.mat', i, Name));
+  if ~exist(resfile1, 'file') || ~exist(resfile2, 'file')
+    warning('Ergebnis-Datei für Roboter %d/%d (%s) existiert nicht: %s oder %s', ...
+      i, length_Structures, Name, resfile1, resfile2);
     continue
   end
-  tmp = load(resfile, 'RobotOptRes', 'Set', 'Traj', 'PSO_Detail_Data');
+  tmp1 = load(resfile1, 'RobotOptRes');
+  tmp2 = load(resfile2, 'RobotOptDetails', 'PSO_Detail_Data');
   resrobdir = fullfile(resmaindir, sprintf('Rob%d_%s', i, Name));
   mkdirs(resrobdir); % Speicherort für Bilder dieses Roboters
-  RobotOptRes = tmp.RobotOptRes;
-  PSO_Detail_Data = tmp.PSO_Detail_Data;
-  R = RobotOptRes.R;
+  RobotOptRes = tmp1.RobotOptRes;
+  RobotOptDetails = tmp2.RobotOptDetails;
+  PSO_Detail_Data = tmp2.PSO_Detail_Data;
+  R = RobotOptDetails.R;
   if Structure.Type == 0
     serroblib_addtopath({Name});
   else
     parroblib_addtopath({Name});
   end
-  Q = RobotOptRes.Traj_Q;
+  Q = RobotOptDetails.Traj_Q;
   Traj_0 = cds_transform_traj(R, Traj);
   if all(RobotOptRes.fval > 1e3) % NB verletzt. Es gibt nur ein Kriterium
     fval_str = sprintf('%1.3e', RobotOptRes.fval(1));
@@ -427,33 +431,33 @@ parfor (i = 1:length_Structures, parfor_numworkers)
   end
   if Structure.Type == 0
     subplot(2,3,sprc2no(2,3,1,1));
-    plot(Traj.t, RobotOptRes.Traj_Q);
+    plot(Traj.t, RobotOptDetails.Traj_Q);
     grid on; ylabel('q in rad oder m');
     subplot(2,3,sprc2no(2,3,1,2));
-    plot(Traj.t, RobotOptRes.Traj_QD);
+    plot(Traj.t, RobotOptDetails.Traj_QD);
     grid on; ylabel('qD in rad/s oder m/s');
     subplot(2,3,sprc2no(2,3,1,3));
-    plot(Traj.t, RobotOptRes.Traj_QDD);
+    plot(Traj.t, RobotOptDetails.Traj_QDD);
     grid on; ylabel('qDD in rad/s² oder m/s²');
   else
     subplot(3,3,sprc2no(3,3,1,1));
-    plot(Traj.t, RobotOptRes.Traj_Q(:,R.I_qa));
+    plot(Traj.t, RobotOptDetails.Traj_Q(:,R.I_qa));
     grid on; ylabel('q_a in rad oder m');
     subplot(3,3,sprc2no(3,3,1,2));
-    plot(Traj.t, RobotOptRes.Traj_QD(:,R.I_qa));
+    plot(Traj.t, RobotOptDetails.Traj_QD(:,R.I_qa));
     grid on; ylabel('qD_a in rad/s oder m/s');
     subplot(3,3,sprc2no(3,3,1,3));
-    plot(Traj.t, RobotOptRes.Traj_QDD(:,R.I_qa));
+    plot(Traj.t, RobotOptDetails.Traj_QDD(:,R.I_qa));
     grid on; ylabel('qDD_a in rad/s² oder m/s²');
     
     subplot(3,3,sprc2no(3,3,2,1));
-    plot(Traj.t, RobotOptRes.Traj_Q(:,R.I_qd));
+    plot(Traj.t, RobotOptDetails.Traj_Q(:,R.I_qd));
     grid on; ylabel('q_p in rad oder m');
     subplot(3,3,sprc2no(3,3,2,2));
-    plot(Traj.t, RobotOptRes.Traj_QD(:,R.I_qd));
+    plot(Traj.t, RobotOptDetails.Traj_QD(:,R.I_qd));
     grid on; ylabel('qD_p in rad/s oder m/s');
     subplot(3,3,sprc2no(3,3,2,3));
-    plot(Traj.t, RobotOptRes.Traj_QDD(:,R.I_qd));
+    plot(Traj.t, RobotOptDetails.Traj_QDD(:,R.I_qd));
     grid on; ylabel('qDD_p in rad/s² oder m/s²');
   end
   
@@ -570,9 +574,9 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   for i = 1:length_Structures
     % Lade Ergebnisse Für Roboter i
     Name = Structures{i}.Name;
-    resfile = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', i, Name));
-    tmp = load(resfile, 'RobotOptRes');
-    RobotOptRes = tmp.RobotOptRes;
+    resfile1 = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', i, Name));
+    tmp1 = load(resfile1, 'RobotOptRes');
+    RobotOptRes = tmp1.RobotOptRes;
     if any(RobotOptRes.fval > 1e3)
       continue
     end
@@ -588,21 +592,21 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     % Pareto-Front für diesen Roboter einzeichnen
     if length(Set.optimization.objective) == 2
       if pffig == 1 % Bild mit physikalischen Werten
-        hdl=plot(objscale(1)*tmp.RobotOptRes.physval_pareto(:,1), ...
-                 objscale(2)*tmp.RobotOptRes.physval_pareto(:,2), marker);
+        hdl=plot(objscale(1)*tmp1.RobotOptRes.physval_pareto(:,1), ...
+                 objscale(2)*tmp1.RobotOptRes.physval_pareto(:,2), marker);
       else % Bild mit normierten Zielfunktionswerten
-        hdl=plot(tmp.RobotOptRes.fval_pareto(:,1), ...
-                 tmp.RobotOptRes.fval_pareto(:,2), marker);
+        hdl=plot(tmp1.RobotOptRes.fval_pareto(:,1), ...
+                 tmp1.RobotOptRes.fval_pareto(:,2), marker);
       end
     else % length(Set.optimization.objective) == 3
       if pffig == 1 % Bild mit physikalischen Werten
-        hdl=plot3(objscale(1)*tmp.RobotOptRes.physval_pareto(:,1), ...
-                  objscale(2)*tmp.RobotOptRes.physval_pareto(:,2), ...
-                  objscale(3)*tmp.RobotOptRes.physval_pareto(:,3), marker);
+        hdl=plot3(objscale(1)*tmp1.RobotOptRes.physval_pareto(:,1), ...
+                  objscale(2)*tmp1.RobotOptRes.physval_pareto(:,2), ...
+                  objscale(3)*tmp1.RobotOptRes.physval_pareto(:,3), marker);
       else % Bild mit normierten Zielfunktionswerten
-        hdl=plot3(tmp.RobotOptRes.fval_pareto(:,1), ...
-                  tmp.RobotOptRes.fval_pareto(:,2), ...
-                  tmp.RobotOptRes.fval_pareto(:,3), marker);
+        hdl=plot3(tmp1.RobotOptRes.fval_pareto(:,1), ...
+                  tmp1.RobotOptRes.fval_pareto(:,2), ...
+                  tmp1.RobotOptRes.fval_pareto(:,3), marker);
       end
     end
     leghdl(countmarker,:) = hdl; %#ok<AGROW>

@@ -33,7 +33,7 @@ for iFG = 1%1:3
   Set.optimization.objective = {'condition','mass'};
   Set.structures.whitelist = whitelist;
   Set.optimization.optname = sprintf('testcase_G1G4_%dT%dR_dbg2', sum(DoF(1:3)), sum(DoF(4:6)));
-  Set.optimization.obj_limit_physval = [0.1; 0.3]; % [50;200]; % Nehme erstes Ergebnis mit brauchbarer Konditionszahl und moderater Antriebskraft
+  Set.optimization.obj_limit_physval = [50;200]; % Nehme erstes Ergebnis mit brauchbarer Konditionszahl und moderater Antriebskraft
   Set.general.create_template_functions = true;
   Set.general.nosummary = true;
   Set.general.matfile_verbosity = 3;
@@ -50,20 +50,26 @@ for iFG = 1%1:3
   % Ergebnisse erneut laden
   resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
   DG1 = load(fullfile(resmaindir, ...
-    sprintf('Rob%d_%s_Endergebnis.mat', 1, whitelist{1})), 'RobotOptRes', 'Set', 'Traj');
+    sprintf('Rob%d_%s_Endergebnis.mat', 1, whitelist{1})), 'RobotOptRes');
+  DG1d = load(fullfile(resmaindir, ...
+    sprintf('Rob%d_%s_Details.mat', 1, whitelist{1})), 'RobotOptDetails');
   DG4 = load(fullfile(resmaindir, ...
-    sprintf('Rob%d_%s_Endergebnis.mat', 2, whitelist{2})), 'RobotOptRes', 'Set', 'Traj');
+    sprintf('Rob%d_%s_Endergebnis.mat', 2, whitelist{2})), 'RobotOptRes');
+  DG4d = load(fullfile(resmaindir, ...
+    sprintf('Rob%d_%s_Details.mat', 2, whitelist{2})), 'RobotOptDetails');
+  DS = load(fullfile(resmaindir, ...
+    sprintf('%s_settings.mat', Set.optimization.optname)), 'Set', 'Traj');
   if any(DG1.RobotOptRes.fval > 1e3) || any(DG4.RobotOptRes.fval > 1e3)
     error('Keine Lösung in Maßsynthese gefunden. Das hat sonst funktionert. Fehler?');
   end
   % Reproduziere die Ergebnisse
   clear cds_save_particle_details cds_fitness cds_log % notwendig, da Dimensionsänderung in persistenten Variablen
-  fval_G1_rtest = DG1.RobotOptRes.fitnessfcn(DG1.RobotOptRes.p_val);
+  fval_G1_rtest = DG1d.RobotOptDetails.fitnessfcn(DG1.RobotOptRes.p_val);
   if any(abs(fval_G1_rtest - DG1.RobotOptRes.fval) > 1e-6)
     error('Fitness-Wert für G1 nicht reproduzierbar');
   end
   clear cds_save_particle_details cds_fitness cds_log
-  fval_G4_rtest = DG4.RobotOptRes.fitnessfcn(DG4.RobotOptRes.p_val);
+  fval_G4_rtest = DG4d.RobotOptDetails.fitnessfcn(DG4.RobotOptRes.p_val);
   if any(abs(fval_G4_rtest - DG4.RobotOptRes.fval) > 1e-6)
     error('Fitness-Wert für G4 nicht reproduzierbar');
   end
@@ -81,9 +87,9 @@ for iFG = 1%1:3
   p_G4(Ip_G4elev) = 0; % Winkel 0 heißt senkrecht nach oben, wie G1.
   % Berechne die Fitness-Funktionen der gleichwertigen Parameter
   clear cds_save_particle_details cds_fitness cds_log
-  [fval_G1_test, Q_G1_test] = DG1.RobotOptRes.fitnessfcn(p_G1);
+  [fval_G1_test, ~, Q_G1_test] = DG1d.RobotOptDetails.fitnessfcn(p_G1);
   clear cds_save_particle_details cds_fitness cds_log
-  [fval_G4_test, Q_G4_test] = DG4.RobotOptRes.fitnessfcn(p_G4);
+  [fval_G4_test, ~, Q_G4_test] = DG4d.RobotOptDetails.fitnessfcn(p_G4);
   test_G1G4 = fval_G1_test - fval_G4_test;
   if any(abs(test_G1G4) > 1e-8)
     error('PKM mit G4-Modell stimmt nicht mit G1-Modell überein (%s vs %s). Fehler.', ...
@@ -94,9 +100,9 @@ for iFG = 1%1:3
   p_G4_pi = p_G4;
   p_G4_pi(Ip_G4elev) = pi; % ist exakt entgegengesetzt zu G1.
   clear cds_save_particle_details cds_fitness cds_log
-  [fval_G4_test2, Q_G4_test2] = DG4.RobotOptRes.fitnessfcn(p_G4_pi);
+  [fval_G4_test2, ~, Q_G4_test2] = DG4d.RobotOptDetails.fitnessfcn(p_G4_pi);
   test_G4pi = fval_G4_test2 - fval_G4_test;
-  R = DG4.RobotOptRes.R;
+  R = DG4d.RobotOptDetails.R;
   if any(abs(test_G4pi) > 1e-4)
     error('PKM mit G4-Modell hat anderes Ergebnis, wenn Schubachse umgedreht ist. Unlogisch.');
     % Vergleich der Gelenkwinkelverläufe
@@ -113,9 +119,9 @@ for iFG = 1%1:3
     end
     legend({'G1', 'G4,alpha=0', 'G4,alpha=pi'});
     % Vergleich der Roboter-Bilder
-    Set = DG4.Set;
+    Set = DS.Set;
     Set.general.plot_robot_in_fitness = 1e3;
-    ff = @(p)cds_fitness(DG4.RobotOptRes.R,Set,DG4.Traj,DG4.RobotOptRes.Structure,p(:));
+    ff = @(p)cds_fitness(DG4d.RobotOptDetails.R,Set,DS.Traj,DS.RobotOptRes.Structure,p(:));
     clear cds_save_particle_details cds_fitness cds_log
     ff(p_G4);
     saveas(200, fullfile(tmpdir, 'testcase_G1G4_Rob_alpha_null.fig')); close(200);

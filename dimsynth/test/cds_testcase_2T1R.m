@@ -39,17 +39,19 @@ for debugcalc = [0 1]
     % Ergebnisse laden und prüfen
     for j = 1:length(Structures)
       resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
-      resdat = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', j, Structures{j}.Name));
-      if ~exist(resdat, 'file'), error('Ergebnisdatei %s nicht gefunden. Muss an dieser Stelle vorliegen', resdat); end
-      tmp=load(resdat, 'RobotOptRes', 'Set', 'Traj');
+      resdat1 = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', j, Structures{j}.Name));
+      if ~exist(resdat1, 'file'), error('Ergebnisdatei %s nicht gefunden. Muss an dieser Stelle vorliegen', resdat1); end
+      tmp1 = load(resdat1, 'RobotOptRes', 'Set', 'Traj');
+      resdat2 = fullfile(resmaindir, sprintf('Rob%d_%s_Details.mat', j, Structures{j}.Name));
+      tmp2 = load(resdat2, 'RobotOptDetails');
       clear cds_save_particle_details cds_fitness cds_log % notwendig, da Dimensionsänderung in persistenten Variablen
-      fval_rtest = tmp.RobotOptRes.fitnessfcn(tmp.RobotOptRes.p_val);
-      abserr_fval = fval_rtest - tmp.RobotOptRes.fval;
-      relerr_fval = abserr_fval./tmp.RobotOptRes.fval;
+      fval_rtest = tmp2.RobotOptDetails.fitnessfcn(tmp1.RobotOptRes.p_val);
+      abserr_fval = fval_rtest - tmp1.RobotOptRes.fval;
+      relerr_fval = abserr_fval./tmp1.RobotOptRes.fval;
       if abs(abserr_fval) > 1e-4 && abs(relerr_fval) > 1e-2
         error('Fitness-Wert für %s nicht reproduzierbar', Structures{j}.Name);
       end
-      if any(tmp.RobotOptRes.fval > 1e3)
+      if any(tmp1.RobotOptRes.fval > 1e3)
         error('Keine Lösung in Maßsynthese für %s gefunden. Fehler?', Structures{j}.Name);
       end
     end
