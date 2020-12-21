@@ -178,7 +178,7 @@ if Set.general.computing_cluster
     % Ergebnis-Ordner neu setzen. Ansonsten ist der Pfad des Rechners
     % gesetzt, von dem der Job gestartet wird.
     fprintf(fid, ['Set.optimization.resdir=fullfile(fileparts(', ...
-      'which(''structgeomsynth_path_init.m'')),''dimsynth'',''results'');\n']);
+      'which(''structgeomsynth_path_init.m'')),''results'');\n']);
     fprintf(fid, 'cds_start;\n');
     % Schließen des ParPools auch in Datei hineinschreiben
     fprintf(fid, 'parpool_writelock(''lock'', 300, true);\n');

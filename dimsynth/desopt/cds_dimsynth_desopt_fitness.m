@@ -65,7 +65,7 @@ end
 if fval == 0 && Structure.calc_reg
   % Abhängigkeiten neu berechnen (Dynamik)
   data_dyn = cds_obj_dependencies_regmult(R, data_dyn_reg);
-  if Set.general.debug_calc
+  if Set.general.debug_calc && Set.optimization.joint_stiffness_passive_revolute==0
     % Zu Testzwecken die Dynamik neu ohne Regressorform berechnen und mit
     % Regressor-Berechnung vergleichen
     Structure_tmp = Structure;
@@ -84,7 +84,7 @@ if fval == 0 && Structure.calc_reg
 end
 
 %% Nebenbedingungen der Entwurfsvariablen berechnen: Festigkeit der Segmente
-if fval == 0 && Set.optimization.constraint_link_yieldstrength > 0
+if fval == 0 && Set.optimization.constraint_obj(6) > 0
   [fval, constrvioltext] = cds_constr_yieldstrength(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
 end
 

@@ -19,6 +19,8 @@
 % [SierraCoe2005] Improving PSO-based multi-objective optimization 
 % using crowding, mutation and ϵ-dominance (2005)
 
+% Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
+% (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
 function RobotOptRes = cds_dimsynth_robot(Set, Traj, Structure)
 t1 = tic();
@@ -99,11 +101,6 @@ elseif Structure.Type == 2 % Parallel
   % Klasse initialisierung (liest auch die csv-Dateien aus).
   R = parroblib_create_robot_class(Structure.Name, p_base(:), p_platform(:));
   NLEG = R.NLEG;
-  if Set.optimization.use_desopt && Set.optimization.constraint_link_yieldstrength > 0
-    R.DynPar.mode = 3; % Benutze Inertialparameter-Dynamik, weil auch Schnittkräfte in Regressorform berechnet werden
-  else
-    R.DynPar.mode = 4; % Benutze Minimalparameter-Dynamikfunktionen für die PKM
-  end
   R.update_dynpar1(R.DynPar.mges, R.DynPar.rSges, R.DynPar.Icges); % Nochmal initialisieren, damit MPV definiert ist
 else
   error('Typ-Nummer nicht definiert');
@@ -156,13 +153,7 @@ for i = 1:NLEG
       Structure.qDlim = cat(1, R.Leg.qDlim);
     end
   end
-  
-  % Dynamikparameter setzen
-  if Set.optimization.use_desopt && Set.optimization.constraint_link_yieldstrength > 0
-    R_init.DynPar.mode = 3; % Benutze Inertialparameter-Dynamik, weil auch Schnittkräfte in Regressorform berechnet werden
-  else
-    R_init.DynPar.mode = 4; % Benutze Minimalparameter-Dynamikfunktionen
-  end
+
   R_init.DesPar.joint_type((1:R_init.NJ)'==1&R_init.MDH.sigma==1) = 4; % Linearführung erste Achse
   R_init.DesPar.joint_type((1:R_init.NJ)'~=1&R_init.MDH.sigma==1) = 5; % Schubzylinder weitere Achse
   R_init.update_dynpar1(); % Nochmal initialisieren, damit MPV definiert ist
@@ -217,6 +208,16 @@ end
 %   R.update_base([0;0;0.5*Lref]);
 %   R.update_EE([0;0;-0.5*Lref]);
 % end
+
+% Gelenk-Steifigkeit einsetzen (Sonderfall für Starrkörpergelenke)
+if R.Type ~= 0 && Set.optimization.joint_stiffness_passive_revolute
+  for k = 1:R.NLEG
+    % Ruhelage der Feder muss erst später eingestellt werden (nach IK)
+    % Federsteifigkeit auf vorgegebenen Wert setzen.
+    R.Leg(k).DesPar.joint_stiffness(R.Leg(k).MDH.sigma==0) = ...
+      Set.optimization.joint_stiffness_passive_revolute;
+  end
+end
 %% Umfang der Berechnungen prüfen: Schnittkraft / Regressorform / Dynamik
 % Schalter zum Berechnen der Dynamik bezogen auf Antriebe
 calc_dyn_act = false;
@@ -234,12 +235,38 @@ end
 if Set.optimization.use_desopt
   calc_reg = true; % Entwurfsoptimierung besser mit Regressor
 end
-if Set.optimization.constraint_link_yieldstrength > 0
-  calc_dyn_cut = true; % Schnittkraft für Segmentauslegung benötigt
+if Set.optimization.constraint_obj(6) > 0 || ... % Schnittkraft als Nebenbedingung ...
+    any(strcmp(Set.optimization.objective, {'materialstress'})) % ... oder Zielfunktion
+  calc_dyn_cut = true;
+end
+if Structure.Type == 2 && calc_dyn_cut
+  calc_dyn_act = true;
 end
 Structure.calc_dyn_act = calc_dyn_act;
 Structure.calc_reg = calc_reg;
 Structure.calc_dyn_cut = calc_dyn_cut;
+
+%% Art der Dynamikparameter in der Roboter-Klasse einstellen
+if Structure.Type == 2 % Parallel
+  if calc_dyn_cut % Benutze Inertialparameter-Dynamik, weil auch Schnitt- ...
+    R.DynPar.mode = 3; % ... kräfte in Regressorform berechnet werden
+  else % Benutze Minimalparameter-Dynamikfunktionen für die PKM
+    R.DynPar.mode = 4;
+  end
+end
+for i = 1:NLEG % Das Gleiche für die seriellen Beinketten ...
+  if Structure.Type == 0
+    R_init = R; % ... oder den seriellen Roboter
+  else
+    R_init = R.Leg(i);
+  end
+  % Dynamikparameter setzen
+  if calc_dyn_cut
+    R_init.DynPar.mode = 3;
+  else
+    R_init.DynPar.mode = 4;
+  end
+end
 %% Optimierungsparameter festlegen
 nvars = 0; vartypes = []; varlim = [];
 
@@ -979,7 +1006,7 @@ clear cds_fitness
 % tioniert; sonst teilw. Fehler im Debug-Modus durch Zugriff auf Variablen)
 cds_save_particle_details(Set, R, 0, zeros(length(Set.optimization.objective),1), ...
   zeros(nvars,1), zeros(length(Set.optimization.objective),1), ...
-  zeros(length(Set.optimization.constraint_obj),1), 0, 'reset');
+  zeros(length(Set.optimization.constraint_obj),1), 'reset');
 fitnessfcn=@(p)cds_fitness(R, Set, Traj, Structure, p(:)); % Definition der Funktion
 f_test = fitnessfcn(InitPop(1,:)'); % Testweise ausführen
 if length(Set.optimization.objective) > 1 % Mehrkriteriell (MOPSO geht nur mit vektorieller Fitness-Funktion)
@@ -988,7 +1015,7 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell (MOPSO geht nur mit v
 end
 % Zurücksetzen der Detail-Speicherfunktion
 cds_save_particle_details(Set, R, 0, zeros(size(f_test)), zeros(nvars,1), ...
-  zeros(size(f_test)), zeros(length(Set.optimization.constraint_obj),1), 0, 'reset');
+  zeros(size(f_test)), zeros(length(Set.optimization.constraint_obj),1), 'reset');
 % Zurücksetzen der gespeicherten Werte der Fitness-Funktion
 clear cds_fitness
 %% PSO-Aufruf starten
@@ -1036,7 +1063,7 @@ else % Einkriteriell: PSO
   p_val = p_val(:); % stehender Vektor
 end
 % Detail-Ergebnisse extrahieren (persistente Variable in Funktion)
-PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, NaN, 'output');
+PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, 'output');
 
 if Set.general.matfile_verbosity > 0
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot3.mat'));
@@ -1116,7 +1143,7 @@ end
 % Detail-Ergebnisse extrahieren (persistente Variable in Funktion).
 % (Nochmal, da Neuberechnung oben eventuell anderes Ergebnis bringt)
 % Kein Zurücksetzen der persistenten Variablen notwendig.
-PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, NaN, 'output');
+PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, 'output');
 
 % Schreibe die Anfangswerte der Gelenkwinkel für das beste Individuum in
 % die Roboterklasse. Suche dafür den besten Funktionswert in den zusätzlich
@@ -1235,19 +1262,18 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   [fval_mass,~, ~, physval_mass] = cds_obj_mass(R);
   [fval_energy,~, ~, physval_energy] = cds_obj_energy(R, Set, Structure, Traj_0, data_dyn.TAU, QD);
   [fval_actforce,~, ~, physval_actforce] = cds_obj_actforce(data_dyn.TAU);
+  [fval_ms, ~, ~, physval_ms] = cds_obj_materialstress(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
   [fval_cond,~, ~, physval_cond] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
   [fval_mani,~, ~, physval_mani] = cds_obj_manipulability(R, Set, Jinv_ges, Traj_0, Q);
   [fval_msv,~, ~, physval_msv] = cds_obj_minjacsingval(R, Set, Jinv_ges, Traj_0, Q);
   [fval_pe,~, ~, physval_pe] = cds_obj_positionerror(R, Set, Jinv_ges, Traj_0, Q);
   [fval_jrange,~, ~, physval_jrange] = cds_obj_jointrange(R, Set, Structure, Q);
   [fval_stiff,~, ~, physval_stiff] = cds_obj_stiffness(R, Set, Q);
-  [~, ~, f_maxstrengthviol] = cds_constr_yieldstrength(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
   % Reihenfolge siehe Variable Set.optimization.constraint_obj aus cds_settings_defaults
-  fval_obj_all = [fval_mass; fval_energy; fval_actforce; fval_cond; ...
+  fval_obj_all = [fval_mass; fval_energy; fval_actforce; fval_ms; fval_cond; ...
     fval_mani; fval_msv; fval_pe; fval_jrange; fval_stiff];
-  physval_obj_all = [physval_mass; physval_energy; physval_actforce; physval_cond; ...
+  physval_obj_all = [physval_mass; physval_energy; physval_actforce; physval_ms; physval_cond; ...
     physval_mani; physval_msv; physval_pe; physval_jrange; physval_stiff];
-  fval_constr_all = f_maxstrengthviol;
   % Vergleiche neu berechnete Werte mit den zuvor abgespeicherten (müssen
   % übereinstimmen)
   test_Jcond = PSO_Detail_Data.constraint_obj_val(dd_optind, 4, dd_optgen) - physval_cond;
@@ -1257,19 +1283,18 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
     cds_log(-1, sprintf('[dimsynth] Während Optimierung gespeicherte Konditionszahl (%1.5e) stimmt nicht mit erneuter Berechnung (%1.5e) überein. Differenz %1.5e.', ...
       PSO_Detail_Data.constraint_obj_val(dd_optind, 4, dd_optgen), physval_cond, test_Jcond));
   end
-  test_sv = PSO_Detail_Data.f_maxstrengthviol(dd_optgen, dd_optind) - f_maxstrengthviol;
+  test_sv = PSO_Detail_Data.constraint_obj_val(dd_optind, 6, dd_optgen) - physval_ms;
   if abs(test_sv) > 1e-5
     save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
       sprintf('%d_%s', Structure.Number, Structure.Name), 'svreprowarning.mat'));
     cds_log(-1, sprintf('[dimsynth] Während Optimierung gespeicherte Materialbelastung (%1.5e) stimmt nicht mit erneuter Berechnung (%1.5e) überein. Differenz %1.5e.', ...
-      PSO_Detail_Data.f_maxstrengthviol(dd_optgen, dd_optind), f_maxstrengthviol, test_sv));
+      PSO_Detail_Data.constraint_obj_val(dd_optind, 6, dd_optgen), physval_ms, test_sv));
   end
 else
   % Keine Berechnung der Leistungsmerkmale möglich, da keine zulässige Lösung
   % gefunden wurde.
-  fval_obj_all = NaN(9,1);
-  physval_obj_all = NaN(9,1);
-  fval_constr_all = NaN(1,1);
+  fval_obj_all = NaN(10,1);
+  physval_obj_all = NaN(10,1);
 end
 % Prüfe auf Plausibilität, ob die Optimierungsziele erreicht wurden. Neben-
 % bedingungen nur prüfen, falls überhaupt gültige Lösung erreicht wurde.
@@ -1279,8 +1304,8 @@ if any(fval<1e3) && any( physval_obj_all(I_fobj_set) > Set.optimization.constrai
     sprintf('%d_%s', Structure.Number, Structure.Name), 'objconstrwarning.mat'));
   cds_log(-1, sprintf('[dimsynth] Zielfunktions-Nebenbedingung verletzt trotz Berücksichtigung in Optimierung. Keine Lösung gefunden.'));
 end
-if any(fval<1e3) && Set.optimization.constraint_link_yieldstrength~= 0 && ...
-    fval_constr_all(1) > Set.optimization.constraint_link_yieldstrength
+if any(fval<1e3) && Set.optimization.constraint_obj(6) ~= 0 && ...
+    physval_ms > Set.optimization.constraint_obj(6) 
   save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
     sprintf('%d_%s', Structure.Number, Structure.Name), 'strengthconstrwarning.mat'));
   cds_log(-1, sprintf('[dimsynth] Materialbelastungs-Nebenbedingung verletzt trotz Berücksichtigung in Optimierung. Keine Lösung gefunden.'));
@@ -1288,8 +1313,8 @@ end
 % Bestimme Zuordnung der Fitness-Vektor-Einträge zu den Leistungsmerkmalen
 % (Erleichtert spätere Auswertung bei Pareto-Optimierung)
 I_fval_obj_all = zeros(length(Set.optimization.objective),1);
-obj_names_all = {'mass', 'energy', 'actforce', 'condition', 'manipulability', ...
-  'minjacsingval', 'positionerror', 'jointrange', 'stiffness'};
+obj_names_all = {'mass', 'energy', 'actforce', 'materialstress', 'condition', ...
+  'manipulability', 'minjacsingval', 'positionerror', 'jointrange', 'stiffness'};
 for i = 1:length(Set.optimization.objective)
   II_i = strcmp(Set.optimization.objective{i},obj_names_all);
   if any(II_i) % Bei Zielfunktion valid_act wird kein Leistungsmerkmal berechnet.
@@ -1316,7 +1341,6 @@ RobotOptRes = struct( ...
   'fval', fval, ... % Zielfunktionswert (nach dem optimiert wurde)
   'fval_obj_all', fval_obj_all, ... % Werte aller möglicher einzelner Zielf.
   'physval_obj_all', physval_obj_all, ... % Physikalische Werte aller Zielf.
-  'fval_constr_all', fval_constr_all, ... % Werte der Nebenbedingungen
   'R', R, ... % Roboter-Klasse
   'p_val', p_val, ... % Parametervektor der Optimierung
   'fval_pareto', fval_pareto, ... % Alle Fitness-Werte der Pareto-Front

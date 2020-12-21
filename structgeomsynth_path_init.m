@@ -10,6 +10,5 @@ addpath(fullfile(this_tb_path, 'dimsynth'));
 addpath(fullfile(this_tb_path, 'dimsynth', 'desopt'));
 addpath(fullfile(this_tb_path, 'dimsynth', 'fitness'));
 addpath(fullfile(this_tb_path, 'dimsynth', 'misc'));
-mkdirs(fullfile(this_tb_path, 'dimsynth', 'results'));
-
+mkdirs(fullfile(this_tb_path, 'results'));
 mkdirs(fullfile(this_tb_path, 'tmp'));
