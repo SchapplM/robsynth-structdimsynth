@@ -127,6 +127,9 @@ if any(abs(fval-fval2) > 1e-4)
   warning(['Fitness-Wert von [%s] aus Pareto-Front konnte nicht reproduziert ', ...
     'werden (neu: [%s])'], disp_array(fval', '%1.4f'), disp_array(fval2', '%1.4f'));
 end
+if isempty(Q)
+  return
+end
 RobotOptDetails = struct('Traj_Q', Q, 'Traj_QD', QD, 'Traj_QDD', QDD, 'R', R, ...
   'Dyn_Tau', TAU);
 

@@ -43,7 +43,7 @@ end
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_fitness_1.mat'),  '-regexp', '^(?!abort_fitnesscalc$).');
 
 t1=tic();
-Q = [];
+Q = []; QD = []; QDD = []; TAU = [];
 debug_info = {};
 % Alle möglichen physikalischen Werte von Nebenbedingungen (für spätere Auswertung)
 constraint_obj_val = NaN(length(Set.optimization.constraint_obj),1);

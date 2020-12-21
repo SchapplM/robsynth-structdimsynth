@@ -32,12 +32,13 @@ Traj_0 = cds_transform_traj(R, Traj);
 Name = RobData.Name;
 resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
 resrobdir = fullfile(resmaindir, sprintf('Rob%d_%s', RNr, Name));
-if all(RobotOptRes.fval > 1e3) % NB verletzt. Es gibt nur ein Kriterium
-  fval_str = sprintf('%1.1e', RobotOptRes.fval(1));
-elseif length(RobotOptRes.fval) == 1 % Einkriteriell
-  fval_str = sprintf('%1.1f', RobotOptRes.fval);
+fval = RobotOptRes.fval_pareto(PNr,:)';
+if all(fval > 1e3) % NB verletzt. Es gibt nur ein Kriterium
+  fval_str = sprintf('%1.1e', fval(1));
+elseif length(fval) == 1 % Einkriteriell
+  fval_str = sprintf('%1.1f', fval);
 else % Mehrkriteriell
-  fval_str = ['[',disp_array(RobotOptRes.fval', '%1.1f'),']'];
+  fval_str = ['[',disp_array(fval', '%1.1f'),']'];
 end
 %% Animation
 if strcmp(figname, 'robvisu')
