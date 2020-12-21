@@ -194,6 +194,7 @@ for i = 1:length(m_ges_Link)
           R_i_Si = rotx(R_pkin.MDH.alpha(i)) * roty(atan2(0, R_pkin.MDH.a(i)));
         else % Start oder Ende der Führung liegen am nächsten an vorherigem Gelenk
           % Keine senkrechte Verbindung (Schiene fängt woanders an)
+          % TODO: Variable joint_offset noch nicht korrekt implementiert.
           if R_pkin.qlim(i,2) < 0 % Schiene liegt komplett "links" vom KS. Gehe zum Endpunkt (qmax)
             % [B]/(6)
             r_i_i_D = [R_pkin.MDH.a(i);0;0] + rotx(R_pkin.MDH.alpha(i))*[0;0;R_pkin.qlim(i,2)];
@@ -284,8 +285,10 @@ for i = 1:length(m_ges_Link)
         % Bewegungsrichtung der Linearachse
         R_i_B = rotx(R_pkin.MDH.alpha(i))*roty(-pi/2);
         J_i_C = R_i_B * J_B_C * R_i_B'; % Rotation ins Körper-KS
-        % Schwerpunkt in der Mitte der Führung
-        r_i_Oi_C = [R_pkin.MDH.a(i);0;0] + rotx(R_pkin.MDH.alpha(i))*[0;0;R_pkin.qlim(i,1)+0.5*q_range(i)];
+        % Schwerpunkt in der Mitte der Führung. Berücksichtige die Verschiebung
+        % der Führungsschiene durch den Offset.
+        r_i_Oi_C = [R_pkin.MDH.a(i);0;0] + rotx(R_pkin.MDH.alpha(i))*...
+          [0;0;R_pkin.qlim(i,1)+R_pkin.DesPar.joint_offset(i)+0.5*q_range(i)];
         % Eintragen in Dynamik-Parameter (bezogen auf Ursprung)
         m_ges_PStator(i) = m_s;
         [mrS_ges_PStator(i,:), If_ges_PStator(i,:)] = inertial_parameters_convert_par1_par2( ...
@@ -296,6 +299,29 @@ for i = 1:length(m_ges_Link)
         m_ges_PAbtrieb(i+1) = 0;
         mrS_ges_PAbtrieb(i+1,:) = 0;
         If_ges_PAbtrieb(i+1,:) = 0;
+      end
+      %% Berücksichtige den Gelenkwinkel-Offset als eigenes Segment
+      % Zwischen Schubgelenk und nachfolgendem Gelenk. Die Verbindung
+      % entspricht einer mitbewegten Masse.
+      if R_pkin.DesPar.joint_offset(i)
+        % Länge entspricht dem Offset (Verlängerungsstange zum nächsten
+        % Gelenk)
+        l = R_pkin.DesPar.joint_offset(i);
+        % Hohlzylinder-Annahme wie restlicher Roboter
+        [m_o, J_B_C] = data_hollow_cylinder(R_i, e_i, l, density);
+        % Gleiche Richtung wie Schubachse (starre Verbindung damit)
+        % (siehe Code zu Führungsschiene)
+        R_i_B = rotx(R_pkin.MDH.alpha(i))*roty(-pi/2);
+        J_i_C = R_i_B * J_B_C * R_i_B'; % Rotation ins Körper-KS
+        % Der Schwerpunkt wird nach der Trafo des Schubgelenks gezählt. Der
+        % Offset muss also wieder rückgängig gemacht werden.
+        r_i_Oi_C = [R_pkin.MDH.a(i);0;0] + rotx(R_pkin.MDH.alpha(i))*...
+          [0;0;-0.5*R_pkin.DesPar.joint_offset(i)];
+        % Zähle das Segment als Abtrieb (ähnlich wie ausfahrbaren Zylinder)
+        % Daher zum nächsten Segment hinzuzählen
+        m_ges_PAbtrieb(i+1) = m_o;
+        [mrS_ges_PAbtrieb(i+1,:), If_ges_PAbtrieb(i+1,:)] = inertial_parameters_convert_par1_par2( ...
+          r_i_Oi_C', inertiamatrix2vector(J_i_C), m_o);
       end
     end
   else
