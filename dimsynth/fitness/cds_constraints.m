@@ -390,6 +390,13 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
 
   %% Bauraumprüfung für Einzelpunkte
   if ~isempty(Set.task.installspace.type)
+    % Bestimme zuerst den notwendigen Schubgelenk-Offset
+    if Structure.desopt_prismaticoffset
+      cds_desopt_prismaticoffset(R, Traj_0.XE, Set, Structure, JPE, QE);
+      % Kollisionskörper müssen nochmal aktualisiert werden (wegen Offset)
+      [Structure.collbodies_robot, Structure.installspace_collbodies] = ...
+        cds_update_collbodies(R, Set, Structure, QE);
+    end
     [fval_instspc, f_constrinstspc] = cds_constr_installspace(R, Traj_0.XE, Set, Structure, JPE, QE, [2e5;3e5]);
     if fval_instspc > 0
       fval_jic(jic) = fval_instspc; % Normierung auf 2e5 bis 3e5 -> bereits in Funktion

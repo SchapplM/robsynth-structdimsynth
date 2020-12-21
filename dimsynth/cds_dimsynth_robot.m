@@ -878,6 +878,8 @@ end
 % Erstelle Liste der Kollisionsprüfungen für cds_constr_installspace.m
 % Die Geometrie-Objekte werden erst dort ins Basis-KS des Roboters trans-
 % formiert.
+% Speichere zusätzlich ab, ob es einen Offsetparameter für Schubgelenke gibt
+Structure.desopt_prismaticoffset = false;
 if ~isempty(Set.task.installspace.type)
   % Liste für alle Kollisionskörper des Roboters bei Bauraumprüfung.
   % Es werden nur Punkte anstatt der Ersatz-Volumen benutzt.
@@ -911,6 +913,18 @@ if ~isempty(Set.task.installspace.type)
     collbodies_instspc.type = [collbodies_instspc.type; repmat(uint8(9),R_cc.NJ,1)];
     collbodies_instspc.params = [collbodies_instspc.params; NaN(R_cc.NJ,10)];
     collbodies_instspc.link = [collbodies_instspc.link; uint8(NLoffset+(1:R_cc.NJ)')];
+    % Prüfe den Offset-Parameter für das Schubgelenk
+    for i = find(R_cc.MDH.sigma'==1)
+      for j = 1:length(Set.task.installspace.links)
+        if ~any(Set.task.installspace.links{j} == i-1)
+          % Der dem Schubgelenk i zugeordnete Körper i-1 darf sich nicht in
+          % einem Teil des Bauraums befinden. Dafür muss ein Offset-Parameter
+          % optimiert werden.
+          Structure.desopt_prismaticoffset = true;
+          break;
+        end
+      end
+    end
   end
   % Stelle äquivalente Gelenknummer von PKM zusammen (als  Übersetzungs- 
   % tabelle). Zeile 1 ursprünglich, Zeile 2 Übersetzung. Siehe oben.

@@ -85,7 +85,7 @@ if update_collbodies
       % der MDH-Notation der Kinematik)
       T_mdh1 = trotz(R_cc.MDH.beta(i))*transl([0;0;R_cc.MDH.b(i)]) * ...
                trotx(R_cc.MDH.alpha(i))*transl([R_cc.MDH.a(i);0;0]);
-      T_qmin = T_mdh1 * transl([0;0;q_minmax_k(i,1)]);
+      T_qmin = T_mdh1 * transl([0;0;-R_cc.DesPar.joint_offset(i)+q_minmax_k(i,1)]);
       T_qmax = T_qmin * transl([0;0;q_minmax_k(i,2)-q_minmax_k(i,1)]);
       % Prüfe Art des Schubgelenks
       if R_cc.DesPar.joint_type(i) == 4 % Führungsschiene

@@ -497,6 +497,12 @@ end
 
 %% Bauraumprüfung für Trajektorie
 if ~isempty(Set.task.installspace.type)
+  if Structure.desopt_prismaticoffset
+    cds_desopt_prismaticoffset(R, Traj_0.X, Set, Structure, JP, Q);
+    % Kollisionskörper müssen nochmal aktualisiert werden (wegen Offset)
+    [Structure.collbodies_robot, Structure.installspace_collbodies] = ...
+      cds_update_collbodies(R, Set, Structure, Q);
+  end
   [fval_instspc_traj, f_constrinstspc_traj] = cds_constr_installspace( ...
     R, Traj_0.X, Set, Structure, JP, Q, [2e3;3e3]);
   if fval_instspc_traj > 0
