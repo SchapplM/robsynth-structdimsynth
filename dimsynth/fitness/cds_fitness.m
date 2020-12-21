@@ -24,13 +24,15 @@
 %   1e6...1e7: Überschreitung kinematischer NB (Kondition)
 %   1e7...1e9: Siehe cds_constraints_traj. Werte von dort mit Faktor 1e4 multipliziert
 %   1e9...1e13: Siehe cds_constraints. Werte von dort mit Faktor 1e4 multipliziert
-% Q
+% physval
+%   Physikalische Werte, die den Werten aus fval entsprechen
+% Q, QD, QDD
 %   Gelenkwinkel-Trajektorie für Ergebnis
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function [fval, physval, Q] = cds_fitness(R, Set, Traj_W, Structure, p)
+function [fval, physval, Q, QD, QDD, TAU] = cds_fitness(R, Set, Traj_W, Structure, p)
 repopath = fileparts(which('structgeomsynth_path_init.m'));
 rng(0); % Für Wiederholbarkeit der Versuche: Zufallszahlen-Initialisierung
 
@@ -41,7 +43,7 @@ end
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_fitness_1.mat'),  '-regexp', '^(?!abort_fitnesscalc$).');
 
 t1=tic();
-Q = [];
+Q = []; QD = []; QDD = []; TAU = [];
 debug_info = {};
 % Alle möglichen physikalischen Werte von Nebenbedingungen (für spätere Auswertung)
 constraint_obj_val = NaN(length(Set.optimization.constraint_obj),1);
@@ -279,6 +281,8 @@ for iIKC = 1:size(Q0,1)
       Set.optimization.constraint_obj(3) ~= 0 % Für NB benötigt
     TAU = data_dyn2.TAU;
 %     TAU_IKC(:,:,iIKC) = TAU; % Zum Debuggen
+  else
+    TAU = [];
   end
 
   %% Nebenbedingungen der Entwurfsvariablen berechnen: Festigkeit der Segmente

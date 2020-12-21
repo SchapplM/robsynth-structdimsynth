@@ -7,6 +7,8 @@
 %   Trajektorie (bezogen auf Welt-KS)
 % Structure
 %   Eigenschaften der Roboterstruktur
+% init_only
+%   Nur Roboter-Klasse initialisieren. Keine Optimierung durchführen.
 
 % Quellen:
 % [SchapplerTapOrt2019] Schappler, M. and Tappe, S., Ortmaier, T.:
@@ -18,7 +20,10 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function cds_dimsynth_robot(Set, Traj, Structure)
+function [R, Structure] = cds_dimsynth_robot(Set, Traj, Structure, init_only)
+if nargin < 4
+  init_only = false;
+end
 t1 = tic();
 t_start = now(); % Anfangs-Zeitstempel der Optimierung dieses Roboters
 %% Debug: 
@@ -30,38 +35,40 @@ end
 
 %% Initialisierung
 % Log-Datei initialisieren
-resdir_rob = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
-  sprintf('Rob%d_%s', Structure.Number, Structure.Name));
-mkdirs(resdir_rob); % Ergebnis-Ordner für diesen Roboter erstellen
-fpfile = cds_log(1, sprintf('[dimsynth] Start der Maßsynthese für %s',  Structure.Name), 'init', Set, Structure);
-% Fingerabdruck der relevanten Repos in Log-Datei speichern
-repo_deps = {
-  {'structgeomsynth', 'structgeomsynth_path_init.m'}, ...
-  {'parroblib', 'parroblib_path_init.m'}, ...
-  {'serroblib', 'serroblib_path_init.m'}, ...
-  {'robotics', 'robotics_toolbox_path_init.m'}, ...
-  {'hybriddyn', 'hybrdyn_path_init.m'}, ...
-  {'matlab-tools', 'matlab_tools_path_init.m'}, ...
-  {'matlab-ext', 'matlab_ext_path_init.m'}, ...
-  {'trajectory-toolbox', 'trajectory_toolbox_path_init.m'}, ...
-  {'geometry-toolbox', 'geometry_toolbox_path_init.m'}};
-olddir = pwd();
-fid = fopen(fpfile, 'a');
-fprintf(fid, 'Fingerabdruck aller Abhängigkeiten:\n');
-for i = 1:length(repo_deps)
-  cd(fileparts(which(repo_deps{i}{2})));
-  [~,rev]=system('git rev-parse HEAD');
-  if ispc() % Windows
-    [~,revdatum]=system('git log -1 --date=short --pretty=format:%cd');
-  else % Linux
-    [~,revdatum]=system('export TERM=ansi; git log -1 --date=short --pretty=format:%cd');
-    revdatum = revdatum(2:11); % Entferne Zeilenumbruch und nicht lesbare Zeichen
+if ~init_only
+  resdir_rob = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+    sprintf('Rob%d_%s', Structure.Number, Structure.Name));
+  mkdirs(resdir_rob); % Ergebnis-Ordner für diesen Roboter erstellen
+  fpfile = cds_log(1, sprintf('[dimsynth] Start der Maßsynthese für %s',  Structure.Name), 'init', Set, Structure);
+  % Fingerabdruck der relevanten Repos in Log-Datei speichern
+  repo_deps = {
+    {'structgeomsynth', 'structgeomsynth_path_init.m'}, ...
+    {'parroblib', 'parroblib_path_init.m'}, ...
+    {'serroblib', 'serroblib_path_init.m'}, ...
+    {'robotics', 'robotics_toolbox_path_init.m'}, ...
+    {'hybriddyn', 'hybrdyn_path_init.m'}, ...
+    {'matlab-tools', 'matlab_tools_path_init.m'}, ...
+    {'matlab-ext', 'matlab_ext_path_init.m'}, ...
+    {'trajectory-toolbox', 'trajectory_toolbox_path_init.m'}, ...
+    {'geometry-toolbox', 'geometry_toolbox_path_init.m'}};
+  olddir = pwd();
+  fid = fopen(fpfile, 'a');
+  fprintf(fid, 'Fingerabdruck aller Abhängigkeiten:\n');
+  for i = 1:length(repo_deps)
+    cd(fileparts(which(repo_deps{i}{2})));
+    [~,rev]=system('git rev-parse HEAD');
+    if ispc() % Windows
+      [~,revdatum]=system('git log -1 --date=short --pretty=format:%cd');
+    else % Linux
+      [~,revdatum]=system('export TERM=ansi; git log -1 --date=short --pretty=format:%cd');
+      revdatum = revdatum(2:11); % Entferne Zeilenumbruch und nicht lesbare Zeichen
+    end
+    [~,branch]=system('git rev-parse --abbrev-ref HEAD');
+    fprintf(fid, '%s: Branch %s, Rev. %s (%s)\n', repo_deps{i}{1}, branch(1:end-1), rev(1:8), revdatum);
   end
-  [~,branch]=system('git rev-parse --abbrev-ref HEAD');
-  fprintf(fid, '%s: Branch %s, Rev. %s (%s)\n', repo_deps{i}{1}, branch(1:end-1), rev(1:8), revdatum);
+  fclose(fid);
+  cd(olddir);
 end
-fclose(fid);
-cd(olddir);
 % Zurücksetzen der Detail-Speicherfunktion
 clear cds_save_particle_details;
 % Mittelpunkt der Aufgabe
@@ -949,6 +956,12 @@ if ~isempty(Set.task.installspace.type)
   Structure.installspace_collchecks_collbodies = instspc_collchecks_collbodies;
 end
 
+if nargin == 4 && init_only
+  % Keine Optimierung durchführen. Damit kann nachträglich die
+  % initialisierte Roboterklasse basierend auf Ergebnissen der Maßsynthese
+  % erzeugt werden, ohne dass diese gespeichert werden muss.
+  return
+end
 %% Anfangs-Population generieren
 % TODO: Existierende Roboter einfügen
 
