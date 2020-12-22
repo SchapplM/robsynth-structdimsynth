@@ -217,50 +217,53 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
   end
 end
 %% Wähle aus den geladenen Parametern eine Anfangspopulation mit hoher Diversität
-% Indizies der bereits ausgewählten Partikel
-I_selected = false(size(ScoreLoad,1),1);
 % Anzahl der zu ladenden Parameter (begrenzt durch vorhandene)
 nIndLoad = Set.optimization.InitPopRatioOldResults*nIndTotal;
 nIndLoad = min(nIndLoad, size(InitPopLoadTmp,1));
-% Normiere die geladenen Parameter auf die Parametergrenzen.
-InitPopLoadTmpNorm = (InitPopLoadTmp-repmat(varlim(:,1)',size(InitPopLoadTmp,1),1)) ./ ...
-  repmat(varlim(:,2)'-varlim(:,1)',size(InitPopLoadTmp,1),1);
-% Beste und schlechteste Bewertung zur Einordnung der Ergebnisse
-bestscore = max(ScoreLoad);
-worstscore = min(ScoreLoad);
-% Population der gewählten geladenen Partikel. Baue eins nach dem anderen
-% auf.
-InitPopLoadNorm = NaN(nIndLoad, nvars);
-for i = 1:nIndLoad
-  % Erlaube insgesamt nur die besten 30% der Bewertungen. Nehme am Anfang
-  % nur die besten, am Ende dann bis zu 30%
-  bestscoreratio = 1-0.3*i/nIndLoad;
-  I_score_allowed = ScoreLoad > worstscore + bestscoreratio*bestscore;
-  % Bestimme die Indizes der Partikel, die durchsucht werden. Schließe
-  % bereits gewählte aus.
-  I_search = I_score_allowed & ~I_selected;
-  if ~any(I_search)
-    [~, Isort] = sort(ScoreLoad, 'descend');
-    I_search(Isort(1:i)) = true; % Wähle so viele der besten aus, dass es eine Möglichkeit gibt
+if size(InitPopLoadTmp,1) > 0
+  % Indizies der bereits ausgewählten Partikel
+  I_selected = false(size(ScoreLoad,1),1);
+  % Normiere die geladenen Parameter auf die Parametergrenzen.
+  InitPopLoadTmpNorm = (InitPopLoadTmp-repmat(varlim(:,1)',size(InitPopLoadTmp,1),1)) ./ ...
+    repmat(varlim(:,2)'-varlim(:,1)',size(InitPopLoadTmp,1),1);
+  % Beste und schlechteste Bewertung zur Einordnung der Ergebnisse
+  bestscore = max(ScoreLoad);
+  worstscore = min(ScoreLoad);
+  % Population der gewählten geladenen Partikel. Baue eins nach dem anderen
+  % auf.
+  InitPopLoadNorm = NaN(nIndLoad, nvars);
+  for i = 1:nIndLoad
+    % Erlaube insgesamt nur die besten 30% der Bewertungen. Nehme am Anfang
+    % nur die besten, am Ende dann bis zu 30%
+    bestscoreratio = 1-0.3*i/nIndLoad;
+    I_score_allowed = ScoreLoad > worstscore + bestscoreratio*bestscore;
+    % Bestimme die Indizes der Partikel, die durchsucht werden. Schließe
+    % bereits gewählte aus.
+    I_search = I_score_allowed & ~I_selected;
+    if ~any(I_search)
+      [~, Isort] = sort(ScoreLoad, 'descend');
+      I_search(Isort(1:i)) = true; % Wähle so viele der besten aus, dass es eine Möglichkeit gibt
+    end
+    II_search = find(I_search); % Zähl-Indizes zusätzlich zu Binär-Indizes
+    % Bilde in jeder Iteration den Mittelwert der Parameter neu
+    pnorm_mean_i = mean(InitPopLoadNorm, 1, 'omitnan');
+    % Bestimme den quadratischen Abstand aller durchsuchter Partikel gegen
+    % den aktuellen Mittelwert. Das ist ein vereinfachtes Diversitätsmaß.
+    score_div = sum((InitPopLoadTmpNorm(I_search,:) - ...
+      repmat(pnorm_mean_i, sum(I_search), 1)).^2,2);
+    % Wähle das beste Partikel aus und füge es zur Initialpopulation hinzu.
+    % Vereinfachte Annahme: Dadurch wird die Diversität maximal vergrößert.
+    [~,I_best] = min(score_div);
+    InitPopLoadNorm(i,:) = InitPopLoadTmpNorm(II_search(I_best),:);
+    % Markiere als bereits gewählt, damit es nicht erneut gewählt wird.
+    I_selected(II_search(I_best)) = true;
   end
-  II_search = find(I_search); % Zähl-Indizes zusätzlich zu Binär-Indizes
-  % Bilde in jeder Iteration den Mittelwert der Parameter neu
-  pnorm_mean_i = mean(InitPopLoadNorm, 1, 'omitnan');
-  % Bestimme den quadratischen Abstand aller durchsuchter Partikel gegen
-  % den aktuellen Mittelwert. Das ist ein vereinfachtes Diversitätsmaß.
-  score_div = sum((InitPopLoadTmpNorm(I_search,:) - ...
-    repmat(pnorm_mean_i, sum(I_search), 1)).^2,2);
-  % Wähle das beste Partikel aus und füge es zur Initialpopulation hinzu.
-  % Vereinfachte Annahme: Dadurch wird die Diversität maximal vergrößert.
-  [~,I_best] = min(score_div);
-  InitPopLoadNorm(i,:) = InitPopLoadTmpNorm(II_search(I_best),:);
-  % Markiere als bereits gewählt, damit es nicht erneut gewählt wird.
-  I_selected(II_search(I_best)) = true;
+  % Entferne die Normierung.
+  InitPopLoad = repmat(varlim(:,1)',size(InitPopLoadNorm,1),1) + InitPopLoadNorm .* ...
+    (repmat(varlim(:,2)'-varlim(:,1)',size(InitPopLoadNorm,1),1));
+else
+  InitPopLoad = [];
 end
-% Entferne die Normierung.
-InitPopLoad = repmat(varlim(:,1)',size(InitPopLoadNorm,1),1) + InitPopLoadNorm .* ...
-  (repmat(varlim(:,2)'-varlim(:,1)',size(InitPopLoadNorm,1),1));
-
 %% Auffüllen mit zufälligen Werten für alle Optimierungsparameter
 % Fülle die restlichen Individuen mit NaN auf
 nIndRand = nIndTotal - nIndLoad;
