@@ -101,14 +101,16 @@ if isempty(Structures)
 end
 
 %% Ergebnis-Speicherort vorbereiten
-resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
-mkdirs(resdir_main); % Ergebnis-Ordner für diese Optimierung erstellen
-% Einstellungen dieser kombinierten Synthese speichern. Damit ist im
-% Nachhinein nachvollziehbar, welche Roboter eventuell fehlen. Bereits hier
-% oben machen. Dann passt die Variable Structures auch für den Fall, dass
-% die Maßsynthese im folgenden Schritt aufgeteilt wird.
-save(fullfile(resdir_main, sprintf('%s_settings.mat', Set.optimization.optname)), ...
-  'Set', 'Traj', 'Structures');
+if ~Set.general.computing_cluster
+  resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
+  mkdirs(resdir_main); % Ergebnis-Ordner für diese Optimierung erstellen
+  % Einstellungen dieser kombinierten Synthese speichern. Damit ist im
+  % Nachhinein nachvollziehbar, welche Roboter eventuell fehlen. Bereits hier
+  % oben machen. Dann passt die Variable Structures auch für den Fall, dass
+  % die Maßsynthese im folgenden Schritt aufgeteilt wird.
+  save(fullfile(resdir_main, sprintf('%s_settings.mat', Set.optimization.optname)), ...
+    'Set', 'Traj', 'Structures');
+end
 % Verzeichnisse zum Laden alter Ergebnisse vorbereiten
 if Set.optimization.InitPopRatioOldResults > 0
   Set.optimization.result_dirs_for_init_pop = ...
