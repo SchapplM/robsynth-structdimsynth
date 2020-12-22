@@ -81,7 +81,7 @@ Structure = d3.Structures{RobNr};
 restabfile = fullfile(resdir_opt, sprintf('%s_results_table.csv', OptName));
 ResTab = readtable(restabfile, 'Delimiter', ';');
 % Ergebnis-Ordner lokal überschreiben
-Set.Set.optimization.resdir = resdir;
+Set.optimization.resdir = resdir;
 
 %% Bestimme die Nummer des Pareto-Partikels
 % Annahme: Hier nicht bekannt, ob fval- oder physval-Pareto-Diagramm.
