@@ -98,17 +98,62 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
     end
 
     Structure_i = d.RobotOptRes.Structure;
+    
+    % Auslesen der Parameter (bezogen auf die Datei)
+    if ~isempty(d.RobotOptRes.p_val_pareto)
+      pval_i_file = d.RobotOptRes.p_val_pareto;
+      fval_i = d.RobotOptRes.fval_pareto;
+    else
+      pval_i_file = d.RobotOptRes.p_val';
+      fval_i = d.RobotOptRes.fval;
+    end
+    % Index-Vektor zum Finden der aktuellen Optimierungsparameter pval in
+    % den Optimierungsparametern pval_i_file
+    I_p_file = zeros(nvars,1);
+    for jjj = 1:length(I_p_file)
+      Ii = find(strcmp(Structure.varnames{jjj},Structure_i.varnames));
+      if ~isempty(Ii)
+        I_p_file(jjj) = Ii;
+      end
+    end
+    % TODO: Belege die Parameter aus den gespeicherten Eigenschaften des Roboters
+    
+    % Falls Optimierungsparameter in der Datei nicht gesetzt sind, müssen
+    % diese zufällig neu gewählt werden. Dafür gibt es Abzug in der
+    % Bewertung.
+    score_i = score_i - sum(I_p_file==0)*5;
+    % Rechne Parameter aus Datei in aktuelle Parameter um.
+    pval_i = NaN(size(pval_i_file,1), nvars);
+    for jjj = 1:length(I_p_file)
+      if I_p_file(jjj) ~= 0
+        pval_i(:,jjj) = pval_i_file(:,I_p_file(jjj));
+      end
+    end
     % Prüfe, ob die Optimierungsparameter gleich sind
     if length(Structure.vartypes) ~= length(Structure_i.vartypes) || ...
         any(Structure.vartypes ~= Structure_i.vartypes)
-      % Die Optimierungsparameter sind unterschiedlich. Noch nichts
-      % ableitbar. TODO: Logik, um die Parameter aus unvollständigen Daten
-      % neu aufzubauen.
-      cds_log(1, sprintf(['[cds_gen_init_pop] Optimierungsparameter in Ergebnis-', ...
-        'Ordner %s unterschiedlich (%d vs %d). Keine Anfangswerte ableitbar. Unterschied: {%s}'], ...
-        optdirs(i).name, length(Structure.vartypes), length(Structure_i.vartypes), ...
-        disp_array(setxor(Structure_i.varnames, Structure.varnames))));
-      continue
+      % Die Optimierungsparameter sind unterschiedlich. Bestimme Indizes
+      % der in der Datei benutzten und aktuell nicht benutzten Parameter
+      [~,missing_local_in_file,~] = setxor(Structure_i.varnames,Structure.varnames);
+      I_basez = find(strcmp(Structure_i.varnames, 'base z')) == missing_local_in_file;
+      % PKM mit Schubantrieben die nach oben zeigen. Die Basis-Position ist
+      % egal. Falls der Parameter nicht mehr optimiert wird, sind vorherige
+      % Ergebnisse trotzdem verwendbar.
+      if ~isempty(I_basez) && ...
+          Structure.Type == 2 && Structure.Name(3) == 'P' && any(Structure.Coupling(1)==[1 4])
+        missing_local_in_file(missing_local_in_file==find(strcmp(Structure_i.varnames, 'base z'))) = 0;
+      end
+      if all(missing_local_in_file==0)
+        % Alle in Datei überflüssigen Parameter sind egal. Mache weiter.
+      else
+        % Noch nichts ableitbar. TODO: Logik weiter ausbauen, um die
+        % Parameter aus unvollständigen Daten neu aufzubauen.
+        cds_log(1, sprintf(['[cds_gen_init_pop] Optimierungsparameter in Ergebnis-', ...
+          'Ordner %s unterschiedlich (%d vs %d). Keine Anfangswerte ableitbar. Unterschied: {%s}'], ...
+          optdirs(i).name, length(Structure.vartypes), length(Structure_i.vartypes), ...
+          disp_array(setxor(Structure_i.varnames, Structure.varnames))));
+        continue
+      end
     end
     % Prüfe, ob die Trajektorie gleich ist
     if ~all(abs(Structure_i.xT_mean-Structure.xT_mean) < 1e-6)
@@ -118,13 +163,6 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
     end
 
     % Prüfe, ob die Parametergrenzen eingehalten werden
-    if ~isempty(d.RobotOptRes.p_val_pareto)
-      pval_i = d.RobotOptRes.p_val_pareto;
-      fval_i = d.RobotOptRes.fval_pareto;
-    else
-      pval_i = d.RobotOptRes.p_val';
-      fval_i = d.RobotOptRes.fval;
-    end
     % Grenzen als Matrix, damit Vergleich einfacher Implementierbar.
     ll_repmat = repmat(varlim(:,1)',size(pval_i,1),1);
     ul_repmat = repmat(varlim(:,2)',size(pval_i,1),1);
@@ -139,8 +177,10 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
       I_bpz_ulviol = pval_i(:,I_bpz)>ul_repmat(:,I_bpz);
       pval_i(I_bpz_ulviol,I_bpz) = ul_repmat(I_bpz_ulviol,I_bpz);
     end
-    % Eigentliche Prüfung der Parametergrenzen
-    I_param_iO = all(ll_repmat <= pval_i & ul_repmat >= pval_i,2);
+    % Eigentliche Prüfung der Parametergrenzen. Nehme an, dass ein auf NaN
+    % gesetzter Parameter in Ordnung ist. Es werden dann unten statt
+    % gespeicherter Werte Zufallswerte eingesetzt.
+    I_param_iO = all(ll_repmat <= pval_i & ul_repmat >= pval_i | isnan(pval_i) ,2);
     cds_log(1, sprintf(['[cds_gen_init_pop] Auswertung %d/%d (%s) geladen. ', ...
       'Bewertung: %d. Bei %d/%d Parametergrenzen passend.'], i, length(optdirs), ...
       optdirs(i).name, score_i, sum(I_param_iO), size(pval_i,1)));
@@ -176,44 +216,65 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
 %     end
   end
 end
-% TODO: Bevorzuge Parameter, die sich voneinander entscheiden.
-
-% Wähle die geladenen alten Ergebnisse
-[~, I] = sort(ScoreLoad, 'descend');
-InitPopLoad = InitPopLoadTmp(I,:);
+%% Wähle aus den geladenen Parametern eine Anfangspopulation mit hoher Diversität
+% Indizies der bereits ausgewählten Partikel
+I_selected = false(size(ScoreLoad,1),1);
+% Anzahl der zu ladenden Parameter (begrenzt durch vorhandene)
 nIndLoad = Set.optimization.InitPopRatioOldResults*nIndTotal;
-nIndLoad = min(nIndLoad, size(InitPopLoad,1));
-
-%% Zufällige Werte für alle Optimierungsparameter (normiert mit varlim)
-nIndRand = nIndTotal - nIndLoad;
-InitPopRand = repmat(varlim(:,1)', nIndRand,1) + rand(nIndRand, nvars) .* ...
-                        repmat(varlim(:,2)'-varlim(:,1)',nIndRand,1);
-
-% Alle PSO-Parameter durchgehen
-for i = 1:nvars
-  if vartypes(i) ~= 1
-    % Nur Betrachtung von Kinematikparametern der Beinkette.
-    % Alle anderen werden auf obige Zufallswerte gesetzt
-    continue % nicht pkin parameter
+nIndLoad = min(nIndLoad, size(InitPopLoadTmp,1));
+% Normiere die geladenen Parameter auf die Parametergrenzen.
+InitPopLoadTmpNorm = (InitPopLoadTmp-repmat(varlim(:,1)',size(InitPopLoadTmp,1),1)) ./ ...
+  repmat(varlim(:,2)'-varlim(:,1)',size(InitPopLoadTmp,1),1);
+% Beste und schlechteste Bewertung zur Einordnung der Ergebnisse
+bestscore = max(ScoreLoad);
+worstscore = min(ScoreLoad);
+% Population der gewählten geladenen Partikel. Baue eins nach dem anderen
+% auf.
+InitPopLoadNorm = NaN(nIndLoad, nvars);
+for i = 1:nIndLoad
+  % Erlaube insgesamt nur die besten 30% der Bewertungen. Nehme am Anfang
+  % nur die besten, am Ende dann bis zu 30%
+  bestscoreratio = 1-0.3*i/nIndLoad;
+  I_score_allowed = ScoreLoad > worstscore + bestscoreratio*bestscore;
+  % Bestimme die Indizes der Partikel, die durchsucht werden. Schließe
+  % bereits gewählte aus.
+  I_search = I_score_allowed & ~I_selected;
+  if ~any(I_search)
+    [~, Isort] = sort(ScoreLoad, 'descend');
+    I_search(Isort(1:i)) = true; % Wähle so viele der besten aus, dass es eine Möglichkeit gibt
   end
-  if contains(varnames(i),{'theta'}) % theta parameter
-    % Setze nur auf 0 oder pi/2. Das verspricht eine bessere Lösbarkeit der
-    % Kinematik. Mache nur, wenn das mit den Grenzen passt.
-    if varlim(i,2) >= pi/2 && varlim(i,1) <= 0
-      InitPopRand(:,i) = pi/2 * round(rand(nIndRand,1)); 
-      continue
-    end
-  end
-  if contains(varnames(i),{'alpha'}) % alpha parameter
-    % nur 0 oder pi/2
-    if varlim(i,2) >= pi/2 && varlim(i,1) <= 0
-      InitPopRand(:,i) = pi/2 * round(rand(nIndRand,1)); 
-      continue
-    end
-  end
+  II_search = find(I_search); % Zähl-Indizes zusätzlich zu Binär-Indizes
+  % Bilde in jeder Iteration den Mittelwert der Parameter neu
+  pnorm_mean_i = mean(InitPopLoadNorm, 1, 'omitnan');
+  % Bestimme den quadratischen Abstand aller durchsuchter Partikel gegen
+  % den aktuellen Mittelwert. Das ist ein vereinfachtes Diversitätsmaß.
+  score_div = sum((InitPopLoadTmpNorm(I_search,:) - ...
+    repmat(pnorm_mean_i, sum(I_search), 1)).^2,2);
+  % Wähle das beste Partikel aus und füge es zur Initialpopulation hinzu.
+  % Vereinfachte Annahme: Dadurch wird die Diversität maximal vergrößert.
+  [~,I_best] = min(score_div);
+  InitPopLoadNorm(i,:) = InitPopLoadTmpNorm(II_search(I_best),:);
+  % Markiere als bereits gewählt, damit es nicht erneut gewählt wird.
+  I_selected(II_search(I_best)) = true;
 end
-%% Mische die Populationen
+% Entferne die Normierung.
+InitPopLoad = repmat(varlim(:,1)',size(InitPopLoadNorm,1),1) + InitPopLoadNorm .* ...
+  (repmat(varlim(:,2)'-varlim(:,1)',size(InitPopLoadNorm,1),1));
+
+%% Auffüllen mit zufälligen Werten für alle Optimierungsparameter
+% Fülle die restlichen Individuen mit NaN auf
+nIndRand = nIndTotal - nIndLoad;
+InitPopRand = NaN(nIndRand,nvars);
 InitPop = [InitPopLoad(1:nIndLoad,:); InitPopRand(1:nIndRand,:)];
+% Belege alle mit NaN gesetzten Parameter mit Zufallswerten. Dadurch können
+% auch unvollständige Parameter aus vorherigen Optimierungen nachträglich
+% mit Zufallswerten erweitert und genutzt werden.
+for i = 1:nvars
+  I = isnan(InitPop(:,i));
+  InitPop(I,i) = varlim(i,1) + rand(sum(I), 1) .* ...
+                          repmat(varlim(i,2)'-varlim(i,1)',sum(I),1);
+end
+
 cds_log(1, sprintf(['[cds_gen_init_pop] %d Partikel für Initialpopulation ', ...
   'aus %d vorherigen Optimierungen geladen (%1.1fMB). Dauer: %1.1fs. ', ...
   'Davon %d genommen. Die restlichen %d zufällig.'], size(InitPopLoad,1), ...
