@@ -1315,12 +1315,16 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
     physval_mani; physval_msv; physval_pe; physval_jrange; physval_stiff];
   % Vergleiche neu berechnete Werte mit den zuvor abgespeicherten (müssen
   % übereinstimmen)
-  test_Jcond = PSO_Detail_Data.constraint_obj_val(dd_optind, 4, dd_optgen) - physval_cond;
-  if abs(test_Jcond) > 1e-6
+  test_Jcond_abs = PSO_Detail_Data.constraint_obj_val(dd_optind, 4, dd_optgen) - physval_cond;
+  test_Jcond_rel = test_Jcond_abs / physval_cond;
+  if abs(test_Jcond_abs) > 1e-6 && test_Jcond_rel > 1e-3
     save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
       sprintf('%d_%s', Structure.Number, Structure.Name), 'condreprowarning.mat'));
-    cds_log(-1, sprintf('[dimsynth] Während Optimierung gespeicherte Konditionszahl (%1.5e) stimmt nicht mit erneuter Berechnung (%1.5e) überein. Differenz %1.5e.', ...
-      PSO_Detail_Data.constraint_obj_val(dd_optind, 4, dd_optgen), physval_cond, test_Jcond));
+    cds_log(-1, sprintf(['[dimsynth] Während Optimierung gespeicherte ', ...
+      'Konditionszahl (%1.5e) stimmt nicht mit erneuter Berechnung (%1.5e) ', ...
+      'überein. Differenz %1.5e (%1.2f%%)'], ...
+      PSO_Detail_Data.constraint_obj_val(dd_optind, 4, dd_optgen), ...
+      physval_cond, test_Jcond_abs, test_Jcond_rel));
   end
   test_sv = PSO_Detail_Data.constraint_obj_val(dd_optind, 6, dd_optgen) - physval_ms;
   if abs(test_sv) > 1e-5
@@ -1328,6 +1332,13 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
       sprintf('%d_%s', Structure.Number, Structure.Name), 'svreprowarning.mat'));
     cds_log(-1, sprintf('[dimsynth] Während Optimierung gespeicherte Materialbelastung (%1.5e) stimmt nicht mit erneuter Berechnung (%1.5e) überein. Differenz %1.5e.', ...
       PSO_Detail_Data.constraint_obj_val(dd_optind, 6, dd_optgen), physval_ms, test_sv));
+  end
+  test_mass = PSO_Detail_Data.constraint_obj_val(dd_optind, 1, dd_optgen) - physval_mass;
+  if abs(test_mass) > 1e-5
+    save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
+      sprintf('%d_%s', Structure.Number, Structure.Name), 'massreprowarning.mat'));
+    cds_log(-1, sprintf('[dimsynth] Während Optimierung gespeicherte Masse (%1.5e) stimmt nicht mit erneuter Berechnung (%1.5e) überein. Differenz %1.5e.', ...
+      PSO_Detail_Data.constraint_obj_val(dd_optind, 1, dd_optgen), physval_mass, test_mass));
   end
 else
   % Keine Berechnung der Leistungsmerkmale möglich, da keine zulässige Lösung
@@ -1338,10 +1349,26 @@ end
 % Prüfe auf Plausibilität, ob die Optimierungsziele erreicht wurden. Neben-
 % bedingungen nur prüfen, falls überhaupt gültige Lösung erreicht wurde.
 I_fobj_set = Set.optimization.constraint_obj ~= 0;
-if any(fval<1e3) && any( physval_obj_all(I_fobj_set) > Set.optimization.constraint_obj(I_fobj_set) )
+% Die Reihenfolge der Zielfunktionen insgesamt und die der Zielfunktionen
+% als Grenze sind unterschiedlich. Finde Indizes der einen in den anderen.
+objconstr_names_all = {'mass', 'energy', 'actforce', 'condition', ...
+  'stiffness', 'materialstress'};
+obj_names_all = {'mass', 'energy', 'actforce', 'materialstress', 'condition', ...
+  'manipulability', 'minjacsingval', 'positionerror', 'jointrange', 'stiffness'};
+I_constr = zeros(length(objconstr_names_all),1);
+for i = 1:length(objconstr_names_all)
+  I_constr(i) = find(strcmp(objconstr_names_all{i}, obj_names_all));
+end
+% Indizes der verletzten Nebenbedingungen. Wert Null heißt inaktiv.
+I_viol = physval_obj_all(I_constr) > Set.optimization.constraint_obj & I_fobj_set;
+if any(fval<1e3) && any(I_viol)
   save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
     sprintf('%d_%s', Structure.Number, Structure.Name), 'objconstrwarning.mat'));
-  cds_log(-1, sprintf('[dimsynth] Zielfunktions-Nebenbedingung verletzt trotz Berücksichtigung in Optimierung. Keine Lösung gefunden.'));
+  for i = find(I_viol)'
+    cds_log(-1,sprintf(['[dimsynth] Zielfunktions-Nebenbedingung %d (%s) verletzt ', ...
+      'trotz Berücksichtigung in Optimierung: %1.4e > %1.4e. Keine Lösung gefunden.'], ...
+      i, objconstr_names_all{i}, physval_obj_all(I_constr(i)), Set.optimization.constraint_obj(i)));
+  end
 end
 if any(fval<1e3) && Set.optimization.constraint_obj(6) ~= 0 && ...
     physval_ms > Set.optimization.constraint_obj(6) 
@@ -1352,8 +1379,6 @@ end
 % Bestimme Zuordnung der Fitness-Vektor-Einträge zu den Leistungsmerkmalen
 % (Erleichtert spätere Auswertung bei Pareto-Optimierung)
 I_fval_obj_all = zeros(length(Set.optimization.objective),1);
-obj_names_all = {'mass', 'energy', 'actforce', 'materialstress', 'condition', ...
-  'manipulability', 'minjacsingval', 'positionerror', 'jointrange', 'stiffness'};
 for i = 1:length(Set.optimization.objective)
   II_i = strcmp(Set.optimization.objective{i},obj_names_all);
   if any(II_i) % Bei Zielfunktion valid_act wird kein Leistungsmerkmal berechnet.
