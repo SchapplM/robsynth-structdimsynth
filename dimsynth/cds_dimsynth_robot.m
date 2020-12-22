@@ -71,13 +71,26 @@ if ~init_only
 end
 % Zurücksetzen der Detail-Speicherfunktion
 clear cds_save_particle_details;
+
+%% Referenzlänge ermitteln
 % Mittelpunkt der Aufgabe
 Structure.xT_mean = mean(minmax2(Traj.X(:,1:3)'), 2);
 % Charakteristische Länge der Aufgabe (empirisch ermittelt aus der Größe
 % des notwendigen Arbeitsraums)
 Lref = norm(diff(minmax2(Traj.X(:,1:3)')'));
-% Experimentell: Abstand der Aufgabe vom Roboter-Basis-KS
-% Lref = Lref + mean(Structure.xT_mean) / 2;
+% Abstand der Aufgabe vom Roboter-Basis-KS
+if any(~isnan(Set.optimization.basepos_limits(:)))
+  maxdist_xyz = NaN(3,1);
+  for i = 1:3
+    mmt = minmax2(Traj.X(:,i)');
+    mmb = Set.optimization.basepos_limits(i,:);
+    distmat = reshape(mmt,2,1)-reshape(mmb',1,2);
+    maxdist_xyz(i) = max(abs(distmat(:)));
+  end
+  % Vergrößere den Wert, damit bei weit entfernter Basis der Roboter lang
+  % genug werden kann.
+  Lref = max(Lref, max(maxdist_xyz));
+end
 Structure.Lref = Lref;
 %% Roboter-Klasse initialisieren
 if Structure.Type == 0 % Seriell
