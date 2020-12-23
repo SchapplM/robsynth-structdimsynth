@@ -32,7 +32,11 @@ Traj_0 = cds_transform_traj(R, Traj);
 Name = RobData.Name;
 resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
 resrobdir = fullfile(resmaindir, sprintf('Rob%d_%s', RNr, Name));
-fval = RobotOptRes.fval_pareto(PNr,:)';
+if isempty(RobotOptRes.fval_pareto)
+  fval = RobotOptRes.fval;
+else
+  fval = RobotOptRes.fval_pareto(PNr,:)';
+end
 if all(fval > 1e3) % NB verletzt. Es gibt nur ein Kriterium
   fval_str = sprintf('%1.1e', fval(1));
 elseif length(fval) == 1 % Einkriteriell
