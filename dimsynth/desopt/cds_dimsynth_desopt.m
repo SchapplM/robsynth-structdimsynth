@@ -39,66 +39,101 @@ end
 % vor/nach dem Aufruf unterschiedlich)
 
 %% Optimierungsalgorithmus vorbereiten
+% Wähle die Variablen der Entwurfsoptimierung aus (siehe
+% cds_dimsynth_robot)
+vartypes = Structure.desopt_ptypes(Structure.desopt_ptypes~=1);
 options_desopt = optimoptions('particleswarm');
 options_desopt.Display = 'off';
 options_desopt.MaxIter = 5;
-NumIndividuals = 20;
 options_desopt.MaxStallIterations = 1; % Oft ist das Optimum der Startwert
 options_desopt.ObjectiveLimit = 1e3; % Erfüllung aller Nebenbedingungen reicht
-nvars = 2; % Variablen: Wandstärke, Durchmesser der Segmente
+nvars = length(vartypes); % Variablen: Wandstärke, Durchmesser der Segmente
+NumIndividuals = 10*nvars;
 
-% Allgemeine Einstellungen (werden für serielle Roboter beibehalten)
-varlim = [ 5e-3,  150e-3; ... % Grenzen für Wandstärke
-          80e-3, 600e-3];  % Grenze für Durchmesser
-if R.Type ~= 0 % Parallel
-   % Bei PKM geringere Durchmesser (Aufteilung auf Beine, aber auch mehr
-   % interne Verspannung)
-  varlim = ceil(1e3*varlim/R.NLEG/2)*1e-3; % Aufrunden auf ganze Millimeter
+varlim = [];
+if any(vartypes == 2)
+  % Allgemeine Einstellungen (werden für serielle Roboter beibehalten)
+  varlim_ls = [ 5e-3, 150e-3; ... % Grenzen für Wandstärke
+               80e-3, 600e-3];  % Grenze für Durchmesser
+  if R.Type ~= 0 % Parallel
+     % Bei PKM geringere Durchmesser (Aufteilung auf Beine, aber auch mehr
+     % interne Verspannung)
+    varlim_ls = ceil(1e3*varlim_ls/R.NLEG/2)*1e-3; % Aufrunden auf ganze Millimeter
+  end
+  varlim = [varlim; varlim_ls];
 end
-
+if any(vartypes == 3)
+  % Annahme: Roboter ist symmetrische PKM.
+  I_joints = R.Leg(1).MDH.sigma==0;
+  % Bestimme die Grenzen der Gelenkkoordinaten der Beinketten. Fasse die
+  % Gelenke jeder Beinkette zusammen, da eine symmetrische Anordnung für
+  % die Feder-Mittelstellungen gesucht wird.
+  qminmax_legs = reshape(minmax2(Q'),R.Leg(1).NJ,2*R.NLEG);
+  qminmax_leg = minmax2(qminmax_legs);
+  varlim_js = qminmax_leg(I_joints,:);
+  % Setze die Grenzen etwas außerhalb des Bewegungsbereichs. Das erlaubt
+  % auch dauerhaft vorgespannte Gelenke, die eine Gravitationskompensation
+  % bieten können.
+  varlim_js = varlim_js + repmat([-10, 10]*pi/180, sum(I_joints), 1);
+  varlim = [varlim; varlim_js];
+end
 % Erzeuge zufällige Startpopulation
 options_desopt.SwarmSize = NumIndividuals;
 InitPop = repmat(varlim(:,1)', NumIndividuals,1) + rand(NumIndividuals, nvars) .* ...
                         repmat(varlim(:,2)'-varlim(:,1)',NumIndividuals,1);
 % Wähle nur plausible Anfangswerte
-I_unplaus = InitPop(:,1) > InitPop(:,2)/2;
-InitPop(I_unplaus,1) = InitPop(I_unplaus,2)/2; % Setze auf Vollmaterial
-% Setze minimale und maximale Werte direkt ein (da diese oft das Optimum
-% darstellen, wenn keine einschränkenden Nebenbedingungen gesetzt sind)
-InitPop(1,:) = varlim(:,1); % kleinste Werte
-InitPop(2,:) = varlim(:,2); % größte Werte
+if any(vartypes == 2)
+  IIls = find(vartypes==2);
+  I_unplaus = InitPop(:,IIls(1)) > InitPop(:,IIls(2))/2;
+  InitPop(I_unplaus,IIls(1)) = InitPop(I_unplaus,IIls(2))/2; % Setze auf Vollmaterial
+  % Setze minimale und maximale Werte direkt ein (da diese oft das Optimum
+  % darstellen, wenn keine einschränkenden Nebenbedingungen gesetzt sind)
+  InitPop(1,IIls) = varlim(IIls,1); % kleinste Werte
+  InitPop(2,IIls) = varlim(IIls,2); % größte Werte
+end
+if any(vartypes == 3)
+  % Setze die mittlere Gelenkstellung als ein Wert ein. Es wird erwartet,
+  % dass dies der beste ist.
+  InitPop(1,vartypes==3) = mean(qminmax_leg(I_joints),2);
+end
 options_desopt.InitialSwarmMatrix = InitPop;
 % Erstelle die Fitness-Funktion und führe sie einmal zu testzwecken aus
 fitnessfcn_desopt=@(p_desopt)cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn, Structure, p_desopt(:));
-
-% Prüfe, ob eine Entwurfsoptimierung sinnvoll ist
 tic();
-fval_minpar = fitnessfcn_desopt(InitPop(1,:)');
+fval_test = fitnessfcn_desopt(InitPop(1,:)');
 T2 = toc();
+% Prüfe, ob eine Entwurfsoptimierung sinnvoll ist (falls nur Segmentstärke)
 avoid_optimization = false;
-if Set.optimization.constraint_obj(6) > 0 && fval_minpar<1e3 && ...
-  ~strcmp(Set.optimization.objective, 'stiffness') && Set.optimization.constraint_obj(5) == 0
-  % Das schwächste Segment erfüllt alle Nebenbedingungen. Das Ergebnis muss
-  % damit optimal sein (alle Zielfunktionen wollen Materialstärke minimieren)
-  % Die Steifigkeit wird nicht betrachtet
-  avoid_optimization = true;
-  fval_opt = fval_minpar;
-  p_val_opt = InitPop(1,:)';
-end
-if Set.optimization.constraint_obj(6) == 0 && ...
-  (strcmp(Set.optimization.objective, 'stiffness') || Set.optimization.constraint_obj(5) == 0)
-  % Optimierung der Steifigkeit ohne Prüfung der Materialstärke. Die
-  % stärkste Segmentauslegung könnte das Optimum darstellen.
-  % Die Grenze der Masse wird betrachtet, da sie als Nebenbedingung bei
-  % Prüfung der Fitness-Funktion enthalten ist.
-  fval_maxpar = fitnessfcn_desopt(InitPop(2,:)');
-  if fval_maxpar < 1e3
+p_val_opt = NaN(nvars,1);
+fval_opt = NaN;
+if all(vartypes == 2)
+  tic();
+  clear cds_dimsynth_desopt_fitness % für persistente Variable
+  fval_minpar = fval_test; % Aufruf oben mit InitPop(1,:) entspricht schwächstem Wert
+  if Set.optimization.constraint_obj(6) > 0 && fval_minpar<1e3 && ...
+    ~strcmp(Set.optimization.objective, 'stiffness') && Set.optimization.constraint_obj(5) == 0
+    % Das schwächste Segment erfüllt alle Nebenbedingungen. Das Ergebnis muss
+    % damit optimal sein (alle Zielfunktionen wollen Materialstärke minimieren)
+    % Die Steifigkeit wird nicht betrachtet
     avoid_optimization = true;
-    fval_opt = fval_maxpar;
-    p_val_opt = InitPop(2,:)';
+    fval_opt = fval_minpar;
+    p_val_opt = InitPop(1,:)';
+  end
+  if Set.optimization.constraint_obj(6) == 0 && ...
+    (strcmp(Set.optimization.objective, 'stiffness') || Set.optimization.constraint_obj(5) == 0)
+    % Optimierung der Steifigkeit ohne Prüfung der Materialstärke. Die
+    % stärkste Segmentauslegung könnte das Optimum darstellen.
+    % Die Grenze der Masse wird betrachtet, da sie als Nebenbedingung bei
+    % Prüfung der Fitness-Funktion enthalten ist.
+    clear cds_dimsynth_desopt_fitness % für persistente Variable
+    fval_maxpar = fitnessfcn_desopt(InitPop(2,:)');
+    if fval_maxpar < 1e3
+      avoid_optimization = true;
+      fval_opt = fval_maxpar;
+      p_val_opt = InitPop(2,:)';
+    end
   end
 end
-
 % Für Profiler: `for i=1:10,fitnessfcn_desopt(InitPop(1,:)'); end`
 if Set.general.matfile_verbosity > 3
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt2.mat'));
@@ -109,6 +144,7 @@ end
 if ~avoid_optimization
   cds_log(3,sprintf('[desopt] Führe Entwurfsoptimierung durch. Dauer für eine Zielfunktionsauswertung: %1.1fs. Max. Dauer für Optimierung: %1.1fs (%d Iterationen, %d Individuen)', ...
       T2, NumIndividuals*(options_desopt.MaxIter+1)*T2, NumIndividuals, options_desopt.MaxIter));
+  clear cds_dimsynth_desopt_fitness % für persistente Variable
   [p_val,fval,~,output] = particleswarm(fitnessfcn_desopt,nvars,varlim(:,1),varlim(:,2),options_desopt);
   if fval < 1000
     detailstring = sprintf('Lösung gefunden (fval=%1.1f)', fval);
@@ -133,8 +169,9 @@ cds_log(3,sprintf('[desopt] Entwurfsoptimierung durchgeführt. Dauer: %1.1fs. %s
 
 %% Ausgabe
 % Belege die Robotereigenschaften mit dem Ergebnis der Optimierung
-cds_dimsynth_design(R, Q, Set, Structure, p_val);
-
+if any(vartypes == 2)
+  cds_dimsynth_design(R, Q, Set, Structure, p_val(vartypes==2));
+end
 return
 %% Debug
 

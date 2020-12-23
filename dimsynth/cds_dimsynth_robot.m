@@ -997,7 +997,7 @@ end
 %% Parameter der Entwurfsoptimierung festlegen
 % Dies enthält alle Parameter, die zusätzlich gespeichert werden sollen.
 % Typen von Parametern in der Entwurfsoptimierung: 1=Gelenk-Offset, 
-% 2=Segmentstärke
+% 2=Segmentstärke, 3=Nullstellung von Gelenkfedern
 desopt_ptypes = [];
 if Structure.desopt_prismaticoffset
   % Gelenk-Offsets. Siehe cds_desopt_prismaticoffset.m
@@ -1013,6 +1013,20 @@ if any(strcmp(Set.optimization.desopt_vars, 'linkstrength'))
   % Siehe cds_dimsynth_desopt
   desopt_nvars_ls = 2; % Annahme: Alle Segmente gleich.
   desopt_ptypes = [desopt_ptypes; 2*ones(desopt_nvars_ls, 1)];
+end
+
+if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref'))
+  if ~Set.optimization.joint_stiffness_passive_revolute
+    error(['Nullstellung der Gelenksteifigkeit soll optimiert werden, ', ...
+      'aber es ist keine Steifigkeit definiert']);
+  end
+  % Siehe cds_dimsynth_desopt
+  if Structure.Type == 0 % Serieller Roboter
+    error('Gelenkfedern für serielle Roboter noch nicht implementiert');
+  else % symmetrische PKM
+    desopt_nvars_js = sum(R.Leg(1).MDH.sigma==0);
+  end
+  desopt_ptypes = [desopt_ptypes; 3*ones(desopt_nvars_js, 1)];
 end
 Structure.desopt_ptypes = desopt_ptypes;
 %% Anfangs-Population generieren

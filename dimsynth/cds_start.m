@@ -78,6 +78,10 @@ end
 if size(Set.task.obstacles.params,1) ~= length(Set.task.obstacles.type)
   error('Set.task.obstacles: Länge von Feldern params und type stimmt nicht überein');
 end
+if length(union(Set.optimization.desopt_vars, {'joint_stiffness_qref', ...
+    'linkstrength'})) ~= 2
+  error('Unerwarteter Wert in Set.optimization.desopt_vars');
+end
 % Prüfe das Namensformat von Robotern auf der Positiv-Liste
 for i = 1:length(Set.structures.whitelist)
   Name_i = Set.structures.whitelist{i};
@@ -197,6 +201,13 @@ if Set.general.computing_cluster
     % 12 parallele Kerne, 30min für Bilderstellung und 6h Reserve/Allgemeines
     comptime_est = (Set.optimization.NumIndividuals*(1+Set.optimization.MaxIter)* ...
       2+30*60)*length(Set_cluster.structures.whitelist)/12 + 6*3600;
+    % Falls Entwurfsoptimierung durchgeführt wird, rechne dort auch noch
+    % mit 1s pro Partikel, durchschnittlich 20 Iterationen bei 10% aller
+    % Partikel aus der Maßsynthese.
+    if ~isempty(Set.optimization.desopt_vars)
+      npart = Set.optimization.NumIndividuals*(1+Set.optimization.MaxIter);
+      comptime_est = comptime_est + 0.1*npart*1*20;
+    end
     % Matlab-Skript auf Cluster starten.
     addpath(cluster_repo_path);
     jobStart(struct('name', computation_name, ...
@@ -264,9 +275,17 @@ end
 
 if ~isempty(Set.optimization.desopt_vars)
   valid_desopt = false;
-  % Zielfunktion oder Nebenbedingung basierend auf Dynamik
-  if ~isempty(intersect(Set.optimization.objective, {'mass', 'energy', 'stiffness'})) ...
-      || any(Set.optimization.constraint_obj([1 5]))
+  % Zielfunktion oder Nebenbedingung basierend auf Dynamik und diese
+  % beeinflussende Entwurfsoptimierung
+  if any(strcmp(Set.optimization.desopt_vars, 'linkstrength')) && ...
+      (~isempty(intersect(Set.optimization.objective, {'mass', 'energy', ...
+      'stiffness', 'materialstress'})) || any(Set.optimization.constraint_obj([1 2 3 5 6])))
+    valid_desopt = true;
+  end
+  if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref')) && ...
+      Set.optimization.joint_stiffness_passive_revolute && ...
+      (~isempty(intersect(Set.optimization.objective, {'mass', 'energy', ...
+      'materialstress'})) || any(Set.optimization.constraint_obj([1 2 3 5 6])))
     valid_desopt = true;
   end
   if ~valid_desopt

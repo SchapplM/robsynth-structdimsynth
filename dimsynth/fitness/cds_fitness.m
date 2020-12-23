@@ -243,9 +243,12 @@ for iIKC = 1:size(Q0,1)
     % Dynamik-Parameter aktualisieren. Keine Nutzung der Ausgabe der Funktion
     % (Parameter werden direkt in Klasse geschrieben; R.DesPar.seg_par ist
     % vor/nach dem Aufruf unterschiedlich)
-    if isempty(Set.optimization.desopt_vars)
+    if ~any(Structure.desopt_ptypes==2)
+      % Keine Entwurfsoptimierung mit Segmentstärke. Daher hier die Massen
+      % einmal mit Standard-Werten belegen.
       cds_dimsynth_design(R, Q, Set, Structure);
-    else
+    end
+    if ~isempty(Set.optimization.desopt_vars) % Entwurfsoptimierung aktiv.
       % Berechne Dynamik-Funktionen als Regressorform für die Entwurfsopt.
       data_dyn = cds_obj_dependencies(R, Traj_0, Set, Structure, Q, QD, QDD, Jinv_ges);
 
@@ -279,12 +282,17 @@ for iIKC = 1:size(Q0,1)
   % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_fitness_3.mat'));
 
   %% Berechnungen für Zielfunktionen
-  % Gelenk-Steifigkeit einsetzen (Sonderfall für Starrkörpergelenke)
-  if R.Type ~= 0 && Set.optimization.joint_stiffness_passive_revolute
+  % Nullstellung der Gelenk-Steifigkeit einsetzen (Sonderfall für Starrkörpergelenke)
+  if R.Type ~= 0 && Set.optimization.joint_stiffness_passive_revolute && ...
+      ~any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref'))
     % Ruhelage der Feder ist Mittelstellung der Gelenk-Trajektorie (erzeugt
-    % minimale Federmomente)
+    % minimale Federmomente). Alle Beine sind symmetrisch. Nur hier
+    % einsetzen, falls nicht in cds_dimsynth_desopt bereits getan.
+    % Sehr anfällig, falls Konfigurationen in einer Beinkette
+    % umklappen. Sollte aber nicht passieren.
+    qminmax_legs = reshape(minmax2(Q'),R.Leg(1).NJ,2*R.NLEG);
     for i = 1:R.NLEG
-      R.Leg(i).DesPar.joint_stiffness_qref = mean(R.Leg(i).qlim,2);
+      R.Leg(i).DesPar.joint_stiffness_qref = mean(minmax2(qminmax_legs),2);
     end
   end
   if ~Structure.calc_reg

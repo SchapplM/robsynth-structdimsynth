@@ -154,7 +154,8 @@ if R.Type ~= 0 && (Structure.calc_dyn_cut && ~Structure.calc_reg || Set.general.
 end
 
 % Drehfeder in Gelenken berücksichtigen (nur PKM)
-if R.Type ~= 0 && Set.optimization.joint_stiffness_passive_revolute
+if R.Type ~= 0 && Set.optimization.joint_stiffness_passive_revolute && ...
+    ~Structure.calc_reg && Structure.calc_dyn_act
   TAU_spring = R.springtorque_actjoint_traj(Q, XP, JinvP_ges);
   TAU = TAU + TAU_spring;
 end
