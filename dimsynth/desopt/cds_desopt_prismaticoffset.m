@@ -17,15 +17,19 @@
 %   Gelenkpositionen(für PKM auch passive Gelenke)
 % 
 % Ausgabe:
+% fval_coll
+%   Strafterm für Selbstkollision. 0 falls keine Überschreitung. Sonst <1
+%   Wert NaN, falls unbestimmt.
 % fval_instspc
 %   Strafterm für Bauraumverletzung. 0 falls keine Überschreitung. Sonst <1
+%   Wert NaN, falls unbestimmt.
 % 
-% Siehe auch: cds_constr_installspace.m
+% Siehe auch: cds_constr_installspace.m, cds_constr_collisions_self.m
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-12
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function fval_instspc = cds_desopt_prismaticoffset(R, X, Set, Structure, JP, Q)
+function [fval_coll, fval_instspc] = cds_desopt_prismaticoffset(R, X, Set, Structure, JP, Q)
 %% Initialisierung
 % Prüfe, ob die Optimierung überhaupt notwendig ist.
 if Structure.Type == 0 % Serieller Roboter
@@ -49,7 +53,7 @@ optfun_comb2 = @(x)optfun_comb(x, R, X, Set_tmp, Structure, JP, Q);
 x1 = 1e-6*ones(nvars,1);
 x0 = zeros(nvars,1); 
 c1 = nonlcon2(x1);
-c0 = nonlcon2(x0);
+[c0, ~, fval_coll, fval_instspc] = nonlcon2(x0);
 if c0 == c1
   % Die Bauraum-Nebenbedingung ist unabhängig von den Offsets.
   return
@@ -69,9 +73,14 @@ jo_opt_fsolve = fsolve(nonlcon2, x0, options_fsolve);
 % options_fminunc = optimoptions('fminunc','Display', 'none');
 % jo_opt_fminunc = fminunc(optfun_comb2, jo_opt_fsolve, options_fminunc);
 [jo_opt_fminsearch, fval] = fminsearch(optfun_comb2, jo_opt_fsolve);
-if fval > 1 % NB verletzt
-  fval_instspc = fval;
+if fval > 2 % NB 1 verletzt (Selbstkollision)
+  fval_coll = fval-2; % normiere auf 0 bis 1
+  fval_instspc = NaN; % Nicht bekannt, ob verletzt oder nicht
+elseif fval > 1 % NB 2 verletzt (Bauraum), NB 1 eingehalten (Kollision)
+  fval_coll = 0;
+  fval_instspc = fval-1; % normiere auf 0 bis 1
 else % alles i.O.
+  fval_coll = 0;
   fval_instspc = 0;
 end
 %% Eintragen in Roboter-Klasse
@@ -91,16 +100,16 @@ end
 
 function y = optfun_comb(x, R, X, Set, Structure, JP, Q) % Optimierungsfunktion
   % hierarchische Optimierung: Erst Nebenbedingung, dann Zielfunktion.
-  y1 = nonlcon(x, R, X, Set, Structure, JP, Q);
+  y1 = nonlcon(x, R, X, Set, Structure, JP, Q); % Bereich 0 bis 2
   y2 = optfun(x);
   if y1 > 0 % NB wird verletzt.
-    y = 1+y1; % Bereich 1 bis 2
+    y = 1+y1; % Bereich 1 bis 3
   else % Zielfunktion
     y = y2; % Bereich 0 bis 1
   end
 end
 
-function [c, ceq] = nonlcon(x, R, X, Set, Structure, JP, Q)
+function [c, ceq, c1, c2] = nonlcon(x, R, X, Set, Structure, JP, Q)
   % Nebenbedingung in Optimierung: Einhaltung der Bauraumbeschränkung.
   % Parameter in Roboterklasse einstellen
   if Structure.Type == 0
@@ -113,10 +122,29 @@ function [c, ceq] = nonlcon(x, R, X, Set, Structure, JP, Q)
   % Kollisionskörper damit aktualisieren
   [Structure.collbodies_robot, Structure.installspace_collbodies] = ...
     cds_update_collbodies(R, Set, Structure, Q);
+  % Kollisionsprüfungen weglassen, die nichts mit der Schiene zu tun haben.
+  % TODO: collcheck-Variablen in cds_dimsynth_robot definieren.
+  
+  % Selbstkollisionen prüfen. Ungleich Null, falls Kollision.
+  if Set.optimization.constraint_collisions
+    c1 = cds_constr_collisions_self(R, X, Set, Structure, JP, Q, [1 2]);
+  else
+    c1 = 0;
+  end
   % Bauraumprüfung durchführen. Nebenbedingung ungleich Null, falls Bauraum
   % verletzt wird.
-  c = cds_constr_installspace(R, X, Set, ...
-    Structure, JP, Q, [0 1]);
+  if ~isempty(Set.task.installspace.type)
+    c2 = cds_constr_installspace(R, X, Set, Structure, JP, Q, [0 1]);
+  else
+    c2 = 0;
+  end
+  % Hierarchische Definition der Nebenbedingung. Selbstkollision schwer-
+  % wiegender als Bauraumverletzung (wie sonst auch in Maßsynthese)
+  if c1 > 0
+    c = c1; % Wertebereich 1 bis 2
+  else
+    c = c2; % Wertebereich 0 bis 1
+  end
   ceq = [];
   % fprintf('c([%s])=%1.3e\n', disp_array(x(:)', '%1.4f'), c);
 end

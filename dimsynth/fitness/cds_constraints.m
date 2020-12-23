@@ -376,9 +376,25 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       if jic<length(fval_jic), continue; else, break; end
     end
   end
-
+  %% Anpassung des Offsets für Schubgelenke
+  % Hierdurch wird der Ort der Führungsschienen auf der Gelenkachse
+  % verschoben. Das beeinflusst sowohl die Bauraumprüfung, als auch die
+  % Prüfung auf Selbstkollision.
+  if Structure.desopt_prismaticoffset
+    % Bei Optimierung des Offsets wird auch bereits die Kollisionsprüfung
+    % durchgeführt und die Ergebnisse weiter unten genutzt.
+    [fval_coll_tmp, fval_instspc_tmp] = cds_desopt_prismaticoffset(R, ...
+      Traj_0.XE, Set, Structure, JPE, QE);
+    % Kollisionskörper müssen nochmal aktualisiert werden (wegen Offset)
+    [Structure.collbodies_robot, Structure.installspace_collbodies] = ...
+      cds_update_collbodies(R, Set, Structure, QE);
+  else
+    fval_coll_tmp = NaN; % Keine Berechnung durchgeführt ...
+    fval_instspc_tmp = NaN; % ... Erstmalige Berechnung unten erforderlich.
+  end
   %% Selbst-Kollisionsprüfung für Einzelpunkte
-  if Set.optimization.constraint_collisions
+  if Set.optimization.constraint_collisions && ...
+      (isnan(fval_coll_tmp) || fval_coll_tmp > 0) % nutze bereits vorliegende Daten
     [fval_coll, coll_self] = cds_constr_collisions_self(R, Traj_0.XE, Set, Structure, JPE, QE, [3e5;4e5]);
     if fval_coll > 0
       fval_jic(jic) = fval_coll; % Normierung auf 3e5 bis 4e5 bereits in Funktion
@@ -387,16 +403,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       if jic<length(fval_jic), continue; else, break; end
     end
   end
-
   %% Bauraumprüfung für Einzelpunkte
-  if ~isempty(Set.task.installspace.type)
-    % Bestimme zuerst den notwendigen Schubgelenk-Offset
-    if Structure.desopt_prismaticoffset
-      cds_desopt_prismaticoffset(R, Traj_0.XE, Set, Structure, JPE, QE);
-      % Kollisionskörper müssen nochmal aktualisiert werden (wegen Offset)
-      [Structure.collbodies_robot, Structure.installspace_collbodies] = ...
-        cds_update_collbodies(R, Set, Structure, QE);
-    end
+  if ~isempty(Set.task.installspace.type) && ...
+      (isnan(fval_instspc_tmp) || fval_instspc_tmp > 0) % nutze bereits vorliegende Daten
     [fval_instspc, f_constrinstspc] = cds_constr_installspace(R, Traj_0.XE, Set, Structure, JPE, QE, [2e5;3e5]);
     if fval_instspc > 0
       fval_jic(jic) = fval_instspc; % Normierung auf 2e5 bis 3e5 -> bereits in Funktion

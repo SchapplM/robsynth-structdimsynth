@@ -663,7 +663,8 @@ else % PKM
   I_firstprismatic = I_first & I_prismatic;
 end
 Structure.I_firstprismatic = I_firstprismatic;
-
+% Offsetparameter für Schubgelenke (Verschiebung der Führungsschiene)
+Structure.desopt_prismaticoffset = false;
 %% Initialisierung der Kollisionsprüfung
 if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) || ...
     ~isempty(Set.task.installspace.type) || ...
@@ -702,6 +703,11 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         % Wird als Kapsel durch Anfang und Ende gekennzeichnet.
         % Bilde die MDH-Transformation nach. Das führt zu min-max für q
         cbi_par = [T_qmin(1:3,4)', T_qmax(1:3,4)', 20e-3]; % Radius 20mm
+        % Falls eine Führungsschiene existiert, muss immer der Offset- 
+        % Parameter zum nachfolgenden Segment optimiert werden, da die
+        % Schiene als Kollisionskörper mit den nachfolgenden Segmenten
+        % kollidieren kann. Durch den Offset wird dies vermieden.
+        Structure.desopt_prismaticoffset = true;
       elseif R_cc.DesPar.joint_type(i) == 5 % Hubzylinder
         % Der äußere Zylinder muss so lang sein wie der innere (bzw. der
         % innere Zylinder muss so lang sein wie der Hub).
@@ -891,8 +897,6 @@ end
 % Erstelle Liste der Kollisionsprüfungen für cds_constr_installspace.m
 % Die Geometrie-Objekte werden erst dort ins Basis-KS des Roboters trans-
 % formiert.
-% Speichere zusätzlich ab, ob es einen Offsetparameter für Schubgelenke gibt
-Structure.desopt_prismaticoffset = false;
 if ~isempty(Set.task.installspace.type)
   % Liste für alle Kollisionskörper des Roboters bei Bauraumprüfung.
   % Es werden nur Punkte anstatt der Ersatz-Volumen benutzt.
