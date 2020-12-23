@@ -237,8 +237,8 @@ for i = 1:size(collbodies.link,1)
       error('Dieser Fall darf nicht auftreten');
   end
 end
-sgtitle(sprintf('Bauraumprüfung. Schritt %d/%d: Weitester Abstand: %1.2f', ...
-  j, size(Q,1), f_constr));
+sgtitle(sprintf('Bauraumprüfung. Schritt %d/%d: Weitester Abstand: %1.2fmm', ...
+  j, size(Q,1), 1e3*f_constr));
 drawnow();
 for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
   [currgen,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'InstallSpace');

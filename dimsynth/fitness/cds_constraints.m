@@ -411,7 +411,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     if fval_obstcoll > 0
       fval_jic(jic) = fval_obstcoll; % Normierung auf 1e5 bis 2e5 -> bereits in Funktion
       constrvioltext_jic{jic} = sprintf(['Arbeitsraum-Kollision in %d/%d AR-Eckwerten. ', ...
-        'Schlimmstenfalls %1.1f mm in Kollision.'], sum(any(coll_obst,2)), size(coll_obst,1), f_constr_obstcoll);
+        'Schlimmstenfalls %1.1f mm in Kollision.'], sum(any(coll_obst,2)), ...
+        size(coll_obst,1), 1e3*f_constr_obstcoll);
       if jic<length(fval_jic), continue; else, break; end
     end
   end
