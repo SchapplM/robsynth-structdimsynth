@@ -39,13 +39,10 @@ SelStr = get(uihdl,'String');
 fprintf('Starte Vorbereitung und Plot für %s/%s (Rob. %d) "%s"\n', ...
   OptName, RobName, RobNr, SelStr{Selection});
 %% Lade die Daten
-% Suche die Optimierung im Datenordner. Nehme nicht den abgespeicherten
-% Pfad aus der Ergebnis-Datei, da der absolute Pfad auf dem Cluster anders
-% ist.
-resdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), 'results');
-resdir_opt = fullfile(resdir, OptName);
+% Benutze den Ordner als Speicherort der Daten, in dem auch das Bild liegt.
+resdir_opt = fileparts(get(fighdl, 'FileName'));
 if ~exist(resdir_opt, 'file')
-  warning('Ergebnis-Ordner %s existiert nicht.', resdir_opt);
+  warning('Ergebnis-Ordner %s existiert nicht, obwohl Bild von dort geladen wurde.', resdir_opt);
   return
 end
 resfile1 = fullfile(resdir_opt, sprintf('Rob%d_%s_Endergebnis.mat', ...
@@ -80,8 +77,14 @@ Structure = d3.Structures{RobNr};
 % Ergebnistabelle laden
 restabfile = fullfile(resdir_opt, sprintf('%s_results_table.csv', OptName));
 ResTab = readtable(restabfile, 'Delimiter', ';');
-% Ergebnis-Ordner lokal überschreiben
-Set.optimization.resdir = resdir;
+% Ergebnis-Ordner lokal überschreiben (da neue Bilder gespeichert werden).
+[resdir_tmp, optfolder] = fileparts(resdir_opt);
+if ~strcmp(optfolder, OptName)
+  error(['Der Ordnername der Optimierung heißt lokal anders, als in der ', ...
+    'Datei: %s vs %s. Das gibt Probleme beim Speichern der Bilder. Abbruch.'], ...
+    optfolder, OptName);
+end
+Set.optimization.resdir = resdir_tmp;
 
 %% Bestimme die Nummer des Pareto-Partikels
 % Annahme: Hier nicht bekannt, ob fval- oder physval-Pareto-Diagramm.
