@@ -248,7 +248,7 @@ end
 if any(Set.optimization.constraint_obj(2:3)) % Energie oder Antriebskraft
   calc_dyn_act = true; % Antriebskraft für Nebenbedingung benötigt
 end
-if Set.optimization.use_desopt
+if any(strcmp(Set.optimization.desopt_vars, 'linkstrength'))
   calc_reg = true; % Entwurfsoptimierung besser mit Regressor
 end
 if Set.optimization.constraint_obj(6) > 0 || ... % Schnittkraft als Nebenbedingung ...
@@ -993,6 +993,28 @@ if nargin == 4 && init_only
   % erzeugt werden, ohne dass diese gespeichert werden muss.
   return
 end
+
+%% Parameter der Entwurfsoptimierung festlegen
+% Dies enthält alle Parameter, die zusätzlich gespeichert werden sollen.
+% Typen von Parametern in der Entwurfsoptimierung: 1=Gelenk-Offset, 
+% 2=Segmentstärke
+desopt_ptypes = [];
+if Structure.desopt_prismaticoffset
+  % Gelenk-Offsets. Siehe cds_desopt_prismaticoffset.m
+  if Structure.Type == 0 % Serieller Roboter
+    desopt_nvars_po = sum(R.MDH.sigma==1);
+  else % symmetrische PKM
+    desopt_nvars_po = sum(R.Leg(1).MDH.sigma==1);
+  end
+  desopt_ptypes = [desopt_ptypes; 1*ones(desopt_nvars_po, 1)];
+end
+
+if any(strcmp(Set.optimization.desopt_vars, 'linkstrength'))
+  % Siehe cds_dimsynth_desopt
+  desopt_nvars_ls = 2; % Annahme: Alle Segmente gleich.
+  desopt_ptypes = [desopt_ptypes; 2*ones(desopt_nvars_ls, 1)];
+end
+Structure.desopt_ptypes = desopt_ptypes;
 %% Anfangs-Population generieren
 % TODO: Existierende Roboter einfügen
 
@@ -1047,7 +1069,8 @@ clear cds_fitness
 % tioniert; sonst teilw. Fehler im Debug-Modus durch Zugriff auf Variablen)
 cds_save_particle_details(Set, R, 0, zeros(length(Set.optimization.objective),1), ...
   zeros(nvars,1), zeros(length(Set.optimization.objective),1), ...
-  zeros(length(Set.optimization.constraint_obj),1), 'reset');
+  zeros(length(Set.optimization.constraint_obj),1), ...
+  zeros(length(Structure.desopt_ptypes),1), 'reset');
 fitnessfcn=@(p)cds_fitness(R, Set, Traj, Structure, p(:)); % Definition der Funktion
 f_test = fitnessfcn(InitPop(1,:)'); % Testweise ausführen
 if length(Set.optimization.objective) > 1 % Mehrkriteriell (MOPSO geht nur mit vektorieller Fitness-Funktion)
@@ -1056,7 +1079,8 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell (MOPSO geht nur mit v
 end
 % Zurücksetzen der Detail-Speicherfunktion
 cds_save_particle_details(Set, R, 0, zeros(size(f_test)), zeros(nvars,1), ...
-  zeros(size(f_test)), zeros(length(Set.optimization.constraint_obj),1), 'reset');
+  zeros(size(f_test)), zeros(length(Set.optimization.constraint_obj),1), ...
+  zeros(length(Structure.desopt_ptypes),1), 'reset');
 % Zurücksetzen der gespeicherten Werte der Fitness-Funktion
 clear cds_fitness
 %% PSO-Aufruf starten
@@ -1104,7 +1128,7 @@ else % Einkriteriell: PSO
   p_val = p_val(:); % stehender Vektor
 end
 % Detail-Ergebnisse extrahieren (persistente Variable in Funktion)
-PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, 'output');
+PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, NaN, 'output');
 
 if Set.general.matfile_verbosity > 0
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot3.mat'));
@@ -1186,7 +1210,7 @@ end
 % Detail-Ergebnisse extrahieren (persistente Variable in Funktion).
 % (Nochmal, da Neuberechnung oben eventuell anderes Ergebnis bringt)
 % Kein Zurücksetzen der persistenten Variablen notwendig.
-PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, 'output');
+PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, NaN, 'output');
 
 % Schreibe die Anfangswerte der Gelenkwinkel für das beste Individuum in
 % die Roboterklasse. Suche dafür den besten Funktionswert in den zusätzlich
@@ -1403,6 +1427,16 @@ for i = 1:length(Set.optimization.objective)
       i, obj_names_all{I_fval_obj_all(i)}, fval(i), fval_obj_all(I_fval_obj_all(i))));
   end
 end
+%% Speichere Ergebnisse der Entwurfsoptimierung
+desopt_pval_pareto = NaN(size(fval_pareto,1),length(Structure.desopt_ptypes));
+for i = 1:size(fval_pareto,1)
+  [k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, fval_pareto(i,:)');
+  desopt_pval_pareto(i,:) = PSO_Detail_Data.desopt_pval(k_ind, :, k_gen);
+end
+[k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, fval);
+desopt_pval = PSO_Detail_Data.desopt_pval(k_ind, :, k_gen);
+
+
 %% Ausgabe der Ergebnisse
 t_end = now(); % End-Zeitstempel der Optimierung dieses Roboters
 RobotOptRes = struct( ...
@@ -1410,9 +1444,11 @@ RobotOptRes = struct( ...
   'fval_obj_all', fval_obj_all, ... % Werte aller möglicher einzelner Zielf.
   'physval_obj_all', physval_obj_all, ... % Physikalische Werte aller Zielf.
   'p_val', p_val, ... % Parametervektor der Optimierung
+  'desopt_pval', desopt_pval, ... % Entwurfsparameter zum Ergebnis
   'fval_pareto', fval_pareto, ... % Alle Fitness-Werte der Pareto-Front
   'physval_pareto', physval_pareto, ... % physikalische Werte dazu
   'p_val_pareto', p_val_pareto, ... % Alle Parametervektoren der P.-Front
+  'desopt_pval_pareto', desopt_pval_pareto, ... % Alle Entwurfsparameter zu den Pareto-Punkten
   'I_fval_obj_all', I_fval_obj_all, ... % Zuordnung der Fitness-Einträge zu fval_obj_all
   'p_limits', varlim, ... % Grenzen für die Parameterwerte
   'timestamps_start_end', [t_start, t_end, toc(t1)], ...

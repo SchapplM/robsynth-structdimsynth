@@ -38,7 +38,7 @@
 
 function R=cds_dimsynth_design(R, Q, Set, Structure, p_desopt)
 desopt_debug = false;
-if nargin < 5 || ~Set.optimization.use_desopt
+if nargin < 5 || ~any(strcmp(Set.optimization.desopt_vars, 'linkstrength'))
   use_default_link_param = true;
 else
   use_default_link_param = false;

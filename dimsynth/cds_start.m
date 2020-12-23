@@ -262,12 +262,18 @@ if ~isempty(Set.structures.whitelist)
   end
 end
 
-if Set.optimization.use_desopt ... 
-    && ~any(strcmp(Set.optimization.objective, {'mass', 'energy', 'stiffness'})) ...
-    && ~any(Set.optimization.constraint_obj([1 5]))
-  Set.optimization.use_desopt = false;
-  fprintf(['Entwurfsoptimierung wurde verlangt, aber keine dafür notwendigen ', ...
-    'Zielfunktionen oder Nebenbedingungen definiert. Wurde wieder deaktiviert\n']);
+if ~isempty(Set.optimization.desopt_vars)
+  valid_desopt = false;
+  % Zielfunktion oder Nebenbedingung basierend auf Dynamik
+  if ~isempty(intersect(Set.optimization.objective, {'mass', 'energy', 'stiffness'})) ...
+      || any(Set.optimization.constraint_obj([1 5]))
+    valid_desopt = true;
+  end
+  if ~valid_desopt
+    Set.optimization.desopt_vars = {};
+    fprintf(['Entwurfsoptimierung wurde verlangt, aber keine dafür notwendigen ', ...
+      'Zielfunktionen oder Nebenbedingungen definiert. Wurde wieder deaktiviert\n']);
+  end
 end
 % Optimierung der Strukturen durchführen
 if ~Set.general.regenerate_summmary_only

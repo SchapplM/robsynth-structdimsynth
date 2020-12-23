@@ -49,6 +49,7 @@ debug_info = {};
 constraint_obj_val = NaN(length(Set.optimization.constraint_obj),1);
 fval = NaN(length(Set.optimization.objective),1);
 physval = fval;
+desopt_pval = NaN(length(Structure.desopt_ptypes),1);
 
 %% Abbruch prüfen
 % Prüfe, ob Berechnung schon abgebrochen werden kann, weil ein anderes
@@ -62,7 +63,7 @@ elseif abort_fitnesscalc
   else,              fvalstr=sprintf('%1.3e', fval); end
   cds_log(2,sprintf(['[fitness] Fitness-Evaluation in %1.1fs. fval=%s. ', ...
     'Bereits anderes Gut-Partikel berechnet.'], toc(t1), fvalstr));
-  cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val);
+  cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, desopt_pval);
   return;
 end
 %% Parameter prüfen
@@ -104,7 +105,7 @@ if fval_constr > 1000 % Nebenbedingungen verletzt.
   end
   cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval(1), constrvioltext));
   cds_fitness_debug_plot_robot(R, Q0(1,:)', Traj_0, Traj_W, Set, Structure, p, mean(fval), debug_info);
-  cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val);
+  cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, desopt_pval);
   return
 end
 % Gelenkgrenzen merken (werden später überschrieben)
@@ -120,6 +121,7 @@ constrvioltext_IKC = cell(size(Q0,1), 1);
 constraint_obj_val_IKC = NaN(length(Set.optimization.constraint_obj),size(Q0,1));
 fval_debugtext_IKC = constrvioltext_IKC;
 Q_IKC = NaN(size(Traj_0.X,1), R.NJ, size(Q0,1));
+desopt_pval_IKC = NaN(size(Q0,1), length(desopt_pval));
 % Zum Debuggen
 % if R.Type == 0, n_actjoint = R.NJ;
 % else,           n_actjoint = sum(R.I_qa); end
@@ -141,6 +143,13 @@ for iIKC = 1:size(Q0,1)
     % angegeben. Umwandlung in Werte von 1e7 aufwärts.
     % Ursache: Nachträgliches Einfügen von weiteren Nebenbedingungen.
     fval_IKC(iIKC,:) = 1e4*fval_trajconstr;
+    % Speichere Offset als Ergebnis der Entwurfsoptimierung in cds_constraints_traj.
+    if Structure.desopt_prismaticoffset
+      if Structure.Type == 0, p_prismaticoffset = R.DesPar.joint_offset(R.MDH.sigma==1);
+      else, p_prismaticoffset = R.Leg(1).DesPar.joint_offset(R.Leg(1).MDH.sigma==1);
+      end
+      desopt_pval_IKC(iIKC,Structure.desopt_ptypes==1) = p_prismaticoffset;
+    end
   else
     Q = QE_iIKC(:,:,iIKC);
     QD = 0*Q; QDD = QD;
@@ -234,7 +243,7 @@ for iIKC = 1:size(Q0,1)
     % Dynamik-Parameter aktualisieren. Keine Nutzung der Ausgabe der Funktion
     % (Parameter werden direkt in Klasse geschrieben; R.DesPar.seg_par ist
     % vor/nach dem Aufruf unterschiedlich)
-    if ~Set.optimization.use_desopt
+    if isempty(Set.optimization.desopt_vars)
       cds_dimsynth_design(R, Q, Set, Structure);
     else
       % Berechne Dynamik-Funktionen als Regressorform für die Entwurfsopt.
@@ -243,6 +252,13 @@ for iIKC = 1:size(Q0,1)
       fval_desopt = cds_dimsynth_desopt(R, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn, Set, Structure);
       if fval_desopt > 1e5
         warning('Ein Funktionswert > 1e5 ist nicht für Entwurfsoptimierung vorgesehen');
+      end
+      if any(strcmp(Set.optimization.desopt_vars, 'linkstrength'))
+        % Speichere die Parameter der Segmentstärke (jedes Segment gleich)
+        if Structure.Type == 0, p_linkstrength = R.DesPar.seg_par(1,:)';
+        else, p_linkstrength = R.Leg(1).DesPar.seg_par(1,:)';
+        end
+        desopt_pval_IKC(iIKC,Structure.desopt_ptypes==2) = p_linkstrength;
       end
       if fval_desopt > 1000 % Nebenbedingungen in Entwurfsoptimierung verletzt.
         % Neue Werte (geändert gegenüber cds_dimsynth_desopt_fitness.)
@@ -286,8 +302,8 @@ for iIKC = 1:size(Q0,1)
   end
 
   %% Nebenbedingungen der Entwurfsvariablen berechnen: Festigkeit der Segmente
-  if Set.optimization.constraint_obj(6) > 0 && ~Set.optimization.use_desopt
-    % Wenn use_desopt gemacht wurde, wurde die Nebenbedingung bereits oben
+  if Set.optimization.constraint_obj(6) > 0 && isempty(Set.optimization.desopt_vars)
+    % Wenn desopt_vars gesetzt ist, wurde die Nebenbedingung bereits oben
     % geprüft und hier ist keine Berechnung notwendig.
     % Für den anderen Fall wird hier der gleiche Wertebereich genutzt (1e5..1e6)
     [fval_matstress, fval_debugtext_matstress, debug_info_materialstress, ...
@@ -521,6 +537,7 @@ end
 fval = fval_IKC(iIKCbest,:)';
 physval = physval_IKC(iIKCbest,:)';
 constraint_obj_val = constraint_obj_val_IKC(:,iIKCbest);
+desopt_pval = desopt_pval_IKC(iIKCbest,:)';
 n_fval_iO = length(I_IKC_iO);
 
 %% Ende
@@ -558,5 +575,5 @@ else
     toc(t1), fval(1), constrvioltext_IKC{iIKCbest}));
 end
 cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, mean(fval), debug_info);
-cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val);
+cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, desopt_pval);
 rng('shuffle'); % damit Zufallszahlen in anderen Funktionen zufällig bleiben
