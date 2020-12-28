@@ -419,6 +419,11 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     % Lade Ergebnisse Für Roboter i
     Name = Structures{i}.Name;
     resfile1 = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', i, Name));
+    if ~exist(resfile1, 'file')
+      warning('Ergebnis-Datei für Roboter %d/%d (%s) existiert nicht: %s', ...
+        i, length_Structures, Name, resfile1);
+      continue
+    end
     tmp1 = load(resfile1, 'RobotOptRes');
     RobotOptRes = tmp1.RobotOptRes;
     if any(RobotOptRes.fval > 1e3)
