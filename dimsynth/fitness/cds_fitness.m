@@ -11,6 +11,10 @@
 %   Eigenschaften der Roboterstruktur
 % p
 %   Vektor der Optimierungsvariablen für PSO
+% desopt_pval (optional)
+%   Vektor der Optimierungsvariablen der Entwurfsoptimierung. Falls
+%   gegeben, wird keine Entwurfsoptimierung durchgeführt. Notwendig bei
+%   nachträglicher Auswertung.
 % 
 % Ausgabe:
 % fval
@@ -32,7 +36,7 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function [fval, physval, Q, QD, QDD, TAU] = cds_fitness(R, Set, Traj_W, Structure, p)
+function [fval, physval, Q, QD, QDD, TAU] = cds_fitness(R, Set, Traj_W, Structure, p, desopt_pval)
 repopath = fileparts(which('structgeomsynth_path_init.m'));
 rng(0); % Für Wiederholbarkeit der Versuche: Zufallszahlen-Initialisierung
 
@@ -49,8 +53,34 @@ debug_info = {};
 constraint_obj_val = NaN(length(Set.optimization.constraint_obj),1);
 fval = NaN(length(Set.optimization.objective),1);
 physval = fval;
-desopt_pval = NaN(length(Structure.desopt_ptypes),1);
-
+desopt_pval_given = false;
+if nargin == 6 && ~isempty(desopt_pval)
+  desopt_pval_given = true;
+  % Keine Optimierung von Entwurfsparametern durchführen. Trage die Schub-
+  % gelenk-Offsets aus dem gegebenen Ergebnis direkt in die Klasse ein.
+  if Structure.desopt_prismaticoffset
+    p_prismaticoffset = desopt_pval(Structure.desopt_ptypes==1);
+    if Structure.Type == 0
+      R.DesPar.joint_offset(R.MDH.sigma==1) = p_prismaticoffset;
+    else
+      for i = 1:R.NLEG
+        R.Leg(i).DesPar.joint_offset(R.Leg(i).MDH.sigma==1) = p_prismaticoffset;
+      end
+    end
+  end
+  % Werte für die Gelenkfeder-Ruhelagen auch einstellen
+  if any(Structure.desopt_ptypes==3)
+    p_js = desopt_pval(Structure.desopt_ptypes==3);
+    for i = 1:R.NLEG
+      R.Leg(i).DesPar.joint_stiffness_qref(R.Leg(i).MDH.sigma==0) = p_js;
+    end
+  end
+  % Optimierungsvariablen deaktivieren. Hierdurch keine erneute Optimierung.
+  Set.optimization.desopt_vars = {};
+  Structure.desopt_prismaticoffset = false;
+else
+  desopt_pval = NaN(length(Structure.desopt_ptypes),1);
+end
 %% Abbruch prüfen
 % Prüfe, ob Berechnung schon abgebrochen werden kann, weil ein anderes
 % Partikel erfolgreich berechnet wurde. Dauert sonst eine ganze Generation.
@@ -121,7 +151,8 @@ constrvioltext_IKC = cell(size(Q0,1), 1);
 constraint_obj_val_IKC = NaN(length(Set.optimization.constraint_obj),size(Q0,1));
 fval_debugtext_IKC = constrvioltext_IKC;
 Q_IKC = NaN(size(Traj_0.X,1), R.NJ, size(Q0,1));
-desopt_pval_IKC = NaN(size(Q0,1), length(desopt_pval));
+desopt_pval_IKC = repmat(desopt_pval(:)', size(Q0,1), 1); % NaN-initialisiert oder aus Eingabe-Argument.
+
 % Zum Debuggen
 % if R.Type == 0, n_actjoint = R.NJ;
 % else,           n_actjoint = sum(R.I_qa); end
@@ -247,6 +278,11 @@ for iIKC = 1:size(Q0,1)
       % Keine Entwurfsoptimierung mit Segmentstärke. Daher hier die Massen
       % einmal mit Standard-Werten belegen.
       cds_dimsynth_design(R, Q, Set, Structure);
+    elseif desopt_pval_given
+      % Entwurfsoptimierung mit Segmentstärke eigentlich vorgesehen, aber
+      % Ergebnis bereits vorgegeben (nachträgliche Auswertung)
+      p_linkstrength = desopt_pval(Structure.desopt_ptypes==2);
+      cds_dimsynth_design(R, Q, Set, Structure, p_linkstrength);
     end
     if ~isempty(Set.optimization.desopt_vars) % Entwurfsoptimierung aktiv.
       % Berechne Dynamik-Funktionen als Regressorform für die Entwurfsopt.

@@ -115,10 +115,16 @@ end
 % Berechne die Fitness-Funktionen
 clear cds_save_particle_details cds_fitness cds_log
 p = RobotOptRes.p_val_pareto(PNr,:)';
-if isempty(RobotOptDetails)
-  % Falls nur die reduzierten Ergebnis-Daten vorliegen
+p_desopt = RobotOptRes.desopt_pval_pareto(PNr,:)';
+if any(isnan(p_desopt))
+  warning('Ergebnisse für die Entwurfsoptimierung sind NaN.');
+  p_desopt = [];
+end
+if isempty(RobotOptDetails) || ~isempty(p_desopt)
+  % Falls nur die reduzierten Ergebnis-Daten vorliegen oder die Ergebnisse
+  % der Entwurfsoptimierung direkt eingetragen werden sollen.
   [R, Structure] = cds_dimsynth_robot(Set, Traj, Structure, true);
-  [fval2, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure,p);
+  [fval2, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure,p,p_desopt);
 else
   % Alternative Berechnung (erfordert Laden der Detail-Daten).
   % Hier ist die Reproduktion der Zielfunktion besser möglich, da Anfangs-
