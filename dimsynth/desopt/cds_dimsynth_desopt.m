@@ -93,22 +93,30 @@ if any(vartypes == 2)
 end
 if any(vartypes == 3)
   % Setze die mittlere Gelenkstellung als ein Wert ein. Es wird erwartet,
-  % dass dies der beste ist.
+  % dass dies (ungefähr) der beste ist. Eintrag als erstes Individuum,
+  % damit es beim testweisen Aufruf der Funktion geprüft wird.
   InitPop(1,vartypes==3) = mean(qminmax_leg(I_joints),2);
 end
 options_desopt.InitialSwarmMatrix = InitPop;
 % Erstelle die Fitness-Funktion und führe sie einmal zu testzwecken aus
+clear cds_dimsynth_desopt_fitness % Für persistente Variablen von vorheriger Iteration in Maßsynthese
 fitnessfcn_desopt=@(p_desopt)cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn, Structure, p_desopt(:));
-tic();
+t2 = tic();
 fval_test = fitnessfcn_desopt(InitPop(1,:)');
-T2 = toc();
+T2 = toc(t2);
 % Prüfe, ob eine Entwurfsoptimierung sinnvoll ist (falls nur Segmentstärke)
 avoid_optimization = false;
 p_val_opt = NaN(nvars,1);
 fval_opt = NaN;
-if all(vartypes == 2)
+if fval_test == 0
+  % Die Abbruchbedingung in der Fitness-Funktion wurde bereits beim Start-
+  % wert erfüllt. Die Optimierung ist nicht notwendig (nur Nebenbedingungen
+  % prüfen, keine Optimierung einer Gütefunktion).
+  avoid_optimization = true;
+  fval_opt = fval_test;
+  p_val_opt = InitPop(1,:)';
+elseif all(vartypes == 2)
   tic();
-  clear cds_dimsynth_desopt_fitness % für persistente Variable
   fval_minpar = fval_test; % Aufruf oben mit InitPop(1,:) entspricht schwächstem Wert
   if Set.optimization.constraint_obj(6) > 0 && fval_minpar<1e3 && ...
     ~strcmp(Set.optimization.objective, 'stiffness') && Set.optimization.constraint_obj(5) == 0
@@ -142,8 +150,10 @@ end
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt2.mat'));
 %% Optimierung der Entwurfsparameter durchführen
 if ~avoid_optimization
-  cds_log(3,sprintf('[desopt] Führe Entwurfsoptimierung durch. Dauer für eine Zielfunktionsauswertung: %1.1fs. Max. Dauer für Optimierung: %1.1fs (%d Iterationen, %d Individuen)', ...
-      T2, NumIndividuals*(options_desopt.MaxIter+1)*T2, NumIndividuals, options_desopt.MaxIter));
+  cds_log(3,sprintf(['[desopt] Führe Entwurfsoptimierung durch. Dauer für ', ...
+    'eine Zielfunktionsauswertung: %1.1fms. Max. Dauer für Optimierung: ', ...
+    '%1.1fs (%d Iterationen, %d Individuen)'], 1e3*T2, NumIndividuals*...
+    (options_desopt.MaxIter+1)*T2, NumIndividuals, options_desopt.MaxIter));
   clear cds_dimsynth_desopt_fitness % für persistente Variable
   [p_val,fval,~,output] = particleswarm(fitnessfcn_desopt,nvars,varlim(:,1),varlim(:,2),options_desopt);
   if fval < 1000
@@ -152,9 +162,11 @@ if ~avoid_optimization
     detailstring = sprintf('Keine zulässige Lösung gefunden (fval=%1.1e)', fval);
   end
 else
-  % Es wurde oben festgestellt, das die schwächstmögliche Dimensionierung
+  % Es wurde oben festgestellt, das die ausprobierte Dimensionierung
   % bereits optimal hinsichtlich der gewählten Zielfunktion+Nebenbedingung
-  % ist
+  % ist. Bei reiner Segment-Optimierung entspricht dies der schwächsten
+  % Dimensionierung. Bei Optimierung der Gelenkfeder-Ruhelagen der Mittel-
+  % stellung in der Trajektorie.
   p_val = p_val_opt;
   fval = fval_opt;
   output = struct('iterations', 0, 'funccount', 0);

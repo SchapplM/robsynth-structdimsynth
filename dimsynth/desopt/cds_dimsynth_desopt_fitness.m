@@ -58,7 +58,7 @@ end
 vartypes = Structure.desopt_ptypes(Structure.desopt_ptypes~=1);
 p_ls = p_desopt(vartypes==2);
 p_js = p_desopt(vartypes==3);
-Set.general.verbosity = 4; % DEBUG
+
 %% Plausibilität der Eingabe prüfen
 if any(vartypes==2) && p_ls(1) > p_ls(2)/2 % Wandstärke darf nicht größer als Radius sein
   f_wall_vs_rad = (p_ls(1) - p_ls(2)/2)/p_ls(2); % Grad der Überschreitung
