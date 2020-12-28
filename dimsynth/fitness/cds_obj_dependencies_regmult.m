@@ -36,6 +36,7 @@ if isfield(data_dyn, 'TAU_reg')
   else % PKM
     TAU = R.invdyn3_actjoint_traj(TAU_reg);
   end
+  output.TAU = TAU;
 end
 
 if isfield(data_dyn, 'Wges_reg')
