@@ -987,13 +987,6 @@ if ~isempty(Set.task.installspace.type)
   Structure.installspace_collchecks_collbodies = instspc_collchecks_collbodies;
 end
 
-if nargin == 4 && init_only
-  % Keine Optimierung durchführen. Damit kann nachträglich die
-  % initialisierte Roboterklasse basierend auf Ergebnissen der Maßsynthese
-  % erzeugt werden, ohne dass diese gespeichert werden muss.
-  return
-end
-
 %% Parameter der Entwurfsoptimierung festlegen
 % Dies enthält alle Parameter, die zusätzlich gespeichert werden sollen.
 % Typen von Parametern in der Entwurfsoptimierung: 1=Gelenk-Offset, 
@@ -1029,6 +1022,14 @@ if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref'))
   desopt_ptypes = [desopt_ptypes; 3*ones(desopt_nvars_js, 1)];
 end
 Structure.desopt_ptypes = desopt_ptypes;
+
+if nargin == 4 && init_only
+  % Keine Optimierung durchführen. Damit kann nachträglich die
+  % initialisierte Roboterklasse basierend auf Ergebnissen der Maßsynthese
+  % erzeugt werden, ohne dass diese gespeichert werden muss.
+  return
+end
+
 %% Anfangs-Population generieren
 % TODO: Existierende Roboter einfügen
 

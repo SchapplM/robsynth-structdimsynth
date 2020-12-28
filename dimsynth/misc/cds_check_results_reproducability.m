@@ -72,10 +72,12 @@ for i = 1:length(RobNames)
     nind = size(PSO_Detail_Data.pval,1);
     pval_all = NaN(ngen*nind, size(PSO_Detail_Data.pval,2));
     fval_all = NaN(ngen*nind, size(PSO_Detail_Data.fval,2));
+    p_desopt_all = NaN(ngen*nind, size(PSO_Detail_Data.desopt_pval,2));
     for igen = 1:ngen
       for iind = 1:nind
         pval_all((igen-1)*nind+iind,:) = PSO_Detail_Data.pval(iind,:,igen);
         fval_all((igen-1)*nind+iind,:) = PSO_Detail_Data.fval(iind,:,igen);
+        p_desopt_all((igen-1)*nind+iind,:) = PSO_Detail_Data.desopt_pval(iind,:,igen);
       end
     end
   else
@@ -83,9 +85,11 @@ for i = 1:length(RobNames)
     if ~isempty(RobotOptRes.fval_pareto) % Mehrkriteriell
       pval_all = RobotOptRes.p_val_pareto;
       fval_all = RobotOptRes.fval_pareto;
+      p_desopt_all = RobotOptRes.desopt_pval_pareto;
     else % Einkriteriell
       pval_all = RobotOptRes.p_val(:)';
       fval_all = RobotOptRes.fval;
+      p_desopt_all = RobotOptRes.desopt_pval(:)';
     end
   end
   % Debug: Zusätzliche Bilder
@@ -97,9 +101,13 @@ for i = 1:length(RobNames)
   for jj = I(:)'
     p_jj = pval_all(jj,:)';
     f_jj = fval_all(jj,:)';
+    p_desopt_jj = p_desopt_all(jj,:)';
+    if any(isnan(p_desopt_jj))
+      p_desopt_jj = [];
+    end
     [k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, f_jj);
     fprintf('Reproduktion Partikel Nr. %d (Gen. %d, Ind. %d): ', jj, k_gen, k_ind);
-    f2_jj = cds_fitness(R,Set,Traj,Structure,p_jj);
+    f2_jj = cds_fitness(R,Set,Traj,Structure,p_jj,p_desopt_jj);
     test_f = f_jj - f2_jj;
     if any(abs(test_f) > 1e-4)
       warning(['Fitness-Wert zu Partikel Nr. %d (Gen. %d, Ind. %d) nicht ', ...
