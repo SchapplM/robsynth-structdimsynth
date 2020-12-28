@@ -263,6 +263,15 @@ for iIKC = 1:size(Q0,1)
         end
         desopt_pval_IKC(iIKC,Structure.desopt_ptypes==2) = p_linkstrength;
       end
+      if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref'))
+        % Speichere die Parameter der Gelenkfeder-Ruhelage (jede Beinkette
+        % gleich). Siehe cds_dimsynth_desopt_fitness.
+        if Structure.Type == 2 % PKM
+          desopt_pval_IKC(iIKC,Structure.desopt_ptypes==3) = R.Leg(1).DesPar.joint_stiffness_qref(R.Leg(1).MDH.sigma==0);
+        else
+          % Nicht definiert
+        end
+      end
       if fval_desopt > 1000 % Nebenbedingungen in Entwurfsoptimierung verletzt.
         % Neue Werte (geändert gegenüber cds_dimsynth_desopt_fitness.)
         % 1e4...1e5: Nebenbedingung von Zielfunktion überschritten
