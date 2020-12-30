@@ -340,11 +340,12 @@ for iIKC = 1:size(Q0,1)
       R.Leg(i).DesPar.joint_stiffness_qref = mean(minmax2(qminmax_legs),2);
     end
   end
-  if ~Structure.calc_reg
+  if ~Structure.calc_dyn_reg && ~Structure.calc_spring_reg
+    % Keine Regressorform. Nehme direkten Aufruf für Dynamikberechnung.
     data_dyn2 = cds_obj_dependencies(R, Traj_0, Set, Structure, Q, QD, QDD, Jinv_ges);
   else
     % Dynamik nochmal mit Regressorform mit neuen Dynamikparameter berechnen
-    data_dyn2 = cds_obj_dependencies_regmult(R, data_dyn);
+    data_dyn2 = cds_obj_dependencies_regmult(R, data_dyn, Q);
   end
   if ~isempty(intersect(Set.optimization.objective, {'energy', 'actforce'})) || ...  % Für Zielf. benötigt
       Set.optimization.constraint_obj(3) ~= 0 % Für NB benötigt

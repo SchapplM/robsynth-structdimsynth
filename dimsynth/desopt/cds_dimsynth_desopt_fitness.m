@@ -34,7 +34,7 @@
 % Siehe auch: cds_fitness.m
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
-% (C) Institut für Mechatronische Systeme, Universität Hannover
+% (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
 function fval = cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn_reg, Structure, p_desopt)
 t1 = tic();
@@ -79,21 +79,19 @@ if any(vartypes==3)
   end
 end
 %% Dynamik neu berechnen
-if any(vartypes==3)
-  % TODO: Aufgrund der Gelenkelastizität keine Regressorform verfügbar. Ist
-  % so viel zu langsam.
-  Structure_tmp = Structure;
-  Structure_tmp.calc_reg = false;
-  data_dyn = cds_obj_dependencies(R, Traj_0, Set, Structure_tmp, Q, QD, QDD, Jinv_ges);
-elseif fval == 0 && Structure.calc_reg
+if fval == 0 && (Structure.calc_dyn_reg || Structure.calc_spring_reg)
   % Abhängigkeiten neu berechnen (Dynamik)
-  data_dyn = cds_obj_dependencies_regmult(R, data_dyn_reg);
-  if Set.general.debug_calc && Set.optimization.joint_stiffness_passive_revolute==0
+  data_dyn = cds_obj_dependencies_regmult(R, data_dyn_reg, Q);
+  if Set.general.debug_calc
     % Zu Testzwecken die Dynamik neu ohne Regressorform berechnen und mit
     % Regressor-Berechnung vergleichen
     Structure_tmp = Structure;
     Structure_tmp.calc_dyn_act = true;
-    Structure_tmp.calc_reg = false;
+    Structure_tmp.calc_dyn_reg = false;
+    if Set.optimization.joint_stiffness_passive_revolute
+      Structure_tmp.calc_spring_act = true;
+      Structure_tmp.calc_spring_reg = false;
+    end
     data_dyn2 = cds_obj_dependencies(R, Traj_0, Set, Structure_tmp, Q, QD, QDD, Jinv_ges);
     test_TAU = data_dyn2.TAU - data_dyn.TAU;
     if any(abs(test_TAU(:))>1e-8)
@@ -102,6 +100,16 @@ elseif fval == 0 && Structure.calc_reg
     test_W = data_dyn2.Wges - data_dyn.Wges;
     if any(abs(test_W(:))>1e-8)
       error('Schnittkräfte aus Regressorform stimmt nicht');
+    end
+    if any(Set.optimization.joint_stiffness_passive_revolute~=0)
+      test_TAU_spring = data_dyn2.TAU_spring - data_dyn.TAU_spring;
+      if any(abs(test_TAU_spring(:))>1e-8)
+        error('Antriebskräfte für Gelenkfeder aus Regressorform stimmt nicht');
+      end
+      test_W_spring = data_dyn2.Wges_spring - data_dyn.Wges_spring;
+      if any(abs(test_W_spring(:))>1e-8)
+        error('Schnittkräfte für Gelenkfeder aus Regressorform stimmt nicht');
+      end
     end
   end
 end

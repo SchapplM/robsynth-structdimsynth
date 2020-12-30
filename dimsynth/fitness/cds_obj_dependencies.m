@@ -19,29 +19,49 @@
 % Ausgabe:
 % data_dyn
 %   Struktur mit Diversen zu berechnenden Größen des Roboters im
-%   Zeitverlauf. Felder:
+%   Zeitverlauf. Bei Berechnung der Regressorform sind die Größen selbst
+%   nicht gesetzt.Felder:
 %   TAU
-%     Alle Antriebsmomente (in den aktiven Gelenken)
-%   TAU_reg
-%     Regressormatrix für TAU
+%     Alle Antriebsmomente (in den aktiven Gelenken). Enthält beide nachfolgenden Effekte.
+%   TAU_ID
+%     Antriebsmomente zur Kompensation der inversen Dynamik
+%     (Massenträgheit, Flieh-/Corioliskraft, Gravitation)
+%   TAU_spring
+%     Antriebsmomente zur Kompensation des Einflusses von Gelenkfedern
+%     (Sonderfall für Festkörpergelenke oder zusätzliche Federn in passiven Gelenken von PKM)
+%   TAU_ID_reg
+%     Regressormatrix für TAU_ID
+%   TAU_spring_reg
+%     Regressormatrix für TAU_spring
 %   Wges
 %     Alle Schnittkräfte (in allen Gelenken; bei PKM für alle Beinketten)
 %     Indizes: Siehe SerRob/internforce_traj (1: Zeit, 2:Kraft/Moment) oder
 %     PerRob/internforce_traj (1:Kraft/Moment, 2:Beinketten, 3:Zeit)
-%   Wges_reg
-%     Regressormatrix zu Wges.
+%     Enthält die beiden nachfolgend beschriebenen Effekte.
+%   Wges_ID
+%     Schnittkräfte resultierend aus der inversen Dynamik (analog zu TAU_ID)
+%   Wges_spring
+%     Schnittkräfte resultierend aus Gelenkfeder (analog zu TAU_spring)
+%   Wges_ID_reg
+%     Regressormatrix zu Wges_ID.
+%   Wges_spring_reg
+%     Regressormatrix zu Wges_spring.
+%
+% Siehe auch: cds_dimsynth_robot.m, cds_obj_dependencies_regmult.m.
+% Die Logik zur Auswahl der Terme zur Berechnung ist damit konsistent.
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-10
-% (C) Institut für Mechatronische Systeme, Universität Hannover
+% (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
 function data_dyn = cds_obj_dependencies(R, Traj_0, Set, Structure, Q, QD, QDD, JinvE_ges)
 data_dyn = struct('content', 'cds_obj_dependencies');
 
-if ~Structure.calc_reg && ~Set.general.debug_calc && ~Structure.calc_dyn_cut && ~Structure.calc_dyn_act
+if ~Structure.calc_dyn_reg && ~Set.general.debug_calc && ~Structure.calc_cut && ...
+    ~Structure.calc_dyn_act && ~Structure.calc_spring_reg && ~Structure.calc_spring_act
   % Es soll nichts berechnet werden.
   return
 end
-
+%% Initialisierung
 XE = Traj_0.X;
 XED = Traj_0.XD;
 XEDD = Traj_0.XDD;
@@ -89,88 +109,148 @@ if R.Type == 2
   end
 end
 
-if Structure.calc_dyn_cut
+%% Berechnungen durchführen
+if Structure.calc_cut
   % Berechne die Schnittkräfte in allen Segmenten
   if R.Type == 0 % Seriell
-    [Wges, Wges_reg] = R.internforce_traj(Q, QD, QDD);
+    [Wges_ID, Wges_ID_reg] = R.internforce_traj(Q, QD, QDD);
   else % PKM
-    if Structure.calc_reg || Set.general.debug_calc
+    if Structure.calc_dyn_reg || Set.general.debug_calc
       % Berechne nur die Regressormatrizen der Schnittkraft
-      Wges_reg = R.internforce_regmat_traj(Q, QD, QDD, XP, XPD, XPDD, JinvP_ges);
+      Wges_ID_reg = R.internforce_regmat_traj(Q, QD, QDD, XP, XPD, XPDD, JinvP_ges);
     else
       % Die Schnittkraft für diesen Fall wird ganz unten berechnet
+    end
+    if Structure.calc_spring_reg
+      % Regressor-Matrix für Schnittkraft bezogen auf Gelenkmomente.
+      % Notwendig für Entwurfsoptimierung bei Gelenkelastizität.
+      Wges_spring_reg = R.internforce_regmat_traj(Q, Q, Q, XP, XP, XP, ...
+        JinvP_ges, ones(size(Q,1), R.NJ));
     end
   end
 end
 
 if Structure.calc_dyn_act
   if R.Type == 0 % Serieller Roboter
-    if ~Structure.calc_dyn_cut
-      if Structure.calc_reg || Set.general.debug_calc
-        TAU_reg = R.invdynregmat_traj(Q, QD, QDD);
+    if ~Structure.calc_cut
+      if Structure.calc_dyn_reg || Set.general.debug_calc
+        TAU_ID_reg = R.invdynregmat_traj(Q, QD, QDD);
       end
-      if ~Structure.calc_reg || Set.general.debug_calc
+      if ~Structure.calc_dyn_reg || Set.general.debug_calc
         % Antriebskräfte berechnen
-        TAU = R.invdyn2_traj(Q, QD, QDD);
+        TAU_ID = R.invdyn2_traj(Q, QD, QDD);
       end
-    elseif ~Structure.calc_reg
+    elseif ~Structure.calc_dyn_reg
       % Hole Inverse Dynamik aus den zuvor berechneten Schnittkräften
       I_actjoint = (R.MDH.sigma==1).*(3+(3:3:3*R.NJ))' + ... % Schubgelenke -> Kräfte
                    (R.MDH.sigma==0).*(6+3*R.NJ+(3:3:3*R.NJ))';% Drehgelenke -> Momente
-      TAU = Wges(:,I_actjoint);
+      TAU_ID = Wges_ID(:,I_actjoint);
     elseif Set.general.debug_calc
-      TAU = R.invdyn2_traj(Q, QD, QDD);
+      TAU_ID = R.invdyn2_traj(Q, QD, QDD);
     else
       % Hier ist keine Berechnung der Antriebskräfte notwendig, da dies
       % später mit der Regressorform (der Schnittkräfte) gemacht wird
     end
   else % PKM
     % Antriebskräfte berechnen (Momente im Basis-KS, nicht x-Koord.)
-    if ~Structure.calc_dyn_cut || Set.general.debug_calc
+    if ~Structure.calc_cut || Set.general.debug_calc
       % Regressorform nur berechnen, falls später benötigt
-      if Structure.calc_reg  || Set.general.debug_calc
-        [TAU, TAU_reg] = R.invdyn2_actjoint_traj(Q, QD, QDD, XP, XPD, XPDD, JinvP_ges);
+      if Structure.calc_dyn_reg || Set.general.debug_calc
+        [TAU_ID, TAU_ID_reg] = R.invdyn2_actjoint_traj(Q, QD, QDD, XP, XPD, XPDD, JinvP_ges);
       else
-        TAU = R.invdyn2_actjoint_traj(Q, QD, QDD, XP, XPD, XPDD, JinvP_ges);
+        TAU_ID = R.invdyn2_actjoint_traj(Q, QD, QDD, XP, XPD, XPDD, JinvP_ges);
       end
-    elseif ~Structure.calc_reg || Set.general.debug_calc
+    elseif ~Structure.calc_dyn_reg || Set.general.debug_calc
       % Die Schnittkräfte werden für PKM mit gegebenen Antriebskräften
       % berechnet (anderer Rechenweg als bei seriellen Robotern)
-      TAU = R.invdyn2_actjoint_traj(Q, QD, QDD, XP, XPD, XPDD, JinvP_ges);
+      TAU_ID = R.invdyn2_actjoint_traj(Q, QD, QDD, XP, XPD, XPDD, JinvP_ges);
     else
       % Nichts berechnen. Begründung s.o.
     end
   end
 end
+if Structure.calc_spring_act && R.Type ~= 0
+  % Antriebskräfte berechnen (Momente im Basis-KS, nicht x-Koord.)
+  if ~Structure.calc_cut
+    % Regressorform nur berechnen, falls später benötigt
+    if Structure.calc_spring_reg
+      [TAU_spring, TAU_spring_reg] = R.jointtorque_actjoint_traj(Q, ...
+        XP, R.springtorque_traj(Q), JinvP_ges);
+    else
+      TAU_spring = R.jointtorque_actjoint_traj(Q, XP, R.springtorque_traj(Q), JinvP_ges);
+    end
+  elseif ~Structure.calc_spring_reg
+    TAU_spring = R.jointtorque_actjoint_traj(Q, XP, R.springtorque_traj(Q), JinvP_ges);
+  else
+    % Nichts berechnen. Begründung s.o.
+  end
+end
 
-if R.Type ~= 0 && (Structure.calc_dyn_cut && ~Structure.calc_reg || Set.general.debug_calc)
+if R.Type ~= 0 && (Structure.calc_cut && ~Structure.calc_dyn_reg || Set.general.debug_calc)
   if Set.general.debug_calc
     % Für die Test-Rechnungen wird die Schnittkraft benötigt. Für diese
     % muss aber das Antriebsmoment berechnet sein.
     % Die Abfrage von oben greift nicht (wegen calc_dyn_act)
-    TAU = R.invdyn2_actjoint_traj(Q, QD, QDD, XP, XPD, XPDD, JinvP_ges);
+    TAU_ID = R.invdyn2_actjoint_traj(Q, QD, QDD, XP, XPD, XPDD, JinvP_ges);
   end
-  Wges = R.internforce_traj(Q, QD, QDD, TAU);
+  Wges_ID = R.internforce_traj(Q, QD, QDD, TAU_ID);
 end
 
-% Drehfeder in Gelenken berücksichtigen (nur PKM)
-if R.Type ~= 0 && Set.optimization.joint_stiffness_passive_revolute && ...
-    ~Structure.calc_reg && Structure.calc_dyn_act
-  TAU_spring = R.springtorque_actjoint_traj(Q, XP, JinvP_ges);
-  TAU = TAU + TAU_spring;
+if R.Type ~= 0 && (Structure.calc_cut && ~Structure.calc_spring_reg && ...
+    Set.optimization.joint_stiffness_passive_revolute)
+  Wges_spring = R.internforce_traj(Q, 0*QD, 0*QDD, TAU_spring, R.springtorque_traj(Q));
 end
 
-% Ausgabe belegen 
-if ~Structure.calc_reg && Structure.calc_dyn_act
-  data_dyn.TAU = TAU;
+%% Ausgabe belegen 
+if ~Structure.calc_dyn_reg && Structure.calc_dyn_act
+  data_dyn.TAU_ID = TAU_ID;
 end
-if ~Structure.calc_reg && Structure.calc_dyn_cut
-  data_dyn.Wges = Wges;
+if ~Structure.calc_spring_reg && Structure.calc_spring_act
+  data_dyn.TAU_spring = TAU_spring;
 end
-if Structure.calc_reg || Set.general.debug_calc
-  if ~Structure.calc_dyn_cut && Structure.calc_dyn_act
-    data_dyn.TAU_reg = TAU_reg;
-  elseif Structure.calc_dyn_cut
-    data_dyn.Wges_reg = Wges_reg;
+if ~Structure.calc_dyn_reg && Structure.calc_cut
+  data_dyn.Wges_ID = Wges_ID;
+end
+if ~Structure.calc_spring_reg && Structure.calc_cut && ...
+    Set.optimization.joint_stiffness_passive_revolute
+  data_dyn.Wges_spring = Wges_spring;
+end
+if Structure.calc_dyn_reg || Set.general.debug_calc
+  if ~Structure.calc_cut && Structure.calc_dyn_act
+    data_dyn.TAU_ID_reg = TAU_ID_reg;
+  elseif Structure.calc_cut
+    data_dyn.Wges_ID_reg = Wges_ID_reg;
   end
 end
+if Structure.calc_spring_reg
+  if ~Structure.calc_cut && Structure.calc_spring_act
+    data_dyn.TAU_spring_reg = TAU_spring_reg;
+  elseif Structure.calc_cut
+    data_dyn.Wges_spring_reg = Wges_spring_reg;
+  end
+end
+
+if isfield(data_dyn, 'TAU_ID')
+  if ~Set.optimization.joint_stiffness_passive_revolute
+    data_dyn.TAU = data_dyn.TAU_ID;
+  end
+  % Drehfeder in Gelenken berücksichtigen (nur PKM). Gebe die Summe aus den
+  % Effekten der inversen Dynamik und der Gelenkelastizitäten aus.
+  % Gebe diese Werte nur aus, wenn nicht die Regressorform später benutzt
+  % werden soll.
+  if isfield(data_dyn, 'TAU_spring') && (~isfield(data_dyn, 'Wges_spring_reg') || ...
+      ~isfield(data_dyn, 'TAU_spring_reg'))
+    data_dyn.TAU = data_dyn.TAU_ID + data_dyn.TAU_spring;
+  end
+end
+
+if isfield(data_dyn, 'Wges_ID')
+  % Das gleiche wie im vorherigen Block, nur für Schnittkräfte statt Antriebskräfte.
+  if ~Set.optimization.joint_stiffness_passive_revolute
+    data_dyn.Wges = data_dyn.Wges_ID;
+  end
+  if isfield(data_dyn, 'Wges_spring') && ~isfield(data_dyn, 'Wges_spring_reg')
+    data_dyn.Wges = data_dyn.Wges_ID + data_dyn.Wges_spring;
+  end
+end
+
