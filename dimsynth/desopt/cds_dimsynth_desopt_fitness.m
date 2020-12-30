@@ -160,44 +160,68 @@ if fval > 1000 % Nebenbedingungen verletzt.
 end
 
 %% Fitness-Wert berechnen
+% Eintrag in Fitness-Wert für die äußere Optimierungsschleife in der
+% Maßsynthese. Nehme in dieser Optimierung nur ein Zielkriterium, auch wenn
+% die Maßsynthese mehrkriteriell ist. Fange mit den einfachen Kriterien an.
+fval_main = NaN(length(Set.optimization.objective),1);
+physval_main = NaN(length(Set.optimization.objective),1);
 if any(strcmp(Set.optimization.objective, 'mass'))
   if Set.optimization.constraint_obj(1) % Vermeide doppelten Aufruf der Funktion
     fval = fval_mass; % Nehme Wert von der NB-Berechnung oben
     fval_debugtext = fval_debugtext_mass;
   else
-    [fval,fval_debugtext] = cds_obj_mass(R);
+    [fval, fval_debugtext, ~, fphys_m] = cds_obj_mass(R);
   end
+  fval_main(strcmp(Set.optimization.objective, 'mass')) = fval;
+  physval_main(strcmp(Set.optimization.objective, 'mass')) = fphys_m;
 elseif any(strcmp(Set.optimization.objective, 'energy'))
   if Set.optimization.constraint_obj(2) % Vermeide doppelten Aufruf der Funktion
     fval = fval_energy; % Nehme Wert von der NB-Berechnung oben
     fval_debugtext = fval_debugtext_energy;
   else
-    [fval,fval_debugtext] = cds_obj_energy(R, Set, Structure, Traj_0, data_dyn.TAU, QD);
+    [fval,fval_debugtext,~,physval_en] = cds_obj_energy(R, Set, Structure, Traj_0, data_dyn.TAU, QD);
   end
+  fval_main(strcmp(Set.optimization.objective, 'energy')) = fval;
+  physval_main(strcmp(Set.optimization.objective, 'energy')) = physval_en;
 elseif any(strcmp(Set.optimization.objective, 'actforce'))
   if Set.optimization.constraint_obj(3) % Vermeide doppelten Aufruf der Funktion
     fval = fval_actforce; % Nehme Wert von der NB-Berechnung oben
     fval_debugtext = fval_debugtext_actforce;
   else
-    [fval,fval_debugtext] = cds_obj_actforce(data_dyn.TAU);
+    [fval, fval_debugtext, ~, fphys_actforce] = cds_obj_actforce(data_dyn.TAU);
   end
+  fval_main(strcmp(Set.optimization.objective, 'actforce')) = fval;
+  physval_main(strcmp(Set.optimization.objective, 'actforce')) = fphys_actforce;
 elseif any(strcmp(Set.optimization.objective, 'stiffness'))
   if Set.optimization.constraint_obj(5) % Vermeide doppelten Aufruf der Funktion
     fval = fval_st; % Nehme Wert von der NB-Berechnung oben
     fval_debugtext = fval_debugtext_st;
   else
-    [fval,fval_debugtext] = cds_obj_stiffness(R, Set, Q);
+    [fval,fval_debugtext,~,fphys_st] = cds_obj_stiffness(R, Set, Q);
   end
+  fval_main(strcmp(Set.optimization.objective, 'stiffness')) = fval;
+  physval_main(strcmp(Set.optimization.objective, 'stiffness')) = fphys_st;
 elseif any(strcmp(Set.optimization.objective, 'materialstress'))
   if Set.optimization.constraint_obj(6) % Vermeide doppelten Aufruf der Funktion
     fval = fval_ms; % Nehme Wert von der NB-Berechnung oben
     fval_debugtext = constrvioltext_ms;
   else
-    [fval,fval_debugtext] = cds_obj_materialstress(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
+    [fval,fval_debugtext,~,physval_materialstress] = cds_obj_materialstress(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
   end
+  fval_main(strcmp(Set.optimization.objective, 'materialstress')) = fval;
+  physval_main(strcmp(Set.optimization.objective, 'materialstress')) = physval_materialstress;
 else
   % Es wurde eine Dimensionierung gefunden, die alle Nebenbedingungen ein-
   % hält. Keine Zielfunktion definiert, die jetzt noch profitieren würde.
+  abort_fitnesscalc = true;
+end
+% Prüfe, ob in Entwurfsoptimierung berechnete Zielfunktionen ihre Grenze
+% erreicht haben. Kinematik-bezogene Zielfunktionen werden hier nicht
+% aktualisiert und bleiben NaN, werden also dabei nicht betrachtet.
+if all(fval_main(~isnan(fval_main)) <= Set.optimization.obj_limit(~isnan(fval_main)) ) || ...
+   all(physval_main(~isnan(fval_main)) <= Set.optimization.obj_limit_physval(~isnan(fval_main)))
+  % Die Fitness-Funktion ist besser als die Grenze. Optimierung kann
+  % hiernach beendet werden.
   abort_fitnesscalc = true;
 end
 cds_log(4,sprintf('[desopt/fitness] DesOpt-Fitness-Evaluation in %1.1fs. Parameter: [%s]. fval=%1.3e. Erfolgreich. %s', ...
