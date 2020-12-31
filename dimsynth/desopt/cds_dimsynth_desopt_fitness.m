@@ -165,6 +165,7 @@ end
 % die Maßsynthese mehrkriteriell ist. Fange mit den einfachen Kriterien an.
 fval_main = NaN(length(Set.optimization.objective),1);
 physval_main = NaN(length(Set.optimization.objective),1);
+abort_logtext = '';
 if any(strcmp(Set.optimization.objective, 'mass'))
   if Set.optimization.constraint_obj(1) % Vermeide doppelten Aufruf der Funktion
     fval = fval_mass; % Nehme Wert von der NB-Berechnung oben
@@ -214,6 +215,7 @@ else
   % Es wurde eine Dimensionierung gefunden, die alle Nebenbedingungen ein-
   % hält. Keine Zielfunktion definiert, die jetzt noch profitieren würde.
   abort_fitnesscalc = true;
+  abort_logtext = 'Nebenbedingung erfüllt. Keine Zielfunktion für Entwurfsoptimierung';
 end
 % Prüfe, ob in Entwurfsoptimierung berechnete Zielfunktionen ihre Grenze
 % erreicht haben. Kinematik-bezogene Zielfunktionen werden hier nicht
@@ -223,7 +225,9 @@ if all(fval_main(~isnan(fval_main)) <= Set.optimization.obj_limit(~isnan(fval_ma
   % Die Fitness-Funktion ist besser als die Grenze. Optimierung kann
   % hiernach beendet werden.
   abort_fitnesscalc = true;
+  abort_logtext = 'Abbruchgrenze für Zielfunktion erreicht';
 end
-cds_log(4,sprintf('[desopt/fitness] DesOpt-Fitness-Evaluation in %1.1fs. Parameter: [%s]. fval=%1.3e. Erfolgreich. %s', ...
-    toc(t1), disp_array(p_desopt', '%1.3f'), fval, fval_debugtext));
+cds_log(4,sprintf(['[desopt/fitness] DesOpt-Fitness-Evaluation in %1.1fs. ', ...
+  'Parameter: [%s]. fval=%1.3e. Erfolgreich. %s %s.'], toc(t1), ...
+  disp_array(p_desopt', '%1.3f'), fval, fval_debugtext, abort_logtext));
 end
