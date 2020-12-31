@@ -36,13 +36,22 @@ fighdl = get(axhdl, 'Parent');
 uihdl = findobj(fighdl, 'Type', 'UIControl');
 Selection = get(uihdl, 'Value');
 SelStr = get(uihdl,'String');
-fprintf('Starte Vorbereitung und Plot für %s/%s (Rob. %d) "%s"\n', ...
-  OptName, RobName, RobNr, SelStr{Selection});
+fprintf('[%s] Starte Vorbereitung und Plot für %s/%s (Rob. %d) "%s"\n', ...
+  datestr(now(),'yyyymmdd_HHMMSS'), OptName, RobName, RobNr, SelStr{Selection});
 %% Lade die Daten
 % Benutze den Ordner als Speicherort der Daten, in dem auch das Bild liegt.
 resdir_opt = fileparts(get(fighdl, 'FileName'));
-if ~exist(resdir_opt, 'file')
-  warning('Ergebnis-Ordner %s existiert nicht, obwohl Bild von dort geladen wurde.', resdir_opt);
+if isempty(resdir_opt)
+  % Das Bild wurde eventuell gerade erst gezeichnet und daher ist kein
+  % Dateiname abgespeichert. Suche den Ordner der Ergebnisse.
+  resdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), 'results');
+  resdir_opt = fullfile(resdir, OptName);
+  if ~exist(resdir_opt, 'file')
+    warning('Automatisch ermittelter Ergebnis-Ordner %s existiert nicht. Abbruch.', resdir_opt);
+    return
+  end
+elseif ~exist(resdir_opt, 'file')
+  warning('Ergebnis-Ordner %s existiert nicht, obwohl Bild von dort geladen wurde. Abbruch.', resdir_opt);
   return
 end
 resfile1 = fullfile(resdir_opt, sprintf('Rob%d_%s_Endergebnis.mat', ...
@@ -122,9 +131,20 @@ if any(isnan(p_desopt))
 end
 if isempty(RobotOptDetails) || ~isempty(p_desopt)
   % Falls nur die reduzierten Ergebnis-Daten vorliegen oder die Ergebnisse
-  % der Entwurfsoptimierung direkt eingetragen werden sollen.
+  % der Entwurfsoptimierung direkt eingetragen werden sollen. Vermeide die
+  % erneute Durchführung der Entwurfsoptimierung, falls diese gemacht wurde.
   [R, Structure] = cds_dimsynth_robot(Set, Traj, Structure, true);
-  [fval2, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure,p,p_desopt);
+  if isempty(p_desopt)
+    [fval2, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure,p);
+  else
+    % Keine erneute Entwurfsoptimierung, also auch keine Regressorform notwendig.
+    % Direkte Berechnung der Dynamik, falls für Zielfunktion notwendig.
+    Structure.calc_dyn_act = Structure.calc_dyn_act | Structure.calc_dyn_reg;
+    Structure.calc_spring_act = Structure.calc_spring_act | Structure.calc_spring_reg;
+    Structure.calc_spring_reg = false;
+    Structure.calc_dyn_reg = false;
+    [fval2, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure,p,p_desopt);
+  end
 else
   % Alternative Berechnung (erfordert Laden der Detail-Daten).
   % Hier ist die Reproduktion der Zielfunktion besser möglich, da Anfangs-
