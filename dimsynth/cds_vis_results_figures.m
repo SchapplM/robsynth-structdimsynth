@@ -248,7 +248,7 @@ if strcmp(figname, 'dynamics')
       Dyn_Plf_C(i,:) = R.coriolisvec2_platform(Q(i,:)', QD(i,:)', xP, xPD, JinvP);
       Dyn_Plf_G(i,:) = R.gravload2_platform(Q(i,:)', xP, JinvP);
       Dyn_Plf_A(i,:) = R.inertia2_platform(Q(i,:)', xP, JinvP)*xPDD(R.I_EE);
-      Dyn_Plf_S(i,:) = R.springtorque_platform(Q(i,:)', xP, JinvP);
+      Dyn_Plf_S(i,:) = R.jointtorque_platform(Q(i,:)', xP, R.springtorque(Q(i,:)'), JinvP);
       Dyn_Plf_Tau(i,:) = Dyn_Plf_S(i,:)' + R.invdyn2_platform(Q(i,:)', QD(i,:)', QDD(i,:)', xP, xPD, xPDD);
       % ...und auf Antriebe umrechnen.
       Dyn_C(i,:) = Jinv_qaD_sD' \ Dyn_Plf_C(i,:)';
