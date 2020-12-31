@@ -46,8 +46,7 @@ options_desopt = optimoptions('particleswarm');
 options_desopt.Display = 'off';
 options_desopt.MaxIter = 5;
 options_desopt.MaxStallIterations = 1; % Oft ist das Optimum der Startwert
-options_desopt.ObjectiveLimit = 1e3; % Erfüllung aller Nebenbedingungen reicht
-nvars = length(vartypes); % Variablen: Wandstärke, Durchmesser der Segmente
+nvars = length(vartypes); % Variablen: Wandstärke, Durchmesser der Segmente, Ruhelage von Gelenkfedern
 NumIndividuals = 10*nvars;
 
 varlim = [];
