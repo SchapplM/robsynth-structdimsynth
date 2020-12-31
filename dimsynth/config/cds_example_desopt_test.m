@@ -34,8 +34,8 @@ Set.general.max_retry_bestfitness_reconstruction = 1;
 Set.general.verbosity = 4;
 Set.general.matfile_verbosity = 2; % Modus 3/4 nur zum Debuggen bei Fehler. Dauert zu lange.
 Set.general.nosummary = true;
-Set.structures.whitelist = {'S6RRPRRR14', 'P6RRPRRR14V3G1P4A1'};
-
+whitelist_ser = {'S6RRPRRR14'};
+whitelist_par = {'P6RRPRRR14V3G1P4A1'};
 %% Detail-Einstellungen für Fälle vornehmen und Optimierung starten
 for dbc = [false, true]
   % Die Debug-Berechnungen beeinflussen die Anzahl der berechneten Terme
@@ -59,27 +59,32 @@ for dbc = [false, true]
         Set.optimization.constraint_obj(:) = 0; % keine Nebenbedingung ...
         Set.optimization.constraint_obj(6) = 1; % ... außer Materialspannung
     end
-    for k = 1:3
+    for k = 1:5
       switch k
         case 1
           % Stärke der Segmente optimieren
           Set.optimization.desopt_vars = {'linkstrength'};
           Set.optimization.joint_stiffness_passive_revolute = 0;
+          Set.structures.whitelist = [whitelist_ser, whitelist_par];
         case 2
           % Ruhelage der Gelenkelastizität optimieren
           Set.optimization.desopt_vars = {'joint_stiffness_qref'};
           % Geringe Gelenksteifigkeit passiver Drehgelenke von 1Nm/Grad
           Set.optimization.joint_stiffness_passive_revolute = 1*180/pi;
+          Set.structures.whitelist = whitelist_par; % Gelenkfeder nur für PKM
         case 3
           % Sowohl Segmentstärke, als auch Feder-Ruhelage optimieren
           Set.optimization.desopt_vars = {'joint_stiffness_qref', 'linkstrength'};
           Set.optimization.joint_stiffness_passive_revolute = 1*180/pi;
+          Set.structures.whitelist = whitelist_par; % Gelenkfeder nur für PKM
         case 4
           Set.optimization.desopt_vars = {};
           Set.optimization.joint_stiffness_passive_revolute = 0;
+          Set.structures.whitelist = [whitelist_ser, whitelist_par];
         case 5
           Set.optimization.desopt_vars = {};
           Set.optimization.joint_stiffness_passive_revolute = 1*180/pi;
+          Set.structures.whitelist = whitelist_par; % Gelenkfeder nur für PKM
       end
       Set.optimization.optname = sprintf('desopt_test_%d_%d_dbc%d', i, k, dbc);
       cds_start

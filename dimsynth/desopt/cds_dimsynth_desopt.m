@@ -95,6 +95,11 @@ if any(vartypes == 3)
   % dass dies (ungefähr) der beste ist. Eintrag als erstes Individuum,
   % damit es beim testweisen Aufruf der Funktion geprüft wird.
   InitPop(1,vartypes==3) = mean(qminmax_leg(I_joints),2);
+  if any(vartypes == 2)
+    % entspricht stärkstmöglicher Dimensionierung der Segmente. Kombinere
+    % mit Mittelstellung der Feder-Ruhelage zur Vorab-Schätzung.
+    InitPop(2,vartypes==3) = InitPop(1,vartypes==3);
+  end
 end
 options_desopt.InitialSwarmMatrix = InitPop;
 % Erstelle die Fitness-Funktion und führe sie einmal zu testzwecken aus
@@ -114,8 +119,7 @@ if fval_test == 0
   avoid_optimization = true;
   fval_opt = fval_test;
   p_val_opt = InitPop(1,:)';
-elseif all(vartypes == 2)
-  tic();
+elseif all(vartypes == 2) % Nur Segmentstärke wird optimiert
   fval_minpar = fval_test; % Aufruf oben mit InitPop(1,:) entspricht schwächstem Wert
   if Set.optimization.constraint_obj(6) > 0 && fval_minpar<1e3 && ...
     ~strcmp(Set.optimization.objective, 'stiffness') && Set.optimization.constraint_obj(5) == 0
@@ -126,19 +130,33 @@ elseif all(vartypes == 2)
     fval_opt = fval_minpar;
     p_val_opt = InitPop(1,:)';
   end
+  clear cds_dimsynth_desopt_fitness % für persistente Variable
+  fval_maxpar = fitnessfcn_desopt(InitPop(2,:)');
+  if fval_minpar > 1e3 && fval_minpar > 1e3
+    % Sowohl die schwächstmögliche, als auch die stärkstmögliche
+    % Dimensionierung verletzen die Nebenbedingungen. TODO: Ist hieraus
+    % eine Aussage über die Nicht-Existenz einer Lösung möglich?
+  end
   if Set.optimization.constraint_obj(6) == 0 && ...
     (strcmp(Set.optimization.objective, 'stiffness') || Set.optimization.constraint_obj(5) == 0)
     % Optimierung der Steifigkeit ohne Prüfung der Materialstärke. Die
     % stärkste Segmentauslegung könnte das Optimum darstellen.
     % Die Grenze der Masse wird betrachtet, da sie als Nebenbedingung bei
     % Prüfung der Fitness-Funktion enthalten ist.
-    clear cds_dimsynth_desopt_fitness % für persistente Variable
-    fval_maxpar = fitnessfcn_desopt(InitPop(2,:)');
     if fval_maxpar < 1e3
       avoid_optimization = true;
       fval_opt = fval_maxpar;
       p_val_opt = InitPop(2,:)';
     end
+  end
+elseif all(vartypes == 3) % Nur Gelenkfeder-Ruhelagen werden optimiert
+  if fval_test > 1e3
+    % Wenn die Ruhelage die Mittelstellung ist, wird keine Lösung gefunden.
+    % Nehme an, dass die PKM so schlecht dimensioniert ist, dass die Suche
+    % nach der besten Feder-Ruhelage nicht sinnvoll ist
+    avoid_optimization = true;
+    fval_opt = fval_test;
+    p_val_opt = InitPop(1,:)';
   end
 end
 % Für Profiler: `for i=1:10,fitnessfcn_desopt(InitPop(1,:)'); end`
