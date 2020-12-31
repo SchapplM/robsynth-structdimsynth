@@ -112,6 +112,7 @@ T2 = toc(t2);
 avoid_optimization = false;
 p_val_opt = NaN(nvars,1);
 fval_opt = NaN;
+detailstring = '';
 if fval_test == 0
   % Die Abbruchbedingung in der Fitness-Funktion wurde bereits beim Start-
   % wert erfüllt. Die Optimierung ist nicht notwendig (nur Nebenbedingungen
@@ -119,6 +120,7 @@ if fval_test == 0
   avoid_optimization = true;
   fval_opt = fval_test;
   p_val_opt = InitPop(1,:)';
+  detailstring = 'Abbruchbedingung bereits bei erstem Versuch erfüllt';
 elseif all(vartypes == 2) % Nur Segmentstärke wird optimiert
   fval_minpar = fval_test; % Aufruf oben mit InitPop(1,:) entspricht schwächstem Wert
   if Set.optimization.constraint_obj(6) > 0 && fval_minpar<1e3 && ...
@@ -129,13 +131,19 @@ elseif all(vartypes == 2) % Nur Segmentstärke wird optimiert
     avoid_optimization = true;
     fval_opt = fval_minpar;
     p_val_opt = InitPop(1,:)';
+    detailstring = 'Schwächste Segmentdimensionierung erfüllt bereits die Nebenbedingungen';
   end
   clear cds_dimsynth_desopt_fitness % für persistente Variable
   fval_maxpar = fitnessfcn_desopt(InitPop(2,:)');
-  if fval_minpar > 1e3 && fval_minpar > 1e3
+  if fval_minpar > 1e4 && fval_maxpar > 1e4
     % Sowohl die schwächstmögliche, als auch die stärkstmögliche
-    % Dimensionierung verletzen die Nebenbedingungen. TODO: Ist hieraus
-    % eine Aussage über die Nicht-Existenz einer Lösung möglich?
+    % Dimensionierung verletzen die Materialspannung. Annahme, dass eine
+    % stärkere Struktur die Festigkeit mehr erhöht als die aus der
+    % zusätzlichen Masse resultierende Belastung.
+    avoid_optimization = true;
+    fval_opt = fval_maxpar;
+    p_val_opt = InitPop(2,:);
+    detailstring = 'Materialspannung auch bei stärkster Segmentdimensionierung überschritten';
   end
   if Set.optimization.constraint_obj(6) == 0 && ...
     (strcmp(Set.optimization.objective, 'stiffness') || Set.optimization.constraint_obj(5) == 0)
@@ -147,6 +155,7 @@ elseif all(vartypes == 2) % Nur Segmentstärke wird optimiert
       avoid_optimization = true;
       fval_opt = fval_maxpar;
       p_val_opt = InitPop(2,:)';
+      detailstring = 'Nebenbedingung bei stärkster Segmentdimensionierung erfüllt';
     end
   end
 elseif all(vartypes == 3) % Nur Gelenkfeder-Ruhelagen werden optimiert
@@ -157,6 +166,20 @@ elseif all(vartypes == 3) % Nur Gelenkfeder-Ruhelagen werden optimiert
     avoid_optimization = true;
     fval_opt = fval_test;
     p_val_opt = InitPop(1,:)';
+    detailstring = 'Nebenbedingungen auch in auch bei mittiger Gelenkfeder-Ruhelage verletzt';
+  end
+elseif any(vartypes == 2) && any(vartypes == 3) % Gemeinsame Optimierung
+  clear cds_dimsynth_desopt_fitness % für persistente Variable
+  fval_minpar = fval_test;
+  fval_maxpar = fitnessfcn_desopt(InitPop(2,:)');
+  if fval_minpar > 1e4 && fval_maxpar > 1e4
+    % Siehe gleiche Überprüfung oben. Annahme, dass bei
+    % Gelenkfeder-Mittelstellung die stärksten Segmente reichen müssten.
+    % Wähle daher auch die stärkste Dimensionierung als Ergebnis.
+    avoid_optimization = true;
+    fval_opt = fval_maxpar;
+    p_val_opt = InitPop(2,:);
+    detailstring = 'Materialspannung auch bei stärkster Segmentdimensionierung überschritten';
   end
 end
 % Für Profiler: `for i=1:10,fitnessfcn_desopt(InitPop(1,:)'); end`
@@ -187,7 +210,7 @@ else
   p_val = p_val_opt;
   fval = fval_opt;
   output = struct('iterations', 0, 'funccount', 0);
-  detailstring = sprintf('Keine Optimierung notwendig aufgrund der Definition des Optimierungsproblems (fval=%1.1f)', fval);
+  detailstring = sprintf('Keine Optimierung notwendig (fval=%1.1f). %s', fval, detailstring);
 end
 I_bordersol = any(repmat(p_val(:),1,2) == varlim,2); % Prüfe, ob Endergebnis eine Parameterraumgrenze darstellt
 if any(I_bordersol)
