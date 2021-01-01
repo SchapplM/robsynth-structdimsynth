@@ -102,12 +102,20 @@ for i = 1:length(RobNames)
     p_jj = pval_all(jj,:)';
     f_jj = fval_all(jj,:)';
     p_desopt_jj = p_desopt_all(jj,:)';
+    Structure_jj = Structure;
     if any(isnan(p_desopt_jj))
       p_desopt_jj = [];
+    else
+      % Keine erneute Entwurfsoptimierung, also auch keine Regressorform notwendig.
+      % Direkte Berechnung der Dynamik, falls für Zielfunktion notwendig.
+      Structure_jj.calc_dyn_act = Structure.calc_dyn_act | Structure.calc_dyn_reg;
+      Structure_jj.calc_spring_act = Structure.calc_spring_act | Structure.calc_spring_reg;
+      Structure_jj.calc_spring_reg = false;
+      Structure_jj.calc_dyn_reg = false;
     end
     [k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, f_jj);
     fprintf('Reproduktion Partikel Nr. %d (Gen. %d, Ind. %d): ', jj, k_gen, k_ind);
-    f2_jj = cds_fitness(R,Set,Traj,Structure,p_jj,p_desopt_jj);
+    f2_jj = cds_fitness(R,Set,Traj,Structure_jj,p_jj,p_desopt_jj);
     test_f = f_jj - f2_jj;
     if any(abs(test_f) > 1e-4)
       warning(['Fitness-Wert zu Partikel Nr. %d (Gen. %d, Ind. %d) nicht ', ...
