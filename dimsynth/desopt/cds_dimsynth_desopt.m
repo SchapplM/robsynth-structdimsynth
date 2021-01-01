@@ -94,12 +94,18 @@ if any(vartypes == 3)
   % Setze die mittlere Gelenkstellung als ein Wert ein. Es wird erwartet,
   % dass dies (ungefähr) der beste ist. Eintrag als erstes Individuum,
   % damit es beim testweisen Aufruf der Funktion geprüft wird.
-  InitPop(1,vartypes==3) = mean(qminmax_leg(I_joints),2);
+  InitPop(1,vartypes==3) = mean(qminmax_leg(I_joints,:),2);
   if any(vartypes == 2)
     % entspricht stärkstmöglicher Dimensionierung der Segmente. Kombinere
     % mit Mittelstellung der Feder-Ruhelage zur Vorab-Schätzung.
     InitPop(2,vartypes==3) = InitPop(1,vartypes==3);
   end
+  % Setze bei der ersten Hälfte der Population die Ruhelage geringfügig um
+  % die Mittelstellung. Hier werden die besten Ergebnisse erwartet.
+  n_red = floor(NumIndividuals/2)-2;
+  varlim_js_red = repmat(InitPop(1,vartypes==3)',1,2) + repmat([-10, 10]*pi/180, sum(I_joints), 1);
+  InitPop(3:3+n_red-1,vartypes==3) = repmat(varlim_js_red(:,1)', n_red,1) + ...
+    rand(n_red, sum(vartypes==3) ).* repmat(varlim_js_red(:,2)'-varlim_js_red(:,1)',n_red,1);
 end
 options_desopt.InitialSwarmMatrix = InitPop;
 % Erstelle die Fitness-Funktion und führe sie einmal zu testzwecken aus
