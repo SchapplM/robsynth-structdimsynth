@@ -1211,6 +1211,22 @@ if max_retry > Set.optimization.NumIndividuals
   max_retry = Set.optimization.NumIndividuals;
 end
 
+% Für Reproduktion Ergebnis der Entwurfsoptimierung laden.
+[k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, fval);
+desopt_pval = PSO_Detail_Data.desopt_pval(k_ind, :, k_gen)';
+
+% Struktur-Variable neu erstellen um Schalter für Dynamik-Berechnung
+% richtig zu setzen, wenn die Fitness-Funktion neu ausgeführt wird.
+Structure_tmp = Structure;
+if ~isempty(desopt_pval)
+  % Keine erneute Entwurfsoptimierung, also auch keine Regressorform notwendig.
+  % Direkte Berechnung der Dynamik, falls für Zielfunktion notwendig.
+  Structure_tmp.calc_dyn_act = Structure.calc_dyn_act | Structure.calc_dyn_reg;
+  Structure_tmp.calc_spring_act = Structure.calc_spring_act | Structure.calc_spring_reg;
+  Structure_tmp.calc_spring_reg = false;
+  Structure_tmp.calc_dyn_reg = false;
+end
+
 for i = 1:max_retry
   % Mehrere Versuche vornehmen, da beim Umklappen der Roboterkonfiguration
   % andere Ergebnisse entstehen können.
@@ -1218,7 +1234,9 @@ for i = 1:max_retry
   % Zufallszahlen-Initialisierung in cds_fitness). Es kann rundungsbedingte
   % Aenderungen des Ergebnisses geben.
   clear cds_fitness % persistente Variable in fitnessfcn löschen (falls Grenzwert erreicht wurde wird sonst inf zurückgegeben)
-  [fval_test, ~, Q_test] = fitnessfcn(p_val);
+  % Aufruf nicht über anonmye Funktion, sondern vollständig, damit Param.
+  % der Entwurfsoptimierung übergeben werden können.
+  [fval_test, ~, Q_test] = cds_fitness(R, Set, Traj, Structure_tmp, p_val, desopt_pval);
   if any(abs(fval_test-fval)>1e-8)
     if all(fval_test < fval)
       t = sprintf('Der neue Wert (%s) ist um [%s] besser als der alte (%s).', ...
@@ -1471,7 +1489,7 @@ for i = 1:size(fval_pareto,1)
   desopt_pval_pareto(i,:) = PSO_Detail_Data.desopt_pval(k_ind, :, k_gen);
 end
 [k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, fval);
-desopt_pval = PSO_Detail_Data.desopt_pval(k_ind, :, k_gen);
+desopt_pval = PSO_Detail_Data.desopt_pval(k_ind, :, k_gen)';
 
 
 %% Ausgabe der Ergebnisse
