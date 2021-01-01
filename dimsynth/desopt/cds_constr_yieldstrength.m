@@ -78,7 +78,10 @@ for i = 1:NLEG
     Wges = reshape(Wges_i, 6*Rob.NL, nt)'; % in gleiches Format wie SerRob bringen
   end
   % Effektivwert von Kraft und Moment im Zeitverlauf bestimmen
-  % Alle Segmente durchgehen
+  % Alle Segmente durchgehen, auch die Basis (Index 1). Nehme an, dass
+  % Basis immer ausreichend stark dimensioniert werden kann. Bei Schub-
+  % gelenken kann aber nur an der Basis die Länge des Segments
+  % berücksichtigt werden.
   for j = 1:Rob.NL
     % Parameter des Segmentes laden
     e_j = Rob.DesPar.seg_par(i,1); % Wandstärke
@@ -111,7 +114,7 @@ for i = 1:NLEG
   end
 end
 % Prüfe, ob für ein Segment die Materialspannung überschritten wurde
-f_maxstrengthviol = max(f_yieldstrength(:));
+[f_maxstrengthviol, I_maxstrengthviol] = max(f_yieldstrength(:));
 f_maxstrengthviol_safety = f_maxstrengthviol*safety_factor;
 if any(f_maxstrengthviol_safety > 1)
   % Normiere auf Wert zwischen 0 und 1
@@ -201,17 +204,18 @@ if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_detail
   if R.Type == 2 % PKM
     % Zeichne Verlauf der Konditionszahl, zur Einordnung, ob
     % Überschreitung aufgrund von Singularität auftritt
-    % Berechne Konditionszahl für alle Punkte der Bahn
+    % Berechne Konditionszahl für alle Punkte der Bahn. Zusätzlich
+    % Manipulierbarkeit. Berechnung für jede Beinkette einzeln.
     Jdet_all = NaN(length(Traj_0.t), NLEG+1); % Determinanten
     Jcond_all = Jdet_all; % Konditionszahlen
     for i = 1:length(Traj_0.t)
       Jinv_IK = reshape(Jinv_ges(i,:), R.NJ, sum(R.I_EE));
       for k = 1:NLEG
         Jinv_IK_k = Jinv_IK(R.I1J_LEG(k):R.I2J_LEG(k),:);
-        Jdet_all(i,k) = log10(abs(det(Jinv_IK_k)));
+        Jdet_all(i,k) = log10(abs(sqrt(det(Jinv_IK_k'*Jinv_IK_k))));
         Jcond_all(i,k) = cond(Jinv_IK_k);
       end
-      Jdet_all(i,end) = log10(abs(det(Jinv_IK(R.I_qa,:))));
+      Jdet_all(i,end) = log10(sqrt(abs(det(Jinv_IK(R.I_qa,:)'*Jinv_IK(R.I_qa,:)))));
       Jcond_all(i,end) = cond(Jinv_IK(R.I_qa,:));
     end
     change_current_figure(1998);clf;
@@ -232,7 +236,8 @@ if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_detail
     sgtitle('Eigenschaften der Jacobi-Matrix');
   end
   
-  % Zeichne den Roboter in einer kritischen Konfiguration
+  % Zeichne den Roboter in einer kritischen Konfiguration. Färbe das am
+  % stärksten überlastete Segment ein.
   change_current_figure(1997);clf;
   set(1997, 'Name', 'Spannungsgrenze_Roboter', 'NumberTitle', 'off');
   view(3); axis auto; hold on; grid on;
@@ -241,8 +246,19 @@ if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_detail
     s_plot = struct( 'ks', [1, R.NL+1], 'straight', 1, 'mode', 4);
     R.plot( Q(I_sigma_exc,:)', s_plot);
   else % PKM
-    s_plot = struct( 'ks_legs', Rob.I1L_LEG, 'straight', 1, 'mode', 4);
+    s_plot = struct( 'ks_legs', R.I1L_LEG, 'straight', 1, 'mode', 4);
     R.plot( Q(I_sigma_exc,:)', Traj_0.X(I_sigma_exc,:)', s_plot);
   end
-  sgtitle('CAD-Modell bei max. Überschreitung der Belastungsgrenze');
+  % Finde den Ort der Überlastung heraus
+  [iLink,iLeg] = ind2sub(size(f_yieldstrength),I_maxstrengthviol);
+  for c = get(gca, 'children')'
+    if ~contains(get(c, 'DisplayName'), 'Leg')
+      continue % Ist kein 3D-Körper, der in plot-Funktion mit Namen versehen wurde.
+    end
+    if strcmp(get(c, 'DisplayName'), sprintf('Leg%d_Link%d', iLeg, iLink-1))
+      set(c, 'edgeColor', [1 0 0]);
+    end
+  end
+  sgtitle(sprintf(['CAD-Modell bei max. Überschreitung der Belastungsgrenze ', ...
+    '(Bein %d, Seg. %d)'], iLeg, iLink));
 end
