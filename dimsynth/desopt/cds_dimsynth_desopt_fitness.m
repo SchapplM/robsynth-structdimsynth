@@ -30,13 +30,17 @@
 %   1e3...1e4: Nebenbedingung von Zielfunktion überschritten
 %   1e4...1e5: Überschreitung Belastungsgrenze der Segmente
 %   1e8...1e9: Unplausible Eingabe (Radius vs Wandstärke)
+% physval_materialstress
+%   Grad der Ausnutzung der Materialgrenzen (aus cds_constr_yieldstrength)
+%   Hat nur eine Bedeutung, wenn Abbruchgrund die Belastungsgrenze ist.
+%   Dient der detaillierten Auswertung des Ergebnisses.
 % 
 % Siehe auch: cds_fitness.m
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function fval = cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn_reg, Structure, p_desopt)
+function [fval, physval_materialstress] = cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn_reg, Structure, p_desopt)
 t1 = tic();
 % Debug:
 if Set.general.matfile_verbosity > 3
@@ -46,6 +50,7 @@ end
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt_fitness.mat'));
 
 fval = 0;
+physval_materialstress = 0;
 fval_debugtext = '';
 % Abbruch prüfen
 persistent abort_fitnesscalc
@@ -117,7 +122,7 @@ end
 %% Nebenbedingungen der Zielfunktionswerte berechnen
 % Festigkeit der Segmente (mit höherem Strafterm)
 if fval == 0 && Set.optimization.constraint_obj(6)
-  [fval_ms, constrvioltext_ms] = cds_constr_yieldstrength(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
+  [fval_ms, constrvioltext_ms, physval_materialstress] = cds_constr_yieldstrength(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
   fval = fval_ms;
   constrvioltext = constrvioltext_ms;
 end
