@@ -107,13 +107,17 @@ if fval == 0 && (Structure.calc_dyn_reg || Structure.calc_spring_reg)
       error('Schnittkräfte aus Regressorform stimmt nicht');
     end
     if any(Set.optimization.joint_stiffness_passive_revolute~=0)
-      test_TAU_spring = data_dyn2.TAU_spring - data_dyn.TAU_spring;
-      if any(abs(test_TAU_spring(:))>1e-8)
-        error('Antriebskräfte für Gelenkfeder aus Regressorform stimmt nicht');
+      if isfield(data_dyn2, 'TAU_spring') && isfield(data_dyn, 'TAU_spring')
+        test_TAU_spring = data_dyn2.TAU_spring - data_dyn.TAU_spring;
+        if any(abs(test_TAU_spring(:))>1e-8)
+          error('Antriebskräfte für Gelenkfeder aus Regressorform stimmt nicht');
+        end
       end
-      test_W_spring = data_dyn2.Wges_spring - data_dyn.Wges_spring;
-      if any(abs(test_W_spring(:))>1e-8)
-        error('Schnittkräfte für Gelenkfeder aus Regressorform stimmt nicht');
+      if isfield(data_dyn2, 'Wges_spring') && isfield(data_dyn, 'Wges_spring')
+        test_W_spring = data_dyn2.Wges_spring - data_dyn.Wges_spring;
+        if any(abs(test_W_spring(:))>1e-8)
+          error('Schnittkräfte für Gelenkfeder aus Regressorform stimmt nicht');
+        end
       end
     end
   end
