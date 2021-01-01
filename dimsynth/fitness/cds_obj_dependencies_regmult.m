@@ -41,6 +41,7 @@ if isfield(data_dyn, 'TAU_ID_reg')
   else % PKM
     TAU_ID = R.invdyn3_actjoint_traj(data_dyn.TAU_ID_reg);
   end
+  output.TAU_ID = TAU_ID;
   output.TAU = TAU_ID;
 end
 if isfield(data_dyn, 'TAU_spring_reg') && R.Type ~= 0
@@ -98,8 +99,10 @@ if ~isfield(data_dyn, 'TAU_ID_reg') && isfield(data_dyn, 'Wges_ID_reg')
       TAU_ID(:,j) = squeeze(Wges_ID(j, I_actjoint_j, :));
     end
   end
+  output.TAU_ID = TAU_ID;
   output.TAU = TAU_ID;
 elseif isfield(data_dyn, 'TAU_ID')
+  output.TAU_ID = data_dyn.TAU_ID;
   output.TAU = data_dyn.TAU_ID;
 end
 if ~isfield(data_dyn, 'TAU_spring_reg') && isfield(data_dyn, 'Wges_spring_reg') && R.Type ~= 0
@@ -112,5 +115,6 @@ if ~isfield(data_dyn, 'TAU_spring_reg') && isfield(data_dyn, 'Wges_spring_reg') 
     I_actjoint_j = I_joints(R.I_qa(R.I1J_LEG(j):R.I2J_LEG(j)));
     TAU_spring(:,j) = squeeze(Wges_spring(j, I_actjoint_j, :));
   end
+  output.TAU_spring = TAU_spring;
   output.TAU = output.TAU + TAU_spring;
 end

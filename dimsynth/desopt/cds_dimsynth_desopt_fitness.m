@@ -161,7 +161,6 @@ if fval == 0  && Set.optimization.constraint_obj(5) % NB für Steifigkeit gesetz
 end
 if fval > 1000 % Nebenbedingungen verletzt.
   cds_log(4,sprintf('[desopt/fitness] DesOpt-Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval, constrvioltext));
-  return
 end
 
 %% Fitness-Wert berechnen
@@ -171,7 +170,10 @@ end
 fval_main = NaN(length(Set.optimization.objective),1);
 physval_main = NaN(length(Set.optimization.objective),1);
 abort_logtext = '';
-if any(strcmp(Set.optimization.objective, 'mass'))
+if fval > 1000
+  % Nichts machen. Materialspannung wurde schon verletzt. Gehe nur bis
+  % unten durch, um eventuell Debug-Plots zu zeichnen
+elseif any(strcmp(Set.optimization.objective, 'mass'))
   if Set.optimization.constraint_obj(1) % Vermeide doppelten Aufruf der Funktion
     fval = fval_mass; % Nehme Wert von der NB-Berechnung oben
     fval_debugtext = fval_debugtext_mass;
@@ -225,14 +227,54 @@ end
 % Prüfe, ob in Entwurfsoptimierung berechnete Zielfunktionen ihre Grenze
 % erreicht haben. Kinematik-bezogene Zielfunktionen werden hier nicht
 % aktualisiert und bleiben NaN, werden also dabei nicht betrachtet.
-if all(fval_main(~isnan(fval_main)) <= Set.optimization.obj_limit(~isnan(fval_main)) ) || ...
-   all(physval_main(~isnan(fval_main)) <= Set.optimization.obj_limit_physval(~isnan(fval_main)))
+if fval <= 1000 && (all(fval_main(~isnan(fval_main)) <= Set.optimization.obj_limit(~isnan(fval_main)) ) || ...
+   all(physval_main(~isnan(fval_main)) <= Set.optimization.obj_limit_physval(~isnan(fval_main))))
   % Die Fitness-Funktion ist besser als die Grenze. Optimierung kann
   % hiernach beendet werden.
   abort_fitnesscalc = true;
   abort_logtext = 'Abbruchgrenze für Zielfunktion erreicht';
 end
-cds_log(4,sprintf(['[desopt/fitness] DesOpt-Fitness-Evaluation in %1.1fs. ', ...
-  'Parameter: [%s]. fval=%1.3e. Erfolgreich. %s %s.'], toc(t1), ...
-  disp_array(p_desopt', '%1.3f'), fval, fval_debugtext, abort_logtext));
+if fval <= 1000
+  cds_log(4,sprintf(['[desopt/fitness] DesOpt-Fitness-Evaluation in %1.1fs. ', ...
+    'Parameter: [%s]. fval=%1.3e. Erfolgreich. %s %s.'], toc(t1), ...
+    disp_array(p_desopt', '%1.3f'), fval, fval_debugtext, abort_logtext));
+end
+if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_details_in_desopt) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
+   Set.general.plot_details_in_desopt > 0 && fval <= abs(Set.general.plot_details_in_desopt) % Gütefunktion ist besser als Schwellwert: Zeichne
+  % Plotte die Antriebskraft, wenn die Feder-Ruhelagen optimiert werden
+  if any(vartypes==3)
+    change_current_figure(986);clf;
+    set(986, 'Name', 'DesOpt_ActForce', 'NumberTitle', 'off');
+    ntau = size(data_dyn.TAU_spring, 2);
+    units = reshape([R.Leg(:).tauunit_sci],R.NJ,1);
+    plotunits = units(R.I_qa);
+    for i = 1:ntau
+      subplot(ceil(sqrt(ntau)), ceil(ntau/ceil(sqrt(ntau))), i);
+      hold on; grid on;
+      plot(Traj_0.t, data_dyn.TAU_ID(:,i));
+      plot(Traj_0.t, data_dyn.TAU_spring(:,i));
+      plot(Traj_0.t, data_dyn.TAU(:,i));
+      ylabel(sprintf('\\tau_%d in %s', i, plotunits{i}));
+    end
+    legend({'ID', 'spring', 'total'});
+    sgtitle(sprintf('Antriebskraft in Entwurfsoptimierung. fval=%1.2e', fval));
+    drawnow();
+    
+    change_current_figure(987);clf;
+    set(987, 'Name', 'JointSpring_Angles', 'NumberTitle', 'off');
+    RP = ['R', 'P'];
+    for i = 1:R.NJ
+      legnum = find(i>=R.I1J_LEG, 1, 'last');
+      legjointnum = i-(R.I1J_LEG(legnum)-1);
+      subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
+      hold on; grid on;
+      hdl1=plot(Traj_0.t, Q(:,i));
+      hdl2=plot(Traj_0.t([1,end]), R.Leg(legnum).DesPar.joint_stiffness_qref(legjointnum)*[1;1]);
+      title(sprintf('q %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+      if i == R.NJ, legend([hdl1;hdl2], {'q','qref'}); end
+      if legjointnum == 1, ylabel(sprintf('Beinkette %d',legnum)); end
+    end
+    sgtitle(sprintf('Gelenkwinkel und Feder-Ruhelage. fval=%1.2e', fval));
+    linkxaxes
+  end
 end
