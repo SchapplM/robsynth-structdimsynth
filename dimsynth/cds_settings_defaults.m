@@ -43,7 +43,7 @@ general = struct( ...
   'max_retry_bestfitness_reconstruction', 10, ...
   'regenerate_summmary_only', false, ... % Nur die Videos und Zusammenfassungsbilder neu generieren. Keine Optimierung durchführen.
   'nosummary', false, ... % Kompletter Verzicht auf die graphische Endauswertung
-  'eval_figures', {{'histogram', 'fitness_various', 'jointtraj', 'robvisuanim'}}, ... % Liste der zu erstellenden Bilder. Auswahl, siehe cds_vis_results.m
+  'eval_figures', {{'histogram', 'fitness_various', 'jointtraj', 'robvisuanim', 'pareto_all'}}, ... % Liste der zu erstellenden Bilder. Auswahl, siehe cds_vis_results.m
   'only_save_summary_figures', true, ... % Bilderzeugung dient hauptsächlich der Speicherung. Schließe alle Bilder nach Speicherung
   'noprogressfigure', false, ... % Verzicht auf Fortschritts-Bild des PSO
   'debug_calc', false, ... % Doppelte Berechnung zur Prüfung von Funktionen

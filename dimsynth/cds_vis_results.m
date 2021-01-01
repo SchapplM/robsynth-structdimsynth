@@ -33,7 +33,7 @@
 % * 3D-Pareto-Front (nur falls 3 oder mehr Kriterien) ('pareto')
 % * Dynamik-Komponenten in Plattform-KS
 % Bilder für alle Roboter:
-% * Pareto-Front mit physikalischen Werten und normierten Werten der Zielf.
+% * Pareto-Front mit physikalischen Werten und normierten Werten der Zielf. ('pareto_all')
 % 
 % Speichert die Bilder für jeden Roboter in einem eigenen Unterordner
 
@@ -95,8 +95,15 @@ for jj = 1:length(Set.optimization.objective)
     error('Zielfunktion %s nicht vorgesehen', Set.optimization.objective{jj});
   end
 end
+
+length_Structures = length(Structures);
+% Prüfe, ob überhaupt roboterspezifische Plots erzeugt werden sollen
+length_Structures_parfor = length_Structures;
+if isempty(Set.general.animation_styles) && isempty(setdiff(Set.general.eval_figures, 'pareto_all'))
+  length_Structures_parfor = 0;
+end
 %% Parallele Durchführung der Plots vorbereiten
-if Set.general.parcomp_plot
+if Set.general.parcomp_plot && length_Structures_parfor > 0
   try %#ok<TRYNC>
     parpool(Set.general.parcomp_maxworkers);
   end
@@ -112,8 +119,8 @@ else
   parfor_numworkers = 0;
 end
 %% Ergebnisse für jeden Roboter plotten
-length_Structures = length(Structures);
-parfor (i = 1:length_Structures, parfor_numworkers)
+
+parfor (i = 1:length_Structures_parfor, parfor_numworkers)
   t_start_i = tic();
   %% Initialisierung der Ergebnisse dieser Struktur
   % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_vis_results2.mat'));
@@ -401,7 +408,8 @@ parfor (i = 1:length_Structures, parfor_numworkers)
   fprintf('Visualisierung für Rob %d (%s) beendet. Dauer: %1.1fs\n', i, Name, toc(t_start_i));
 end
 %% Erzeuge Pareto-Diagramme für alle Roboter (2D)
-if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriterien gleichzeitig nicht sinnvoll
+if any(length(Set.optimization.objective) == [2 3]) && ... % Für mehr als drei Kriterien gleichzeitig nicht sinnvoll
+ any(strcmp(Set.general.eval_figures, 'pareto_all'))
   for pffig = 1:2 % Zwei Bilder: Physikalische Werte und normierte Werte
   if pffig == 1, name_suffix = 'phys';
   else,          name_suffix = 'fval'; end
