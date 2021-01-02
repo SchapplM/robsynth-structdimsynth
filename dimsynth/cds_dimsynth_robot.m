@@ -1052,18 +1052,87 @@ end
 % TODO: Existierende Roboter einfügen
 
 NumIndividuals = Set.optimization.NumIndividuals;
-% Generiere Anfangspopulation aus Funktion mit Annahmen bezüglich Winkel
+% Generiere Anfangspopulation aus Funktion mit Annahmen bezüglich Winkel.
+% Lädt bisherige Ergebnisse, um schneller i.O.-Werte zu bekommen.
 InitPop = cds_gen_init_pop(Set, Structure);
-%% Optimierungs-Einstellungen festlegen
-if length(Set.optimization.objective) > 1 % Mehrkriteriell mit GA
-  options = optimoptions('gamultiobj');
-  options.MaxGenerations = Set.optimization.MaxIter;
-  options.PopulationSize = NumIndividuals;
-  options.InitialPopulationMatrix = InitPop;
-  if ~Set.general.noprogressfigure
-    options.PlotFcn = {@gaplotpareto,@gaplotscorediversity};
+
+%% Tmp-Ordner leeren
+resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+  'tmp', sprintf('%d_%s', Structure.Number, Structure.Name));
+if exist(resdir, 'file')
+  % Leere Verzeichnis
+  rmdir(resdir, 's')
+end
+mkdirs(resdir);
+%% Fitness-Funktion initialisieren (Strukturunabhängig)
+% Zurücksetzen der gespeicherten Werte (aus vorheriger Maßsynthese)
+clear cds_fitness
+% Initialisierung der Speicher-Funktion (damit testweises Ausführen funk- 
+% tioniert; sonst teilw. Fehler im Debug-Modus durch Zugriff auf Variablen)
+cds_save_particle_details(Set, R, 0, zeros(length(Set.optimization.objective),1), ...
+  zeros(nvars,1), zeros(length(Set.optimization.objective),1), ...
+  zeros(length(Set.optimization.constraint_obj),1), ...
+  zeros(length(Structure.desopt_ptypes),1), 'reset');
+fitnessfcn=@(p)cds_fitness(R, Set, Traj, Structure, p(:)); % Definition der Funktion
+if length(Set.optimization.objective) > 1 % Mehrkriteriell (MOPSO geht nur mit vektorieller Fitness-Funktion)
+  fitnessfcn_vec=@(P)cds_fitness_vec(R, Set, Traj, Structure, P);
+end
+if false % Debug: Fitness-Funktion testweise ausführen
+  f_test = fitnessfcn(InitPop(1,:)'); %#ok<UNRCH> % Testweise ausführen
+  if length(Set.optimization.objective) > 1
+    f_test_vec = fitnessfcn_vec(InitPop(1:3,:)); % Testweise ausführen
   end
-else % Einkriteriell mit PSO
+  % Zurücksetzen der Detail-Speicherfunktion
+  cds_save_particle_details(Set, R, 0, zeros(size(f_test)), zeros(nvars,1), ...
+    zeros(size(f_test)), zeros(length(Set.optimization.constraint_obj),1), ...
+    zeros(length(Structure.desopt_ptypes),1), 'reset');
+  % Zurücksetzen der gespeicherten Werte der Fitness-Funktion
+  clear cds_fitness
+end
+%% PSO-Aufruf starten
+if Set.general.matfile_verbosity > 0
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat'));
+end
+if false % Debug (manueller Einstieg hier);
+  % Falls der PSO abbricht: Zwischenergebnisse laden und daraus Endergebnis
+  % erzeugen. Dafür ist ein manuelles Eingreifen mit den Befehlen in diesem
+  % Block erforderlich. Danach kann die Funktion zu Ende ausgeführt werden.
+  load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat')); %#ok<LOAD,UNRCH>
+  filelist_tmpres = dir(fullfile(resdir, 'PSO_Gen*_AllInd_iter.mat'));
+  lastres = load(fullfile(resdir, filelist_tmpres(end).name));
+  p_val = lastres.optimValues.bestx;
+  fval = lastres.optimValues.bestfval;
+  exitflag = -6;
+end
+if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
+  % Durchführung mit MOPSO; Einstellungen siehe [SierraCoe2005]
+  % Und Beispiele aus Matlab File Exchange
+  MOPSO_set1 = struct('Np', NumIndividuals, 'Nr', NumIndividuals, ...
+    'maxgen', Set.optimization.MaxIter, 'W', 0.4, 'C1', 2, 'C2', 2, 'ngrid', 20, ...
+    'maxvel', 5, 'u_mut', 1/nvars); % [SierraCoe2005] S. 4
+  options = struct('fun', fitnessfcn_vec, 'nVar', nvars, ...
+    'var_min', varlim(:,1), 'var_max', varlim(:,2), 'P0', InitPop);
+  output = MOPSO(MOPSO_set1, options);
+  p_val_pareto = output.pos;
+  fval_pareto = output.pos_fit;
+  cds_log(1, sprintf('[dimsynth] Optimierung mit MOPSO beendet. %d Punkte auf Pareto-Front.', size(p_val_pareto,1)));
+  exitflag = -1; % Nehme an, dass kein vorzeitiger Abbruch erfolgte
+  % Alternative: Durchführung mit gamultiobj (konvergiert schlechter)
+%   options = optimoptions('gamultiobj');
+%   options.MaxGenerations = Set.optimization.MaxIter;
+%   options.PopulationSize = NumIndividuals;
+%   options.InitialPopulationMatrix = InitPop;
+%   if ~Set.general.noprogressfigure
+%     options.PlotFcn = {@gaplotpareto,@gaplotscorediversity};
+%   end
+%     [p_val_pareto,fval_pareto,exitflag,output] = gamultiobj(fitnessfcn, nvars, [], [], [], [],varlim(:,1),varlim(:,2), options);
+%     cds_log(1, sprintf('[dimsynth] Optimierung beendet. generations=%d, funccount=%d, message: %s', ...
+%       output.generations, output.funccount, output.message));
+  % Gleiche das Rückgabeformat zwischen MO und SO Optimierung an. Es muss
+  % immer ein einzelnes Endergebnis geben (nicht nur Pareto-Front)
+  p_val = p_val_pareto(1,:)'; % nehme nur das erste Individuum damit Code funktioniert.
+  fval = fval_pareto(1,:)'; % ... kann unten noch überschrieben werden.
+else % Einkriteriell: PSO
   options = optimoptions('particleswarm');
   options.MaxIter = Set.optimization.MaxIter; %70 100 % in GeneralConfig
   options.SwarmSize = NumIndividuals;
@@ -1085,74 +1154,7 @@ else % Einkriteriell mit PSO
     cds_save_all_results_anonym = @(optimValues,state)cds_psw_save_all_results(optimValues,state,Set,Structure);
     options.OutputFcn = {cds_save_all_results_anonym};
   end
-end
-options.Display='iter';
-%% Tmp-Ordner leeren
-resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
-  'tmp', sprintf('%d_%s', Structure.Number, Structure.Name));
-if exist(resdir, 'file')
-  % Leere Verzeichnis
-  rmdir(resdir, 's')
-end
-mkdirs(resdir);
-%% Fitness-Funktion initialisieren (Strukturunabhängig)
-% Zurücksetzen der gespeicherten Werte (aus vorheriger Maßsynthese)
-clear cds_fitness
-% Initialisierung der Speicher-Funktion (damit testweises Ausführen funk- 
-% tioniert; sonst teilw. Fehler im Debug-Modus durch Zugriff auf Variablen)
-cds_save_particle_details(Set, R, 0, zeros(length(Set.optimization.objective),1), ...
-  zeros(nvars,1), zeros(length(Set.optimization.objective),1), ...
-  zeros(length(Set.optimization.constraint_obj),1), ...
-  zeros(length(Structure.desopt_ptypes),1), 'reset');
-fitnessfcn=@(p)cds_fitness(R, Set, Traj, Structure, p(:)); % Definition der Funktion
-f_test = fitnessfcn(InitPop(1,:)'); % Testweise ausführen
-if length(Set.optimization.objective) > 1 % Mehrkriteriell (MOPSO geht nur mit vektorieller Fitness-Funktion)
-  fitnessfcn_vec=@(P)cds_fitness_vec(R, Set, Traj, Structure, P);
-  f_test_vec = fitnessfcn_vec(InitPop(1:3,:)); %#ok<NASGU> % Testweise ausführen
-end
-% Zurücksetzen der Detail-Speicherfunktion
-cds_save_particle_details(Set, R, 0, zeros(size(f_test)), zeros(nvars,1), ...
-  zeros(size(f_test)), zeros(length(Set.optimization.constraint_obj),1), ...
-  zeros(length(Structure.desopt_ptypes),1), 'reset');
-% Zurücksetzen der gespeicherten Werte der Fitness-Funktion
-clear cds_fitness
-%% PSO-Aufruf starten
-if Set.general.matfile_verbosity > 0
-  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat'));
-end
-if false % Debug (manueller Einstieg hier);
-  % Falls der PSO abbricht: Zwischenergebnisse laden und daraus Endergebnis
-  % erzeugen. Dafür ist ein manuelles Eingreifen mit den Befehlen in diesem
-  % Block erforderlich. Danach kann die Funktion zu Ende ausgeführt werden.
-  load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat')); %#ok<LOAD,UNRCH>
-  filelist_tmpres = dir(fullfile(resdir, 'PSO_Gen*_AllInd_iter.mat'));
-  lastres = load(fullfile(resdir, filelist_tmpres(end).name));
-  p_val = lastres.optimValues.bestx;
-  fval = lastres.optimValues.bestfval;
-  exitflag = -6;
-end
-if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO
-  % Durchführung mit MOPSO; Einstellungen siehe [SierraCoe2005]
-  % Und Beispiele aus Matlab File Exchange
-  MOPSO_set1 = struct('Np', NumIndividuals, 'Nr', NumIndividuals, ...
-    'maxgen', Set.optimization.MaxIter, 'W', 0.4, 'C1', 2, 'C2', 2, 'ngrid', 20, ...
-    'maxvel', 5, 'u_mut', 1/nvars); % [SierraCoe2005] S. 4
-  MOPSO_set2 = struct('fun', fitnessfcn_vec, 'nVar', nvars, ...
-    'var_min', varlim(:,1), 'var_max', varlim(:,2));
-  output = MOPSO(MOPSO_set1, MOPSO_set2);
-  p_val_pareto = output.pos;
-  fval_pareto = output.pos_fit;
-  cds_log(1, sprintf('[dimsynth] Optimierung mit MOPSO beendet. %d Punkte auf Pareto-Front.', size(p_val_pareto,1)));
-  exitflag = -1; % Nehme an, dass kein vorzeitiger Abbruch erfolgte
-  % Alternative: Durchführung mit gamultiobj (konvergiert schlechter)
-%     [p_val_pareto,fval_pareto,exitflag,output] = gamultiobj(fitnessfcn, nvars, [], [], [], [],varlim(:,1),varlim(:,2), options);
-%     cds_log(1, sprintf('[dimsynth] Optimierung beendet. generations=%d, funccount=%d, message: %s', ...
-%       output.generations, output.funccount, output.message));
-  % Gleiche das Rückgabeformat zwischen MO und SO Optimierung an. Es muss
-  % immer ein einzelnes Endergebnis geben (nicht nur Pareto-Front)
-  p_val = p_val_pareto(1,:)'; % nehme nur das erste Individuum damit Code funktioniert.
-  fval = fval_pareto(1,:)'; % ... kann unten noch überschrieben werden.
-else % Einkriteriell: PSO
+  options.Display='iter';
   [p_val,fval,exitflag,output] = particleswarm(fitnessfcn,nvars,varlim(:,1),varlim(:,2),options);
   cds_log(1, sprintf('[dimsynth] Optimierung beendet. iterations=%d, funccount=%d, message: %s', ...
     output.iterations, output.funccount, output.message));
