@@ -21,14 +21,19 @@
 %   Funktionswert für besten Parametersatz nach Optimierung
 %   Gibt Aufschluss, ob alle Nebenbedingungen erfüllt werden konnten.
 %   Werte: Siehe Ausgabe von cds_dimsynth_desopt_fitness
-% Die anderen Ergebnisse werden in Roboterklasse `R` gespeichert
+% p_val
+%   Parameter als Ergebnis der Entwurfsoptimierung. Die Parameter werden
+%   zusätzlich in der Roboterklasse `R` gespeichert.
+% vartypes
+%   Variablen-Typen in der Ausgabe `p_val`. Entspricht Structure.desopt_ptypes.
+%   Kann unterschiedlich sein, da nicht alle Entwurfsparameter hier optimiert werden.
 
 % Siehe auch: cds_dimsynth_robot.m
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function fval = cds_dimsynth_desopt(R, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn, Set, Structure)
+function [fval, p_val, vartypes] = cds_dimsynth_desopt(R, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn, Set, Structure)
 t1 = tic();
 if Set.general.matfile_verbosity > 2
 save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt1.mat'));
@@ -148,7 +153,7 @@ elseif all(vartypes == 2) % Nur Segmentstärke wird optimiert
     % zusätzlichen Masse resultierende Belastung.
     avoid_optimization = true;
     fval_opt = fval_maxpar;
-    p_val_opt = InitPop(2,:);
+    p_val_opt = InitPop(2,:)';
     detailstring = 'Materialspannung auch bei stärkster Segmentdimensionierung überschritten';
   end
   if Set.optimization.constraint_obj(6) == 0 && ...
@@ -185,7 +190,7 @@ elseif any(vartypes == 2) && any(vartypes == 3) % Gemeinsame Optimierung
     % Wähle daher auch die stärkste Dimensionierung als Ergebnis.
     avoid_optimization = true;
     fval_opt = fval_maxpar;
-    p_val_opt = InitPop(2,:);
+    p_val_opt = InitPop(2,:)';
     detailstring = 'Materialspannung auch bei stärkster Segmentdimensionierung überschritten';
   end
 end
@@ -203,6 +208,7 @@ if ~avoid_optimization
     (options_desopt.MaxIter+1)*T2, NumIndividuals, options_desopt.MaxIter));
   clear cds_dimsynth_desopt_fitness % für persistente Variable
   [p_val,fval,~,output] = particleswarm(fitnessfcn_desopt,nvars,varlim(:,1),varlim(:,2),options_desopt);
+  p_val = p_val(:);
   if fval < 1000
     detailstring = sprintf('Lösung gefunden (fval=%1.1f)', fval);
   else
@@ -225,11 +231,19 @@ if any(I_bordersol)
 end
 cds_log(3,sprintf('[desopt] Entwurfsoptimierung durchgeführt. Dauer: %1.1fs. %s. %d Iterationen, %d Funktionsauswertungen.', ...
     toc(t1), detailstring, output.iterations, output.funccount));
-
+% Debug: Fitness-Funktion mit bestem Ergebnis nochmal aufrufen. Mit Bildern
+% Set.general.plot_details_in_desopt = 1e3;
+% Set.general.plot_details_in_fitness = 1e3;
+% cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn, Structure, p_val(:))
 %% Ausgabe
 % Belege die Robotereigenschaften mit dem Ergebnis der Optimierung
 if any(vartypes == 2)
   cds_dimsynth_design(R, Q, Set, Structure, p_val(vartypes==2));
+end
+if any(vartypes == 3)
+  for i = 1:R.NLEG
+    R.Leg(i).DesPar.joint_stiffness_qref(R.Leg(i).MDH.sigma==0) = p_val(vartypes==3);
+  end
 end
 return
 %% Debug
