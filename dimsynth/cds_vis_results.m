@@ -104,10 +104,18 @@ if isempty(Set.general.animation_styles) && isempty(setdiff(Set.general.eval_fig
 end
 %% Parallele Durchführung der Plots vorbereiten
 if Set.general.parcomp_plot && length_Structures_parfor > 0
-  try %#ok<TRYNC>
-    parpool(Set.general.parcomp_maxworkers);
+  if Set.general.isoncluster % auf Cluster möglicher Zugriffskonflikt für ParPool
+    parpool_writelock('lock', 180, true); % Synchronisationsmittel für ParPool
+  end
+  try
+    parpool([1 Set.general.parcomp_maxworkers]);
+  catch err
+    fprintf('Fehler beim Starten des parpool: %s\n', err.message);
   end
   Pool=gcp();
+  if Set.general.isoncluster
+    parpool_writelock('free', 0, true);
+  end
   parfor_numworkers = Pool.NumWorkers;
   if ~isinf(Set.general.parcomp_maxworkers) && parfor_numworkers ~= Set.general.parcomp_maxworkers
     warning('Die gewünschte Zahl von %d Parallelinstanzen konnte nicht erfüllt werden. Es sind jetzt %d.', ...
