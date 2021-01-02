@@ -226,7 +226,7 @@ else
   % Es wurde eine Dimensionierung gefunden, die alle Nebenbedingungen ein-
   % hält. Keine Zielfunktion definiert, die jetzt noch profitieren würde.
   abort_fitnesscalc = true;
-  abort_logtext = 'Nebenbedingung erfüllt. Keine Zielfunktion für Entwurfsoptimierung';
+  abort_logtext = ' Nebenbedingung erfüllt. Keine Zielfunktion für Entwurfsoptimierung.';
 end
 % Prüfe, ob in Entwurfsoptimierung berechnete Zielfunktionen ihre Grenze
 % erreicht haben. Kinematik-bezogene Zielfunktionen werden hier nicht
@@ -236,11 +236,11 @@ if fval <= 1000 && (all(fval_main(~isnan(fval_main)) <= Set.optimization.obj_lim
   % Die Fitness-Funktion ist besser als die Grenze. Optimierung kann
   % hiernach beendet werden.
   abort_fitnesscalc = true;
-  abort_logtext = 'Abbruchgrenze für Zielfunktion erreicht';
+  abort_logtext = ' Abbruchgrenze für Zielfunktion erreicht.';
 end
 if fval <= 1000
   cds_log(4,sprintf(['[desopt/fitness] DesOpt-Fitness-Evaluation in %1.1fs. ', ...
-    'Parameter: [%s]. fval=%1.3e. Erfolgreich. %s %s.'], toc(t1), ...
+    'Parameter: [%s]. fval=%1.3e. Erfolgreich. %s %s'], toc(t1), ...
     disp_array(p_desopt', '%1.3f'), fval, fval_debugtext, abort_logtext));
 end
 if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_details_in_desopt) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
