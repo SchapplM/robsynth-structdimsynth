@@ -67,6 +67,9 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
       settings_i = load(fullfile(dirname_i, sflist(1).name));
       Set_i = settings_i.Set;
     else
+      if ~isfield(d, 'Set')
+        continue % Altes Dateiformat
+      end
       Set_i = d.Set; % Altes Format
     end
     % Prüfe, ob die Zielfunktion die gleiche ist
