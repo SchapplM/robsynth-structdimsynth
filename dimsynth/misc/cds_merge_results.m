@@ -226,7 +226,7 @@ Traj = s.Traj;
 save(settingsfile, 'Structures', 'Traj', 'Set');
 % Pareto-Bild erstellen (ist nur für die einzelnen Teile generiert worden)
 if create_pareto_fig && length(Set.optimization.objective) > 1
-  Set.general.eval_figures = {'pareto_all'};
+  Set.general.eval_figures = {'pareto_all_phys'};
   Set.general.animation_styles = {};
   cds_vis_results(Set, Traj, Structures);
 end

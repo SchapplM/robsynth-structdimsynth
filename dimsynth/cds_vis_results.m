@@ -33,7 +33,8 @@
 % * 3D-Pareto-Front (nur falls 3 oder mehr Kriterien) ('pareto')
 % * Dynamik-Komponenten in Plattform-KS
 % Bilder für alle Roboter:
-% * Pareto-Front mit physikalischen Werten und normierten Werten der Zielf. ('pareto_all')
+% * Pareto-Front mit physikalischen Werten und normierten Werten der Zielf.
+%   ('pareto_all_phys', 'pareto_all_fval')
 % 
 % Speichert die Bilder für jeden Roboter in einem eigenen Unterordner
 
@@ -99,7 +100,8 @@ end
 length_Structures = length(Structures);
 % Prüfe, ob überhaupt roboterspezifische Plots erzeugt werden sollen
 length_Structures_parfor = length_Structures;
-if isempty(Set.general.animation_styles) && isempty(setdiff(Set.general.eval_figures, 'pareto_all'))
+if isempty(Set.general.animation_styles) && isempty(setdiff( ...
+    Set.general.eval_figures, {'pareto_all_fval','pareto_all_phys'}))
   length_Structures_parfor = 0;
 end
 %% Parallele Durchführung der Plots vorbereiten
@@ -416,9 +418,12 @@ parfor (i = 1:length_Structures_parfor, parfor_numworkers)
   fprintf('Visualisierung für Rob %d (%s) beendet. Dauer: %1.1fs\n', i, Name, toc(t_start_i));
 end
 %% Erzeuge Pareto-Diagramme für alle Roboter (2D)
-if any(length(Set.optimization.objective) == [2 3]) && ... % Für mehr als drei Kriterien gleichzeitig nicht sinnvoll
- any(strcmp(Set.general.eval_figures, 'pareto_all'))
+if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriterien gleichzeitig nicht sinnvoll
   for pffig = 1:2 % Zwei Bilder: Physikalische Werte und normierte Werte
+  if pffig == 1 && ~any(strcmp(Set.general.eval_figures, 'pareto_all_phys')) || ...
+     pffig == 2 && ~any(strcmp(Set.general.eval_figures, 'pareto_all_fval'))
+    continue
+  end
   if pffig == 1, name_suffix = 'phys';
   else,          name_suffix = 'fval'; end
   change_current_figure(10+pffig); clf; hold on; grid on;
