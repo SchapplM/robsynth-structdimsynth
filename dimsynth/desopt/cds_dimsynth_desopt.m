@@ -118,14 +118,14 @@ options_desopt.InitialSwarmMatrix = InitPop;
 clear cds_dimsynth_desopt_fitness % Für persistente Variablen von vorheriger Iteration in Maßsynthese
 fitnessfcn_desopt=@(p_desopt)cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn, Structure, p_desopt(:));
 t2 = tic();
-[fval_test, physval_test] = fitnessfcn_desopt(InitPop(1,:)');
+[fval_test, physval_test, abort_fitnesscalc] = fitnessfcn_desopt(InitPop(1,:)');
 T2 = toc(t2);
 % Prüfe, ob eine Entwurfsoptimierung sinnvoll ist (falls nur Segmentstärke)
 avoid_optimization = false;
 p_val_opt = NaN(nvars,1);
 fval_opt = NaN;
 detailstring = '';
-if fval_test == 0
+if fval_test == 0 || abort_fitnesscalc
   % Die Abbruchbedingung in der Fitness-Funktion wurde bereits beim Start-
   % wert erfüllt. Die Optimierung ist nicht notwendig (nur Nebenbedingungen
   % prüfen, keine Optimierung einer Gütefunktion).

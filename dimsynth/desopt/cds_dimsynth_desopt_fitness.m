@@ -34,13 +34,16 @@
 %   Physikalische Entsprechung des für das Abbruchkriterium maßgeblichen
 %   Kennwertes. Beispielsweise relative Überlastung der Materialspannung
 %   oder der Antriebe. Entspricht dem Kriterium des Wertebereichs aus fval.
+% abort_fitnesscalc_retval
+%   Schalter für Abbruch der Berechnung, wenn alle gesetzten Grenzen
+%   erreicht werden.
 % 
 % Siehe auch: cds_fitness.m
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function [fval, physval_desopt] = cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn_reg, Structure, p_desopt)
+function [fval, physval_desopt, abort_fitnesscalc_retval] = cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn_reg, Structure, p_desopt)
 t1 = tic();
 % Debug:
 if Set.general.matfile_verbosity > 3
@@ -54,6 +57,7 @@ physval_desopt = 0;
 fval_debugtext = '';
 % Abbruch prüfen
 persistent abort_fitnesscalc
+abort_fitnesscalc_retval = false;
 if isempty(abort_fitnesscalc)
   abort_fitnesscalc = false;
 elseif abort_fitnesscalc
@@ -230,6 +234,7 @@ else
   % Es wurde eine Dimensionierung gefunden, die alle Nebenbedingungen ein-
   % hält. Keine Zielfunktion definiert, die jetzt noch profitieren würde.
   abort_fitnesscalc = true;
+  abort_fitnesscalc_retval = true;
   abort_logtext = ' Nebenbedingung erfüllt. Keine Zielfunktion für Entwurfsoptimierung.';
 end
 % Prüfe, ob in Entwurfsoptimierung berechnete Zielfunktionen ihre Grenze
@@ -240,6 +245,7 @@ if fval <= 1000 && (all(fval_main(~isnan(fval_main)) <= Set.optimization.obj_lim
   % Die Fitness-Funktion ist besser als die Grenze. Optimierung kann
   % hiernach beendet werden.
   abort_fitnesscalc = true;
+  abort_fitnesscalc_retval = true;
   abort_logtext = ' Abbruchgrenze für Zielfunktion erreicht.';
 end
 if fval <= 1000
