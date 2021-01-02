@@ -75,10 +75,11 @@ if any(vartypes == 3)
   qminmax_legs = reshape(minmax2(Q'),R.Leg(1).NJ,2*R.NLEG);
   qminmax_leg = minmax2(qminmax_legs);
   varlim_js = qminmax_leg(I_joints,:);
-  % Setze die Grenzen etwas außerhalb des Bewegungsbereichs. Das erlaubt
-  % auch dauerhaft vorgespannte Gelenke, die eine Gravitationskompensation
-  % bieten können.
-  varlim_js = varlim_js + repmat([-10, 10]*pi/180, sum(I_joints), 1);
+  % Setze die Grenzen außerhalb des Bewegungsbereichs. Das erlaubt auch 
+  % dauerhaft vorgespannte Gelenke, die eine Gravitationskompensation
+  % bieten können. Die Stärke der möglichen Vorspannung ist stark von der
+  % Steifigkeit in den Gelenken, der Zielfunktion und den Antrieben abhängig.
+  varlim_js = varlim_js + repmat([-45, 45]*pi/180, sum(I_joints), 1);
   varlim = [varlim; varlim_js];
 end
 % Erzeuge zufällige Startpopulation
