@@ -118,7 +118,7 @@ options_desopt.InitialSwarmMatrix = InitPop;
 clear cds_dimsynth_desopt_fitness % Für persistente Variablen von vorheriger Iteration in Maßsynthese
 fitnessfcn_desopt=@(p_desopt)cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn, Structure, p_desopt(:));
 t2 = tic();
-[fval_test, physval_ms_test] = fitnessfcn_desopt(InitPop(1,:)');
+[fval_test, physval_test] = fitnessfcn_desopt(InitPop(1,:)');
 T2 = toc(t2);
 % Prüfe, ob eine Entwurfsoptimierung sinnvoll ist (falls nur Segmentstärke)
 avoid_optimization = false;
@@ -171,15 +171,24 @@ elseif all(vartypes == 2) % Nur Segmentstärke wird optimiert
     end
   end
 elseif all(vartypes == 3) % Nur Gelenkfeder-Ruhelagen werden optimiert
-  if fval_test > 1e4 && physval_ms_test > 5
-    % Wenn die Ruhelage die Mittelstellung ist, wird keine Lösung gefunden.
-    % Nehme an, dass die PKM so schlecht dimensioniert ist, dass die Suche
-    % nach der besten Feder-Ruhelage nicht sinnvoll ist. Grenze mit Faktor
-    % 5 überschritten.
+  % Wenn die Ruhelage die Mittelstellung ist, wird keine Lösung gefunden.
+  % Nehme an, dass die PKM so schlecht dimensioniert ist, dass die Suche
+  % nach der besten Feder-Ruhelage nicht sinnvoll ist. Das wird gemacht,
+  % wenn die Grenzen stark verletzt werden. Wenn sie "fast" erreicht
+  % werden, bringt die Optimierung voraussichtlich eine Lösung.
+  if fval_test > 1e4 && physval_test > 5
+    % Grenze für Materialspannung mit Faktor 5 überschritten.
     avoid_optimization = true;
     fval_opt = fval_test;
     p_val_opt = InitPop(1,:)';
-    detailstring = 'Materialspannung bei mittiger Gelenkfeder-Ruhelage stark überschritten';
+    detailstring = sprintf(['Materialspannung bei mittiger Gelenkfeder-', ...
+      'Ruhelage stark überschritten (Faktor %1.1f)'], physval_test);
+  elseif fval_test > 1e3 && fval_test < 2e3 && physval_test > 2
+    avoid_optimization = true;
+    fval_opt = fval_test;
+    p_val_opt = InitPop(1,:)';
+    detailstring = sprintf(['Antriebskraft bei mittiger Gelenkfeder-', ...
+      'Ruhelage stark überschritten (Faktor %1.1f)'], physval_test);
   end
 elseif any(vartypes == 2) && any(vartypes == 3) % Gemeinsame Optimierung
   clear cds_dimsynth_desopt_fitness % für persistente Variable

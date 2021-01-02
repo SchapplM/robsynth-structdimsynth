@@ -30,17 +30,17 @@
 %   1e3...1e4: Nebenbedingung von Zielfunktion überschritten
 %   1e4...1e5: Überschreitung Belastungsgrenze der Segmente
 %   1e8...1e9: Unplausible Eingabe (Radius vs Wandstärke)
-% physval_materialstress
-%   Grad der Ausnutzung der Materialgrenzen (aus cds_constr_yieldstrength)
-%   Hat nur eine Bedeutung, wenn Abbruchgrund die Belastungsgrenze ist.
-%   Dient der detaillierten Auswertung des Ergebnisses.
+% physval_desopt
+%   Physikalische Entsprechung des für das Abbruchkriterium maßgeblichen
+%   Kennwertes. Beispielsweise relative Überlastung der Materialspannung
+%   oder der Antriebe. Entspricht dem Kriterium des Wertebereichs aus fval.
 % 
 % Siehe auch: cds_fitness.m
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function [fval, physval_materialstress] = cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn_reg, Structure, p_desopt)
+function [fval, physval_desopt] = cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn_reg, Structure, p_desopt)
 t1 = tic();
 % Debug:
 if Set.general.matfile_verbosity > 3
@@ -50,7 +50,7 @@ end
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt_fitness.mat'));
 
 fval = 0;
-physval_materialstress = 0;
+physval_desopt = 0;
 fval_debugtext = '';
 % Abbruch prüfen
 persistent abort_fitnesscalc
@@ -129,11 +129,13 @@ if fval == 0 && Set.optimization.constraint_obj(6)
   [fval_ms, constrvioltext_ms, physval_materialstress] = cds_constr_yieldstrength(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
   fval = fval_ms;
   constrvioltext = constrvioltext_ms;
+  physval_desopt = physval_materialstress;
 end
 if fval == 0 && Set.optimization.constraint_obj(1) % NB für Masse gesetzt
   [fval_mass, fval_debugtext_mass, ~, fphys_m] = cds_obj_mass(R);
-  viol_rel_m = (fphys_m - Set.optimization.constraint_obj(1))/Set.optimization.constraint_obj(1);
-  if viol_rel_m > 0
+  physval_desopt = fphys_m / Set.optimization.constraint_obj(1);
+  viol_rel_m = physval_desopt - 1;
+  if viol_rel_m > 0 % Relative Überschreitung der Grenze für die Masse
     f_massvio_norm = 2/pi*atan((viol_rel_m)); % 1->0.5; 10->0.94
     fval = 1e3*(1+1*f_massvio_norm); % 1e3 ... 2e3
     constrvioltext = sprintf('Masse ist zu groß (%1.1f > %1.1f)', ...
@@ -142,8 +144,9 @@ if fval == 0 && Set.optimization.constraint_obj(1) % NB für Masse gesetzt
 end
 if fval == 0  && Set.optimization.constraint_obj(3) % NB für Antriebskraft gesetzt
   [fval_actforce, fval_debugtext_actforce, ~, fphys_actforce] = cds_obj_actforce(data_dyn.TAU);
-  viol_rel_actforce = (fphys_actforce - Set.optimization.constraint_obj(3))/Set.optimization.constraint_obj(3);
-  if viol_rel_actforce > 0
+  physval_desopt = fphys_actforce / Set.optimization.constraint_obj(3);
+  viol_rel_actforce = physval_desopt - 1;
+  if viol_rel_actforce > 0 % Relative Überschreitung der Grenze für die Antriebskraft
     f_actforcevio_norm = 2/pi*atan((viol_rel_actforce)); % 1->0.5; 10->0.94
     fval = 1e3*(1+1*f_actforcevio_norm); % 2e3 ... 3e3
     constrvioltext = sprintf('Antriebskraft ist zu groß (%1.1f > %1.1f)', ...
@@ -155,8 +158,9 @@ if fval == 0  && Set.optimization.constraint_obj(2) % NB für Energie gesetzt
 end
 if fval == 0  && Set.optimization.constraint_obj(5) % NB für Steifigkeit gesetzt
   [fval_st, fval_debugtext_st, ~, fphys_st] = cds_obj_stiffness(R, Set, Q);
-  viol_rel_st = (fphys_st - Set.optimization.constraint_obj(5))/Set.optimization.constraint_obj(5);
-  if viol_rel_st > 0
+  physval_desopt = fphys_st / Set.optimization.constraint_obj(5);
+  viol_rel_st = physval_desopt - 1;
+  if viol_rel_st > 0 % Relative Überschreitung der Nachgiebigkeit
     f_stvio_norm = 2/pi*atan((viol_rel_st)); % 1->0.5; 10->0.94
     fval = 1e3*(2+1*f_stvio_norm); % 3e3 ... 4e3
     constrvioltext = sprintf('Nachgiebigkeit ist zu groß (%1.1f > %1.1f)', ...
