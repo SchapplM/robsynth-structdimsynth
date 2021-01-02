@@ -54,7 +54,7 @@ constraint_obj_val = NaN(length(Set.optimization.constraint_obj),1);
 fval = NaN(length(Set.optimization.objective),1);
 physval = fval;
 desopt_pval_given = false;
-if nargin == 6 && ~isempty(desopt_pval)
+if nargin == 6 && ~isempty(desopt_pval) && ~any(isnan(desopt_pval))
   desopt_pval_given = true;
   % Keine Optimierung von Entwurfsparametern durchführen. Trage die Schub-
   % gelenk-Offsets aus dem gegebenen Ergebnis direkt in die Klasse ein.
@@ -111,6 +111,14 @@ Traj_0 = cds_transform_traj(R, Traj_W);
 
 %% Nebenbedingungen prüfen (für Eckpunkte)
 [fval_constr,QE_iIKC, Q0, constrvioltext] = cds_constraints(R, Traj_0, Set, Structure);
+% Entwurfsparameter speichern (falls hiernach direkt Abbruch)
+if Structure.desopt_prismaticoffset % siehe cds_desopt_prismaticoffset.m
+  if Structure.Type == 0
+    desopt_pval(Structure.desopt_ptypes==1) = R.DesPar.joint_offset(R.MDH.sigma==1);
+  else
+    desopt_pval(Structure.desopt_ptypes==1) = R.Leg(1).DesPar.joint_offset(R.Leg(1).MDH.sigma==1);
+  end
+end
 % NB-Verletzung in Eckpunkt-IK wird in Ausgabe mit Werten von 1e5 aufwärts
 % angegeben. Umwandlung in Werte von 1e9 aufwärts.
 % Ursache: Nachträgliches Einfügen von weiteren Nebenbedingungen.
