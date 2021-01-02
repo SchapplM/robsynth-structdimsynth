@@ -84,7 +84,7 @@ for i = 1:maxnum_parts
   % Erzeuge die Gesamt-Variable der Roboterstrukturen für die neue
   % Einstellungsdatei.Prüfe, welche Nummerierung in der Einstellungsdatei ist.
   IdxAlt = 1:length(s.Structures);
-  if i == 1
+  if numdirs_processed == 0 % statt `i==1`, falls i=1 nicht existiert
     Structures = s.Structures;
     IdxNeu = IdxAlt;  % Nr. nicht verändern
   else
@@ -106,7 +106,7 @@ for i = 1:maxnum_parts
   end
   ResTab_i_headers = readtable(csvtable_i, 'ReadVariableNames', true);
   ResTab_i.Properties.VariableNames = ResTab_i_headers.Properties.VariableNames;
-  if i == 1 % Setze als Gesamt-Tabelle
+  if numdirs_processed == 0 % Setze als Gesamt-Tabelle. Das hier ist das erste vollständige Ergebnis mit Tabelle
     ResTab_ges = ResTab_i;
   else % Hänge Tabelle an
     % Erhöhe die Laufende Nummer der Roboter in der Tabelle. Annahme: Die
