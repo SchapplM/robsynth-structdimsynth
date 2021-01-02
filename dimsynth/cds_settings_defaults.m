@@ -40,7 +40,7 @@ general = struct( ...
   'animation_styles', {{'stick'}}, ... % Visualisierungsarten im Video: stick,3D,collision; bei mehr als einem: Syntax {{'1.','2.'}}
   'maxduration_animation', 10, ... % Die Animation soll max. 10s dauern (als Videodatei)
   'save_evolution_video', false, ... % Video mit Evolution der Roboter
-  'max_retry_bestfitness_reconstruction', 10, ...
+  'max_retry_bestfitness_reconstruction', 2, ... % Anzahl Neuversuche zur Reproduktion. 2 reichen zur Prüfung, ob Wiederholbarkeit da ist.
   'regenerate_summmary_only', false, ... % Nur die Videos und Zusammenfassungsbilder neu generieren. Keine Optimierung durchführen.
   'nosummary', false, ... % Kompletter Verzicht auf die graphische Endauswertung
   'eval_figures', {{'histogram', 'fitness_various', 'jointtraj', 'robvisuanim', 'pareto_all_phys', 'pareto_all_fval'}}, ... % Liste der zu erstellenden Bilder. Auswahl, siehe cds_vis_results.m
