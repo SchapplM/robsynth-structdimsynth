@@ -56,7 +56,13 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
     % fprintf('Daten für Roboter %s gefunden (%s)\n', RobName, dirname_i);
     
     % Daten laden (Keine Abbruchbedingung)
-    d = load(fullfile(dirname_i, resfiles(II).name));
+    try % Auf Cluster teilweise Probleme mit Dateizugriff.
+      d = load(fullfile(dirname_i, resfiles(II).name));
+    catch err %  Ist hier nicht so schlimm, falls übersprungen wird.
+      cds_log(-1, sprintf(['[cds_gen_init_pop] Datei %s konnte nicht geladen ', ...
+        'werden. Fehler: %s'], resfiles(II).name, err.message));
+      continue
+    end
     counter_filesize = counter_filesize + resfiles(II).bytes;
     if ~isfield(d.RobotOptRes, 'p_val_pareto')
       continue % Altes Dateiformat
@@ -64,7 +70,13 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
     counter_optdirs = counter_optdirs + 1;
     % Einstellungen laden
     if ~isempty(sflist)
-      settings_i = load(fullfile(dirname_i, sflist(1).name));
+      try
+        settings_i = load(fullfile(dirname_i, sflist(1).name));
+      catch err
+        cds_log(-1, sprintf(['[cds_gen_init_pop] Datei %s konnte nicht geladen ', ...
+          'werden. Fehler: %s'], sflist(1).name, err.message));
+        continue
+      end
       Set_i = settings_i.Set;
     else
       if ~isfield(d, 'Set')
