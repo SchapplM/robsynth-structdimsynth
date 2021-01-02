@@ -68,13 +68,7 @@ if nargin == 6 && ~isempty(desopt_pval) && ~any(isnan(desopt_pval))
       end
     end
   end
-  % Werte für die Gelenkfeder-Ruhelagen auch einstellen
-  if any(Structure.desopt_ptypes==3)
-    p_js = desopt_pval(Structure.desopt_ptypes==3);
-    for i = 1:R.NLEG
-      R.Leg(i).DesPar.joint_stiffness_qref(R.Leg(i).MDH.sigma==0) = p_js;
-    end
-  end
+  % Werte für die Gelenkfeder-Ruhelagen weiter unten einstellen.
   % Optimierungsvariablen deaktivieren. Hierdurch keine erneute Optimierung.
   Set.optimization.desopt_vars = {};
   Structure.desopt_prismaticoffset = false;
@@ -332,14 +326,22 @@ for iIKC = 1:size(Q0,1)
   % Nullstellung der Gelenk-Steifigkeit einsetzen (Sonderfall für Starrkörpergelenke)
   if R.Type ~= 0 && Set.optimization.joint_stiffness_passive_revolute && ...
       ~any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref'))
-    % Ruhelage der Feder ist Mittelstellung der Gelenk-Trajektorie (erzeugt
-    % minimale Federmomente). Alle Beine sind symmetrisch. Nur hier
-    % einsetzen, falls nicht in cds_dimsynth_desopt bereits getan.
-    % Sehr anfällig, falls Konfigurationen in einer Beinkette
-    % umklappen. Sollte aber nicht passieren.
-    qminmax_legs = reshape(minmax2(Q'),R.Leg(1).NJ,2*R.NLEG);
-    for i = 1:R.NLEG
-      R.Leg(i).DesPar.joint_stiffness_qref = mean(minmax2(qminmax_legs),2);
+    if desopt_pval_given && any(Structure.desopt_ptypes==3)
+      % Ruhelage der Federn ist vorgegeben
+      p_js = desopt_pval(Structure.desopt_ptypes==3);
+      for i = 1:R.NLEG
+        R.Leg(i).DesPar.joint_stiffness_qref(R.Leg(i).MDH.sigma==0) = p_js;
+      end
+    else
+      % Ruhelage der Feder ist Mittelstellung der Gelenk-Trajektorie (erzeugt
+      % minimale Federmomente). Alle Beine sind symmetrisch. Nur hier ein-
+      % setzen, falls nicht in cds_dimsynth_desopt bereits getan. Sehr an-
+      % fällig, falls Konfigurationen in einer Beinkette umklappen. Sollte 
+      % aber nicht passieren.
+      qminmax_legs = reshape(minmax2(Q'),R.Leg(1).NJ,2*R.NLEG);
+      for i = 1:R.NLEG
+        R.Leg(i).DesPar.joint_stiffness_qref = mean(minmax2(qminmax_legs),2);
+      end
     end
   end
   if ~Structure.calc_dyn_reg && ~Structure.calc_spring_reg
