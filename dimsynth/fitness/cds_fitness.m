@@ -445,7 +445,8 @@ for iIKC = 1:size(Q0,1)
     fval_debugtext = [fval_debugtext, ' ', fval_debugtext_actforce]; %#ok<AGROW>
   end
   if any(strcmp(Set.optimization.objective, 'materialstress'))
-    if Set.optimization.constraint_obj(6) == 0 && isempty(Set.optimization.desopt_vars)
+    if Set.optimization.constraint_obj(6) == 0 || ... % Nicht als NB berechnet, also hier nochmal zu berechnen.
+        ~isempty(Set.optimization.desopt_vars) % Es gab eine Entwurfsoptimierung. Die Zielfunktion, die dort berechnet wurde, ist hier aber nicht verfügbar.
       [fval_matstress,fval_debugtext_matstress, debug_info_materialstress, ...
         physval_materialstress] = cds_obj_materialstress(R, Set, data_dyn2, Jinv_ges, Q, Traj_0);
       constraint_obj_val_IKC(6,iIKC) = physval_materialstress;
