@@ -243,11 +243,19 @@ ScoreLoad = ScoreLoad(I,:);
 nIndLoad = Set.optimization.InitPopRatioOldResults*nIndTotal;
 nIndLoad = min(nIndLoad, size(InitPopLoadTmp,1));
 if size(InitPopLoadTmp,1) > 0
-  % Indizies der bereits ausgewählten Partikel
-  I_selected = false(size(ScoreLoad,1),1);
-  % Normiere die geladenen Parameter auf die Parametergrenzen.
+  % Normiere die geladenen Parameter auf die Parametergrenzen. Dadurch
+  % Bestimmung der Diversität der Population besser möglich.
   InitPopLoadTmpNorm = (InitPopLoadTmp-repmat(varlim(:,1)',size(InitPopLoadTmp,1),1)) ./ ...
     repmat(varlim(:,2)'-varlim(:,1)',size(InitPopLoadTmp,1),1);
+  % Entferne Duplikate erneut (wegen Rundungsfehler bei Rechenungenauigkeit
+  % möglich)
+  [~,I] = unique(InitPopLoadTmpNorm, 'rows');
+  InitPopLoadTmpNorm = InitPopLoadTmpNorm(I,:);
+  ScoreLoad = ScoreLoad(I,:);
+  nIndLoad = min(nIndLoad, size(InitPopLoadTmpNorm,1));
+  % Indizies der bereits ausgewählten Partikel (in InitPopLoadTmpNorm)
+  I_selected = false(size(ScoreLoad,1),1);
+  
   % Beste und schlechteste Bewertung zur Einordnung der Ergebnisse
   bestscore = max(ScoreLoad(:,1));
   worstscore = min(ScoreLoad(:,1));
@@ -268,7 +276,7 @@ if size(InitPopLoadTmp,1) > 0
       for k = find(I_selected)'
         Isort = Isort(Isort~=k);
       end
-      I_search(Isort(1:i)) = true; % Wähle so viele der besten aus, dass es eine Möglichkeit gibt
+      I_search(Isort(1:min(10,length(Isort)))) = true; % Wähle die 10 besten aus
     end
     II_search = find(I_search); % Zähl-Indizes zusätzlich zu Binär-Indizes
     % Bilde in jeder Iteration den Mittelwert der Parameter neu
