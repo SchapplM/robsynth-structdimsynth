@@ -98,6 +98,7 @@ optimization = struct( ...
   'ee_rotation', true, ... % Freie Rotation des EE
   'base_size', true, ... % Größe des Gestells
   'base_size_limits', [NaN, NaN], ... % Grenzen für Gestell-Größe (Radius; Absolut)
+  'base_tolerance_prismatic_guidance', 1.0, ... % Erhöhte Toleranz für das Überstehen von Schubgelenk-Führungsschienen
   'platform_size', true, ... % Größe der Plattform
   'platform_size_limits', [NaN, NaN], ... % Grenzen für Plattform-Größe (Radius; Absolut)
   'base_morphology', false, ... % Aussehen des Gestells (z.B. Schrägheit, Gelenkpaarabstand)

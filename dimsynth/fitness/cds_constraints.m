@@ -365,11 +365,15 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
            Structure.collbodies_robot.params(I_guidance,4:6)];
     % Max. Abstand aller Punkte der Führungsschiene von PKM-Basis (Maschinenmitte)
     r_base_eff = max((pts(:,1).^2 + pts(:,2).^2).^0.5);
-    % Um so viel ist der Radius zu groß (bezogen auf Grenze)
-    fval_rbase = r_base_eff/Set.optimization.base_size_limits(2)-1;
+    % Um so viel ist der Radius zu groß (bezogen auf Grenze). Die Grenze
+    % für das Gestell wird in diesem Fall noch vergrößert, da die Führungs-
+    % schienen nach oben abstehen.
+    fval_rbase = r_base_eff/(Set.optimization.base_size_limits(2) * ...
+      Set.optimization.base_tolerance_prismatic_guidance)-1;
     if fval_rbase > 0
-      constrvioltext_jic{jic} = sprintf('Gestell-Radius ist durch Schubachsen-Führungsschienen um %1.0f%% zu groß (%1.1fmm>%1.1fmm).', ...
-        100*fval_rbase, 1e3*r_base_eff, 1e3*Set.optimization.base_size_limits(2));
+      constrvioltext_jic{jic} = sprintf(['Gestell-Radius ist durch Schub', ...
+        'achsen-Führungsschienen um %1.0f%% zu groß (%1.1fmm>%1.1fmm).'], ...
+        100*fval_rbase, 1e3*r_base_eff, 1e3*1/((fval_rbase+1)/r_base_eff));
       fval_rbase_norm = 2/pi*atan(fval_rbase*3); % Normierung auf 0 bis 1; 100% zu groß ist 0.8
       fval = 1e5*(4+1*fval_rbase_norm); % Normierung auf 4e5 bis 5e5
       fval_jic(jic) = fval;
