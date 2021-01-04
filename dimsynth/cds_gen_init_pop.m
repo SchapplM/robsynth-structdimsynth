@@ -212,8 +212,7 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
     end
     InitPopLoadTmp = [InitPopLoadTmp; pval_i(I_param_iO,:)]; %#ok<AGROW>
     fval_mean_all = mean(fval_i(I_param_iO,:),2);
-    ScoreLoad = [ScoreLoad; score_i-floor(log10(fval_mean_all))]; %#ok<AGROW>
-
+    ScoreLoad = [ScoreLoad; [score_i-2*floor(log10(fval_mean_all)),fval_mean_all]]; %#ok<AGROW>
     continue
     % Lade Details aus den Iterationen (für weitere Vergleiche)
 %     resfilename_II_details = strrep(resfiles(II).name, 'Endergebnis', 'Details');
@@ -231,6 +230,14 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
 %     end
   end
 end
+%% Entferne Duplikate. Sortiere dafür die Partikel anhand ihrer Bewertung
+% Damit die beste Bewertung bei doppelten Partikeln genommen wird.
+[~,I] = sort(ScoreLoad(:,1), 'descend');
+InitPopLoadTmp = InitPopLoadTmp(I,:);
+ScoreLoad = ScoreLoad(I,:);
+[~,I] = unique(InitPopLoadTmp, 'rows');
+InitPopLoadTmp = InitPopLoadTmp(I,:);
+ScoreLoad = ScoreLoad(I,:);
 %% Wähle aus den geladenen Parametern eine Anfangspopulation mit hoher Diversität
 % Anzahl der zu ladenden Parameter (begrenzt durch vorhandene)
 nIndLoad = Set.optimization.InitPopRatioOldResults*nIndTotal;
@@ -242,8 +249,8 @@ if size(InitPopLoadTmp,1) > 0
   InitPopLoadTmpNorm = (InitPopLoadTmp-repmat(varlim(:,1)',size(InitPopLoadTmp,1),1)) ./ ...
     repmat(varlim(:,2)'-varlim(:,1)',size(InitPopLoadTmp,1),1);
   % Beste und schlechteste Bewertung zur Einordnung der Ergebnisse
-  bestscore = max(ScoreLoad);
-  worstscore = min(ScoreLoad);
+  bestscore = max(ScoreLoad(:,1));
+  worstscore = min(ScoreLoad(:,1));
   % Population der gewählten geladenen Partikel. Baue eins nach dem anderen
   % auf.
   InitPopLoadNorm = NaN(nIndLoad, nvars);
@@ -251,12 +258,16 @@ if size(InitPopLoadTmp,1) > 0
     % Erlaube insgesamt nur die besten 30% der Bewertungen. Nehme am Anfang
     % nur die besten, am Ende dann bis zu 30%
     bestscoreratio = 1-0.3*i/nIndLoad;
-    I_score_allowed = ScoreLoad > worstscore + bestscoreratio*bestscore;
+    I_score_allowed = ScoreLoad(:,1) > worstscore + bestscoreratio*(bestscore-worstscore);
     % Bestimme die Indizes der Partikel, die durchsucht werden. Schließe
     % bereits gewählte aus.
     I_search = I_score_allowed & ~I_selected;
     if ~any(I_search)
-      [~, Isort] = sort(ScoreLoad, 'descend');
+      [~, Isort] = sort(ScoreLoad(:,1), 'descend');
+      % Entferne die bereits vorhandenen Partikel. Ansonsten doppelte.
+      for k = find(I_selected)'
+        Isort = Isort(Isort~=k);
+      end
       I_search(Isort(1:i)) = true; % Wähle so viele der besten aus, dass es eine Möglichkeit gibt
     end
     II_search = find(I_search); % Zähl-Indizes zusätzlich zu Binär-Indizes
@@ -272,6 +283,10 @@ if size(InitPopLoadTmp,1) > 0
     InitPopLoadNorm(i,:) = InitPopLoadTmpNorm(II_search(I_best),:);
     % Markiere als bereits gewählt, damit es nicht erneut gewählt wird.
     I_selected(II_search(I_best)) = true;
+    cds_log(4, sprintf(['[cds_gen_init_pop] Partikel %d hinzugefügt ', ...
+      '(Bewertung %d, fval %1.1e). p_norm=[%s]'], II_search(I_best), ...
+      ScoreLoad(II_search(I_best),1), ScoreLoad(II_search(I_best),2), ...
+      disp_array(InitPopLoadNorm(i,:), '%1.3f')));
   end
   % Entferne die Normierung.
   InitPopLoad = repmat(varlim(:,1)',size(InitPopLoadNorm,1),1) + InitPopLoadNorm .* ...
@@ -279,6 +294,15 @@ if size(InitPopLoadTmp,1) > 0
 else
   InitPopLoad = [];
 end
+InitPopLoad_unique = unique(InitPopLoad, 'rows');
+if size(InitPopLoad_unique,1) ~= size(InitPopLoad,1)
+  cds_log(-1, sprintf(['[cds_gen_init_pop] Fehler beim Laden der Initialpopulation ', ...
+    'aus bestehenden Dateien. Es sind %d/%d doppelte Einträge entstanden'], ...
+    size(InitPopLoad,1)-size(InitPopLoad_unique,1), size(InitPopLoad,1)));
+  nIndLoad = size(InitPopLoad_unique,1);
+  InitPopLoad = InitPopLoad_unique;
+end
+
 %% Auffüllen mit zufälligen Werten für alle Optimierungsparameter
 % Fülle die restlichen Individuen mit NaN auf
 nIndRand = nIndTotal - nIndLoad;
