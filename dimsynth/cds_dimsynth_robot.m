@@ -35,7 +35,7 @@ end
 
 %% Initialisierung
 % Log-Datei initialisieren
-if ~init_only
+if ~init_only && ~Set.general.only_finish_aborted
   resdir_rob = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
     sprintf('Rob%d_%s', Structure.Number, Structure.Name));
   mkdirs(resdir_rob); % Ergebnis-Ordner für diesen Roboter erstellen
@@ -1050,20 +1050,22 @@ end
 
 %% Anfangs-Population generieren
 % TODO: Existierende Roboter einfügen
-
 NumIndividuals = Set.optimization.NumIndividuals;
-% Generiere Anfangspopulation aus Funktion mit Annahmen bezüglich Winkel.
-% Lädt bisherige Ergebnisse, um schneller i.O.-Werte zu bekommen.
-InitPop = cds_gen_init_pop(Set, Structure);
-
+if ~Set.general.only_finish_aborted
+  % Generiere Anfangspopulation aus Funktion mit Annahmen bezüglich Winkel.
+  % Lädt bisherige Ergebnisse, um schneller i.O.-Werte zu bekommen.
+  InitPop = cds_gen_init_pop(Set, Structure);
+end
 %% Tmp-Ordner leeren
 resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
   'tmp', sprintf('%d_%s', Structure.Number, Structure.Name));
-if exist(resdir, 'file')
-  % Leere Verzeichnis
-  rmdir(resdir, 's')
+if ~Set.general.only_finish_aborted
+  if exist(resdir, 'file')
+    % Leere Verzeichnis
+    rmdir(resdir, 's')
+  end
+  mkdirs(resdir);
 end
-mkdirs(resdir);
 %% Fitness-Funktion initialisieren (Strukturunabhängig)
 % Zurücksetzen der gespeicherten Werte (aus vorheriger Maßsynthese)
 clear cds_fitness
@@ -1093,17 +1095,6 @@ end
 if Set.general.matfile_verbosity > 0
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat'));
 end
-if false % Debug (manueller Einstieg hier);
-  % Falls der PSO abbricht: Zwischenergebnisse laden und daraus Endergebnis
-  % erzeugen. Dafür ist ein manuelles Eingreifen mit den Befehlen in diesem
-  % Block erforderlich. Danach kann die Funktion zu Ende ausgeführt werden.
-  load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat')); %#ok<LOAD,UNRCH>
-  filelist_tmpres = dir(fullfile(resdir, 'PSO_Gen*_AllInd_iter.mat'));
-  lastres = load(fullfile(resdir, filelist_tmpres(end).name));
-  p_val = lastres.optimValues.bestx;
-  fval = lastres.optimValues.bestfval;
-  exitflag = -6;
-end
 if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
   % Durchführung mit MOPSO; Einstellungen siehe [SierraCoe2005]
   % Und Beispiele aus Matlab File Exchange
@@ -1111,23 +1102,49 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
     'maxgen', Set.optimization.MaxIter, 'W', 0.4, 'C1', 2, 'C2', 2, 'ngrid', 20, ...
     'maxvel', 5, 'u_mut', 1/nvars); % [SierraCoe2005] S. 4
   options = struct('fun', fitnessfcn_vec, 'nVar', nvars, ...
-    'var_min', varlim(:,1), 'var_max', varlim(:,2), 'P0', InitPop);
-  output = MOPSO(MOPSO_set1, options);
-  p_val_pareto = output.pos;
-  fval_pareto = output.pos_fit;
-  cds_log(1, sprintf('[dimsynth] Optimierung mit MOPSO beendet. %d Punkte auf Pareto-Front.', size(p_val_pareto,1)));
-  exitflag = -1; % Nehme an, dass kein vorzeitiger Abbruch erfolgte
-  % Alternative: Durchführung mit gamultiobj (konvergiert schlechter)
-%   options = optimoptions('gamultiobj');
-%   options.MaxGenerations = Set.optimization.MaxIter;
-%   options.PopulationSize = NumIndividuals;
-%   options.InitialPopulationMatrix = InitPop;
-%   if ~Set.general.noprogressfigure
-%     options.PlotFcn = {@gaplotpareto,@gaplotscorediversity};
-%   end
-%     [p_val_pareto,fval_pareto,exitflag,output] = gamultiobj(fitnessfcn, nvars, [], [], [], [],varlim(:,1),varlim(:,2), options);
-%     cds_log(1, sprintf('[dimsynth] Optimierung beendet. generations=%d, funccount=%d, message: %s', ...
-%       output.generations, output.funccount, output.message));
+    'var_min', varlim(:,1), 'var_max', varlim(:,2));
+  if Set.general.matfile_verbosity > 2 || Set.general.isoncluster
+    mopso_outputfun = @(REP)cds_save_all_results_mopso(REP,Set,Structure);
+    options.OutputFcn = {mopso_outputfun};
+  end
+  if ~Set.general.only_finish_aborted % Führe Optimierung durch
+    options.P0 = InitPop;
+    output = MOPSO(MOPSO_set1, options);
+    p_val_pareto = output.pos;
+    fval_pareto = output.pos_fit;
+    cds_log(1, sprintf('[dimsynth] Optimierung mit MOPSO beendet. %d Punkte auf Pareto-Front.', size(p_val_pareto,1)));
+    exitflag = -1; % Nehme an, dass kein vorzeitiger Abbruch erfolgte
+    % Alternative: Durchführung mit gamultiobj (konvergiert schlechter)
+%     options = optimoptions('gamultiobj');
+%     options.MaxGenerations = Set.optimization.MaxIter;
+%     options.PopulationSize = NumIndividuals;
+%     options.InitialPopulationMatrix = InitPop;
+%     if ~Set.general.noprogressfigure
+%       options.PlotFcn = {@gaplotpareto,@gaplotscorediversity};
+%     end
+%       [p_val_pareto,fval_pareto,exitflag,output] = gamultiobj(fitnessfcn, nvars, [], [], [], [],varlim(:,1),varlim(:,2), options);
+%       cds_log(1, sprintf('[dimsynth] Optimierung beendet. generations=%d, funccount=%d, message: %s', ...
+%         output.generations, output.funccount, output.message));
+  else
+    % Keine Durchführung der Optimierung. Lade Daten der unfertigen
+    % Optimierung und speichere sie so ab, als ob die Optimierung
+    % durchgeführt wurde.
+    filelist_tmpres = dir(fullfile(resdir, 'MOPSO_Gen*_AllInd.mat'));
+    if isempty(filelist_tmpres)
+      cds_log(1, sprintf(['[dimsynth] Laden des letzten abgebrochenen ', ...
+        'Durchlaufs wurde angefordert. Aber keine Daten vorliegend. Ende.']));
+      return
+    end
+    [~,I_newest] = max([filelist_tmpres.datenum]);
+    d = load(fullfile(resdir, filelist_tmpres(I_newest).name));
+    p_val_pareto = d.REP.pos;
+    fval_pareto = d.REP.pos_fit;
+    PSO_Detail_Data = d.PSO_Detail_Data;
+    options.P0 = PSO_Detail_Data.pval(:,:,1);
+    exitflag = -6;
+    cds_log(1, sprintf(['[dimsynth] Ergebnis des letzten abgebrochenen ', ...
+      'Durchlaufs aus %s geladen.'], filelist_tmpres(I_newest).name));
+  end
   % Gleiche das Rückgabeformat zwischen MO und SO Optimierung an. Es muss
   % immer ein einzelnes Endergebnis geben (nicht nur Pareto-Front)
   p_val = p_val_pareto(1,:)'; % nehme nur das erste Individuum damit Code funktioniert.
@@ -1144,26 +1161,55 @@ else % Einkriteriell: PSO
     % Die Grenze zum Abbbruch wurde vom Nutzer gesetzt
     options.ObjectiveLimit = Set.optimization.obj_limit;
   end
-  options.InitialSwarmMatrix = InitPop;
   if ~Set.general.noprogressfigure
     options.PlotFcn = {@pswplotbestf};
   end
   % Speichere mat-Dateien nach jeder Iteration des PSO zum Debuggen bei
   % Abbruch.
-  if Set.general.matfile_verbosity > 2
-    cds_save_all_results_anonym = @(optimValues,state)cds_psw_save_all_results(optimValues,state,Set,Structure);
-    options.OutputFcn = {cds_save_all_results_anonym};
+  if Set.general.matfile_verbosity > 2 || Set.general.isoncluster
+    pso_outputfun = @(optimValues,state)cds_save_all_results_pso(optimValues,state,Set,Structure);
+    options.OutputFcn = {pso_outputfun};
   end
   options.Display='iter';
-  [p_val,fval,exitflag,output] = particleswarm(fitnessfcn,nvars,varlim(:,1),varlim(:,2),options);
-  cds_log(1, sprintf('[dimsynth] Optimierung beendet. iterations=%d, funccount=%d, message: %s', ...
-    output.iterations, output.funccount, output.message));
+  if ~Set.general.only_finish_aborted % Führe Optimierung durch
+    options.InitialSwarmMatrix = InitPop;
+    [p_val,fval,exitflag,output] = particleswarm(fitnessfcn,nvars,varlim(:,1),varlim(:,2),options);
+    cds_log(1, sprintf('[dimsynth] Optimierung beendet. iterations=%d, funccount=%d, message: %s', ...
+      output.iterations, output.funccount, output.message));
+    p_val = p_val(:); % stehender Vektor
+  else % Lade Ergebnis einer unfertigen Optimierung
+    filelist_tmpres = dir(fullfile(resdir, 'PSO_Gen*_AllInd.mat'));
+    if isempty(filelist_tmpres)
+      cds_log(1, sprintf(['[dimsynth] Laden des letzten abgebrochenen ', ...
+        'Durchlaufs wurde angefordert. Aber keine Daten vorliegend. Ende.']));
+      return
+    end
+    [~,I_newest] = max([filelist_tmpres.datenum]);
+    d = load(fullfile(resdir, filelist_tmpres(I_newest).name));
+    p_val = d.optimValues.bestx(:);
+    fval = d.optimValues.bestfval;
+    exitflag = -6;
+  end
   p_val_pareto = [];
   fval_pareto = [];
-  p_val = p_val(:); % stehender Vektor
 end
-% Detail-Ergebnisse extrahieren (persistente Variable in Funktion)
-PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, NaN, 'output');
+% Detail-Ergebnisse künstlich in die Funktion hineinschreiben
+if ~Set.general.only_finish_aborted
+  % Detail-Ergebnisse extrahieren (persistente Variable in Funktion)
+  PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, NaN, 'output');
+else
+  % Nachträgliche Reproduktion eines Ergebnisses evtl problematisch.
+  % Ergebnis wird nicht in der persistenten Variable PSO_Detail_Data gespeichert.
+  PSO_Detail_Data = d.PSO_Detail_Data;
+  if length(Set.optimization.objective) > 1
+    options.P0 = PSO_Detail_Data.pval(:,:,1);
+  else
+    options.InitialSwarmMatrix = PSO_Detail_Data.pval(:,:,1);
+  end
+  exitflag = -6;
+  cds_log(1, sprintf(['[dimsynth] Ergebnis des letzten abgebrochenen ', ...
+    'Durchlaufs aus %s geladen.'], filelist_tmpres(I_newest).name));
+end
 
 if Set.general.matfile_verbosity > 0
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot3.mat'));
@@ -1217,19 +1263,21 @@ end
 [k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, fval);
 desopt_pval = PSO_Detail_Data.desopt_pval(k_ind, :, k_gen)';
 
-% Struktur-Variable neu erstellen um Schalter für Dynamik-Berechnung
-% richtig zu setzen, wenn die Fitness-Funktion neu ausgeführt wird.
-Structure_tmp = Structure;
-if ~isempty(desopt_pval)
-  % Keine erneute Entwurfsoptimierung, also auch keine Regressorform notwendig.
-  % Direkte Berechnung der Dynamik, falls für Zielfunktion notwendig.
-  Structure_tmp.calc_dyn_act = Structure.calc_dyn_act | Structure.calc_dyn_reg;
-  Structure_tmp.calc_spring_act = Structure.calc_spring_act | Structure.calc_spring_reg;
-  Structure_tmp.calc_spring_reg = false;
-  Structure_tmp.calc_dyn_reg = false;
-end
-
 for i = 1:max_retry
+  % Struktur-Variable neu erstellen um Schalter für Dynamik-Berechnung
+  % richtig zu setzen, wenn die Fitness-Funktion neu ausgeführt wird.
+	if i == 1
+    Structure_tmp = Structure;
+    if ~isempty(desopt_pval)
+      % Keine erneute Entwurfsoptimierung, also auch keine Regressorform notwendig.
+      % Direkte Berechnung der Dynamik, falls für Zielfunktion notwendig.
+      Structure_tmp.calc_dyn_act = Structure.calc_dyn_act | Structure.calc_dyn_reg;
+      Structure_tmp.calc_spring_act = Structure.calc_spring_act | Structure.calc_spring_reg;
+      Structure_tmp.calc_spring_reg = false;
+      Structure_tmp.calc_dyn_reg = false;
+    end
+  end
+  
   % Mehrere Versuche vornehmen, da beim Umklappen der Roboterkonfiguration
   % andere Ergebnisse entstehen können.
   % Eigentlich darf sich das Ergebnis aber nicht ändern (wegen der
@@ -1263,8 +1311,9 @@ end
 % Detail-Ergebnisse extrahieren (persistente Variable in Funktion).
 % (Nochmal, da Neuberechnung oben eventuell anderes Ergebnis bringt)
 % Kein Zurücksetzen der persistenten Variablen notwendig.
-PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, NaN, 'output');
-
+if ~Set.general.only_finish_aborted
+  PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, NaN, 'output');
+end
 % Schreibe die Anfangswerte der Gelenkwinkel für das beste Individuum in
 % die Roboterklasse. Suche dafür den besten Funktionswert in den zusätzlich
 % gespeicherten Daten für die Position des Partikels in dem Optimierungsverfahren
@@ -1329,8 +1378,7 @@ if ~any(strcmp(Set.optimization.objective, 'valid_act')) && ...
     (any(abs(PHI(:))>1e-6) || any(isnan(Q(:)))) % Toleranz wie in cds_constraints
   % Berechnung der Trajektorie ist fehlgeschlagen
   if any(fval<1e4*1e4) % nur bemerkenswert, falls vorher überhaupt soweit gekommen.
-    save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
-      sprintf('%d_%s', Structure.Number, Structure.Name), 'trajikreprowarning.mat'));
+    save(fullfile(resdir, 'trajikreprowarning.mat'));
     cds_log(-1, sprintf(['[dimsynth] PSO-Ergebnis für Trajektorie nicht reproduzierbar ', ...
       'oder nicht gültig (ZB-Verletzung). Max IK-Fehler: %1.1e. %d Fehler > 1e-6. %d mal NaN.'], ...
       max(abs(PHI(:))), sum(sum(abs(PHI)>1e-6,2)>0), sum(isnan(Q(:))) ));
@@ -1403,8 +1451,7 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   test_Jcond_abs = PSO_Detail_Data.constraint_obj_val(dd_optind, 4, dd_optgen) - physval_cond;
   test_Jcond_rel = test_Jcond_abs / physval_cond;
   if abs(test_Jcond_abs) > 1e-6 && test_Jcond_rel > 1e-3
-    save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
-      sprintf('%d_%s', Structure.Number, Structure.Name), 'condreprowarning.mat'));
+    save(fullfile(resdir, 'condreprowarning.mat'));
     cds_log(-1, sprintf(['[dimsynth] Während Optimierung gespeicherte ', ...
       'Konditionszahl (%1.5e) stimmt nicht mit erneuter Berechnung (%1.5e) ', ...
       'überein. Differenz %1.5e (%1.2f%%)'], ...
@@ -1413,8 +1460,7 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   end
   test_sv = PSO_Detail_Data.constraint_obj_val(dd_optind, 6, dd_optgen) - physval_ms;
   if abs(test_sv) > 1e-5
-    save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
-      sprintf('%d_%s', Structure.Number, Structure.Name), 'svreprowarning.mat'));
+    save(fullfile(resdir, 'svreprowarning.mat'));
     cds_log(-1, sprintf(['[dimsynth] Während Optimierung gespeicherte ', ...
       'Materialbelastung (%1.5e) stimmt nicht mit erneuter Berechnung (%1.5e) ', ...
       'überein. Differenz %1.5e.'], ...
@@ -1422,8 +1468,7 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   end
   test_actforce = PSO_Detail_Data.constraint_obj_val(dd_optind, 3, dd_optgen) - physval_actforce;
   if abs(test_actforce) > 1e-5
-    save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
-      sprintf('%d_%s', Structure.Number, Structure.Name), 'actforcereprowarning.mat'));
+    save(fullfile(resdir, 'actforcereprowarning.mat'));
     cds_log(-1, sprintf(['[dimsynth] Während Optimierung gespeicherte ', ...
       'Antriebskraft (%1.5e) stimmt nicht mit erneuter Berechnung (%1.5e) ', ...
       'überein. Differenz %1.5e.'], ...
@@ -1431,8 +1476,7 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   end
   test_mass = PSO_Detail_Data.constraint_obj_val(dd_optind, 1, dd_optgen) - physval_mass;
   if abs(test_mass) > 1e-5
-    save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
-      sprintf('%d_%s', Structure.Number, Structure.Name), 'massreprowarning.mat'));
+    save(fullfile(resdir, 'massreprowarning.mat'));
     cds_log(-1, sprintf('[dimsynth] Während Optimierung gespeicherte Masse (%1.5e) stimmt nicht mit erneuter Berechnung (%1.5e) überein. Differenz %1.5e.', ...
       PSO_Detail_Data.constraint_obj_val(dd_optind, 1, dd_optgen), physval_mass, test_mass));
   end
@@ -1458,8 +1502,7 @@ end
 % Indizes der verletzten Nebenbedingungen. Wert Null heißt inaktiv.
 I_viol = physval_obj_all(I_constr) > Set.optimization.constraint_obj & I_fobj_set;
 if any(fval<1e3) && any(I_viol)
-  save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
-    sprintf('%d_%s', Structure.Number, Structure.Name), 'objconstrwarning.mat'));
+  save(fullfile(resdir, 'objconstrwarning.mat'));
   for i = find(I_viol)'
     cds_log(-1,sprintf(['[dimsynth] Zielfunktions-Nebenbedingung %d (%s) verletzt ', ...
       'trotz Berücksichtigung in Optimierung: %1.4e > %1.4e. Keine Lösung gefunden.'], ...
@@ -1468,8 +1511,7 @@ if any(fval<1e3) && any(I_viol)
 end
 if any(fval<1e3) && Set.optimization.constraint_obj(6) ~= 0 && ...
     physval_ms > Set.optimization.constraint_obj(6) 
-  save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
-    sprintf('%d_%s', Structure.Number, Structure.Name), 'strengthconstrwarning.mat'));
+  save(fullfile(resdir, 'strengthconstrwarning.mat'));
   cds_log(-1, sprintf('[dimsynth] Materialbelastungs-Nebenbedingung verletzt trotz Berücksichtigung in Optimierung. Keine Lösung gefunden.'));
 end
 % Bestimme Zuordnung der Fitness-Vektor-Einträge zu den Leistungsmerkmalen
@@ -1488,8 +1530,7 @@ for i = 1:length(Set.optimization.objective)
   if fval(i) > 1e3, continue; end % Leistungsmerkmal steht nicht in Zielfunktion (NB-Verletzung)
   test_fval_i = fval(i) - fval_obj_all(I_fval_obj_all(i));
   if abs(test_fval_i) > 1e-6
-    save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
-      sprintf('%d_%s', Structure.Number, Structure.Name), 'fvalreprowarning.mat'));
+    save(fullfile(resdir, 'fvalreprowarning.mat'));
     cds_log(-1, sprintf(['[dimsynth] Zielfunktionswert %d (%s) nicht aus Neu', ...
       'berechnung der Leistungsmerkmale reproduzierbar. Aus PSO: %1.5f, neu: %1.5f.'], ...
       i, obj_names_all{I_fval_obj_all(i)}, fval(i), fval_obj_all(I_fval_obj_all(i))));
@@ -1548,3 +1589,8 @@ lfp = cds_log(1,sprintf(['[dimsynth] Optimierung von Rob. %d (%s) abgeschlossen.
   'Dauer: %1.1fs'], Structure.Number, Structure.Name, toc(t1)));
 % Log-Datei komprimieren und Textdatei löschen
 gzip(lfp); delete(lfp);
+% Lösche temporäre Ergebnisse. Nicht mehr benötigt, da Endergebnis da.
+filelist_tmpres = dir(fullfile(resdir, '*PSO_Gen*_AllInd.mat'));
+for i = 1:length(filelist_tmpres)
+  delete(fullfile(resdir, filelist_tmpres(i).name));
+end

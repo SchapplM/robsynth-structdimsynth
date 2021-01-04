@@ -42,6 +42,7 @@ general = struct( ...
   'save_evolution_video', false, ... % Video mit Evolution der Roboter
   'max_retry_bestfitness_reconstruction', 2, ... % Anzahl Neuversuche zur Reproduktion. 2 reichen zur Prüfung, ob Wiederholbarkeit da ist.
   'regenerate_summmary_only', false, ... % Nur die Videos und Zusammenfassungsbilder neu generieren. Keine Optimierung durchführen.
+  'only_finish_aborted', false, ... % Führe keine Optimierung durch, sondern werte abgebrochene vorherige Optimierungen aus
   'nosummary', false, ... % Kompletter Verzicht auf die graphische Endauswertung
   'eval_figures', {{'histogram', 'fitness_various', 'jointtraj', 'robvisuanim', 'pareto_all_phys', 'pareto_all_fval'}}, ... % Liste der zu erstellenden Bilder. Auswahl, siehe cds_vis_results.m
   'only_save_summary_figures', true, ... % Bilderzeugung dient hauptsächlich der Speicherung. Schließe alle Bilder nach Speicherung

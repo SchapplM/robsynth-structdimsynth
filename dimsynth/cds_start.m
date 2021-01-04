@@ -20,7 +20,11 @@ warning('off', 'Coder:MATLAB:rankDeficientMatrix');
 if ~exist('Set', 'var') || ~exist('Traj', 'var')
   error('Eingabevariablen des Startskriptes existieren nicht');
 end
-fprintf('Starte Maßsynthese %s\n', Set.optimization.optname);
+if ~Set.general.only_finish_aborted
+  fprintf('Starte Maßsynthese %s.\n', Set.optimization.optname);
+else
+  fprintf('Schließe die abgebrochene Maßsynthese %s ab.\n', Set.optimization.optname);
+end
 Set_default = cds_settings_defaults(struct('DoF', Set.structures.DoF));
 for subconf = fields(Set_default)'
   for ftmp = fields(Set.(subconf{1}))'
@@ -199,14 +203,19 @@ if Set.general.computing_cluster
     fclose(fid);
     % Schätze die Rechenzeit: Im Mittel 2s pro Parametersatz aufgeteilt auf
     % 12 parallele Kerne, 30min für Bilderstellung und 6h Reserve/Allgemeines
-    comptime_est = (Set.optimization.NumIndividuals*(1+Set.optimization.MaxIter)* ...
-      2+30*60)*length(Set_cluster.structures.whitelist)/12 + 6*3600;
+    comptime_est = (Set.optimization.NumIndividuals*(1+Set.optimization.MaxIter)*2 + ...
+      30*60)*ceil(length(Set_cluster.structures.whitelist)/12) + 6*3600;
     % Falls Entwurfsoptimierung durchgeführt wird, rechne dort auch noch
     % mit 1s pro Partikel, durchschnittlich 20 Iterationen bei 10% aller
     % Partikel aus der Maßsynthese.
     if ~isempty(Set.optimization.desopt_vars)
       npart = Set.optimization.NumIndividuals*(1+Set.optimization.MaxIter);
       comptime_est = comptime_est + 0.1*npart*1*20;
+    end
+    if Set.general.only_finish_aborted || Set.general.regenerate_summmary_only
+      % Es wird keine Optimierung durchgeführt. Überschreibe die vorher
+      % berechnete Zeit (nur Bilderstellung).
+      comptime_est = ceil(length(Set_cluster.structures.whitelist)/12)*30*60;
     end
     % Matlab-Skript auf Cluster starten.
     addpath(cluster_repo_path);
