@@ -191,5 +191,9 @@ if strcmp(SelStr(Selection), 'Dynamikparameter')
   cds_vis_results_figures('dynparvisu', Set, Traj, RobData, ResTab, ...
     RobotOptRes, RobotOptDetails);
 end
+if strcmp(SelStr(Selection), 'Feder-Ruhelage')
+  cds_vis_results_figures('springrestpos', Set, Traj, RobData, ResTab, ...
+    RobotOptRes, RobotOptDetails);
+end
 fprintf('Bilder gezeichnet. Dauer: %1.1fs zur Vorbereitung, %1.1fs zum Zeichnen.\n', ...
   toc(t1)-toc(t2), toc(t2));

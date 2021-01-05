@@ -107,7 +107,7 @@ for kk = 1:length(Set.general.animation_styles)
   if Set.task.profile == 0
     I_anim = 1:size(RobotOptDetails.Traj_Q,1); % Zeichne jeden Zeitschritt
   else
-    if Traj_0.t(end) > isinf(Set.general.maxduration_animation)
+    if Traj_0.t(end) > Set.general.maxduration_animation
       % Reduziere das Video auf die maximale Länge. Die Abtastrate ist 30Hz
       % Nehme das Verhältnis von Ist- und Soll-Zeit als Beschleunigungsfaktor
       % dieser vorgegebenen Abtastrate des Videos
@@ -419,4 +419,36 @@ if strcmp(figname, 'optpar')
   saveas(fhdl,     fullfile(resrobdir, [fname, '.fig']));
   export_fig(fhdl, fullfile(resrobdir, [fname, '.png']));
   fprintf('Bild %s gespeichert: %s\n', fname, resrobdir);
+end
+
+%% Animation der Gelenkfeder (Ruhelage bis Einbaulage)
+if strcmp(figname, 'springrestpos')
+  if RobData.Type ~= 2 % nur für PKM definiert.
+    error('Bild für Roboter-Typ nicht definiert');
+  end
+  % Erstelle eine Animation für das Einbauen der Feder. Beginnend in
+  % Ruhelage, endend in Startpose der Trajektorie
+  fhdl = figure();clf;hold all;
+  set(fhdl, 'Name', sprintf('Rob%d_P%d_federruhelage', RNr, PNr), ...
+    'NumberTitle', 'off', 'color','w');
+  if ~strcmp(get(fhdl, 'windowstyle'), 'docked')
+    set(fhdl,'units','normalized','outerposition',[0 0 1 1]);
+  end
+  title(sprintf('Rob.%d, P.%d %s Gelenkelastizität', RNr, PNr, Name));
+  view(3); axis auto; hold on; grid on;
+  xlabel('x in m');ylabel('y in m');zlabel('z in m');
+  plot3(Traj.X(:,1), Traj.X(:,2),Traj.X(:,3), 'k-');
+  s_anim = struct('mp4_name', fullfile(resrobdir, ...
+      sprintf('Rob%d_%s_P%d_FederRuhelage_Anim.mp4', RNr, Name, PNr)));
+  s_plot = struct( 'ks_legs', [], 'straight', 1, 'mode', 1);
+  % Trajektorie erzeugen.
+  q_start = RobotOptDetails.Traj_Q(1,:)'; q_end = q_start;
+  for i = 1:R.NLEG
+    q_start([false(R.I1J_LEG(i)-1,1);R.Leg(i).MDH.sigma==0]) = R.Leg(i).DesPar.joint_stiffness_qref(R.Leg(i).MDH.sigma==0);
+  end
+  [Q_ges,~,~,T_ges] = traj_trapez2_multipoint([q_start';q_end'], 1, 0.05, 0.01, 0.005, 0);
+  % Video auf Länge 10s bringen
+  t_Vid = (0:1/30*(T_ges(end)/10):T_ges(end))';
+  I_anim = knnsearch( T_ges, t_Vid ); % Indizes für gewünschte Länge
+  R.anim( Q_ges(I_anim,:), repmat(Traj_0.X(1,:),length(I_anim),1), s_anim, s_plot);
 end
