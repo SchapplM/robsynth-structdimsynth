@@ -371,3 +371,52 @@ if strcmp(figname, 'dynparvisu')
   export_fig(fhdl, fullfile(resrobdir, [fname, '.png']));
   fprintf('Bild %s gespeichert: %s\n', fname, resrobdir);
 end
+%% Optimierungsparameter (über die Pareto-Front)
+if strcmp(figname, 'optpar')
+  fhdl = figure();clf;hold all;
+  set(fhdl, 'Name', sprintf('Rob%d_OptPar', RNr), 'NumberTitle', 'off', 'color','w');
+  if ~strcmp(get(fhdl, 'windowstyle'), 'docked')
+    set(fhdl,'units','normalized','outerposition',[0 0 1 1]);
+  end
+  % Konvertiere die normierten Optimierungsparameter nach physikalischen
+  % Parametern
+  p_val_pareto_phys = NaN(size(RobotOptRes.p_val_pareto));
+  for i = 1:size(RobotOptRes.p_val_pareto,1)
+    p_val_pareto_phys(i,:) = cds_update_robot_parameters(R, Set, ...
+      RobotOptRes.Structure, RobotOptRes.p_val_pareto(i,:)');
+  end
+  % Konvertiere die Parametergrenzen in der Optimierung. Nehme schon hier
+  % den Betrag, da sonst die kleine Skalierung mit dem negativem Vorzeichen
+  % die untere Grenze bildet.
+  varlim_phys = NaN(size(RobotOptRes.Structure.varlim'));
+  for i = 1:size(varlim_phys,1)
+    varlim_phys(i,:)= cds_update_robot_parameters(R, Set, ...
+      RobotOptRes.Structure, abs(RobotOptRes.Structure.varlim(:,i)));
+  end
+  % Nehme den Betrag der Parameter (einzig negativ können DH-Längen sein),
+  % das gleicht sich aber über die Kinematik aus
+  p_val_pareto_phys = abs(p_val_pareto_phys);
+  varlim_phys = abs(varlim_phys);
+  % Zeichne Subplots für alle Optimierungsparameter
+  varnames = RobotOptRes.Structure.varnames;
+  nrows = ceil(sqrt(length(varnames)-1));
+  ncols = ceil((length(varnames)-1)/nrows);
+  for i = 2:length(varnames)
+    subplot(nrows, ncols, i-1);hold on;
+    plot(p_val_pareto_phys(:,i));
+    plot([1;size(p_val_pareto_phys,1)], varlim_phys(1,i)*[1;1], 'r-');
+    plot([1;size(p_val_pareto_phys,1)], varlim_phys(2,i)*[1;1], 'r-');
+    ylabel(varnames{i}, 'interpreter', 'none'); grid on;
+    % Grenzen des Plots manuell setzen, damit die Parameter-Grenzen nicht
+    % die Plot-Grenzen definieren. Die Parameter-Grenzen können wegen der
+    % Skalierung sehr groß werden.
+    set(gca, 'ylim', minmax2(p_val_pareto_phys(:,i)')+0.05*...
+      diff(minmax2(p_val_pareto_phys(:,i)'))*[-1,1])
+  end
+  linkxaxes
+  sgtitle(sprintf('Rob.%d Opt.Par. (%s)', RNr, Name));
+  fname = sprintf('Rob%d_%s_OptPar', RNr, Name);
+  saveas(fhdl,     fullfile(resrobdir, [fname, '.fig']));
+  export_fig(fhdl, fullfile(resrobdir, [fname, '.png']));
+  fprintf('Bild %s gespeichert: %s\n', fname, resrobdir);
+end

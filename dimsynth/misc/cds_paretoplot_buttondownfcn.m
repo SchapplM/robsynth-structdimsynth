@@ -168,6 +168,10 @@ if strcmp(SelStr(Selection), 'Visualisierung')
   cds_vis_results_figures('robvisu', Set, Traj, RobData, ResTab, ...
     RobotOptRes, RobotOptDetails);
 end
+if strcmp(SelStr(Selection), 'Parameter')
+  cds_vis_results_figures('optpar', Set, Traj, RobData, ResTab, ...
+    RobotOptRes, RobotOptDetails);
+end
 if strcmp(SelStr(Selection), 'Kinematik')
   cds_vis_results_figures('jointtraj', Set, Traj, RobData, ResTab, ...
     RobotOptRes, RobotOptDetails);
