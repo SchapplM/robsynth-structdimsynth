@@ -1145,10 +1145,18 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
     cds_log(1, sprintf(['[dimsynth] Ergebnis des letzten abgebrochenen ', ...
       'Durchlaufs aus %s geladen.'], filelist_tmpres(I_newest).name));
   end
+  % Sortiere die Pareto-Front nach dem ersten Optimierungskriterium. Dann
+  % sind die Partikel der Pareto-Front im Diagramm von links nach rechts
+  % nummeriert. Das hilft bei der späteren Auswertung (dort Angabe der Nr.)
+  [~,Isort] = sort(fval_pareto(:,1));
+  fval_pareto = fval_pareto(Isort,:);
+  p_val_pareto = p_val_pareto(Isort,:);
   % Gleiche das Rückgabeformat zwischen MO und SO Optimierung an. Es muss
   % immer ein einzelnes Endergebnis geben (nicht nur Pareto-Front)
-  p_val = p_val_pareto(1,:)'; % nehme nur das erste Individuum damit Code funktioniert.
-  fval = fval_pareto(1,:)'; % ... kann unten noch überschrieben werden.
+  % Nehme ein Partikel aus der Mitte
+  Iselect = ceil(size(fval_pareto,1)/2);
+  p_val = p_val_pareto(Iselect,:)'; % nehme nur das erste Individuum damit Code funktioniert.
+  fval = fval_pareto(Iselect,:)'; % ... kann unten noch überschrieben werden.
 else % Einkriteriell: PSO
   options = optimoptions('particleswarm');
   options.MaxIter = Set.optimization.MaxIter; %70 100 % in GeneralConfig
