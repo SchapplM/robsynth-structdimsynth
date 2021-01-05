@@ -31,9 +31,9 @@ resdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), 'results');
 resdir_ges = fullfile(resdir, optname);
 
 if exist(resdir_ges, 'file')
-%   fprintf('Gesamt-Verzeichnis %s existiert schon. Abbruch.\n', resdir_ges);
-%   return
-  rmdir(resdir_ges, 's');
+  fprintf('Gesamt-Verzeichnis %s existiert schon. Abbruch.\n', resdir_ges);
+  return
+  % rmdir(resdir_ges, 's');
 end
 % Zielordner erstellen
 mkdirs(resdir_ges);
