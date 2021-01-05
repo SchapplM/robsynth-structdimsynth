@@ -232,12 +232,14 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
 end
 %% Entferne Duplikate. Sortiere dafür die Partikel anhand ihrer Bewertung
 % Damit die beste Bewertung bei doppelten Partikeln genommen wird.
-[~,I] = sort(ScoreLoad(:,1), 'descend');
-InitPopLoadTmp = InitPopLoadTmp(I,:);
-ScoreLoad = ScoreLoad(I,:);
-[~,I] = unique(InitPopLoadTmp, 'rows');
-InitPopLoadTmp = InitPopLoadTmp(I,:);
-ScoreLoad = ScoreLoad(I,:);
+if ~isempty(InitPopLoadTmp)
+  [~,I] = sort(ScoreLoad(:,1), 'descend');
+  InitPopLoadTmp = InitPopLoadTmp(I,:);
+  ScoreLoad = ScoreLoad(I,:);
+  [~,I] = unique(InitPopLoadTmp, 'rows');
+  InitPopLoadTmp = InitPopLoadTmp(I,:);
+  ScoreLoad = ScoreLoad(I,:);
+end
 %% Wähle aus den geladenen Parametern eine Anfangspopulation mit hoher Diversität
 % Anzahl der zu ladenden Parameter (begrenzt durch vorhandene)
 nIndLoad = Set.optimization.InitPopRatioOldResults*nIndTotal;
