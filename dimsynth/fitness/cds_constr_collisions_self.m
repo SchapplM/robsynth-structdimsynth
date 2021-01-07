@@ -45,12 +45,11 @@ if Set.general.matfile_verbosity > 1
 end
 %% Daten der Roboterstruktur laden
 % Wird bereits in cds_dimsynth_robot vorbereitet
-v = Structure.MDH_ante_collcheck;
 collbodies = Structure.collbodies_robot;
 collchecks = Structure.selfcollchecks_collbodies;
 %% Kollisionen und Strafterm berechnen
 CollSet = struct('collsearch', true);
-[coll, ~, colldepth] = check_collisionset_simplegeom_mex(v, ...
+[coll, ~, colldepth] = check_collisionset_simplegeom_mex( ...
   collbodies, collchecks, JP, CollSet);
 
 if any(abs(colldepth(:))>1) || any(abs(colldepth(:))<0)
@@ -82,7 +81,7 @@ colldepth_t = sum(colldepth,2);
 % fprintf('%d Kollisionen für Zeitschritt %d/%d berechnet:\n', sum(coll(j,:)), j, size(coll,1));
 % for kk = find(coll(j,:))
 %   fprintf('Prüfung %d: Koll.-Körper %d vs %d (Rob.-Seg. %d vs %d)\n', kk, collchecks(kk,1), ...
-%     collchecks(kk,2), collbodies.link(collchecks(kk,1)), collbodies.link(collchecks(kk,2)));
+%     collchecks(kk,2), collbodies.link(collchecks(kk,1),1), collbodies.link(collchecks(kk,2),1));
 % end
 
 % Bild zeichnen
@@ -106,8 +105,8 @@ for i = 1:size(collbodies.link,1)
   if collbodies.type(i) == 6 % Kapsel zum vorherigen KS
     r = collbodies.params(i,1)*3; % Vergrößere den Radius für den Plot
     % Nummer der Starrkörper in mathematischer Notation: 0=Basis
-    jj2 = collbodies.link(i);
-    jj1 = v(1+collbodies.link(i)); % 0=PKM-Basis, 1=Beinkette-1-Basis, 2=Beinkette-1-Körper-1
+    jj2 = collbodies.link(i,1); % 0=PKM-Basis, 1=Beinkette-1-Basis, 2=Beinkette-1-Körper-1
+    jj1 = collbodies.link(i,2);
     % Nummer in Matlab-Notation (1=Basis)
     ii2 = jj2+1;
     ii1 = jj1+1;
@@ -135,7 +134,7 @@ for i = 1:size(collbodies.link,1)
     % collpartners_i = unique(collpairs_i(:));
     % collpartners_i(collpartners_i==i) = []; % Entferne Element selbst
     % fprintf('Koll.-Körper %d (Rob.-Seg. %d): Kollision mit KK [%s]\n', i, ...
-    %   collbodies.link(i), disp_array(collpartners_i', '%d'));
+    %   collbodies.link(i,1), disp_array(collpartners_i', '%d'));
   else
     color = 'b';
   end
