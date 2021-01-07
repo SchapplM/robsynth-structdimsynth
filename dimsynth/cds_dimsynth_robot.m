@@ -922,6 +922,13 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     for i = 1:length(names_collbodies)
       fprintf('%d - %s\n', i-1, names_collbodies{i});
     end
+    % Debug: Liste der Kollisionskörper anzeigen
+    fprintf('Liste der Kollisionskörper:\n');
+    for i = 1:size(Structure.collbodies_robot.link,1)
+      fprintf('%d - links %d+%d (%s + %s)\n', i, Structure.collbodies_robot.link(i,1), ...
+        Structure.collbodies_robot.link(i,2), names_collbodies{1+Structure.collbodies_robot.link(i,1)}, ...
+        names_collbodies{1+Structure.collbodies_robot.link(i,2)});
+    end
   end
   % Prüfe die zusammengestellten Kollisionskörper. Die höchste Nummer
   % (Null-indiziert) ist durch die Roboterstruktur vorgegeben.
@@ -968,15 +975,22 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
           % oder Plattform (zugehörig zu letztem Beinketten-KS) gehören
           I_base = R.I1L_LEG(1:NLEG)-((1:NLEG)'-1);
           I_pl = R.I2L_LEG(1:NLEG)-((1:NLEG)'-1)-1;
-          % Finde heraus, ob einer der Kollisionskörper ein Gestellteil ist
+          % Finde heraus, ob einer der Kollisionskörper ein Gestellteil ist.
+          % Basis-Körper haben entweder Zugehörigkeit zu zwei Beinketten-
+          % Basis-KS (in I_base) oder einen Eintrag mit 0 (sternförmit für
+          % PKM-Basis).
           % (siehe cds_update_collbodies zur Definition der Gestellteile)
           c1_is_base = false;
-          if length(intersect(Structure.collbodies_robot.link(ii1,:)', I_base)) == 2 && ...
+          if ( length(intersect(Structure.collbodies_robot.link(ii1,:)', I_base)) == 2 || ... % beide Beinketten-Basis zugeordnet (Kreis)
+              length(intersect(Structure.collbodies_robot.link(ii1,:)', I_base)) == 1 && ... % einer zur PKM-Basis, einer zur Beinketten-Basis (Stern)
+              any(Structure.collbodies_robot.link(ii1,:)==0) ) && ...
               Structure.collbodies_robot.link(ii1,1) ~= Structure.collbodies_robot.link(ii1,2)
             c1_is_base = true;
           end
           c2_is_base = false;
-          if length(intersect(Structure.collbodies_robot.link(ii2,:)', I_base)) == 2 && ...
+          if ( length(intersect(Structure.collbodies_robot.link(ii2,:)', I_base)) == 2 || ...
+              length(intersect(Structure.collbodies_robot.link(ii2,:)', I_base)) == 1 && ...
+              any(Structure.collbodies_robot.link(ii2,:)==0) ) && ...
               Structure.collbodies_robot.link(ii2,1) ~= Structure.collbodies_robot.link(ii2,2)
             c2_is_base = true;
           end
@@ -997,8 +1011,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
             % tierung verschiedenen Beinketten zugeordnet. Keine Kollisions-
             % prüfung notwendig.
             continue
-          end
-          if c1_is_base && ~c2_is_platform || c2_is_base && ~c1_is_platform
+          elseif c1_is_base && ~c2_is_platform || c2_is_base && ~c1_is_platform
             % Ein Körper ist Teil des Gestells, der andere aber nicht Teil
             % der Plattform. Überspringe die Prüfung. Hiermit vermiedene
             % Fälle:
@@ -1011,6 +1024,11 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
             % * Gestell-Teil, dass der Basis-Zugeordnet ist (z.B. Führungs-
             %   schiene einer Linearachse. Hier auch keine Prüfung gegen
             %   kreisförmig modelliertes Gestell.
+            continue
+          elseif c1_is_platform && ~c2_is_base || c2_is_platform && ~c1_is_base
+            % Ein Körper ist Teil der Plattform, der andere aber nicht Teil
+            % des Gestells. Der hier vorliegende Fall Beinkette+Plattform
+            % wird vorerst nicht geprüft.
             continue
           end
         end

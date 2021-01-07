@@ -196,12 +196,12 @@ if Structure.Type ~= 0 % PKM
   % Kollisionsobjekte für das Gestell
   % Sternförmige Basis mit Kollisionskörpern: Nummer für PKM-Basis=0; Setze
   % den Vorgänger auf die jeweiligen Basiskörper der einzelnen Beinketten.
-  % Kapseln verbinden die Koppelgelenke. Nutze vorerst nur die ringförmige Basis.
-%   collbodies_robot.link = [collbodies_robot.link; ...
-%     uint8([zeros(NLEG,1), R.I1L_LEG-(I1-1)])];
-%   collbodies_robot.type = [collbodies_robot.type; repmat(uint8(6),NLEG,1)];
-%   collbodies_robot.params = [collbodies_robot.params; ...
-%     [repmat(10e-3, NLEG, 1), NaN(NLEG, 9)]];
+  % Kapseln verbinden die Koppelgelenke.
+  collbodies_robot.link = [collbodies_robot.link; ...
+    uint8([zeros(NLEG,1), R.I1L_LEG-(I1-1)])];
+  collbodies_robot.type = [collbodies_robot.type; repmat(uint8(6),NLEG,1)];
+  collbodies_robot.params = [collbodies_robot.params; ...
+    [repmat(10e-3, NLEG, 1), NaN(NLEG, 9)]];
   % Ringförmige Basis; verbindet die Basis der Beinketten mit der jeweils
   % vorherigen
   collbodies_robot.link = [collbodies_robot.link; ...
