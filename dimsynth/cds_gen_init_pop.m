@@ -119,7 +119,7 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
       pval_i_file = d.RobotOptRes.p_val_pareto;
       fval_i = d.RobotOptRes.fval_pareto;
     else
-      pval_i_file = d.RobotOptRes.p_val';
+      pval_i_file = d.RobotOptRes.p_val(:)';
       fval_i = d.RobotOptRes.fval;
     end
     % Index-Vektor zum Finden der aktuellen Optimierungsparameter pval in
@@ -200,7 +200,7 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
       'Bewertung: %d. Bei %d/%d Parametergrenzen passend.'], i, length(optdirs), ...
       optdirs(i).name, score_i, sum(I_param_iO), size(pval_i,1)));
     if any(~I_param_iO)
-      for jjj = find(~I_param_iO)'
+      for jjj = find(~I_param_iO & ~any(isnan(pval_i),2))'
         I_pniO = varlim(:,1)' > pval_i(jjj,:) | varlim(:,2)' < pval_i(jjj,:);
         for kkk = find(I_pniO)
           cds_log(3, sprintf(['[cds_gen_init_pop] Partikel %d/%d: Parameter ', ...
