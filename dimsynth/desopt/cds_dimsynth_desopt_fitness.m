@@ -104,23 +104,31 @@ if fval == 0 && (Structure.calc_dyn_reg || Structure.calc_spring_reg)
     data_dyn2 = cds_obj_dependencies(R, Traj_0, Set, Structure_tmp, Q, QD, QDD, Jinv_ges);
     test_TAU = data_dyn2.TAU - data_dyn.TAU;
     if any(abs(test_TAU(:))>1e-8)
-      error('Antriebskräfte aus Regressorform stimmt nicht');
+      save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
+        sprintf('%d_%s', Structure.Number, Structure.Name), 'desopt_TAU_reprowarning.mat'));
+      error('Antriebskräfte aus Regressorform stimmt nicht. Fehler: %1.2e', max(abs(test_TAU(:))));
     end
     test_W = data_dyn2.Wges - data_dyn.Wges;
     if any(abs(test_W(:))>1e-8)
-      error('Schnittkräfte aus Regressorform stimmt nicht');
+      save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
+        sprintf('%d_%s', Structure.Number, Structure.Name), 'desopt_W_reprowarning.mat'));
+      error('Schnittkräfte aus Regressorform stimmt nicht. Fehler: %1.2e', max(abs(test_W(:))));
     end
     if any(Set.optimization.joint_stiffness_passive_revolute~=0)
       if isfield(data_dyn2, 'TAU_spring') && isfield(data_dyn, 'TAU_spring')
         test_TAU_spring = data_dyn2.TAU_spring - data_dyn.TAU_spring;
         if any(abs(test_TAU_spring(:))>1e-8)
-          error('Antriebskräfte für Gelenkfeder aus Regressorform stimmt nicht');
+          save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
+            sprintf('%d_%s', Structure.Number, Structure.Name), 'desopt_TAUspring_reprowarning.mat'));
+          error('Antriebskräfte für Gelenkfeder aus Regressorform stimmt nicht. Fehler: %1.2e', max(abs(test_TAU_spring(:))));
         end
       end
       if isfield(data_dyn2, 'Wges_spring') && isfield(data_dyn, 'Wges_spring')
         test_W_spring = data_dyn2.Wges_spring - data_dyn.Wges_spring;
         if any(abs(test_W_spring(:))>1e-8)
-          error('Schnittkräfte für Gelenkfeder aus Regressorform stimmt nicht');
+          save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
+            sprintf('%d_%s', Structure.Number, Structure.Name), 'desopt_Wspring_reprowarning.mat'));
+          error('Schnittkräfte für Gelenkfeder aus Regressorform stimmt nicht. Fehler: %1.2e', max(abs(test_W_spring(:))));
         end
       end
     end
