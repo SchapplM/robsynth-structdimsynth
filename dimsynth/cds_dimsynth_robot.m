@@ -862,7 +862,38 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         end
       end
     end
-    % TODO: Kollision Beinketten mit Plattform und Gestell
+    % Kollisionsprüfung der Körper der Beinketten mit dem Gestell
+    for k = 1:NLEG
+      if k > 1, NLoffset_k = 1+R.I2L_LEG(k-1)-(k-1);
+      else,     NLoffset_k = 1; end
+      % Prüfe keine Kollision des ersten Kollisionskörpers, da dieser
+      % Körper direkt nach dem Gestell kommt. Annahme. Kollision
+      % konstruktiv vermeidbar
+      for cb_k = R.Leg(k).collbodies.link(2:end)'
+        % Kollision mit Kollisionskörpern fest bezüglich PKM-Basis
+        selfcollchecks_bodies = [selfcollchecks_bodies; ...
+          uint8([NLoffset_k+cb_k, 0])]; %#ok<AGROW>
+        % fprintf(['Kollisionsprüfung (%d): Bein %d Seg. %d vs Gestell. ', ...
+        %   'Zeile [%d,%d]\n'], size(selfcollchecks_bodies,1), k, cb_k, ...
+        %   selfcollchecks_bodies(end,1), selfcollchecks_bodies(end,2));
+        % TODO: Prüfe Kollision mit Gestellfesten Kollisionskörpern, die dem
+        % Basis-KS von anderen Beinketten zugeordnet sind.
+        % Wird aktuell nicht geprüft (unsicher, ob sinnvoll).
+      end
+    end
+    % Kollision Beinketten mit Plattform und Gestell
+    for k = 1:NLEG
+      for j = 1:NLEG
+        k_plf = R.I2L_LEG(k)-(k-1)-1;
+        j_base = R.I1L_LEG(j)-(j-1);
+        selfcollchecks_bodies = [selfcollchecks_bodies; ...
+          uint8([k_plf, j_base])]; %#ok<AGROW>
+        % fprintf(['Kollisionsprüfung (%d): Plattform-Körper zugeordnet zu ', ...
+        %   'Bein %d vs Gestell-Körper zugeordnet zu Bein %d. ', ...
+        %   'Zeile [%d,%d]\n'], size(selfcollchecks_bodies,1), k, j, ...
+        %   selfcollchecks_bodies(end,1), selfcollchecks_bodies(end,2));
+      end
+    end
   end
   
   % Debug: Namen der Körper für die Kollisionsprüfung anzeigen
@@ -929,12 +960,67 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     kk = 0;
     for ii1 = find(I1)'
       for ii2 = find(I2)'
+        % Prüfe, ob diese Kombination sinnvoll zu prüfen ist. Keine Prüfung
+        % von Gestellteilen gegen die Beinketten.
+        % TODO: Weitere Differenzierung sinnvoll, aber nicht akut notwendig.
+        if Structure.Type == 2
+          % Indizes der Körper, die zu Gestell (bzw. Beinketten-Basis-KS)
+          % oder Plattform (zugehörig zu letztem Beinketten-KS) gehören
+          I_base = R.I1L_LEG(1:NLEG)-((1:NLEG)'-1);
+          I_pl = R.I2L_LEG(1:NLEG)-((1:NLEG)'-1)-1;
+          % Finde heraus, ob einer der Kollisionskörper ein Gestellteil ist
+          % (siehe cds_update_collbodies zur Definition der Gestellteile)
+          c1_is_base = false;
+          if length(intersect(Structure.collbodies_robot.link(ii1,:)', I_base)) == 2 && ...
+              Structure.collbodies_robot.link(ii1,1) ~= Structure.collbodies_robot.link(ii1,2)
+            c1_is_base = true;
+          end
+          c2_is_base = false;
+          if length(intersect(Structure.collbodies_robot.link(ii2,:)', I_base)) == 2 && ...
+              Structure.collbodies_robot.link(ii2,1) ~= Structure.collbodies_robot.link(ii2,2)
+            c2_is_base = true;
+          end
+          % Finde heraus, ob einer der Kollisionskörper ein Plattformteil ist
+          % (siehe cds_update_collbodies zur Definition der Plattformteile)
+          c1_is_platform = false;
+          if length(intersect(Structure.collbodies_robot.link(ii1,:)', I_pl)) == 2 && ...
+              Structure.collbodies_robot.link(ii1,1) ~= Structure.collbodies_robot.link(ii1,2)
+            c1_is_platform = true;
+          end
+          c2_is_platform = false;
+          if length(intersect(Structure.collbodies_robot.link(ii2,:)', I_pl)) == 2 && ...
+              Structure.collbodies_robot.link(ii2,1) ~= Structure.collbodies_robot.link(ii2,2)
+            c2_is_platform = true;
+          end
+          if c1_is_platform && c2_is_platform
+            % Beide Körper sind Teil der Plattform, aber zwecks Implemen-
+            % tierung verschiedenen Beinketten zugeordnet. Keine Kollisions-
+            % prüfung notwendig.
+            continue
+          end
+          if c1_is_base && ~c2_is_platform || c2_is_base && ~c1_is_platform
+            % Ein Körper ist Teil des Gestells, der andere aber nicht Teil
+            % der Plattform. Überspringe die Prüfung. Hiermit vermiedene
+            % Fälle:
+            % * Gestell gegen Gestell: Kann keine Kollision sein, wird aber
+            %   als solche erkannt (z.B. da die Kapseln sich überlappen)
+            % * Beinkette gegen Gestell: Eine Kapsel verbindet zwei Gestell-
+            %   Koppelgelenke. Daher dabei immer Überlappung. Weitere
+            %   Prüfung wäre notwendig (z.B. ob Kollisionssegment nicht das
+            %   erste ist.
+            % * Gestell-Teil, dass der Basis-Zugeordnet ist (z.B. Führungs-
+            %   schiene einer Linearachse. Hier auch keine Prüfung gegen
+            %   kreisförmig modelliertes Gestell.
+            continue
+          end
+        end
         kk = kk + 1;
         CheckCombinations(kk,:) = [ii1,ii2];
         % fprintf('Kollisionsprüfung (%d): Koll.-körper %d (Seg. %d) vs Koll.-körper %d (Seg. %d).\n', ...
         %   i, ii1, Structure.collbodies_robot.link(ii1,1), ii2, Structure.collbodies_robot.link(ii2,1));
       end
     end
+    CheckCombinations = CheckCombinations(1:kk,:);
     if any(CheckCombinations(:,1)==CheckCombinations(:,2))
       error('CheckCombinations: Prüfung eines Körpers mit sich selbst ergibt keinen Sinn');
     end
