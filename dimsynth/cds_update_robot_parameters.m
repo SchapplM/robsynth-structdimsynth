@@ -14,15 +14,17 @@
 %   schrieben
 % 
 % Ausgabe:
-%   Roboter-Klasse mit aktualisierten Parametern
+% p_phys
+%   Parameter ohne Skalierung, so wie sie physikalisch eingetragen werden
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function R_neu = cds_update_robot_parameters(R, Set, Structure, p)
+function p_phys = cds_update_robot_parameters(R, Set, Structure, p)
 
 R_neu = R; % ohne copy-Befehl: Parameter werden direkt in Eingang geschrieben
 scale = p(1);
+p_phys = NaN(length(p),1);
 %% Parameter prüfen
 if scale == 0
   error('Roboterskalierung kann nicht Null werden');
@@ -60,6 +62,7 @@ if R_neu.Type == 0 || R_neu.Type == 2
   pkin_voll = R_pkin.pkin;
   j = 0;
   pkin_optvar = p(Structure.vartypes==1);
+  Ipkin = find(Structure.vartypes==1);
   for i = 1:length(pkin_voll)
     if ~Ipkinrel(i)
       continue
@@ -67,9 +70,11 @@ if R_neu.Type == 0 || R_neu.Type == 2
     j = j + 1; % Index für Kinematikparameter in den Optimierungsvariablen
     if R_pkin.pkin_types(i) == 1 || R_pkin.pkin_types(i) == 3 || R_pkin.pkin_types(i) == 5
       pkin_voll(i) = pkin_optvar(j);
+      p_phys(Ipkin(j)) = pkin_optvar(j);
     else
       % Längenparameter skaliert mit Roboter-Skalierungsfaktor
       pkin_voll(i) = pkin_optvar(j)*scale;
+      p_phys(Ipkin(j)) = pkin_optvar(j)*scale;
     end
   end
   if R_neu.Type == 0 % Seriell
@@ -87,6 +92,7 @@ end
 if Set.optimization.movebase
   % Die Parameter sind entweder relativ zur Aufgabe oder absolut definiert.
   p_basepos = p(Structure.vartypes == 2);
+  I_bp = find(Structure.vartypes == 2);
   r_W_0_neu = R.T_W_0(1:3,4);
   % xyz-Punktkoordinaten der Basis skaliert mit Referenzlänge
   % TODO: Klären, ob Roboter-Skalierungsfaktor für z-Koordinate doch besser wäre
@@ -106,6 +112,7 @@ if Set.optimization.movebase
       r_W_0_neu(i_xyz) = Structure.xT_mean(i_xyz) + ...
         p_basepos(p_idx)*Structure.Lref;
     end
+    p_phys(I_bp(p_idx)) = r_W_0_neu(i_xyz);
   end
   R_neu.update_base(r_W_0_neu);
 end
@@ -116,12 +123,14 @@ if any(Structure.vartypes == 3) % Set.optimization.ee_translation
   r_N_E_neu = zeros(3,1);
   % EE-Versatz skaliert mit Roboter-Skalierungsfaktor
   r_N_E_neu(Set.structures.DoF(1:3)) = p_eepos.*scale;
+  p_phys(Structure.vartypes == 3) = r_N_E_neu(Set.structures.DoF(1:3));
   R_neu.update_EE(r_N_E_neu);
 end
 
 %% EE-Rotation
 if Set.optimization.ee_rotation && any(Structure.vartypes == 4)
   p_eerot = p(Structure.vartypes == 4);
+  p_phys(Structure.vartypes == 4) = p_eerot;
   if sum(Set.structures.DoF(4:6)) == 1 % 2T1R -> Drehung um z-Achse
     % Die Drehung in Structure.R_N_E richtet die z-Achse nach oben
     if Structure.R_N_E_isset
@@ -165,6 +174,7 @@ if R_neu.Type == 2 && Set.optimization.base_size && any(Structure.vartypes == 6)
     % Setze den Fußpunkt-Radius skaliert mit Referenzlänge
     p_basepar(1) = p_baseradius*scale;
   end
+  p_phys(Structure.vartypes == 6) = p_basepar(1);
   changed_base = true;
 end
 
@@ -176,12 +186,15 @@ if R_neu.Type == 2 && Set.optimization.base_morphology && any(Structure.vartypes
   elseif R.DesPar.base_method == 4
     % Nur der Winkel der Kegel-Steigung ist der Morphologieparameter.
     p_basepar(2) = p(Structure.vartypes == 8);
+    p_phys(Structure.vartypes == 8) = p_basepar(2);
   elseif any(R.DesPar.base_method == 5:7)
     % Parameter ist der Paarabstand. Skaliert mit Robotergröße.
     p_basepar(2) = p(Structure.vartypes == 8).*p_basepar(1);
+    p_phys(Structure.vartypes == 8) = p_basepar(2);
   elseif R.DesPar.base_method == 8
     % Skalierung mit Basis-Radius und Winkel ohne Skalierung
     p_basepar(2:3) = p(Structure.vartypes == 8).*[p_basepar(1);1];
+    p_phys(Structure.vartypes == 8) = p_basepar(2:3);
   end
   changed_base = true;
 end
@@ -217,6 +230,7 @@ if R_neu.Type == 2 && Set.optimization.platform_size && any(Structure.vartypes =
     % Setze den Plattform-Radius skaliert mit Absolutwert des Gestell-Radius
     p_plfpar(1) = R_neu.DesPar.base_par(1)*p_pfradius;
   end
+  p_phys(Structure.vartypes == 7) = p_plfpar(1);
   changed_plf = true;
 end
 
@@ -226,6 +240,7 @@ if R_neu.Type == 2 && Set.optimization.platform_morphology && any(Structure.vart
   % Methoden und Parameter, siehe align_platform_coupling
   if R.DesPar.platform_method == 4
     p_plfpar(2) = p(Structure.vartypes == 9)*p_plfpar(1);
+    p_phys(Structure.vartypes == 9) = p_plfpar(2);
     changed_plf = true;
   end
 end

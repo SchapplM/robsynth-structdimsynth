@@ -26,7 +26,7 @@ resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
   'tmp', sprintf('%d_%s', Structure.Number, Structure.Name));
 % Finde die aktuelle Generation anhand der bisher gespeicherten
 % Fitness-Werte heraus. Benutze keine mat-Dateien, sondern persistente Var.
-PSO_Detail_Data = cds_save_particle_details([], [], 0, 0, NaN, NaN, NaN, 'output');
+PSO_Detail_Data = cds_save_particle_details([], [], 0, 0, NaN, NaN, NaN, NaN, 'output');
 if isempty(PSO_Detail_Data)
   % Die Speicherfunktion wurde nicht initialisiert. Voraussichtlich Aufruf
   % außerhalb der Maßsynthese. Bild-Speicherung sowieso nicht sinnvoll.

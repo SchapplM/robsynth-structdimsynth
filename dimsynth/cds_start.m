@@ -20,7 +20,11 @@ warning('off', 'Coder:MATLAB:rankDeficientMatrix');
 if ~exist('Set', 'var') || ~exist('Traj', 'var')
   error('Eingabevariablen des Startskriptes existieren nicht');
 end
-fprintf('Starte Maßsynthese %s\n', Set.optimization.optname);
+if ~Set.general.only_finish_aborted
+  fprintf('Starte Maßsynthese %s.\n', Set.optimization.optname);
+else
+  fprintf('Schließe die abgebrochene Maßsynthese %s ab.\n', Set.optimization.optname);
+end
 Set_default = cds_settings_defaults(struct('DoF', Set.structures.DoF));
 for subconf = fields(Set_default)'
   for ftmp = fields(Set.(subconf{1}))'
@@ -78,6 +82,10 @@ end
 if size(Set.task.obstacles.params,1) ~= length(Set.task.obstacles.type)
   error('Set.task.obstacles: Länge von Feldern params und type stimmt nicht überein');
 end
+if length(union(Set.optimization.desopt_vars, {'joint_stiffness_qref', ...
+    'linkstrength'})) ~= 2
+  error('Unerwarteter Wert in Set.optimization.desopt_vars');
+end
 % Prüfe das Namensformat von Robotern auf der Positiv-Liste
 for i = 1:length(Set.structures.whitelist)
   Name_i = Set.structures.whitelist{i};
@@ -101,14 +109,16 @@ if isempty(Structures)
 end
 
 %% Ergebnis-Speicherort vorbereiten
-resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
-mkdirs(resdir_main); % Ergebnis-Ordner für diese Optimierung erstellen
-% Einstellungen dieser kombinierten Synthese speichern. Damit ist im
-% Nachhinein nachvollziehbar, welche Roboter eventuell fehlen. Bereits hier
-% oben machen. Dann passt die Variable Structures auch für den Fall, dass
-% die Maßsynthese im folgenden Schritt aufgeteilt wird.
-save(fullfile(resdir_main, sprintf('%s_settings.mat', Set.optimization.optname)), ...
-  'Set', 'Traj', 'Structures');
+if ~Set.general.computing_cluster
+  resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
+  mkdirs(resdir_main); % Ergebnis-Ordner für diese Optimierung erstellen
+  % Einstellungen dieser kombinierten Synthese speichern. Damit ist im
+  % Nachhinein nachvollziehbar, welche Roboter eventuell fehlen. Bereits hier
+  % oben machen. Dann passt die Variable Structures auch für den Fall, dass
+  % die Maßsynthese im folgenden Schritt aufgeteilt wird.
+  save(fullfile(resdir_main, sprintf('%s_settings.mat', Set.optimization.optname)), ...
+    'Set', 'Traj', 'Structures');
+end
 % Verzeichnisse zum Laden alter Ergebnisse vorbereiten
 if Set.optimization.InitPopRatioOldResults > 0
   Set.optimization.result_dirs_for_init_pop = ...
@@ -193,8 +203,20 @@ if Set.general.computing_cluster
     fclose(fid);
     % Schätze die Rechenzeit: Im Mittel 2s pro Parametersatz aufgeteilt auf
     % 12 parallele Kerne, 30min für Bilderstellung und 6h Reserve/Allgemeines
-    comptime_est = (Set.optimization.NumIndividuals*(1+Set.optimization.MaxIter)* ...
-      2+30*60)*length(Set_cluster.structures.whitelist)/12 + 6*3600;
+    comptime_est = (Set.optimization.NumIndividuals*(1+Set.optimization.MaxIter)*2 + ...
+      30*60)*ceil(length(Set_cluster.structures.whitelist)/12) + 6*3600;
+    % Falls Entwurfsoptimierung durchgeführt wird, rechne dort auch noch
+    % mit 1s pro Partikel, durchschnittlich 20 Iterationen bei 10% aller
+    % Partikel aus der Maßsynthese.
+    if ~isempty(Set.optimization.desopt_vars)
+      npart = Set.optimization.NumIndividuals*(1+Set.optimization.MaxIter);
+      comptime_est = comptime_est + 0.1*npart*1*20;
+    end
+    if Set.general.only_finish_aborted || Set.general.regenerate_summmary_only
+      % Es wird keine Optimierung durchgeführt. Überschreibe die vorher
+      % berechnete Zeit (nur Bilderstellung).
+      comptime_est = ceil(length(Set_cluster.structures.whitelist)/12)*30*60;
+    end
     % Matlab-Skript auf Cluster starten.
     addpath(cluster_repo_path);
     jobStart(struct('name', computation_name, ...
@@ -204,6 +226,9 @@ if Set.general.computing_cluster
     fprintf(['Berechnung von %d Robotern wurde auf Cluster hochgeladen. Ende. ', ...
       'Die Ergebnisse müssen nach Beendigung der Rechnung manuell heruntergeladen ', ...
       'werden.\n'], length(Set_cluster.structures.whitelist));
+    if kk > 1 % Damit nicht alle exakt zeitgleich starten; exakt gleichzeitiger, ...
+      pause(30); % ... paralleler Start des parpools sowieso nicht möglich
+    end
   end
   if length(I1_Struct) > 1
     fprintf('Insgesamt %d Optimierungen mit in Summe %d Robotern hochgeladen\n',...
@@ -260,12 +285,26 @@ if ~isempty(Set.structures.whitelist)
   end
 end
 
-if Set.optimization.use_desopt ... 
-    && ~any(strcmp(Set.optimization.objective, {'mass', 'energy', 'stiffness'})) ...
-    && ~any(Set.optimization.constraint_obj([1 5]))
-  Set.optimization.use_desopt = false;
-  fprintf(['Entwurfsoptimierung wurde verlangt, aber keine dafür notwendigen ', ...
-    'Zielfunktionen oder Nebenbedingungen definiert. Wurde wieder deaktiviert\n']);
+if ~isempty(Set.optimization.desopt_vars)
+  valid_desopt = false;
+  % Zielfunktion oder Nebenbedingung basierend auf Dynamik und diese
+  % beeinflussende Entwurfsoptimierung
+  if any(strcmp(Set.optimization.desopt_vars, 'linkstrength')) && ...
+      (~isempty(intersect(Set.optimization.objective, {'mass', 'energy', ...
+      'stiffness', 'materialstress'})) || any(Set.optimization.constraint_obj([1 2 3 5 6])))
+    valid_desopt = true;
+  end
+  if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref')) && ...
+      Set.optimization.joint_stiffness_passive_revolute && ...
+      (~isempty(intersect(Set.optimization.objective, {'mass', 'energy', ...
+      'materialstress'})) || any(Set.optimization.constraint_obj([1 2 3 5 6])))
+    valid_desopt = true;
+  end
+  if ~valid_desopt
+    Set.optimization.desopt_vars = {};
+    fprintf(['Entwurfsoptimierung wurde verlangt, aber keine dafür notwendigen ', ...
+      'Zielfunktionen oder Nebenbedingungen definiert. Wurde wieder deaktiviert\n']);
+  end
 end
 % Optimierung der Strukturen durchführen
 if ~Set.general.regenerate_summmary_only

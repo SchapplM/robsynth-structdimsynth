@@ -483,8 +483,21 @@ if Set.optimization.constraint_collisions || ...
   [Structure.collbodies_robot, Structure.installspace_collbodies] = ...
     cds_update_collbodies(R, Set, Structure, Q);
 end
+%% Anpassung des Offsets für Schubgelenke
+% Siehe cds_constraints.m
+if Structure.desopt_prismaticoffset
+  [fval_coll_tmp, fval_instspc_tmp] = cds_desopt_prismaticoffset(R, ...
+    Traj_0.X, Set, Structure, JP, Q);
+  % Kollisionskörper müssen nochmal aktualisiert werden (wegen Offset)
+  [Structure.collbodies_robot, Structure.installspace_collbodies] = ...
+    cds_update_collbodies(R, Set, Structure, Q);
+else
+  fval_coll_tmp = NaN;
+  fval_instspc_tmp = NaN;
+end
 %% Selbstkollisionserkennung für Trajektorie
-if Set.optimization.constraint_collisions
+if Set.optimization.constraint_collisions && ...
+      (isnan(fval_coll_tmp) || fval_coll_tmp > 0)
   [fval_coll_traj, coll_traj] = cds_constr_collisions_self(R, Traj_0.X, ...
     Set, Structure, JP, Q, [3e3; 4e3]);
   if fval_coll_traj > 0
@@ -496,7 +509,8 @@ if Set.optimization.constraint_collisions
 end
 
 %% Bauraumprüfung für Trajektorie
-if ~isempty(Set.task.installspace.type)
+if ~isempty(Set.task.installspace.type) && ...
+      (isnan(fval_instspc_tmp) || fval_instspc_tmp > 0)
   [fval_instspc_traj, f_constrinstspc_traj] = cds_constr_installspace( ...
     R, Traj_0.X, Set, Structure, JP, Q, [2e3;3e3]);
   if fval_instspc_traj > 0

@@ -30,13 +30,20 @@
 %   1e3...1e4: Nebenbedingung von Zielfunktion überschritten
 %   1e4...1e5: Überschreitung Belastungsgrenze der Segmente
 %   1e8...1e9: Unplausible Eingabe (Radius vs Wandstärke)
+% physval_desopt
+%   Physikalische Entsprechung des für das Abbruchkriterium maßgeblichen
+%   Kennwertes. Beispielsweise relative Überlastung der Materialspannung
+%   oder der Antriebe. Entspricht dem Kriterium des Wertebereichs aus fval.
+% abort_fitnesscalc_retval
+%   Schalter für Abbruch der Berechnung, wenn alle gesetzten Grenzen
+%   erreicht werden.
 % 
 % Siehe auch: cds_fitness.m
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
-% (C) Institut für Mechatronische Systeme, Universität Hannover
+% (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function fval = cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn_reg, Structure, p_desopt)
+function [fval, physval_desopt, abort_fitnesscalc_retval] = cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn_reg, Structure, p_desopt)
 t1 = tic();
 % Debug:
 if Set.general.matfile_verbosity > 3
@@ -46,121 +53,250 @@ end
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt_fitness.mat'));
 
 fval = 0;
+physval_desopt = 0;
+fval_debugtext = '';
+% Abbruch prüfen
+persistent abort_fitnesscalc
+abort_fitnesscalc_retval = false;
+if isempty(abort_fitnesscalc)
+  abort_fitnesscalc = false;
+elseif abort_fitnesscalc
+  fval = Inf;
+  return;
+end
+vartypes = Structure.desopt_ptypes(Structure.desopt_ptypes~=1);
+p_ls = p_desopt(vartypes==2);
+p_js = p_desopt(vartypes==3);
 
 %% Plausibilität der Eingabe prüfen
-if p_desopt(1) > p_desopt(2)/2 % Wandstärke darf nicht größer als Radius sein
-  f_wall_vs_rad = (p_desopt(1) - p_desopt(2)/2)/p_desopt(2); % Grad der Überschreitung
+if any(vartypes==2) && p_ls(1) > p_ls(2)/2 % Wandstärke darf nicht größer als Radius sein
+  f_wall_vs_rad = (p_ls(1) - p_ls(2)/2)/p_ls(2); % Grad der Überschreitung
   f_wall_vs_rad_norm = 2/pi*atan(f_wall_vs_rad); % 50% -> 0.3
   fval = 1e8*(1+9*f_wall_vs_rad_norm); % Normierung auf 1e8...1e9
   constrvioltext = sprintf('Radius (%1.1fmm) ist kleiner als Wandstärke (%1.1fmm)', ...
-    1e3*p_desopt(2)/2, 1e3*p_desopt(1));
+    1e3*p_ls(2)/2, 1e3*p_ls(1));
 end
 
 %% Dynamikparameter aktualisieren
-% Trage die Dynamikparameter
-if fval == 0
-  cds_dimsynth_design(R, Q, Set, Structure, p_desopt);
+if any(vartypes==2) && fval == 0
+  cds_dimsynth_design(R, Q, Set, Structure, p_ls);
+end
+%% Gelenksteifigkeiten aktualisieren
+if any(vartypes==3)
+  for i = 1:R.NLEG
+    R.Leg(i).DesPar.joint_stiffness_qref(R.Leg(i).MDH.sigma==0) = p_js;
+  end
 end
 %% Dynamik neu berechnen
-if fval == 0 && Structure.calc_reg
+if fval == 0 && (Structure.calc_dyn_reg || Structure.calc_spring_reg)
   % Abhängigkeiten neu berechnen (Dynamik)
-  data_dyn = cds_obj_dependencies_regmult(R, data_dyn_reg);
-  if Set.general.debug_calc && Set.optimization.joint_stiffness_passive_revolute==0
+  data_dyn = cds_obj_dependencies_regmult(R, data_dyn_reg, Q);
+  if Set.general.debug_calc
     % Zu Testzwecken die Dynamik neu ohne Regressorform berechnen und mit
     % Regressor-Berechnung vergleichen
     Structure_tmp = Structure;
     Structure_tmp.calc_dyn_act = true;
-    Structure_tmp.calc_reg = false;
+    Structure_tmp.calc_dyn_reg = false;
+    if Set.optimization.joint_stiffness_passive_revolute
+      Structure_tmp.calc_spring_act = true;
+      Structure_tmp.calc_spring_reg = false;
+    end
     data_dyn2 = cds_obj_dependencies(R, Traj_0, Set, Structure_tmp, Q, QD, QDD, Jinv_ges);
     test_TAU = data_dyn2.TAU - data_dyn.TAU;
     if any(abs(test_TAU(:))>1e-8)
-      error('Antriebskräfte aus Regressorform stimmt nicht');
+      save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
+        sprintf('%d_%s', Structure.Number, Structure.Name), 'desopt_TAU_reprowarning.mat'));
+      error('Antriebskräfte aus Regressorform stimmt nicht. Fehler: %1.2e', max(abs(test_TAU(:))));
     end
     test_W = data_dyn2.Wges - data_dyn.Wges;
     if any(abs(test_W(:))>1e-8)
-      error('Schnittkräfte aus Regressorform stimmt nicht');
+      save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
+        sprintf('%d_%s', Structure.Number, Structure.Name), 'desopt_W_reprowarning.mat'));
+      error('Schnittkräfte aus Regressorform stimmt nicht. Fehler: %1.2e', max(abs(test_W(:))));
+    end
+    if any(Set.optimization.joint_stiffness_passive_revolute~=0)
+      if isfield(data_dyn2, 'TAU_spring') && isfield(data_dyn, 'TAU_spring')
+        test_TAU_spring = data_dyn2.TAU_spring - data_dyn.TAU_spring;
+        if any(abs(test_TAU_spring(:))>1e-8)
+          save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
+            sprintf('%d_%s', Structure.Number, Structure.Name), 'desopt_TAUspring_reprowarning.mat'));
+          error('Antriebskräfte für Gelenkfeder aus Regressorform stimmt nicht. Fehler: %1.2e', max(abs(test_TAU_spring(:))));
+        end
+      end
+      if isfield(data_dyn2, 'Wges_spring') && isfield(data_dyn, 'Wges_spring')
+        test_W_spring = data_dyn2.Wges_spring - data_dyn.Wges_spring;
+        if any(abs(test_W_spring(:))>1e-8)
+          save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
+            sprintf('%d_%s', Structure.Number, Structure.Name), 'desopt_Wspring_reprowarning.mat'));
+          error('Schnittkräfte für Gelenkfeder aus Regressorform stimmt nicht. Fehler: %1.2e', max(abs(test_W_spring(:))));
+        end
+      end
     end
   end
-end
-
-%% Nebenbedingungen der Entwurfsvariablen berechnen: Festigkeit der Segmente
-if fval == 0 && Set.optimization.constraint_obj(6) > 0
-  [fval, constrvioltext] = cds_constr_yieldstrength(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
 end
 
 %% Nebenbedingungen der Zielfunktionswerte berechnen
-if fval == 0 && any(Set.optimization.constraint_obj)
-  if Set.optimization.constraint_obj(1) % NB für Masse gesetzt
-    [fval_mass, fval_debugtext_mass, ~, fphys_m] = cds_obj_mass(R);
-    viol_rel_m = (fphys_m - Set.optimization.constraint_obj(1))/Set.optimization.constraint_obj(1);
-    if viol_rel_m > 0
-      f_massvio_norm = 2/pi*atan((viol_rel_m)); % 1->0.5; 10->0.94
-      fval = 1e3*(1+1*f_massvio_norm); % 1e3 ... 2e3
-      constrvioltext = sprintf('Masse ist zu groß (%1.1f > %1.1f)', ...
-        fphys_m, Set.optimization.constraint_obj(1));
-    end
+% Festigkeit der Segmente (mit höherem Strafterm)
+if fval == 0 && Set.optimization.constraint_obj(6)
+  [fval_ms, constrvioltext_ms, physval_materialstress] = cds_constr_yieldstrength(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
+  fval = fval_ms;
+  constrvioltext = constrvioltext_ms;
+  physval_desopt = physval_materialstress;
+end
+if fval == 0 && Set.optimization.constraint_obj(1) % NB für Masse gesetzt
+  [fval_mass, fval_debugtext_mass, ~, fphys_m] = cds_obj_mass(R);
+  physval_desopt = fphys_m / Set.optimization.constraint_obj(1);
+  viol_rel_m = physval_desopt - 1;
+  if viol_rel_m > 0 % Relative Überschreitung der Grenze für die Masse
+    f_massvio_norm = 2/pi*atan((viol_rel_m)); % 1->0.5; 10->0.94
+    fval = 1e3*(1+1*f_massvio_norm); % 1e3 ... 2e3
+    constrvioltext = sprintf('Masse ist zu groß (%1.1f > %1.1f)', ...
+      fphys_m, Set.optimization.constraint_obj(1));
   end
-  if fval == 0  && Set.optimization.constraint_obj(3) % NB für Antriebskraft gesetzt
-    [fval_actforce, fval_debugtext_actforce, ~, fphys_actforce] = cds_obj_actforce(data_dyn.TAU);
-    viol_rel_actforce = (fphys_actforce - Set.optimization.constraint_obj(3))/Set.optimization.constraint_obj(3);
-    if viol_rel_actforce > 0
-      f_actforcevio_norm = 2/pi*atan((viol_rel_actforce)); % 1->0.5; 10->0.94
-      fval = 1e3*(1+1*f_actforcevio_norm); % 2e3 ... 3e3
-      constrvioltext = sprintf('Antriebskraft ist zu groß (%1.1f > %1.1f)', ...
-        fphys_actforce, Set.optimization.constraint_obj(3));
-    end
+end
+if fval == 0  && Set.optimization.constraint_obj(3) % NB für Antriebskraft gesetzt
+  [fval_actforce, fval_debugtext_actforce, ~, fphys_actforce] = cds_obj_actforce(data_dyn.TAU);
+  physval_desopt = fphys_actforce / Set.optimization.constraint_obj(3);
+  viol_rel_actforce = physval_desopt - 1;
+  if viol_rel_actforce > 0 % Relative Überschreitung der Grenze für die Antriebskraft
+    f_actforcevio_norm = 2/pi*atan((viol_rel_actforce)); % 1->0.5; 10->0.94
+    fval = 1e3*(1+1*f_actforcevio_norm); % 2e3 ... 3e3
+    constrvioltext = sprintf('Antriebskraft ist zu groß (%1.1f > %1.1f)', ...
+      fphys_actforce, Set.optimization.constraint_obj(3));
   end
-  if fval == 0  && Set.optimization.constraint_obj(2) % NB für Energie gesetzt
-    error('Grenzen für Zielfunktionen Energie noch nicht implementiert');
-  end
-  if fval == 0  && Set.optimization.constraint_obj(5) % NB für Steifigkeit gesetzt
-    [fval_st, fval_debugtext_st, ~, fphys_st] = cds_obj_stiffness(R, Set, Q);
-    viol_rel_st = (fphys_st - Set.optimization.constraint_obj(5))/Set.optimization.constraint_obj(5);
-    if viol_rel_st > 0
-      f_stvio_norm = 2/pi*atan((viol_rel_st)); % 1->0.5; 10->0.94
-      fval = 1e3*(2+1*f_stvio_norm); % 3e3 ... 4e3
-      constrvioltext = sprintf('Nachgiebigkeit ist zu groß (%1.1f > %1.1f)', ...
-        fphys_st, Set.optimization.constraint_obj(5));
-    end
+end
+if fval == 0  && Set.optimization.constraint_obj(2) % NB für Energie gesetzt
+  error('Grenzen für Zielfunktionen Energie noch nicht implementiert');
+end
+if fval == 0  && Set.optimization.constraint_obj(5) % NB für Steifigkeit gesetzt
+  [fval_st, fval_debugtext_st, ~, fphys_st] = cds_obj_stiffness(R, Set, Q);
+  physval_desopt = fphys_st / Set.optimization.constraint_obj(5);
+  viol_rel_st = physval_desopt - 1;
+  if viol_rel_st > 0 % Relative Überschreitung der Nachgiebigkeit
+    f_stvio_norm = 2/pi*atan((viol_rel_st)); % 1->0.5; 10->0.94
+    fval = 1e3*(2+1*f_stvio_norm); % 3e3 ... 4e3
+    constrvioltext = sprintf('Nachgiebigkeit ist zu groß (%1.1f > %1.1f)', ...
+      fphys_st, Set.optimization.constraint_obj(5));
   end
 end
 if fval > 1000 % Nebenbedingungen verletzt.
   cds_log(4,sprintf('[desopt/fitness] DesOpt-Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval, constrvioltext));
-  return
 end
 
 %% Fitness-Wert berechnen
-if strcmp(Set.optimization.objective, 'mass')
+% Eintrag in Fitness-Wert für die äußere Optimierungsschleife in der
+% Maßsynthese. Nehme in dieser Optimierung nur ein Zielkriterium, auch wenn
+% die Maßsynthese mehrkriteriell ist. Fange mit den einfachen Kriterien an.
+fval_main = NaN(length(Set.optimization.objective),1);
+physval_main = NaN(length(Set.optimization.objective),1);
+abort_logtext = '';
+if fval > 1000
+  % Nichts machen. Materialspannung wurde schon verletzt. Gehe nur bis
+  % unten durch, um eventuell Debug-Plots zu zeichnen
+elseif any(strcmp(Set.optimization.objective, 'mass'))
   if Set.optimization.constraint_obj(1) % Vermeide doppelten Aufruf der Funktion
     fval = fval_mass; % Nehme Wert von der NB-Berechnung oben
     fval_debugtext = fval_debugtext_mass;
   else
-    [fval,fval_debugtext] = cds_obj_mass(R);
+    [fval, fval_debugtext, ~, fphys_m] = cds_obj_mass(R);
   end
-elseif strcmp(Set.optimization.objective, 'energy')
+  fval_main(strcmp(Set.optimization.objective, 'mass')) = fval;
+  physval_main(strcmp(Set.optimization.objective, 'mass')) = fphys_m;
+elseif any(strcmp(Set.optimization.objective, 'energy'))
   if Set.optimization.constraint_obj(2) % Vermeide doppelten Aufruf der Funktion
     fval = fval_energy; % Nehme Wert von der NB-Berechnung oben
     fval_debugtext = fval_debugtext_energy;
   else
-    [fval,fval_debugtext] = cds_obj_energy(R, Set, Structure, Traj_0, data_dyn.TAU, QD);
+    [fval,fval_debugtext,~,physval_en] = cds_obj_energy(R, Set, Structure, Traj_0, data_dyn.TAU, QD);
   end
-elseif strcmp(Set.optimization.objective, 'actforce')
+  fval_main(strcmp(Set.optimization.objective, 'energy')) = fval;
+  physval_main(strcmp(Set.optimization.objective, 'energy')) = physval_en;
+elseif any(strcmp(Set.optimization.objective, 'actforce'))
   if Set.optimization.constraint_obj(3) % Vermeide doppelten Aufruf der Funktion
     fval = fval_actforce; % Nehme Wert von der NB-Berechnung oben
     fval_debugtext = fval_debugtext_actforce;
   else
-    [fval,fval_debugtext] = cds_obj_actforce(data_dyn.TAU);
+    [fval, fval_debugtext, ~, fphys_actforce] = cds_obj_actforce(data_dyn.TAU);
   end
-elseif strcmp(Set.optimization.objective, 'stiffness')
+  fval_main(strcmp(Set.optimization.objective, 'actforce')) = fval;
+  physval_main(strcmp(Set.optimization.objective, 'actforce')) = fphys_actforce;
+elseif any(strcmp(Set.optimization.objective, 'stiffness'))
   if Set.optimization.constraint_obj(5) % Vermeide doppelten Aufruf der Funktion
     fval = fval_st; % Nehme Wert von der NB-Berechnung oben
     fval_debugtext = fval_debugtext_st;
   else
-    [fval,fval_debugtext] = cds_obj_stiffness(R, Set, Q);
+    [fval,fval_debugtext,~,fphys_st] = cds_obj_stiffness(R, Set, Q);
   end
+  fval_main(strcmp(Set.optimization.objective, 'stiffness')) = fval;
+  physval_main(strcmp(Set.optimization.objective, 'stiffness')) = fphys_st;
+elseif any(strcmp(Set.optimization.objective, 'materialstress'))
+  if Set.optimization.constraint_obj(6) % Vermeide doppelten Aufruf der Funktion
+    fval = fval_ms; % Nehme Wert von der NB-Berechnung oben
+    fval_debugtext = constrvioltext_ms;
+  else
+    [fval,fval_debugtext,~,physval_materialstress] = cds_obj_materialstress(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
+  end
+  fval_main(strcmp(Set.optimization.objective, 'materialstress')) = fval;
+  physval_main(strcmp(Set.optimization.objective, 'materialstress')) = physval_materialstress;
 else
-  error('Andere Zielfunktion noch nicht implementiert');
+  % Es wurde eine Dimensionierung gefunden, die alle Nebenbedingungen ein-
+  % hält. Keine Zielfunktion definiert, die jetzt noch profitieren würde.
+  abort_fitnesscalc = true;
+  abort_fitnesscalc_retval = true;
+  abort_logtext = ' Nebenbedingung erfüllt. Keine Zielfunktion für Entwurfsoptimierung.';
 end
-cds_log(4,sprintf('[desopt/fitness] DesOpt-Fitness-Evaluation in %1.1fs. Parameter: [%s]. fval=%1.3e. Erfolgreich. %s.', ...
-    toc(t1), disp_array(p_desopt', '%1.3f'), fval, fval_debugtext));
+% Prüfe, ob in Entwurfsoptimierung berechnete Zielfunktionen ihre Grenze
+% erreicht haben. Kinematik-bezogene Zielfunktionen werden hier nicht
+% aktualisiert und bleiben NaN, werden also dabei nicht betrachtet.
+if fval <= 1000 && (all(fval_main(~isnan(fval_main)) <= Set.optimization.obj_limit(~isnan(fval_main)) ) || ...
+   all(physval_main(~isnan(fval_main)) <= Set.optimization.obj_limit_physval(~isnan(fval_main))))
+  % Die Fitness-Funktion ist besser als die Grenze. Optimierung kann
+  % hiernach beendet werden.
+  abort_fitnesscalc = true;
+  abort_fitnesscalc_retval = true;
+  abort_logtext = ' Abbruchgrenze für Zielfunktion erreicht.';
+end
+if fval <= 1000
+  cds_log(4,sprintf(['[desopt/fitness] DesOpt-Fitness-Evaluation in %1.1fs. ', ...
+    'Parameter: [%s]. fval=%1.3e. Erfolgreich. %s %s'], toc(t1), ...
+    disp_array(p_desopt', '%1.3f'), fval, fval_debugtext, abort_logtext));
+end
+if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_details_in_desopt) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
+   Set.general.plot_details_in_desopt > 0 && fval <= abs(Set.general.plot_details_in_desopt) % Gütefunktion ist besser als Schwellwert: Zeichne
+  % Plotte die Antriebskraft, wenn die Feder-Ruhelagen optimiert werden
+  if any(vartypes==3)
+    change_current_figure(986);clf;
+    set(986, 'Name', 'DesOpt_ActForce', 'NumberTitle', 'off');
+    ntau = size(data_dyn.TAU_spring, 2);
+    units = reshape([R.Leg(:).tauunit_sci],R.NJ,1);
+    plotunits = units(R.I_qa);
+    for i = 1:ntau
+      subplot(ceil(sqrt(ntau)), ceil(ntau/ceil(sqrt(ntau))), i);
+      hold on; grid on;
+      plot(Traj_0.t, data_dyn.TAU_ID(:,i));
+      plot(Traj_0.t, data_dyn.TAU_spring(:,i));
+      plot(Traj_0.t, data_dyn.TAU(:,i));
+      ylabel(sprintf('\\tau_%d in %s', i, plotunits{i}));
+    end
+    legend({'ID', 'spring', 'total'});
+    sgtitle(sprintf('Antriebskraft in Entwurfsoptimierung. fval=%1.2e', fval));
+    drawnow();
+    
+    change_current_figure(987);clf;
+    set(987, 'Name', 'JointSpring_Angles', 'NumberTitle', 'off');
+    RP = ['R', 'P'];
+    for i = 1:R.NJ
+      legnum = find(i>=R.I1J_LEG, 1, 'last');
+      legjointnum = i-(R.I1J_LEG(legnum)-1);
+      subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
+      hold on; grid on;
+      hdl1=plot(Traj_0.t, Q(:,i));
+      hdl2=plot(Traj_0.t([1,end]), R.Leg(legnum).DesPar.joint_stiffness_qref(legjointnum)*[1;1]);
+      title(sprintf('q %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+      if i == R.NJ, legend([hdl1;hdl2], {'q','qref'}); end
+      if legjointnum == 1, ylabel(sprintf('Beinkette %d',legnum)); end
+    end
+    sgtitle(sprintf('Gelenkwinkel und Feder-Ruhelage. fval=%1.2e', fval));
+    linkxaxes
+  end
 end

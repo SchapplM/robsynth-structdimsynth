@@ -45,13 +45,18 @@ for i = 1:length(Structures)
   % Ergebnisse laden. Inhalt der Datei siehe cds_dimsynth_robot.m
   resfile1 = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', i, Name));
   resfile2 = fullfile(resmaindir, sprintf('Rob%d_%s_Details.mat', i, Name));
-  if ~exist(resfile1, 'file') || ~exist(resfile2, 'file')
+  if ~exist(resfile1, 'file') % Prüfe nicht die Detail-Ergebnisse resfile2. Geht auch ohne.
     warning('Ergebnis-Datei für Roboter %d/%d (%s) existiert nicht: %s oder %s', ...
-      i, length(Structures), Name, resfile1, resfile2);
+      i, length(Structures), Name, resfile1);
     continue
   end
   tmp1 = load(resfile1, 'RobotOptRes');
-  tmp2 = load(resfile2, 'RobotOptDetails', 'PSO_Detail_Data');
+  if exist(resfile2, 'file')
+    tmp2 = load(resfile2, 'RobotOptDetails', 'PSO_Detail_Data');
+  else
+    tmp2 = struct('PSO_Detail_Data', struct('fval_mean', NaN, 'comptime', NaN));
+  end
+  
   % Text zu Optimierungsergebnis (insbes. Ausschlussgrund). Siehe
   % cds_constraints, cds_constraints_traj, cds_fitness, cds_vis_results
   % Strafterme aus den NB-Funktionen werden in cds_fitness erhöht.

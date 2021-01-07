@@ -365,20 +365,40 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
            Structure.collbodies_robot.params(I_guidance,4:6)];
     % Max. Abstand aller Punkte der Führungsschiene von PKM-Basis (Maschinenmitte)
     r_base_eff = max((pts(:,1).^2 + pts(:,2).^2).^0.5);
-    % Um so viel ist der Radius zu groß (bezogen auf Grenze)
-    fval_rbase = r_base_eff/Set.optimization.base_size_limits(2)-1;
+    % Um so viel ist der Radius zu groß (bezogen auf Grenze). Die Grenze
+    % für das Gestell wird in diesem Fall noch vergrößert, da die Führungs-
+    % schienen nach oben abstehen.
+    fval_rbase = r_base_eff/(Set.optimization.base_size_limits(2) * ...
+      Set.optimization.base_tolerance_prismatic_guidance)-1;
     if fval_rbase > 0
-      constrvioltext_jic{jic} = sprintf('Gestell-Radius ist durch Schubachsen-Führungsschienen um %1.0f%% zu groß (%1.1fmm>%1.1fmm).', ...
-        100*fval_rbase, 1e3*r_base_eff, 1e3*Set.optimization.base_size_limits(2));
+      constrvioltext_jic{jic} = sprintf(['Gestell-Radius ist durch Schub', ...
+        'achsen-Führungsschienen um %1.0f%% zu groß (%1.1fmm>%1.1fmm).'], ...
+        100*fval_rbase, 1e3*r_base_eff, 1e3*1/((fval_rbase+1)/r_base_eff));
       fval_rbase_norm = 2/pi*atan(fval_rbase*3); % Normierung auf 0 bis 1; 100% zu groß ist 0.8
       fval = 1e5*(4+1*fval_rbase_norm); % Normierung auf 4e5 bis 5e5
       fval_jic(jic) = fval;
       if jic<length(fval_jic), continue; else, break; end
     end
   end
-
+  %% Anpassung des Offsets für Schubgelenke
+  % Hierdurch wird der Ort der Führungsschienen auf der Gelenkachse
+  % verschoben. Das beeinflusst sowohl die Bauraumprüfung, als auch die
+  % Prüfung auf Selbstkollision.
+  if Structure.desopt_prismaticoffset
+    % Bei Optimierung des Offsets wird auch bereits die Kollisionsprüfung
+    % durchgeführt und die Ergebnisse weiter unten genutzt.
+    [fval_coll_tmp, fval_instspc_tmp] = cds_desopt_prismaticoffset(R, ...
+      Traj_0.XE, Set, Structure, JPE, QE);
+    % Kollisionskörper müssen nochmal aktualisiert werden (wegen Offset)
+    [Structure.collbodies_robot, Structure.installspace_collbodies] = ...
+      cds_update_collbodies(R, Set, Structure, QE);
+  else
+    fval_coll_tmp = NaN; % Keine Berechnung durchgeführt ...
+    fval_instspc_tmp = NaN; % ... Erstmalige Berechnung unten erforderlich.
+  end
   %% Selbst-Kollisionsprüfung für Einzelpunkte
-  if Set.optimization.constraint_collisions
+  if Set.optimization.constraint_collisions && ...
+      (isnan(fval_coll_tmp) || fval_coll_tmp > 0) % nutze bereits vorliegende Daten
     [fval_coll, coll_self] = cds_constr_collisions_self(R, Traj_0.XE, Set, Structure, JPE, QE, [3e5;4e5]);
     if fval_coll > 0
       fval_jic(jic) = fval_coll; % Normierung auf 3e5 bis 4e5 bereits in Funktion
@@ -387,9 +407,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       if jic<length(fval_jic), continue; else, break; end
     end
   end
-
   %% Bauraumprüfung für Einzelpunkte
-  if ~isempty(Set.task.installspace.type)
+  if ~isempty(Set.task.installspace.type) && ...
+      (isnan(fval_instspc_tmp) || fval_instspc_tmp > 0) % nutze bereits vorliegende Daten
     [fval_instspc, f_constrinstspc] = cds_constr_installspace(R, Traj_0.XE, Set, Structure, JPE, QE, [2e5;3e5]);
     if fval_instspc > 0
       fval_jic(jic) = fval_instspc; % Normierung auf 2e5 bis 3e5 -> bereits in Funktion
@@ -404,7 +424,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     if fval_obstcoll > 0
       fval_jic(jic) = fval_obstcoll; % Normierung auf 1e5 bis 2e5 -> bereits in Funktion
       constrvioltext_jic{jic} = sprintf(['Arbeitsraum-Kollision in %d/%d AR-Eckwerten. ', ...
-        'Schlimmstenfalls %1.1f mm in Kollision.'], sum(any(coll_obst,2)), size(coll_obst,1), f_constr_obstcoll);
+        'Schlimmstenfalls %1.1f mm in Kollision.'], sum(any(coll_obst,2)), ...
+        size(coll_obst,1), 1e3*f_constr_obstcoll);
       if jic<length(fval_jic), continue; else, break; end
     end
   end

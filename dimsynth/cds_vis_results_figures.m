@@ -32,7 +32,11 @@ Traj_0 = cds_transform_traj(R, Traj);
 Name = RobData.Name;
 resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
 resrobdir = fullfile(resmaindir, sprintf('Rob%d_%s', RNr, Name));
-fval = RobotOptRes.fval_pareto(PNr,:)';
+if isempty(RobotOptRes.fval_pareto)
+  fval = RobotOptRes.fval;
+else
+  fval = RobotOptRes.fval_pareto(PNr,:)';
+end
 if all(fval > 1e3) % NB verletzt. Es gibt nur ein Kriterium
   fval_str = sprintf('%1.1e', fval(1));
 elseif length(fval) == 1 % Einkriteriell
@@ -103,7 +107,7 @@ for kk = 1:length(Set.general.animation_styles)
   if Set.task.profile == 0
     I_anim = 1:size(RobotOptDetails.Traj_Q,1); % Zeichne jeden Zeitschritt
   else
-    if Traj_0.t(end) > isinf(Set.general.maxduration_animation)
+    if Traj_0.t(end) > Set.general.maxduration_animation
       % Reduziere das Video auf die maximale Länge. Die Abtastrate ist 30Hz
       % Nehme das Verhältnis von Ist- und Soll-Zeit als Beschleunigungsfaktor
       % dieser vorgegebenen Abtastrate des Videos
@@ -244,7 +248,7 @@ if strcmp(figname, 'dynamics')
       Dyn_Plf_C(i,:) = R.coriolisvec2_platform(Q(i,:)', QD(i,:)', xP, xPD, JinvP);
       Dyn_Plf_G(i,:) = R.gravload2_platform(Q(i,:)', xP, JinvP);
       Dyn_Plf_A(i,:) = R.inertia2_platform(Q(i,:)', xP, JinvP)*xPDD(R.I_EE);
-      Dyn_Plf_S(i,:) = R.springtorque_platform(Q(i,:)', xP, JinvP);
+      Dyn_Plf_S(i,:) = R.jointtorque_platform(Q(i,:)', xP, R.springtorque(Q(i,:)'), JinvP);
       Dyn_Plf_Tau(i,:) = Dyn_Plf_S(i,:)' + R.invdyn2_platform(Q(i,:)', QD(i,:)', QDD(i,:)', xP, xPD, xPDD);
       % ...und auf Antriebe umrechnen.
       Dyn_C(i,:) = Jinv_qaD_sD' \ Dyn_Plf_C(i,:)';
@@ -366,4 +370,85 @@ if strcmp(figname, 'dynparvisu')
   saveas(fhdl,     fullfile(resrobdir, [fname, '.fig']));
   export_fig(fhdl, fullfile(resrobdir, [fname, '.png']));
   fprintf('Bild %s gespeichert: %s\n', fname, resrobdir);
+end
+%% Optimierungsparameter (über die Pareto-Front)
+if strcmp(figname, 'optpar')
+  fhdl = figure();clf;hold all;
+  set(fhdl, 'Name', sprintf('Rob%d_OptPar', RNr), 'NumberTitle', 'off', 'color','w');
+  if ~strcmp(get(fhdl, 'windowstyle'), 'docked')
+    set(fhdl,'units','normalized','outerposition',[0 0 1 1]);
+  end
+  % Konvertiere die normierten Optimierungsparameter nach physikalischen
+  % Parametern
+  p_val_pareto_phys = NaN(size(RobotOptRes.p_val_pareto));
+  for i = 1:size(RobotOptRes.p_val_pareto,1)
+    p_val_pareto_phys(i,:) = cds_update_robot_parameters(R, Set, ...
+      RobotOptRes.Structure, RobotOptRes.p_val_pareto(i,:)');
+  end
+  % Konvertiere die Parametergrenzen in der Optimierung. Nehme schon hier
+  % den Betrag, da sonst die kleine Skalierung mit dem negativem Vorzeichen
+  % die untere Grenze bildet.
+  varlim_phys = NaN(size(RobotOptRes.Structure.varlim'));
+  for i = 1:size(varlim_phys,1)
+    varlim_phys(i,:)= cds_update_robot_parameters(R, Set, ...
+      RobotOptRes.Structure, abs(RobotOptRes.Structure.varlim(:,i)));
+  end
+  % Nehme den Betrag der Parameter (einzig negativ können DH-Längen sein),
+  % das gleicht sich aber über die Kinematik aus
+  p_val_pareto_phys = abs(p_val_pareto_phys);
+  varlim_phys = abs(varlim_phys);
+  % Zeichne Subplots für alle Optimierungsparameter
+  varnames = RobotOptRes.Structure.varnames;
+  nrows = ceil(sqrt(length(varnames)-1));
+  ncols = ceil((length(varnames)-1)/nrows);
+  for i = 2:length(varnames)
+    subplot(nrows, ncols, i-1);hold on;
+    plot(p_val_pareto_phys(:,i));
+    plot([1;size(p_val_pareto_phys,1)], varlim_phys(1,i)*[1;1], 'r-');
+    plot([1;size(p_val_pareto_phys,1)], varlim_phys(2,i)*[1;1], 'r-');
+    ylabel(varnames{i}, 'interpreter', 'none'); grid on;
+    % Grenzen des Plots manuell setzen, damit die Parameter-Grenzen nicht
+    % die Plot-Grenzen definieren. Die Parameter-Grenzen können wegen der
+    % Skalierung sehr groß werden.
+    set(gca, 'ylim', minmax2(p_val_pareto_phys(:,i)')+0.05*...
+      diff(minmax2(p_val_pareto_phys(:,i)'))*[-1,1])
+  end
+  linkxaxes
+  sgtitle(sprintf('Rob.%d Opt.Par. (%s)', RNr, Name));
+  fname = sprintf('Rob%d_%s_OptPar', RNr, Name);
+  saveas(fhdl,     fullfile(resrobdir, [fname, '.fig']));
+  export_fig(fhdl, fullfile(resrobdir, [fname, '.png']));
+  fprintf('Bild %s gespeichert: %s\n', fname, resrobdir);
+end
+
+%% Animation der Gelenkfeder (Ruhelage bis Einbaulage)
+if strcmp(figname, 'springrestpos')
+  if RobData.Type ~= 2 % nur für PKM definiert.
+    error('Bild für Roboter-Typ nicht definiert');
+  end
+  % Erstelle eine Animation für das Einbauen der Feder. Beginnend in
+  % Ruhelage, endend in Startpose der Trajektorie
+  fhdl = figure();clf;hold all;
+  set(fhdl, 'Name', sprintf('Rob%d_P%d_federruhelage', RNr, PNr), ...
+    'NumberTitle', 'off', 'color','w');
+  if ~strcmp(get(fhdl, 'windowstyle'), 'docked')
+    set(fhdl,'units','normalized','outerposition',[0 0 1 1]);
+  end
+  title(sprintf('Rob.%d, P.%d %s Gelenkelastizität', RNr, PNr, Name));
+  view(3); axis auto; hold on; grid on;
+  xlabel('x in m');ylabel('y in m');zlabel('z in m');
+  plot3(Traj.X(:,1), Traj.X(:,2),Traj.X(:,3), 'k-');
+  s_anim = struct('mp4_name', fullfile(resrobdir, ...
+      sprintf('Rob%d_%s_P%d_FederRuhelage_Anim.mp4', RNr, Name, PNr)));
+  s_plot = struct( 'ks_legs', [], 'straight', 1, 'mode', 1);
+  % Trajektorie erzeugen.
+  q_start = RobotOptDetails.Traj_Q(1,:)'; q_end = q_start;
+  for i = 1:R.NLEG
+    q_start([false(R.I1J_LEG(i)-1,1);R.Leg(i).MDH.sigma==0]) = R.Leg(i).DesPar.joint_stiffness_qref(R.Leg(i).MDH.sigma==0);
+  end
+  [Q_ges,~,~,T_ges] = traj_trapez2_multipoint([q_start';q_end'], 1, 0.05, 0.01, 0.005, 0);
+  % Video auf Länge 10s bringen
+  t_Vid = (0:1/30*(T_ges(end)/10):T_ges(end))';
+  I_anim = knnsearch( T_ges, t_Vid ); % Indizes für gewünschte Länge
+  R.anim( Q_ges(I_anim,:), repmat(Traj_0.X(1,:),length(I_anim),1), s_anim, s_plot);
 end

@@ -34,6 +34,7 @@
 % * Dynamik-Komponenten in Plattform-KS
 % Bilder für alle Roboter:
 % * Pareto-Front mit physikalischen Werten und normierten Werten der Zielf.
+%   ('pareto_all_phys', 'pareto_all_fval')
 % 
 % Speichert die Bilder für jeden Roboter in einem eigenen Unterordner
 
@@ -95,12 +96,28 @@ for jj = 1:length(Set.optimization.objective)
     error('Zielfunktion %s nicht vorgesehen', Set.optimization.objective{jj});
   end
 end
+
+length_Structures = length(Structures);
+% Prüfe, ob überhaupt roboterspezifische Plots erzeugt werden sollen
+length_Structures_parfor = length_Structures;
+if isempty(Set.general.animation_styles) && isempty(setdiff( ...
+    Set.general.eval_figures, {'pareto_all_fval','pareto_all_phys'}))
+  length_Structures_parfor = 0;
+end
 %% Parallele Durchführung der Plots vorbereiten
-if Set.general.parcomp_plot
-  try %#ok<TRYNC>
-    parpool(Set.general.parcomp_maxworkers);
+if Set.general.parcomp_plot && length_Structures_parfor > 0
+  if Set.general.isoncluster % auf Cluster möglicher Zugriffskonflikt für ParPool
+    parpool_writelock('lock', 180, true); % Synchronisationsmittel für ParPool
+  end
+  try
+    parpool([1 Set.general.parcomp_maxworkers]);
+  catch err
+    fprintf('Fehler beim Starten des parpool: %s\n', err.message);
   end
   Pool=gcp();
+  if Set.general.isoncluster
+    parpool_writelock('free', 0, true);
+  end
   parfor_numworkers = Pool.NumWorkers;
   if ~isinf(Set.general.parcomp_maxworkers) && parfor_numworkers ~= Set.general.parcomp_maxworkers
     warning('Die gewünschte Zahl von %d Parallelinstanzen konnte nicht erfüllt werden. Es sind jetzt %d.', ...
@@ -112,8 +129,8 @@ else
   parfor_numworkers = 0;
 end
 %% Ergebnisse für jeden Roboter plotten
-length_Structures = length(Structures);
-parfor (i = 1:length_Structures, parfor_numworkers)
+
+parfor (i = 1:length_Structures_parfor, parfor_numworkers)
   t_start_i = tic();
   %% Initialisierung der Ergebnisse dieser Struktur
   % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_vis_results2.mat'));
@@ -403,6 +420,10 @@ end
 %% Erzeuge Pareto-Diagramme für alle Roboter (2D)
 if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriterien gleichzeitig nicht sinnvoll
   for pffig = 1:2 % Zwei Bilder: Physikalische Werte und normierte Werte
+  if pffig == 1 && ~any(strcmp(Set.general.eval_figures, 'pareto_all_phys')) || ...
+     pffig == 2 && ~any(strcmp(Set.general.eval_figures, 'pareto_all_fval'))
+    continue
+  end
   if pffig == 1, name_suffix = 'phys';
   else,          name_suffix = 'fval'; end
   change_current_figure(10+pffig); clf; hold on; grid on;
@@ -419,6 +440,11 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     % Lade Ergebnisse Für Roboter i
     Name = Structures{i}.Name;
     resfile1 = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', i, Name));
+    if ~exist(resfile1, 'file')
+      warning('Ergebnis-Datei für Roboter %d/%d (%s) existiert nicht: %s', ...
+        i, length_Structures, Name, resfile1);
+      continue
+    end
     tmp1 = load(resfile1, 'RobotOptRes');
     RobotOptRes = tmp1.RobotOptRes;
     if any(RobotOptRes.fval > 1e3)
@@ -469,11 +495,11 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   end
   if length(Set.optimization.objective) == 2
     if pffig == 1
-      title(sprintf('Pareto-Front %s vs %s (Fitness-Werte physikalisch)', ...
-        Set.optimization.objective{1}, Set.optimization.objective{2}));
+      title(sprintf('%s: %s vs %s (physikalisch)', Set.optimization.optname, ...
+        Set.optimization.objective{1}, Set.optimization.objective{2}), 'interpreter', 'none');
     else
-      title(sprintf('Pareto-Front %s vs %s (Fitness-Werte normiert)', ...
-        Set.optimization.objective{1}, Set.optimization.objective{2}));
+      title(sprintf('%s: %s vs %s (normiert)', Set.optimization.optname, ...
+        Set.optimization.objective{1}, Set.optimization.objective{2}), 'interpreter', 'none');
     end
   else
     if pffig == 1
@@ -482,23 +508,30 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
       zlabel(sprintf('%s (normiert)', Set.optimization.objective{3}));
     end
     if pffig == 1
-      title(sprintf('Pareto-Front %s vs %s vs %s (Fitness-Werte physikalisch)', ...
-        Set.optimization.objective{1}, Set.optimization.objective{2}, Set.optimization.objective{3}));
+      title(sprintf('%s: %s vs %s vs %s (physikalisch)', ...
+        Set.optimization.optname, Set.optimization.objective{1}, ...
+        Set.optimization.objective{2}, Set.optimization.objective{3}), 'interpreter', 'none');
     else
-      title(sprintf('Pareto-Front %s vs %s vs %s (Fitness-Werte normiert)', ...
-        Set.optimization.objective{1}, Set.optimization.objective{2}, Set.optimization.objective{3}));
+      title(sprintf('%s: %s vs %s vs %s (normiert)', ...
+        Set.optimization.optname, Set.optimization.objective{1}, ...
+        Set.optimization.objective{2}, Set.optimization.objective{3}), 'interpreter', 'none');
     end
   end
   legend(leghdl, legstr);
   % PNG-Export bereits hier, da Probleme mit uicontrol.
   export_fig(10+pffig, fullfile(resmaindir, sprintf('Pareto_Gesamt_%s.png',name_suffix)));
   % Auswahlmenü für eine nachträglich zu plottende Auswertung. Wird in der
-  % ButtonDownFcn bei Klicken auf einen Pareto-Punkt ausgelesen.
+  % ButtonDownFcn (cds_paretoplot_buttondownfcn) bei Klicken auf einen
+  % Pareto-Punkt ausgelesen.
+  menuitems = {'Visualisierung', 'Parameter', 'Kinematik', 'Animation', ...
+    'Dynamik', 'Dynamikparameter'};
+  if Set.optimization.joint_stiffness_passive_revolute
+    menuitems = [menuitems, 'Feder-Ruhelage']; %#ok<AGROW>
+  end
   uicontrol('Style', 'popupmenu', ...
-            'String', {'Visualisierung', 'Kinematik', 'Animation', ...
-                       'Dynamik', 'Dynamikparameter'}, ...
+            'String', menuitems, ...
             'Units', 'pixels', ...
             'Position', [10, 30, 120, 24]);
-  saveas(10+pffig,     fullfile(resmaindir, sprintf('Pareto_Gesamt_%s.fig',name_suffix)));
+  saveas(10+pffig, fullfile(resmaindir, sprintf('Pareto_Gesamt_%s.fig',name_suffix)));
   end
 end

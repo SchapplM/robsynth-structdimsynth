@@ -36,16 +36,22 @@ fighdl = get(axhdl, 'Parent');
 uihdl = findobj(fighdl, 'Type', 'UIControl');
 Selection = get(uihdl, 'Value');
 SelStr = get(uihdl,'String');
-fprintf('Starte Vorbereitung und Plot für %s/%s (Rob. %d) "%s"\n', ...
-  OptName, RobName, RobNr, SelStr{Selection});
+fprintf('[%s] Starte Vorbereitung und Plot für %s/%s (Rob. %d) "%s"\n', ...
+  datestr(now(),'yyyymmdd_HHMMSS'), OptName, RobName, RobNr, SelStr{Selection});
 %% Lade die Daten
-% Suche die Optimierung im Datenordner. Nehme nicht den abgespeicherten
-% Pfad aus der Ergebnis-Datei, da der absolute Pfad auf dem Cluster anders
-% ist.
-resdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), 'results');
-resdir_opt = fullfile(resdir, OptName);
-if ~exist(resdir_opt, 'file')
-  warning('Ergebnis-Ordner %s existiert nicht.', resdir_opt);
+% Benutze den Ordner als Speicherort der Daten, in dem auch das Bild liegt.
+resdir_opt = fileparts(get(fighdl, 'FileName'));
+if isempty(resdir_opt)
+  % Das Bild wurde eventuell gerade erst gezeichnet und daher ist kein
+  % Dateiname abgespeichert. Suche den Ordner der Ergebnisse.
+  resdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), 'results');
+  resdir_opt = fullfile(resdir, OptName);
+  if ~exist(resdir_opt, 'file')
+    warning('Automatisch ermittelter Ergebnis-Ordner %s existiert nicht. Abbruch.', resdir_opt);
+    return
+  end
+elseif ~exist(resdir_opt, 'file')
+  warning('Ergebnis-Ordner %s existiert nicht, obwohl Bild von dort geladen wurde. Abbruch.', resdir_opt);
   return
 end
 resfile1 = fullfile(resdir_opt, sprintf('Rob%d_%s_Endergebnis.mat', ...
@@ -80,8 +86,14 @@ Structure = d3.Structures{RobNr};
 % Ergebnistabelle laden
 restabfile = fullfile(resdir_opt, sprintf('%s_results_table.csv', OptName));
 ResTab = readtable(restabfile, 'Delimiter', ';');
-% Ergebnis-Ordner lokal überschreiben
-Set.Set.optimization.resdir = resdir;
+% Ergebnis-Ordner lokal überschreiben (da neue Bilder gespeichert werden).
+[resdir_tmp, optfolder] = fileparts(resdir_opt);
+if ~strcmp(optfolder, OptName)
+  error(['Der Ordnername der Optimierung heißt lokal anders, als in der ', ...
+    'Datei: %s vs %s. Das gibt Probleme beim Speichern der Bilder. Abbruch.'], ...
+    optfolder, OptName);
+end
+Set.optimization.resdir = resdir_tmp;
 
 %% Bestimme die Nummer des Pareto-Partikels
 % Annahme: Hier nicht bekannt, ob fval- oder physval-Pareto-Diagramm.
@@ -112,10 +124,27 @@ end
 % Berechne die Fitness-Funktionen
 clear cds_save_particle_details cds_fitness cds_log
 p = RobotOptRes.p_val_pareto(PNr,:)';
-if isempty(RobotOptDetails)
-  % Falls nur die reduzierten Ergebnis-Daten vorliegen
+p_desopt = RobotOptRes.desopt_pval_pareto(PNr,:)';
+if any(isnan(p_desopt))
+  warning('Ergebnisse für die Entwurfsoptimierung sind NaN.');
+  p_desopt = [];
+end
+if isempty(RobotOptDetails) || ~isempty(p_desopt)
+  % Falls nur die reduzierten Ergebnis-Daten vorliegen oder die Ergebnisse
+  % der Entwurfsoptimierung direkt eingetragen werden sollen. Vermeide die
+  % erneute Durchführung der Entwurfsoptimierung, falls diese gemacht wurde.
   [R, Structure] = cds_dimsynth_robot(Set, Traj, Structure, true);
-  [fval2, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure,p);
+  if isempty(p_desopt)
+    [fval2, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure,p);
+  else
+    % Keine erneute Entwurfsoptimierung, also auch keine Regressorform notwendig.
+    % Direkte Berechnung der Dynamik, falls für Zielfunktion notwendig.
+    Structure.calc_dyn_act = Structure.calc_dyn_act | Structure.calc_dyn_reg;
+    Structure.calc_spring_act = Structure.calc_spring_act | Structure.calc_spring_reg;
+    Structure.calc_spring_reg = false;
+    Structure.calc_dyn_reg = false;
+    [fval2, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure,p,p_desopt);
+  end
 else
   % Alternative Berechnung (erfordert Laden der Detail-Daten).
   % Hier ist die Reproduktion der Zielfunktion besser möglich, da Anfangs-
@@ -139,6 +168,10 @@ if strcmp(SelStr(Selection), 'Visualisierung')
   cds_vis_results_figures('robvisu', Set, Traj, RobData, ResTab, ...
     RobotOptRes, RobotOptDetails);
 end
+if strcmp(SelStr(Selection), 'Parameter')
+  cds_vis_results_figures('optpar', Set, Traj, RobData, ResTab, ...
+    RobotOptRes, RobotOptDetails);
+end
 if strcmp(SelStr(Selection), 'Kinematik')
   cds_vis_results_figures('jointtraj', Set, Traj, RobData, ResTab, ...
     RobotOptRes, RobotOptDetails);
@@ -156,6 +189,10 @@ if strcmp(SelStr(Selection), 'Dynamik')
 end
 if strcmp(SelStr(Selection), 'Dynamikparameter')
   cds_vis_results_figures('dynparvisu', Set, Traj, RobData, ResTab, ...
+    RobotOptRes, RobotOptDetails);
+end
+if strcmp(SelStr(Selection), 'Feder-Ruhelage')
+  cds_vis_results_figures('springrestpos', Set, Traj, RobData, ResTab, ...
     RobotOptRes, RobotOptDetails);
 end
 fprintf('Bilder gezeichnet. Dauer: %1.1fs zur Vorbereitung, %1.1fs zum Zeichnen.\n', ...

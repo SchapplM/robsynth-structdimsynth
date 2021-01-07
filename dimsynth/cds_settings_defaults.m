@@ -40,10 +40,11 @@ general = struct( ...
   'animation_styles', {{'stick'}}, ... % Visualisierungsarten im Video: stick,3D,collision; bei mehr als einem: Syntax {{'1.','2.'}}
   'maxduration_animation', 10, ... % Die Animation soll max. 10s dauern (als Videodatei)
   'save_evolution_video', false, ... % Video mit Evolution der Roboter
-  'max_retry_bestfitness_reconstruction', 10, ...
+  'max_retry_bestfitness_reconstruction', 2, ... % Anzahl Neuversuche zur Reproduktion. 2 reichen zur Prüfung, ob Wiederholbarkeit da ist.
   'regenerate_summmary_only', false, ... % Nur die Videos und Zusammenfassungsbilder neu generieren. Keine Optimierung durchführen.
+  'only_finish_aborted', false, ... % Führe keine Optimierung durch, sondern werte abgebrochene vorherige Optimierungen aus
   'nosummary', false, ... % Kompletter Verzicht auf die graphische Endauswertung
-  'eval_figures', {{'histogram', 'fitness_various', 'jointtraj', 'robvisuanim'}}, ... % Liste der zu erstellenden Bilder. Auswahl, siehe cds_vis_results.m
+  'eval_figures', {{'histogram', 'fitness_various', 'jointtraj', 'robvisuanim', 'pareto_all_phys', 'pareto_all_fval'}}, ... % Liste der zu erstellenden Bilder. Auswahl, siehe cds_vis_results.m
   'only_save_summary_figures', true, ... % Bilderzeugung dient hauptsächlich der Speicherung. Schließe alle Bilder nach Speicherung
   'noprogressfigure', false, ... % Verzicht auf Fortschritts-Bild des PSO
   'debug_calc', false, ... % Doppelte Berechnung zur Prüfung von Funktionen
@@ -97,6 +98,7 @@ optimization = struct( ...
   'ee_rotation', true, ... % Freie Rotation des EE
   'base_size', true, ... % Größe des Gestells
   'base_size_limits', [NaN, NaN], ... % Grenzen für Gestell-Größe (Radius; Absolut)
+  'base_tolerance_prismatic_guidance', 1.0, ... % Erhöhte Toleranz für das Überstehen von Schubgelenk-Führungsschienen
   'platform_size', true, ... % Größe der Plattform
   'platform_size_limits', [NaN, NaN], ... % Grenzen für Plattform-Größe (Radius; Absolut)
   'base_morphology', false, ... % Aussehen des Gestells (z.B. Schrägheit, Gelenkpaarabstand)
@@ -109,7 +111,7 @@ optimization = struct( ...
   'max_velocity_passive_revolute', 20, ... % [rad/s] Maximale Drehgeschw. (zur Singularitätsvermeidung)
   'max_velocity_active_revolute', 8, ... % [rad/s] Maximale Drehgeschw. (zur Singularitätsvermeidung)
   'max_velocity_active_prismatic', 5, ... % [m/s] Maximale Geschw. (zur Singularitätsvermeidung)
-  'use_desopt', false, ... % Schalter für eigene Optimierung der Entwurfsparameter
+  'desopt_vars', {{}}, ... % Variablen für eigene Optimierung der Entwurfsparameter. Möglich: "linkstrength", "joint_stiffness_qref"
   'safety_link_yieldstrength', 1, ... % Sicherheitsfaktor für Streckgrenze der Segmente als Nebenbedingung. Berechnung gesteuert über constraint_obj(6)
   'constraint_collisions', false, ... Schalter für Kollisionsprüfung
   'obj_limit', 0, ... % Grenze des Fitness-Wertes zum Beenden der Simulation
