@@ -807,14 +807,6 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       end
     end
   end % k-loop (NLEG)
-  % Roboter-Kollisionsobjekte in Struktur abspeichern (zum Abruf in den
-  % Funktionen cds_constr_collisions_... und cds_constr_installspace
-  % Ist erstmal nur Platzhalter. Wird zur Laufzeit noch aktualisiert.
-  Structure.collbodies_robot = cds_update_collbodies(R, Set, Structure, Structure.qlim');
-  % Probe: Sind Daten konsistent? Inkonsistenz durch obigem Aufruf möglich.
-  if any(any(~isnan(Structure.collbodies_robot.params(Structure.collbodies_robot.type==6,2:end))))
-    error('Inkonsistente Kollisionsdaten: Kapsel-Direktverbindung hat zu viele Parameter');
-  end
   % Vorgänger-Indizes für Segmente für die Kollisionsprüfung abspeichern.
   % Unterscheidet sich von normaler MDH-Notation dadurch, dass alle
   % Beinketten-Basis-KS enthalten sind und die Basis ihr eigener Vorgänger
@@ -831,6 +823,15 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     end
   end
   Structure.MDH_ante_collcheck = v;
+  
+  % Roboter-Kollisionsobjekte in Struktur abspeichern (zum Abruf in den
+  % Funktionen cds_constr_collisions_... und cds_constr_installspace
+  % Ist erstmal nur Platzhalter. Wird zur Laufzeit noch aktualisiert.
+  Structure.collbodies_robot = cds_update_collbodies(R, Set, Structure, Structure.qlim');
+  % Probe: Sind Daten konsistent? Inkonsistenz durch obigem Aufruf möglich.
+  if any(any(~isnan(Structure.collbodies_robot.params(Structure.collbodies_robot.type==6,2:end))))
+    error('Inkonsistente Kollisionsdaten: Kapsel-Direktverbindung hat zu viele Parameter');
+  end
   
   % Starrkörper-Kollisionsprüfung für PKM erweitern
   if Structure.Type == 2  % PKM
@@ -863,6 +864,46 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     end
     % TODO: Kollision Beinketten mit Plattform und Gestell
   end
+  
+  % Debug: Namen der Körper für die Kollisionsprüfung anzeigen
+  % (unterscheidet sich von den Kollisionskörpern, den Körpern zugeordnet)
+  if false
+    if Structure.Type == 0   %#ok<UNRCH>
+      names_collbodies = cell(R.NL,1);
+      names_collbodies{1} = 'Base';
+      for k = 2:R.NL
+        names_collbodies{k} = sprintf('Link %d', k-1);
+      end
+    else % PKM
+      names_collbodies = cell(R.I2L_LEG(end)-R.NLEG,1);
+      names_collbodies{1} = 'Base';
+      i = 1;
+      for k = 1:NLEG
+        i = i + 1;
+        names_collbodies{i} = sprintf('Leg %d Base', k);
+        for j = 1:R.Leg(1).NL-1
+          i = i + 1;
+          names_collbodies{i} = sprintf('Leg %d Link %d', k, j);
+        end
+      end
+    end
+    fprintf('Liste der Körper:\n');
+    for i = 1:length(names_collbodies)
+      fprintf('%d - %s\n', i-1, names_collbodies{i});
+    end
+  end
+  % Prüfe die zusammengestellten Kollisionskörper. Die höchste Nummer
+  % (Null-indiziert) ist durch die Roboterstruktur vorgegeben.
+  if Structure.Type == 0
+    Nmax = R.NL-1;
+  else
+    Nmax = R.I2L_LEG(end)-(R.NLEG-1)-1;
+  end
+  if any(Structure.collbodies_robot.link(:) > Nmax)
+    error(['Ungültige Kollisionskörper. Maximaler Index %d in Structure.', ...
+      'collbodies_robot.link überschritten'], Nmax);
+  end
+  
   if isempty(selfcollchecks_bodies)
     cds_log(-1, sprintf(['[dimsynth] Es sind keine Kollisionskörpern eingetragen, ', ...
       'obwohl Kollisionen geprüft werden sollen.']));
@@ -877,8 +918,8 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   for i = 1:size(selfcollchecks_bodies,1)
     % Finde die Indizes aller Ersatzkörper der zu prüfenden Starrkörper
     % (es kann auch mehrere Ersatzkörper für einen Starrkörper geben)
-    I1 = selfcollchecks_bodies(i,1) == Structure.collbodies_robot.link;
-    I2 = selfcollchecks_bodies(i,2) == Structure.collbodies_robot.link;
+    I1 = selfcollchecks_bodies(i,1) == Structure.collbodies_robot.link(:,1);
+    I2 = selfcollchecks_bodies(i,2) == Structure.collbodies_robot.link(:,1);
     CheckCombinations = NaN(sum(I1)*sum(I2),2);
     if sum(I1) == 0 || sum(I2) == 0
       % Die Kollision der Starrkörper soll geprüft werden, es sind aber gar
@@ -891,7 +932,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         kk = kk + 1;
         CheckCombinations(kk,:) = [ii1,ii2];
         % fprintf('Kollisionsprüfung (%d): Koll.-körper %d (Seg. %d) vs Koll.-körper %d (Seg. %d).\n', ...
-        %   i, ii1, Structure.collbodies_robot.link(ii1), ii2, Structure.collbodies_robot.link(ii2));
+        %   i, ii1, Structure.collbodies_robot.link(ii1,1), ii2, Structure.collbodies_robot.link(ii2,1));
       end
     end
     if any(CheckCombinations(:,1)==CheckCombinations(:,2))
@@ -900,6 +941,16 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     % Eintragen in Gesamt-Liste
     Structure.selfcollchecks_collbodies = ...
       uint8([Structure.selfcollchecks_collbodies; CheckCombinations]);
+  end
+  % Debug: Liste der Kollisionsprüfungen anzeigen
+  if false
+    fprintf('Liste der Kollisionsprüfungen (der Kollisionskörper):\n');   %#ok<UNRCH>
+    for i = 1:size(Structure.selfcollchecks_collbodies,1)
+      fprintf('%d - collbodies %d vs %d (links %d vs %d)\n', i, ...
+        Structure.selfcollchecks_collbodies(i,1), Structure.selfcollchecks_collbodies(i,2), ...
+        Structure.collbodies_robot.link(Structure.selfcollchecks_collbodies(i,1),1), ...
+        Structure.collbodies_robot.link(Structure.selfcollchecks_collbodies(i,2),1));
+    end
   end
   if isempty(Structure.selfcollchecks_collbodies)
     cds_log(-1, sprintf(['[dimsynth] Es sind keine Prüfungen von Kollisions', ...
@@ -942,12 +993,14 @@ if ~isempty(Set.task.installspace.type)
       collbodies_instspc.type = [collbodies_instspc.type; repmat(uint8(14),2,1)];
       collbodies_instspc.params = [collbodies_instspc.params; NaN(2,10)];
       % Führungsschiene/Führungszylinder ist vorherigem Segment zugeordnet
-      collbodies_instspc.link = [collbodies_instspc.link; repmat(NLoffset+uint8(i-1),2,1)];
+      links_i = repmat(NLoffset+uint8(i-1),2,1);
+      collbodies_instspc.link = [collbodies_instspc.link; [links_i, v(1+links_i)]];
     end
     % Hänge einen Punkt (Nr. 9) für jedes Gelenk an. Unabhängig, ob 3D-Körper dafür
     collbodies_instspc.type = [collbodies_instspc.type; repmat(uint8(9),R_cc.NJ,1)];
     collbodies_instspc.params = [collbodies_instspc.params; NaN(R_cc.NJ,10)];
-    collbodies_instspc.link = [collbodies_instspc.link; uint8(NLoffset+(1:R_cc.NJ)')];
+    collbodies_instspc.link = [collbodies_instspc.link; ...
+      repmat(uint8(NLoffset+(1:R_cc.NJ)'),1,2)];
     % Prüfe den Offset-Parameter für das Schubgelenk
     for i = find(R_cc.MDH.sigma'==1)
       for j = 1:length(Set.task.installspace.links)
@@ -964,7 +1017,7 @@ if ~isempty(Set.task.installspace.type)
   % Stelle äquivalente Gelenknummer von PKM zusammen (als  Übersetzungs- 
   % tabelle). Zeile 1 ursprünglich, Zeile 2 Übersetzung. Siehe oben.
   % Seriell: 0=Basis, 1=erstes bewegtes Segment, ...
-  equiv_link = repmat(0:collbodies_instspc.link(end),2,1);
+  equiv_link = repmat(0:collbodies_instspc.link(end,1),2,1);
   if Structure.Type == 2 % PKM
     % Kollisionskörper-Zählung: 0=Basis, 1=Beinkette1-Basis, 2=Beinkette1-1.Seg., ...
     % Zählung für äquivalente Indizes: PKM-Basis und Beinketten-Basis ist
@@ -991,7 +1044,7 @@ if ~isempty(Set.task.installspace.type)
     for j = 1:size(collbodies_instspc.type,1)
       % Nehme nicht die Segmentnummer selbst, sondern die des äquivalenten
       % Segments (jew. von der Basis aus gesehen, egal ob PKM oder seriell)
-      iii = equiv_link(1,:) == collbodies_instspc.link(j);
+      iii = equiv_link(1,:) == collbodies_instspc.link(j,1);
       equiv_link_j = equiv_link(2,iii); % 0=Basis, 1=erstes bewegtes,...
       if any(links_i == equiv_link_j)
         instspc_collchecks_collbodies = [instspc_collchecks_collbodies; ...

@@ -180,7 +180,8 @@ for k = 1:NLEG
     end
   end
   % Trage in PKM-weite Variable ein
-  collbodies_robot.link = [collbodies_robot.link; R_cc.collbodies.link + NLoffset];
+  collbodies_robot.link = [collbodies_robot.link; [R_cc.collbodies.link+...
+    NLoffset,Structure.MDH_ante_collcheck(1+R_cc.collbodies.link+NLoffset)]];
   collbodies_robot.type = [collbodies_robot.type; collbodies_type_mod];
   collbodies_robot.params = [collbodies_robot.params; collbodies_params_mod];
   % Überspringe die Indizes der Bauraum-Kollisionsobjekte für die Gelenke

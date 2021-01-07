@@ -41,8 +41,6 @@ if Set.general.matfile_verbosity > 1
   % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constr_installspace_0.mat'));
 end
 %% Daten der Roboterstruktur laden
-% Wird bereits in cds_dimsynth_robot vorbereitet
-v = Structure.MDH_ante_collcheck;
 % Lade die vorab initialisierten Ersatzpunkte für die Bauraumprüfung
 collbodies = Structure.installspace_collbodies;
 % Merke, bis wohin die Kollisionsobjekte zum Roboter gehören
@@ -80,7 +78,7 @@ for i = 1:size(Set.task.installspace.type,1)
   collbodies.params = [collbodies.params; params_0];
   collbodies.type = [collbodies.type; type_i];
   % Bauraum wird zur Basis (=0) gezählt (ortsfest)
-  collbodies.link = [collbodies.link; uint8(0)];
+  collbodies.link = [collbodies.link; uint8([0,0])];
 end
 
 %% Bestimme Geometrieübereinstimmung mit Bauraum
@@ -88,7 +86,7 @@ end
 % Eine "Kollision" des Roboters mit der Bauraum-Geometrie erfüllt die
 % Nebenbedingung, dass der Roboter im Bauraum enthalten ist
 CollSet = struct('collsearch', false);
-[coll, absdist] = check_collisionset_simplegeom_mex(v, collbodies, collchecks, JP, CollSet);
+[coll, absdist] = check_collisionset_simplegeom_mex(collbodies, collchecks, JP, CollSet);
 % Ergebnisse nachverarbeiten
 ininstallspace_all = false(n_cb_robot,1); % ist Roboterobjekt im Bauraum?
 mindist_all = zeros(n_cb_robot,1); % Wie ist der minimale Abstand zum Bauraum?
@@ -170,8 +168,8 @@ for i = 1:size(collbodies.link,1)
     continue
   end
   % Nummer der Starrkörper in mathematischer Notation: 0=Basis
-  jj2 = collbodies.link(i);
-  jj1 = v(1+collbodies.link(i)); % 0=PKM-Basis, 1=Beinkette-1-Basis, 2=Beinkette-1-Körper-1
+  jj2 = collbodies.link(i,1); % 0=PKM-Basis, 1=Beinkette-1-Basis, 2=Beinkette-1-Körper-1
+  jj1 = collbodies.link(i,2);
   % Nummer in Matlab-Notation (1=Basis)
   ii2 = jj2+1;
   ii1 = jj1+1;
@@ -188,7 +186,7 @@ for i = 1:size(collbodies.link,1)
       color = 'r'; num_outside_plot = num_outside_plot + 1;
       % Zusätzliche Diagnose
       % fprintf('Koll.-Körper %d (Rob.-Seg. %d): In keinem zugeordneten Bauraum-Volumen.\n', i, ...
-      %   collbodies.link(i));
+      %   collbodies.link(i,1));
     else
       % Das Roboterobjekt ist im Bauraum -> gut
       color = 'g';

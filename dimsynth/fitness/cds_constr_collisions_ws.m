@@ -48,7 +48,6 @@ if Set.general.matfile_verbosity > 1
 end
 %% Daten der Roboterstruktur laden
 % Wird bereits in cds_dimsynth_robot vorbereitet
-v = Structure.MDH_ante_collcheck;
 collbodies = Structure.collbodies_robot;
 % Keine Anpassung der Kollisionsobjekte (im Gegensatz zu
 % cds_constr_installspace)
@@ -92,7 +91,7 @@ for i = 1:size(Set.task.obstacles.type,1)
   collbodies.params = [collbodies.params; params_0];
   collbodies.type = [collbodies.type; type_i];
   % Bauraum wird zur Basis (=0) gezählt (ortsfest)
-  collbodies.link = [collbodies.link; uint8(0)];
+  collbodies.link = [collbodies.link; uint8([0,0])];
   % Generiere Liste der Kollisionspaare: Teste Kollision jedes Roboter-KS
   % mit dem Geometrieobjekt für den Bauraum
   collchecks = [collchecks; ...
@@ -101,7 +100,7 @@ end
 
 %% Bestimme Kollisionen mit Hindernissen
 CollSet = struct('collsearch', true);
-[coll, absdist] = check_collisionset_simplegeom_mex(v, collbodies, collchecks, JP, CollSet);
+[coll, absdist] = check_collisionset_simplegeom_mex(collbodies, collchecks, JP, CollSet);
 % Ergebnisse nachverarbeiten
 mindist_all = zeros(n_cb_robot,1); % Wie ist der minimale Abstand zu Hindernis-Objekten?
 idx_timestep_worst = ones(n_cb_robot,1); % Zu welchem Zeitschritt tritt der schlechteste Fall ein?
@@ -168,8 +167,8 @@ for i = 1:size(collbodies.link,1)
     continue
   end
   % Nummer der Starrkörper in mathematischer Notation: 0=Basis
-  jj2 = collbodies.link(i);
-  jj1 = v(1+collbodies.link(i)); % 0=PKM-Basis, 1=Beinkette-1-Basis, 2=Beinkette-1-Körper-1
+  jj2 = collbodies.link(i,1); % 0=PKM-Basis, 1=Beinkette-1-Basis, 2=Beinkette-1-Körper-1
+  jj1 = collbodies.link(i,2);
   % Nummer in Matlab-Notation (1=Basis)
   ii2 = jj2+1;
   ii1 = jj1+1;
