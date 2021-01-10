@@ -1288,8 +1288,8 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
     % durchgeführt wurde.
     filelist_tmpres = dir(fullfile(resdir, 'MOPSO_Gen*_AllInd.mat'));
     if isempty(filelist_tmpres)
-      cds_log(1, sprintf(['[dimsynth] Laden des letzten abgebrochenen ', ...
-        'Durchlaufs wurde angefordert. Aber keine Daten vorliegend. Ende.']));
+      cds_log(1, sprintf(['[dimsynth] Laden des letzten abgebrochenen Durch', ...
+        'laufs wurde angefordert. Aber keine Daten in %s vorliegend. Ende.'], resdir));
       return
     end
     [~,I_newest] = max([filelist_tmpres.datenum]);
@@ -1753,7 +1753,14 @@ save(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
 lfp = cds_log(1,sprintf(['[dimsynth] Optimierung von Rob. %d (%s) abgeschlossen. ', ...
   'Dauer: %1.1fs'], Structure.Number, Structure.Name, toc(t1)));
 % Log-Datei komprimieren und Textdatei löschen
-gzip(lfp); delete(lfp);
+if exist(lfp, 'file')
+  gzip(lfp); delete(lfp);
+else
+  % Dieser Fall kann eintreten, wenn der nachträgliche Abschluss der
+  % abgebrochenen Optimierung mehrfach durchgeführt wurde.
+  warning(['[dimsynth] Log-Datei %s existiert nicht (mehr). Kein ', ...
+    'zippen+löschen mehr notwendig.'], lfp);
+end
 % Lösche temporäre Ergebnisse. Nicht mehr benötigt, da Endergebnis da.
 filelist_tmpres = dir(fullfile(resdir, '*PSO_Gen*_AllInd.mat'));
 for i = 1:length(filelist_tmpres)

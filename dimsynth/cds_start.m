@@ -98,19 +98,38 @@ for i = 1:length(Set.structures.whitelist)
   end
 end
 %% Menge der Roboter laden
-Structures = cds_gen_robot_list(Set);
-
-if isempty(Structures)
-  fprintf('Keine Strukturen entsprechen den Filterkriterien\n');
-  if ~isempty(Set.structures.whitelist)
-    fprintf('Es wurde eine Positiv-Liste übergeben, aber keine Strukturen entsprachen den Kriterien. Filter-Liste passt nicht\n');
+if ~(Set.general.only_finish_aborted && Set.general.isoncluster)
+  % Bei Fortsetzen der abgebrochenen Berechnung auf dem Cluster nicht
+  % notwendig. Sonst schon (lokal oder Hochladen des Abschluss-Jobs)
+  Structures = cds_gen_robot_list(Set);
+  if isempty(Structures)
+    fprintf('Keine Strukturen entsprechen den Filterkriterien\n');
+    if ~isempty(Set.structures.whitelist)
+      fprintf('Es wurde eine Positiv-Liste übergeben, aber keine Strukturen entsprachen den Kriterien. Filter-Liste passt nicht\n');
+    end
+    return
   end
-  return
 end
-
-%% Ergebnis-Speicherort vorbereiten
-if ~Set.general.computing_cluster
-  resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
+%% Ergebnis-Speicherort vorbereiten. Einstellungen speichern.
+resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
+if Set.general.only_finish_aborted && (Set.general.isoncluster || ...
+    ~Set.general.computing_cluster) % nicht bei hochladen des Jobs aufs Cluster
+  % Alte Einstellungsdatei laden. Damit muss nicht die Menge der Strukturen
+  % neu erzeugt werden (geht schneller und ist robuster).
+  if ~exist(resdir_main, 'file')
+    fprintf(['Nachträglicher Abschluss von %s nicht möglich. Verzeichnis %s ', ...
+      'fehlt.\n'], Set.optimization.optname, resdir_main);
+    return
+  end
+  settingsfile = fullfile(resdir_main, sprintf('%s_settings.mat', Set.optimization.optname));
+  if ~exist(settingsfile, 'file')
+    fprintf(['Nachträglicher Abschluss von %s nicht möglich. Datei %s ', ...
+      'fehlt.\n'], Set.optimization.optname, settingsfile);
+    return
+  end
+  load(settingsfile, 'Set', 'Traj', 'Structures');
+  fprintf('Einstellungsdatei %s geladen.\n', settingsfile);
+elseif ~Set.general.computing_cluster % nicht bei Hochladen des Jobs
   mkdirs(resdir_main); % Ergebnis-Ordner für diese Optimierung erstellen
   % Einstellungen dieser kombinierten Synthese speichern. Damit ist im
   % Nachhinein nachvollziehbar, welche Roboter eventuell fehlen. Bereits hier
