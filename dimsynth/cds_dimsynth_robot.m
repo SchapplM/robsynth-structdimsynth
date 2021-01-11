@@ -1752,6 +1752,10 @@ save(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
   'RobotOptDetails', 'PSO_Detail_Data');
 lfp = cds_log(1,sprintf(['[dimsynth] Optimierung von Rob. %d (%s) abgeschlossen. ', ...
   'Dauer: %1.1fs'], Structure.Number, Structure.Name, toc(t1)));
+if isempty(lfp) % Aufruf mit Set.general.only_finish_aborted. Log nicht initialisiert.
+  robstr = sprintf('Rob%d_%s', Structure.Number, Structure.Name);
+  lfp = fullfile(resdir, robstr, sprintf('%s.log', robstr));
+end
 % Log-Datei komprimieren und Textdatei löschen
 if exist(lfp, 'file')
   gzip(lfp); delete(lfp);
