@@ -23,12 +23,17 @@
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
 function fhdl = cds_vis_results_figures(figname, Set, Traj, RobData, ...
-  ResTab, RobotOptRes, RobotOptDetails)
+  ResTab, RobotOptRes, RobotOptDetails, PSO_Detail_Data)
 %% Initialisierung
 RNr = RobData.Number;
 PNr = RobData.ParetoNumber;
-R = RobotOptDetails.R;
-Traj_0 = cds_transform_traj(R, Traj);
+if any(strcmp(figname, {'pareto', 'optpar'}))
+  R = []; % Platzhalter. Wird nicht benötigt.
+  Traj_0 = [];
+else
+  R = RobotOptDetails.R;
+  Traj_0 = cds_transform_traj(R, Traj);
+end
 Name = RobData.Name;
 resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
 resrobdir = fullfile(resmaindir, sprintf('Rob%d_%s', RNr, Name));
@@ -206,6 +211,123 @@ if strcmp(figname, 'jointtraj')
   saveas(fhdl,     fullfile(resrobdir, [fname, '.fig']));
   export_fig(fhdl, fullfile(resrobdir, [fname, '.png']));
   fprintf('Bild %s gespeichert: %s\n', fname, resrobdir);
+end
+
+%% Pareto-Fronten für die Zielkriterien
+if strcmp(figname, 'pareto')
+  if isempty(PSO_Detail_Data)
+    warning(['Variable PSO_Detail_Data wurde nicht gespeichert. Daher kein ', ...
+      'detailliertes Pareto-Diagramm möglich']);
+  end
+  % Einheiten für die physikalischen Werte der Zielfunktionen vorbereiten
+  [obj_units, objscale] = cds_objective_plotdetails(Set);
+  if length(Set.optimization.objective) > 1 % Mehrkriterielle Optimierung
+    % Gehe alle Kombinationen von zwei Zielkriterien durch (falls mehr als
+    % zwei gewählt).
+    objcomb = allcomb(1:length(Set.optimization.objective), 1:length(Set.optimization.objective));
+    objcomb(objcomb(:,1)==objcomb(:,2),:) = [];
+    objcomb(objcomb(:,1)>objcomb(:,2),:) = [];
+    for pffig = 1 % Zwei Bilder: Physikalische Werte (1) und normierte Werte (2)
+    fhdl = figure();clf;hold all;
+    set(fhdl, 'Name', sprintf('Rob%d_Pareto', RNr), ...
+      'NumberTitle', 'off', 'color','w');
+    if ~strcmp(get(fhdl, 'windowstyle'), 'docked')
+      set(fhdl,'units','normalized','outerposition',[0 0 1 1]);
+    end
+    sprows = floor(sqrt(size(objcomb,1)));
+    spcols = ceil(size(objcomb,1)/sprows);
+    for kk = 1:size(objcomb,1)
+      kk1 = objcomb(kk,1); kk2 = objcomb(kk,2);
+      ngen = size(PSO_Detail_Data.fval,3);
+      nswarm = size(PSO_Detail_Data.fval,1);
+      F1=reshape(PSO_Detail_Data.fval(:,kk1,:), ngen, nswarm);
+      F2=reshape(PSO_Detail_Data.fval(:,kk2,:), ngen, nswarm);
+      P1=reshape(PSO_Detail_Data.physval(:,kk1,:), ngen, nswarm);
+      P2=reshape(PSO_Detail_Data.physval(:,kk2,:), ngen, nswarm);
+      leghdl = NaN(10,1);
+      subplot(sprows,spcols,kk); hold on;
+      % Nicht-dominierende Partikel aus dem Verlauf der Optimierung
+      markers = {'rv', 'ro', 'y^', 'gv', 'go', 'c^', 'cv', 'bo', 'b^'};
+      % Teile den Verlauf in 9 Teile ein und zeichne die Partikel jeder
+      % Phase mit den entsprechenden Markern
+      legtext = cell(10,1);
+      for jj = 1:9
+        mingen_jj = floor(ngen/9*(jj-1))+1;
+        maxgen_jj = floor(ngen/9*(jj));
+        Igen = mingen_jj:maxgen_jj;
+        F1_sel = F1(Igen,:); F1v_sel = F1_sel(:);
+        F2_sel = F2(Igen,:); F2v_sel = F2_sel(:);
+        P1_sel = P1(Igen,:); P1v_sel = P1_sel(:);
+        P2_sel = P2(Igen,:); P2v_sel = P2_sel(:);
+        I_iO = F1v_sel < 1e3;
+        if ~any(I_iO), continue; end
+        if pffig == 1 % Bild mit physikalischen Werten
+          leghdl(jj)=plot(objscale(kk1)*P1v_sel(I_iO), objscale(kk2)*P2v_sel(I_iO), markers{jj});
+        else
+          leghdl(jj)=plot(F1v_sel(I_iO), F2v_sel(I_iO), markers{jj});
+        end
+        legtext{jj} = sprintf('$%d \\le i_{\\mathrm{gen}} \\le %d$', mingen_jj, maxgen_jj);
+      end
+      % Pareto-Front einzeichnen
+      legtext{10} = 'Pareto-Front';
+      if pffig == 1 % Bild mit physikalischen Werten
+        leghdl(10)=plot(objscale(kk1)*RobotOptRes.physval_pareto(:,kk1), ...
+             objscale(kk2)*RobotOptRes.physval_pareto(:,kk2), 'm*');
+        xlabel(sprintf('Zielf. %d (%s) in %s', kk1, Set.optimization.objective{kk1}, obj_units{kk1}));
+        ylabel(sprintf('Zielf. %d (%s) in %s', kk2, Set.optimization.objective{kk2}, obj_units{kk2}));
+      else % Bild mit normierten Zielfunktionswerten
+        leghdl(10)=plot(RobotOptRes.fval_pareto(:,kk1), ...
+             RobotOptRes.fval_pareto(:,kk2), 'm*');
+        xlabel(sprintf('Zielf. %d (%s) (normiert)', kk1, Set.optimization.objective{kk1}));
+        ylabel(sprintf('Zielf. %d (%s)(normiert)', kk2, Set.optimization.objective{kk2}));
+      end
+      if any(~isnan(leghdl))
+        legend(leghdl(~isnan(leghdl)), legtext(~isnan(leghdl)), 'interpreter', 'latex');
+      end
+      grid on;
+    end
+    if pffig == 1 
+      sgtitle(sprintf('Rob. %d: Pareto-Fronten für mehrkrit. Opt. (Physikalische Werte)', RNr));
+      name_suffix = 'phys';
+    else
+      sgtitle(sprintf('Rob. %d: Pareto-Fronten für mehrkrit. Opt. (Normierte Werte)', RNr));
+      name_suffix = 'fval';
+    end
+    saveas(fhdl,     fullfile(resrobdir, sprintf('Rob%d_%s_Pareto2D_%s.fig', RNr, Name, name_suffix)));
+    export_fig(fhdl, fullfile(resrobdir, sprintf('Rob%d_%s_Pareto2D_%s.png', RNr, Name, name_suffix)));
+    end
+  end
+  %% (3D)-Pareto-Fronten für die Zielkriterien
+  if length(Set.optimization.objective) > 2
+    objcomb = allcomb(1:length(Set.optimization.objective), 1:length(Set.optimization.objective), ...
+      1:length(Set.optimization.objective));
+    objcomb(objcomb(:,1)==objcomb(:,2) | objcomb(:,2)==objcomb(:,3),:) = [];
+    objcomb(objcomb(:,1)>objcomb(:,2),:) = [];
+    objcomb(objcomb(:,2)>objcomb(:,3),:) = [];
+    fhdl = figure();clf;hold all;
+    set(fhdl, 'Name', sprintf('Rob%d_Pareto3D', RNr), ...
+      'NumberTitle', 'off', 'color','w');
+    if ~strcmp(get(fhdl, 'windowstyle'), 'docked')
+      set(fhdl,'units','normalized','outerposition',[0 0 1 1]);
+    end
+    sprows = floor(sqrt(size(objcomb,1)));
+    spcols = ceil(size(objcomb,1)/sprows);
+    for kk = 1:size(objcomb,1)
+      kk1 = objcomb(kk,1); kk2 = objcomb(kk,2); kk3 = objcomb(kk,3);
+      subplot(sprows,spcols,kk);
+      plot3(objscale(kk1)*RobotOptRes.physval_pareto(:,kk1), ...
+            objscale(kk2)*RobotOptRes.physval_pareto(:,kk2), ...
+            objscale(kk3)*RobotOptRes.physval_pareto(:,kk3), 'm*');
+      xlabel(sprintf('Zielf. %d (%s) in %s', kk1, Set.optimization.objective{kk1}, obj_units{kk1}));
+      ylabel(sprintf('Zielf. %d (%s) in %s', kk2, Set.optimization.objective{kk2}, obj_units{kk2}));
+      zlabel(sprintf('Zielf. %d (%s) in %s', kk3, Set.optimization.objective{kk3}, obj_units{kk3}));
+      grid on;
+    end
+    sgtitle(sprintf('Rob. %d: Pareto-Fronten (3D) für mehrkrit. Opt.', RNr));
+    saveas(fhdl,     fullfile(resrobdir, sprintf('Rob%d_%s_Pareto3D.fig', RNr, Name)));
+    export_fig(fhdl, fullfile(resrobdir, sprintf('Rob%d_%s_Pareto3D.png', RNr, Name)));
+  end
+
 end
 %% Rechne die Dynamik neu nach
 if strcmp(figname, 'dynamics')

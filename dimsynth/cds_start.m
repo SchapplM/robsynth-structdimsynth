@@ -25,6 +25,9 @@ if ~Set.general.only_finish_aborted
 else
   fprintf('Schließe die abgebrochene Maßsynthese %s ab.\n', Set.optimization.optname);
 end
+if Set.general.only_finish_aborted && Set.general.regenerate_summmary_only
+  error('Option only_finish_aborted zusammen mit regenerate_summmary_only nicht sinnvoll');
+end
 Set_default = cds_settings_defaults(struct('DoF', Set.structures.DoF));
 for subconf = fields(Set_default)'
   for ftmp = fields(Set.(subconf{1}))'
@@ -98,9 +101,11 @@ for i = 1:length(Set.structures.whitelist)
   end
 end
 %% Menge der Roboter laden
-if ~(Set.general.only_finish_aborted && Set.general.isoncluster)
+if ~(Set.general.only_finish_aborted && Set.general.isoncluster) && ...
+    ~Set.general.regenerate_summmary_only
   % Bei Fortsetzen der abgebrochenen Berechnung auf dem Cluster nicht
-  % notwendig. Sonst schon (lokal oder Hochladen des Abschluss-Jobs)
+  % notwendig. Sonst schon (lokal oder Hochladen des Abschluss-Jobs).
+  % Auch nicht notwendig bei reiner Neu-Erzeugung der Ergebnis-Bilder.
   Structures = cds_gen_robot_list(Set);
   if isempty(Structures)
     fprintf('Keine Strukturen entsprechen den Filterkriterien\n');
@@ -112,6 +117,8 @@ if ~(Set.general.only_finish_aborted && Set.general.isoncluster)
 end
 %% Ergebnis-Speicherort vorbereiten. Einstellungen speichern.
 resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
+settingsfile = fullfile(resdir_main, sprintf('%s_settings.mat', ...
+  Set.optimization.optname));
 if Set.general.only_finish_aborted && (Set.general.isoncluster || ...
     ~Set.general.computing_cluster) % nicht bei hochladen des Jobs aufs Cluster
   % Alte Einstellungsdatei laden. Damit muss nicht die Menge der Strukturen
@@ -121,22 +128,41 @@ if Set.general.only_finish_aborted && (Set.general.isoncluster || ...
       'fehlt.\n'], Set.optimization.optname, resdir_main);
     return
   end
-  settingsfile = fullfile(resdir_main, sprintf('%s_settings.mat', Set.optimization.optname));
   if ~exist(settingsfile, 'file')
     fprintf(['Nachträglicher Abschluss von %s nicht möglich. Datei %s ', ...
       'fehlt.\n'], Set.optimization.optname, settingsfile);
     return
   end
-  load(settingsfile, 'Set', 'Traj', 'Structures');
-  fprintf('Einstellungsdatei %s geladen.\n', settingsfile);
+  d = load(settingsfile, 'Set', 'Traj', 'Structures');
+  Traj = d.Traj;
+  Set = d.Set;
+  Set.general.only_finish_aborted = true; % Überschreibe geladene Einstellung
+  Structures = d.Structures;
+  fprintf('Einstellungsdatei %s für Abschluss geladen.\n', settingsfile);
+elseif Set.general.regenerate_summmary_only && (Set.general.isoncluster || ...
+    ~Set.general.computing_cluster)
+  % Es sollen nur die Bilder neu generiert werden. Lade die alten Ein-
+  % stellungen, damit die Nummern der Roboter nicht geändert werden.
+  d = load(settingsfile, 'Set', 'Traj', 'Structures');
+  Traj = d.Traj;
+  % Übernehme Optionen zur Steuerung der Bildgenerierung aus der Eingabe
+  Set_tmp = Set;
+  Set = d.Set;
+  Set.general.eval_figures = Set_tmp.general.eval_figures;
+  Set.general.animation_styles = Set_tmp.general.animation_styles;
+  Set.general.parcomp_plot = Set_tmp.general.parcomp_plot;
+  Set.general.parcomp_struct = false; % keine Struktursynthese.
+  Set.general.regenerate_summmary_only = true;
+  Set.optimization.resdir = Set_tmp.optimization.resdir; % anders auf Cluster
+  Structures = d.Structures;
+  fprintf('Einstellungsdatei %s für Bild-Generierung geladen.\n', settingsfile);
 elseif ~Set.general.computing_cluster % nicht bei Hochladen des Jobs
   mkdirs(resdir_main); % Ergebnis-Ordner für diese Optimierung erstellen
   % Einstellungen dieser kombinierten Synthese speichern. Damit ist im
   % Nachhinein nachvollziehbar, welche Roboter eventuell fehlen. Bereits hier
   % oben machen. Dann passt die Variable Structures auch für den Fall, dass
   % die Maßsynthese im folgenden Schritt aufgeteilt wird.
-  save(fullfile(resdir_main, sprintf('%s_settings.mat', Set.optimization.optname)), ...
-    'Set', 'Traj', 'Structures');
+  save(settingsfile, 'Set', 'Traj', 'Structures');
 end
 % Verzeichnisse zum Laden alter Ergebnisse vorbereiten
 if Set.optimization.InitPopRatioOldResults > 0

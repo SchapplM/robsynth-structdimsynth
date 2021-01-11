@@ -58,44 +58,7 @@ restabfile = fullfile(resmaindir, sprintf('%s_results_table.csv', Set.optimizati
 ResTab = readtable(restabfile, 'Delimiter', ';');
 
 % Einheiten für die physikalischen Werte der Zielfunktionen vorbereiten
-obj_units = cell(1,length(Set.optimization.objective));
-objscale = ones(length(Set.optimization.objective),1);
-for jj = 1:length(Set.optimization.objective)
-  if strcmp(Set.optimization.objective{jj}, 'valid_act')
-    obj_units{jj} = 'unitless'; % Rangverlust ist nur eine Zahl. Plot nicht vorgesehen.
-  elseif strcmp(Set.optimization.objective{jj}, 'mass')
-    obj_units{jj} = 'kg';
-  elseif strcmp(Set.optimization.objective{jj}, 'condition')
-    obj_units{jj} = 'units of cond(J)';
-  elseif strcmp(Set.optimization.objective{jj}, 'energy')
-    obj_units{jj} = 'J';
-  elseif strcmp(Set.optimization.objective{jj}, 'actforce')
-    obj_units{jj} = 'N or Nm';
-  elseif strcmp(Set.optimization.objective{jj}, 'materialstress')
-    obj_units{jj} = 'in %';
-    objscale(jj) = 100;
-  elseif strcmp(Set.optimization.objective{jj}, 'stiffness')
-    obj_units{jj} = 'm/N';
-  elseif strcmp(Set.optimization.objective{jj}, 'jointrange')
-    if Set.optimization.obj_jointrange.only_revolute || ...
-        Set.optimization.obj_jointrange.only_passive
-      % Annahme: Es gibt keine passiven Schubgelenke.
-      obj_units{jj} = 'deg';
-      objscale(jj) = 180/pi;
-    else
-      obj_units{jj} = 'rad or m'; % Einheit nicht bestimmbar und evtl gemischt
-    end
-  elseif strcmp(Set.optimization.objective{jj}, 'manipulability')
-    obj_units{jj} = 'units of cond(J)';
-  elseif strcmp(Set.optimization.objective{jj}, 'minjacsingval')
-    obj_units{jj} = 'units of cond(J)';
-  elseif strcmp(Set.optimization.objective{jj}, 'positionerror')
-    obj_units{jj} = 'µm';
-    objscale(jj) = 1e6;
-  else
-    error('Zielfunktion %s nicht vorgesehen', Set.optimization.objective{jj});
-  end
-end
+[obj_units, objscale] = cds_objective_plotdetails(Set);
 
 length_Structures = length(Structures);
 % Prüfe, ob überhaupt roboterspezifische Plots erzeugt werden sollen
@@ -338,70 +301,11 @@ parfor (i = 1:length_Structures_parfor, parfor_numworkers)
     cds_vis_results_figures('dynamics', Set, Traj, RobData, ...
       ResTab, RobotOptRes, RobotOptDetails);
   end
-  %% (2D)-Pareto-Fronten für die Zielkriterien
+  %% Pareto-Fronten für die Zielkriterien
   if any(strcmp(Set.general.eval_figures, 'pareto')) && ...
      length(Set.optimization.objective) > 1 % Mehrkriterielle Optimierung
-    % Gehe alle Kombinationen von zwei Zielkriterien durch (falls mehr als
-    % zwei gewählt).
-    objcomb = allcomb(1:length(Set.optimization.objective), 1:length(Set.optimization.objective));
-    objcomb(objcomb(:,1)==objcomb(:,2),:) = [];
-    objcomb(objcomb(:,1)>objcomb(:,2),:) = [];
-    for pffig = 1:2 % Zwei Bilder: Physikalische Werte und normierte Werte
-    figure(100*i+6+pffig);clf;hold all;
-    sprows = floor(sqrt(size(objcomb,1)));
-    spcols = ceil(size(objcomb,1)/sprows);
-    for kk = 1:size(objcomb,1)
-      kk1 = objcomb(kk,1); kk2 = objcomb(kk,2);
-      subplot(sprows,spcols,kk);
-      if pffig == 1 % Bild mit physikalischen Werten
-        plot(objscale(kk1)*RobotOptRes.physval_pareto(:,kk1), ...
-             objscale(kk2)*RobotOptRes.physval_pareto(:,kk2), 'm*'); %#ok<PFBNS>
-        xlabel(sprintf('Zielf. %d (%s) in %s', kk1, Set.optimization.objective{kk1}, obj_units{kk1})); %#ok<PFBNS>
-        ylabel(sprintf('Zielf. %d (%s) in %s', kk2, Set.optimization.objective{kk2}, obj_units{kk2}));
-      else % Bild mit normierten Zielfunktionswerten
-        plot(RobotOptRes.fval_pareto(:,kk1), ...
-             RobotOptRes.fval_pareto(:,kk2), 'm*');
-        xlabel(sprintf('Zielf. %d (%s) (normiert)', kk1, Set.optimization.objective{kk1}));
-        ylabel(sprintf('Zielf. %d (%s)(normiert)', kk2, Set.optimization.objective{kk2}));
-      end
-      grid on;
-    end
-    if pffig == 1 
-      sgtitle(sprintf('Rob. %d: Pareto-Fronten für mehrkrit. Opt. (Physikalische Werte)', i));
-      name_suffix = 'phys';
-    else
-      sgtitle(sprintf('Rob. %d: Pareto-Fronten für mehrkrit. Opt. (Normierte Werte)', i));
-      name_suffix = 'fval';
-    end
-    saveas(100*i+6+pffig,     fullfile(resrobdir, sprintf('Rob%d_%s_Pareto2D_%s.fig', i, Name, name_suffix)));
-    export_fig(100*i+6+pffig, fullfile(resrobdir, sprintf('Rob%d_%s_Pareto2D_%s.png', i, Name, name_suffix)));
-    end
-  end
-  %% (3D)-Pareto-Fronten für die Zielkriterien
-  if any(strcmp(Set.general.eval_figures, 'pareto')) && ...
-   length(Set.optimization.objective) > 2 % Mehrkriterielle Optimierung
-    objcomb = allcomb(1:length(Set.optimization.objective), 1:length(Set.optimization.objective), ...
-      1:length(Set.optimization.objective));
-    objcomb(objcomb(:,1)==objcomb(:,2) | objcomb(:,2)==objcomb(:,3),:) = [];
-    objcomb(objcomb(:,1)>objcomb(:,2),:) = [];
-    objcomb(objcomb(:,2)>objcomb(:,3),:) = [];
-    figure(100*i+9);clf;hold all;
-    sprows = floor(sqrt(size(objcomb,1)));
-    spcols = ceil(size(objcomb,1)/sprows);
-    for kk = 1:size(objcomb,1)
-      kk1 = objcomb(kk,1); kk2 = objcomb(kk,2); kk3 = objcomb(kk,3);
-      subplot(sprows,spcols,kk);
-      plot3(objscale(kk1)*RobotOptRes.physval_pareto(:,kk1), ...
-            objscale(kk2)*RobotOptRes.physval_pareto(:,kk2), ...
-            objscale(kk3)*RobotOptRes.physval_pareto(:,kk3), 'm*');
-      xlabel(sprintf('Zielf. %d (%s) in %s', kk1, Set.optimization.objective{kk1}, obj_units{kk1}));
-      ylabel(sprintf('Zielf. %d (%s) in %s', kk2, Set.optimization.objective{kk2}, obj_units{kk2}));
-      zlabel(sprintf('Zielf. %d (%s) in %s', kk3, Set.optimization.objective{kk3}, obj_units{kk3}));
-      grid on;
-    end
-    sgtitle(sprintf('Rob. %d: Pareto-Fronten (3D) für mehrkrit. Opt.', i));
-    saveas(100*i+9,     fullfile(resrobdir, sprintf('Rob%d_%s_Pareto3D.fig', i, Name)));
-    export_fig(100*i+9, fullfile(resrobdir, sprintf('Rob%d_%s_Pareto3D.png', i, Name)));
+    cds_vis_results_figures('pareto', Set, Traj, RobData, ...
+      ResTab, RobotOptRes, RobotOptDetails, PSO_Detail_Data);
   end
   fprintf('%d/%d: Restliche Bilder für %s gespeichert. Dauer: %1.1fs\n', ...
     i, length_Structures, Name, toc(t1));
@@ -523,8 +427,8 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   % Auswahlmenü für eine nachträglich zu plottende Auswertung. Wird in der
   % ButtonDownFcn (cds_paretoplot_buttondownfcn) bei Klicken auf einen
   % Pareto-Punkt ausgelesen.
-  menuitems = {'Visualisierung', 'Parameter', 'Kinematik', 'Animation', ...
-    'Dynamik', 'Dynamikparameter'};
+  menuitems = {'Visualisierung', 'Parameter', 'Kinematik', 'Pareto', ...
+    'Animation', 'Dynamik', 'Dynamikparameter'};
   if Set.optimization.joint_stiffness_passive_revolute
     menuitems = [menuitems, 'Feder-Ruhelage']; %#ok<AGROW>
   end

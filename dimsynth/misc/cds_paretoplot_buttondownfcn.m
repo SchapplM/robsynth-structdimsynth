@@ -37,7 +37,7 @@ uihdl = findobj(fighdl, 'Type', 'UIControl');
 Selection = get(uihdl, 'Value');
 SelStr = get(uihdl,'String');
 fprintf('[%s] Starte Vorbereitung und Plot für %s/%s (Rob. %d) "%s"\n', ...
-  datestr(now(),'yyyymmdd_HHMMSS'), OptName, RobName, RobNr, SelStr{Selection});
+  datestr(now(),'yyyy-mm-dd HH:MM:SS'), OptName, RobName, RobNr, SelStr{Selection});
 %% Lade die Daten
 % Benutze den Ordner als Speicherort der Daten, in dem auch das Bild liegt.
 resdir_opt = fileparts(get(fighdl, 'FileName'));
@@ -74,10 +74,12 @@ end
 d1 = load(resfile1, 'RobotOptRes');
 RobotOptRes = d1.RobotOptRes;
 if exist(resfile2, 'file')
-  d2 = load(resfile2, 'RobotOptDetails');
+  d2 = load(resfile2, 'RobotOptDetails', 'PSO_Detail_Data');
   RobotOptDetails = d2.RobotOptDetails;
+  PSO_Detail_Data = d2.PSO_Detail_Data;
 else
   RobotOptDetails = [];
+  PSO_Detail_Data = [];
 end
 d3 = load(setfile, 'Traj', 'Set', 'Structures');
 Set = d3.Set;
@@ -115,52 +117,61 @@ end
 RobData = struct('Name', RobName, 'Number', RobNr, 'ParetoNumber', PNr, ...
   'Type', RobotOptRes.Structure.Type);
 %% Berechne fehlende Größen
-% Für Ausführung der Fitness-Fcn
-if RobData.Type == 0
-  serroblib_addtopath({RobName});
-else
-  parroblib_addtopath({RobName});
+fitness_recalc_necessary = true;
+if any(strcmp(SelStr(Selection), {'Pareto', 'Parameter'}))
+  % Neuberechnung der Fitness-Funktion für diese Bilder nicht notwendig.
+  fitness_recalc_necessary = false;
 end
-% Berechne die Fitness-Funktionen
-clear cds_save_particle_details cds_fitness cds_log
-p = RobotOptRes.p_val_pareto(PNr,:)';
-p_desopt = RobotOptRes.desopt_pval_pareto(PNr,:)';
-if any(isnan(p_desopt))
-  warning('Ergebnisse für die Entwurfsoptimierung sind NaN.');
-  p_desopt = [];
-end
-if isempty(RobotOptDetails) || ~isempty(p_desopt)
-  % Falls nur die reduzierten Ergebnis-Daten vorliegen oder die Ergebnisse
-  % der Entwurfsoptimierung direkt eingetragen werden sollen. Vermeide die
-  % erneute Durchführung der Entwurfsoptimierung, falls diese gemacht wurde.
-  [R, Structure] = cds_dimsynth_robot(Set, Traj, Structure, true);
-  if isempty(p_desopt)
-    [fval2, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure,p);
+if fitness_recalc_necessary
+  % Für Ausführung der Fitness-Fcn
+  if RobData.Type == 0
+    serroblib_addtopath({RobName});
   else
-    % Keine erneute Entwurfsoptimierung, also auch keine Regressorform notwendig.
-    % Direkte Berechnung der Dynamik, falls für Zielfunktion notwendig.
-    Structure.calc_dyn_act = Structure.calc_dyn_act | Structure.calc_dyn_reg;
-    Structure.calc_spring_act = Structure.calc_spring_act | Structure.calc_spring_reg;
-    Structure.calc_spring_reg = false;
-    Structure.calc_dyn_reg = false;
-    [fval2, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure,p,p_desopt);
+    parroblib_addtopath({RobName});
   end
+  % Berechne die Fitness-Funktionen
+  clear cds_save_particle_details cds_fitness cds_log
+  p = RobotOptRes.p_val_pareto(PNr,:)';
+  p_desopt = RobotOptRes.desopt_pval_pareto(PNr,:)';
+  if any(isnan(p_desopt))
+    warning('Ergebnisse für die Entwurfsoptimierung sind NaN.');
+    p_desopt = [];
+  end
+  if isempty(RobotOptDetails) || ~isempty(p_desopt)
+    % Falls nur die reduzierten Ergebnis-Daten vorliegen oder die Ergebnisse
+    % der Entwurfsoptimierung direkt eingetragen werden sollen. Vermeide die
+    % erneute Durchführung der Entwurfsoptimierung, falls diese gemacht wurde.
+    [R, Structure] = cds_dimsynth_robot(Set, Traj, Structure, true);
+    if isempty(p_desopt)
+      [fval2, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure,p);
+    else
+      % Keine erneute Entwurfsoptimierung, also auch keine Regressorform notwendig.
+      % Direkte Berechnung der Dynamik, falls für Zielfunktion notwendig.
+      Structure.calc_dyn_act = Structure.calc_dyn_act | Structure.calc_dyn_reg;
+      Structure.calc_spring_act = Structure.calc_spring_act | Structure.calc_spring_reg;
+      Structure.calc_spring_reg = false;
+      Structure.calc_dyn_reg = false;
+      [fval2, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure,p,p_desopt);
+    end
+  else
+    % Alternative Berechnung (erfordert Laden der Detail-Daten).
+    % Hier ist die Reproduktion der Zielfunktion besser möglich, da Anfangs-
+    % werte für die Gelenkwinkel besser passen.
+    [fval2, ~, Q, QD, QDD, TAU] = RobotOptDetails.fitnessfcn(p);
+    R = RobotOptDetails.R;
+  end
+  if any(abs(fval-fval2) > 1e-4)
+    warning(['Fitness-Wert von [%s] aus Pareto-Front konnte nicht reproduziert ', ...
+      'werden (neu: [%s])'], disp_array(fval', '%1.4f'), disp_array(fval2', '%1.4f'));
+  end
+  if isempty(Q)
+    return
+  end
+  RobotOptDetails = struct('Traj_Q', Q, 'Traj_QD', QD, 'Traj_QDD', QDD, ...
+    'R', R, 'Dyn_Tau', TAU);
 else
-  % Alternative Berechnung (erfordert Laden der Detail-Daten).
-  % Hier ist die Reproduktion der Zielfunktion besser möglich, da Anfangs-
-  % werte für die Gelenkwinkel besser passen.
-  [fval2, ~, Q, QD, QDD, TAU] = RobotOptDetails.fitnessfcn(p);
-  R = RobotOptDetails.R;
+  RobotOptDetails = struct('R', []); % Platzhalter. Wird nicht benötigt.
 end
-if any(abs(fval-fval2) > 1e-4)
-  warning(['Fitness-Wert von [%s] aus Pareto-Front konnte nicht reproduziert ', ...
-    'werden (neu: [%s])'], disp_array(fval', '%1.4f'), disp_array(fval2', '%1.4f'));
-end
-if isempty(Q)
-  return
-end
-RobotOptDetails = struct('Traj_Q', Q, 'Traj_QD', QD, 'Traj_QDD', QDD, 'R', R, ...
-  'Dyn_Tau', TAU);
 
 %% Rufe die Plot-Funktion auf
 t2=tic();
@@ -194,6 +205,10 @@ end
 if strcmp(SelStr(Selection), 'Feder-Ruhelage')
   cds_vis_results_figures('springrestpos', Set, Traj, RobData, ResTab, ...
     RobotOptRes, RobotOptDetails);
+end
+if strcmp(SelStr(Selection), 'Pareto')
+  cds_vis_results_figures('pareto', Set, Traj, RobData, ResTab, ...
+    RobotOptRes, RobotOptDetails, PSO_Detail_Data);
 end
 fprintf('Bilder gezeichnet. Dauer: %1.1fs zur Vorbereitung, %1.1fs zum Zeichnen.\n', ...
   toc(t1)-toc(t2), toc(t2));
