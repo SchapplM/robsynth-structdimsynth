@@ -54,24 +54,33 @@ constraint_obj_val = NaN(length(Set.optimization.constraint_obj),1);
 fval = NaN(length(Set.optimization.objective),1);
 physval = fval;
 desopt_pval_given = false;
-if nargin == 6 && ~isempty(desopt_pval) && ~any(isnan(desopt_pval))
-  desopt_pval_given = true;
-  % Keine Optimierung von Entwurfsparametern durchführen. Trage die Schub-
-  % gelenk-Offsets aus dem gegebenen Ergebnis direkt in die Klasse ein.
-  if Structure.desopt_prismaticoffset
-    p_prismaticoffset = desopt_pval(Structure.desopt_ptypes==1);
-    if Structure.Type == 0
-      R.DesPar.joint_offset(R.MDH.sigma==1) = p_prismaticoffset;
-    else
-      for i = 1:R.NLEG
-        R.Leg(i).DesPar.joint_offset(R.Leg(i).MDH.sigma==1) = p_prismaticoffset;
+if nargin == 6 && ~isempty(desopt_pval) && ~all(isnan(desopt_pval))% Die Eingabevariable ist gesetzt
+  if ~any(isnan(desopt_pval(Structure.desopt_ptypes==1)))
+    % Keine Optimierung von Entwurfsparametern durchführen. Trage die Schub-
+    % gelenk-Offsets aus dem gegebenen Ergebnis direkt in die Klasse ein.
+    if Structure.desopt_prismaticoffset
+      p_prismaticoffset = desopt_pval(Structure.desopt_ptypes==1);
+      if Structure.Type == 0
+        R.DesPar.joint_offset(R.MDH.sigma==1) = p_prismaticoffset;
+      else
+        for i = 1:R.NLEG
+          R.Leg(i).DesPar.joint_offset(R.Leg(i).MDH.sigma==1) = p_prismaticoffset;
+        end
       end
     end
+    Structure.desopt_prismaticoffset = false; % keine Optimierung
+  else
+    % Übergebener Wert war NaN. Optimierung doch durchführen
+    Structure.desopt_prismaticoffset = true;
   end
-  % Werte für die Gelenkfeder-Ruhelagen weiter unten einstellen.
-  % Optimierungsvariablen deaktivieren. Hierdurch keine erneute Optimierung.
-  Set.optimization.desopt_vars = {};
-  Structure.desopt_prismaticoffset = false;
+  if all(~isnan(desopt_pval(Structure.desopt_ptypes~=1)))
+    desopt_pval_given = true; % bezieht sich nicht auf den obigen Fall
+    % Werte für die Gelenkfeder-Ruhelagen weiter unten einstellen.
+    % Optimierungsvariablen deaktivieren. Hierdurch keine erneute Optimierung.
+    Set.optimization.desopt_vars = {};
+  else
+    error('Eine in desopt_pval übergebene Variable ist NaN.');
+  end
 else
   desopt_pval = NaN(length(Structure.desopt_ptypes),1);
 end
