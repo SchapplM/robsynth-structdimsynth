@@ -1269,7 +1269,9 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
     output = MOPSO(MOPSO_set1, options);
     p_val_pareto = output.pos;
     fval_pareto = output.pos_fit;
-    cds_log(1, sprintf('[dimsynth] Optimierung mit MOPSO beendet. %d Punkte auf Pareto-Front.', size(p_val_pareto,1)));
+    cds_log(1, sprintf(['[dimsynth] MOPSO-Optimierung für Rob. %d (%s) ', ...
+      'beendet. %d Punkte auf Pareto-Front.'], Structure.Number, ...
+      Structure.Name, size(p_val_pareto,1)));
     exitflag = -1; % Nehme an, dass kein vorzeitiger Abbruch erfolgte
     % Alternative: Durchführung mit gamultiobj (konvergiert schlechter)
 %     options = optimoptions('gamultiobj');
@@ -1339,7 +1341,8 @@ else % Einkriteriell: PSO
   if ~Set.general.only_finish_aborted % Führe Optimierung durch
     options.InitialSwarmMatrix = InitPop;
     [p_val,fval,exitflag,output] = particleswarm(fitnessfcn,nvars,varlim(:,1),varlim(:,2),options);
-    cds_log(1, sprintf('[dimsynth] Optimierung beendet. iterations=%d, funccount=%d, message: %s', ...
+    cds_log(1, sprintf(['[dimsynth] PSO-Optimierung für Rob. %d (%s) beendet. ', ...
+      'iterations=%d, funccount=%d, message: %s'], Structure.Number, Structure.Name, ...
       output.iterations, output.funccount, output.message));
     p_val = p_val(:); % stehender Vektor
   else % Lade Ergebnis einer unfertigen Optimierung

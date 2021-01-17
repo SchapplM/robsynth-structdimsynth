@@ -55,6 +55,7 @@ fval = NaN(length(Set.optimization.objective),1);
 physval = fval;
 desopt_pval_given = false;
 if nargin == 6 && ~isempty(desopt_pval) && ~all(isnan(desopt_pval))% Die Eingabevariable ist gesetzt
+  % Prüfe, ob Entwurfsvariable der Schubgelenk-Offsets gegeben ist
   if ~any(isnan(desopt_pval(Structure.desopt_ptypes==1)))
     % Keine Optimierung von Entwurfsparametern durchführen. Trage die Schub-
     % gelenk-Offsets aus dem gegebenen Ergebnis direkt in die Klasse ein.
@@ -73,13 +74,15 @@ if nargin == 6 && ~isempty(desopt_pval) && ~all(isnan(desopt_pval))% Die Eingabe
     % Übergebener Wert war NaN. Optimierung doch durchführen
     Structure.desopt_prismaticoffset = true;
   end
+  % Prüfe, ob weitere Entwurfsvariablen gegeben sind.
   if all(~isnan(desopt_pval(Structure.desopt_ptypes~=1)))
     desopt_pval_given = true; % bezieht sich nicht auf den obigen Fall
     % Werte für die Gelenkfeder-Ruhelagen weiter unten einstellen.
     % Optimierungsvariablen deaktivieren. Hierdurch keine erneute Optimierung.
     Set.optimization.desopt_vars = {};
   else
-    error('Eine in desopt_pval übergebene Variable ist NaN.');
+    % Übergebener Wert war NaN. Optimierung doch durchführen. Keine
+    % Anpassung notwendig (desopt_vars ist noch richtig eingestellt).
   end
 else
   desopt_pval = NaN(length(Structure.desopt_ptypes),1);
