@@ -242,7 +242,7 @@ if ~isempty(InitPopLoadTmp)
 end
 %% Wähle aus den geladenen Parametern eine Anfangspopulation mit hoher Diversität
 % Anzahl der zu ladenden Parameter (begrenzt durch vorhandene)
-nIndLoad = Set.optimization.InitPopRatioOldResults*nIndTotal;
+nIndLoad = floor(Set.optimization.InitPopRatioOldResults*nIndTotal);
 nIndLoad = min(nIndLoad, size(InitPopLoadTmp,1));
 if size(InitPopLoadTmp,1) > 0
   % Normiere die geladenen Parameter auf die Parametergrenzen. Dadurch
