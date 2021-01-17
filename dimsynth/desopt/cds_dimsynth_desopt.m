@@ -74,13 +74,28 @@ if any(vartypes == 3)
   % die Feder-Mittelstellungen gesucht wird.
   qminmax_legs = reshape(minmax2(Q'),R.Leg(1).NJ,2*R.NLEG);
   qminmax_leg = minmax2(qminmax_legs);
-  varlim_js = qminmax_leg(I_joints,:);
+  varlim_js_from_traj = qminmax_leg(I_joints,:);
   % Setze die Grenzen außerhalb des Bewegungsbereichs. Das erlaubt auch 
   % dauerhaft vorgespannte Gelenke, die eine Gravitationskompensation
   % bieten können. Die Stärke der möglichen Vorspannung ist stark von der
   % Steifigkeit in den Gelenken, der Zielfunktion und den Antrieben abhängig.
-  varlim_js = varlim_js + repmat([-45, 45]*pi/180, sum(I_joints), 1);
-  varlim = [varlim; varlim_js];
+  % Beachte dabei die Nebenbedingung der Gelenkspannweite
+  rangelim = Set.optimization.max_range_passive_revolute;
+  if isnan(rangelim) || rangelim > pi
+     % Nicht gesetzt. Keine Berücksichtigung und in folgender Formel 45°
+     % über die Trajektorie in beide Richtungen hinaus.
+    rangelim = -pi/4;
+  end
+  % Gehe so weit über die Verfahrbewegung hinaus, dass in dem Grenzfall der
+  % Ruhelage die mögliche Spannweite maximal ausgenutzt wird. Ziehe 1e-3
+  % von der Grenze ab, um Reserve für numerische Fehler zu haben. Sonst
+  % schlagen spätere Tests an.
+  varlim_from_jointrange = [ ...
+                            varlim_js_from_traj(:,2)-rangelim+1e-3, ...
+                            varlim_js_from_traj(:,1)+rangelim-1e-3];
+  % Bestimme die Ober- und Untergrenze aus den beiden Fällen
+  varlim_js = minmax2([varlim_js_from_traj, varlim_from_jointrange]);
+  varlim = [varlim; varlim_js]; % in Grenzen für PSO eintragen
 end
 % Erzeuge zufällige Startpopulation
 options_desopt.SwarmSize = NumIndividuals;
@@ -106,11 +121,24 @@ if any(vartypes == 3)
     % mit Mittelstellung der Feder-Ruhelage zur Vorab-Schätzung.
     InitPop(2,vartypes==3) = InitPop(1,vartypes==3);
   end
-  % Setze bei der ersten Hälfte der Population die Ruhelage geringfügig um
+  % Eine weitere plausible Lösung liegt am Rand (dann maximaler Effekt der
+  % Feder zur Gravitationskompensation)
+  allcombinput = cell(1,size(varlim_js,1)); % Definiere die Eingabe als Cell
+  for k = 1:length(allcombinput)
+    allcombinput{k} = varlim_js(k,:)';
+  end
+  InitPop_js_border = allcomb(allcombinput{:});
+  % Begrenze die Anzahl dieser Grenz-Partikel
+  n_border = size(InitPop_js_border,1);
+  if n_border > NumIndividuals-2
+    n_border = NumIndividuals-2;
+  end
+  InitPop(3:3+n_border-1,vartypes==3) = InitPop_js_border(1:n_border,:);
+  % Setze bei dem Rest der Population die Ruhelage geringfügig um
   % die Mittelstellung. Hier werden die besten Ergebnisse erwartet.
-  n_red = floor(NumIndividuals/2)-2;
+  n_red = NumIndividuals-2-n_border;
   varlim_js_red = repmat(InitPop(1,vartypes==3)',1,2) + repmat([-10, 10]*pi/180, sum(I_joints), 1);
-  InitPop(3:3+n_red-1,vartypes==3) = repmat(varlim_js_red(:,1)', n_red,1) + ...
+  InitPop(3+n_border:end,vartypes==3) = repmat(varlim_js_red(:,1)', n_red,1) + ...
     rand(n_red, sum(vartypes==3) ).* repmat(varlim_js_red(:,2)'-varlim_js_red(:,1)',n_red,1);
 end
 options_desopt.InitialSwarmMatrix = InitPop;
