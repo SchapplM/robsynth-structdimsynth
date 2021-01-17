@@ -1261,7 +1261,7 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
   options = struct('fun', fitnessfcn_vec, 'nVar', nvars, ...
     'var_min', varlim(:,1), 'var_max', varlim(:,2));
   if Set.general.matfile_verbosity > 2 || Set.general.isoncluster
-    mopso_outputfun = @(REP)cds_save_all_results_mopso(REP,Set,Structure);
+    mopso_outputfun = @(MS)cds_save_all_results_mopso(MS,Set,Structure);
     options.OutputFcn = {mopso_outputfun};
   end
   if ~Set.general.only_finish_aborted % Führe Optimierung durch
