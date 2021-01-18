@@ -169,8 +169,9 @@ if fitness_recalc_necessary
   end
   RobotOptDetails = struct('Traj_Q', Q, 'Traj_QD', QD, 'Traj_QDD', QDD, ...
     'R', R, 'Dyn_Tau', TAU);
-else
-  RobotOptDetails = struct('R', []); % Platzhalter. Wird nicht benötigt.
+else % Roboter-Klasse muss trotzdem neu erstellt werden.
+  R = cds_dimsynth_robot(Set, Traj, Structure, true);
+  RobotOptDetails = struct('R', R);
 end
 
 %% Rufe die Plot-Funktion auf

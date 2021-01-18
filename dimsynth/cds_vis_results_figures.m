@@ -27,13 +27,8 @@ function fhdl = cds_vis_results_figures(figname, Set, Traj, RobData, ...
 %% Initialisierung
 RNr = RobData.Number;
 PNr = RobData.ParetoNumber;
-if any(strcmp(figname, {'pareto', 'optpar'}))
-  R = []; % Platzhalter. Wird nicht benötigt.
-  Traj_0 = [];
-else
-  R = RobotOptDetails.R;
-  Traj_0 = cds_transform_traj(R, Traj);
-end
+R = RobotOptDetails.R;
+Traj_0 = cds_transform_traj(R, Traj);
 Name = RobData.Name;
 resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
 resrobdir = fullfile(resmaindir, sprintf('Rob%d_%s', RNr, Name));
