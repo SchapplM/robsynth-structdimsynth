@@ -28,6 +28,11 @@ pointsInPlot = [xData, yData];
 clickedPoint = event.IntersectionPoint(1:2);
 distances = sqrt(sum(bsxfun(@minus, pointsInPlot, clickedPoint).^2,2));
 closest = pointsInPlot(distances==min(distances),:);
+if size(closest,1) > 1
+  warning(['Es wurden %d Punkte gleichzeitig erkannt. Liegen anscheinend ', ...
+    'übereinander'],  size(closest,1));
+  closest = closest(1,:);
+end
 % Index des geklickten Punkts entspricht Index in Ergebnis-Variablen
 I_point = xData==closest(1) & yData==closest(2);
 %% Auslesen des Menüs zur Entscheidung der Plot-Aktion
@@ -98,18 +103,11 @@ end
 Set.optimization.resdir = resdir_tmp;
 
 %% Bestimme die Nummer des Pareto-Partikels
-% Annahme: Hier nicht bekannt, ob fval- oder physval-Pareto-Diagramm.
-% Prüfe auf Gleichheit gegen beide. Einer muss richtig sein.
-% Nummer könnte auch schon in I_point richtig sein, voraussgesetzt xData
-% und yData sind identisch mit den Werten aus fval_pareto (bzw. physval).
-% Das nachträgliche Finden ignoriert die Einheitenkonvertierung (rad-deg)
-% im Plot.
-% I_fval = repmat(selectedPoint, size(d1.RobotOptRes.fval_pareto,1),1) == ...
-%   d1.RobotOptRes.fval_pareto;
-% I_physval = repmat(selectedPoint, size(d1.RobotOptRes.physval_pareto,1),1) == ...
-%   d1.RobotOptRes.physval_pareto;
-% PNr = find(all(I_fval|I_physval,2));
-PNr = find(I_point);
+% Nummer istschon in I_point richtig sein, da xData und yData identisch
+% mit den Werten aus fval_pareto (bzw. physval) sind.
+% Wenn mehrere Punkte übereinander liegen, wird der erste genommen. Ist
+% egal, da sie ja ein identisches Ergebnis haben.
+PNr = find(I_point, 1, 'first');
 fval = d1.RobotOptRes.fval_pareto(PNr,:)';
 if isempty(PNr)
   error('Kein Punkt in Pareto-Daten gefunden');
