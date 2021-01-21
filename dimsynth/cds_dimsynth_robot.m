@@ -1253,42 +1253,64 @@ if Set.general.matfile_verbosity > 0
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat'));
 end
 if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
-  % Durchführung mit MOPSO; Einstellungen siehe [SierraCoe2005]
-  % Und Beispiele aus Matlab File Exchange
-  MOPSO_set1 = struct('Np', NumIndividuals, 'Nr', NumIndividuals, ...
-    'maxgen', Set.optimization.MaxIter, 'W', 0.4, 'C1', 2, 'C2', 2, 'ngrid', 20, ...
-    'maxvel', 5, 'u_mut', 1/nvars); % [SierraCoe2005] S. 4
-  options = struct('fun', fitnessfcn_vec, 'nVar', nvars, ...
-    'var_min', varlim(:,1), 'var_max', varlim(:,2));
-  if Set.general.matfile_verbosity > 2 || Set.general.isoncluster
-    mopso_outputfun = @(MS)cds_save_all_results_mopso(MS,Set,Structure);
-    options.OutputFcn = {mopso_outputfun};
+  if strcmp(Set.optimization.algorithm, 'mopso')
+    % Durchführung mit MOPSO; Einstellungen siehe [SierraCoe2005]
+    % Und Beispiele aus Matlab File Exchange
+    MOPSO_set1 = struct('Np', NumIndividuals, 'Nr', NumIndividuals, ...
+      'maxgen', Set.optimization.MaxIter, 'W', 0.4, 'C1', 2, 'C2', 2, 'ngrid', 20, ...
+      'maxvel', 5, 'u_mut', 1/nvars); % [SierraCoe2005] S. 4
+    options = struct('fun', fitnessfcn_vec, 'nVar', nvars, ...
+      'var_min', varlim(:,1), 'var_max', varlim(:,2));
+    if Set.general.matfile_verbosity > 2 || Set.general.isoncluster
+      mopso_outputfun = @(MS)cds_save_all_results_mopso(MS,Set,Structure);
+      options.OutputFcn = {mopso_outputfun};
+    end
+  elseif strcmp(Set.optimization.algorithm, 'gamultiobj')
+    options = optimoptions('gamultiobj');
+    options.MaxGenerations = Set.optimization.MaxIter;
+    options.PopulationSize = NumIndividuals;
+    if ~Set.general.noprogressfigure
+      options.PlotFcn = {@gaplotpareto,@gaplotscorediversity};
+    end
+    if Set.general.matfile_verbosity > 2 || Set.general.isoncluster
+      gamo_outputfun = @(options, state, flag) ...
+        cds_save_all_results_gamultiobj(options,state,flag,Set,Structure);
+      options.OutputFcn = {gamo_outputfun};
+    end
+  else
+    error('Algorithmus %s nicht definiert', Set.optimization.algorithm);
   end
   if ~Set.general.only_finish_aborted % Führe Optimierung durch
-    options.P0 = InitPop;
-    output = MOPSO(MOPSO_set1, options);
-    p_val_pareto = output.pos;
-    fval_pareto = output.pos_fit;
-    cds_log(1, sprintf(['[dimsynth] MOPSO-Optimierung für Rob. %d (%s) ', ...
-      'beendet. %d Punkte auf Pareto-Front.'], Structure.Number, ...
-      Structure.Name, size(p_val_pareto,1)));
-    exitflag = -1; % Nehme an, dass kein vorzeitiger Abbruch erfolgte
-    % Alternative: Durchführung mit gamultiobj (konvergiert schlechter)
-%     options = optimoptions('gamultiobj');
-%     options.MaxGenerations = Set.optimization.MaxIter;
-%     options.PopulationSize = NumIndividuals;
-%     options.InitialPopulationMatrix = InitPop;
-%     if ~Set.general.noprogressfigure
-%       options.PlotFcn = {@gaplotpareto,@gaplotscorediversity};
-%     end
-%       [p_val_pareto,fval_pareto,exitflag,output] = gamultiobj(fitnessfcn, nvars, [], [], [], [],varlim(:,1),varlim(:,2), options);
-%       cds_log(1, sprintf('[dimsynth] Optimierung beendet. generations=%d, funccount=%d, message: %s', ...
-%         output.generations, output.funccount, output.message));
+    if strcmp(Set.optimization.algorithm, 'mopso')
+      options.P0 = InitPop;
+      output = MOPSO(MOPSO_set1, options);
+      p_val_pareto = output.pos;
+      fval_pareto = output.pos_fit;
+      cds_log(1, sprintf(['[dimsynth] MOPSO-Optimierung für Rob. %d (%s) ', ...
+        'beendet. %d Punkte auf Pareto-Front.'], Structure.Number, ...
+        Structure.Name, size(p_val_pareto,1)));
+      exitflag = -1; % Nehme an, dass kein vorzeitiger Abbruch erfolgte
+    elseif strcmp(Set.optimization.algorithm, 'gamultiobj')
+      % Alternative: Durchführung mit gamultiobj (konvergiert schlechter)
+      options.InitialPopulationMatrix = InitPop;
+      [p_val_pareto,fval_pareto,exitflag,output] = gamultiobj(fitnessfcn, nvars, [], [], [], [],varlim(:,1),varlim(:,2), options);
+      cds_log(1, sprintf(['[dimsynth] Optimierung mit GAMULTIOBJ beendet. ', ...
+        'generations=%d, funccount=%d, message: %s'], ...
+        output.generations, output.funccount, output.message));
+    else
+      error('Algorithmus %s nicht definiert', Set.optimization.algorithm);
+    end
   else
     % Keine Durchführung der Optimierung. Lade Daten der unfertigen
     % Optimierung und speichere sie so ab, als ob die Optimierung
     % durchgeführt wurde.
-    filelist_tmpres = dir(fullfile(resdir, 'MOPSO_Gen*_AllInd.mat'));
+    if strcmp(Set.optimization.algorithm, 'mopso')
+      filelist_tmpres = dir(fullfile(resdir, 'MOPSO_Gen*_AllInd.mat'));
+    elseif strcmp(Set.optimization.algorithm, 'gamultiobj')
+      filelist_tmpres = dir(fullfile(resdir, 'GAMO_Gen*_AllInd.mat'));
+    else
+      error('Algorithmus %s nicht definiert', Set.optimization.algorithm);
+    end
     if isempty(filelist_tmpres)
       cds_log(1, sprintf(['[dimsynth] Laden des letzten abgebrochenen Durch', ...
         'laufs wurde angefordert. Aber keine Daten in %s vorliegend. Ende.'], resdir));
@@ -1296,11 +1318,20 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
     end
     [~,I_newest] = max([filelist_tmpres.datenum]);
     d = load(fullfile(resdir, filelist_tmpres(I_newest).name));
-    p_val_pareto = d.REP.pos;
-    fval_pareto = d.REP.pos_fit;
     PSO_Detail_Data = d.PSO_Detail_Data;
-    options.P0 = PSO_Detail_Data.pval(:,:,1);
-    exitflag = -6;
+    if strcmp(Set.optimization.algorithm, 'mopso')
+      p_val_pareto = d.REP.pos;
+      fval_pareto = d.REP.pos_fit;
+      options.P0 = PSO_Detail_Data.pval(:,:,1);
+      exitflag = -6;
+    elseif strcmp(Set.optimization.algorithm, 'gamultiobj')
+      p_val_pareto = d.state.Population;
+      fval_pareto = d.state.Score;
+      options.InitialPopulationMatrix = PSO_Detail_Data.pval(:,:,1);
+      exitflag = 0; % Maximum number of generations exceeded.
+    else
+      error('Algorithmus %s nicht definiert', Set.optimization.algorithm);
+    end
     cds_log(1, sprintf(['[dimsynth] Ergebnis des letzten abgebrochenen ', ...
       'Durchlaufs aus %s geladen.'], filelist_tmpres(I_newest).name));
   end
@@ -1370,13 +1401,16 @@ else
   % Ergebnis wird nicht in der persistenten Variable PSO_Detail_Data gespeichert.
   PSO_Detail_Data = d.PSO_Detail_Data;
   if length(Set.optimization.objective) > 1
-    options.P0 = PSO_Detail_Data.pval(:,:,1);
+    if strcmp(Set.optimization.algorithm, 'mopso')
+      options.P0 = PSO_Detail_Data.pval(:,:,1);
+    elseif strcmp(Set.optimization.algorithm, 'gamultiobj')
+      options.InitialPopulationMatrix = PSO_Detail_Data.pval(:,:,1);
+    else
+      error('Algorithmus %s nicht definiert', Set.optimization.algorithm);
+    end
   else
     options.InitialSwarmMatrix = PSO_Detail_Data.pval(:,:,1);
   end
-  exitflag = -6;
-  cds_log(1, sprintf(['[dimsynth] Ergebnis des letzten abgebrochenen ', ...
-    'Durchlaufs aus %s geladen.'], filelist_tmpres(I_newest).name));
 end
 
 if Set.general.matfile_verbosity > 0
@@ -1769,7 +1803,8 @@ else
     'zippen+löschen mehr notwendig.'], lfp);
 end
 % Lösche temporäre Ergebnisse. Nicht mehr benötigt, da Endergebnis da.
-filelist_tmpres = dir(fullfile(resdir, '*PSO_Gen*_AllInd.mat'));
+filelist_tmpres = [dir(fullfile(resdir, '*PSO_Gen*_AllInd.mat')); ...
+  dir(fullfile(resdir, '*GAMO_Gen*_AllInd.mat'));];
 for i = 1:length(filelist_tmpres)
   delete(fullfile(resdir, filelist_tmpres(i).name));
 end
