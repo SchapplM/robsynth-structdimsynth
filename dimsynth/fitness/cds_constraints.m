@@ -166,8 +166,8 @@ Q_jic = NaN(size(Traj_0.XE,1), R.NJ, n_jic);
 q0_jic = NaN(R.NJ, n_jic); % zum späteren Nachvollziehen des Ergebnisses
 for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   Phi_E(:) = NaN; QE(:) = NaN; % erneut initialisieren wegen jic-Schleife.
-  if jic == 1 && ~any(isnan(qref)) && any(qref) % nehme Referenz-Pose (kann erfolgreiche gespeicherte Pose bei erneutem Aufruf enthalten)
-    q0 = qref; % TODO: Prüfe, warum hier manchmal nur Nullen stehen. Dieser Fall wird aktuell ignoriert.
+  if jic == 1 && all(~isnan(qref)) && any(qref~=0) % nehme Referenz-Pose (kann erfolgreiche gespeicherte Pose bei erneutem Aufruf enthalten)
+    q0 = qref; % Wenn hier nur Nullen stehen, werden diese ignoriert.
   else
     q0 = qlim(:,1) + rand(R.NJ,1).*(qlim(:,2)-qlim(:,1)); % Zufällige Anfangswerte geben vielleicht neue Konfiguration.
   end
@@ -439,6 +439,15 @@ I_iO = find(fval_jic == 1e3);
 if ~any(I_iO) % keine gültige Lösung für Eckpunkte
   Q0 = Q_jic(1,:,jic_best); % Gebe nur eine einzige Konfiguration aus
   QE_all = Q_jic(:,:,jic_best);
+  % Wenn die IK nicht für alle Punkte erfolgreich war, wurde abgebrochen.
+  % Dann stehen nur Nullen im Ergebnis. Schlecht zum Debuggen.
+  if all(Q0==0)
+    Q0 = QE_all(end,:); % Der letzte Wert wurde oben zuerst berechnet. Ergebnis liegt vor.
+    % Setze für die Eckpunkte überall den (falschen) IK-Ergebniswert ein.
+    % Macht das Debuggen einfacher (Bild plausibler)
+    I_zeros = all(QE_all==0,2);
+    QE_all(I_zeros,:) = repmat(Q0,sum(I_zeros),1);
+  end
 else % Gebe alle gültigen Lösungen aus
   Q0 = reshape(squeeze(Q_jic(1,:,I_iO)),R.NJ,length(I_iO))';
   % Falls der Roboter Schubgelenke hat, dominiert die Stellung der
