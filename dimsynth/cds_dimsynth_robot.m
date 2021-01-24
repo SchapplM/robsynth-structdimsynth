@@ -1335,6 +1335,23 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
     cds_log(1, sprintf(['[dimsynth] Ergebnis des letzten abgebrochenen ', ...
       'Durchlaufs aus %s geladen.'], filelist_tmpres(I_newest).name));
   end
+  % Entferne doppelte Partikel aus der Pareto-Front (bei MOPSO beobachtet)
+  [~,I_unique] = unique(p_val_pareto, 'rows');
+  if sum(I_unique) ~= size(p_val_pareto,1)
+    cds_log(-1, sprintf(['[dimsynth] Pareto-Front bestand aus %d Partikeln, ', ...
+      'aber nur %d davon nicht doppelt'], size(p_val_pareto,1), sum(I_unique)));
+    fval_pareto = fval_pareto(I_unique,:);
+    p_val_pareto = p_val_pareto(I_unique,:);
+  end
+  % Prüfe, ob die Partikel auf der Pareto-Front wirklich dominant sind.
+  % Bei Laden alter Ergebnisse aus MO-GA auch nicht-dominante möglich.
+  Idom = pareto_dominance(p_val_pareto);
+  if any(Idom)
+    cds_log(-1, sprintf(['[dimsynth] %d Partikel aus der Pareto-Front werden ', ...
+      'dominiert (und sind damit eigentlich nicht Teil der Pareto-Front)'], sum(Idom)));
+    fval_pareto = fval_pareto(~Idom,:);
+    p_val_pareto = p_val_pareto(~Idom,:);
+  end
   % Sortiere die Pareto-Front nach dem ersten Optimierungskriterium. Dann
   % sind die Partikel der Pareto-Front im Diagramm von links nach rechts
   % nummeriert. Das hilft bei der späteren Auswertung (dort Angabe der Nr.)
@@ -1343,10 +1360,10 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
   p_val_pareto = p_val_pareto(Isort,:);
   % Gleiche das Rückgabeformat zwischen MO und SO Optimierung an. Es muss
   % immer ein einzelnes Endergebnis geben (nicht nur Pareto-Front)
-  % Nehme ein Partikel aus der Mitte
+  % Nehme ein Partikel aus der Mitte (kann unten noch überschrieben werden)
   Iselect = ceil(size(fval_pareto,1)/2);
-  p_val = p_val_pareto(Iselect,:)'; % nehme nur das erste Individuum damit Code funktioniert.
-  fval = fval_pareto(Iselect,:)'; % ... kann unten noch überschrieben werden.
+  p_val = p_val_pareto(Iselect,:)';
+  fval = fval_pareto(Iselect,:)';
 else % Einkriteriell: PSO
   options = optimoptions('particleswarm');
   options.MaxIter = Set.optimization.MaxIter; %70 100 % in GeneralConfig
