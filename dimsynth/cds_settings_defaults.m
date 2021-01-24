@@ -79,6 +79,7 @@ structures = struct( ...
   'max_index_active', 6, ... % Setzt den maximalen Index aktuierter Gelenke fest (nachrrangig gegen vorherige Option)
   'mounting_serial', {'floor'}, ... % Montageort für serielle Roboter: floor, ceiling, wall
   'mounting_parallel', {'ceiling'}, ... % ... für PKM (wird entsprechend zur Aufgabe ausgerichtet; Schubgelenke haben Vorzugsrichtung)
+  'repeatlist', {{}}, ... % Liste für mehrfache Durchführung eines Roboters. Einträge: {'Name', Anzahl}. Sinnvoll, wenn parallele Berechnung möglich.
   'whitelist', {''}); % Liste, die die Systeme beschränkt
 
 %% Optimierungs-Einstellungen

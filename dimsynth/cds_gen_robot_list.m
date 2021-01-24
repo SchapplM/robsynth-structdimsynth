@@ -336,3 +336,31 @@ if structset.use_parallel
     end
   end
 end
+%% Einträge auf der Liste verdoppeln
+% Wenn nur ein Roboter optimiert wird, können durch parallele Berechnung 
+% mehr Parameter ausprobiert werden.
+if ~isempty(Set.structures.repeatlist)
+  for i = 1:length(Set.structures.repeatlist)
+    Name_i = Set.structures.repeatlist{i}{1};
+    Rep_i = Set.structures.repeatlist{i}{2};
+    found = false;
+    for j = 1:length(Structures)
+      Structure_j = Structures{j};
+      Name_j = Structure_j.Name;
+      if strcmp(Name_i, Name_j)
+        found = true;
+        % Hänge diese Einstellung mehrfach ans Ende an.
+        for k = 1:Rep_i-1 % einmal ist sie schon drin. also n-1
+          Structure_k = Structure_j;
+          Structure_k.Number = length(Structures)+1;
+          Structures{end+1} = Structure_k; %#ok<AGROW>
+        end
+        break;
+      end
+    end
+    if ~found
+      warning(['Roboter %s soll mehrfach optimiert werden, ist aber gar ', ...
+        'nicht in ursprünglicher Lister der Roboter enthalten.'], Name_i);
+    end
+  end
+end
