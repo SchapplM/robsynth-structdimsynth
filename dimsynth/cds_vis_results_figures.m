@@ -55,7 +55,7 @@ elseif ~strcmp(figname, 'animation')
 end
 
 % Hole Erklärungstext zum Fitness-Wert aus Tabelle
-fval_text = ResTab.Fval_Text{strcmp(ResTab.Name, Name)};
+fval_text = ResTab.Fval_Text{strcmp(ResTab.Name,Name) & ResTab.LfdNr==RNr};
 for kk = 1:length(Set.general.animation_styles)
   anim_mode = Set.general.animation_styles{kk}; % Strichzeichnung, 3D-Modell, Kollisionskörper
   fhdl = figure();clf;hold all;
