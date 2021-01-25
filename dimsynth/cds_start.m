@@ -100,6 +100,14 @@ for i = 1:length(Set.structures.whitelist)
     error('Roboter %s auf Positiv-Liste entspricht nicht dem Namensformat', Name_i);
   end
 end
+if ~isempty(Set.structures.repeatlist)
+  for j = 1:length(Set.structures.repeatlist)
+    assert(isa(Set.structures.repeatlist{j}, 'cell'), ...
+      'Eintrag in Set.structures.repeatlist ist kein Cell-Array');
+    assert(length(Set.structures.repeatlist{j}) == 2, ...
+      'Eintrag in Set.structures.repeatlist hat nicht Dimension 2');
+  end
+end
 %% Menge der Roboter laden
 if ~(Set.general.only_finish_aborted && Set.general.isoncluster) && ...
     ~Set.general.regenerate_summmary_only
@@ -225,6 +233,21 @@ if Set.general.computing_cluster
     Set_cluster.general.parcomp_plot = true; % paralleles Plotten auf Cluster (ist dort gleichwertig und schneller)
     % Wähle nur einen Bereich aller möglicher Roboter aus für diesen Lauf.
     Set_cluster.structures.whitelist = Names(I1_kk:I2_kk);
+    % Falls ein Roboter mehrfach parallel optimiert werden soll, muss die
+    % Einstellungen für das Cluster neu generiert werden.
+    if ~isempty(Set.structures.repeatlist)
+      Set_cluster.structures.repeatlist = {};
+      Names_repeated = Set_cluster.structures.whitelist;
+      Set_cluster.structures.whitelist = unique(Names_repeated);
+      % Zähle, wie viele Roboter jeweils doppelt sind. Daraus wird die Ein-
+      % stellung repeatlist rekonstruiert.
+      for jj = 1:length(Set_cluster.structures.whitelist)
+        I_unique = strcmp(Names_repeated, Set_cluster.structures.whitelist{jj});
+        if sum(I_unique) == 1, continue; end % Nur eine Optimierung. Kein Eintrag notwendig.
+        Set_cluster.structures.repeatlist = [Set_cluster.structures.repeatlist, ...
+          {{Set_cluster.structures.whitelist{jj}, sum(I_unique)}}];
+      end
+    end
 
     save(fullfile(jobdir, [computation_name,'.mat']), 'Set_cluster', 'Traj');
     % Matlab-Skript erzeugen
@@ -249,7 +272,7 @@ if Set.general.computing_cluster
     % Schätze die Rechenzeit: Im Mittel 2s pro Parametersatz aufgeteilt auf
     % 12 parallele Kerne, 30min für Bilderstellung und 6h Reserve/Allgemeines
     comptime_est = (Set.optimization.NumIndividuals*(1+Set.optimization.MaxIter)*2 + ...
-      30*60)*ceil(length(Set_cluster.structures.whitelist)/12) + 6*3600;
+      30*60)*ceil(length(I1_kk:I2_kk)/12) + 6*3600;
     % Falls Entwurfsoptimierung durchgeführt wird, rechne dort auch noch
     % mit 1s pro Partikel, durchschnittlich 20 Iterationen bei 10% aller
     % Partikel aus der Maßsynthese.
@@ -260,20 +283,20 @@ if Set.general.computing_cluster
     if Set.general.only_finish_aborted || Set.general.regenerate_summmary_only
       % Es wird keine Optimierung durchgeführt. Überschreibe die vorher
       % berechnete Zeit (nur Bilderstellung).
-      comptime_est = ceil(length(Set_cluster.structures.whitelist)/12)*30*60;
+      comptime_est = ceil(length(I1_kk:I2_kk)/12)*30*60;
     end
     % Matlab-Skript auf Cluster starten.
     addpath(cluster_repo_path);
     jobStart(struct( ...
       'name', computation_name, ...
       ... % Nur so viele Nodes beantragen, wie auch benötigt werden ("ppn")
-      'ppn', min(length(Set_cluster.structures.whitelist),32), ... % 32 ist max. auf Cluster
+      'ppn', min(length(I1_kk:I2_kk),32), ... % 32 ist max. auf Cluster
       'matFileName', [computation_name, '.m'], ...
       'locUploadFolder', jobdir, ...
       'time',comptime_est/3600)); % Angabe in h
     fprintf(['Berechnung von %d Robotern wurde auf Cluster hochgeladen. Ende. ', ...
       'Die Ergebnisse müssen nach Beendigung der Rechnung manuell heruntergeladen ', ...
-      'werden.\n'], length(Set_cluster.structures.whitelist));
+      'werden.\n'], length(I1_kk:I2_kk));
     if kk > 1 % Damit nicht alle exakt zeitgleich starten; exakt gleichzeitiger, ...
       pause(30); % ... paralleler Start des parpools sowieso nicht möglich
     end
