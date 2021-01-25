@@ -97,7 +97,7 @@ elseif abort_fitnesscalc
   fval(:) = Inf;
   if length(fval)>1, fvalstr=['[',disp_array(fval', '%1.3e'),']'];
   else,              fvalstr=sprintf('%1.3e', fval); end
-  cds_log(2,sprintf(['[fitness] Fitness-Evaluation in %1.1fs. fval=%s. ', ...
+  cds_log(2,sprintf(['[fitness] Fitness-Evaluation in %1.2fs. fval=%s. ', ...
     'Bereits anderes Gut-Partikel berechnet.'], toc(t1), fvalstr));
   cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, desopt_pval);
   return;
@@ -147,7 +147,7 @@ if fval_constr > 1000 % Nebenbedingungen verletzt.
       R.Leg(i).qlim(R.Leg(i).MDH.sigma==1,:) = minmax2(Q_i(:,R.Leg(i).MDH.sigma==1)');
     end
   end
-  cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval(1), constrvioltext));
+  cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.2fs. fval=%1.3e. %s', toc(t1), fval(1), constrvioltext));
   cds_fitness_debug_plot_robot(R, Q0(1,:)', Traj_0, Traj_W, Set, Structure, p, mean(fval), debug_info);
   cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, desopt_pval);
   return
@@ -393,7 +393,7 @@ for iIKC = 1:size(Q0,1)
       fval_IKC(iIKC,:) = fval_st*100; % Bringe in Bereich 1e4 ... 1e5
       constrvioltext_IKC{iIKC} = sprintf('Die Nachgiebigkeit ist zu groß: %1.1e > %1.1e', ...
         fval_phys_st, Set.optimization.constraint_obj(5));
-      cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval(1), constrvioltext_stiffness));
+      cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.2fs. fval=%1.3e. %s', toc(t1), fval(1), constrvioltext_stiffness));
       continue
     end
   end
@@ -637,12 +637,12 @@ end
 if all(fval<1e3)
   if length(fval)>1, fvalstr=['[',disp_array(fval', '%1.3e'),']'];
   else,              fvalstr=sprintf('%1.3e', fval); end
-  cds_log(2,sprintf(['[fitness] Fitness-Evaluation in %1.1fs. fval=%s. Erfolg', ...
+  cds_log(2,sprintf(['[fitness] Fitness-Evaluation in %1.2fs. fval=%s. Erfolg', ...
     'reich. %s Auswahl aus %d IK-Konfigurationen (davon %d i.O., %d optimal)'], ...
     toc(t1), fvalstr, fval_debugtext_IKC{iIKCbest}(2:end), ...
     size(fval_IKC,1), n_fval_iO, n_fval_opt));
 else
-  cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', ...
+  cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.2fs. fval=%1.3e. %s', ...
     toc(t1), fval(1), constrvioltext_IKC{iIKCbest}));
 end
 cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, mean(fval), debug_info);
