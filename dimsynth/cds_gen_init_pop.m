@@ -22,7 +22,7 @@ vartypes = Structure.vartypes;
 nvars = length(varnames);
 %% Lade Ergebnisse bisheriger Optimierungen aus dem Ergebnis-Ordner
 t1 = tic();
-counter_optdirs = 0;
+counter_optresults = 0;
 counter_filesize = 0;
 InitPopLoadTmp = [];
 ScoreLoad = [];
@@ -33,28 +33,26 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
   % Unterordner sind die Ergebnis-Ordner einzelner Optimierungen
   optdirs = dir(fullfile(resdir, '*'));
   for i = 1:length(optdirs) % Unterordner durchgehen.
-    score_i = 0; % Bewertung der Vergleichbarkeit dieser Optimierung mit der aktuellen Optimierung
     if ~optdirs(i).isdir || optdirs(i).name(1) == '.'
       continue % Kein passendes Verzeichnis
     end
     dirname_i = fullfile(resdir, optdirs(i).name);
     % Aktuellen Roboter suchen
     resfiles = dir(fullfile(dirname_i, 'Rob*_Endergebnis.mat'));
-    II = find(contains({resfiles(:).name}, RobName),1);
-    if isempty(II)
+    III = find(contains({resfiles(:).name}, RobName));
+    if isempty(III)
       continue % Roboter nicht enthalten
-    end
-    if length(II) > 1
-      cds_log(-1, sprintf(['[cds_gen_init_pop] Roboter %s scheint mehrfach ', ...
-        'vorzukommen: %s.'], RobName, dirname_i));
-      continue
     end
     sflist = dir(fullfile(dirname_i, '*_settings.mat'));
     if length(sflist) > 1
       continue % Mehr als eine Einstellungsdatei. Ungültig.
     end
     % fprintf('Daten für Roboter %s gefunden (%s)\n', RobName, dirname_i);
-    
+    % Gehe alle Ergebnisdateien zu dem Roboternamen durch. Es kann mehrere
+    % geben (bei Struktursynthese oder bei paralleler Optimierung eines
+    % einzigen Roboters
+    for II = III(:)'
+    score_i = 0; % Bewertung der Vergleichbarkeit dieser Optimierung mit der aktuellen Optimierung
     % Daten laden (Keine Abbruchbedingung)
     try % Auf Cluster teilweise Probleme mit Dateizugriff.
       d = load(fullfile(dirname_i, resfiles(II).name));
@@ -67,7 +65,14 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
     if ~isfield(d.RobotOptRes, 'p_val_pareto')
       continue % Altes Dateiformat
     end
-    counter_optdirs = counter_optdirs + 1;
+    counter_optresults = counter_optresults + 1;
+    
+    % Strukturinformationen laden
+    Structure_i = d.RobotOptRes.Structure;
+    if ~strcmp(Structure.angles_values, Structure_i.angles_values)
+      % Freie Parameter haben anderen festen Wert (z.B. Struktursynthese).
+      continue % Ergebnis nicht verwertbar.
+    end
     % Einstellungen laden
     if ~isempty(sflist)
       try
@@ -111,8 +116,6 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
         ~strcmp(Set.structures.mounting_parallel, Set_i.structures.mounting_parallel))
       score_i = score_i - 10;
     end
-
-    Structure_i = d.RobotOptRes.Structure;
     
     % Auslesen der Parameter (bezogen auf die Datei)
     if ~isempty(d.RobotOptRes.p_val_pareto)
@@ -196,9 +199,9 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
     % gesetzter Parameter in Ordnung ist. Es werden dann unten statt
     % gespeicherter Werte Zufallswerte eingesetzt.
     I_param_iO = all(ll_repmat <= pval_i & ul_repmat >= pval_i | isnan(pval_i) ,2);
-    cds_log(1, sprintf(['[cds_gen_init_pop] Auswertung %d/%d (%s) geladen. ', ...
+    cds_log(1, sprintf(['[cds_gen_init_pop] Auswertung %d/%d Nr. %d (%s) geladen. ', ...
       'Bewertung: %d. Bei %d/%d Parametergrenzen passend.'], i, length(optdirs), ...
-      optdirs(i).name, score_i, sum(I_param_iO), size(pval_i,1)));
+      II, optdirs(i).name, score_i, sum(I_param_iO), size(pval_i,1)));
     if any(~I_param_iO)
       for jjj = find(~I_param_iO & ~any(isnan(pval_i),2))'
         I_pniO = varlim(:,1)' > pval_i(jjj,:) | varlim(:,2)' < pval_i(jjj,:);
@@ -228,6 +231,7 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
 %     if ~isempty(PSO_Detail_Data) && isfield(PSO_Detail_Data, 'pval')
 %       PSO_Detail_Data.pval
 %     end
+    end
   end
 end
 %% Entferne Duplikate. Sortiere dafür die Partikel anhand ihrer Bewertung
@@ -330,5 +334,5 @@ end
 cds_log(1, sprintf(['[cds_gen_init_pop] %d Partikel für Initialpopulation ', ...
   'aus %d vorherigen Optimierungen (mit %d unterschiedlichen Partikeln) ', ...
   'geladen (%1.1fMB). Dauer: %1.1fs. Davon %d genommen. Die restlichen %d ', ...
-  'zufällig.'], size(InitPopLoad,1), counter_optdirs, size(InitPopLoadTmp,1), ...
+  'zufällig.'], size(InitPopLoad,1), counter_optresults, size(InitPopLoadTmp,1), ...
   counter_filesize/1e6, toc(t1), nIndLoad, nIndRand));
