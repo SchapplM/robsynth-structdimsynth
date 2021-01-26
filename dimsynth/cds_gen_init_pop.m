@@ -69,6 +69,7 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
     
     % Strukturinformationen laden
     Structure_i = d.RobotOptRes.Structure;
+    if ~isfield(Structure_i, 'angles_values'), continue; end % altes Format
     if ~strcmp(Structure.angles_values, Structure_i.angles_values)
       % Freie Parameter haben anderen festen Wert (z.B. Struktursynthese).
       continue % Ergebnis nicht verwertbar.
