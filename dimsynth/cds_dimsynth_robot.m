@@ -1768,9 +1768,18 @@ end
 [k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, fval);
 desopt_pval = PSO_Detail_Data.desopt_pval(k_ind, :, k_gen)';
 
+%% Speichere die Anfangswerte der IK der Pareto-Front
+% Sind notwendig, um sicher die Ergebnisse reproduzieren zu können
+q0_pareto = NaN(size(fval_pareto,1), size(Q,2));
+for i = 1:size(fval_pareto,1)
+  [k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, fval_pareto(i,:)');
+  q0_pareto(i,:) = PSO_Detail_Data.q0_ik(k_ind,:,k_gen)';
+end
 
 %% Ausgabe der Ergebnisse
 t_end = now(); % End-Zeitstempel der Optimierung dieses Roboters
+% Allgemeine Ergebnis-Struktur. Enthält die wichtisten Informationen
+% um das Endergebnis reproduzieren zu können.
 RobotOptRes = struct( ...
   'fval', fval, ... % Zielfunktionswert (nach dem optimiert wurde)
   'fval_obj_all', fval_obj_all, ... % Werte aller möglicher einzelner Zielf.
@@ -1781,15 +1790,18 @@ RobotOptRes = struct( ...
   'physval_pareto', physval_pareto, ... % physikalische Werte dazu
   'p_val_pareto', p_val_pareto, ... % Alle Parametervektoren der P.-Front
   'desopt_pval_pareto', desopt_pval_pareto, ... % Alle Entwurfsparameter zu den Pareto-Punkten
+  'q0_pareto', q0_pareto, ... % Alle IK-Anfangswerte aller Pareto-Partikel
+  'q0', q, ... % Anfangs-Gelenkwinkel für Lösung der IK
   'I_fval_obj_all', I_fval_obj_all, ... % Zuordnung der Fitness-Einträge zu fval_obj_all
   'p_limits', varlim, ... % Grenzen für die Parameterwerte
   'timestamps_start_end', [t_start, t_end, toc(t1)], ...
   'exitflag', exitflag, ...
   'Structure', Structure);
+% Detail-Informationen. Damit lässt sich die Bestimmung des Fitness-Werts
+% detailliert nachvollziehen
 RobotOptDetails = struct( ...
   'R', R, ... % Roboter-Klasse
   'options', options, ... % Optionen des Optimierungs-Algorithmus
-  'q0', q, ... % Anfangs-Gelenkwinkel für Lösung der IK
   'Traj_Q', Q, ...
   'Traj_QD', QD, ...
   'Traj_QDD', QDD, ...

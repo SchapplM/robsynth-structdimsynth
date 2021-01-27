@@ -137,6 +137,10 @@ if fval_constr > 1000 % Nebenbedingungen verletzt.
   else
     for i = 1:R.NLEG, R.Leg(i).qref = Q0(1,R.I1J_LEG(i):R.I2J_LEG(i))'; end
   end
+  % Belege die Ausgabe mit den berechneten Gelenkwinkeln. Dann kann immer
+  % noch das Bild gezeichnet werden (zur Fehlersuche)
+  Q = QE_iIKC;
+  
   % Speichere Gelenk-Grenzen. Damit sieht eine hieraus erstellte 3D-Bilder
   % besser aus, weil die Schubgelenk-Führungsschienen ungefähr stimmen
   if R.Type == 0 % Seriell

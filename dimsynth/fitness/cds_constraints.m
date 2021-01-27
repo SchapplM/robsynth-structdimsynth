@@ -31,7 +31,8 @@
 %   für alle Eckpunkte im Arbeitsraum und für alle gefundenen
 %   IK-Konfigurationen
 % Q0
-%   Startwerte der IK für die Berechnung der Trajektorie
+%   Erste Gelenkkonfiguration der Trajektorie (als Startwert für zukünftige
+%   Berechnung der IK)
 % constrvioltext [char]
 %   Text mit Zusatzinformationen, die beim Aufruf der Fitness-Funktion
 %   ausgegeben werden

@@ -140,6 +140,27 @@ if fitness_recalc_necessary
     % der Entwurfsoptimierung direkt eingetragen werden sollen. Vermeide die
     % erneute Durchführung der Entwurfsoptimierung, falls diese gemacht wurde.
     [R, Structure] = cds_dimsynth_robot(Set, Traj, Structure, true);
+    % Trage die gespeicherte Anfangswerte der Gelenkkonfigurationen in die
+    % Roboter-Klasse ein. Dadurch wird wieder die gleiche IK-Konfiguration
+    % getroffen.
+    if isfield(RobotOptRes, 'q0_pareto')
+      q0 = RobotOptRes.q0_pareto(PNr,:)';
+    elseif ~isempty(RobotOptDetails)
+      % Lade IK-Anfangswerte aus gespeicherten Daten
+      [k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, fval);
+      q0 = PSO_Detail_Data.q0_ik(k_ind,:,k_gen)';
+    else
+      q0 = NaN(R.NJ,1);
+    end
+    if any(~isnan(q0))
+      if R.Type == 0
+        R.qref = q0;
+      else
+        for iLeg = 1:R.NLEG
+          R.Leg(iLeg).qref = q0(R.I1J_LEG(iLeg):R.I2J_LEG(iLeg));
+        end
+      end
+    end
     if isempty(p_desopt)
       [fval2, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure,p);
     else
@@ -163,6 +184,7 @@ if fitness_recalc_necessary
       'werden (neu: [%s])'], disp_array(fval', '%1.4f'), disp_array(fval2', '%1.4f'));
   end
   if isempty(Q)
+    warning('Keine Gelenkwinkel aus inverser Kinematik berechnet. Abbruch.');
     return
   end
   RobotOptDetails = struct('Traj_Q', Q, 'Traj_QD', QD, 'Traj_QDD', QDD, ...
