@@ -26,7 +26,7 @@ whitelist_all = {'P3RPR1G1P1A2', 'S3RPR1', 'P3RRR1G1P1A1', 'S3RRR1'};
 Traj = cds_gen_traj(DoF, 1, Set.task);
 for debugcalc = [0 1]
   for obj_name = {'valid_act', 'mass', 'energy', 'condition', 'actforce', 'materialstress', ...
-      'stiffness', 'jointrange', 'manipulability', 'minjacsingval', 'positionerror'}
+      'stiffness', 'jointrange', 'manipulability', 'minjacsingval', 'positionerror', 'chainlength'}
     if strcmp(obj_name, 'valid_act') % nur für parallele Roboter
       Set.structures.whitelist = whitelist_all(~contains(whitelist_all, 'S'));
     else % für alle Roboter

@@ -435,6 +435,12 @@ for iIKC = 1:size(Q0,1)
     physval_IKC(iIKC,strcmp(Set.optimization.objective, 'condition')) = constraint_obj_val_IKC(4,iIKC);
     fval_debugtext = [fval_debugtext, ' ', fval_debugtext_cond]; %#ok<AGROW>
   end
+  if any(strcmp(Set.optimization.objective, 'chainlength'))
+    [fval_cl, fval_debugtext_cl, ~, physval_cl] = cds_obj_chainlength(R);
+    fval_IKC(iIKC,strcmp(Set.optimization.objective, 'chainlength')) = fval_cl;
+    physval_IKC(iIKC,strcmp(Set.optimization.objective, 'chainlength')) = physval_cl;
+    fval_debugtext = [fval_debugtext, ' ', fval_debugtext_cl]; %#ok<AGROW>
+  end
   if any(strcmp(Set.optimization.objective, 'energy'))
     [fval_en,fval_debugtext_en, debug_info, physval_en] = cds_obj_energy(R, Set, Structure, Traj_0, TAU, QD);
     fval_IKC(iIKC,strcmp(Set.optimization.objective, 'energy')) = fval_en;

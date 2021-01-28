@@ -87,8 +87,8 @@ structures = struct( ...
 % Optimierungsvariablen und Annahmen über die Roboter, die getroffen werden
 optimization = struct( ...
   'objective', {'energy'}, ... % Zielfunktion. Möglich: mass, energy, condition, 
-   ... % valid_kin, valid_act, actforce, materialstress, stiffness, jointrange, manipulability, 
-   ... % minjacsingval, positionerror; auch mehrere gleichzeitig möglich.
+   ... % valid_kin, valid_act, actforce, materialstress, stiffness, jointrange,
+   ... % manipulability, minjacsingval, positionerror, chainlength; auch mehrere gleichzeitig möglich.
   'obj_jointrange', ... % Zusatzeinstellungen für die Zielfunktion "jointrange"
     struct( 'only_revolute', true, ... % Minimiere nur Wertebereich von Drehgelenken
             'only_passive', true), ... % Minimiere nur Wertebereich passiver Gelenke
