@@ -1349,7 +1349,7 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
   end
   % Prüfe, ob die Partikel auf der Pareto-Front wirklich dominant sind.
   % Bei Laden alter Ergebnisse aus MO-GA auch nicht-dominante möglich.
-  Idom = pareto_dominance(p_val_pareto);
+  Idom = pareto_dominance(fval_pareto);
   if any(Idom)
     cds_log(-1, sprintf(['[dimsynth] %d Partikel aus der Pareto-Front werden ', ...
       'dominiert (und sind damit eigentlich nicht Teil der Pareto-Front)'], sum(Idom)));
