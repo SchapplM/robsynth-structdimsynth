@@ -31,7 +31,8 @@
 %   für alle Eckpunkte im Arbeitsraum und für alle gefundenen
 %   IK-Konfigurationen
 % Q0
-%   Startwerte der IK für die Berechnung der Trajektorie
+%   Erste Gelenkkonfiguration der Trajektorie (als Startwert für zukünftige
+%   Berechnung der IK)
 % constrvioltext [char]
 %   Text mit Zusatzinformationen, die beim Aufruf der Fitness-Funktion
 %   ausgegeben werden
@@ -130,13 +131,13 @@ if R.Type == 0 % Seriell
     % Normale Trajektorie mit stetigem Zeitverlauf. Nur Berechnung der
     % Eckpunkte zur Prüfung. Setze die Zufallszahlen-Initialisierung mit
     % rng_seed, damit die Ergebnisse exakt reproduzierbar werden.
-    s = struct('Phit_tol', 1e-3, 'Phir_tol', 1e-3, 'retry_limit', 5, ...
+    s = struct('Phit_tol', 1e-3, 'Phir_tol', 1e-3, 'retry_limit', 20, ...
       'normalize', false, 'rng_seed', 0);
   else
     % Eckpunkte haben keinen direkten Bezug zueinander und bilden die
     % Trajektorie. Da keine Traj. berechnet wird, kann hier mehr Aufwand
     % betrieben werden (besonders bei seriellen Robotern auch notwendig.
-    s = struct('Phit_tol', 1e-9, 'Phir_tol', 1e-9, 'retry_limit', 10, ...
+    s = struct('Phit_tol', 1e-9, 'Phir_tol', 1e-9, 'retry_limit', 50, ...
       'normalize', false, 'n_max', 5000, 'rng_seed', 0);
   end
   % Variable zum Speichern der Gelenkpositionen (für Kollisionserkennung)
@@ -148,10 +149,10 @@ else % PKM
   Phi_E = NaN(size(Traj_0.XE,1), nPhi);
   QE = NaN(size(Traj_0.XE,1), R.NJ);
   if Set.task.profile ~= 0 % Normale Trajektorie mit stetigem Zeitverlauf
-    s = struct('Phit_tol', 1e-4, 'Phir_tol', 1e-3, 'retry_limit', 5, ...
+    s = struct('Phit_tol', 1e-4, 'Phir_tol', 1e-3, 'retry_limit', 20, ...
       'normalize', false, 'rng_seed', 0);
   else % Nur Eckpunkte
-    s = struct('Phit_tol', 1e-9, 'Phir_tol', 1e-9, 'retry_limit', 10, ...
+    s = struct('Phit_tol', 1e-9, 'Phir_tol', 1e-9, 'retry_limit', 50, ...
       'normalize', false, 'n_max', 5000, 'rng_seed', 0);
   end
   % Abbruch der IK-Berechnung, wenn eine Beinkette nicht erfolgreich war.
@@ -166,8 +167,8 @@ Q_jic = NaN(size(Traj_0.XE,1), R.NJ, n_jic);
 q0_jic = NaN(R.NJ, n_jic); % zum späteren Nachvollziehen des Ergebnisses
 for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   Phi_E(:) = NaN; QE(:) = NaN; % erneut initialisieren wegen jic-Schleife.
-  if jic == 1 && ~any(isnan(qref)) && any(qref) % nehme Referenz-Pose (kann erfolgreiche gespeicherte Pose bei erneutem Aufruf enthalten)
-    q0 = qref; % TODO: Prüfe, warum hier manchmal nur Nullen stehen. Dieser Fall wird aktuell ignoriert.
+  if jic == 1 && all(~isnan(qref)) && any(qref~=0) % nehme Referenz-Pose (kann erfolgreiche gespeicherte Pose bei erneutem Aufruf enthalten)
+    q0 = qref; % Wenn hier nur Nullen stehen, werden diese ignoriert.
   else
     q0 = qlim(:,1) + rand(R.NJ,1).*(qlim(:,2)-qlim(:,1)); % Zufällige Anfangswerte geben vielleicht neue Konfiguration.
   end
@@ -200,10 +201,12 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   for i = size(Traj_0.XE,1):-1:1
     if Set.task.profile ~= 0 % Trajektorie wird weiter unten berechnet
       if i == size(Traj_0.XE,1)-1 % zweiter Berechneter Wert
-        % Annahme: Kein Neuversuch der IK. Wenn die Gelenkwinkel zufällig neu
+        % Annahme: Weniger Neuversuch der IK. Wenn die Gelenkwinkel zufällig neu
         % gewählt werden, springt die Konfiguration voraussichtlich. Dann ist
-        % die Durchführung der Trajektorie unrealistisch.
-        s.retry_limit = 0;
+        % die Durchführung der Trajektorie unrealistisch. Kann nicht zu
+        % Null gewählt werden, da die Einzelpunkt-IK nicht immer gut kon-
+        % vergiert. Bei 0 werden teilweise funktionierende Roboter wieder verworfen.
+        s.retry_limit = 15;
       elseif i == 1
         % Setze die Toleranz für diesen Punkt wieder herunter. Der Startpunkt
         % der Trajektorie muss exakt bestimmt werden
@@ -439,6 +442,15 @@ I_iO = find(fval_jic == 1e3);
 if ~any(I_iO) % keine gültige Lösung für Eckpunkte
   Q0 = Q_jic(1,:,jic_best); % Gebe nur eine einzige Konfiguration aus
   QE_all = Q_jic(:,:,jic_best);
+  % Wenn die IK nicht für alle Punkte erfolgreich war, wurde abgebrochen.
+  % Dann stehen nur Nullen im Ergebnis. Schlecht zum Debuggen.
+  if all(Q0==0)
+    Q0 = QE_all(end,:); % Der letzte Wert wurde oben zuerst berechnet. Ergebnis liegt vor.
+    % Setze für die Eckpunkte überall den (falschen) IK-Ergebniswert ein.
+    % Macht das Debuggen einfacher (Bild plausibler)
+    I_zeros = all(QE_all==0,2);
+    QE_all(I_zeros,:) = repmat(Q0,sum(I_zeros),1);
+  end
 else % Gebe alle gültigen Lösungen aus
   Q0 = reshape(squeeze(Q_jic(1,:,I_iO)),R.NJ,length(I_iO))';
   % Falls der Roboter Schubgelenke hat, dominiert die Stellung der

@@ -67,6 +67,10 @@ if ~init_only && ~Set.general.only_finish_aborted
     fprintf(fid, '%s: Branch %s, Rev. %s (%s)\n', repo_deps{i}{1}, branch(1:end-1), rev(1:8), revdatum);
   end
   fclose(fid);
+  if ~ispc() % lspcu funktioniert nur unter Linux
+    system(sprintf('echo "Eigenschaften des Rechners (lspcu):" >> %s', fpfile));
+    system(sprintf('lscpu >> %s', fpfile));
+  end
   cd(olddir);
 end
 % Zurücksetzen der Detail-Speicherfunktion
@@ -1253,40 +1257,64 @@ if Set.general.matfile_verbosity > 0
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat'));
 end
 if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
-  % Durchführung mit MOPSO; Einstellungen siehe [SierraCoe2005]
-  % Und Beispiele aus Matlab File Exchange
-  MOPSO_set1 = struct('Np', NumIndividuals, 'Nr', NumIndividuals, ...
-    'maxgen', Set.optimization.MaxIter, 'W', 0.4, 'C1', 2, 'C2', 2, 'ngrid', 20, ...
-    'maxvel', 5, 'u_mut', 1/nvars); % [SierraCoe2005] S. 4
-  options = struct('fun', fitnessfcn_vec, 'nVar', nvars, ...
-    'var_min', varlim(:,1), 'var_max', varlim(:,2));
-  if Set.general.matfile_verbosity > 2 || Set.general.isoncluster
-    mopso_outputfun = @(REP)cds_save_all_results_mopso(REP,Set,Structure);
-    options.OutputFcn = {mopso_outputfun};
+  if strcmp(Set.optimization.algorithm, 'mopso')
+    % Durchführung mit MOPSO; Einstellungen siehe [SierraCoe2005]
+    % Und Beispiele aus Matlab File Exchange
+    MOPSO_set1 = struct('Np', NumIndividuals, 'Nr', NumIndividuals, ...
+      'maxgen', Set.optimization.MaxIter, 'W', 0.4, 'C1', 2, 'C2', 2, 'ngrid', 20, ...
+      'maxvel', 5, 'u_mut', 1/nvars); % [SierraCoe2005] S. 4
+    options = struct('fun', fitnessfcn_vec, 'nVar', nvars, ...
+      'var_min', varlim(:,1), 'var_max', varlim(:,2));
+    if Set.general.matfile_verbosity > 2 || Set.general.isoncluster
+      mopso_outputfun = @(MS)cds_save_all_results_mopso(MS,Set,Structure);
+      options.OutputFcn = {mopso_outputfun};
+    end
+  elseif strcmp(Set.optimization.algorithm, 'gamultiobj')
+    options = optimoptions('gamultiobj');
+    options.MaxGenerations = Set.optimization.MaxIter;
+    options.PopulationSize = NumIndividuals;
+    if ~Set.general.noprogressfigure
+      options.PlotFcn = {@gaplotpareto,@gaplotscorediversity};
+    end
+    if Set.general.matfile_verbosity > 2 || Set.general.isoncluster
+      gamo_outputfun = @(options, state, flag) ...
+        cds_save_all_results_gamultiobj(options,state,flag,Set,Structure);
+      options.OutputFcn = {gamo_outputfun};
+    end
+  else
+    error('Algorithmus %s nicht definiert', Set.optimization.algorithm);
   end
   if ~Set.general.only_finish_aborted % Führe Optimierung durch
-    options.P0 = InitPop;
-    output = MOPSO(MOPSO_set1, options);
-    p_val_pareto = output.pos;
-    fval_pareto = output.pos_fit;
-    cds_log(1, sprintf('[dimsynth] Optimierung mit MOPSO beendet. %d Punkte auf Pareto-Front.', size(p_val_pareto,1)));
-    exitflag = -1; % Nehme an, dass kein vorzeitiger Abbruch erfolgte
-    % Alternative: Durchführung mit gamultiobj (konvergiert schlechter)
-%     options = optimoptions('gamultiobj');
-%     options.MaxGenerations = Set.optimization.MaxIter;
-%     options.PopulationSize = NumIndividuals;
-%     options.InitialPopulationMatrix = InitPop;
-%     if ~Set.general.noprogressfigure
-%       options.PlotFcn = {@gaplotpareto,@gaplotscorediversity};
-%     end
-%       [p_val_pareto,fval_pareto,exitflag,output] = gamultiobj(fitnessfcn, nvars, [], [], [], [],varlim(:,1),varlim(:,2), options);
-%       cds_log(1, sprintf('[dimsynth] Optimierung beendet. generations=%d, funccount=%d, message: %s', ...
-%         output.generations, output.funccount, output.message));
+    if strcmp(Set.optimization.algorithm, 'mopso')
+      options.P0 = InitPop;
+      output = MOPSO(MOPSO_set1, options);
+      p_val_pareto = output.pos;
+      fval_pareto = output.pos_fit;
+      cds_log(1, sprintf(['[dimsynth] MOPSO-Optimierung für Rob. %d (%s) ', ...
+        'beendet. %d Punkte auf Pareto-Front.'], Structure.Number, ...
+        Structure.Name, size(p_val_pareto,1)));
+      exitflag = -1; % Nehme an, dass kein vorzeitiger Abbruch erfolgte
+    elseif strcmp(Set.optimization.algorithm, 'gamultiobj')
+      % Alternative: Durchführung mit gamultiobj (konvergiert schlechter)
+      options.InitialPopulationMatrix = InitPop;
+      [p_val_pareto,fval_pareto,exitflag,output] = gamultiobj(fitnessfcn, nvars, [], [], [], [],varlim(:,1),varlim(:,2), options);
+      cds_log(1, sprintf(['[dimsynth] Optimierung mit GAMULTIOBJ beendet. ', ...
+        'generations=%d, funccount=%d, message: %s'], ...
+        output.generations, output.funccount, output.message));
+    else
+      error('Algorithmus %s nicht definiert', Set.optimization.algorithm);
+    end
   else
     % Keine Durchführung der Optimierung. Lade Daten der unfertigen
     % Optimierung und speichere sie so ab, als ob die Optimierung
     % durchgeführt wurde.
-    filelist_tmpres = dir(fullfile(resdir, 'MOPSO_Gen*_AllInd.mat'));
+    if strcmp(Set.optimization.algorithm, 'mopso')
+      filelist_tmpres = dir(fullfile(resdir, 'MOPSO_Gen*_AllInd.mat'));
+    elseif strcmp(Set.optimization.algorithm, 'gamultiobj')
+      filelist_tmpres = dir(fullfile(resdir, 'GAMO_Gen*_AllInd.mat'));
+    else
+      error('Algorithmus %s nicht definiert', Set.optimization.algorithm);
+    end
     if isempty(filelist_tmpres)
       cds_log(1, sprintf(['[dimsynth] Laden des letzten abgebrochenen Durch', ...
         'laufs wurde angefordert. Aber keine Daten in %s vorliegend. Ende.'], resdir));
@@ -1294,13 +1322,39 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
     end
     [~,I_newest] = max([filelist_tmpres.datenum]);
     d = load(fullfile(resdir, filelist_tmpres(I_newest).name));
-    p_val_pareto = d.REP.pos;
-    fval_pareto = d.REP.pos_fit;
     PSO_Detail_Data = d.PSO_Detail_Data;
-    options.P0 = PSO_Detail_Data.pval(:,:,1);
-    exitflag = -6;
+    if strcmp(Set.optimization.algorithm, 'mopso')
+      p_val_pareto = d.REP.pos;
+      fval_pareto = d.REP.pos_fit;
+      options.P0 = PSO_Detail_Data.pval(:,:,1);
+      exitflag = -6;
+    elseif strcmp(Set.optimization.algorithm, 'gamultiobj')
+      p_val_pareto = d.state.Population;
+      fval_pareto = d.state.Score;
+      options.InitialPopulationMatrix = PSO_Detail_Data.pval(:,:,1);
+      exitflag = 0; % Maximum number of generations exceeded.
+    else
+      error('Algorithmus %s nicht definiert', Set.optimization.algorithm);
+    end
     cds_log(1, sprintf(['[dimsynth] Ergebnis des letzten abgebrochenen ', ...
       'Durchlaufs aus %s geladen.'], filelist_tmpres(I_newest).name));
+  end
+  % Entferne doppelte Partikel aus der Pareto-Front (bei MOPSO beobachtet)
+  [~,I_unique] = unique(p_val_pareto, 'rows');
+  if sum(I_unique) ~= size(p_val_pareto,1)
+    cds_log(-1, sprintf(['[dimsynth] Pareto-Front bestand aus %d Partikeln, ', ...
+      'aber nur %d davon nicht doppelt'], size(p_val_pareto,1), sum(I_unique)));
+    fval_pareto = fval_pareto(I_unique,:);
+    p_val_pareto = p_val_pareto(I_unique,:);
+  end
+  % Prüfe, ob die Partikel auf der Pareto-Front wirklich dominant sind.
+  % Bei Laden alter Ergebnisse aus MO-GA auch nicht-dominante möglich.
+  Idom = pareto_dominance(fval_pareto);
+  if any(Idom)
+    cds_log(-1, sprintf(['[dimsynth] %d Partikel aus der Pareto-Front werden ', ...
+      'dominiert (und sind damit eigentlich nicht Teil der Pareto-Front)'], sum(Idom)));
+    fval_pareto = fval_pareto(~Idom,:);
+    p_val_pareto = p_val_pareto(~Idom,:);
   end
   % Sortiere die Pareto-Front nach dem ersten Optimierungskriterium. Dann
   % sind die Partikel der Pareto-Front im Diagramm von links nach rechts
@@ -1310,10 +1364,10 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
   p_val_pareto = p_val_pareto(Isort,:);
   % Gleiche das Rückgabeformat zwischen MO und SO Optimierung an. Es muss
   % immer ein einzelnes Endergebnis geben (nicht nur Pareto-Front)
-  % Nehme ein Partikel aus der Mitte
+  % Nehme ein Partikel aus der Mitte (kann unten noch überschrieben werden)
   Iselect = ceil(size(fval_pareto,1)/2);
-  p_val = p_val_pareto(Iselect,:)'; % nehme nur das erste Individuum damit Code funktioniert.
-  fval = fval_pareto(Iselect,:)'; % ... kann unten noch überschrieben werden.
+  p_val = p_val_pareto(Iselect,:)';
+  fval = fval_pareto(Iselect,:)';
 else % Einkriteriell: PSO
   options = optimoptions('particleswarm');
   options.MaxIter = Set.optimization.MaxIter; %70 100 % in GeneralConfig
@@ -1339,7 +1393,8 @@ else % Einkriteriell: PSO
   if ~Set.general.only_finish_aborted % Führe Optimierung durch
     options.InitialSwarmMatrix = InitPop;
     [p_val,fval,exitflag,output] = particleswarm(fitnessfcn,nvars,varlim(:,1),varlim(:,2),options);
-    cds_log(1, sprintf('[dimsynth] Optimierung beendet. iterations=%d, funccount=%d, message: %s', ...
+    cds_log(1, sprintf(['[dimsynth] PSO-Optimierung für Rob. %d (%s) beendet. ', ...
+      'iterations=%d, funccount=%d, message: %s'], Structure.Number, Structure.Name, ...
       output.iterations, output.funccount, output.message));
     p_val = p_val(:); % stehender Vektor
   else % Lade Ergebnis einer unfertigen Optimierung
@@ -1367,13 +1422,16 @@ else
   % Ergebnis wird nicht in der persistenten Variable PSO_Detail_Data gespeichert.
   PSO_Detail_Data = d.PSO_Detail_Data;
   if length(Set.optimization.objective) > 1
-    options.P0 = PSO_Detail_Data.pval(:,:,1);
+    if strcmp(Set.optimization.algorithm, 'mopso')
+      options.P0 = PSO_Detail_Data.pval(:,:,1);
+    elseif strcmp(Set.optimization.algorithm, 'gamultiobj')
+      options.InitialPopulationMatrix = PSO_Detail_Data.pval(:,:,1);
+    else
+      error('Algorithmus %s nicht definiert', Set.optimization.algorithm);
+    end
   else
     options.InitialSwarmMatrix = PSO_Detail_Data.pval(:,:,1);
   end
-  exitflag = -6;
-  cds_log(1, sprintf(['[dimsynth] Ergebnis des letzten abgebrochenen ', ...
-    'Durchlaufs aus %s geladen.'], filelist_tmpres(I_newest).name));
 end
 
 if Set.general.matfile_verbosity > 0
@@ -1585,11 +1643,13 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   % Dynamikparameter nicht in der Fitness-Funktion belegt:
   % ... mehrkriteriell und nur kinematische Zielfunktionen ...
   only_kinematic_objective = length(intersect(Set.optimization.objective, ...
-    {'condition', 'jointrange', 'manipulability', 'minjacsingval', 'positionerror'}))==5;
+    {'condition', 'jointrange', 'manipulability', 'minjacsingval', ...
+    'positionerror', 'chainlength'})) == 6;
   % einkriteriell und kinematische ZF
   only_kinematic_objective = only_kinematic_objective || ...
     length(Set.optimization.objective) == 1 && any(strcmp(Set.optimization.objective, ...
-    {'condition', 'jointrange', 'manipulability', 'minjacsingval', 'positionerror'}));
+    {'condition', 'jointrange', 'manipulability', 'minjacsingval', ...
+    'positionerror', 'chainlength'}));
   if any(fval > 1e3) ...% irgendeine Nebenbedingung wurde immer verletzt. ...
       || only_kinematic_objective % ... oder nur kinematische Zielfunktion ...
     cds_dimsynth_design(R, Q, Set, Structure); % ...  Daher nie bis zu diesem Funktionsaufruf gekommen.
@@ -1605,12 +1665,14 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   [fval_msv,~, ~, physval_msv] = cds_obj_minjacsingval(R, Set, Jinv_ges, Traj_0, Q);
   [fval_pe,~, ~, physval_pe] = cds_obj_positionerror(R, Set, Jinv_ges, Traj_0, Q);
   [fval_jrange,~, ~, physval_jrange] = cds_obj_jointrange(R, Set, Structure, Q);
+  [fval_chainlength,~, ~, physval_chainlength] = cds_obj_chainlength(R);
   [fval_stiff,~, ~, physval_stiff] = cds_obj_stiffness(R, Set, Q);
   % Reihenfolge siehe Variable Set.optimization.constraint_obj aus cds_settings_defaults
   fval_obj_all = [fval_mass; fval_energy; fval_actforce; fval_ms; fval_cond; ...
-    fval_mani; fval_msv; fval_pe; fval_jrange; fval_stiff];
-  physval_obj_all = [physval_mass; physval_energy; physval_actforce; physval_ms; physval_cond; ...
-    physval_mani; physval_msv; physval_pe; physval_jrange; physval_stiff];
+    fval_mani; fval_msv; fval_pe; fval_jrange; fval_chainlength; fval_stiff];
+  physval_obj_all = [physval_mass; physval_energy; physval_actforce; ...
+    physval_ms; physval_cond; physval_mani; physval_msv; physval_pe; ...
+    physval_jrange; physval_chainlength; physval_stiff];
   % Vergleiche neu berechnete Werte mit den zuvor abgespeicherten (müssen
   % übereinstimmen)
   test_Jcond_abs = PSO_Detail_Data.constraint_obj_val(dd_optind, 4, dd_optgen) - physval_cond;
@@ -1648,8 +1710,8 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
 else
   % Keine Berechnung der Leistungsmerkmale möglich, da keine zulässige Lösung
   % gefunden wurde.
-  fval_obj_all = NaN(10,1);
-  physval_obj_all = NaN(10,1);
+  fval_obj_all = NaN(11,1);
+  physval_obj_all = NaN(11,1);
 end
 % Prüfe auf Plausibilität, ob die Optimierungsziele erreicht wurden. Neben-
 % bedingungen nur prüfen, falls überhaupt gültige Lösung erreicht wurde.
@@ -1659,7 +1721,8 @@ I_fobj_set = Set.optimization.constraint_obj ~= 0;
 objconstr_names_all = {'mass', 'energy', 'actforce', 'condition', ...
   'stiffness', 'materialstress'};
 obj_names_all = {'mass', 'energy', 'actforce', 'materialstress', 'condition', ...
-  'manipulability', 'minjacsingval', 'positionerror', 'jointrange', 'stiffness'};
+  'manipulability', 'minjacsingval', 'positionerror', 'jointrange', ...
+  'chainlength', 'stiffness'};
 I_constr = zeros(length(objconstr_names_all),1);
 for i = 1:length(objconstr_names_all)
   I_constr(i) = find(strcmp(objconstr_names_all{i}, obj_names_all));
@@ -1710,9 +1773,18 @@ end
 [k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, fval);
 desopt_pval = PSO_Detail_Data.desopt_pval(k_ind, :, k_gen)';
 
+%% Speichere die Anfangswerte der IK der Pareto-Front
+% Sind notwendig, um sicher die Ergebnisse reproduzieren zu können
+q0_pareto = NaN(size(fval_pareto,1), size(Q,2));
+for i = 1:size(fval_pareto,1)
+  [k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, fval_pareto(i,:)');
+  q0_pareto(i,:) = PSO_Detail_Data.q0_ik(k_ind,:,k_gen)';
+end
 
 %% Ausgabe der Ergebnisse
 t_end = now(); % End-Zeitstempel der Optimierung dieses Roboters
+% Allgemeine Ergebnis-Struktur. Enthält die wichtisten Informationen
+% um das Endergebnis reproduzieren zu können.
 RobotOptRes = struct( ...
   'fval', fval, ... % Zielfunktionswert (nach dem optimiert wurde)
   'fval_obj_all', fval_obj_all, ... % Werte aller möglicher einzelner Zielf.
@@ -1723,15 +1795,18 @@ RobotOptRes = struct( ...
   'physval_pareto', physval_pareto, ... % physikalische Werte dazu
   'p_val_pareto', p_val_pareto, ... % Alle Parametervektoren der P.-Front
   'desopt_pval_pareto', desopt_pval_pareto, ... % Alle Entwurfsparameter zu den Pareto-Punkten
+  'q0_pareto', q0_pareto, ... % Alle IK-Anfangswerte aller Pareto-Partikel
+  'q0', q, ... % Anfangs-Gelenkwinkel für Lösung der IK
   'I_fval_obj_all', I_fval_obj_all, ... % Zuordnung der Fitness-Einträge zu fval_obj_all
   'p_limits', varlim, ... % Grenzen für die Parameterwerte
   'timestamps_start_end', [t_start, t_end, toc(t1)], ...
   'exitflag', exitflag, ...
   'Structure', Structure);
+% Detail-Informationen. Damit lässt sich die Bestimmung des Fitness-Werts
+% detailliert nachvollziehen
 RobotOptDetails = struct( ...
   'R', R, ... % Roboter-Klasse
   'options', options, ... % Optionen des Optimierungs-Algorithmus
-  'q0', q, ... % Anfangs-Gelenkwinkel für Lösung der IK
   'Traj_Q', Q, ...
   'Traj_QD', QD, ...
   'Traj_QDD', QDD, ...
@@ -1752,6 +1827,10 @@ save(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
   'RobotOptDetails', 'PSO_Detail_Data');
 lfp = cds_log(1,sprintf(['[dimsynth] Optimierung von Rob. %d (%s) abgeschlossen. ', ...
   'Dauer: %1.1fs'], Structure.Number, Structure.Name, toc(t1)));
+if isempty(lfp) % Aufruf mit Set.general.only_finish_aborted. Log nicht initialisiert.
+  robstr = sprintf('Rob%d_%s', Structure.Number, Structure.Name);
+  lfp = fullfile(resdir, robstr, sprintf('%s.log', robstr));
+end
 % Log-Datei komprimieren und Textdatei löschen
 if exist(lfp, 'file')
   gzip(lfp); delete(lfp);
@@ -1762,7 +1841,8 @@ else
     'zippen+löschen mehr notwendig.'], lfp);
 end
 % Lösche temporäre Ergebnisse. Nicht mehr benötigt, da Endergebnis da.
-filelist_tmpres = dir(fullfile(resdir, '*PSO_Gen*_AllInd.mat'));
+filelist_tmpres = [dir(fullfile(resdir, '*PSO_Gen*_AllInd.mat')); ...
+  dir(fullfile(resdir, '*GAMO_Gen*_AllInd.mat'));];
 for i = 1:length(filelist_tmpres)
   delete(fullfile(resdir, filelist_tmpres(i).name));
 end

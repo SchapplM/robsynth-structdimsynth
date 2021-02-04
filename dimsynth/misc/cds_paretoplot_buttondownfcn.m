@@ -28,6 +28,11 @@ pointsInPlot = [xData, yData];
 clickedPoint = event.IntersectionPoint(1:2);
 distances = sqrt(sum(bsxfun(@minus, pointsInPlot, clickedPoint).^2,2));
 closest = pointsInPlot(distances==min(distances),:);
+if size(closest,1) > 1
+  warning(['Es wurden %d Punkte gleichzeitig erkannt. Liegen anscheinend ', ...
+    'übereinander'],  size(closest,1));
+  closest = closest(1,:);
+end
 % Index des geklickten Punkts entspricht Index in Ergebnis-Variablen
 I_point = xData==closest(1) & yData==closest(2);
 %% Auslesen des Menüs zur Entscheidung der Plot-Aktion
@@ -98,18 +103,11 @@ end
 Set.optimization.resdir = resdir_tmp;
 
 %% Bestimme die Nummer des Pareto-Partikels
-% Annahme: Hier nicht bekannt, ob fval- oder physval-Pareto-Diagramm.
-% Prüfe auf Gleichheit gegen beide. Einer muss richtig sein.
-% Nummer könnte auch schon in I_point richtig sein, voraussgesetzt xData
-% und yData sind identisch mit den Werten aus fval_pareto (bzw. physval).
-% Das nachträgliche Finden ignoriert die Einheitenkonvertierung (rad-deg)
-% im Plot.
-% I_fval = repmat(selectedPoint, size(d1.RobotOptRes.fval_pareto,1),1) == ...
-%   d1.RobotOptRes.fval_pareto;
-% I_physval = repmat(selectedPoint, size(d1.RobotOptRes.physval_pareto,1),1) == ...
-%   d1.RobotOptRes.physval_pareto;
-% PNr = find(all(I_fval|I_physval,2));
-PNr = find(I_point);
+% Nummer istschon in I_point richtig sein, da xData und yData identisch
+% mit den Werten aus fval_pareto (bzw. physval) sind.
+% Wenn mehrere Punkte übereinander liegen, wird der erste genommen. Ist
+% egal, da sie ja ein identisches Ergebnis haben.
+PNr = find(I_point, 1, 'first');
 fval = d1.RobotOptRes.fval_pareto(PNr,:)';
 if isempty(PNr)
   error('Kein Punkt in Pareto-Daten gefunden');
@@ -142,6 +140,27 @@ if fitness_recalc_necessary
     % der Entwurfsoptimierung direkt eingetragen werden sollen. Vermeide die
     % erneute Durchführung der Entwurfsoptimierung, falls diese gemacht wurde.
     [R, Structure] = cds_dimsynth_robot(Set, Traj, Structure, true);
+    % Trage die gespeicherte Anfangswerte der Gelenkkonfigurationen in die
+    % Roboter-Klasse ein. Dadurch wird wieder die gleiche IK-Konfiguration
+    % getroffen.
+    if isfield(RobotOptRes, 'q0_pareto')
+      q0 = RobotOptRes.q0_pareto(PNr,:)';
+    elseif ~isempty(RobotOptDetails)
+      % Lade IK-Anfangswerte aus gespeicherten Daten
+      [k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, fval);
+      q0 = PSO_Detail_Data.q0_ik(k_ind,:,k_gen)';
+    else
+      q0 = NaN(R.NJ,1);
+    end
+    if any(~isnan(q0))
+      if R.Type == 0
+        R.qref = q0;
+      else
+        for iLeg = 1:R.NLEG
+          R.Leg(iLeg).qref = q0(R.I1J_LEG(iLeg):R.I2J_LEG(iLeg));
+        end
+      end
+    end
     if isempty(p_desopt)
       [fval2, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure,p);
     else
@@ -165,12 +184,14 @@ if fitness_recalc_necessary
       'werden (neu: [%s])'], disp_array(fval', '%1.4f'), disp_array(fval2', '%1.4f'));
   end
   if isempty(Q)
+    warning('Keine Gelenkwinkel aus inverser Kinematik berechnet. Abbruch.');
     return
   end
   RobotOptDetails = struct('Traj_Q', Q, 'Traj_QD', QD, 'Traj_QDD', QDD, ...
     'R', R, 'Dyn_Tau', TAU);
-else
-  RobotOptDetails = struct('R', []); % Platzhalter. Wird nicht benötigt.
+else % Roboter-Klasse muss trotzdem neu erstellt werden.
+  R = cds_dimsynth_robot(Set, Traj, Structure, true);
+  RobotOptDetails = struct('R', R);
 end
 
 %% Rufe die Plot-Funktion auf

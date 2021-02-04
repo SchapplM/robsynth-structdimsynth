@@ -54,24 +54,36 @@ constraint_obj_val = NaN(length(Set.optimization.constraint_obj),1);
 fval = NaN(length(Set.optimization.objective),1);
 physval = fval;
 desopt_pval_given = false;
-if nargin == 6 && ~isempty(desopt_pval) && ~any(isnan(desopt_pval))
-  desopt_pval_given = true;
-  % Keine Optimierung von Entwurfsparametern durchführen. Trage die Schub-
-  % gelenk-Offsets aus dem gegebenen Ergebnis direkt in die Klasse ein.
-  if Structure.desopt_prismaticoffset
-    p_prismaticoffset = desopt_pval(Structure.desopt_ptypes==1);
-    if Structure.Type == 0
-      R.DesPar.joint_offset(R.MDH.sigma==1) = p_prismaticoffset;
-    else
-      for i = 1:R.NLEG
-        R.Leg(i).DesPar.joint_offset(R.Leg(i).MDH.sigma==1) = p_prismaticoffset;
+if nargin == 6 && ~isempty(desopt_pval) && ~all(isnan(desopt_pval))% Die Eingabevariable ist gesetzt
+  % Prüfe, ob Entwurfsvariable der Schubgelenk-Offsets gegeben ist
+  if ~any(isnan(desopt_pval(Structure.desopt_ptypes==1)))
+    % Keine Optimierung von Entwurfsparametern durchführen. Trage die Schub-
+    % gelenk-Offsets aus dem gegebenen Ergebnis direkt in die Klasse ein.
+    if Structure.desopt_prismaticoffset
+      p_prismaticoffset = desopt_pval(Structure.desopt_ptypes==1);
+      if Structure.Type == 0
+        R.DesPar.joint_offset(R.MDH.sigma==1) = p_prismaticoffset;
+      else
+        for i = 1:R.NLEG
+          R.Leg(i).DesPar.joint_offset(R.Leg(i).MDH.sigma==1) = p_prismaticoffset;
+        end
       end
     end
+    Structure.desopt_prismaticoffset = false; % keine Optimierung
+  else
+    % Übergebener Wert war NaN. Optimierung doch durchführen
+    Structure.desopt_prismaticoffset = true;
   end
-  % Werte für die Gelenkfeder-Ruhelagen weiter unten einstellen.
-  % Optimierungsvariablen deaktivieren. Hierdurch keine erneute Optimierung.
-  Set.optimization.desopt_vars = {};
-  Structure.desopt_prismaticoffset = false;
+  % Prüfe, ob weitere Entwurfsvariablen gegeben sind.
+  if all(~isnan(desopt_pval(Structure.desopt_ptypes~=1)))
+    desopt_pval_given = true; % bezieht sich nicht auf den obigen Fall
+    % Werte für die Gelenkfeder-Ruhelagen weiter unten einstellen.
+    % Optimierungsvariablen deaktivieren. Hierdurch keine erneute Optimierung.
+    Set.optimization.desopt_vars = {};
+  else
+    % Übergebener Wert war NaN. Optimierung doch durchführen. Keine
+    % Anpassung notwendig (desopt_vars ist noch richtig eingestellt).
+  end
 else
   desopt_pval = NaN(length(Structure.desopt_ptypes),1);
 end
@@ -85,7 +97,7 @@ elseif abort_fitnesscalc
   fval(:) = Inf;
   if length(fval)>1, fvalstr=['[',disp_array(fval', '%1.3e'),']'];
   else,              fvalstr=sprintf('%1.3e', fval); end
-  cds_log(2,sprintf(['[fitness] Fitness-Evaluation in %1.1fs. fval=%s. ', ...
+  cds_log(2,sprintf(['[fitness] Fitness-Evaluation in %1.2fs. fval=%s. ', ...
     'Bereits anderes Gut-Partikel berechnet.'], toc(t1), fvalstr));
   cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, desopt_pval);
   return;
@@ -125,6 +137,10 @@ if fval_constr > 1000 % Nebenbedingungen verletzt.
   else
     for i = 1:R.NLEG, R.Leg(i).qref = Q0(1,R.I1J_LEG(i):R.I2J_LEG(i))'; end
   end
+  % Belege die Ausgabe mit den berechneten Gelenkwinkeln. Dann kann immer
+  % noch das Bild gezeichnet werden (zur Fehlersuche)
+  Q = QE_iIKC;
+  
   % Speichere Gelenk-Grenzen. Damit sieht eine hieraus erstellte 3D-Bilder
   % besser aus, weil die Schubgelenk-Führungsschienen ungefähr stimmen
   if R.Type == 0 % Seriell
@@ -135,7 +151,7 @@ if fval_constr > 1000 % Nebenbedingungen verletzt.
       R.Leg(i).qlim(R.Leg(i).MDH.sigma==1,:) = minmax2(Q_i(:,R.Leg(i).MDH.sigma==1)');
     end
   end
-  cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval(1), constrvioltext));
+  cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.2fs. fval=%1.3e. %s', toc(t1), fval(1), constrvioltext));
   cds_fitness_debug_plot_robot(R, Q0(1,:)', Traj_0, Traj_W, Set, Structure, p, mean(fval), debug_info);
   cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, desopt_pval);
   return
@@ -381,7 +397,7 @@ for iIKC = 1:size(Q0,1)
       fval_IKC(iIKC,:) = fval_st*100; % Bringe in Bereich 1e4 ... 1e5
       constrvioltext_IKC{iIKC} = sprintf('Die Nachgiebigkeit ist zu groß: %1.1e > %1.1e', ...
         fval_phys_st, Set.optimization.constraint_obj(5));
-      cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval(1), constrvioltext_stiffness));
+      cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.2fs. fval=%1.3e. %s', toc(t1), fval(1), constrvioltext_stiffness));
       continue
     end
   end
@@ -418,6 +434,12 @@ for iIKC = 1:size(Q0,1)
     fval_IKC(iIKC,strcmp(Set.optimization.objective, 'condition')) = fval_cond;
     physval_IKC(iIKC,strcmp(Set.optimization.objective, 'condition')) = constraint_obj_val_IKC(4,iIKC);
     fval_debugtext = [fval_debugtext, ' ', fval_debugtext_cond]; %#ok<AGROW>
+  end
+  if any(strcmp(Set.optimization.objective, 'chainlength'))
+    [fval_cl, fval_debugtext_cl, ~, physval_cl] = cds_obj_chainlength(R);
+    fval_IKC(iIKC,strcmp(Set.optimization.objective, 'chainlength')) = fval_cl;
+    physval_IKC(iIKC,strcmp(Set.optimization.objective, 'chainlength')) = physval_cl;
+    fval_debugtext = [fval_debugtext, ' ', fval_debugtext_cl]; %#ok<AGROW>
   end
   if any(strcmp(Set.optimization.objective, 'energy'))
     [fval_en,fval_debugtext_en, debug_info, physval_en] = cds_obj_energy(R, Set, Structure, Traj_0, TAU, QD);
@@ -625,12 +647,12 @@ end
 if all(fval<1e3)
   if length(fval)>1, fvalstr=['[',disp_array(fval', '%1.3e'),']'];
   else,              fvalstr=sprintf('%1.3e', fval); end
-  cds_log(2,sprintf(['[fitness] Fitness-Evaluation in %1.1fs. fval=%s. Erfolg', ...
+  cds_log(2,sprintf(['[fitness] Fitness-Evaluation in %1.2fs. fval=%s. Erfolg', ...
     'reich. %s Auswahl aus %d IK-Konfigurationen (davon %d i.O., %d optimal)'], ...
     toc(t1), fvalstr, fval_debugtext_IKC{iIKCbest}(2:end), ...
     size(fval_IKC,1), n_fval_iO, n_fval_opt));
 else
-  cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', ...
+  cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.2fs. fval=%1.3e. %s', ...
     toc(t1), fval(1), constrvioltext_IKC{iIKCbest}));
 end
 cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, mean(fval), debug_info);

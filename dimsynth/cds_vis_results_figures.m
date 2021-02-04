@@ -27,13 +27,8 @@ function fhdl = cds_vis_results_figures(figname, Set, Traj, RobData, ...
 %% Initialisierung
 RNr = RobData.Number;
 PNr = RobData.ParetoNumber;
-if any(strcmp(figname, {'pareto', 'optpar'}))
-  R = []; % Platzhalter. Wird nicht benötigt.
-  Traj_0 = [];
-else
-  R = RobotOptDetails.R;
-  Traj_0 = cds_transform_traj(R, Traj);
-end
+R = RobotOptDetails.R;
+Traj_0 = cds_transform_traj(R, Traj);
 Name = RobData.Name;
 resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
 resrobdir = fullfile(resmaindir, sprintf('Rob%d_%s', RNr, Name));
@@ -60,7 +55,7 @@ elseif ~strcmp(figname, 'animation')
 end
 
 % Hole Erklärungstext zum Fitness-Wert aus Tabelle
-fval_text = ResTab.Fval_Text{strcmp(ResTab.Name, Name)};
+fval_text = ResTab.Fval_Text{strcmp(ResTab.Name,Name) & ResTab.LfdNr==RNr};
 for kk = 1:length(Set.general.animation_styles)
   anim_mode = Set.general.animation_styles{kk}; % Strichzeichnung, 3D-Modell, Kollisionskörper
   fhdl = figure();clf;hold all;

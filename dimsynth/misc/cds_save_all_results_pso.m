@@ -27,6 +27,12 @@
 function stop = cds_save_all_results_pso(optimValues, state, Set, Structure)
 
 stop = false;
+if any(isinf(optimValues.swarmfvals(:)))
+  % Der Wert inf wird in cds_fitness als Marker benutzt, um die Optimierung
+  % abzubrechen. Das kann hier an den PSO übergeben werden, falls die
+  % Abbruchbedingung nicht in den PSO-Optionen selbst definiert ist.
+  stop = true;
+end
 if ~strcmp(state, 'iter')
   return
 end

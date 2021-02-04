@@ -2,11 +2,11 @@
 % Speichere den aktuellen Zwischenstand.
 % 
 % Die Funktion kann mit folgendem Befehl im MOPSO-Algorithmus benutzt werden:
-% mopso_outputfun = @(REP)cds_save_all_results_mopso(REP,Set,Structure);
+% mopso_outputfun = @(MS)cds_save_all_results_mopso(MS,Set,Structure);
 % options.OutputFcn = {mopso_outputfun};
 % 
 % Eingabe:
-% REP
+% MOPSO_struct
 %   Standard-Eingabe für MOPSO-Output-Fcn
 % Set
 %   Eingabe zusätzlich zu MOPSO-Standard.
@@ -22,9 +22,16 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2021-01
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function stop = cds_save_all_results_mopso(REP, Set, Structure)
+function stop = cds_save_all_results_mopso(MOPSO_struct, Set, Structure)
 
 stop = false;
+if any(isinf(MOPSO_struct.POS_fit(:)))
+  % Der Wert inf wird in cds_fitness als Marker benutzt, um die Optimierung
+  % abzubrechen. Das kann hier an den PSO übergeben werden, da in MOPSO
+  % keine Abbruchbedingungen definierbar sind.
+  stop = true;
+end
+REP = MOPSO_struct.REP;
 % Detail-Ergebnisse extrahieren (persistente Variable in Funktion)
 PSO_Detail_Data = cds_save_particle_details(Set, [], 0, 0, NaN, NaN, NaN, NaN, 'output');
 % Nummer der aktuellen Generation herausfinden

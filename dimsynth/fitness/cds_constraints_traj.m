@@ -341,25 +341,60 @@ end
 % als 360° erlaubt, ist die Prüfung auf Winkelspannweite mit angle_range
 % immer erfolgreich, auch wenn sich Gelenke mehrfach umdrehen.
 q_range_T = diff(minmax2(Q')');
-qlimviol_T = (qlim(:,2)-qlim(:,1))' - q_range_T;
+q_range_max = qlim(:,2)-qlim(:,1);
+qlimviol_T = q_range_max' - q_range_T;
 I_qlimviol_T = (qlimviol_T < 0);
 if any(I_qlimviol_T)
   if Set.general.matfile_verbosity > 2
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_qviolT.mat'));
   end
   % Bestimme die größte relative Verletzung der Winkelgrenzen
-  [fval_qlimv_T, I_worst] = min(qlimviol_T(I_qlimviol_T)./(qlim(I_qlimviol_T,2)-qlim(I_qlimviol_T,1))');
+  [fval_qlimv_T, I_worst] = min(qlimviol_T(I_qlimviol_T)./(q_range_max(I_qlimviol_T))');
   II_qlimviol_T = find(I_qlimviol_T); IIw = II_qlimviol_T(I_worst);
   fval_qlimv_T_norm = 2/pi*atan((-fval_qlimv_T)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
-  fval = 1e3*(6+3*fval_qlimv_T_norm); % Wert zwischen 6e3 und 9e3
+  fval = 1e3*(6+2*fval_qlimv_T_norm); % Wert zwischen 6e3 und 8e3
   % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Weitere Rechnungen machen keinen Sinn.
   constrvioltext = sprintf(['Gelenkgrenzverletzung in Traj. Schlechteste ', ...
-    'Spannweite: %1.2f/%1.2f (Gelenk %d)'], q_range_T(IIw), qlim(IIw,2)-qlim(IIw,1), IIw);
+    'Spannweite: %1.2f/%1.2f (Gelenk %d)'], q_range_T(IIw), q_range_max(IIw), IIw);
   if 1e4*fval < Set.general.plot_details_in_fitness
     change_current_figure(1001); clf;
     plot(Traj_0.t, Q-repmat(min(Q), length(Traj_0.t), 1));
   end
   return
+end
+
+%% Prüfe die Gelenkwinkelgrenzen für eine symmetrische PKM-Konfiguration
+% Bei Annahme einer symmetrischen PKM müssen die Gelenkkoordinaten aller
+% Beinketten auch gemeinsam die Bedingung der Winkelspannweite erfüllen. 
+% Dadurch wird eine Optimierung der Gelenkfeder-Ruhelagen ermöglicht. Sonst 
+% kann man nicht für alle Beinketten die gleichen Parameter wählen.
+% Trifft auch zu, wenn die Feder-Ruhelagen nicht optimiert, sondern nur
+% mittig gewählt werden
+if R.Type == 2 && Set.optimization.joint_stiffness_passive_revolute
+  % Siehe cds_dimsynth_desopt.m (konsistent dazu).
+  % Fasse die Gelenke jeder Beinkette zusammen (symmetrische Anordnung)
+  qminmax_legs = reshape(minmax2(Q'),R.Leg(1).NJ,2*R.NLEG);
+  qminmax_leg = minmax2(qminmax_legs);
+  q_range_T_all_legs = repmat(diff(qminmax_leg'), 1, R.NLEG);
+  qlimviol_T = q_range_max' - q_range_T_all_legs;
+  I_qlimviol_T = (qlimviol_T < 0);
+  if any(I_qlimviol_T)
+    if Set.general.matfile_verbosity > 2
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+        'cds_constraints_qviolT_all_legs.mat'));
+    end
+    % Bestimme die größte relative Verletzung der Winkelgrenzen
+    [fval_qlimv_T, I_worst] = min(qlimviol_T(I_qlimviol_T)./(q_range_max(I_qlimviol_T))');
+    II_qlimviol_T = find(I_qlimviol_T); IIw = II_qlimviol_T(I_worst);
+    fval_qlimv_T_norm = 2/pi*atan((-fval_qlimv_T)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
+    fval = 1e3*(8+1*fval_qlimv_T_norm); % Wert zwischen 8e3 und 9e3
+    % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Dadurch werden die
+    % Bedingungen für Gelenkfedern später nicht mehr erfüllt.
+    constrvioltext = sprintf(['Gelenkgrenzverletzung in Traj bei Be', ...
+      'trachtung aller Beinketten. Schlechteste Spannweite: %1.2f/%1.2f ', ...
+      '(Gelenk %d)'], q_range_T_all_legs(IIw), q_range_max(IIw), IIw);
+    return
+  end
 end
 
 %% Prüfe, ob die Geschwindigkeitsgrenzen verletzt werden

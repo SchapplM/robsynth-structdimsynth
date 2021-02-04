@@ -79,6 +79,7 @@ structures = struct( ...
   'max_index_active', 6, ... % Setzt den maximalen Index aktuierter Gelenke fest (nachrrangig gegen vorherige Option)
   'mounting_serial', {'floor'}, ... % Montageort für serielle Roboter: floor, ceiling, wall
   'mounting_parallel', {'ceiling'}, ... % ... für PKM (wird entsprechend zur Aufgabe ausgerichtet; Schubgelenke haben Vorzugsrichtung)
+  'repeatlist', {{}}, ... % Liste für mehrfache Durchführung eines Roboters. Einträge: {'Name', Anzahl}. Sinnvoll, wenn parallele Berechnung möglich.
   'whitelist', {''}); % Liste, die die Systeme beschränkt
 
 %% Optimierungs-Einstellungen
@@ -86,12 +87,13 @@ structures = struct( ...
 % Optimierungsvariablen und Annahmen über die Roboter, die getroffen werden
 optimization = struct( ...
   'objective', {'energy'}, ... % Zielfunktion. Möglich: mass, energy, condition, 
-   ... % valid_kin, valid_act, actforce, materialstress, stiffness, jointrange, manipulability, 
-   ... % minjacsingval, positionerror; auch mehrere gleichzeitig möglich.
+   ... % valid_kin, valid_act, actforce, materialstress, stiffness, jointrange,
+   ... % manipulability, minjacsingval, positionerror, chainlength; auch mehrere gleichzeitig möglich.
   'obj_jointrange', ... % Zusatzeinstellungen für die Zielfunktion "jointrange"
     struct( 'only_revolute', true, ... % Minimiere nur Wertebereich von Drehgelenken
             'only_passive', true), ... % Minimiere nur Wertebereich passiver Gelenke
   'constraint_obj', zeros(6,1), ... % Nebenbedingungen, 1=Mass, 2=Energy, 3=Actforce, 4=Condition, 5=Stiffness, 6=MaterialStress; Eintrag entspricht physikalischem Wert
+  'algorithm', 'mopso', ... % Optimierungsalgorithmus für mehrkriterielle Optimierung. Möglich: mopso, gamultiobj
   'movebase', true, ... % Position der Roboter-Basis
   'basepos_limits', NaN(3,2), ... % Grenzen für Basis-Position (Absolut, im Welt-KS)
   'ee_translation', true, ... % Freie Verschiebung des EE

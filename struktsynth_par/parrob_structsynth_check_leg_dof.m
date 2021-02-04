@@ -40,7 +40,8 @@ if sum(LEG_Dof(1:6)) == 6
   leg_success = true; % Beinkette haben vollständige FG
 elseif (Basis_Coupling == 4) || (Basis_Coupling ~= 1 && Koppel_Coupling == 1)
   % G23P1 und G4P123
-  leg_success = false;
+  % TODO: Das ist zumindest für P3PRRRR3V1G4P2A1 falsch.
+  % leg_success = false;
 elseif (Basis_Coupling ~= Koppel_Coupling) && (LEG_Dof(4) == 0)
   % G2P3 und G3P2 brauchen x-Achse Rotationsfreiheit
   leg_success = false;
