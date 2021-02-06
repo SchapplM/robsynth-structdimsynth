@@ -61,8 +61,14 @@ general = struct( ...
   'use_mex', true);
 
 %% Einstellungen zur Auswahl der verwendeten Strukturen
-% overconstraint: Anzahl der Beingelenke, die die EE-FG übersteigen
-% task redundancy: Anzahl der EE-FG, die die Aufgaben-FG übersteigen
+% PKM zeigen standardmäßig von der Decke herunter. Ausnahme: 2T1R. Dort
+% nicht sinnvoll, da die Höhe nicht änderbar ist.
+if all(input_settings.DoF==[1 1 0 0 0 1])
+  mounting_parallel_default = 'floor';
+else
+  mounting_parallel_default = 'ceiling';
+end
+
 structures = struct( ...
   'use_serial', true, ... % Wähle serielle Roboter
   'use_parallel', true, ... % Wähle parallele Roboter
@@ -79,7 +85,7 @@ structures = struct( ...
   'activenotlastjoint', true, ... % Verhindert ein aktives Plattform-Koppelgelenk
   'max_index_active', 6, ... % Setzt den maximalen Index aktuierter Gelenke fest (nachrrangig gegen vorherige Option)
   'mounting_serial', {'floor'}, ... % Montageort für serielle Roboter: floor, ceiling, wall
-  'mounting_parallel', {'ceiling'}, ... % ... für PKM (wird entsprechend zur Aufgabe ausgerichtet; Schubgelenke haben Vorzugsrichtung)
+  'mounting_parallel', {mounting_parallel_default}, ... % ... für PKM (wird entsprechend zur Aufgabe ausgerichtet; Schubgelenke haben Vorzugsrichtung)
   'repeatlist', {{}}, ... % Liste für mehrfache Durchführung eines Roboters. Einträge: {'Name', Anzahl}. Sinnvoll, wenn parallele Berechnung möglich.
   'whitelist', {''}); % Liste, die die Systeme beschränkt
 
