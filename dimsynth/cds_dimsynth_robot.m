@@ -33,6 +33,15 @@ end
 % Zum Debuggen:
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot1.mat'));
 
+% Prüfe, ob die Optimierung bereits erfolgreich war
+if ~Set.general.overwrite_existing_results
+  if exist(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+    sprintf('Rob%d_%s_Endergebnis.mat', Structure.Number, Structure.Name)), 'file')
+    fprintf('[dimsynth] Ergebnis für Rob %d (%s) liegt bereits vor. Abbruch.\n', ...
+      Structure.Number, Structure.Name);
+    return
+  end
+end
 %% Initialisierung
 % Log-Datei initialisieren
 if ~init_only && ~Set.general.only_finish_aborted
@@ -1319,6 +1328,9 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
       cds_log(1, sprintf(['[dimsynth] Laden des letzten abgebrochenen Durch', ...
         'laufs wurde angefordert. Aber keine Daten in %s vorliegend. Ende.'], resdir));
       return
+    else
+      cds_log(1, sprintf(['[dimsynth] Laden des letzten abgebrochenen Durch', ...
+        'laufs aus gespeicherten Daten erfolgreich.'], resdir));
     end
     [~,I_newest] = max([filelist_tmpres.datenum]);
     d = load(fullfile(resdir, filelist_tmpres(I_newest).name));
