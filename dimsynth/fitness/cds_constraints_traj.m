@@ -357,8 +357,25 @@ if any(I_qlimviol_T)
   constrvioltext = sprintf(['Gelenkgrenzverletzung in Traj. Schlechteste ', ...
     'Spannweite: %1.2f/%1.2f (Gelenk %d)'], q_range_T(IIw), q_range_max(IIw), IIw);
   if 1e4*fval < Set.general.plot_details_in_fitness
-    change_current_figure(1001); clf;
-    plot(Traj_0.t, Q-repmat(min(Q), length(Traj_0.t), 1));
+    RP = ['R', 'P'];
+    change_current_figure(1000); clf;
+    for i = 1:R.NJ
+      if R.Type ~= 0
+        legnum = find(i>=R.I1J_LEG, 1, 'last');
+        legjointnum = i-(R.I1J_LEG(legnum)-1);
+      end
+      subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
+      hold on; grid on;
+      plot(Traj_0.t, Q(:,i), '-');
+      plot(Traj_0.t([1,end]), [1;1]*min(Q(:,i)), 'r-');
+      plot(Traj_0.t([1,end]), [1;1]*(min(Q(:,i))+q_range_max(i)), 'r-');
+      if R.Type == 0
+        title(sprintf('q %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+      else
+        title(sprintf('q %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+      end
+    end
+    sgtitle('Überschreitung der Gelenkwinkelspannweite');
   end
   return
 end
