@@ -156,11 +156,18 @@ for i = 1:NLEG
   % Gelenkgrenzen setzen: Drehgelenke
   if Structure.Type == 0 % Serieller Roboter
     % Grenzen für Drehgelenke: Alle sind aktiv
-    R_init.qlim(R.MDH.sigma==0,:) = repmat([-0.5, 0.5]*Set.optimization.max_range_active_revolute, sum(R.MDH.sigma==0),1); % Drehgelenk
+    R_init.qlim(R.MDH.sigma==0,:) = repmat([-0.5, 0.5]*... % Drehgelenk
+      Set.optimization.max_range_active_revolute, sum(R.MDH.sigma==0),1);
     Structure.qlim = R_init.qlim;
   else % Paralleler Roboter
     % Grenzen für passive Drehgelenke (aktive erstmal mit setzen)
-    R_init.qlim(R_init.MDH.sigma==0,:) = repmat([-0.5, 0.5]*Set.optimization.max_range_passive_revolute, sum(R_init.MDH.sigma==0),1); % Drehgelenk
+    R_init.qlim(R_init.MDH.sigma==0,:) = repmat([-0.5, 0.5]*... % Drehgelenk
+      Set.optimization.max_range_passive_revolute, sum(R_init.MDH.sigma==0),1);
+    % Grenzen für technische Gelenke gesondert setzen
+    R_init.qlim(R_init.DesPar.joint_type==2,:) = repmat([-0.5, 0.5]*... % Kardan-Gelenk
+      Set.optimization.max_range_passive_universal, sum(R_init.DesPar.joint_type==2),1);
+    R_init.qlim(R_init.DesPar.joint_type==3,:) = repmat([-0.5, 0.5]*... % Kugelgelenk
+      Set.optimization.max_range_passive_spherical, sum(R_init.DesPar.joint_type==3),1);
     % Grenzen für aktives Drehgelenk setzen
     I_actrevol = R_init.MDH.mu == 2 & R_init.MDH.sigma==0;
     R_init.qlim(I_actrevol,:) = repmat([-0.5, 0.5]*Set.optimization.max_range_active_revolute, sum(I_actrevol),1);
@@ -170,10 +177,18 @@ for i = 1:NLEG
   end
   % Gelenkgeschwindigkeiten setzen
   R_init.qDlim = repmat([-1,1]*Set.optimization.max_velocity_active_revolute, R_init.NJ, 1);
-  R_init.qDlim(R_init.MDH.sigma==1,:) = repmat([-1,1]*Set.optimization.max_velocity_active_prismatic, sum(R_init.MDH.sigma==1), 1);
+  R_init.qDlim(R_init.MDH.sigma==1,:) = repmat([-1,1]*... % Schubgelenk
+    Set.optimization.max_velocity_active_prismatic, sum(R_init.MDH.sigma==1), 1);
   if Structure.Type == 2 % Paralleler Roboter
-    I_passrevol = R_init.MDH.mu == 1 & R_init.MDH.sigma==0;
-    R_init.qDlim(I_passrevol,:) = repmat([-1,1]*Set.optimization.max_velocity_passive_revolute,sum(I_passrevol),1);
+    I_passrevolute = R_init.MDH.mu == 1 & R_init.MDH.sigma==0;
+    I_passuniversal = R_init.MDH.mu == 1 & R_init.DesPar.joint_type==2;
+    I_passspherical = R_init.MDH.mu == 1 & R_init.DesPar.joint_type==2;
+    R_init.qDlim(I_passrevolute,:) = repmat([-1,1]*... % Drehgelenk
+      Set.optimization.max_velocity_passive_revolute,sum(I_passrevolute),1);
+    R_init.qDlim(I_passuniversal,:) = repmat([-1,1]*... % Kardan-Gelenk
+      Set.optimization.max_velocity_passive_universal,sum(I_passuniversal),1);
+    R_init.qDlim(I_passspherical,:) = repmat([-1,1]*... % Kugelgelenk
+      Set.optimization.max_velocity_passive_spherical,sum(I_passspherical),1);
   end
   if Structure.Type == 0 % Serieller Roboter
     Structure.qDlim = R_init.qDlim;

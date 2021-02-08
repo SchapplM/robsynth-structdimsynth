@@ -110,9 +110,20 @@ optimization = struct( ...
   'rotate_base', false, ... % Orientierung der Roboter-Basis
   ... % Begrenzung des Drehbereichs von Gelenken. Größere Drehung für Gelenk
   ... % selbst unproblematisch. Eher Kollision bei mehrfacher Drehung schwer zu kontrollieren
-  'max_range_active_revolute', 400*pi/180, ... % Maximaler Drehwinkel aktiver Drehgelenke (mehr als volle Drehung für Motoren unproblematisch)
-  'max_range_passive_revolute', 720*pi/180, ... % Maximaler Drehwinkel passiver Drehgelenke (mechanisch geht unendlich oft bei Drehgelenken, bei Kugel/Kardan deutlich weniger)
+  ... % Maximaler Drehwinkel aktiver Drehgelenke (mehr als volle Drehung 
+  ... % für Motoren unproblematisch). Angabe ist immer Spannweite
+  'max_range_active_revolute', 400*pi/180, ...
+  ... % Maximaler Drehwinkel passiver Drehgelenke (mechanisch geht unend-
+  ... % lich oft bei Drehgelenken; bei einigen PKM drehen die Gelenke so oft, 
+  ... % wie bspw ein Objekt mit dem EE "umkreist" wird. 
+  'max_range_passive_revolute', inf*pi/180, ... 
+  ... % % Drehwinkel bei Kardan- und Kugelgelenken technisch deutlich 
+  ... % niedriger. Hier vorerst nur grobe Annahmen.
+  'max_range_passive_universal', pi, ... % 90° in jede Richtung
+  'max_range_passive_spherical', 120*pi/180, ... % 60° in jede Richtung
   'max_velocity_passive_revolute', 20, ... % [rad/s] Maximale Drehgeschw. (zur Singularitätsvermeidung)
+  'max_velocity_passive_universal', 20, ...
+  'max_velocity_passive_spherical', 20, ...
   'max_velocity_active_revolute', 8, ... % [rad/s] Maximale Drehgeschw. (zur Singularitätsvermeidung)
   'max_velocity_active_prismatic', 5, ... % [m/s] Maximale Geschw. (zur Singularitätsvermeidung)
   'desopt_vars', {{}}, ... % Variablen für eigene Optimierung der Entwurfsparameter. Möglich: "linkstrength", "joint_stiffness_qref"
