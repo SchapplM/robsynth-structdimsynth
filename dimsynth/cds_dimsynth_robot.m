@@ -182,7 +182,7 @@ for i = 1:NLEG
   if Structure.Type == 2 % Paralleler Roboter
     I_passrevolute = R_init.MDH.mu == 1 & R_init.MDH.sigma==0;
     I_passuniversal = R_init.MDH.mu == 1 & R_init.DesPar.joint_type==2;
-    I_passspherical = R_init.MDH.mu == 1 & R_init.DesPar.joint_type==2;
+    I_passspherical = R_init.MDH.mu == 1 & R_init.DesPar.joint_type==3;
     R_init.qDlim(I_passrevolute,:) = repmat([-1,1]*... % Drehgelenk
       Set.optimization.max_velocity_passive_revolute,sum(I_passrevolute),1);
     R_init.qDlim(I_passuniversal,:) = repmat([-1,1]*... % Kardan-Gelenk
@@ -1622,6 +1622,13 @@ test_q(abs(abs(test_q)-2*pi)<1e-2) = 0; % entferne 2pi-Fehler, großzügige Tole
 if any(test_q > 1e-6) && all(fval<1e10) % nur wenn IK erfolgreich war testen
   cds_log(-1, sprintf(['[dimsynth] Die Neu berechneten IK-Werte (q0) der Trajektorie stimmen nicht ', ...
     'mehr mit den ursprünglich berechneten überein. Max diff.: %1.4e'], max(test_q)));
+end
+if R.Type == 0, qlim = R.qlim;
+else, qlim = cat(1,R.Leg(:).qlim); end
+if any(q<qlim(:,1) | q>qlim(:,2))
+  cds_log(-1, sprintf(['[dimsynth] Startwert für Gelenkwinkel liegt außer', ...
+    'halb des erlaubten Bereichs.']));
+  save(fullfile(resdir, 'jointlimitviolationwarning.mat'));
 end
 result_invalid = false;
 if ~any(strcmp(Set.optimization.objective, 'valid_act')) && ...

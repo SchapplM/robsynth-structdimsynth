@@ -629,18 +629,16 @@ if R.Type == 0 % Seriell
 else
   for i = 1:R.NLEG, R.Leg(i).qref = Q0(iIKCbest,R.I1J_LEG(i):R.I2J_LEG(i))'; end
 end
-% Erneutes Eintragen der Gelenkgrenzen (s.o)
+% Erneutes Eintragen der Gelenkgrenzen des gewählten besten Ergebnisses.
+% Grenzen numerisch etwas erweitern. Dadurch kein Fehlschlag, falls
+% rundungsbedingte Abweichungen auftreten. Ansonsten dadurch Verletzung
+% der Grenzen möglich.
 if R.Type == 0 % Seriell
-   % Grenzen numerisch etwas erweitern. Dadurch kein Fehlschlag, falls
-   % rundungsbedingte Abweichungen auftreten. Ansonsten dadurch Verletzung
-   % der Grenzen möglich.
-  R.qlim(R.MDH.sigma==1,:) = minmax2(Q_IKC(:,R.MDH.sigma==1, iIKC)') + ...
-    1e-6*repmat([-1, 1], sum(R.MDH.sigma==1),1);
+  R.qlim = minmax2(Q_IKC(:,:, iIKCbest)') + 1e-6*repmat([-1, 1], R.NJ,1);
 else % PKM
   for i = 1:R.NLEG
-    Q_i = Q_IKC(:,R.I1J_LEG(i):R.I2J_LEG(i), iIKC);
-    R.Leg(i).qlim(R.Leg(i).MDH.sigma==1,:) = minmax2(Q_i(:,R.Leg(i).MDH.sigma==1)') + ...
-      1e-6*repmat([-1, 1], sum(R.Leg(i).MDH.sigma==1),1);
+    Q_i = Q_IKC(:,R.I1J_LEG(i):R.I2J_LEG(i), iIKCbest);
+    R.Leg(i).qlim = minmax2(Q_i') + 1e-6*repmat([-1, 1], R.Leg(i).NJ,1);
   end
 end
 
@@ -655,6 +653,6 @@ else
   cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.2fs. fval=%1.3e. %s', ...
     toc(t1), fval(1), constrvioltext_IKC{iIKCbest}));
 end
-cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, mean(fval), debug_info);
+cds_fitness_debug_plot_robot(R, Q_IKC(1,:, iIKCbest)', Traj_0, Traj_W, Set, Structure, p, mean(fval), debug_info);
 cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, desopt_pval);
-rng('shuffle'); % damit Zufallszahlen in anderen Funktionen zufällig bleiben
+rng('shuffle'); % damit Zufallszahlen in anderen Funktionen zufällig bleiben 
