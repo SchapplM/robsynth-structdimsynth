@@ -1631,12 +1631,18 @@ end
 Traj_0 = cds_transform_traj(R, Traj);
 % Einstellung für Positions-IK: Keine Normalisierung mehr, da Sprung bei pi
 % ungünstig bei vorab festgelegten Grenzen für Koordinaten
-s_ik = struct('normalize', false);
+% Benutze Nullraumoptimierung (falls möglich). TODO: Anpassung an
+% Zielfunktionen. Konsistent mit cds_constraints.
+s_ik = struct('normalize', false, 'wn', [1;0]);
 if Structure.Type == 0 % Seriell
   % Benutze Referenzpose die bei obigen Zielfunktionsaufruf gespeichert wurde
   [q, Phi] = R.invkin2(R.x2tr(Traj_0.XE(1,:)'), R.qref, s_ik);
 else % Parallel
-  [q, Phi] = R.invkin_ser(Traj_0.XE(1,:)', cat(1,R.Leg.qref), s_ik);
+  if sum(R.I_EE_Task) < sum(R.I_EE) % Aufgabenredundanz
+    [q, Phi] = R.invkin4(Traj_0.XE(1,:)', cat(1,R.Leg.qref), s_ik);
+  else % ohne Aufgabenredundanz
+    [q, Phi] = R.invkin_ser(Traj_0.XE(1,:)', cat(1,R.Leg.qref), s_ik);
+  end
 end
 if ~any(strcmp(Set.optimization.objective, 'valid_act')) && any(abs(Phi)>1e-8)
   cds_log(-1, '[dimsynth] PSO-Ergebnis für Startpunkt nicht reproduzierbar (ZB-Verletzung)');
@@ -1646,21 +1652,26 @@ end
 % Toleranz und mehr Rechenaufwand bei der eigentlichen IK-Berechnung)
 % Hier auch Weglassen der Beachtung der Winkelgrenzen (führt teilweise zu
 % Abbruch, obwohl die Spannweite in Ordnung ist.)
+% Nutze Aufgabenredundanz, falls möglich. TODO: Konsistent mit
+% cds_constraints_traj, Anpassung an Nebenbedingungen.
+s = struct('normalize', false, 'Phit_tol', 1e-12, ...
+  'Phir_tol', 1e-12, 'n_max', 5000, 'wn', [1;0;1;0]);
 if Structure.Type == 0 % Seriell
-  s = struct('normalize', false, 'Phit_tol', 1e-12, ...
-    'Phir_tol', 1e-12, 'n_max', 5000);
   [Q, QD, QDD, PHI] = R.invkin2_traj(Traj_0.X, Traj.XD, Traj.XDD, Traj.t, q, s);
   Jinv_ges = [];
 else % Parallel
-  s = struct('normalize', false,  'Phit_tol', 1e-12, ...
-    'Phir_tol', 1e-12, 'n_max', 5000);
   [Q, QD, QDD, PHI, Jinv_ges] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
 end
 test_q = abs(Q(1,:)'-q0_ik);
 test_q(abs(abs(test_q)-2*pi)<1e-2) = 0; % entferne 2pi-Fehler, großzügige Toleranz
 if any(test_q > 1e-6) && all(fval<1e10) % nur wenn IK erfolgreich war testen
-  cds_log(-1, sprintf(['[dimsynth] Die Neu berechneten IK-Werte (q0) der Trajektorie stimmen nicht ', ...
-    'mehr mit den ursprünglich berechneten überein. Max diff.: %1.4e'], max(test_q)));
+  if sum(R.I_EE_Task) == sum(R.I_EE)
+    cds_log(-1, sprintf(['[dimsynth] Die Neu berechneten IK-Werte (q0) der Trajektorie stimmen nicht ', ...
+      'mehr mit den ursprünglich berechneten überein. Max diff.: %1.4e'], max(test_q)));
+  else
+    % Es kommt nicht mehr das gleiche raus, da durch die Redundanz eine
+    % neue Nullraumbewegung gemacht wird (Grenze der Gelenke aktualisiert)
+  end
 end
 if any(q<qlim_neu(:,1) | q>qlim_neu(:,2))
   cds_log(-1, sprintf(['[dimsynth] Startwert für Gelenkwinkel liegt außer', ...
@@ -1828,7 +1839,7 @@ for i = 1:length(Set.optimization.objective)
   if I_fval_obj_all(i) == 0, continue; end % keine Prüfung möglich.
   if fval(i) > 1e3, continue; end % Leistungsmerkmal steht nicht in Zielfunktion (NB-Verletzung)
   test_fval_i = fval(i) - fval_obj_all(I_fval_obj_all(i));
-  if abs(test_fval_i) > 1e-6
+  if abs(test_fval_i) > 1e-5
     save(fullfile(resdir, 'fvalreprowarning.mat'));
     cds_log(-1, sprintf(['[dimsynth] Zielfunktionswert %d (%s) nicht aus Neu', ...
       'berechnung der Leistungsmerkmale reproduzierbar. Aus PSO: %1.5f, neu: %1.5f.'], ...

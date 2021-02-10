@@ -59,6 +59,11 @@ s = struct( ...
   'normalize', false, ... 
   'n_max', 1000, ... % moderate Anzahl Iterationen
   'Phit_tol', 1e-10, 'Phir_tol', 1e-10);
+% Zusätzliche Optimierung für Aufgabenredundanz. TODO: Anpassung an Neben-
+% bedingungen
+if sum(R.I_EE_Task) < sum(R.I_EE)
+  s.wn = [1;0;1;0];
+end
 if R.Type == 0 % Seriell
   qlim = R.qlim;
   [Q, QD, QDD, PHI, JP] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
@@ -219,7 +224,7 @@ if R.Type == 2 && Set.general.debug_calc % PKM; Rechne nochmal mit Klassenmethod
   end
 end
 
-%% Plattform-Bewegung neu für 3T2R-Roboter berechnen
+%% Endeffektor-Bewegung neu für 3T2R-Roboter berechnen
 % der letzte Euler-Winkel ist nicht definiert und kann beliebige Werte einnehmen).
 if all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
   if R.Type == 0 % Seriell
