@@ -47,7 +47,7 @@ for i = 1
   % TODO: Prüfen, ob dieser Schritt noch notwendig ist.
   Jinv_3T3R = zeros(6, n_qa);
   Jinv_3T3R(R.I_EE,:) = Jinv_xred;
-  Jinv_task = Jinv_3T3R(Set.structures.DoF,:);
+  Jinv_task = Jinv_3T3R(Set.task.DoF,:);
   % Rangprüfung. Sehr schlecht konditionierte Matrizen sollen auch als
   % Rangverlust gekennzeichnet werden.
   % Mit Toleranz 1e-4 werden Matrizen mit Kond. 1e7 teilweise noch als

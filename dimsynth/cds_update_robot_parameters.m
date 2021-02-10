@@ -98,7 +98,7 @@ if Set.optimization.movebase
   % TODO: Klären, ob Roboter-Skalierungsfaktor für z-Koordinate doch besser wäre
   p_idx = 0;
   for i_xyz = 1:3
-    if ~Set.structures.DoF(i_xyz) || ...  % FG ist nicht Teil der Aufgabe (z.B. bei 2T1R). Ignorieren.
+    if ~Set.task.DoF(i_xyz) || ...  % FG ist nicht Teil der Aufgabe (z.B. bei 2T1R). Ignorieren.
         Set.optimization.basepos_limits(i_xyz,1)==Set.optimization.basepos_limits(i_xyz,2) % nur ein Wert vorgegeben
       continue
     end
@@ -122,8 +122,8 @@ if any(Structure.vartypes == 3) % Set.optimization.ee_translation
   p_eepos = p(Structure.vartypes == 3);
   r_N_E_neu = zeros(3,1);
   % EE-Versatz skaliert mit Roboter-Skalierungsfaktor
-  r_N_E_neu(Set.structures.DoF(1:3)) = p_eepos.*scale;
-  p_phys(Structure.vartypes == 3) = r_N_E_neu(Set.structures.DoF(1:3));
+  r_N_E_neu(Set.task.DoF(1:3)) = p_eepos.*scale;
+  p_phys(Structure.vartypes == 3) = r_N_E_neu(Set.task.DoF(1:3));
   R_neu.update_EE(r_N_E_neu);
 end
 
@@ -131,14 +131,14 @@ end
 if Set.optimization.ee_rotation && any(Structure.vartypes == 4)
   p_eerot = p(Structure.vartypes == 4);
   p_phys(Structure.vartypes == 4) = p_eerot;
-  if sum(Set.structures.DoF(4:6)) == 1 % 2T1R -> Drehung um z-Achse
+  if sum(Set.task.DoF(4:6)) == 1 % 2T1R -> Drehung um z-Achse
     % Die Drehung in Structure.R_N_E richtet die z-Achse nach oben
     if Structure.R_N_E_isset
       phi_N_E = r2eulxyz(Structure.R_N_E*rotz(p_eerot));
     else
       phi_N_E = [0;0;p_eerot];
     end
-  elseif sum(Set.structures.DoF(4:6)) == 2
+  elseif sum(Set.task.DoF(4:6)) == 2
     % 3T2R. Nehme an, dass die EE-Transformation mit XYZ-Notation
     % durchgeführt wird. Daher keine Drehung um die letzte z-Achse
     phi_N_E = [p_eerot(1:2);0];

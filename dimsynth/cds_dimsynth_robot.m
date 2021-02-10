@@ -126,7 +126,7 @@ elseif Structure.Type == 2 % Parallel
     p_platform(2) = 0.5*p_platform(1);
   end
   % Bei paralleler Rechnung der Struktursynthese auf Cluster Konflikte vermeiden
-  parroblib_writelock('check', 'csv', logical(Set.structures.DoF), 5*60, false);
+  parroblib_writelock('check', 'csv', logical(Set.task.DoF), 5*60, false);
   % Klasse initialisierung (liest auch die csv-Dateien aus).
   R = parroblib_create_robot_class(Structure.Name, p_base(:), p_platform(:));
   NLEG = R.NLEG;
@@ -137,8 +137,10 @@ end
 R.fill_fcn_handles(Set.general.use_mex, true);
 
 % Aufgaben-FG des Roboters setzen
-if Structure.Type == 0 % Seriell (nur hier notwendig. TODO: Prüfen ob obsolet)
-  R.I_EE_Task = Set.structures.DoF;
+if Structure.Type == 0 % Seriell
+  R.I_EE_Task = Set.task.DoF;
+else % Parallel
+  R.update_EE_FG(R.I_EE, Set.task.DoF);
 end
 
 for i = 1:NLEG
@@ -262,7 +264,7 @@ else
 end
 % Falls planerer Roboter: Definiere Verschiebung, damit der Roboter von
 % oben angreift. Sieht besser aus, macht die Optimierung aber schwieriger.
-% if all(Set.structures.DoF(1:3) == [1 1 0])
+% if all(Set.task.DoF(1:3) == [1 1 0])
 %   R.update_base([0;0;0.5*Lref]);
 %   R.update_EE([0;0;-0.5*Lref]);
 % end
@@ -361,7 +363,7 @@ if Structure.Type == 0 || Structure.Type == 2
     R_pkin = R.Leg(1);
   end
   % Nummern zur Indizierung der pkin, siehe SerRob/get_pkin_parameter_type
-  Ipkinrel = R_pkin.get_relevant_pkin(Set.structures.DoF);
+  Ipkinrel = R_pkin.get_relevant_pkin(Set.task.DoF);
   % Setzen den theta-Parameter für PKM-Beinketten auf einen konstant Wert,
   % falls das durch die Struktursynthese vorgegeben ist (z.B. auf 0).
   % Bei 3T0R- und 3T1R-PKM ist die Parallelität der Gelenke in den Beinketten
@@ -511,7 +513,7 @@ Structure.Ipkinrel = Ipkinrel;
 % Berechne Mittelpunkt der Aufgabe
 if Set.optimization.movebase
   % Auswahl der Indizes für die zu optimierenden Basis-Koordinaten
-  I_DoF_basepos = Set.structures.DoF(1:3); % nur die FG der Aufgabe nehmen
+  I_DoF_basepos = Set.task.DoF(1:3); % nur die FG der Aufgabe nehmen
   I_DoF_setfix = Set.optimization.basepos_limits(:,1)==...
                  Set.optimization.basepos_limits(:,2); 
   for i = 1:3
@@ -568,7 +570,7 @@ else
   if Structure.Type == 0 % Seriell
     % Stelle den seriellen Roboter vor die Aufgabe
     r_W_0 = Structure.xT_mean + [-0.4*Lref;-0.4*Lref;0];
-    if Set.structures.DoF(3) == 1 % nicht für 2T1R
+    if Set.task.DoF(3) == 1 % nicht für 2T1R
       if strcmp(mounting, 'floor')
         r_W_0(3) = -0.7*Lref; % Setze Roboter-Basis etwas unter die Aufgabe
       elseif strcmp(mounting, 'ceiling')
@@ -579,7 +581,7 @@ else
     end
   else % Parallel
     r_W_0 = zeros(3,1);
-    if Set.structures.DoF(3) == 1 % nicht für 2T1R
+    if Set.task.DoF(3) == 1 % nicht für 2T1R
       if strcmp(mounting, 'floor')
         % Setze Roboter mittig unter die Aufgabe
         r_W_0(3) = Structure.xT_mean(3)-0.7*Lref;
@@ -599,21 +601,21 @@ if Set.optimization.ee_translation && ...
     (Structure.Type == 0 || Structure.Type == 2 && ~Set.optimization.ee_translation_only_serial)
   % (bei PKM keine EE-Verschiebung durchführen. Dort soll das EE-KS bei
   % gesetzter Option immer in der Mitte sein)
-  nvars = nvars + sum(Set.structures.DoF(1:3)); % Verschiebung des EE um translatorische FG der Aufgabe
-  vartypes = [vartypes; 3*ones(sum(Set.structures.DoF(1:3)),1)];
-  varlim = [varlim; repmat([-1, 1], sum(Set.structures.DoF(1:3)), 1)]; % bezogen auf Lref
-  for i = find(Set.structures.DoF(1:3))
+  nvars = nvars + sum(Set.task.DoF(1:3)); % Verschiebung des EE um translatorische FG der Aufgabe
+  vartypes = [vartypes; 3*ones(sum(Set.task.DoF(1:3)),1)];
+  varlim = [varlim; repmat([-1, 1], sum(Set.task.DoF(1:3)), 1)]; % bezogen auf Lref
+  for i = find(Set.task.DoF(1:3))
     varnames = {varnames{:}, sprintf('ee pos %s', char(119+i))}; %#ok<CCAT>
   end
 end
 
 % EE-Rotation
 if Set.optimization.ee_rotation
-  if sum(Set.structures.DoF(4:6)) == 1
+  if sum(Set.task.DoF(4:6)) == 1
     neerot = 1;
-  elseif sum(Set.structures.DoF(4:6)) == 0
+  elseif sum(Set.task.DoF(4:6)) == 0
     neerot = 0;
-  elseif sum(Set.structures.DoF(4:6)) == 2
+  elseif sum(Set.task.DoF(4:6)) == 2
     % Bei 3T2R wird die Rotation um die Werkzeugachse nicht optimiert.
     neerot = 2;
   else
@@ -622,7 +624,7 @@ if Set.optimization.ee_rotation
   nvars = nvars + neerot; % Verschiebung des EE um translatorische FG der Aufgabe
   vartypes = [vartypes; 4*ones(neerot,1)];
   varlim = [varlim; repmat([0, pi], neerot, 1)];
-  for i = find(Set.structures.DoF(4:6))
+  for i = find(Set.task.DoF(4:6))
     varnames = [varnames(:)', {sprintf('ee rot %d', i)}];
   end
 end

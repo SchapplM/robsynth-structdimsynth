@@ -24,35 +24,34 @@ structset = Set.structures;
 verblevel = Set.general.verbosity;
 serroblibpath=fileparts(which('serroblib_path_init.m'));
 % Name der FG für Zugriff auf Listen
-if all(structset.DoF == [1 1 0 0 0 1])
+if all(Set.task.DoF == [1 1 0 0 0 1])
   task_str = '2T1R';
-elseif all(structset.DoF == [1 1 1 0 0 0])
+elseif all(Set.task.DoF == [1 1 1 0 0 0])
   task_str = '3T0R';
-elseif all(structset.DoF == [1 1 1 0 0 1])
+elseif all(Set.task.DoF == [1 1 1 0 0 1])
   task_str = '3T1R';
-elseif all(structset.DoF == [1 1 1 1 1 0])
+elseif all(Set.task.DoF == [1 1 1 1 1 0])
   task_str = '3T2R';
-elseif all(structset.DoF == [1 1 1 1 1 1])
+elseif all(Set.task.DoF == [1 1 1 1 1 1])
   task_str = '3T3R';
 end
 
 Structures = {};% struct('Name', {}, 'Type', []);
 
-if structset.max_task_redundancy > 0
-  error('Aufgabenredundanz noch nicht implementiert');
-end
+% if structset.max_task_redundancy > 0
+%   error('Aufgabenredundanz noch nicht implementiert');
+% end
 if structset.max_kin_redundancy > 0
   error('Kinematische Redundanz noch nicht implementiert');
 end
 
-EE_FG = structset.DoF;
 % Die FG in der SerRobLib sind anders kodiert: v_xyz, w_xyz, phiD_xyz
 % TODO: Vereinheitlichen mit ParRobLib
-if all(structset.DoF == [1 1 1 1 1 0])
+if all(Set.task.DoF == [1 1 1 1 1 0])
   EE_FG_ser      = [[1 1 1], [1 1 1], [1 1 1]];
   EE_FG_Mask_ser = [[1 1 1], [1 1 1], [1 1 0]];
 else
-  EE_FG_ser = EE_FG;
+  EE_FG_ser = Set.task.DoF;
   EE_FG_Mask_ser = [1 1 1 1 1 1]; % Die FG müssen genauso auch vom Roboter erfüllt werden (0 darf nicht auch 1 sein)
 end
 
@@ -60,8 +59,21 @@ ii = 0; % Laufende Nummer für alle Roboterstrukturen (seriell und parallel)
 
 %% Serielle Roboter laden
 if structset.use_serial
-  N_JointDoF = sum(structset.DoF); % Beinketten ohne irgendeine Redundanz (so viele Gelenke wie EE FG)
-  mdllistfile_Ndof = fullfile(serroblibpath, sprintf('mdl_%ddof', N_JointDoF), sprintf('S%d_list.mat',N_JointDoF));
+  % Beinketten ohne irgendeine Redundanz (so viele Gelenke wie EE FG)
+  N_JointDoF_allowed = sum(Set.task.DoF);
+  % Bei Aufgabenredundanz: Benutzte EE-FG der Aufgabe müssen weniger als
+  % die tatsächlich steuerbaren sein. TODO: Bessere Abgrenzung.
+  if Set.structures.max_task_redundancy > 0
+    N_JointDoF_max = max(6, sum(Set.task.DoF)+Set.structures.max_task_redundancy);
+    N_JointDoF_allowed = N_JointDoF_allowed:1:N_JointDoF_max;
+  end
+else
+  N_JointDoF_allowed = [];
+end
+% Mögliche Anzahl an Gelenken durchgehen
+for N_JointDoF = N_JointDoF_allowed
+  mdllistfile_Ndof = fullfile(serroblibpath, sprintf('mdl_%ddof', ...
+    N_JointDoF), sprintf('S%d_list.mat',N_JointDoF));
   l = load(mdllistfile_Ndof, 'Names_Ndof', 'AdditionalInfo');
   [~,I_FG] = serroblib_filter_robots(N_JointDoF, EE_FG_ser, EE_FG_Mask_ser);
   I_novar = (l.AdditionalInfo(:,2) == 0);
@@ -83,32 +95,36 @@ if structset.use_serial
       % Es gibt eine Liste von Robotern, dieser ist nicht dabei.
       continue
     end
-    
+
     % Prüfe Anzahl Schubgelenke
     numprismatic = sum(SName == 'P');
     if numprismatic > structset.maxnumprismatic
-      if verblevel >= 3, fprintf('%s hat zu viele Schubgelenke (%d>%d). Ignoriere\n', SName, numprismatic, structset.maxnumprismatic); end
+      if verblevel >= 3
+        fprintf('%s hat zu viele Schubgelenke (%d>%d). Ignoriere\n', ...
+          SName, numprismatic, structset.maxnumprismatic);
+      end
       continue
     end
-    
+
     % Prüfe, ob die Gelenkreihenfolge zum Filter passt
     if any(~strcmp(structset.joint_filter, '*'))
       Filter = structset.joint_filter(1:N_JointDoF);
       ChainJoints_filt = SName(3:3+N_JointDoF-1);
       ChainJoints_filt(Filter=='*') = '*';
       if ~strcmp(ChainJoints_filt, structset.joint_filter(1:N_JointDoF))
-        if verblevel >= 3, fprintf('%s passt nicht zum Filter %s. Ignoriere\n', SName, structset.joint_filter); end
+        if verblevel >= 3
+          fprintf('%s passt nicht zum Filter %s. Ignoriere\n', ...
+            SName, structset.joint_filter);
+        end
         continue
       end
     end
-    
+
     ii = ii + 1;
     if verblevel >= 2, fprintf('%d: %s\n', ii, SName); end
     Structures{ii} = struct('Name', SName, 'Type', 0, 'Number', ii); %#ok<AGROW>
   end
 end
-%% Parallele Roboter aus Liste laden
-% parroblibpath=fileparts(which('parroblib_path_init.m'));
 
 %% Parallele Roboter laden
 if structset.use_parallel
@@ -118,13 +134,26 @@ if structset.use_parallel
   else
     max_rankdeficit = 0;
   end
-  [~, PNames_Akt] = parroblib_filter_robots(EE_FG, max_rankdeficit);
+  EE_FG_allowed = Set.task.DoF;
+  if Set.structures.max_task_redundancy > 0
+    if all(Set.task.DoF == [1 1 1 1 1 0])
+      % Bei 3T2R-Aufgabe sind 3T3R-PKM aufgabenredundant mit Grad 1
+      EE_FG_allowed = [EE_FG_allowed; logical([1 1 1 1 1 1])];
+    else
+      error('Fall nicht definiert');
+    end
+  end
+else
+  EE_FG_allowed = [];
+end
+for kkk = 1:size(EE_FG_allowed,1)
+  [~, PNames_Akt] = parroblib_filter_robots(EE_FG_allowed(kkk,:), max_rankdeficit);
   for j = 1:length(PNames_Akt)
     if ~isempty(structset.whitelist) && ~any(strcmp(structset.whitelist, PNames_Akt{j}))
       % Es gibt eine Liste von Robotern, dieser ist nicht dabei.
       continue
     end
-    
+
     % Lade Detailierte Informationen des Robotermodells
     [~, LEG_Names, Actuation, Coupling, ~, ~, ~, ~, ~, AdditionalInfo_Akt, ...
       StructuralDHParam] = parroblib_load_robot(PNames_Akt{j});
@@ -201,9 +230,9 @@ if structset.use_parallel
         % Erzeuge eine Bit-Maske zur Prüfung, ob die Kinematik aus der
         % Struktursynthese für xTyR-Beinketten kommt
         % Modellherkunft laut Datenbank: dec2bin(l.BitArrays_Origin(ilc,:))
-        if all(structset.DoF == [1 1 1 0 0 0])
+        if all(Set.task.DoF == [1 1 1 0 0 0])
           Mask_Origin = uint16(bin2dec('00100')); % Dritte Spalte für Modellherkunft
-        elseif all(structset.DoF == [1 1 1 0 0 1])
+        elseif all(Set.task.DoF == [1 1 1 0 0 1])
           Mask_Origin = uint16(bin2dec('00010')); % Vierte Spalte (in S5RPRPR.csv o.ä.)
         else
           % Keine Einschränkung (außer manuell eingefügte Ketten)
@@ -286,8 +315,8 @@ if structset.use_parallel
     end
     if strcmp(Set.optimization.objective, 'valid_act') % Prüfe Laufgrad der PKM (sonst ist die Info schon vorhanden)
       if any(I_param) && ... % es gibt (mindestens) einen freien Struktur-Parameter
-          (all(structset.DoF(1:5) == [1 1 1 0 0]) || ... % 3T0R/3T1R
-           all(structset.DoF(1:6) == [1 1 1 1 1 0])) % 3T2R (vermutlich hier relevant)
+          (all(Set.task.DoF(1:5) == [1 1 1 0 0]) || ... % 3T0R/3T1R
+           all(Set.task.DoF(1:6) == [1 1 1 1 1 0])) % 3T2R (vermutlich hier relevant)
         % Siehe parroblib_load_robot
         % Falls theta ein variabler Parameter ist, werden verschiedene An- 
         % nahmen für theta getroffen und alle einzeln geprüft.
@@ -332,7 +361,7 @@ if structset.use_parallel
       end
       if verblevel >= 2, fprintf('%d: %s; %s\n', ii, PNames_Akt{j}, theta_logstr); end
       Structures{ii} = struct('Name', PNames_Akt{j}, 'Type', 2, 'Number', ii, ...
-        'Coupling', Coupling, 'angles_values', av); %#ok<AGROW>
+        'Coupling', Coupling, 'angles_values', av, 'DoF', EE_FG_allowed(kkk,:)); %#ok<AGROW>
     end
   end
 end

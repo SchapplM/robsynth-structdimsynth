@@ -43,7 +43,7 @@ if R.Type == 0
     % Nehme die analytische Jacobi-Matrix (für 3T2R wichtig, da dort die
     % ersten fünf Zeilen der Aufgabe entsprechen. Bei jacobig falsch).
     J_3T3R = R.jacobia(Q(i,:)');
-    J_task = J_3T3R(Set.structures.DoF,:);
+    J_task = J_3T3R(Set.task.DoF,:);
     Cges(i,:) = cond(J_task);
   end
 else

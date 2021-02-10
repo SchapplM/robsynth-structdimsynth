@@ -3,7 +3,8 @@
 % Eingabe:
 % input_settings
 %   Struktur mit Einstellungen zur Generierung aller
-%   Optimierungseinstellungen
+%   Optimierungseinstellungen. Felder:
+%   DoF: FG der Aufgabe in Notation [1 1 1 0 0 1] (Geschw., Winkelgeschw.)
 % 
 % Ausgabe:
 % settings
@@ -78,7 +79,6 @@ structures = struct( ...
   'maxnumprismatic', 1, ... % Maximal ein Schubgelenk in Roboter (bzw. PKM-Beinkette)
   'max_task_redundancy', 0, ... % Zulässiger Grad der Aufgabenredundanz
   'max_kin_redundancy', 0, ... % Zulässiger Grad der kinematischen Redundanz
-  'DoF', input_settings.DoF, ... % FG des Roboters in Notation [1 1 1 0 0 1] (Geschw., Winkelgeschw.)
   'joint_filter', '******', ... % Vorgabe von Gelenktypen ("R", "P", "*").
   'parrob_basejointfilter', 1:9, ... % Vorgabe zum Gestell-Koppelgelenktyp einer PKM
   'nopassiveprismatic', true, ... % Schubgelenke dürfen nicht passiv sein
@@ -156,6 +156,7 @@ optimization = struct( ...
 
 %% Einstellungen für Aufgabe (Trajektorie, Bauraum, Hindernisse)
 task = struct( ...
+  'DoF', input_settings.DoF, ... % Für die Aufgabe relevante Freiheitsgrade
   'profile', 1, ... % Beschleunigungs-Trapez für Kartesische Eckpunkte
   'vmax', 1, ... % maximale Geschwindigkeit (m/s oder rad/s)
   'amax', 3, ... % maximale Beschleunigung (m/s² oder rad/s²)

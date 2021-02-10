@@ -28,7 +28,7 @@ end
 if Set.general.only_finish_aborted && Set.general.regenerate_summmary_only
   error('Option only_finish_aborted zusammen mit regenerate_summmary_only nicht sinnvoll');
 end
-Set_default = cds_settings_defaults(struct('DoF', Set.structures.DoF));
+Set_default = cds_settings_defaults(struct('DoF', Set.task.DoF));
 for subconf = fields(Set_default)'
   for ftmp = fields(Set.(subconf{1}))'
     if ~isfield(Set_default.(subconf{1}), ftmp{1})
@@ -351,7 +351,7 @@ if ~isempty(Set.structures.whitelist)
   for i = 1:length(Structures), Names_in_Struct{i} = Structures{i}.Name; end %#ok<SAGROW>
   if length(Set.structures.whitelist) ~= length(unique(Names_in_Struct))
     warning('Es wurde eine Positiv-Liste übergeben, aber nicht alle dieser Strukturen wurden gewählt.');
-    disp('Gültige PKM:');
+    disp('Gültige Roboter:');
     disp(intersect(Set.structures.whitelist, Names_in_Struct));
   end
 end
@@ -391,7 +391,8 @@ if ~Set.general.regenerate_summmary_only
     if isempty(Names), continue; end
     % Duplikate löschen (treten z.B. auf, wenn verschiedene Werte für theta
     % in der Struktursynthese möglich sind)
-    Names = unique(Names);
+    [Names, I] = unique(Names);
+    Structures_I = Structures(I);
     % Vorlagen-Funktionen neu generieren (falls dort Änderungen gemacht
     % wurden). Die automatische Neugenerierung in der parfor-Schleife
     % funktioniert nicht aufgrund von Dateikonflikten, autom. Ordnerlöschung.
@@ -400,11 +401,12 @@ if ~Set.general.regenerate_summmary_only
       III = 1:length(Names); % Zufällige Reihenfolge, damit besser parallelisierbar (Cluster)
       III = III(randperm(length(III)));
       for i = III
+        Structure_i = Structures_I{i};
         if type == 0 % Serieller Roboter
           serroblib_create_template_functions(Names(i), false, false);
         else % PKM
           % Sperrschutz für PKM-Bibliothek (hauptsächlich für Struktursynthese)
-          parroblib_writelock('check', 'csv', logical(Set.structures.DoF), 5*60, false);
+          parroblib_writelock('check', 'csv', Structure_i.DoF, 5*60, false);
           parroblib_create_template_functions(Names(i), false, false);
           % Auch Funktionen für serielle Beinketten neu generieren
           [~, LEG_Names] = parroblib_load_robot(Names{i});
@@ -428,16 +430,16 @@ if ~Set.general.regenerate_summmary_only
         if type == 0 % Serieller Roboter
           R = serroblib_create_robot_class(Names{i});
         else % PKM
-          parroblib_writelock('check', 'csv', logical(Set.structures.DoF), 5*60, false);
+          parroblib_writelock('check', 'csv', logical(Set.task.DoF), 5*60, false);
           R = parroblib_create_robot_class(Names{i},1,1);
         end
         % Hierdurch werden fehlende mex-Funktionen kompiliert.
         if type == 2 % keine gleichzeitige mex-Kompilierung gleicher Kinematiken erlauben.
-          parroblib_writelock('lock', Names{i}, logical(Set.structures.DoF), 60*60, Set.general.verbosity>2);
+          parroblib_writelock('lock', Names{i}, R.I_EE, 60*60, Set.general.verbosity>2);
         end
         R.fill_fcn_handles(true, true);
         if type == 2 % Sperrschutz für PKM aufheben
-          parroblib_writelock('free', Names{i}, logical(Set.structures.DoF));
+          parroblib_writelock('free', Names{i}, R.I_EE);
         end
         if toc(t_ll) > 20 || i == III(end)
           fprintf('%d/%d Roboter vom Typ %d auf Existenz der Dateien geprüft. Dauer bis hier: %1.1fs\n', ...

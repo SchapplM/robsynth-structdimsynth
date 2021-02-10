@@ -125,7 +125,7 @@ end
 if R.Type == 0 % Seriell
   qlim = R.qlim;
   qref = R.qref;
-  Phi_E = NaN(size(Traj_0.XE,1), sum(Set.structures.DoF));
+  Phi_E = NaN(size(Traj_0.XE,1), sum(Set.task.DoF));
   QE = NaN(size(Traj_0.XE,1), R.NQJ);
   if Set.task.profile ~= 0
     % Normale Trajektorie mit stetigem Zeitverlauf. Nur Berechnung der
@@ -469,4 +469,3 @@ else % Gebe alle gültigen Lösungen aus
   % Optimierung benötigt, falls keine Trajektorie berechnet wird.
   QE_all = Q_jic(:,:,I_iO);
 end
-
