@@ -174,8 +174,8 @@ elseif ~Set.general.computing_cluster % nicht bei Hochladen des Jobs
 end
 % Verzeichnisse zum Laden alter Ergebnisse vorbereiten
 if Set.optimization.InitPopRatioOldResults > 0
-  Set.optimization.result_dirs_for_init_pop = ...
-    [Set.optimization.result_dirs_for_init_pop, Set.optimization.resdir];
+  Set.optimization.result_dirs_for_init_pop = unique( ... % bei mehrfacher Durchführung von cds_start sonst doppelt
+    [Set.optimization.result_dirs_for_init_pop, Set.optimization.resdir]);
 else
   Set.optimization.result_dirs_for_init_pop = {};
 end
