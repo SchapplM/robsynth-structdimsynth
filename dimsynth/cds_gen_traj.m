@@ -134,6 +134,7 @@ if all(DoF == [1 1 1 1 1 1]) || all(DoF == [1 1 1 1 1 0])
   h1=0.3;
   if no == 1 || no == 2 || no == 3
     % Beginn Würfel mit zusätzlicher 3D-EE-Drehung
+    % obere Ebene
     k=k+1; XE(k,:) = XE(k-1,:) + [ d1,0,0, 0,0,0];
     k=k+1; XE(k,:) = XE(k-1,:) + [0,-d1,0  0,0, pi/4];
     k=k+1; XE(k,:) = XE(k-1,:) + [-d1,0,0, 0,0,-pi/4];
@@ -141,14 +142,16 @@ if all(DoF == [1 1 1 1 1 1]) || all(DoF == [1 1 1 1 1 0])
     k=k+1; XE(k,:) = XE(k-1,:) + [0,0, h1, -pi/4,0,0];
     k=k+1; XE(k,:) = XE(k-1,:) + [0,d1,0,  0,pi/4,0];
     k=k+1; XE(k,:) = XE(k-1,:) + [0,0,-h1, 0,-pi/4,0];
-    k=k+1; XE(k,:) = XE(k-1,:) + [ d1,0,0, pi/6,-pi/6,0];
-    k=k+1; XE(k,:) = XE(k-1,:) + [ 0,0,h1, pi/6,-pi/6,0];
-    k=k+1; XE(k,:) = XE(k-1,:) + [ 0,0,-h1, -pi/6,pi/3,0];
-    k=k+1; XE(k,:) = XE(k-1,:) + [0,-d1,0  -pi/6,pi/6,0];
-    k=k+1; XE(k,:) = XE(k-1,:) + [0,0, h1, -pi/4,pi/4,-pi/3];
-    k=k+1; XE(k,:) = XE(k-1,:) + [0,0,-h1, pi/2,-pi/6,-pi/3];
-    k=k+1; XE(k,:) = XE(k-1,:) + [-d1,0,0, pi/12,-pi/6,pi/2];
-    k=k+1; XE(k,:) = XE(k-1,:) + [0,d1,0,  -pi/4,0,-pi/6];
+    % untere Ebene: Fahre anders herum, damit Drehgelenke nicht mehrfache
+    % Umdrehungen machen müssen
+    k=k+1; XE(k,:) = XE(k-1,:) + [ 0,-d1,0, pi/6,-pi/6,0];
+    k=k+1; XE(k,:) = XE(k-1,:) + [d1,0,0  -pi/6,pi/6,0];
+    k=k+1; XE(k,:) = XE(k-1,:) + [0,0, h1, -pi/6,pi/6,pi/6];
+    k=k+1; XE(k,:) = XE(k-1,:) + [0,0,-h1, -pi/6,pi/4,0];
+    k=k+1; XE(k,:) = XE(k-1,:) + [0,d1,0, pi/12,-pi/6,pi/2];
+    k=k+1; XE(k,:) = XE(k-1,:) + [0,0, h1, pi/6,-pi/4,pi/2];
+    k=k+1; XE(k,:) = XE(k-1,:) + [0,0,-h1, pi/12,-pi/6,pi/2];
+    k=k+1; XE(k,:) = XE(k-1,:) + [-d1,0,0,  -pi/4,0,-pi/6];
     k=k+1; XE(k,:) = XE(k-1,:) + [0,0, h1, -pi/12,pi/12,pi/3];
     if no == 2 % Modifikation
       % Nachbearbeiten der Würfel-Trajektorie: Position bleibt so wie sie
