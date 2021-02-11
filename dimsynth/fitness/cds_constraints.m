@@ -165,12 +165,15 @@ fval_jic = NaN(1,n_jic);
 constrvioltext_jic = cell(n_jic,1);
 Q_jic = NaN(size(Traj_0.XE,1), R.NJ, n_jic);
 q0_jic = NaN(R.NJ, n_jic); % zum späteren Nachvollziehen des Ergebnisses
+% Wenn Grenzen auf unendlich gesetzt sind, wähle -pi bis pi für Startwert
+qlim_norm = qlim;
+qlim_norm(isinf(qlim_norm)) = sign(qlim_norm(isinf(qlim_norm)))*pi;
 for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   Phi_E(:) = NaN; QE(:) = NaN; % erneut initialisieren wegen jic-Schleife.
   if jic == 1 && all(~isnan(qref)) && any(qref~=0) % nehme Referenz-Pose (kann erfolgreiche gespeicherte Pose bei erneutem Aufruf enthalten)
     q0 = qref; % Wenn hier nur Nullen stehen, werden diese ignoriert.
   else
-    q0 = qlim(:,1) + rand(R.NJ,1).*(qlim(:,2)-qlim(:,1)); % Zufällige Anfangswerte geben vielleicht neue Konfiguration.
+    q0 = qlim_norm(:,1) + rand(R.NJ,1).*(qlim_norm(:,2)-qlim_norm(:,1)); % Zufällige Anfangswerte geben vielleicht neue Konfiguration.
   end
   q0_jic(:,jic) = q0;
   % Anpassung der IK-Anfangswerte für diesen Durchlauf der IK-Konfigurationen.

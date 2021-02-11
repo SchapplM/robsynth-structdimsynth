@@ -27,6 +27,12 @@ counter_filesize = 0;
 InitPopLoadTmp = [];
 ScoreLoad = [];
 RobName = Structure.Name;
+if Set.optimization.InitPopRatioOldResults == 0
+  % Es sollen keine alten Ergebnisse geladen werden. Kein Durchsuchen der
+  % Ordner notwendig.
+  Set.optimization.result_dirs_for_init_pop = {};
+end
+
 % Alle möglichen Ergebnis-Ordner durchgehen
 for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
   resdir = Set.optimization.result_dirs_for_init_pop{kk};

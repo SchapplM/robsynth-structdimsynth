@@ -43,6 +43,7 @@ general = struct( ...
   'max_retry_bestfitness_reconstruction', 2, ... % Anzahl Neuversuche zur Reproduktion. 2 reichen zur Prüfung, ob Wiederholbarkeit da ist.
   'regenerate_summmary_only', false, ... % Nur die Videos und Zusammenfassungsbilder neu generieren. Keine Optimierung durchführen.
   'only_finish_aborted', false, ... % Führe keine Optimierung durch, sondern werte abgebrochene vorherige Optimierungen aus
+  'overwrite_existing_results', true, ... % Führe die Maßsynthese erneut durch, auch wenn schon Daten vorhanden sind. Für alleinige Berechnung unfertiger Roboter auf false setzen
   'nosummary', false, ... % Kompletter Verzicht auf die graphische Endauswertung
   'eval_figures', {{'histogram', 'fitness_various', 'jointtraj', ... % Liste der zu erstellenden Bilder. ...
     'robvisuanim', 'pareto_all_phys', 'pareto_all_fval', 'pareto'}}, ... % ... Auswahl, siehe cds_vis_results.m
@@ -109,9 +110,20 @@ optimization = struct( ...
   'rotate_base', false, ... % Orientierung der Roboter-Basis
   ... % Begrenzung des Drehbereichs von Gelenken. Größere Drehung für Gelenk
   ... % selbst unproblematisch. Eher Kollision bei mehrfacher Drehung schwer zu kontrollieren
-  'max_range_active_revolute', 400*pi/180, ... % Maximaler Drehwinkel aktiver Drehgelenke (mehr als volle Drehung für Motoren unproblematisch)
-  'max_range_passive_revolute', 720*pi/180, ... % Maximaler Drehwinkel passiver Drehgelenke (mechanisch geht unendlich oft bei Drehgelenken, bei Kugel/Kardan deutlich weniger)
+  ... % Maximaler Drehwinkel aktiver Drehgelenke (mehr als volle Drehung 
+  ... % für Motoren unproblematisch). Angabe ist immer Spannweite
+  'max_range_active_revolute', 400*pi/180, ...
+  ... % Maximaler Drehwinkel passiver Drehgelenke (mechanisch geht unend-
+  ... % lich oft bei Drehgelenken; bei einigen PKM drehen die Gelenke so oft, 
+  ... % wie bspw ein Objekt mit dem EE "umkreist" wird. 
+  'max_range_passive_revolute', inf*pi/180, ... 
+  ... % % Drehwinkel bei Kardan- und Kugelgelenken technisch deutlich 
+  ... % niedriger. Hier vorerst nur grobe Annahmen.
+  'max_range_passive_universal', pi, ... % 90° in jede Richtung
+  'max_range_passive_spherical', 120*pi/180, ... % 60° in jede Richtung
   'max_velocity_passive_revolute', 20, ... % [rad/s] Maximale Drehgeschw. (zur Singularitätsvermeidung)
+  'max_velocity_passive_universal', 20, ...
+  'max_velocity_passive_spherical', 20, ...
   'max_velocity_active_revolute', 8, ... % [rad/s] Maximale Drehgeschw. (zur Singularitätsvermeidung)
   'max_velocity_active_prismatic', 5, ... % [m/s] Maximale Geschw. (zur Singularitätsvermeidung)
   'desopt_vars', {{}}, ... % Variablen für eigene Optimierung der Entwurfsparameter. Möglich: "linkstrength", "joint_stiffness_qref"

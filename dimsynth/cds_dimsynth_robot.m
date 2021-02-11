@@ -33,6 +33,15 @@ end
 % Zum Debuggen:
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot1.mat'));
 
+% Prüfe, ob die Optimierung bereits erfolgreich war
+if ~Set.general.overwrite_existing_results
+  if exist(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+    sprintf('Rob%d_%s_Endergebnis.mat', Structure.Number, Structure.Name)), 'file')
+    fprintf('[dimsynth] Ergebnis für Rob %d (%s) liegt bereits vor. Abbruch.\n', ...
+      Structure.Number, Structure.Name);
+    return
+  end
+end
 %% Initialisierung
 % Log-Datei initialisieren
 if ~init_only && ~Set.general.only_finish_aborted
@@ -147,11 +156,18 @@ for i = 1:NLEG
   % Gelenkgrenzen setzen: Drehgelenke
   if Structure.Type == 0 % Serieller Roboter
     % Grenzen für Drehgelenke: Alle sind aktiv
-    R_init.qlim(R.MDH.sigma==0,:) = repmat([-0.5, 0.5]*Set.optimization.max_range_active_revolute, sum(R.MDH.sigma==0),1); % Drehgelenk
+    R_init.qlim(R.MDH.sigma==0,:) = repmat([-0.5, 0.5]*... % Drehgelenk
+      Set.optimization.max_range_active_revolute, sum(R.MDH.sigma==0),1);
     Structure.qlim = R_init.qlim;
   else % Paralleler Roboter
     % Grenzen für passive Drehgelenke (aktive erstmal mit setzen)
-    R_init.qlim(R_init.MDH.sigma==0,:) = repmat([-0.5, 0.5]*Set.optimization.max_range_passive_revolute, sum(R_init.MDH.sigma==0),1); % Drehgelenk
+    R_init.qlim(R_init.MDH.sigma==0,:) = repmat([-0.5, 0.5]*... % Drehgelenk
+      Set.optimization.max_range_passive_revolute, sum(R_init.MDH.sigma==0),1);
+    % Grenzen für technische Gelenke gesondert setzen
+    R_init.qlim(R_init.DesPar.joint_type==2,:) = repmat([-0.5, 0.5]*... % Kardan-Gelenk
+      Set.optimization.max_range_passive_universal, sum(R_init.DesPar.joint_type==2),1);
+    R_init.qlim(R_init.DesPar.joint_type==3,:) = repmat([-0.5, 0.5]*... % Kugelgelenk
+      Set.optimization.max_range_passive_spherical, sum(R_init.DesPar.joint_type==3),1);
     % Grenzen für aktives Drehgelenk setzen
     I_actrevol = R_init.MDH.mu == 2 & R_init.MDH.sigma==0;
     R_init.qlim(I_actrevol,:) = repmat([-0.5, 0.5]*Set.optimization.max_range_active_revolute, sum(I_actrevol),1);
@@ -161,10 +177,18 @@ for i = 1:NLEG
   end
   % Gelenkgeschwindigkeiten setzen
   R_init.qDlim = repmat([-1,1]*Set.optimization.max_velocity_active_revolute, R_init.NJ, 1);
-  R_init.qDlim(R_init.MDH.sigma==1,:) = repmat([-1,1]*Set.optimization.max_velocity_active_prismatic, sum(R_init.MDH.sigma==1), 1);
+  R_init.qDlim(R_init.MDH.sigma==1,:) = repmat([-1,1]*... % Schubgelenk
+    Set.optimization.max_velocity_active_prismatic, sum(R_init.MDH.sigma==1), 1);
   if Structure.Type == 2 % Paralleler Roboter
-    I_passrevol = R_init.MDH.mu == 1 & R_init.MDH.sigma==0;
-    R_init.qDlim(I_passrevol,:) = repmat([-1,1]*Set.optimization.max_velocity_passive_revolute,sum(I_passrevol),1);
+    I_passrevolute = R_init.MDH.mu == 1 & R_init.MDH.sigma==0;
+    I_passuniversal = R_init.MDH.mu == 1 & R_init.DesPar.joint_type==2;
+    I_passspherical = R_init.MDH.mu == 1 & R_init.DesPar.joint_type==3;
+    R_init.qDlim(I_passrevolute,:) = repmat([-1,1]*... % Drehgelenk
+      Set.optimization.max_velocity_passive_revolute,sum(I_passrevolute),1);
+    R_init.qDlim(I_passuniversal,:) = repmat([-1,1]*... % Kardan-Gelenk
+      Set.optimization.max_velocity_passive_universal,sum(I_passuniversal),1);
+    R_init.qDlim(I_passspherical,:) = repmat([-1,1]*... % Kugelgelenk
+      Set.optimization.max_velocity_passive_spherical,sum(I_passspherical),1);
   end
   if Structure.Type == 0 % Serieller Roboter
     Structure.qDlim = R_init.qDlim;
@@ -1319,6 +1343,9 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
       cds_log(1, sprintf(['[dimsynth] Laden des letzten abgebrochenen Durch', ...
         'laufs wurde angefordert. Aber keine Daten in %s vorliegend. Ende.'], resdir));
       return
+    else
+      cds_log(1, sprintf(['[dimsynth] Laden des letzten abgebrochenen Durch', ...
+        'laufs aus gespeicherten Daten erfolgreich.'], resdir));
     end
     [~,I_newest] = max([filelist_tmpres.datenum]);
     d = load(fullfile(resdir, filelist_tmpres(I_newest).name));
@@ -1595,6 +1622,13 @@ test_q(abs(abs(test_q)-2*pi)<1e-2) = 0; % entferne 2pi-Fehler, großzügige Tole
 if any(test_q > 1e-6) && all(fval<1e10) % nur wenn IK erfolgreich war testen
   cds_log(-1, sprintf(['[dimsynth] Die Neu berechneten IK-Werte (q0) der Trajektorie stimmen nicht ', ...
     'mehr mit den ursprünglich berechneten überein. Max diff.: %1.4e'], max(test_q)));
+end
+if R.Type == 0, qlim = R.qlim;
+else, qlim = cat(1,R.Leg(:).qlim); end
+if any(q<qlim(:,1) | q>qlim(:,2))
+  cds_log(-1, sprintf(['[dimsynth] Startwert für Gelenkwinkel liegt außer', ...
+    'halb des erlaubten Bereichs.']));
+  save(fullfile(resdir, 'jointlimitviolationwarning.mat'));
 end
 result_invalid = false;
 if ~any(strcmp(Set.optimization.objective, 'valid_act')) && ...
