@@ -175,7 +175,7 @@ for i = 1:NLEG
       Structure.qlim = cat(1, R.Leg.qlim);
     end
   end
-  % Gelenkgeschwindigkeiten setzen
+  % Grenzen für Gelenkgeschwindigkeiten setzen
   R_init.qDlim = repmat([-1,1]*Set.optimization.max_velocity_active_revolute, R_init.NJ, 1);
   R_init.qDlim(R_init.MDH.sigma==1,:) = repmat([-1,1]*... % Schubgelenk
     Set.optimization.max_velocity_active_prismatic, sum(R_init.MDH.sigma==1), 1);
@@ -190,11 +190,18 @@ for i = 1:NLEG
     R_init.qDlim(I_passspherical,:) = repmat([-1,1]*... % Kugelgelenk
       Set.optimization.max_velocity_passive_spherical,sum(I_passspherical),1);
   end
+  % Grenze für Gelenkbeschleunigung setzen (keine Betrachtung Kardan/Kugel)
+  R_init.qDDlim = repmat([-1,1]*Set.optimization.max_acceleration_revolute, R_init.NJ, 1);
+  R_init.qDDlim(R_init.MDH.sigma==1,:) = repmat([-1,1]*... % Schubgelenk
+    Set.optimization.max_acceleration_prismatic, sum(R_init.MDH.sigma==1), 1);
+  
   if Structure.Type == 0 % Serieller Roboter
     Structure.qDlim = R_init.qDlim;
+    Structure.qDDlim = R_init.qDDlim;
   else % Paralleler Roboter
     if i == NLEG % Grenzen aller Gelenke aller Beinketten eintragen
       Structure.qDlim = cat(1, R.Leg.qDlim);
+      Structure.qDDlim = cat(1, R.Leg.qDDlim);
     end
   end
 

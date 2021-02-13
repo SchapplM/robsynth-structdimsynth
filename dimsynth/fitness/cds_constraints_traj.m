@@ -24,8 +24,10 @@
 %   2e3...3e3: Bauraumverletzung in Trajektorie
 %   3e3...4e3: Selbstkollision in Trajektorie
 %   4e3...5e3: Konfiguration springt
-%   5e3...6e3: Geschwindigkeitsgrenzen
-%   6e3...9e3: Gelenkwinkelgrenzen in Trajektorie
+%   5e3...6e3: Beschleunigungsgrenzen
+%   6e3...7e3: Geschwindigkeitsgrenzen
+%   7e3...8e3: Gelenkwinkelgrenzen in Trajektorie (alle Beinkette zusammen)
+%   8e3...9e3: Gelenkwinkelgrenzen in Trajektorie (jede Beinkette)
 %   9e3...1e4: Parasitäre Bewegung (Roboter strukturell unpassend)
 %   1e4...4e4: Inkonsistente Pos./Geschw./Beschl. in Traj.-IK. für Beink. 1 (Sonderfall 3T2R)
 %   4e4...5e4: Singularität in Beinkette (obige Betrachtung daher sinnlos)
@@ -351,7 +353,7 @@ if any(I_qlimviol_T)
   [fval_qlimv_T, I_worst] = min(qlimviol_T(I_qlimviol_T)./(q_range_max(I_qlimviol_T))');
   II_qlimviol_T = find(I_qlimviol_T); IIw = II_qlimviol_T(I_worst);
   fval_qlimv_T_norm = 2/pi*atan((-fval_qlimv_T)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
-  fval = 1e3*(6+2*fval_qlimv_T_norm); % Wert zwischen 6e3 und 8e3
+  fval = 1e3*(8+1*fval_qlimv_T_norm); % Wert zwischen 8e3 und 9e3
   % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Weitere Rechnungen machen keinen Sinn.
   constrvioltext = sprintf(['Gelenkgrenzverletzung in Traj. Schlechteste ', ...
     'Spannweite: %1.2f/%1.2f (Gelenk %d)'], q_range_T(IIw), q_range_max(IIw), IIw);
@@ -403,7 +405,7 @@ if R.Type == 2 && Set.optimization.joint_stiffness_passive_revolute
     [fval_qlimv_T, I_worst] = min(qlimviol_T(I_qlimviol_T)./(q_range_max(I_qlimviol_T))');
     II_qlimviol_T = find(I_qlimviol_T); IIw = II_qlimviol_T(I_worst);
     fval_qlimv_T_norm = 2/pi*atan((-fval_qlimv_T)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
-    fval = 1e3*(8+1*fval_qlimv_T_norm); % Wert zwischen 8e3 und 9e3
+    fval = 1e3*(7+1*fval_qlimv_T_norm); % Wert zwischen 7e3 und 8e3
     % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Dadurch werden die
     % Bedingungen für Gelenkfedern später nicht mehr erfüllt.
     constrvioltext = sprintf(['Gelenkgrenzverletzung in Traj bei Be', ...
@@ -424,7 +426,7 @@ if any(~isinf(Structure.qDlim(:)))
   [f_qD_exc,ifmax] = max(qD_max./qD_lim);
   if f_qD_exc>1
     f_qD_exc_norm = 2/pi*atan((f_qD_exc-1)); % Normierung auf 0 bis 1; 1->0.5; 10->0.94
-    fval = 1e3*(5+1*f_qD_exc_norm); % Wert zwischen 5e3 und 6e3
+    fval = 1e3*(6+1*f_qD_exc_norm); % Wert zwischen 6e3 und 7e3
     % Weitere Berechnungen voraussichtlich wenig sinnvoll, da vermutlich eine
     % Singularität vorliegt
     constrvioltext = sprintf('Geschwindigkeit eines Gelenks zu hoch: max Verletzung %1.1f%% (Gelenk %d)', ...
@@ -450,6 +452,45 @@ if any(~isinf(Structure.qDlim(:)))
       end
       linkxaxes
       sgtitle('Gelenkgeschwindigkeiten');
+    end
+    return
+  end
+end
+
+%% Prüfe, ob die Beschleunigungsgrenzen verletzt werden
+% Gleiche Überlegung wie bei Prüfung der Geschwindigkeitsgrenzen
+if any(~isinf(Structure.qDDlim(:)))
+  qDD_max = max(abs(QDD))';
+  qDD_lim = Structure.qDDlim(:,2); % Annahme symmetrischer Geschw.-Grenzen
+  [f_qDD_exc,ifmax] = max(qDD_max./qDD_lim);
+  if f_qDD_exc>1
+    f_qDD_exc_norm = 2/pi*atan((f_qDD_exc-1)); % Normierung auf 0 bis 1; 1->0.5; 10->0.94
+    fval = 1e3*(5+1*f_qDD_exc_norm); % Wert zwischen 5e3 und 6e3
+    % Weitere Berechnungen voraussichtlich wenig sinnvoll, da vermutlich eine
+    % Singularität vorliegt
+    constrvioltext = sprintf(['Beschleunigung eines Gelenks zu hoch: ', ...
+      'max Verletzung %1.1f%% (Gelenk %d)'], (f_qDD_exc-1)*100, ifmax);
+    if 1e4*fval < Set.general.plot_details_in_fitness
+      RP = ['R', 'P'];
+      change_current_figure(1005);clf;
+      for i = 1:R.NJ
+        if R.Type ~= 0
+          legnum = find(i>=R.I1J_LEG, 1, 'last');
+          legjointnum = i-(R.I1J_LEG(legnum)-1);
+        end
+        subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
+        hold on; grid on;
+        plot(Traj_0.t, QDD(:,i), '-');
+        plot(Traj_0.t([1,end]), repmat(Structure.qDDlim(i,:),2,1), 'r-');
+        ylim(minmax2([QDD(:,i);QDD(:,i)]'));
+        if R.Type == 0
+          title(sprintf('qDD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+        else
+          title(sprintf('qDD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+        end
+      end
+      linkxaxes
+      sgtitle('Gelenkbeschleunigungen');
     end
     return
   end
