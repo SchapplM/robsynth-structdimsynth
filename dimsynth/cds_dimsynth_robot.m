@@ -1625,7 +1625,7 @@ Traj_0 = cds_transform_traj(R, Traj);
 s_ik = struct('normalize', false);
 if Structure.Type == 0 % Seriell
   % Benutze Referenzpose die bei obigen Zielfunktionsaufruf gespeichert wurde
-  [q, Phi] = R.invkin2(Traj_0.XE(1,:)', R.qref, s_ik);
+  [q, Phi] = R.invkin2(R.x2tr(Traj_0.XE(1,:)'), R.qref, s_ik);
 else % Parallel
   [q, Phi] = R.invkin_ser(Traj_0.XE(1,:)', cat(1,R.Leg.qref), s_ik);
 end

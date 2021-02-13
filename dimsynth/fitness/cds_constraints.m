@@ -217,7 +217,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       end
     end
     if R.Type == 0
-      [q, Phi, Tc_stack] = R.invkin2(Traj_0.XE(i,:)', q0, s);
+      [q, Phi, Tc_stack] = R.invkin2(R.x2tr(Traj_0.XE(i,:)'), q0, s);
     else
       q0(R.I1J_LEG(2):end) = NaN; % Für Beinkette 2 Ergebnis von BK 1 nehmen
       [q, Phi, Tc_stack] = R.invkin2(Traj_0.XE(i,:)', q0, s, s_par); % kompilierter Aufruf
