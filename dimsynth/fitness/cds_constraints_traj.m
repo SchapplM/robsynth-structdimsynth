@@ -55,7 +55,6 @@ s = struct( ...
   ... % kein Winkel-Normalisierung, da dadurch Sprung in Trajektorie und keine 
   ... % Prüfung gegen vollständige Umdrehungen möglich
   'normalize', false, ... 
-  'retry_limit', 0, ... % keine Zufalls-Zahlen. Würde sowieso einen Sprung erzeugen.
   'n_max', 1000, ... % moderate Anzahl Iterationen
   'Phit_tol', 1e-10, 'Phir_tol', 1e-10);
 if R.Type == 0 % Seriell

@@ -1608,13 +1608,13 @@ end
 % Hier auch Weglassen der Beachtung der Winkelgrenzen (führt teilweise zu
 % Abbruch, obwohl die Spannweite in Ordnung ist.)
 if Structure.Type == 0 % Seriell
-  s = struct('normalize', false, 'retry_limit', 0, 'Phit_tol', 1e-12, ...
-    'Phir_tol', 1e-12, 'n_max', 5000, 'scale_lim', 0);
+  s = struct('normalize', false, 'Phit_tol', 1e-12, ...
+    'Phir_tol', 1e-12, 'n_max', 5000);
   [Q, QD, QDD, PHI] = R.invkin2_traj(Traj_0.X, Traj.XD, Traj.XDD, Traj.t, q, s);
   Jinv_ges = [];
 else % Parallel
-  s = struct('normalize', false, 'retry_limit', 0, 'Phit_tol', 1e-12, ...
-    'Phir_tol', 1e-12, 'n_max', 5000, 'scale_lim', 0);
+  s = struct('normalize', false,  'Phit_tol', 1e-12, ...
+    'Phir_tol', 1e-12, 'n_max', 5000);
   [Q, QD, QDD, PHI, Jinv_ges] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
 end
 test_q = abs(Q(1,:)'-q0_ik);
