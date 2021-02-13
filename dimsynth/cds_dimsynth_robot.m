@@ -1655,7 +1655,7 @@ end
 % Nutze Aufgabenredundanz, falls möglich. TODO: Konsistent mit
 % cds_constraints_traj, Anpassung an Nebenbedingungen.
 s = struct('normalize', false, 'Phit_tol', 1e-12, ...
-  'Phir_tol', 1e-12, 'n_max', 5000, 'wn', [1;0;1;0]);
+  'Phir_tol', 1e-12, 'n_max', 5000, 'wn', [1;0;1;0;0]);
 if Structure.Type == 0 % Seriell
   [Q, QD, QDD, PHI] = R.invkin2_traj(Traj_0.X, Traj.XD, Traj.XDD, Traj.t, q, s);
   Jinv_ges = [];

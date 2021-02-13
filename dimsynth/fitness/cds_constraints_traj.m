@@ -62,7 +62,8 @@ s = struct( ...
 % Zusätzliche Optimierung für Aufgabenredundanz. TODO: Anpassung an Neben-
 % bedingungen
 if sum(R.I_EE_Task) < sum(R.I_EE)
-  s.wn = [1;0;1;0];
+  s.wn = [1;0;1;0;0]; % Grenzen
+  % s.wn = [0;0;0;0;1]; % Konditionszahl
 end
 if R.Type == 0 % Seriell
   qlim = R.qlim;
