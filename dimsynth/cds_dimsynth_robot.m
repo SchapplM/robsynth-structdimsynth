@@ -1600,11 +1600,14 @@ end
 
 % Berechne Inverse Kinematik zu erstem Bahnpunkt
 Traj_0 = cds_transform_traj(R, Traj);
+% Einstellung für Positions-IK: Keine Normalisierung mehr, da Sprung bei pi
+% ungünstig bei vorab festgelegten Grenzen für Koordinaten
+s_ik = struct('normalize', false);
 if Structure.Type == 0 % Seriell
   % Benutze Referenzpose die bei obigen Zielfunktionsaufruf gespeichert wurde
-  [q, Phi] = R.invkin2(Traj_0.XE(1,:)', R.qref);
+  [q, Phi] = R.invkin2(Traj_0.XE(1,:)', R.qref, s_ik);
 else % Parallel
-  [q, Phi] = R.invkin_ser(Traj_0.XE(1,:)', cat(1,R.Leg.qref));
+  [q, Phi] = R.invkin_ser(Traj_0.XE(1,:)', cat(1,R.Leg.qref), s_ik);
 end
 if ~any(strcmp(Set.optimization.objective, 'valid_act')) && any(abs(Phi)>1e-8)
   cds_log(-1, '[dimsynth] PSO-Ergebnis für Startpunkt nicht reproduzierbar (ZB-Verletzung)');

@@ -508,7 +508,17 @@ Q_num = repmat(Q(1,:),size(Q,1),1)+cumtrapz(Traj_0.t, QD);
 % Bestimme Korrelation zwischen den Verläufen (1 ist identisch)
 corrQD = diag(corr(QD_num, QD));
 corrQ = diag(corr(Q_num, Q));
+% Falls eine Größe konstant ist, und die andere numerisch leicht schwankt,
+% wird eine große Abweichung per Korrelation erkannt. Setze als i.O.
+corrQ(all(abs(Q_num-Q)<1e-6)) = 1;
+corrQD(all(abs(QD_num-QD)<1e-3)) = 1;
 if any(corrQD < 0.95) || any(corrQ < 0.98)
+  % Wenn eine Gelenkgröße konstant ist (ohne Rundungsfehler), wird die
+  % Korrelation NaN (Teilen durch 0). Werte NaN als Korrelation 1.
+  % Damit werden zwei unterschiedliche, konstante Werte auch als Korr.=1
+  % gewertet. Reicht für die Erkennung eines Sprungs/Umklappens
+  corrQD(isnan(corrQD)) = 1;
+  corrQ(isnan(corrQ)) = 1;
   % Bilde normierten Strafterm aus Korrelationskoeffizienten (zwischen -1
   % und 1).
   fval_jump_norm = 0.5*(mean(1-corrQ) + mean(1-corrQD));
