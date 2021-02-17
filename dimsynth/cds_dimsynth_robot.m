@@ -175,7 +175,7 @@ for i = 1:NLEG
       Structure.qlim = cat(1, R.Leg.qlim);
     end
   end
-  % Gelenkgeschwindigkeiten setzen
+  % Grenzen für Gelenkgeschwindigkeiten setzen
   R_init.qDlim = repmat([-1,1]*Set.optimization.max_velocity_active_revolute, R_init.NJ, 1);
   R_init.qDlim(R_init.MDH.sigma==1,:) = repmat([-1,1]*... % Schubgelenk
     Set.optimization.max_velocity_active_prismatic, sum(R_init.MDH.sigma==1), 1);
@@ -190,11 +190,18 @@ for i = 1:NLEG
     R_init.qDlim(I_passspherical,:) = repmat([-1,1]*... % Kugelgelenk
       Set.optimization.max_velocity_passive_spherical,sum(I_passspherical),1);
   end
+  % Grenze für Gelenkbeschleunigung setzen (keine Betrachtung Kardan/Kugel)
+  R_init.qDDlim = repmat([-1,1]*Set.optimization.max_acceleration_revolute, R_init.NJ, 1);
+  R_init.qDDlim(R_init.MDH.sigma==1,:) = repmat([-1,1]*... % Schubgelenk
+    Set.optimization.max_acceleration_prismatic, sum(R_init.MDH.sigma==1), 1);
+  
   if Structure.Type == 0 % Serieller Roboter
     Structure.qDlim = R_init.qDlim;
+    Structure.qDDlim = R_init.qDDlim;
   else % Paralleler Roboter
     if i == NLEG % Grenzen aller Gelenke aller Beinketten eintragen
       Structure.qDlim = cat(1, R.Leg.qDlim);
+      Structure.qDDlim = cat(1, R.Leg.qDDlim);
     end
   end
 
@@ -1569,7 +1576,9 @@ end
 % gespeicherten Daten für die Position des Partikels in dem Optimierungsverfahren
 [dd_optgen, dd_optind] = cds_load_particle_details(PSO_Detail_Data, fval);
 q0_ik = PSO_Detail_Data.q0_ik(dd_optind,:,dd_optgen)';
-
+qlim_pso = NaN(length(q0_ik),2);
+qlim_pso(:,1) = PSO_Detail_Data.q_min(dd_optind,:,dd_optgen)';
+qlim_pso(:,2) = PSO_Detail_Data.q_max(dd_optind,:,dd_optgen)';
 % Prüfen, ob diese mit der Klassenvariable (aus dem letzten Fitness-Aufruf)
 % übereinstimmen. Muss nicht sein, da Zufallskomponente bei IK-Anfangswerten
 if max_retry > 0 % nur sinnvoll, falls Fitness nach Optimierungs-Ende neu berechnet
@@ -1590,14 +1599,35 @@ if Structure.Type == 0 % Seriell
 else % Parallel
   for i = 1:R.NLEG, R.Leg(i).qref = q0_ik(R.I1J_LEG(i):R.I2J_LEG(i)); end
 end
+% Vergrößere die Grenzen für Drehgelenke entsprechend der vorherigen
+% Vorgaben. Dadurch Vermeidung von Problemen, wenn ein Gelenk kaum oder
+% keine Auslenkung hat und später die Grenzen der ursprünglichen
+% Trajektorie nicht eingehalten werden. Nicht für Schubgelenke machen, da
+% dies die Masse beeinflusst (wegen Führungsschiene)
+qlim_neu = qlim_pso; % aus PSO gespeicherte Grenzen (dort aus Gelenk-Traj.)
+qlim_mitte = mean(qlim_pso,2); % Mittelwert als Ausgangspunkt für neue Grenzen
+q_range = diff(Structure.qlim')'; % ursprüngliche max. Spannweite aus Einstellungen
+qlim_neu(R.MDH.sigma==0,:) = repmat(qlim_mitte(R.MDH.sigma==0),1,2) + ...
+  [-q_range(R.MDH.sigma==0)/2, q_range(R.MDH.sigma==0)/2];
+if R.Type == 0 % Seriell
+  R.qlim(R.MDH.sigma==0,:) = qlim_neu(R.MDH.sigma==0,:);
+else % PKM
+  for i = 1:R.NLEG
+    qlim_neu_i = qlim_neu(R.I1J_LEG(i):R.I2J_LEG(i),:);
+    R.Leg(i).qlim(R.Leg(i).MDH.sigma==0,:) = qlim_neu_i(R.Leg(i).MDH.sigma==0,:);
+  end
+end
 
 % Berechne Inverse Kinematik zu erstem Bahnpunkt
 Traj_0 = cds_transform_traj(R, Traj);
+% Einstellung für Positions-IK: Keine Normalisierung mehr, da Sprung bei pi
+% ungünstig bei vorab festgelegten Grenzen für Koordinaten
+s_ik = struct('normalize', false);
 if Structure.Type == 0 % Seriell
   % Benutze Referenzpose die bei obigen Zielfunktionsaufruf gespeichert wurde
-  [q, Phi] = R.invkin2(Traj_0.XE(1,:)', R.qref);
+  [q, Phi] = R.invkin2(Traj_0.XE(1,:)', R.qref, s_ik);
 else % Parallel
-  [q, Phi] = R.invkin_ser(Traj_0.XE(1,:)', cat(1,R.Leg.qref));
+  [q, Phi] = R.invkin_ser(Traj_0.XE(1,:)', cat(1,R.Leg.qref), s_ik);
 end
 if ~any(strcmp(Set.optimization.objective, 'valid_act')) && any(abs(Phi)>1e-8)
   cds_log(-1, '[dimsynth] PSO-Ergebnis für Startpunkt nicht reproduzierbar (ZB-Verletzung)');
@@ -1608,13 +1638,13 @@ end
 % Hier auch Weglassen der Beachtung der Winkelgrenzen (führt teilweise zu
 % Abbruch, obwohl die Spannweite in Ordnung ist.)
 if Structure.Type == 0 % Seriell
-  s = struct('normalize', false, 'retry_limit', 0, 'Phit_tol', 1e-12, ...
-    'Phir_tol', 1e-12, 'n_max', 5000, 'scale_lim', 0);
+  s = struct('normalize', false, 'Phit_tol', 1e-12, ...
+    'Phir_tol', 1e-12, 'n_max', 5000);
   [Q, QD, QDD, PHI] = R.invkin2_traj(Traj_0.X, Traj.XD, Traj.XDD, Traj.t, q, s);
   Jinv_ges = [];
 else % Parallel
-  s = struct('normalize', false, 'retry_limit', 0, 'Phit_tol', 1e-12, ...
-    'Phir_tol', 1e-12, 'n_max', 5000, 'scale_lim', 0);
+  s = struct('normalize', false,  'Phit_tol', 1e-12, ...
+    'Phir_tol', 1e-12, 'n_max', 5000);
   [Q, QD, QDD, PHI, Jinv_ges] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
 end
 test_q = abs(Q(1,:)'-q0_ik);
@@ -1623,9 +1653,7 @@ if any(test_q > 1e-6) && all(fval<1e10) % nur wenn IK erfolgreich war testen
   cds_log(-1, sprintf(['[dimsynth] Die Neu berechneten IK-Werte (q0) der Trajektorie stimmen nicht ', ...
     'mehr mit den ursprünglich berechneten überein. Max diff.: %1.4e'], max(test_q)));
 end
-if R.Type == 0, qlim = R.qlim;
-else, qlim = cat(1,R.Leg(:).qlim); end
-if any(q<qlim(:,1) | q>qlim(:,2))
+if any(q<qlim_neu(:,1) | q>qlim_neu(:,2))
   cds_log(-1, sprintf(['[dimsynth] Startwert für Gelenkwinkel liegt außer', ...
     'halb des erlaubten Bereichs.']));
   save(fullfile(resdir, 'jointlimitviolationwarning.mat'));

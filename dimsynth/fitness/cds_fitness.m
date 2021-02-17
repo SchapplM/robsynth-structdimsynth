@@ -527,7 +527,7 @@ if Set.general.matfile_verbosity > 2
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_fitness_4.mat'));
 end
 %% Bestes Ergebnis heraussuchen
-I_IKC_iO = find(all(fval_IKC < 1e3, 2)); % i.O.-Partikel (für Auswertungen)
+I_IKC_iO = find(all(fval_IKC <= 1e3, 2)); % i.O.-Partikel (für Auswertungen)
 if length(Set.optimization.objective) == 1
   fval_min = min(fval_IKC);
   iIKCopt = find(fval_IKC==fval_min); % es kann mehrere gleich gute Lösungen geben

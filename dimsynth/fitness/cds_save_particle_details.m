@@ -54,7 +54,8 @@ if strcmp(option, 'output')
 end
 if R.Type == 0, q0 = R.qref;
 else,           q0 = cat(1,R.Leg.qref); end
-
+if R.Type == 0, qlim = R.qlim;
+else,           qlim = cat(1,R.Leg(:).qlim); end
 % Persistente Variable initialisieren. Eine zusätzliche Generation für Initial-
 % population, eine für Berechnungen nach Ende der eigentlichen Optimierung.
 size_data = [Set.optimization.MaxIter+2, Set.optimization.NumIndividuals];
@@ -67,6 +68,8 @@ if isempty(PSO_Detail_Data) || strcmp(option, 'reset')
     'physval', NaN(size_data(2), length(fval), size_data(1)), ...
     'desopt_pval', NaN(size_data(2), length(desopt_pval), size_data(1)), ...
     'constraint_obj_val', NaN(size_data(2), length(constraint_obj_val), size_data(1)), ...
+    'q_min', NaN(size_data(2), length(q0), size_data(1)), ...
+    'q_max', NaN(size_data(2), length(q0), size_data(1)), ...
     'q0_ik', NaN(size_data(2), length(q0), size_data(1)) );
   if strcmp(option, 'reset')
     return
@@ -86,4 +89,6 @@ PSO_Detail_Data.pval(j,:,i) = pval; % Parametersatz zu fval
 PSO_Detail_Data.physval(j,:,i) = physval; % physikalische Werte zu fval (ohne Sättigung/Normierung)
 PSO_Detail_Data.desopt_pval(j,:,i) = desopt_pval; % Ergebnisse der Entwurfsoptimierung
 PSO_Detail_Data.constraint_obj_val(j,:,i) = constraint_obj_val; % physikalische Werte zu Set.optimization.constraint_obj
+PSO_Detail_Data.q_min(j,:,i) = qlim(:,1); % untere Grenze der Gelenkkoord.
+PSO_Detail_Data.q_max(j,:,i) = qlim(:,2); % obere Grenze
 PSO_Detail_Data.q0_ik(j,:,i) = q0; % IK-Anfangswerte

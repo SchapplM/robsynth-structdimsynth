@@ -30,7 +30,9 @@
 
 function [fval, fval_debugtext, debug_info, f_jrange] = cds_obj_jointrange(R, Set, Structure, Q)
 debug_info = {};
+fval_debugtext = '';
 fval = NaN;
+f_jrange = NaN;
 % Spannweite berechnen
 q_range = NaN(R.NJ,1);
 q_range(R.MDH.sigma==1) = diff(minmax2(Q(:,R.MDH.sigma==1)')');
