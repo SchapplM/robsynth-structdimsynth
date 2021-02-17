@@ -1576,7 +1576,9 @@ end
 % gespeicherten Daten für die Position des Partikels in dem Optimierungsverfahren
 [dd_optgen, dd_optind] = cds_load_particle_details(PSO_Detail_Data, fval);
 q0_ik = PSO_Detail_Data.q0_ik(dd_optind,:,dd_optgen)';
-
+qlim_pso = NaN(length(q0_ik),2);
+qlim_pso(:,1) = PSO_Detail_Data.q_min(dd_optind,:,dd_optgen)';
+qlim_pso(:,2) = PSO_Detail_Data.q_max(dd_optind,:,dd_optgen)';
 % Prüfen, ob diese mit der Klassenvariable (aus dem letzten Fitness-Aufruf)
 % übereinstimmen. Muss nicht sein, da Zufallskomponente bei IK-Anfangswerten
 if max_retry > 0 % nur sinnvoll, falls Fitness nach Optimierungs-Ende neu berechnet
@@ -1596,6 +1598,24 @@ if Structure.Type == 0 % Seriell
   R.qref = q0_ik;
 else % Parallel
   for i = 1:R.NLEG, R.Leg(i).qref = q0_ik(R.I1J_LEG(i):R.I2J_LEG(i)); end
+end
+% Vergrößere die Grenzen für Drehgelenke entsprechend der vorherigen
+% Vorgaben. Dadurch Vermeidung von Problemen, wenn ein Gelenk kaum oder
+% keine Auslenkung hat und später die Grenzen der ursprünglichen
+% Trajektorie nicht eingehalten werden. Nicht für Schubgelenke machen, da
+% dies die Masse beeinflusst (wegen Führungsschiene)
+qlim_neu = qlim_pso; % aus PSO gespeicherte Grenzen (dort aus Gelenk-Traj.)
+qlim_mitte = mean(qlim_pso,2); % Mittelwert als Ausgangspunkt für neue Grenzen
+q_range = diff(Structure.qlim')'; % ursprüngliche max. Spannweite aus Einstellungen
+qlim_neu(R.MDH.sigma==0,:) = repmat(qlim_mitte(R.MDH.sigma==0),1,2) + ...
+  [-q_range(R.MDH.sigma==0)/2, q_range(R.MDH.sigma==0)/2];
+if R.Type == 0 % Seriell
+  R.qlim(R.MDH.sigma==0,:) = qlim_neu(R.MDH.sigma==0,:);
+else % PKM
+  for i = 1:R.NLEG
+    qlim_neu_i = qlim_neu(R.I1J_LEG(i):R.I2J_LEG(i),:);
+    R.Leg(i).qlim(R.Leg(i).MDH.sigma==0,:) = qlim_neu_i(R.Leg(i).MDH.sigma==0,:);
+  end
 end
 
 % Berechne Inverse Kinematik zu erstem Bahnpunkt
@@ -1633,9 +1653,7 @@ if any(test_q > 1e-6) && all(fval<1e10) % nur wenn IK erfolgreich war testen
   cds_log(-1, sprintf(['[dimsynth] Die Neu berechneten IK-Werte (q0) der Trajektorie stimmen nicht ', ...
     'mehr mit den ursprünglich berechneten überein. Max diff.: %1.4e'], max(test_q)));
 end
-if R.Type == 0, qlim = R.qlim;
-else, qlim = cat(1,R.Leg(:).qlim); end
-if any(q<qlim(:,1) | q>qlim(:,2))
+if any(q<qlim_neu(:,1) | q>qlim_neu(:,2))
   cds_log(-1, sprintf(['[dimsynth] Startwert für Gelenkwinkel liegt außer', ...
     'halb des erlaubten Bereichs.']));
   save(fullfile(resdir, 'jointlimitviolationwarning.mat'));
