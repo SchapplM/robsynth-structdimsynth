@@ -112,8 +112,9 @@ for i = 1:length(Structures)
   % aussagekräftig). Steifigkeit ist letzter Eintrag.
   Row_i = [Row_i, {1/tmp1.RobotOptRes.physval_obj_all(end)}]; %#ok<AGROW>
   % Weitere Daten
-  num_succ = sum(tmp2.PSO_Detail_Data.fval_mean(:) < 1e3);
-  num_fail = sum(tmp2.PSO_Detail_Data.fval_mean(:) >= 1e3);
+  num_succ = sum(tmp2.PSO_Detail_Data.fval_mean(:) <= 1e3);
+  num_fail = sum(tmp2.PSO_Detail_Data.fval_mean(:) > 1e3 & ... % Nebenbedingungen verletzt
+    ~isinf(tmp2.PSO_Detail_Data.fval_mean(:))); % "inf" ist Marker für vorzeitigen Abbruch.
   comptime_sum = sum(tmp2.PSO_Detail_Data.comptime(~isnan(tmp2.PSO_Detail_Data.comptime(:))));
   Row_i = [Row_i, {num_succ, num_fail, comptime_sum}]; %#ok<AGROW>
   % Datenzeile anhängen
