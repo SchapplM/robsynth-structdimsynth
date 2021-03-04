@@ -29,6 +29,7 @@ settings_default = struct( ...
   'selectgeneral', true, ... % Auch allgemeine Modelle wählen
   'selectvariants', true, ... % Auch alle Varianten wählen
   'ignore_check_leg_dof', false, ... % Plausibilitätsregeln aus parrob_structsynth_check_leg_dof können ignoriert werden
+  'allow_passive_revolute', false, ... % Technisch sinnvoll. Zum Testen auf true setzen (z.B. für 2T0R und 2T1R PKM)
   'comp_cluster', false, ... % Rechne auf PBS-Rechen-Cluster. Parallel-Instanz für G-/P-Kombis
   'clustercomp_if_res_olderthan', 2, ... % Falls in den letzten zwei Tagen bereits ein vollständiger Durchlauf gemacht wurde, dann nicht nochmal auf dem Cluster rechnen. Deaktivieren durch Null-Setzen
   'isoncluster', false, ... % Marker um festzustellen, dass gerade auf Cluster parallel gerechnet wird
@@ -150,6 +151,8 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       LegDoF_allowed = 5:-1:N_Legs;
     elseif all(EE_FG == [1 1 0 0 0 1]) || all(EE_FG == [1 1 1 1 1 1]) || all(EE_FG == [1 1 1 1 1 0])
       LegDoF_allowed = N_Legs; % Fall 2T1R und 3T3R
+    elseif all(EE_FG == [1 1 0 0 0 0])
+      LegDoF_allowed = N_Legs; % Fall 2T0R (Platzhalter, um 2PP-PKM zu erzeugen
     else
       error('Fall nicht implementiert');
     end
@@ -262,7 +265,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         end
       end
 
-      if sum(SName=='P')>1
+      if sum(SName=='P')>1 && ~settings.allow_passive_revolute
         % Hat mehr als ein Schubgelenk. Kommt nicht für PKM in Frage.
         % (es muss dann zwangsläufig ein Schubgelenk passiv sein)
         parroblib_update_csv({SName}, Coupling, logical(EE_FG), 1, 0);
@@ -276,6 +279,9 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
 
       % Beinketten-FG aus Datenbank auslesen:
       EE_dof_legchain = dec2bin(l.BitArrays_EEdof0(iFK,:))=='1'; % FG vom Typ [1 1 1 0 0 1 0 0 1]
+      if length(EE_dof_legchain)<6 % bei 2T0R oder 3T0R-Beinketten, sind zu wenige Stellen gesetzt
+        EE_dof_legchain = [EE_dof_legchain, false(1,6-length(EE_dof_legchain))]; %#ok<AGROW>
+      end
 
       % Plausibilitäts-Prüfungen basierend auf Beinketten und Kopplung
       % Beinketten-FG auf Plausibilität prüfen
@@ -293,7 +299,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         if ii < settings.lfdNr_min, continue; end % Starte erst später
         % Prüfe schon hier auf passive Schubgelenke (weniger Rechenaufwand)
         IdxP = (SName(3:3+N_LegDoF-1)=='P'); % Nummer des Schubgelenks finden
-        if any(IdxP) && find(IdxP)~=jj
+        if ~settings.allow_passive_revolute && any(IdxP) && find(IdxP)~=jj
           continue % Es gibt ein Schubgelenk und es ist nicht das aktuierte Gelenk
         end
         % Prüfe, ob ein Teil eines technischen Gelenks (Kardan, Kugel
