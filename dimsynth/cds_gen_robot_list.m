@@ -91,19 +91,18 @@ for N_JointDoF = N_JointDoF_allowed
   II = find(I);
   for j = II'
     SName = l.Names_Ndof{j};
-    if ~isempty(structset.whitelist) && ~any(strcmp(structset.whitelist, SName))
+    IsInWhiteList = any(strcmp(structset.whitelist, SName));
+    if ~isempty(structset.whitelist) && ~IsInWhiteList
       % Es gibt eine Liste von Robotern, dieser ist nicht dabei.
       continue
     end
+    TooManyPrisJoints = false;
+    FilterMatch = true;
 
     % Prüfe Anzahl Schubgelenke
     numprismatic = sum(SName == 'P');
     if numprismatic > structset.maxnumprismatic
-      if verblevel >= 3
-        fprintf('%s hat zu viele Schubgelenke (%d>%d). Ignoriere\n', ...
-          SName, numprismatic, structset.maxnumprismatic);
-      end
-      continue
+      TooManyPrisJoints = true;
     end
 
     % Prüfe, ob die Gelenkreihenfolge zum Filter passt
@@ -112,10 +111,30 @@ for N_JointDoF = N_JointDoF_allowed
       ChainJoints_filt = SName(3:3+N_JointDoF-1);
       ChainJoints_filt(Filter=='*') = '*';
       if ~strcmp(ChainJoints_filt, structset.joint_filter(1:N_JointDoF))
-        if verblevel >= 3
-          fprintf('%s passt nicht zum Filter %s. Ignoriere\n', ...
-            SName, structset.joint_filter);
-        end
+        FilterMatch = false;
+      end
+    end
+    
+    SkipRobot = false;
+    if TooManyPrisJoints
+      if verblevel >= 3
+        fprintf('%s hat zu viele Schubgelenke (%d>%d).', ...
+          SName, numprismatic, structset.maxnumprismatic);
+      end
+      SkipRobot = true;
+    end
+    if ~SkipRobot && ~FilterMatch
+      if verblevel >= 3
+        fprintf('%s passt nicht zum Filter %s.', ...
+          SName, structset.joint_filter);
+      end
+      SkipRobot = true;
+    end
+    if SkipRobot % Einer der Ausschlussgründe oben wurde getroffen.
+      if IsInWhiteList % Positiv-Liste wird trotzdem genommen.
+        if verblevel >= 3, fprintf(' Füge trotzdem hinzu, da auf Positiv-Liste.\n'); end
+      else
+        if verblevel >= 3, fprintf(' Ignoriere.\n'); end
         continue
       end
     end
