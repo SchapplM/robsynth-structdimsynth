@@ -64,7 +64,7 @@ general = struct( ...
 %% Einstellungen zur Auswahl der verwendeten Strukturen
 % PKM zeigen standardmäßig von der Decke herunter. Ausnahme: 2T1R. Dort
 % nicht sinnvoll, da die Höhe nicht änderbar ist.
-if all(input_settings.DoF==[1 1 0 0 0 1])
+if all(input_settings.DoF==[1 1 0 0 0 1]) || all(input_settings.DoF==[1 1 0 0 0 0])
   mounting_parallel_default = 'floor';
 else
   mounting_parallel_default = 'ceiling';
@@ -157,6 +157,7 @@ optimization = struct( ...
 %% Einstellungen für Aufgabe (Trajektorie, Bauraum, Hindernisse)
 task = struct( ...
   'DoF', input_settings.DoF, ... % Für die Aufgabe relevante Freiheitsgrade
+  'pointing_task', false, ... % Bei true ist die Drehung um die EE-z-Achse egal (für 3T0R/2T0R notwendig)
   'profile', 1, ... % Beschleunigungs-Trapez für Kartesische Eckpunkte
   'vmax', 1, ... % maximale Geschwindigkeit (m/s oder rad/s)
   'amax', 3, ... % maximale Beschleunigung (m/s² oder rad/s²)

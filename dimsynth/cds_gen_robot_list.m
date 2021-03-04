@@ -158,6 +158,12 @@ if structset.use_parallel
     if all(Set.task.DoF == [1 1 1 1 1 0])
       % Bei 3T2R-Aufgabe sind 3T3R-PKM aufgabenredundant mit Grad 1
       EE_FG_allowed = [EE_FG_allowed; logical([1 1 1 1 1 1])];
+    elseif all(Set.task.DoF == [1 1 0 0 0 0]) && Set.task.pointing_task
+      % Bei 2T0*R-Aufgabe sind 2T1R-PKM aufgabenredundant mit Grad 1
+      EE_FG_allowed = [EE_FG_allowed; logical([1 1 0 0 0 1])];
+    elseif all(Set.task.DoF == [1 1 1 0 0 0]) && Set.task.pointing_task
+      % Bei 3T0*R-Aufgabe sind 3T1R-PKM aufgabenredundant mit Grad 1
+      EE_FG_allowed = [EE_FG_allowed; logical([1 1 1 0 0 1])];
     else
       error('Fall nicht definiert');
     end

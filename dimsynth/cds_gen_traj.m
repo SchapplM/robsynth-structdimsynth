@@ -20,8 +20,8 @@ function Traj = cds_gen_traj(DoF, no, trajset)
 x0 = [0.5, 0.5, 0, 0, 0, 0]';
 k=1; XE = x0';
 
-%% Liste der Trajektorien: 2T1R
-if all(DoF == [1 1 0 0 0 1])
+%% Liste der Trajektorien: 2T1R (oder 2T0R)
+if all(DoF == [1 1 0 0 0 1]) || all(DoF == [1 1 0 0 0 0])
   if no == 1
     d1=0.3;
     k=k+1; XE(k,:) = XE(k-1,:) + [ d1,0,0, 0,0,0];
@@ -49,6 +49,10 @@ if all(DoF == [1 1 0 0 0 1])
     k=k+1; XE(k,:) = XE(k-1,:) + [ 0,0,0, 0,0,   phimax];
   else
     error('Trajektorie Nr. %d nicht für 2T1R definiert', no);
+  end
+  if all(DoF == [1 1 0 0 0 0])
+    XE(:,6) = 0;
+    XE = unique(XE, 'rows');
   end
 end
 %% Liste der Trajektorien: 3T0R
