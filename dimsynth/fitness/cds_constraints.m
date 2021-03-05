@@ -206,8 +206,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   for i_ar = 1:2 % 1=ohne Nebenopt.; 2=mit
   if i_ar == 2 && (... % Optimierung von Nebenbedingungen nur, ...
       ~(sum(R.I_EE_Task) < sum(R.I_EE)) || ...% falls Redundanz und
-      fval_jic(jic) > 1e6) % falls normale IK erfolgreich war
-    break; % zweite Iteration nicht notwendig.
+      fval_jic(jic) > 1e6) % falls normale IK nicht erfolgreich war
+    break; % sonst ist die zweite Iteration nicht notwendig.
   end
   % IK für alle Eckpunkte, beginnend beim letzten (dann ist q der richtige
   % Startwert für die Trajektorien-IK)
@@ -275,45 +275,129 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     % Nebenbedingungen. Annahme: Optimierung in IK gut für Nebenbedingungen.
     % Auch für ersten Bahnpunkt machen (damit bestmöglicher Startwert für
     % Trajektorien-IK in cds_constraints_traj.
-    if i_ar == 2 || ...
-        i_ar == 1 && i == 1 && all(~isnan(q)) && ik_res_ik2 % erster Bahnpunkt nur, wenn normale IK erfolgreich.
+    if i_ar == 2 || ... % Bei AR IK erneut mit Optimierung durchführen
+        ... % Erster Bahnpunkt nur, wenn normale IK erfolgreich (und AR vorhanden ist)
+        i_ar == 1 && i == 1 && all(~isnan(q)) && ik_res_ik2 && (sum(R.I_EE_Task) < sum(R.I_EE))
       % Aufgabenredundanz. Benutze anderen IK-Ansatz (Reziproke
       % Euler-Winkel; gemeinsame Modellierung aller Beinketten)
       % Berechne trotzdem zuerst die einfache IK für jede Beinkette
       % einzeln. Mit dessen Ergebnis dann nur noch Nullraumbewegung zum
       % Optimum der Nebenbedingungen
-      % TODO: Nebenbedingungen der IK genauer definieren
       if i_ar == 2 % Startwert bei vorheriger Lösung. Dadurch reine Nullraumbewegung
         q0_arik = QE(i,:)';
       else
         q0_arik = q; % Ergebnis der normalen IK direkt von oben
       end
-      h1_pre = invkin_optimcrit_limits1(q0_arik, qlim);
-      s4 = s; % Einstellungs-Struktur für Optimierungs-IK
+      % Einstellungs-Struktur für Optimierungs-IK vorbereiten
+      s4 = s; 
+      s4.scale_lim = 0; % Überschreitung von Grenzen zulassen
       s4.retry_limit = 0;
-      s4.wn = [1;0]; % quadratische Funktion für Gelenkgrenzen. TODO.
+      % Nebenbedingung: Optimiere die Konditionszahl (ist immer gut)
+      s4.wn = [0;0;1];
+      % Setze die Einstellungen und Nebenbedingungen so, dass sich das
+      % Ergebnis bestmöglich verändert.
+      if i_ar == 2 && fval_jic(jic) > 5e5 && fval_jic(jic) < 1e6
+        % Der vorherige Ausschlussgrund war eine zu große Winkelspannweite.
+        % Als IK-Nebenbedingung sollte die Winkelspannweite verkleinert
+        % werden
+        s4.wn = [1;0;0]; % quadratische Funktion für Gelenkgrenzen (Startwinkel bereits außerhalb der Grenzen)
+        if i == 1
+          % nur für ersten Traj.-Punkt die Kondition verbessern (für Startwert der Traj.-IK)
+          % TODO: Mehrere Zielfunktionen neigen zum oszillieren.
+          s4.wn = [0.5;0;0.5];
+        end
+        % Setze die Gelenkwinkel-Grenzen neu. Annahme: Die absoluten Werte
+        % der Winkel sind nicht wichtig. Es kommt auf die Spannweite an.
+        % Lasse Schubgelenke so, wie sie sind. Annahme: Werden schon so
+        % kurz wie möglich gewählt
+        qlim_range = qlim(:,2)-qlim(:,1);
+        qlim_neu = repmat(mean(QE,1)',1,2)+[-qlim_range qlim_range]/2;
+        qlim_neu(R.MDH.sigma==1) = qlim(R.MDH.sigma==1); % Schubgelenke zurücksetzen
+        if R.Type == 0 % Seriell
+          R.qlim = qlim_neu;
+        else % PKM
+          for kk = 1:R.NLEG, R.Leg(kk).qlim = qlim_neu(R.I1J_LEG(kk):R.I2J_LEG(kk),:); end
+        end
+        qlim = qlim_neu;
+        % Zwinge den Startwert in die neuen Grenzen (auf 5% innerhalb).
+        % Hat oft zur Folge, dass die IK gar nicht mehr konvergiert. Daher
+        % doch nicht machen. Entscheidung
+        % q0_arik(q0_arik>qlim(:,2)) = qlim(q0_arik>qlim(:,2))-0.05*qlim_range(q0_arik>qlim(:,2));
+        % q0_arik(q0_arik<qlim(:,1)) = qlim(q0_arik<qlim(:,1))+0.05*qlim_range(q0_arik<qlim(:,1));
+        % % Dann keine Überschreitung der neuen Grenzen mehr zulassen
+        % s4.scale_lim = 0.7; % Scheint die Erfolgsquote stark zu verschlechtern.
+      end
+      % IK für Nullraumbewegung durchführen
       if R.Type == 0
-        s4.retry_limit = 0;
-        [q, Phi, Tc_stack] = R.invkin2(R.x2tr(Traj_0.XE(i,:)'), q0_arik, s4);
+        [q, Phi, Tc_stack, Stats] = R.invkin2(R.x2tr(Traj_0.XE(i,:)'), q0_arik, s4);
         nPhi_t = sum(R.I_EE_Task(1:3));
         ik_res_ikar = all(abs(Phi(1:nPhi_t))<s.Phit_tol) && ...
                       all(abs(Phi(nPhi_t+1:end))<s.Phir_tol);
       else
-        s4 = rmfield(s4, 'rng_seed'); % TODO: entfernen, sobald implementiert.
-        [q, Phi, Tc_stack] = R.invkin4(Traj_0.XE(i,:)', q0_arik, s4);
+        [q, Phi, Tc_stack, Stats] = R.invkin4(Traj_0.XE(i,:)', q0_arik, s4);
         ik_res_ikar = (all(abs(Phi(R.I_constr_t_red))<s.Phit_tol) && ...
-            all(abs(Phi(R.I_constr_r_red))<s.Phir_tol));% IK-Status mit Aufgabenred.
+            all(abs(Phi(R.I_constr_r_red))<s.Phir_tol));
       end
-      h1_post = invkin_optimcrit_limits1(q, qlim);
-      if ~ik_res_ikar % Darf eigentlich nicht passieren
-        cds_log(-1, sprintf(['Eckpunkt %d: IK-Berechnung mit Aufgabenredundanz fehler', ...
-          'haft, obwohl ohne AR funktioniert hat.'], i));
-        continue % Verwerfe das Ergebnis
+      if ~ik_res_ikar % Keine Lösung gefunden
+        if s4.scale_lim == 0 % Sollte eigentlich nicht passieren
+          cds_log(-1, sprintf(['Eckpunkt %d: IK-Berechnung mit Aufgabenredundanz fehler', ...
+            'haft, obwohl ohne AR funktioniert hat.'], i));
+        else
+          % Falls neue Grenzen gesetzt wurden, ist die IK eventuell nicht
+          % innerhalb der Grenzen lösbar. In diesem Fall hier kein Fehler
+        end
+        continue % Verwerfe das neue Ergebnis (nehme dadurch das vorherige)
       end
-      if h1_post > h1_pre % Darf eigentlich nicht passieren
+      % Ergebnis der Nullraumoptimierung auswerten und vergleichen
+      h_opt_pre = Stats.h(1,1);
+      h_opt_post = Stats.h(Stats.iter,1);
+      % Die Nebenbedingungen müssen sich verbessern, wenn schon bei einer
+      % gültigen Startpose gestartet wurde. Wurde nur mit einer groben
+      % Näherung (1e-3) gestartet, kann man die Nebenbedingungen nicht ver-
+      % gleichen.
+      if s.Phit_tol < 1e-8 && h_opt_post > h_opt_pre + 1e-3 % Toleranz gegen Numerik-Fehler
         cds_log(-1, sprintf(['Eckpunkt %d: IK-Berechnung mit Aufgabenredundanz hat Neben', ...
           'optimierung verschlechtert.'], i));
-        continue % Verwerfe das Ergebnis
+        continue % Verwerfe das neue Ergebnis (nehme dadurch das vorherige)
+        % Zum Debuggen
+        if R.Type == 0, I_constr_red = [1 2 3 5 6]; %#ok<UNRCH>
+        else,           I_constr_red = R.I_constr_red; end
+        figure(2345);clf;
+        subplot(3,3,1);
+        plot(Stats.condJ(1:Stats.iter));
+        xlabel('Iterationen'); grid on;
+        ylabel('cond(J)');
+        subplot(3,3,2);
+        plot([diff(Stats.Q(1:Stats.iter,:));NaN(1,R.NJ)]);
+        xlabel('Iterationen'); grid on;
+        ylabel('diff q');
+        subplot(3,3,3);
+        plot([Stats.Q(1:Stats.iter,:);NaN(1,R.NJ)]);
+        xlabel('Iterationen'); grid on;
+        ylabel('q');
+        Stats_Q_norm = (Stats.Q(1:Stats.iter,:)-repmat(qlim(:,1)',Stats.iter,1))./ ...
+                        repmat(qlim(:,2)'-qlim(:,1)',Stats.iter,1);
+        subplot(3,3,4);
+        plot([Stats_Q_norm(1:Stats.iter,:);NaN(1,R.NJ)]);
+        xlabel('Iterationen'); grid on;
+        ylabel('q norm');
+        subplot(3,3,5);
+        plot([diff(Stats.PHI(1:Stats.iter,I_constr_red));NaN(1,length(I_constr_red))]);
+        xlabel('Iterationen'); grid on;
+        ylabel('diff Phi');
+        subplot(3,3,6);
+        plot(Stats.PHI(1:Stats.iter,I_constr_red));
+        xlabel('Iterationen'); grid on;
+        ylabel('Phi');
+        subplot(3,3,7);
+        plot([diff(Stats.h(1:Stats.iter,:));NaN(1,size(Stats.h,2))]);
+        xlabel('Iterationen'); grid on;
+        ylabel('diff h');
+        subplot(3,3,8);
+        plot(Stats.h(1:Stats.iter,:));
+        xlabel('Iterationen'); grid on;
+        ylabel('h');
+        linkxaxes
       end
     end
 
@@ -412,6 +496,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       sgtitle(sprintf('Auswertung Grenzverletzung AR-Eckwerte. fval=%1.2e', fval));
     end
     continue;
+%   elseif i_ar == 2 && fval_jic(jic) > 1e3
+%     fprintf('Vorher Fehler. Jetzt erfolgreich!\n');
   end
   if Set.general.matfile_verbosity > 2
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_2.mat'));
