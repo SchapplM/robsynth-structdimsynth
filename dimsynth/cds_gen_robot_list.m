@@ -141,7 +141,9 @@ for N_JointDoF = N_JointDoF_allowed
 
     ii = ii + 1;
     if verblevel >= 2, fprintf('%d: %s\n', ii, SName); end
-    Structures{ii} = struct('Name', SName, 'Type', 0, 'Number', ii); %#ok<AGROW>
+    Structures{ii} = struct('Name', SName, 'Type', 0, 'Number', ii, ...
+      ... % Platzhalter, Angleichung an PKM (Erkennung altes Dateiformat)
+      'angles_values', []); %#ok<AGROW> 
   end
 end
 
