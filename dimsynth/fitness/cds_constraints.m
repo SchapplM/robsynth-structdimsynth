@@ -168,12 +168,25 @@ q0_jic = NaN(R.NJ, n_jic); % zum späteren Nachvollziehen des Ergebnisses
 % Wenn Grenzen auf unendlich gesetzt sind, wähle -pi bis pi für Startwert
 qlim_norm = qlim;
 qlim_norm(isinf(qlim_norm)) = sign(qlim_norm(isinf(qlim_norm)))*pi;
+qlim_range = qlim(:,2)-qlim(:,1);
+qlim_range_norm = qlim_range;
+qlim_range_norm(isinf(qlim_range)) = 2*pi;
+if sum(R.I_EE_Task) < sum(R.I_EE)
+  ar_loop = 1:2; % Aufgabenredundanz liegt vor. Zusätzliche Schleife
+else
+  ar_loop = 1; % Keine Aufgabenredundanz. Nichts zu berechnen.
+end
 for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   Phi_E(:) = NaN; QE(:) = NaN; % erneut initialisieren wegen jic-Schleife.
   if jic == 1 && all(~isnan(qref)) && any(qref~=0) % nehme Referenz-Pose (kann erfolgreiche gespeicherte Pose bei erneutem Aufruf enthalten)
     q0 = qref; % Wenn hier nur Nullen stehen, werden diese ignoriert.
   else
-    q0 = qlim_norm(:,1) + rand(R.NJ,1).*(qlim_norm(:,2)-qlim_norm(:,1)); % Zufällige Anfangswerte geben vielleicht neue Konfiguration.
+    % Zufällige Anfangswerte geben vielleicht neue Konfiguration.
+    q0 = qlim_norm(:,1) + rand(R.NJ,1).*(qlim_norm(:,2)-qlim_norm(:,1));
+    % Nehme nicht die Grenzen aus qlim für Anfangswert, da diese für die 
+    % Position eine Spannweite angeben und keine absoluten Winkel. Wähle
+    % komplett zufällige Winkel als Referenz für den Start
+    q0(R.MDH.sigma==0) = -pi + rand(sum(R.MDH.sigma==0),1).*2*pi;
   end
   q0_jic(:,jic) = q0;
   % Anpassung der IK-Anfangswerte für diesen Durchlauf der IK-Konfigurationen.
@@ -203,30 +216,26 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   % IK-Aufruf und Nebenbedingung zweimal testen: Einmal mit normaler IK
   % ohne Optimierung (schnell), einmal mit darauf aufbauender Nullraum-
   % Optimierung (etwas langsamer). Dadurch bessere Einhaltung von Nebenbed.
-  for i_ar = 1:2 % 1=ohne Nebenopt.; 2=mit
-  if i_ar == 2 && (... % Optimierung von Nebenbedingungen nur, ...
-      ~(sum(R.I_EE_Task) < sum(R.I_EE)) || ...% falls Redundanz und
-      fval_jic(jic) > 1e6) % falls normale IK nicht erfolgreich war
+  for i_ar = ar_loop % 1=ohne Nebenopt.; 2=mit
+  if i_ar == 2 && ... % Optimierung von Nebenbedingungen nur, ...
+      fval_jic(jic) > 1e6 % ... falls normale IK erfolgreich war.
     break; % sonst ist die zweite Iteration nicht notwendig.
   end
-  % IK für alle Eckpunkte, beginnend beim letzten (dann ist q der richtige
-  % Startwert für die Trajektorien-IK)
-  for i = size(Traj_0.XE,1):-1:1
+  % IK für alle Eckpunkte
+  for i = 1:size(Traj_0.XE,1)
     if Set.task.profile ~= 0 % Trajektorie wird in cds_constraints_traj berechnet
-      if i == size(Traj_0.XE,1) % erster berechneter Wert
-        s.retry_limit = 20;
-        s.Phit_tol = 1e-3; s.Phir_tol = 1e-3;
-      elseif i == size(Traj_0.XE,1)-1 % zweiter berechneter Wert
+      if i == 1 % erster berechneter Wert und Startpunkt der Trajektorie
+        % Setze die Toleranz für diesen Punkt wieder herunter. Der Startpunkt
+        % der Trajektorie muss exakt bestimmt werden
+        s.Phit_tol = 1e-9; s.Phir_tol = 1e-9;
+      elseif i == 2 % zweiter berechneter Wert
         % Annahme: Weniger Neuversuch der IK. Wenn die Gelenkwinkel zufällig neu
         % gewählt werden, springt die Konfiguration voraussichtlich. Dann ist
         % die Durchführung der Trajektorie unrealistisch. Kann nicht zu
         % Null gewählt werden, da die Einzelpunkt-IK nicht immer gut kon-
         % vergiert. Bei 0 werden teilweise funktionierende Roboter wieder verworfen.
         s.retry_limit = 15;
-      elseif i == 1
-        % Setze die Toleranz für diesen Punkt wieder herunter. Der Startpunkt
-        % der Trajektorie muss exakt bestimmt werden
-        s.Phit_tol = 1e-9; s.Phir_tol = 1e-9;
+        s.Phit_tol = 1e-3; s.Phir_tol = 1e-3;
       end
     end
     if i_ar == 1 % IK ohne Optimierung von Nebenbedingungen
@@ -289,7 +298,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         q0_arik = q; % Ergebnis der normalen IK direkt von oben
       end
       % Einstellungs-Struktur für Optimierungs-IK vorbereiten
-      s4 = s; 
+      s4 = s;
+      s4.Phit_tol = 1e-9; s4.Phir_tol = 1e-9; % feine Toleranz (für Nullraumbewegung)
       s4.scale_lim = 0; % Überschreitung von Grenzen zulassen
       s4.retry_limit = 0;
       % Nebenbedingung: Optimiere die Konditionszahl (ist immer gut)
@@ -309,10 +319,11 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         % Setze die Gelenkwinkel-Grenzen neu. Annahme: Die absoluten Werte
         % der Winkel sind nicht wichtig. Es kommt auf die Spannweite an.
         % Lasse Schubgelenke so, wie sie sind. Annahme: Werden schon so
-        % kurz wie möglich gewählt
-        qlim_range = qlim(:,2)-qlim(:,1);
-        qlim_neu = repmat(mean(QE,1)',1,2)+[-qlim_range qlim_range]/2;
-        qlim_neu(R.MDH.sigma==1) = qlim(R.MDH.sigma==1); % Schubgelenke zurücksetzen
+        % kurz wie möglich gewählt (wegen Einfluss auf Masse/Dynamik)
+        qlim_neu = qlim;
+        qlim_neu(R.MDH.sigma==0,:) = repmat(mean(QE(:,R.MDH.sigma==0),1)',1,2)+...
+          [-qlim_range(R.MDH.sigma==0), qlim_range(R.MDH.sigma==0)]/2;
+        % qlim_neu(R.MDH.sigma==1,:) = qlim(R.MDH.sigma==1,:); % Schubgelenke zurücksetzen
         if R.Type == 0 % Seriell
           R.qlim = qlim_neu;
         else % PKM
@@ -376,7 +387,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         xlabel('Iterationen'); grid on;
         ylabel('q');
         Stats_Q_norm = (Stats.Q(1:Stats.iter,:)-repmat(qlim(:,1)',Stats.iter,1))./ ...
-                        repmat(qlim(:,2)'-qlim(:,1)',Stats.iter,1);
+                        repmat(qlim_range',Stats.iter,1);
         subplot(3,3,4);
         plot([Stats_Q_norm(1:Stats.iter,:);NaN(1,R.NJ)]);
         xlabel('Iterationen'); grid on;
@@ -435,11 +446,16 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     % Prüfe, ob für die Berechnung der neuen Konfiguration das gleiche
     % rauskommt. Dann könnte man aufhören. Prüfe das für den ersten Eck-
     % punkt. Entspricht der ersten Berechnung.
-    if jic > 1 && i == size(Traj_0.XE,1)
-      test_vs_all_prev = repmat(q,1,jic-1)-reshape(squeeze(Q_jic(end,:,1:jic-1)),R.NJ,jic-1);
+    if jic > 1 && i == 1
+      % Normiere die möglichen Gelenkwinkel für den ersten Punkt um
+      % festzustellen, welche eindeutig sind (Dimensionsunabhängig)
+      test_vs_all_prev = repmat(q,1,jic-1)-reshape(squeeze(Q_jic(1,:,1:jic-1)),R.NJ,jic-1);
       % 2pi-Fehler entfernen
       test_vs_all_prev(abs(abs(test_vs_all_prev)-2*pi)<1e-1) = 0; % ungenaue IK ausgleichen
-      if any(all(abs(test_vs_all_prev)<1e-2,1)) % Prüfe ob eine Spalte gleich ist wie die aktuellen Gelenkwinkel
+      test_vs_all_prev_norm = test_vs_all_prev ./ repmat(qlim_range_norm,1,size(test_vs_all_prev,2));
+      % Prüfe ob eine Spalte gleich ist wie die aktuellen Gelenkwinkel.
+      % Kriterium: 3% bezogen auf erlaubte Spannweite
+      if any(all(abs(test_vs_all_prev_norm)<3e-2,1))
         fval_jic(jic) = Inf; % damit jic-Iteration nicht weiter gemacht wird
         break;  % Das IK-Ergebnisse für den ersten Eckpunkt gibt es schon. Nicht weiter rechnen.
       end
@@ -459,7 +475,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     fval_jic(jic) = 1e6*(1+9*f_phiE_norm); % Normierung auf 1e6 bis 1e7
     % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
     constrvioltext_jic{jic} = sprintf(['Keine IK-Konvergenz in Eckwerten. Untersuchte Eckpunkte: %d/%d. ', ...
-      'Durchschnittliche ZB-Verl. %1.2e'], size(Traj_0.XE,1)-i+1,size(Traj_0.XE,1), f_PhiE);
+      'Durchschnittliche ZB-Verl. %1.2e'], i,size(Traj_0.XE,1), f_PhiE);
     continue;
   end
 
@@ -468,7 +484,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   q_range_E(R.MDH.sigma==1) = diff(minmax2(QE(:,R.MDH.sigma==1)')');
   q_range_E(R.MDH.sigma==0) = angle_range( QE(:,R.MDH.sigma==0));
   % Bestimme ob die maximale Spannweite der Koordinaten überschritten wurde
-  qlimviol_E = (qlim(:,2)-qlim(:,1))' - q_range_E;
+  qlimviol_E = qlim_range' - q_range_E;
   I_qlimviol_E = (qlimviol_E < 0);
   if any(I_qlimviol_E)
     if Set.general.matfile_verbosity > 2
@@ -488,7 +504,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       % Gut-Einträge: Dummy-NaN-Eintrag mit plotten, damit Handle für Legende nicht leer bleibt.
       hdl_iO= plot([find(~I_qlimviol_E),NaN], [QE(:,~I_qlimviol_E)-min(QE(:,~I_qlimviol_E)),NaN(size(QE,1),1)], 'co');
       hdl_niO=plot(find( I_qlimviol_E), QE(:, I_qlimviol_E)-min(QE(:, I_qlimviol_E)), 'bx'); % Kein NaN-Dummy notwendig.
-      hdl1=plot(qlim(:,2)'-qlim(:,1)', 'r--');
+      hdl1=plot(qlim_range', 'r--');
       hdl2=plot([1;size(QE,2)], [0;0], 'm--');
       xlabel('Koordinate Nummer'); ylabel('Koordinate Wert');
       grid on;
@@ -609,6 +625,10 @@ if ~any(I_iO) % keine gültige Lösung für Eckpunkte
   end
 else % Gebe alle gültigen Lösungen aus
   Q0 = reshape(squeeze(Q_jic(1,:,I_iO)),R.NJ,length(I_iO))';
+  [Q0_unique] = unique(round(Q0,2), 'rows');
+  if size(Q0_unique,1) ~= size(Q0,1)
+    cds_log(-1, sprintf('Doppelte Konfigurationen als Ergebnis. Darf nicht sein'));
+  end
   % Falls der Roboter Schubgelenke hat, dominiert die Stellung der
   % Schubgelenke die Eigenschaften durch die IK-Konfiguration. Nehme nur
   % bezüglich der Schubgelenke unterschiedliche Konfigurationen. Sonst ist

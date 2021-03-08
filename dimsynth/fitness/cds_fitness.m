@@ -177,12 +177,22 @@ desopt_pval_IKC = repmat(desopt_pval(:)', size(Q0,1), 1); % NaN-initialisiert od
 % TAU_IKC = NaN(size(Traj_0.X,1), n_actjoint, size(Q0,1));
 
 for iIKC = 1:size(Q0,1)
+  %% Gelenkwinkel-Grenzen aktualisieren
+  % Als Spannweite vorgegebene Gelenkgrenzen neu zentrieren. Benutze dafür
+  % alle Eckpunkte aus der Einzelpunkt-IK
+  qlim_range = qlim(:,2)-qlim(:,1);
+  qlim_neu = qlim; % Für Dreh- und Schubgelenke separat. Berücksichtige 2pi-Periodizität
+  qlim_neu(R.MDH.sigma==1,:) = repmat(mean(QE_iIKC(:,R.MDH.sigma==1,iIKC),1)',1,2)+...
+    [-qlim_range(R.MDH.sigma==1), qlim_range(R.MDH.sigma==1)]/2;
+  qlim_neu(R.MDH.sigma==0,:) = repmat(meanangle(QE_iIKC(:,R.MDH.sigma==0,iIKC),1)',1,2)+...
+    [-qlim_range(R.MDH.sigma==0), qlim_range(R.MDH.sigma==0)]/2;
+  qlim_neu(R.MDH.sigma==1) = qlim(R.MDH.sigma==1); % Schubgelenke zurücksetzen
   % Gelenkgrenzen von oben wieder erneut einsetzen. Notwendig, da Grenzen
   % in Traj.-IK berücksichtigt werden. Unten wird der Wert aktualisiert
   if R.Type == 0 % Seriell
-    R.qlim = qlim;
+    R.qlim = qlim_neu;
   else % PKM
-    for i = 1:R.NLEG, R.Leg(i).qlim = qlim(R.I1J_LEG(i):R.I2J_LEG(i),:); end
+    for i = 1:R.NLEG, R.Leg(i).qlim = qlim_neu(R.I1J_LEG(i):R.I2J_LEG(i),:); end
   end
   %% Trajektorie berechnen
   if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
