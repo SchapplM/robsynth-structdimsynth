@@ -57,7 +57,9 @@ Jinv_ges_alt = [];
 constrvioltext_alt = '';
 % Schleife über mehrere mögliche Nebenbedingungen der inversen Kinematik
 fval_ar = NaN(1,2);
-if sum(R.I_EE_Task) < sum(R.I_EE)
+task_red = R.Type == 0 && sum(R.I_EE_Task) < R.NJ || ... % Seriell: Redundant wenn mehr Gelenke als Aufgaben-FG
+           R.Type == 2 && sum(R.I_EE_Task) < sum(R.I_EE); % Parallel: Redundant wenn mehr Plattform-FG als Aufgaben-FG
+if task_red
   ar_loop = 1:3; % Aufgabenredundanz liegt vor. Zusätzliche Schleife
 else
   ar_loop = 1; % Keine Aufgabenredundanz. Nichts zu berechnen.

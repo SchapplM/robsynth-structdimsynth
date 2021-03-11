@@ -171,7 +171,9 @@ qlim_norm(isinf(qlim_norm)) = sign(qlim_norm(isinf(qlim_norm)))*pi;
 qlim_range = qlim(:,2)-qlim(:,1);
 qlim_range_norm = qlim_range;
 qlim_range_norm(isinf(qlim_range)) = 2*pi;
-if sum(R.I_EE_Task) < sum(R.I_EE)
+task_red = R.Type == 0 && sum(R.I_EE_Task) < R.NJ || ... % Seriell: Redundant wenn mehr Gelenke als Aufgaben-FG
+           R.Type == 2 && sum(R.I_EE_Task) < sum(R.I_EE); % Parallel: Redundant wenn mehr Plattform-FG als Aufgaben-FG
+if task_red
   ar_loop = 1:2; % Aufgabenredundanz liegt vor. Zusätzliche Schleife
 else
   ar_loop = 1; % Keine Aufgabenredundanz. Nichts zu berechnen.
@@ -286,7 +288,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     % Trajektorien-IK in cds_constraints_traj.
     if i_ar == 2 || ... % Bei AR IK erneut mit Optimierung durchführen
         ... % Erster Bahnpunkt nur, wenn normale IK erfolgreich (und AR vorhanden ist)
-        i_ar == 1 && i == 1 && all(~isnan(q)) && ik_res_ik2 && (sum(R.I_EE_Task) < sum(R.I_EE))
+        i_ar == 1 && i == 1 && all(~isnan(q)) && ik_res_ik2 && task_red
       % Aufgabenredundanz. Benutze anderen IK-Ansatz (Reziproke
       % Euler-Winkel; gemeinsame Modellierung aller Beinketten)
       % Berechne trotzdem zuerst die einfache IK für jede Beinkette
