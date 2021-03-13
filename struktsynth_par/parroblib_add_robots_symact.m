@@ -224,7 +224,9 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     tlm_iFKloop = tic(); % zur Speicherung des Zeitpunkts der letzten Meldung
     % Sperre csv-Dateien während des Hinzufügens. Dieser Abschnitt ist
     % kritisch für parallel arbeitende weitere Instanzen der Synthese
-    parroblib_writelock('lock', 'csv', logical(EE_FG), 30*60, true);
+    if ~settings.dryrun
+      parroblib_writelock('lock', 'csv', logical(EE_FG), 30*60, true);
+    end
     if settings.isoncluster
       pause(10.0); % Warte nach dem Sperren der csv-Tabellen, damit check-Befehl anderer Instanzen auslaufen kann.
     end
@@ -271,6 +273,31 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         parroblib_update_csv({SName}, Coupling, logical(EE_FG), 1, 0);
         continue
       end
+      
+      if SName_TechJoint(1) == 'S'
+        % Nur die Gestell-Konfigurationen 1 (Kreisförmig) und 5 (Paar-
+        % weise) sind unterscheidbar. Siehe align_base_coupling.
+        if all(Coupling(1) ~= [1 5])
+          parroblib_update_csv({SName}, Coupling, logical(EE_FG), 8, 0);
+          fprintf(['Beinkette %s (%s) mit Gestell-Koppelgelenk Nr. %d wird ', ...
+            'aufgrund der Kugelgelenk-Isomorphismen verworfen.\n'], ...
+            SName, SName_TechJoint, Coupling(1));
+          continue
+        end
+      end
+      if SName_TechJoint(end) == 'S'
+        % Nur die Plattform-Konfigurationen 1 (Kreisförmig) und 4 (Paar-
+        % weise) sind unterscheidbar. Alle anderen lassen sich bei Kugel-
+        % gelenken darauf zurückführen. Siehe align_platform_coupling.
+        if all(Coupling(2) ~= [1 4])
+          parroblib_update_csv({SName}, Coupling, logical(EE_FG), 8, 0);
+          fprintf(['Beinkette %s (%s) mit Plattform-Koppelgelenk Nr. %d wird ', ...
+            'aufgrund der Kugelgelenk-Isomorphismen verworfen.\n'], ...
+            SName, SName_TechJoint, Coupling(2));
+          continue
+        end
+      end
+      
       N_LegDoF = str2double(SName(2));% Beinkette FHG
       PName = sprintf('P%d%s', N_Legs, SName(3:end));
 
@@ -303,13 +330,33 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           continue % Es gibt ein Schubgelenk und es ist nicht das aktuierte Gelenk
         end
         % Prüfe, ob ein Teil eines technischen Gelenks (Kardan, Kugel
-        % aktuiert werden würde). Das letzte positionsbeeinflussende Gelenk
-        % ist das letzte aktuierte Gelenk. Danach kommt nur noch das
-        % Koppelgelenk (Kardan/Kugel)
+        % aktuiert werden würde).
+        % Das letzte positionsbeeinflussende Gelenk ist das letzte 
+        % aktuierte Gelenk. Danach kommt nur noch das Koppelgelenk (Kardan/Kugel)
         if jj > l.AdditionalInfo(iFK,1) % siehe serroblib_gen_bitarrays.
           continue
         end
-
+        % Prüfe auch technische Gelenke am Anfang der Beinkette. Z.B. keine
+        % Aktuierung eines gestellfesten Kardan-Gelenks möglich
+        Joints_Actuation_Possible = [];
+        for iii = 1:length(SName_TechJoint)
+          switch SName_TechJoint(iii)
+            case 'R'
+              Joints_Actuation_Possible = [Joints_Actuation_Possible, 1]; %#ok<AGROW>
+            case 'P'
+              Joints_Actuation_Possible = [Joints_Actuation_Possible, 1]; %#ok<AGROW>
+            case 'U'
+              Joints_Actuation_Possible = [Joints_Actuation_Possible, [0 0]]; %#ok<AGROW>
+            case 'S'
+              Joints_Actuation_Possible = [Joints_Actuation_Possible, [0 0 0]]; %#ok<AGROW>
+            case 'C'
+              Joints_Actuation_Possible = [Joints_Actuation_Possible, [0 0]]; %#ok<AGROW>
+          end
+        end
+        if ~Joints_Actuation_Possible(jj)
+          fprintf('Aktuierung von Gelenk %d in %s (%s) nicht möglich\n', jj, SName, SName_TechJoint);
+          continue
+        end
         fprintf('Untersuchte PKM %d (Gestell %d, Plattform %d): %s mit symmetrischer Aktuierung Gelenk %d\n', ...
           ii, Coupling(1), Coupling(2), PName, jj);
         Actuation = cell(1,N_Legs);
@@ -352,7 +399,9 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     end
     % Aktualisiere die mat-Dateien (werden für die Maßsynthese benötigt)
     if ~settings.dryrun, parroblib_gen_bitarrays(logical(EE_FG)); end
-    parroblib_writelock('free', 'csv', logical(EE_FG), 0, true);
+    if ~settings.dryrun
+      parroblib_writelock('free', 'csv', logical(EE_FG), 0, true);
+    end
     if isempty(Whitelist_PKM)
       fprintf('Für FG %s und G%dP%d gibt es keine PKM.\n', EE_FG_Name, Coupling(1), Coupling(2));
       continue
