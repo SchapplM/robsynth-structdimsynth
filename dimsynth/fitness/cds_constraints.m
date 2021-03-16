@@ -201,10 +201,12 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
 
   if jic > 10 && jic < 20
     % Setze die Anfangswerte (für Schubgelene) ganz weit nach "links"
-    q0(R.MDH.sigma==1) = q0(R.MDH.sigma==1)-(0.5*rand(1))*(qlim(R.MDH.sigma==1,2)-qlim(R.MDH.sigma==1,1));
+    q0(R.MDH.sigma==1) = q0(R.MDH.sigma==1) - 0.5*rand(1)*...
+      (qlim_norm(R.MDH.sigma==1,2)-qlim_norm(R.MDH.sigma==1,1));
   elseif jic > 21
     % Anfangswerte weit nach rechts
-    q0(R.MDH.sigma==1) = q0(R.MDH.sigma==1)+(0.5*rand(1))*(qlim(R.MDH.sigma==1,2)-qlim(R.MDH.sigma==1,1));
+    q0(R.MDH.sigma==1) = q0(R.MDH.sigma==1) + 0.5*rand(1)*...
+      (qlim_norm(R.MDH.sigma==1,2)-qlim_norm(R.MDH.sigma==1,1));
   end
   % Normalisiere den Anfangswert (außerhalb [-pi,pi) nicht sinnvoll).
   % (Betrifft nur Fall, falls Winkelgrenzen groß gewählt sind)
@@ -476,8 +478,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     f_phiE_norm = 2/pi*atan(f_PhiE/0.9e6*35); % Normierung auf 0 bis 1. 0.9e6 -> 0.98
     fval_jic(jic) = 1e6*(1+9*f_phiE_norm); % Normierung auf 1e6 bis 1e7
     % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
-    constrvioltext_jic{jic} = sprintf(['Keine IK-Konvergenz in Eckwerten. Untersuchte Eckpunkte: %d/%d. ', ...
-      'Durchschnittliche ZB-Verl. %1.2e'], i,size(Traj_0.XE,1), f_PhiE);
+    constrvioltext_jic{jic} = sprintf(['Keine IK-Konvergenz in Eckwerten. ', ...
+      'Untersuchte Eckpunkte: %d/%d. Durchschnittliche ZB-Verl. %1.2e'], ...
+      i, size(Traj_0.XE,1), f_PhiE);
     continue;
   end
 
