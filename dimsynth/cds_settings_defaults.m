@@ -114,6 +114,9 @@ optimization = struct( ...
   'base_morphology', false, ... % Aussehen des Gestells (z.B. Schrägheit, Gelenkpaarabstand)
   'platform_morphology', false, ... % Aussehen der Plattform (z.B. Gelenkpaarabstand)
   'rotate_base', false, ... % Orientierung der Roboter-Basis
+  ... % Begrenzung des Verfahrweges von Schubgelenken. Mit NaN deaktiviert 
+  ... % (wird dann aus Größe des Roboters plausibel abgeleitet).
+  'max_range_prismatic', NaN, ...
   ... % Begrenzung des Drehbereichs von Gelenken. Größere Drehung für Gelenk
   ... % selbst unproblematisch. Eher Kollision bei mehrfacher Drehung schwer zu kontrollieren
   ... % Maximaler Drehwinkel aktiver Drehgelenke (mehr als volle Drehung 

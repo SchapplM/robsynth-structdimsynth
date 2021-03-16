@@ -153,6 +153,13 @@ for i = 1:NLEG
   % Muss so hoch gesetzt sein, damit UPS-Kette (ohne sonstige
   % Kinematikparameter auch funktioniert)
   R_init.qlim(R_init.MDH.sigma==1,:) = repmat([-5*Lref, 5*Lref],sum(R_init.MDH.sigma==1),1);
+  if ~isnan(Set.optimization.max_range_prismatic)
+    % Schätzwert für Begrenzung der Schubgelenke wird durch Benutzervorgabe
+    % überschrieben. Z.B. Mit unendlich, um komplett frei zu lassen.
+    % Größe des Roboters wird dann durch andere Kennzahlen begrenzt
+    R_init.qlim(R_init.MDH.sigma==1,:) = repmat([-0.5, 0.5]*...
+      Set.optimization.max_range_prismatic,sum(R_init.MDH.sigma==1),1);
+  end
   % Gelenkgrenzen setzen: Drehgelenke
   if Structure.Type == 0 % Serieller Roboter
     % Grenzen für Drehgelenke: Alle sind aktiv

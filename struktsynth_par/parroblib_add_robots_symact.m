@@ -39,6 +39,7 @@ settings_default = struct( ...
   'EE_FG_Nr', 2:3, ... % nur 3T0R, 3T1R
   'parcomp_structsynth', 1, ... % parfor-Struktursynthese (schneller, aber mehr Speicher notwendig)
   'parcomp_mexcompile', 1, ... % parfor-Mex-Kompilierung (schneller, aber Dateikonflikt möglich)
+  'use_mex', 1, ... % Die nutzung kompilierter Funktionen kann deaktiviert werden. Dann sehr langsam. Aber Start geht schneller, da keine Kompiliertung zu Beginn.
   'max_actuation_idx', 4, ... % Aktuierung bis zum vierten Gelenk-FG zulassen
   'base_couplings', 1:9, ... % siehe ParRob/align_base_coupling
   'plf_couplings', [1:6 8] ... % siehe ParRob/align_platform_coupling
@@ -449,9 +450,11 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           % Generierung der Funktionen egal.
           RP = parroblib_create_robot_class([Whitelist_Kin{i},'A1'],1,1);
           % Hierdurch werden fehlende mex-Funktionen kompiliert.
-          parroblib_writelock('lock', Whitelist_Kin{i}, logical(EE_FG), 60*60, true);
-          RP.fill_fcn_handles(true, true);
-          parroblib_writelock('free', Whitelist_Kin{i}, logical(EE_FG), 0, true);
+          if settings.use_mex %#ok<PFBNS>
+            parroblib_writelock('lock', Whitelist_Kin{i}, logical(EE_FG), 60*60, true);
+            RP.fill_fcn_handles(true, true);
+            parroblib_writelock('free', Whitelist_Kin{i}, logical(EE_FG), 0, true);
+          end
         end
       end
     end
@@ -517,6 +520,13 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.optimization.max_velocity_active_revolute = 50;
     Set.optimization.max_velocity_passive_revolute = 50;
     Set.optimization.max_velocity_active_prismatic = 20;
+    % Ignoriere auch Grenzen für Gelenkwinkel. Die technische Realisierbarkeit
+    % steht nicht im Vordergrund und lässt sich durch weitere Optimierung
+    % erreichen.
+    Set.optimization.max_range_active_revolute = inf;
+    Set.optimization.max_range_passive_universal = inf;
+    Set.optimization.max_range_passive_spherical = inf;
+    Set.optimization.max_range_prismatic = inf;
     Set.general.matfile_verbosity = 0;
     Set.general.nosummary = true; % Keine Bilder erstellen.
     Set.structures.whitelist = Whitelist_PKM; % nur diese PKM untersuchen
@@ -524,7 +534,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.structures.use_parallel_rankdef = 6*settings.check_rankdef_existing;
     Set.general.save_animation_file_extensions = {'gif'};
     Set.general.parcomp_struct = settings.parcomp_structsynth;
-    Set.general.use_mex = true;
+    Set.general.use_mex = settings.use_mex;
     Set.general.compile_missing_functions = false; % wurde schon weiter oben gemacht.
     offline_result_complete = false;
     if ~settings.offline && ~settings.comp_cluster
