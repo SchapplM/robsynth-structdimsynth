@@ -1,7 +1,7 @@
 % Ändere die Kinematikparameter aller Robotermodelle so, dass das alle
 % Varianten von Kugel- und Kardangelenken enstehen
 % 
-% Notwendige Schritte nach dem Erzeugen dieser Varianten:
+% Notwendige Schritte nach dem Erzeugen dieser Varianten (wird am Ende gemacht):
 % * generate_variant_pkin_conv_fcns.m
 % * correct_phi_N_E;
 % * determine_ee_dof;
@@ -21,7 +21,7 @@ clc
 roblibpath=fileparts(which('serroblib_path_init.m'));
 serroblib_gen_bitarrays(1:7);
 %% Benutzereingaben
-save_reslist = false; % Nur aktivieren, wenn alle Varianten gesucht werden
+save_reslist = true; % Nur aktivieren, wenn alle Varianten gesucht werden
 typestring_test = ''; %'RRRRR'; % Prüfe nur diese serielle Kette
 serialchain_test = ''; % S6RRRRRR10% Prüfe nur dieses Hauptmodell
 %% Durchsuche alle Roboter und stelle die korrekte Orientierung des Endeffektors fest
@@ -51,6 +51,29 @@ for N = 4:6
     if ~isempty(serialchain_test) && ~strcmp(RobName, serialchain_test)
       continue % Filterung zu Testzwecken
     end
+    % Falls freie Parameter vorliegen, können diese angepasst werden. Die
+    % Suche nach möglichen Gelenkfolgen prüft bspw. auf alpha=pi/2. Wenn
+    % alpha allgemein ist, wird dort kein Gelenk gefunden.
+    RS = serroblib_create_robot_class(RobName);
+    Ipkin_alpha = contains(RS.pkin_names, 'alpha');
+    allcombinput = cell(1,sum(Ipkin_alpha)); % Definiere die Eingabe als Cell
+    for k = 1:sum(Ipkin_alpha)
+      allcombinput{k} = [NaN;pi/2];
+    end
+    if sum(Ipkin_alpha)
+      alpha_comb = allcomb(allcombinput{:});
+    else
+      alpha_comb = NaN; % Dummy-Eintrag
+    end
+    alpharesults_jointstring = [];
+    alpharesults_alpha = [];
+    alpharesults_pkin = [];
+    for k_alpha = 1:size(alpha_comb,1)
+    if size(alpha_comb,1)>1
+      fprintf('Variante %d/%d für Parameter alpha: [%s]=[%s]\n', ...
+        k_alpha, size(alpha_comb,1), disp_array(RS.pkin_names(Ipkin_alpha)), ...
+        disp_array(180/pi*alpha_comb(k_alpha,:), '%1.0f'));
+    end
     %% Kinematikparameter so ändern, dass das mehrwertige Gelenke möglich sind
     typestring = RobName(3:3+N-1); % Roboterdaten aus Namen extrahieren
     if ~isempty(typestring_test) && ~strcmp(typestring, typestring_test)
@@ -66,6 +89,12 @@ for N = 4:6
       % Roboterklasse erstellen (muss in der Schleife passieren, damit mit
       % NaN belegte freie Parameter wieder zurückgesetzt werden
       RS = serroblib_create_robot_class(RobName);
+      % Setze die alpha-Parameter auf einen vorgegebenen Wert
+      if any(Ipkin_alpha)
+        RS.pkin(Ipkin_alpha) = alpha_comb(k_alpha,:);
+      end
+      RS.update_mdh(RS.pkin);
+      MDH_alpha_gen = RS.MDH.alpha; % Speichere allgemeine Form mit NaN ab
       joint_string = typestring;
       for ii = jj:N % Schleife zum Zusammenfassen mehrere einwertiger Gelenke
         % Prüfe auf Kardangelenk
@@ -127,7 +156,9 @@ for N = 4:6
         % eingetragen werden
         continue
       end
-      RS_var = copy(RS); % Kopie des Roboters zum Eintragen der Variante
+      % Speichere die allgemeinen Parameter (nach Ersetzung mit Nullen für
+      % Gelenkvarianten, vor Einsetzen von Zufallswerten für die Bewertung)
+      pkin_with_NaN = pkin;
       % Verbliebene Parameter zufällig belegen (nur für Test)
       pkin(isnan(pkin)) = rand(sum(isnan(pkin)),1);
       RS.update_mdh(pkin);
@@ -142,11 +173,36 @@ for N = 4:6
         num_decline_rank = num_decline_rank + 1;
         continue
       end
+      % Kinematik-Parameter zum Hinzufügen vormerken
+      alpharesults_pkin = [alpharesults_pkin; pkin_with_NaN']; %#ok<AGROW>
+      
+      % Zu Ergebnisliste der alpha-Variation hinzufügen
+      alpharesults_jointstring = [alpharesults_jointstring; joint_string]; %#ok<AGROW>
+      alpharesults_alpha = [alpharesults_alpha; MDH_alpha_gen']; %#ok<AGROW>
+    end % jj
+    end % k_alpha
+    % Entferne doppelte Varianten wieder aus der Tabelle. Nehme im Zweifel
+    % die Variante mit dem allgemeinen Fall für alpha
+    [jointstrings_unique,IA,IC] = unique(alpharesults_jointstring, 'rows');
+    for k = 1:size(jointstrings_unique)
+      I_k = find(IC == k); % Indizes aller identischer Gelenkfolgen
+      % Finde die alpha-Variante, die am allgemeinsten ist. Annahme: Das
+      % sind die mit den meisten freien alpha-Parametern. Vernachlässige
+      % vorerst, ob es noch unterschiedliche Kombinationen gibt.
+      n_alphafree = sum(isnan(alpharesults_alpha(I_k,:)),2);
+      [~,II_max_I_k] = max(n_alphafree);
+      I_k_general = I_k(II_max_I_k);
+      fprintf('Gelenkfolge %s wurde %d mal erzeugt. Nehme nur die allgemeine Variante mit alpha=[%s].\n', ...
+        jointstrings_unique(k,:), length(I_k), disp_array(180/pi*alpharesults_alpha(I_k_general,:),'%1.0f'));
+      % Füge nur die allgemeine Variante wirklich zur Datenbank hinzu
       % Parameter für Variante generieren
+      RS_var = copy(RS); % Kopie des Roboters zum Eintragen der Variante
+      RS_var.update_mdh(alpharesults_pkin(I_k_general,:)');
       MDH_struct_idx = serroblib_mdh_numparam2indexstruct(RS_var.MDH);
 
       % Neue Variante in Datenbank eintragen
-      fprintf('\tVariante mit mehrwertigen Gelenken erzeugt (%s). Füge zu DB hinzu.\n', joint_string);
+      fprintf(['\tVariante mit mehrwertigen Gelenken erzeugt (%s). ', ...
+        'Füge zu DB hinzu.\n'], jointstrings_unique(k,:));
       serroblib_gen_bitarrays(N);
       fprintf('\t'); % Damit Ausgabe von add_robot eingerückt ist
       [Name_j,new_j] = serroblib_add_robot(MDH_struct_idx, char(EE_dof0));
@@ -194,3 +250,12 @@ for N = 4:6
     disp(l.Names_Ndof(I_check));
   end
 end
+
+%% Aktualisieren der Datenbank
+addpath(fullfile(roblibpath, 'scripts'));
+generate_variant_pkin_conv_fcns;
+correct_phi_N_E;
+determine_ee_dof;
+determine_jointnumber_influence_ee_position;
+determine_multi_dof_joints;
+write_structsynth_origin;
