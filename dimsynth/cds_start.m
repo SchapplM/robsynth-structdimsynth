@@ -406,6 +406,9 @@ if ~Set.general.regenerate_summmary_only
           % Sperrschutz für PKM-Bibliothek (hauptsächlich für Struktursynthese)
           parroblib_writelock('check', 'csv', logical(Set.structures.DoF), 5*60, false);
           parroblib_create_template_functions(Names(i), false, false);
+          % Auch Funktionen für serielle Beinketten neu generieren
+          [~, LEG_Names] = parroblib_load_robot(Names{i});
+          serroblib_create_template_functions(LEG_Names(1), false, false);
         end
         continue
       end
