@@ -91,6 +91,17 @@ Structure.xT_mean = mean(minmax2(Traj.X(:,1:3)'), 2);
 % Charakteristische Länge der Aufgabe (empirisch ermittelt aus der Größe
 % des notwendigen Arbeitsraums)
 Lref = norm(diff(minmax2(Traj.X(:,1:3)')'));
+% Bei vorgegebener Basis-Position: Zähle Abstand von Basis zu
+% Aufgaben-Mitte zu Referenz-Länge hinzu
+if ~Set.optimization.movebase
+  r_W_0 = zeros(3,1);
+  for k = 1:3
+    if all(~isnan(Set.optimization.basepos_limits(k,:)))
+      r_W_0(k) = mean(Set.optimization.basepos_limits(k,:));
+    end
+  end
+  Lref = Lref + norm(Structure.xT_mean-r_W_0);
+end
 % Abstand der Aufgabe vom Roboter-Basis-KS
 if any(~isnan(Set.optimization.basepos_limits(:)))
   maxdist_xyz = NaN(3,1);
@@ -120,10 +131,16 @@ elseif Structure.Type == 2 % Parallel
     p_base(2) = 0.4*p_base(1);
     p_base(3) = pi/3;
   end
+  if all(~isnan(Set.optimization.base_size_limits))
+    p_base(1) = mean(Set.optimization.base_size_limits);
+  end
   % Parameter für Plattform-Kopplung einstellen
   p_platform = 0.75*Lref;
   if any(Structure.Coupling(2) == [4,5,6])
     p_platform(2) = 0.5*p_platform(1);
+  end
+  if all(~isnan(Set.optimization.platform_size_limits))
+    p_platform(1) = mean(Set.optimization.platform_size_limits);
   end
   % Bei paralleler Rechnung der Struktursynthese auf Cluster Konflikte vermeiden
   parroblib_writelock('check', 'csv', logical(Set.task.DoF), 5*60, false);
@@ -914,6 +931,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       % Körper direkt nach dem Gestell kommt. Annahme. Kollision
       % konstruktiv vermeidbar
       for cb_k = R.Leg(k).collbodies.link(2:end)'
+        if isempty(cb_k), continue; end % passiert, falls nur ein Körper in Beinkette
         % Kollision mit Kollisionskörpern fest bezüglich PKM-Basis
         selfcollchecks_bodies = [selfcollchecks_bodies; ...
           uint8([NLoffset_k+cb_k, 0])]; %#ok<AGROW>
