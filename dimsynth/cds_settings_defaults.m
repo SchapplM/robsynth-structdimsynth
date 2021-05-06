@@ -77,9 +77,11 @@ structures = struct( ...
   'onlylegchain_from_synthesis', true, ... % Nehme keine seriellen Ketten als Beinkette, die nur manuell in die SerRobLib eingetragen wurden
   'use_kinematic_variants', true, ... % Nehme auch serielle Ketten, die eine Variante eines allgemeinen Modells sind
   'maxnumprismatic', 1, ... % Maximal ein Schubgelenk in Roboter (bzw. PKM-Beinkette)
+  'min_task_redundancy', 0, ... % Geforderter Grad der Aufgabenredundanz
   'max_task_redundancy', 0, ... % Zulässiger Grad der Aufgabenredundanz
   'max_kin_redundancy', 0, ... % Zulässiger Grad der kinematischen Redundanz
   'joint_filter', '******', ... % Vorgabe von Gelenktypen ("R", "P", "*").
+  'num_tech_joints', 1:6, ... Mögliche Anzahl technischer Gelenke (in PKM-Beinketten). Wert 3 ermöglicht bspw. Ketten UPS, PUS, RUS, ...
   'parrob_basejointfilter', 1:9, ... % Vorgabe zum Gestell-Koppelgelenktyp einer PKM
   'nopassiveprismatic', true, ... % Schubgelenke dürfen nicht passiv sein
   'activenotlastjoint', true, ... % Verhindert ein aktives Plattform-Koppelgelenk
