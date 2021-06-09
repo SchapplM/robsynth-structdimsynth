@@ -171,7 +171,7 @@ if structset.use_parallel
   elseif Set.structures.min_task_redundancy > 1
     error('Fall nicht implementiert');
   else
-    EE_FG_allowed = [];
+    EE_FG_allowed = logical([]);
   end
   if Set.structures.max_task_redundancy > 0
     if all(Set.task.DoF == [1 1 1 1 1 0])
@@ -188,7 +188,7 @@ if structset.use_parallel
     end
   end
 else
-  EE_FG_allowed = [];
+  EE_FG_allowed = logical([]);
 end
 for kkk = 1:size(EE_FG_allowed,1)
   EEstr = sprintf('%dT%dR', sum(EE_FG_allowed(kkk,1:3)), sum(EE_FG_allowed(kkk,4:6)));
