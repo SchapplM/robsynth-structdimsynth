@@ -122,24 +122,28 @@ else % PKM
 end
 
 %% Inverse Kinematik für Eckpunkte der Trajektorie berechnen
+% Einstellungen für IK. Immer feine Toleranz. Gröbere Toleranz für
+% zweiten bis letzten Punkt bringen nur sehr geringe Rechenzeitersparnis.
+% Dafür ist das Ergebnis teilweise nicht mehr reproduzierbar (bei Lösung
+% am Rand des zulässigen Bereichs)
+s = struct('Phit_tol', 1e-9, 'Phir_tol', 1e-9, ...
+  'normalize', false, ... % Keine Winkel-Normalisierung (für einige Nebenbedingungen schädlich)
+  'rng_seed', 0); % damit die Ergebnisse exakt reproduzierbar werden.
+if Set.task.profile ~= 0 % Normale Trajektorie mit stetigem Zeitverlauf
+  % Nur Berechnung der Eckpunkte zur Prüfung.
+  s.retry_limit = 20;
+else % Nur Eckpunkte
+  % Eckpunkte haben keinen direkten Bezug zueinander und bilden die
+  % Trajektorie. Da keine Traj. berechnet wird, kann hier mehr Aufwand
+  % betrieben werden (besonders bei seriellen Robotern auch notwendig).
+  s.retry_limit = 50;
+  s.n_max = 5000;
+end
 if R.Type == 0 % Seriell
   qlim = R.qlim;
   qref = R.qref;
   Phi_E = NaN(size(Traj_0.XE,1), sum(Set.task.DoF));
   QE = NaN(size(Traj_0.XE,1), R.NQJ);
-  if Set.task.profile ~= 0
-    % Normale Trajektorie mit stetigem Zeitverlauf. Nur Berechnung der
-    % Eckpunkte zur Prüfung. Setze die Zufallszahlen-Initialisierung mit
-    % rng_seed, damit die Ergebnisse exakt reproduzierbar werden.
-    s = struct('Phit_tol', 1e-3, 'Phir_tol', 1e-3, 'retry_limit', 20, ...
-      'normalize', false, 'rng_seed', 0);
-  else
-    % Eckpunkte haben keinen direkten Bezug zueinander und bilden die
-    % Trajektorie. Da keine Traj. berechnet wird, kann hier mehr Aufwand
-    % betrieben werden (besonders bei seriellen Robotern auch notwendig.
-    s = struct('Phit_tol', 1e-9, 'Phir_tol', 1e-9, 'retry_limit', 50, ...
-      'normalize', false, 'n_max', 5000, 'rng_seed', 0);
-  end
   % Variable zum Speichern der Gelenkpositionen (für Kollisionserkennung)
   JPE = NaN(size(Traj_0.XE,1), R.NL*3);
 else % PKM
@@ -148,13 +152,6 @@ else % PKM
   nPhi = R.I2constr_red(end);
   Phi_E = NaN(size(Traj_0.XE,1), nPhi);
   QE = NaN(size(Traj_0.XE,1), R.NJ);
-  if Set.task.profile ~= 0 % Normale Trajektorie mit stetigem Zeitverlauf
-    s = struct('Phit_tol', 1e-4, 'Phir_tol', 1e-3, 'retry_limit', 20, ...
-      'normalize', false, 'rng_seed', 0);
-  else % Nur Eckpunkte
-    s = struct('Phit_tol', 1e-9, 'Phir_tol', 1e-9, 'retry_limit', 50, ...
-      'normalize', false, 'n_max', 5000, 'rng_seed', 0);
-  end
   % Abbruch der IK-Berechnung, wenn eine Beinkette nicht erfolgreich war.
   % Dadurch wesentlich schnellerer Durchlauf der PKM-IK
   s_par = struct('abort_firstlegerror', true);
@@ -229,9 +226,6 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   for i = 1:size(Traj_0.XE,1)
     if Set.task.profile ~= 0 % Trajektorie wird in cds_constraints_traj berechnet
       if i == 1 % erster berechneter Wert und Startpunkt der Trajektorie
-        % Setze die Toleranz für diesen Punkt wieder herunter. Der Startpunkt
-        % der Trajektorie muss exakt bestimmt werden
-        s.Phit_tol = 1e-9; s.Phir_tol = 1e-9;
       elseif i == 2 % zweiter berechneter Wert
         % Annahme: Weniger Neuversuch der IK. Wenn die Gelenkwinkel zufällig neu
         % gewählt werden, springt die Konfiguration voraussichtlich. Dann ist
@@ -239,7 +233,6 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         % Null gewählt werden, da die Einzelpunkt-IK nicht immer gut kon-
         % vergiert. Bei 0 werden teilweise funktionierende Roboter wieder verworfen.
         s.retry_limit = 15;
-        s.Phit_tol = 1e-3; s.Phir_tol = 1e-3;
       end
     end
     if i_ar == 1 % IK ohne Optimierung von Nebenbedingungen
