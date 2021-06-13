@@ -162,9 +162,14 @@ fval_jic = NaN(1,n_jic);
 constrvioltext_jic = cell(n_jic,1);
 Q_jic = NaN(size(Traj_0.XE,1), R.NJ, n_jic);
 q0_jic = NaN(R.NJ, n_jic); % zum späteren Nachvollziehen des Ergebnisses
+JP_jic = NaN(n_jic, size(JPE,2)); % zum späteren Prüfen der IK-Konfigurationen und deren Auswirkungen
 % Wenn Grenzen auf unendlich gesetzt sind, wähle -pi bis pi für Startwert
 qlim_norm = qlim;
 qlim_norm(isinf(qlim_norm)) = sign(qlim_norm(isinf(qlim_norm)))*pi;
+% Nehme für Drehgelenke nicht die Grenzen aus qlim für Anfangswert, da
+% diese für die Position eine Spannweite angeben und keine absoluten
+% Winkel. Wähle komplett zufällige Winkel als Referenz für den Start
+qlim_norm(R.MDH.sigma==0,:) = repmat([-pi, +pi], sum(R.MDH.sigma==0),1);
 qlim_range = qlim(:,2)-qlim(:,1);
 qlim_range_norm = qlim_range;
 qlim_range_norm(isinf(qlim_range)) = 2*pi;
@@ -175,17 +180,18 @@ if task_red
 else
   ar_loop = 1; % Keine Aufgabenredundanz. Nichts zu berechnen.
 end
+% Bestimme zufällige Anfangswerte für Gelenkkonfigurationen mit Latin
+% Hypercube Sampling. Unklar, ob besser als rand-Methode. Bei Misserfolg
+% wird in IK sowieso nochmal rand gemacht.
+Q0_lhs = repmat(qlim_norm(:,1), 1, n_jic) + ...
+  lhsdesign(R.NJ,n_jic) .* repmat(qlim_norm(:,2)-qlim_norm(:,1), 1, n_jic);
 for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   Phi_E(:) = NaN; QE(:) = NaN; % erneut initialisieren wegen jic-Schleife.
   if jic == 1 && all(~isnan(qref)) && any(qref~=0) % nehme Referenz-Pose (kann erfolgreiche gespeicherte Pose bei erneutem Aufruf enthalten)
     q0 = qref; % Wenn hier nur Nullen stehen, werden diese ignoriert.
   else
     % Zufällige Anfangswerte geben vielleicht neue Konfiguration.
-    q0 = qlim_norm(:,1) + rand(R.NJ,1).*(qlim_norm(:,2)-qlim_norm(:,1));
-    % Nehme nicht die Grenzen aus qlim für Anfangswert, da diese für die 
-    % Position eine Spannweite angeben und keine absoluten Winkel. Wähle
-    % komplett zufällige Winkel als Referenz für den Start
-    q0(R.MDH.sigma==0) = -pi + rand(sum(R.MDH.sigma==0),1).*2*pi;
+    q0 = Q0_lhs(:,jic);
   end
   q0_jic(:,jic) = q0;
   % Anpassung der IK-Anfangswerte für diesen Durchlauf der IK-Konfigurationen.
@@ -196,11 +202,11 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     break;
   end
 
-  if jic > 10 && jic < 20
-    % Setze die Anfangswerte (für Schubgelene) ganz weit nach "links"
+  if jic > n_jic/3 && jic < 2*n_jic/3 % zwischen ein Drittel und zwei Drittel der Versuche
+    % Setze die Anfangswerte (für Schubgelenke) ganz weit nach "links"
     q0(R.MDH.sigma==1) = q0(R.MDH.sigma==1) - 0.5*rand(1)*...
       (qlim_norm(R.MDH.sigma==1,2)-qlim_norm(R.MDH.sigma==1,1));
-  elseif jic > 21
+  elseif jic >= 2*n_jic/3 % Letztes Drittel der Versuche
     % Anfangswerte weit nach rechts
     q0(R.MDH.sigma==1) = q0(R.MDH.sigma==1) + 0.5*rand(1)*...
       (qlim_norm(R.MDH.sigma==1,2)-qlim_norm(R.MDH.sigma==1,1));
@@ -208,10 +214,6 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   % Normalisiere den Anfangswert (außerhalb [-pi,pi) nicht sinnvoll).
   % (Betrifft nur Fall, falls Winkelgrenzen groß gewählt sind)
   q0(R.MDH.sigma==0) = normalize_angle(q0(R.MDH.sigma==0));
-  % Setze bei PKM die Anfangswerte für alle Beinketten identisch
-  if R.Type == 2
-    q0(R.I1J_LEG(2):end) = NaN; % Dadurch in invkin_ser Werte der ersten Beinkette genommen
-  end
 
   % Berechne die Inverse Kinematik. Im Fall von Aufgabenredundanz
   % IK-Aufruf und Nebenbedingung zweimal testen: Einmal mit normaler IK
@@ -461,6 +463,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   if isinf(fval_jic(jic)), continue; end % Aufhören bei Duplikat.
   QE(isnan(QE)) = 0;
   Q_jic(:,:,jic) = QE;
+  JP_jic(jic,:) = JPE(1,:);
   Phi_E(isnan(Phi_E)) = 1e6;
   if any(abs(Phi_E(:)) > 1e-2) || ... % Die Toleranz beim IK-Verfahren ist etwas größer
       any(abs(Phi_E(1,:))>1e-9) % Startpunkt für Traj. Hat feine Toleranz, sonst missverständliche Ergebnisse
@@ -561,6 +564,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     % durchgeführt und die Ergebnisse weiter unten genutzt.
     [fval_coll_tmp, fval_instspc_tmp] = cds_desopt_prismaticoffset(R, ...
       Traj_0.XE, Set, Structure, JPE, QE);
+    cds_log(4, sprintf(['[constraints] Schubgelenk-Offset wurde optimiert. Ergebnis: ', ...
+      '%1.1fmm (Start-Konfig. %d)'], ...
+      1e3*R.Leg(1).DesPar.joint_offset(R.Leg(1).MDH.sigma==1), jic));
     % Kollisionskörper müssen nochmal aktualisiert werden (wegen Offset)
     [Structure.collbodies_robot, Structure.installspace_collbodies] = ...
       cds_update_collbodies(R, Set, Structure, QE);
@@ -627,15 +633,14 @@ else % Gebe alle gültigen Lösungen aus
   if size(Q0_unique,1) ~= size(Q0,1)
     cds_log(-1, sprintf('Doppelte Konfigurationen als Ergebnis. Darf nicht sein'));
   end
-  % Falls der Roboter Schubgelenke hat, dominiert die Stellung der
-  % Schubgelenke die Eigenschaften durch die IK-Konfiguration. Nehme nur
-  % bezüglich der Schubgelenke unterschiedliche Konfigurationen. Sonst ist
-  % der Rechenaufwand zu hoch. TODO: Feinere Unterscheidung für 3T3R-PKM
-  if any(R.MDH.sigma==1)
-    [~,I,~] = unique(round(Q0(:,R.MDH.sigma==1),5), 'rows', 'first');
-    Q0 = Q0(I,:);
-    I_iO = I_iO(I); % Entferne Indizes, die sich auf doppelte Schubgelenk-Konfig. beziehen
-  end
+
+  % Prüfe, welche der IK-Konfigurationen andere Gelenk-Positionen zur Folge haben. Nur diese werden genommen.
+  [~,I,~] = unique(round(JP_jic(I_iO,:),5), 'rows', 'first');
+  % Reduziere die Ergebnisse. Damit werden IK-Konfigurationen verworfen,
+  % die nur rechnerisch eine andere Koordinate haben, aber kein Umklappen
+  % darstellen
+  Q0 = Q0(I,:);
+  I_iO = I_iO(I);  
   % Ausgabe der IK-Werte für alle Eckpunkte. Im weiteren Verlauf der
   % Optimierung benötigt, falls keine Trajektorie berechnet wird.
   QE_all = Q_jic(:,:,I_iO);

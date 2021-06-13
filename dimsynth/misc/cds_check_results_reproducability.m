@@ -29,7 +29,7 @@ if ~exist(setfile, 'file')
 end
 d3 = load(setfile, 'Set', 'Structures', 'Traj');
 Structures = d3.Structures;
-Set = d3.Set;
+Set = cds_settings_update(d3.Set);
 Traj = d3.Traj;
 
 Structures_Names = cell(1,length(Structures));
@@ -113,6 +113,7 @@ for i = 1:length(RobNames)
       Structure_jj.calc_spring_reg = false;
       Structure_jj.calc_dyn_reg = false;
     end
+    % TODO: Berücksichtige Structure_jj.q0_traj, falls nicht reproduzierbar.
     [k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, f_jj);
     fprintf('Reproduktion Partikel Nr. %d (Gen. %d, Ind. %d): ', jj, k_gen, k_ind);
     f2_jj = cds_fitness(R,Set,Traj,Structure_jj,p_jj,p_desopt_jj);

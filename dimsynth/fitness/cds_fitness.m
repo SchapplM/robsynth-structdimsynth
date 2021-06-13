@@ -117,6 +117,28 @@ Traj_0 = cds_transform_traj(R, Traj_W);
 
 %% Nebenbedingungen prüfen (für Eckpunkte)
 [fval_constr,QE_iIKC, Q0, constrvioltext] = cds_constraints(R, Traj_0, Set, Structure);
+% Füge weitere Anfangswerte für die Trajektorien-IK hinzu. Diese werden
+% zusätzlich vorgegeben (bspw. aus vorherigem Ergebnis, das reproduziert
+% werden muss). Wird genutzt, falls aus numerischen Gründen die Einzelpunkt-
+% IK nicht mehr reproduzierbar ist (z.B. durch Code-Änderung)
+if all(~isnan(Structure.q0_traj))
+  % Prüfe, ob diese vorgegebene Werte auch von alleine gefunden wurden.
+  if ~any(all(abs(Q0-repmat(Structure.q0_traj',size(Q0,1),1))<1e-6,2))
+    cds_log(-1,sprintf(['[fitness] Vorgegebene Werte aus q0_traj wurden nicht ', ...
+      'in den %d IK-Konfigurationen gefunden.'], size(Q0,1)));
+    % Damit wird die Traj.-IK immer geprüft, auch wenn die Einzelpunkt-IK
+    % nicht erfolgreich gewesen sein sollte
+    fval_constr = 1e3;
+    Q0 = [Q0; Structure.q0_traj'];
+    % Erzeuge Platzhalter-Werte für spätere Rechnungen
+    QE_iIKC(:,:,size(QE_iIKC,3)+1) = repmat(Structure.q0_traj', size(QE_iIKC,1), 1);
+  elseif fval_constr > 1e3
+    cds_log(-1,sprintf(['[fitness] Vorgegebene Werte aus q0_traj erzeugen ', ...
+      'unzulässige Lösung in Positions-IK. Benutze trotzdem.']));
+    fval_constr = 1e3;
+  end
+end
+
 % Entwurfsparameter speichern (falls hiernach direkt Abbruch)
 if Structure.desopt_prismaticoffset % siehe cds_desopt_prismaticoffset.m
   if Structure.Type == 0
@@ -142,12 +164,12 @@ if fval_constr > 1000 % Nebenbedingungen verletzt.
   Q = QE_iIKC;
   
   % Speichere Gelenk-Grenzen. Damit sieht eine hieraus erstellte 3D-Bilder
-  % besser aus, weil die Schubgelenk-Führungsschienen ungefähr stimmen
+  % besser aus, weil die Schubgelenk-Führungsschienen ungefähr stimmen.
   if R.Type == 0 % Seriell
-    R.qlim(R.MDH.sigma==1,:) = minmax2(QE_iIKC(:,R.MDH.sigma==1)');
+    R.qlim(R.MDH.sigma==1,:) = minmax2(QE_iIKC(:,R.MDH.sigma==1,1)');
   else % PKM
     for i = 1:R.NLEG
-      Q_i = QE_iIKC(:,R.I1J_LEG(i):R.I2J_LEG(i));
+      Q_i = QE_iIKC(:,R.I1J_LEG(i):R.I2J_LEG(i),1);
       R.Leg(i).qlim(R.Leg(i).MDH.sigma==1,:) = minmax2(Q_i(:,R.Leg(i).MDH.sigma==1)');
     end
   end
@@ -649,6 +671,21 @@ else % PKM
   for i = 1:R.NLEG
     Q_i = Q_IKC(:,R.I1J_LEG(i):R.I2J_LEG(i), iIKCbest);
     R.Leg(i).qlim = minmax2(Q_i') + 1e-6*repmat([-1, 1], R.Leg(i).NJ,1);
+  end
+end
+% Trage Parameter der Entwurfsoptimierung neu in Klasse ein. Falls der
+% letzte Aufruf von constraints_traj nicht der beste war, ist sonst der
+% falsche Wert gespeichert. Ist hilfreich, wenn die Fitness-Funktion
+% aufgerufen wird, um die Parameter des Roboters zu aktualisieren. Für Maß-
+% synthese selbst nicht unbedingt notwendig.
+if Structure.desopt_prismaticoffset
+  p_prismaticoffset = desopt_pval(Structure.desopt_ptypes==1);
+  if Structure.Type == 0
+    R.DesPar.joint_offset(R.MDH.sigma==1) = p_prismaticoffset;
+  else
+    for k = 1:R.NLEG
+      R.Leg(k).DesPar.joint_offset(R.Leg(k).MDH.sigma==1) = p_prismaticoffset;
+    end
   end
 end
 

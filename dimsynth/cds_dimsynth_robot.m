@@ -159,7 +159,8 @@ if Structure.Type == 0 % Seriell
 else % Parallel
   R.update_EE_FG(R.I_EE, Set.task.DoF);
 end
-
+% Platzhalter für Vorgabe der Traj-IK-Anfangswerte
+Structure.q0_traj = NaN(R.NJ, 1);
 for i = 1:NLEG
   if Structure.Type == 0
     R_init = R;
