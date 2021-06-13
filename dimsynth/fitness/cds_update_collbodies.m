@@ -179,9 +179,9 @@ for k = 1:NLEG
       isidx = isidx + 2;
     end
   end
-  % Trage in PKM-weite Variable ein
-  collbodies_robot.link = [collbodies_robot.link; [R_cc.collbodies.link+...
-    NLoffset,Structure.MDH_ante_collcheck(1+R_cc.collbodies.link+NLoffset)]];
+  % Trage in PKM-weite Variable ein (oder für Seriell-Roboter)
+  collbodies_robot.link = [collbodies_robot.link; ...
+    R_cc.collbodies.link(:,1:2)+NLoffset];
   collbodies_robot.type = [collbodies_robot.type; collbodies_type_mod];
   collbodies_robot.params = [collbodies_robot.params; collbodies_params_mod];
   % Überspringe die Indizes der Bauraum-Kollisionsobjekte für die Gelenke
@@ -191,6 +191,7 @@ for k = 1:NLEG
 end
 % Erzeuge Kollisionsobjekte für Gestell und Plattform einer PKM
 if Structure.Type ~= 0 % PKM
+  cbbpidx1 = size(collbodies_robot.link,1)+1;
   % Indizes der jeweiligen vorherigen benachbarten Beinkette
   I1 = (1:NLEG)'; I2 = [NLEG, 1:NLEG-1]';
   % Kollisionsobjekte für das Gestell
@@ -219,19 +220,27 @@ if Structure.Type ~= 0 % PKM
   collbodies_robot.type = [collbodies_robot.type; repmat(uint8(6),NLEG,1)];
   collbodies_robot.params = [collbodies_robot.params; ...
     [repmat(10e-3, NLEG, 1), NaN(NLEG, 9)]];
+  cbbpidx2 = size(collbodies_robot.link,1);
+  % Eintragen in Klassen-Variable
+  R.collbodies_nonleg =struct( ...
+    'link',   collbodies_robot.link(cbbpidx1:cbbpidx2,:), ...
+    'type',   collbodies_robot.type(cbbpidx1:cbbpidx2,:), ...
+    'params', collbodies_robot.params(cbbpidx1:cbbpidx2,:));
+  R.update_collbodies();
 end
 
 % Ausgabe der aktualisierten Liste der Bauraum-Kollisionsprüfungen
 if update_installspcbodies
   Structure.installspace_collbodies = collbodies_instspc;
 end
-
+return
+Q(isinf(Q)) = 0; %#ok<UNRCH> % Grenzen können inf sein bei Drehgelenken
 %% Debug: Bauraum-Ersatzpunkte zeichnen
 % Hiermit kann geprüft werden, ob die Punkt-Transformation korrekt ist.
 % Die Führungsschienen sind im Plot länger, da sie aus qlim bestimmt werden
 % und nicht aus minmax(q).
 if false
-  change_current_figure(2302); clf; hold all %#ok<UNRCH>
+  change_current_figure(2302); clf; hold all
   view(3); axis auto; grid on;
   xlabel('x in m');ylabel('y in m');zlabel('z in m');
   if R.Type == 0 % Seriell
@@ -248,5 +257,21 @@ if false
       p_W = R.T_W_0 * [p_0;1];
       plot3(p_W(1), p_W(2), p_W(3), 'mx', 'MarkerSize', 20);
     end
+  end
+end
+
+%% Debug: Roboter mit Kollisionskörpern zeichnen
+% Benutze dafür die Klassenvariable. Die Variablen dort werden für die
+% Kollisionsvermeidung mit der IK benutzt.
+if false
+  change_current_figure(2303); clf; hold all %#ok<UNRCH>
+  view(3); axis auto; grid on;
+  xlabel('x in m');ylabel('y in m');zlabel('z in m');
+  if R.Type == 0 % Seriell
+    s_plot = struct( 'ks', 1:R.NJ+2, 'straight', 1, 'mode', 5);
+    R.plot( Q(1,:)', s_plot);
+  else % PKM
+    s_plot = struct( 'ks_legs', [], 'ks_platform', [], 'straight', 1, 'mode', 5);
+    R.plot( Q(1,:)', NaN(6,1), s_plot);
   end
 end

@@ -750,11 +750,12 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     ~isempty(Set.task.installspace.type) || ...
     ~isnan(Set.optimization.base_size_limits(2)) && any(Structure.I_firstprismatic)
   % Lege die Starrkörper-Indizes fest, für die Kollisionen geprüft werden
-  selfcollchecks_bodies = [];
+  selfcollchecks_bodies = uint8(zeros(0,2));
   % Prüfe Selbstkollisionen einer kinematischen Kette.
   for k = 1:NLEG
     % Erneute Initialisierung (sonst eventuell doppelte Eintragungen)
-    collbodies = struct('link', [], 'type', [], 'params', []); % Liste für Beinkette
+    collbodies = struct('link', uint8([]), 'type', uint8(zeros(0,2)), ...
+      'params', zeros(0,10)); % Liste für Beinkette
     if Structure.Type == 0  % Seriell 
       NLoffset = 0;
       R_cc = R;
@@ -811,7 +812,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       end
       collbodies.params = [collbodies.params; cbi_par, NaN(1,3)];
       % Führungsschiene/Führungszylinder ist vorherigem Segment zugeordnet
-      collbodies.link = [collbodies.link; uint8(i-1)];
+      collbodies.link = [collbodies.link; [uint8(i-1), uint8(i-1)]];
     end
     
     % Erzeuge Ersatzkörper für die kinematische Kette (aus Gelenk-Trafo)
@@ -819,7 +820,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       if R_cc.MDH.a(i) ~= 0 || R_cc.MDH.d(i) ~= 0 || R_cc.MDH.sigma(i) == 1
         % Es gibt eine Verschiebung in der Koordinatentransformation i
         % Definiere einen Ersatzkörper dafür
-        collbodies.link =   [collbodies.link; uint8(i)];
+        collbodies.link =   [collbodies.link; [uint8(i),uint8(i-1)]];
         collbodies.type =   [collbodies.type; uint8(6)]; % Kapsel, direkte Verbindung
         % Wähle Kapseln mit Radius 20mm. R.DesPar.seg_par ist noch nicht belegt
         % (passiert erst in Entwurfsoptimierung).
@@ -836,7 +837,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       % Der Vorgänger bezieht sich auf den Kollisionskörper, nicht auf
       % die Nummer des Starrkörpers. Ansonsten würden zwei durch Kugel-
       % oder Kardan-Gelenk verbundene Körper in Kollision stehen.
-      j_hascollbody = collbodies.link(collbodies.link<i)';
+      j_hascollbody = collbodies.link(collbodies.link(:,1)<i,1)';
       % Sonderfall Portal-System: Abstand zwischen Kollisionskörpern noch
       % um eins vergrößern. TODO: Ist so noch nicht allgemeingültig.
       % Dadurch wird die Kollisionsprüfung effektiv deaktiviert.
@@ -867,7 +868,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         % fprintf('Kollisionsprüfung (%d): Beinkette %d Seg. %d Seg. %d. Zeile [%d,%d]\n', ...
         %   size(selfcollchecks_bodies,1), k, i, j, selfcollchecks_bodies(end,1), selfcollchecks_bodies(end,2));
       end
-    end
+    end % i-loop (NJ)
   end % k-loop (NLEG)
   % Vorgänger-Indizes für Segmente für die Kollisionsprüfung abspeichern.
   % Unterscheidet sich von normaler MDH-Notation dadurch, dass alle
@@ -884,15 +885,18 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       v(R.I1J_LEG(k)+k:R.I2J_LEG(k)+k+1) = [0; NLoffset+R.Leg(k).MDH.v];
     end
   end
-  Structure.MDH_ante_collcheck = v;
+  Structure.MDH_ante_collcheck = v; % wird nicht mehr benötigt.
   
   % Roboter-Kollisionsobjekte in Struktur abspeichern (zum Abruf in den
   % Funktionen cds_constr_collisions_... und cds_constr_installspace
   % Ist erstmal nur Platzhalter. Wird zur Laufzeit noch aktualisiert.
   Structure.collbodies_robot = cds_update_collbodies(R, Set, Structure, Structure.qlim');
-  % Probe: Sind Daten konsistent? Inkonsistenz durch obigem Aufruf möglich.
+  % Probe: Sind Daten konsistent? Inkonsistenz durch obigen Aufruf möglich.
   if any(any(~isnan(Structure.collbodies_robot.params(Structure.collbodies_robot.type==6,2:end))))
     error('Inkonsistente Kollisionsdaten: Kapsel-Direktverbindung hat zu viele Parameter');
+  end
+  if size(Structure.collbodies_robot.link,2)~=2
+    error('Structure.collbodies_robot.link muss 2 Spalten haben');
   end
   
   % Starrkörper-Kollisionsprüfung für PKM erweitern
@@ -913,8 +917,8 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         else,     NLoffset_i = 1; end
         % Alle Segmente von Beinkette k können mit allen von Kette j
         % kollidieren
-        for cb_k = R.Leg(k).collbodies.link'
-          for cb_i = R.Leg(i).collbodies.link'
+        for cb_k = R.Leg(k).collbodies.link(:,1)'
+          for cb_i = R.Leg(i).collbodies.link(:,1)'
             selfcollchecks_bodies = [selfcollchecks_bodies; ...
               uint8([NLoffset_k+cb_k, NLoffset_i+cb_i])]; %#ok<AGROW>
             % fprintf(['Kollisionsprüfung (%d): Bein %d Seg. %d vs Bein %d Seg. %d. ', ...
@@ -931,7 +935,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       % Prüfe keine Kollision des ersten Kollisionskörpers, da dieser
       % Körper direkt nach dem Gestell kommt. Annahme. Kollision
       % konstruktiv vermeidbar
-      for cb_k = R.Leg(k).collbodies.link(2:end)'
+      for cb_k = R.Leg(k).collbodies.link(2:end,1)'
         if isempty(cb_k), continue; end % passiert, falls nur ein Körper in Beinkette
         % Kollision mit Kollisionskörpern fest bezüglich PKM-Basis
         selfcollchecks_bodies = [selfcollchecks_bodies; ...
@@ -1004,7 +1008,12 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     error(['Ungültige Kollisionskörper. Maximaler Index %d in Structure.', ...
       'collbodies_robot.link überschritten'], Nmax);
   end
-  
+  assert(size(Structure.collbodies_robot.link,2)==2, ['collbodies_robot.link ', ...
+    'muss 2 Spalten haben']);
+  assert(size(Structure.collbodies_robot.params,2)==10, ['collbodies_robot.params ', ...
+    'muss 10 Spalten haben']);
+  assert(size(Structure.collbodies_robot.type,2)==1, ['collbodies_robot.type ', ...
+    'muss 1 Spalte haben']);
   if isempty(selfcollchecks_bodies)
     cds_log(-1, sprintf(['[dimsynth] Es sind keine Kollisionskörpern eingetragen, ', ...
       'obwohl Kollisionen geprüft werden sollen.']));
@@ -1109,6 +1118,10 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     Structure.selfcollchecks_collbodies = ...
       uint8([Structure.selfcollchecks_collbodies; CheckCombinations]);
   end
+  % Eintragen in Roboter-Klasse
+  R.collchecks = Structure.selfcollchecks_collbodies;
+  assert(max(R.collchecks(:))<=size(R.collbodies.link,1), ['Matlab-Klasse muss ', ...
+    'gleiche Anzahl in collchecks und collbodies haben']);
   % Debug: Liste der Kollisionsprüfungen anzeigen
   if false
     fprintf('Liste der Kollisionsprüfungen (der Kollisionskörper):\n');   %#ok<UNRCH>
