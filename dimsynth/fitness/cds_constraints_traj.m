@@ -49,7 +49,7 @@
 
 function [fval,Q,QD,QDD,Jinv_ges,constrvioltext] = cds_constraints_traj(R, Traj_0, q, Set, Structure)
 fval = 1e3;
-constrvioltext = '';
+constrvioltext = 'i.O.';
 Q_alt = [];
 QD_alt = [];
 QDD_alt = [];
@@ -60,7 +60,7 @@ fval_ar = NaN(1,2);
 task_red = R.Type == 0 && sum(R.I_EE_Task) < R.NJ || ... % Seriell: Redundant wenn mehr Gelenke als Aufgaben-FG
            R.Type == 2 && sum(R.I_EE_Task) < sum(R.I_EE); % Parallel: Redundant wenn mehr Plattform-FG als Aufgaben-FG
 if task_red
-  ar_loop = 1:3; % Aufgabenredundanz liegt vor. Zusätzliche Schleife
+  ar_loop = 1:3; % Aufgabenredundanz liegt vor. Zusätzliche Schleife. Dritte Schleife ist nur zur Prüfung.
 else
   ar_loop = 1; % Keine Aufgabenredundanz. Nichts zu berechnen.
 end
@@ -77,24 +77,147 @@ s = struct( ...
   'normalize', false, ... 
   'n_max', 1000, ... % moderate Anzahl Iterationen
   'Phit_tol', 1e-10, 'Phir_tol', 1e-10);
+if R.Type == 0 % Seriell
+  s.wn = zeros(10,1);
+else % PKM
+  s.wn = zeros(12,1);
+end
 % Zusätzliche Optimierung für Aufgabenredundanz.
+% TODO: Die Reglereinstellungen sind noch nicht systematisch ermittelt.
 if i_ar == 1 % erster Durchlauf ohne zusätzliche Optimierung (nimmt minimale Geschwindigkeit)
-  s.wn = [0;0;0;0;0]; % Dadurch auch keine Nullraumbewegung für Gelenkgrenzen o.ä.
-elseif i_ar > 1 && fval > 7e3 && fval < 9e3
+  % Dadurch auch keine Nullraumbewegung für Gelenkgrenzen o.ä.
+elseif i_ar == 2 && fval > 5e4
+  % Vorher nicht lösbar. Versuche nicht, noch weiter zu optimieren.
+  % Mit Glück ist vielleicht eine bessere Konfiguration zu finden. Kostet
+  % aber eher zu viel Rechenzeit
+  return;
+elseif i_ar == 2 && fval > 7e3 && fval < 9e3
   % Positionsgrenzen wurden verletzt. Besonders in Nebenbedingungen
   % berücksichtigen
-  s.wn = [0.99;0.01;0;0;0];
-elseif i_ar > 1 && fval > 6e3 && fval < 7e3
-  % Geschwindigkeit wurde verletzt. Dies in NB berücksichtigen.
-  s.wn = [0;0;1;0;0];
+  if R.Type == 0 % Seriell
+    s.wn(1) = 0.99; % P-Anteil quadratische Grenzen
+    s.wn(2) = 0.01; % P-Anteil hyperbolische Grenzen
+    s.wn(6) = 0.1; % D-Anteil quadratische Grenzen (Dämpfung)
+  else % PKM
+    s.wn(1) = 0.99; % P-Anteil quadratische Grenzen
+    s.wn(2) = 0.01; % P-Anteil hyperbolische Grenzen
+    s.wn(7) = 0.1; % D-Anteil quadratische Grenzen (Dämpfung)
+  end
+elseif i_ar == 2 && fval > 6e3 && fval < 7e3
+  % Geschwindigkeit wurde verletzt. Wird in NB eigentlich schon automatisch
+  % berücksichtigt. Eine weitere Reduktion ist nicht möglich.
+  return
+  if R.Type == 0 %#ok<UNRCH> % Seriell
+    s.wn(6) = 1; % D-Anteil quadratische Grenzen (Dämpfung)
+  else% PKM
+    s.wn(7) = 1; % D-Anteil quadratische Grenzen (Dämpfung)
+  end
+elseif i_ar == 2 && fval > 3e3 && fval < 4e3
+  % Selbstkollision trat auf. Kollisionsvermeidung als Nebenbedingung
+  if R.Type == 0 % Seriell
+    s.wn(6) = 1; % D-Anteil quadratische Grenzen (Dämpfung, gegen Schwingungen)
+    s.wn(9) = 1; % P-Anteil Kollisionsvermeidung
+    s.wn(10) = 0.1; % D-Anteil Kollisionsvermeidung
+  else % PKM
+    s.wn(7) = 1; % D-Anteil quadratische Grenzen (Dämpfung, gegen Schwingungen)
+    s.wn(11) = 0.1; % P-Anteil Kollisionsvermeidung
+    s.wn(12) = 0.01; % D-Anteil Kollisionsvermeidung
+  end
 else
   % Verbessere die Konditionszahl und die Geschwindigkeit
-  s.wn = [0;0;1;0;1];
+  if R.Type == 0 % Seriell
+    s.wn(5) = 1; % P-Anteil Konditionszahl (Aufgaben-Jacobi)
+    s.wn(8) = 0.2; % D-Anteil Konditionszahl (Aufgaben-Jacobi)
+  else % PKM
+    s.wn(6) = 1; % P-Anteil Konditionszahl (PKM-Jacobi)
+    s.wn(10) = 0.1; % D-Anteil Konditionszahl (PKM-Jacobi)
+  end
 end
 if i_ar == 3
   if fval_ar(1) < fval_ar(2)
     cds_log(-1, sprintf(['Ergebnis der Traj.-IK hat sich nach Nullraum', ...
-      'bewegung verschlechtert']));
+      'bewegung verschlechtert: %1.2e -> %1.2e (%s -> %s)'], fval_ar(1), ...
+      fval_ar(2), constrvioltext_alt, constrvioltext));
+    % Anmerkung: Das muss nicht unbedingt ein Fehler sein. Das Verletzen
+    % der Geschwindigkeitsgrenzen kann eine Konsequenz sein? Darf
+    % eigentlich aber doch nicht sein... Grenzen werden ja versucht
+    % einzuhalten
+    % Debug: Vergleiche vorher-nachher.
+    if false
+      RP = ['R', 'P'];
+      change_current_figure(3009);clf;
+      for i = 1:R.NJ
+        if R.Type ~= 0
+          legnum = find(i>=R.I1J_LEG, 1, 'last');
+          legjointnum = i-(R.I1J_LEG(legnum)-1);
+        end
+        subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
+        hold on; grid on;
+        plot(Traj_0.t, Q_alt(:,i), '-');
+        plot(Traj_0.t, Q(:,i), '-');
+        plot(Traj_0.t([1,end]), repmat(Structure.qlim(i,:),2,1), 'r-');
+        ylim(minmax2([Q(:,i);Q(:,i);Q_alt(:,i);Q_alt(:,i)]'));
+        if R.Type == 0
+          title(sprintf('q %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+        else
+          title(sprintf('q %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+        end
+      end
+      linkxaxes
+      sgtitle('Gelenkpositionen (vor/nach AR)');
+      legend({'ohne AR opt.' 'mit Opt.'});
+      change_current_figure(3010);clf;
+      for i = 1:R.NJ
+        if R.Type ~= 0
+          legnum = find(i>=R.I1J_LEG, 1, 'last');
+          legjointnum = i-(R.I1J_LEG(legnum)-1);
+        end
+        subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
+        hold on; grid on;
+        plot(Traj_0.t, QD_alt(:,i), '-');
+        plot(Traj_0.t, QD(:,i), '-');
+        plot(Traj_0.t([1,end]), repmat(Structure.qDlim(i,:),2,1), 'r-');
+        ylim(minmax2([QD(:,i);QD(:,i);QD_alt(:,i);QD_alt(:,i)]'));
+        if R.Type == 0
+          title(sprintf('qD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+        else
+          title(sprintf('qD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+        end
+      end
+      linkxaxes
+      sgtitle('Gelenkgeschwindigkeiten (vor/nach AR)');
+      legend({'ohne AR opt.' 'mit Opt.'});
+      change_current_figure(3011);clf;
+      for i = 1:R.NJ
+        if R.Type ~= 0
+          legnum = find(i>=R.I1J_LEG, 1, 'last');
+          legjointnum = i-(R.I1J_LEG(legnum)-1);
+        end
+        subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
+        hold on; grid on;
+        plot(Traj_0.t, QDD_alt(:,i), '-');
+        plot(Traj_0.t, QDD(:,i), '-');
+        plot(Traj_0.t([1,end]), repmat(Structure.qDDlim(i,:),2,1), 'r-');
+        ylim(minmax2([QDD(:,i);QDD(:,i);QDD_alt(:,i);QDD_alt(:,i)]'));
+        if R.Type == 0
+          title(sprintf('qDD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+        else
+          title(sprintf('qDD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+        end
+      end
+      linkxaxes
+      sgtitle('Gelenkbeschleunigungen (vor/nach AR)');
+      legend({'ohne AR opt.' 'mit Opt.'});
+      change_current_figure(3012);clf;
+      for i = 1:6
+        subplot(2,3,i); hold on; grid on;
+        plot(Traj_0.t, Stats_alt.h(:,1+i), '-');
+        plot(Traj_0.t, Stats.h(:,1+i), '-');
+      end
+      linkxaxes
+      sgtitle('Zielkriterien (vor/nach AR)');
+      legend({'ohne AR opt.' 'mit Opt.'});
+    end
     Q = Q_alt;
     QD = QD_alt;
     QDD = QDD_alt;
@@ -108,19 +231,22 @@ if i_ar == 3
   end
   return
 end
-  
+if i_ar == 2
+  Q_alt = Q;
+  QD_alt = QD;
+  QDD_alt = QDD;
+  Stats_alt = Stats;
+  Jinv_ges_alt = Jinv_ges;
+end
 if R.Type == 0 % Seriell
   qlim = R.qlim;
-  [Q, QD, QDD, PHI, JP] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+  [Q, QD, QDD, PHI, JP, Stats] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
   Jinv_ges = NaN; % Platzhalter für gleichartige Funktionsaufrufe. Speicherung nicht sinnvoll für seriell.
 else % PKM
   qlim = cat(1,R.Leg(:).qlim);
-  [Q, QD, QDD, PHI, Jinv_ges, ~, JP] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+  [Q, QD, QDD, PHI, Jinv_ges, ~, JP, Stats] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
 end
-Q_alt = Q;
-QD_alt = QD;
-QDD_alt = QDD;
-Jinv_ges_alt = Jinv_ges;
+
 constrvioltext_alt = constrvioltext;
 % Anfangswerte nochmal neu speichern, damit der Anfangswert exakt der
 % Wert ist, der für die Neuberechnung gebraucht wird. Ansonsten ist die
