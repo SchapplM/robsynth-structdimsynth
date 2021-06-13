@@ -161,7 +161,6 @@ n_jic = 30;
 fval_jic = NaN(1,n_jic);
 constrvioltext_jic = cell(n_jic,1);
 Q_jic = NaN(size(Traj_0.XE,1), R.NJ, n_jic);
-q0_jic = NaN(R.NJ, n_jic); % zum späteren Nachvollziehen des Ergebnisses
 JP_jic = NaN(n_jic, size(JPE,2)); % zum späteren Prüfen der IK-Konfigurationen und deren Auswirkungen
 % Wenn Grenzen auf unendlich gesetzt sind, wähle -pi bis pi für Startwert
 qlim_norm = qlim;
@@ -193,7 +192,6 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     % Zufällige Anfangswerte geben vielleicht neue Konfiguration.
     q0 = Q0_lhs(:,jic);
   end
-  q0_jic(:,jic) = q0;
   % Anpassung der IK-Anfangswerte für diesen Durchlauf der IK-Konfigurationen.
   % Versuche damit eine andere Konfiguration zu erzwingen
   if fval_jic(1) > 1e6
@@ -214,6 +212,11 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   % Normalisiere den Anfangswert (außerhalb [-pi,pi) nicht sinnvoll).
   % (Betrifft nur Fall, falls Winkelgrenzen groß gewählt sind)
   q0(R.MDH.sigma==0) = normalize_angle(q0(R.MDH.sigma==0));
+  % Übertrage in Variable für Menge mehrerer möglicher Anfangswerte.
+  % hiermit theoretisch auch mehrere Anfangswerte auf einmal vorgebbar.
+  % Wird benutzt, damit die Ergebnisse vorheriger Punkte ausprobiert
+  % werden können
+  Q0 = q0;
 
   % Berechne die Inverse Kinematik. Im Fall von Aufgabenredundanz
   % IK-Aufruf und Nebenbedingung zweimal testen: Einmal mit normaler IK
@@ -239,18 +242,18 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     end
     if i_ar == 1 % IK ohne Optimierung von Nebenbedingungen
       if R.Type == 0
-        [q, Phi, Tc_stack] = R.invkin2(R.x2tr(Traj_0.XE(i,:)'), q0, s);
+        [q, Phi, Tc_stack] = R.invkin2(R.x2tr(Traj_0.XE(i,:)'), Q0, s);
         nPhi_t = sum(R.I_EE_Task(1:3));
         ik_res_ik2 = all(abs(Phi(1:nPhi_t))<s.Phit_tol) && ...
                      all(abs(Phi(nPhi_t+1:end))<s.Phir_tol);
       else
-        q0(R.I1J_LEG(2):end) = NaN; % Für Beinkette 2 Ergebnis von BK 1 nehmen
-        [q, Phi, Tc_stack] = R.invkin2(Traj_0.XE(i,:)', q0, s, s_par); % kompilierter Aufruf
+        Q0(R.I1J_LEG(2):end,end) = NaN; % Für Beinkette 2 Ergebnis von BK 1 nehmen (dabei letzten Anfangswert für BK 2 und folgende verwerfen)
+        [q, Phi, Tc_stack] = R.invkin2(Traj_0.XE(i,:)', Q0, s, s_par); % kompilierter Aufruf
         ik_res_ik2 = (all(abs(Phi(R.I_constr_t_red))<s.Phit_tol) && ...
             all(abs(Phi(R.I_constr_r_red))<s.Phir_tol));% IK-Status Funktionsdatei
       end
       if R.Type == 2 && Set.general.debug_calc
-        [~, Phi_debug, ~] = R.invkin_ser(Traj_0.XE(i,:)', q0, s, s_par); % Klassenmethode
+        [~, Phi_debug, ~] = R.invkin_ser(Traj_0.XE(i,:)', Q0, s, s_par); % Klassenmethode
         ik_res_iks = (all(abs(Phi_debug(R.I_constr_t_red))<s.Phit_tol) && ... 
             all(abs(Phi_debug(R.I_constr_r_red))<s.Phir_tol)); % IK-Status Klassenmethode
         if ik_res_ik2 ~= ik_res_iks % Vergleiche IK-Status (Erfolg / kein Erfolg)
@@ -415,13 +418,14 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     % sehr stark. Dadurch wird die Gelenkspannweite sonst immer verletzt.
     q(R.MDH.sigma==0) = normalize_angle(q(R.MDH.sigma==0));
     Phi_E(i,:) = Phi;
-    if ~any(isnan(q))
-      q0 = q; % Annahme: Startwert für nächsten Eckwert nahe aktuellem Eckwert
-    end
     QE(i,:) = q;
     if any(abs(Phi(:)) > 1e-2) || any(isnan(Phi))
       break; % Breche Berechnung ab (zur Beschleunigung der Berechnung)
     end
+    % Probiere für den nächsten Punkt die Gelenkwinkel aller bisher
+    % berechneter Punkte aus. Dadurch wird eher die gleiche Konfiguration
+    % gefunden.
+    Q0 = QE(i:-1:1,:)';
     JPE(i,:) = Tc_stack(:,4); % Vierte Spalte ist Koordinatenursprung der Körper-KS
     if Set.general.debug_calc && R.Type == 2
       % Prüfe, ob die ausgegebenen Gelenk-Positionen auch stimmen
