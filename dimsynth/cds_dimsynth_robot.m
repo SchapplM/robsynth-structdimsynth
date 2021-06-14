@@ -1546,12 +1546,8 @@ end
 
 % Fitness-Funktion nochmal mit besten Parametern aufrufen. Dadurch werden
 % die Klassenvariablen (R.pkin, R.DesPar.seg_par, ...) aktualisiert
-if any(strcmp(Set.optimization.objective, 'valid_act'))
-  % Keine nochmalige Berechnung in diesem Fall sinnvoll
-  max_retry = 0;
-else
-  max_retry = min(1,Set.general.max_retry_bestfitness_reconstruction);
-end
+% Ein mal muss immer nochmal neu berechnet werden.
+max_retry = min(1,Set.general.max_retry_bestfitness_reconstruction);
 if max_retry > Set.optimization.NumIndividuals
   % Reduziere, damit Speicherung in virtueller Post-Final-Generation läuft.
   cds_log(-1, sprintf(['[dimsynth] Anzahl der Fitness-Neuversuche begrenzt ', ...
@@ -1687,8 +1683,10 @@ if R.Type ~= 0 && ~result_invalid % nur machen, wenn Traj.-IK erfolgreich
     X_i = R.fkineEE2_traj(Q(i,:))'; % Für 3T2R Neuberechnung von X notwendig
     [~,Jinv_x] = R.jacobi_qa_x(Q(i,:)', X_i); % Jacobi-Matrix
     Jinv_ges(i,:) = Jinv_x(:);
-    % Prüfe, ob differentieller Zusammenhang mit Jacobi-Matrix korrekt ist
-    test_xD_fromJ_abs =  Traj_0.XD(i,:)' - Jinv_x(R.I_qa,:) \ QD(i,R.I_qa)';
+    % Prüfe, ob differentieller Zusammenhang mit Jacobi-Matrix korrekt ist.
+    % Berücksichtigung von 2T1R vs 3T3R Plattform-Koordinaten
+    test_xD_fromJ_abs = zeros(6,1);
+    test_xD_fromJ_abs(R.I_EE) =  Traj_0.XD(i,R.I_EE)' - Jinv_x(R.I_qa,:) \ QD(i,R.I_qa)';
     if max(abs(test_xD_fromJ_abs(R.I_EE_Task))) > test_xD_fromJ_max
       test_xD_fromJ_max = max(abs(test_xD_fromJ_abs(R.I_EE_Task)));
       i_maxerr = i;

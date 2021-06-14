@@ -300,6 +300,16 @@ if any(I_ZBviol)
   grid on; ylabel('qDD (norm)');
   linkxaxes
 end
+
+%% Endeffektor-Bewegung neu für 3T2R-Roboter berechnen
+% Der letzte Euler-Winkel ist nicht definiert und kann beliebige Werte einnehmen.
+if all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
+  if R.Type == 0 % Seriell
+    [X2,XD2,XDD2] = R.fkineEE_traj(Q, QD, QDD);
+  else
+    [X2,XD2,XDD2] = R.fkineEE2_traj(Q, QD, QDD);
+  end
+end
 %% Singularität der Beinketten prüfen (für PKM)
 % Im Gegensatz zu cds_obj_condition wird hier die gesamte Beinkette
 % betrachtet. Entspricht Singularität der direkten Kinematik der Beinkette.
@@ -312,11 +322,19 @@ if R.Type == 2 % nur PKM; TODO: Auch für seriell prüfen?
       Jinv_kk = Jinv_jj(R.I1J_LEG(kk):R.I2J_LEG(kk),:);
       kappa_jjkk = cond(Jinv_kk);
       if Set.general.debug_calc
-        % Probe, ob es die Jinv richtig ist
-        qD_kk2 = Jinv_kk*Traj_0.XD(jj,R.I_EE)';
+        % Probe, ob Jinv richtig ist. Nehme die aktualisierte
+        % Plattform-Geschwindigkeit, falls 3T2R benutzt wird.
+        xD_jj = Traj_0.XD(jj,:)'; xD_jj(~R.I_EE_Task)=XD2(jj,~R.I_EE_Task);
+        qD_kk2 = Jinv_kk*xD_jj(R.I_EE);
         qD_kk1 = QD(jj,R.I1J_LEG(kk):R.I2J_LEG(kk))';
-        if any(abs(qD_kk1-qD_kk2) > 1e-8)
-          error('Neu berechnete Geschwindigkeit aus Beinketten-Jacobi-Matrix stimmt nicht');
+        diff_qD_abs = qD_kk1-qD_kk2;
+        diff_qD_rel = diff_qD_abs./qD_kk2;
+        if any(abs(diff_qD_abs) > 1e-8 & abs(diff_qD_rel) > 1e-3)
+          save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+            'cds_constraints_traj_sing_error_debug.mat'));
+          error(['Neu berechnete Geschwindigkeit aus Beinketten-Jacobi-Matrix ', ...
+            'stimmt nicht. Fehler: abs %1.3e, rel %1.3e'], ...
+            max(abs(diff_qD_abs)), max(abs(diff_qD_rel)));
         end
       end
       if kappa_jjkk > 1e4
@@ -429,14 +447,9 @@ if R.Type == 2 && Set.general.debug_calc % PKM; Rechne nochmal mit Klassenmethod
   end
 end
 
-%% Endeffektor-Bewegung neu für 3T2R-Roboter berechnen
-% der letzte Euler-Winkel ist nicht definiert und kann beliebige Werte einnehmen).
+%% Prüfe neue Endeffektor-Bewegung für 3T2R-Roboter
+% Die Neuberechnung erfolgt bereits weiter oben
 if all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
-  if R.Type == 0 % Seriell
-    [X2,XD2,XDD2] = R.fkineEE_traj(Q, QD, QDD);
-  else
-    [X2,XD2,XDD2] = R.fkineEE2_traj(Q, QD, QDD);
-  end
   % Teste nur die ersten fünf Einträge (sind vorgegeben). Der sechste
   % Wert wird an dieser Stelle erst berechnet und kann nicht verglichen werden.
   % Hier wird nur eine Hin- und Rückrechnung (InvKin/DirKin) gemacht. 
