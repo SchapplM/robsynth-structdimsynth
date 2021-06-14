@@ -1550,7 +1550,7 @@ if any(strcmp(Set.optimization.objective, 'valid_act'))
   % Keine nochmalige Berechnung in diesem Fall sinnvoll
   max_retry = 0;
 else
-  max_retry = Set.general.max_retry_bestfitness_reconstruction;
+  max_retry = min(1,Set.general.max_retry_bestfitness_reconstruction);
 end
 if max_retry > Set.optimization.NumIndividuals
   % Reduziere, damit Speicherung in virtueller Post-Final-Generation läuft.
@@ -1563,22 +1563,24 @@ end
 % Für Reproduktion Ergebnis der Entwurfsoptimierung laden.
 [k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, fval);
 desopt_pval = PSO_Detail_Data.desopt_pval(k_ind, :, k_gen)';
-
-for i = 1:max_retry
-  % Struktur-Variable neu erstellen um Schalter für Dynamik-Berechnung
-  % richtig zu setzen, wenn die Fitness-Funktion neu ausgeführt wird.
-	if i == 1
-    Structure_tmp = Structure;
-    if ~isempty(desopt_pval)
-      % Keine erneute Entwurfsoptimierung, also auch keine Regressorform notwendig.
-      % Direkte Berechnung der Dynamik, falls für Zielfunktion notwendig.
-      Structure_tmp.calc_dyn_act = Structure.calc_dyn_act | Structure.calc_dyn_reg;
-      Structure_tmp.calc_spring_act = Structure.calc_spring_act | Structure.calc_spring_reg;
-      Structure_tmp.calc_spring_reg = false;
-      Structure_tmp.calc_dyn_reg = false;
-    end
-  end
-  
+q0_ik = PSO_Detail_Data.q0_ik(k_ind,:,k_gen)';
+% Struktur-Variable neu erstellen um Schalter für Dynamik-Berechnung
+% richtig zu setzen, wenn die Fitness-Funktion neu ausgeführt wird.
+Structure_tmp = Structure;
+if ~isempty(desopt_pval)
+  % Keine erneute Entwurfsoptimierung, also auch keine Regressorform notwendig.
+  % Direkte Berechnung der Dynamik, falls für Zielfunktion notwendig.
+  Structure_tmp.calc_dyn_act = Structure.calc_dyn_act | Structure.calc_dyn_reg;
+  Structure_tmp.calc_spring_act = Structure.calc_spring_act | Structure.calc_spring_reg;
+  Structure_tmp.calc_spring_reg = false;
+  Structure_tmp.calc_dyn_reg = false;
+end
+% Gebe IK-Anfangswerte aus bekannter Lösung vor
+Structure_tmp.q0_traj = q0_ik;
+% Erneuter Aufruf der Fitness-Funktion. Hauptsächlich, um die Q-Trajektorie
+% extrahieren zu können. Rekonstruktion im Fall von Aufgabenredundanz sonst
+% nicht so einfach möglich.
+for i = 1:max_retry 
   % Mehrere Versuche vornehmen, da beim Umklappen der Roboterkonfiguration
   % andere Ergebnisse entstehen können.
   % Eigentlich darf sich das Ergebnis aber nicht ändern (wegen der
@@ -1587,7 +1589,7 @@ for i = 1:max_retry
   clear cds_fitness % persistente Variable in fitnessfcn löschen (falls Grenzwert erreicht wurde wird sonst inf zurückgegeben)
   % Aufruf nicht über anonmye Funktion, sondern vollständig, damit Param.
   % der Entwurfsoptimierung übergeben werden können.
-  [fval_test, ~, Q_test] = cds_fitness(R, Set, Traj, Structure_tmp, p_val, desopt_pval);
+  [fval_test, ~, Q, QD, QDD] = cds_fitness(R, Set, Traj, Structure_tmp, p_val, desopt_pval);
   if any(abs(fval_test-fval)>1e-8)
     if all(fval_test < fval)
       t = sprintf('Der neue Wert (%s) ist um [%s] besser als der alte (%s).', ...
@@ -1630,7 +1632,7 @@ if max_retry > 0 % nur sinnvoll, falls Fitness nach Optimierungs-Ende neu berech
   else,                   q0_ik2 = cat(1,R.Leg.qref); end
   test_q0 = q0_ik - q0_ik2;
   test_q0(abs(abs(test_q0)-2*pi)<1e-6) = 0; % entferne 2pi-Fehler
-  if any(abs(test_q0)>1e-10) && all(fval<1e10) % nur bei erfolgreicher Berechnung der IK ist der gespeicherte Wert sinnvoll
+  if any(abs(test_q0)>1e-6) && all(fval<1e10) % nur bei erfolgreicher Berechnung der IK ist der gespeicherte Wert sinnvoll
     cds_log(-1, sprintf(['[dimsynth] IK-Anfangswinkel sind bei erneuter ', ...
       'Berechnung anders. Kann passieren, aber nachteilig für Reproduzierbar', ...
       'keit des Ergebnisses. max. Abweichung: %1.2e.'], max(abs(test_q0))));
@@ -1662,82 +1664,50 @@ else % PKM
   end
 end
 
-% Berechne Inverse Kinematik zu erstem Bahnpunkt
+result_invalid = false;
+if ~any(strcmp(Set.optimization.objective, 'valid_act')) && any(isnan(Q(:))) % Toleranz wie in cds_constraints
+  % Berechnung der Trajektorie ist fehlgeschlagen
+  if any(fval<1e4*1e4) % nur bemerkenswert, falls vorher überhaupt soweit gekommen.
+    save(fullfile(resdir, 'trajikreprowarning.mat'));
+    cds_log(-1, sprintf(['[dimsynth] PSO-Ergebnis für Trajektorie nicht ', ...
+      'reproduzierbar oder nicht gültig (ZB-Verletzung).'] ));
+  end
+  result_invalid = true;
+end
+
+% Berechne die Jacobi-Matrix für PKM neu. Keine Neuberechnung der inversen
+% Kinematik (wird bereits in erneutem Aufruf der Fitness-Funktion gemacht)
 Traj_0 = cds_transform_traj(R, Traj);
-% Einstellung für Positions-IK: Keine Normalisierung mehr, da Sprung bei pi
-% ungünstig bei vorab festgelegten Grenzen für Koordinaten
-% Benutze Nullraumoptimierung (falls möglich). TODO: Anpassung an
-% Zielfunktionen. Konsistent mit cds_constraints.
-s_ik = struct('normalize', false, 'wn', [1;0]);
-if Structure.Type == 0 % Seriell
-  % Benutze Referenzpose die bei obigen Zielfunktionsaufruf gespeichert wurde
-  [q, Phi] = R.invkin2(R.x2tr(Traj_0.XE(1,:)'), R.qref, s_ik);
-else % Parallel
-  if sum(R.I_EE_Task) < sum(R.I_EE) % Aufgabenredundanz
-    [q, Phi] = R.invkin4(Traj_0.XE(1,:)', cat(1,R.Leg.qref), s_ik);
-  else % ohne Aufgabenredundanz
-    [q, Phi] = R.invkin_ser(Traj_0.XE(1,:)', cat(1,R.Leg.qref), s_ik);
+Jinv_ges = []; % Platzhalter
+if R.Type ~= 0 && ~result_invalid % nur machen, wenn Traj.-IK erfolgreich
+  Jinv_ges = NaN(size(Q,1), sum(R.I_EE)*R.NJ);
+  test_xD_fromJ_max = 0; % Fehler dabei prüfen
+  i_maxerr = 0;
+  for i = 1:size(Q,1)
+    X_i = R.fkineEE2_traj(Q(i,:))'; % Für 3T2R Neuberechnung von X notwendig
+    [~,Jinv_x] = R.jacobi_qa_x(Q(i,:)', X_i); % Jacobi-Matrix
+    Jinv_ges(i,:) = Jinv_x(:);
+    % Prüfe, ob differentieller Zusammenhang mit Jacobi-Matrix korrekt ist
+    test_xD_fromJ_abs =  Traj_0.XD(i,:)' - Jinv_x(R.I_qa,:) \ QD(i,R.I_qa)';
+    if max(abs(test_xD_fromJ_abs(R.I_EE_Task))) > test_xD_fromJ_max
+      test_xD_fromJ_max = max(abs(test_xD_fromJ_abs(R.I_EE_Task)));
+      i_maxerr = i;
+    end
+  end
+  if test_xD_fromJ_max > 1e-6
+    save(fullfile(resdir, 'jacobireprowarning.mat'));
+    cds_log(-1, sprintf(['[dimsynth] Neuberechnung der Jacobi-Matrix ', ...
+      'falsch. Zuerst Schritt %d/%d. Fehler in EE-Geschw.: max %1.1e'], ...
+      i_maxerr, size(Q,1), test_xD_fromJ_max));
   end
 end
-if ~any(strcmp(Set.optimization.objective, 'valid_act')) && any(abs(Phi)>1e-8)
-  cds_log(-1, '[dimsynth] PSO-Ergebnis für Startpunkt nicht reproduzierbar (ZB-Verletzung)');
-end
-% Berechne IK der Bahn (für spätere Visualisierung und Neuberechnung der Leistungsmerkmale)
-% Benutze ähnliche Einstellungen wie in cds_constraints.m (aber feinere
-% Toleranz und mehr Rechenaufwand bei der eigentlichen IK-Berechnung)
-% Hier auch Weglassen der Beachtung der Winkelgrenzen (führt teilweise zu
-% Abbruch, obwohl die Spannweite in Ordnung ist.)
-% Nutze Aufgabenredundanz, falls möglich. TODO: Konsistent mit
-% cds_constraints_traj, Anpassung an Nebenbedingungen.
-s = struct('normalize', false, 'Phit_tol', 1e-12, ...
-  'Phir_tol', 1e-12, 'n_max', 5000, 'wn', [1;0;1;0;0]);
-if Structure.Type == 0 % Seriell
-  [Q, QD, QDD, PHI] = R.invkin2_traj(Traj_0.X, Traj.XD, Traj.XDD, Traj.t, q, s);
-  Jinv_ges = [];
-else % Parallel
-  [Q, QD, QDD, PHI, Jinv_ges] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
-end
-test_q = abs(Q(1,:)'-q0_ik);
-test_q(abs(abs(test_q)-2*pi)<1e-2) = 0; % entferne 2pi-Fehler, großzügige Toleranz
-if any(test_q > 1e-6) && all(fval<1e10) % nur wenn IK erfolgreich war testen
-  if sum(R.I_EE_Task) == sum(R.I_EE)
-    cds_log(-1, sprintf(['[dimsynth] Die Neu berechneten IK-Werte (q0) der Trajektorie stimmen nicht ', ...
-      'mehr mit den ursprünglich berechneten überein. Max diff.: %1.4e'], max(test_q)));
-  else
-    % Es kommt nicht mehr das gleiche raus, da durch die Redundanz eine
-    % neue Nullraumbewegung gemacht wird (Grenze der Gelenke aktualisiert)
-  end
-end
-if any(q<qlim_neu(:,1) | q>qlim_neu(:,2))
+
+if any(q0_ik<qlim_neu(:,1) | q0_ik>qlim_neu(:,2))
   cds_log(-1, sprintf(['[dimsynth] Startwert für Gelenkwinkel liegt außer', ...
     'halb des erlaubten Bereichs.']));
   save(fullfile(resdir, 'jointlimitviolationwarning.mat'));
 end
-result_invalid = false;
-if ~any(strcmp(Set.optimization.objective, 'valid_act')) && ...
-    (any(abs(PHI(:))>1e-6) || any(isnan(Q(:)))) % Toleranz wie in cds_constraints
-  % Berechnung der Trajektorie ist fehlgeschlagen
-  if any(fval<1e4*1e4) % nur bemerkenswert, falls vorher überhaupt soweit gekommen.
-    save(fullfile(resdir, 'trajikreprowarning.mat'));
-    cds_log(-1, sprintf(['[dimsynth] PSO-Ergebnis für Trajektorie nicht reproduzierbar ', ...
-      'oder nicht gültig (ZB-Verletzung). Max IK-Fehler: %1.1e. %d Fehler > 1e-6. %d mal NaN.'], ...
-      max(abs(PHI(:))), sum(sum(abs(PHI)>1e-6,2)>0), sum(isnan(Q(:))) ));
-    % Vergleiche die neu berechnete Trajektorie und die aus der Fitness-Funktion
-    if Set.general.max_retry_bestfitness_reconstruction > 0 && ~isempty(Q_test) && ...
-        ~Set.general.isoncluster
-      change_current_figure(654); clf;
-      for i = 1:R.NJ
-        subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i); hold on;
-        plot(Traj_0.t, Q(:,i));
-        plot(Traj_0.t, Q_test(:,i));
-        ylabel(sprintf('q%d', i));
-      end
-      legend({'invkin_traj', 'fitnessfcn'});
-      sgtitle('Neuberechnung Gelenk-Traj. Debug');
-    end
-  end
-  result_invalid = true;
-end
+
 %% Berechne andere Leistungsmerkmale
 Structure_tmp = Structure; % Eingabe um Berechnung der Antriebskräfte zu erzwingen
 Structure_tmp.calc_dyn_act = true;
@@ -1907,7 +1877,7 @@ RobotOptRes = struct( ...
   'p_val_pareto', p_val_pareto, ... % Alle Parametervektoren der P.-Front
   'desopt_pval_pareto', desopt_pval_pareto, ... % Alle Entwurfsparameter zu den Pareto-Punkten
   'q0_pareto', q0_pareto, ... % Alle IK-Anfangswerte aller Pareto-Partikel
-  'q0', q, ... % Anfangs-Gelenkwinkel für Lösung der IK
+  'q0', q0_ik, ... % Anfangs-Gelenkwinkel für Lösung der IK
   'I_fval_obj_all', I_fval_obj_all, ... % Zuordnung der Fitness-Einträge zu fval_obj_all
   'p_limits', varlim, ... % Grenzen für die Parameterwerte
   'timestamps_start_end', [t_start, t_end, toc(t1)], ...
@@ -1921,7 +1891,6 @@ RobotOptDetails = struct( ...
   'Traj_Q', Q, ...
   'Traj_QD', QD, ...
   'Traj_QDD', QDD, ...
-  'Traj_PHI', PHI, ...
   'timestamps_start_end', [t_start, t_end, toc(t1)], ...
   'fitnessfcn', fitnessfcn);
 % Debug: Durch laden dieser Ergebnisse kann nach Abbruch des PSO das
