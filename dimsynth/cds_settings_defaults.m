@@ -42,7 +42,7 @@ general = struct( ...
   'maxduration_animation', 10, ... % Die Animation soll max. 10s dauern (als Videodatei)
   'save_evolution_video', false, ... % Video mit Evolution der Roboter
   'max_retry_bestfitness_reconstruction', 2, ... % Anzahl Neuversuche zur Reproduktion. 2 reichen zur Prüfung, ob Wiederholbarkeit da ist.
-  'regenerate_summmary_only', false, ... % Nur die Videos und Zusammenfassungsbilder neu generieren. Keine Optimierung durchführen.
+  'regenerate_summary_only', false, ... % Nur die Videos und Zusammenfassungsbilder neu generieren. Keine Optimierung durchführen.
   'only_finish_aborted', false, ... % Führe keine Optimierung durch, sondern werte abgebrochene vorherige Optimierungen aus
   'overwrite_existing_results', true, ... % Führe die Maßsynthese erneut durch, auch wenn schon Daten vorhanden sind. Für alleinige Berechnung unfertiger Roboter auf false setzen
   'nosummary', false, ... % Kompletter Verzicht auf die graphische Endauswertung

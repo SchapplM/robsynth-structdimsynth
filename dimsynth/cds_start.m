@@ -25,8 +25,8 @@ if ~Set.general.only_finish_aborted
 else
   fprintf('Schließe die abgebrochene Maßsynthese %s ab.\n', Set.optimization.optname);
 end
-if Set.general.only_finish_aborted && Set.general.regenerate_summmary_only
-  error('Option only_finish_aborted zusammen mit regenerate_summmary_only nicht sinnvoll');
+if Set.general.only_finish_aborted && Set.general.regenerate_summary_only
+  error('Option only_finish_aborted zusammen mit regenerate_summary_only nicht sinnvoll');
 end
 Set_default = cds_settings_defaults(struct('DoF', Set.task.DoF));
 for subconf = fields(Set_default)'
@@ -110,7 +110,7 @@ if ~isempty(Set.structures.repeatlist)
 end
 %% Menge der Roboter laden
 if ~(Set.general.only_finish_aborted && Set.general.isoncluster) && ...
-    ~Set.general.regenerate_summmary_only
+    ~Set.general.regenerate_summary_only
   % Bei Fortsetzen der abgebrochenen Berechnung auf dem Cluster nicht
   % notwendig. Sonst schon (lokal oder Hochladen des Abschluss-Jobs).
   % Auch nicht notwendig bei reiner Neu-Erzeugung der Ergebnis-Bilder.
@@ -147,7 +147,7 @@ if Set.general.only_finish_aborted && (Set.general.isoncluster || ...
   Set.general.only_finish_aborted = true; % Überschreibe geladene Einstellung
   Structures = d.Structures;
   fprintf('Einstellungsdatei %s für Abschluss geladen.\n', settingsfile);
-elseif Set.general.regenerate_summmary_only && (Set.general.isoncluster || ...
+elseif Set.general.regenerate_summary_only && (Set.general.isoncluster || ...
     ~Set.general.computing_cluster)
   % Es sollen nur die Bilder neu generiert werden. Lade die alten Ein-
   % stellungen, damit die Nummern der Roboter nicht geändert werden.
@@ -160,7 +160,7 @@ elseif Set.general.regenerate_summmary_only && (Set.general.isoncluster || ...
   Set.general.animation_styles = Set_tmp.general.animation_styles;
   Set.general.parcomp_plot = Set_tmp.general.parcomp_plot;
   Set.general.parcomp_struct = false; % keine Struktursynthese.
-  Set.general.regenerate_summmary_only = true;
+  Set.general.regenerate_summary_only = true;
   Set.optimization.resdir = Set_tmp.optimization.resdir; % anders auf Cluster
   Structures = d.Structures;
   fprintf('Einstellungsdatei %s für Bild-Generierung geladen.\n', settingsfile);
@@ -280,7 +280,7 @@ if Set.general.computing_cluster
       npart = Set.optimization.NumIndividuals*(1+Set.optimization.MaxIter);
       comptime_est = comptime_est + 0.1*npart*1*20;
     end
-    if Set.general.only_finish_aborted || Set.general.regenerate_summmary_only
+    if Set.general.only_finish_aborted || Set.general.regenerate_summary_only
       % Es wird keine Optimierung durchgeführt. Überschreibe die vorher
       % berechnete Zeit (nur Bilderstellung).
       comptime_est = ceil(length(I1_kk:I2_kk)/12)*30*60;
@@ -311,7 +311,7 @@ end
 % Bei paralleler Berechnung dürfen keine Dateien geschrieben werden um
 % Konflikte zu vermeiden
 if Set.general.parcomp_struct && ... % Parallele Rechnung ist ausgewählt
-    ~Set.general.regenerate_summmary_only && ... % für Bildgenerierung ParComp nicht benötigt
+    ~Set.general.regenerate_summary_only && ... % für Bildgenerierung ParComp nicht benötigt
     length(Structures) > 1 % für Optimierung eines Roboters keine parallele Rechnung
   % Keine Bilder zeichnen
   Set.general.plot_details_in_fitness = 0;
@@ -378,7 +378,7 @@ if ~isempty(Set.optimization.desopt_vars)
   end
 end
 % Optimierung der Strukturen durchführen
-if ~Set.general.regenerate_summmary_only
+if ~Set.general.regenerate_summary_only
   % Vorbereitung: Getrennt für serielle und parallele Roboter
   for type = [0 2] % seriell und PKM
     % Stelle vorher eine Liste von Namen zusammen, um doppelte zu finden.
