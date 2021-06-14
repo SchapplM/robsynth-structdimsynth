@@ -75,7 +75,6 @@ s = struct( ...
   ... % kein Winkel-Normalisierung, da dadurch Sprung in Trajektorie und keine 
   ... % Prüfung gegen vollständige Umdrehungen möglich
   'normalize', false, ... 
-  'n_max', 1000, ... % moderate Anzahl Iterationen
   'Phit_tol', 1e-10, 'Phir_tol', 1e-10);
 if R.Type == 0 % Seriell
   s.wn = zeros(10,1);
@@ -136,8 +135,8 @@ end
 if i_ar == 3
   if fval_ar(1) < fval_ar(2)
     cds_log(-1, sprintf(['Ergebnis der Traj.-IK hat sich nach Nullraum', ...
-      'bewegung verschlechtert: %1.2e -> %1.2e (%s -> %s)'], fval_ar(1), ...
-      fval_ar(2), constrvioltext_alt, constrvioltext));
+      'bewegung verschlechtert: %1.3e -> %1.3e (%s -> %s), delta: %1.3e'], fval_ar(1), ...
+      fval_ar(2), constrvioltext_alt, constrvioltext, fval_ar(2)-fval_ar(1)));
     % Anmerkung: Das muss nicht unbedingt ein Fehler sein. Das Verletzen
     % der Geschwindigkeitsgrenzen kann eine Konsequenz sein? Darf
     % eigentlich aber doch nicht sein... Grenzen werden ja versucht
@@ -223,11 +222,12 @@ if i_ar == 3
     QDD = QDD_alt;
     Jinv_ges = Jinv_ges_alt;
     fval = fval_ar(1);
-    constrvioltext = [constrvioltext_alt, '. Erneute IK-Berechnung ohne Verbesserung'];
+    constrvioltext = [constrvioltext_alt, ' Erneute IK-Berechnung ohne Verbesserung'];
   else
     % Zweiter Durchlauf der Optimierung brachte Verbesserung. Jetzt ist es genug.
-    constrvioltext = [constrvioltext, sprintf(['. Verbesserung durch ', ...
-      'erneute IK-Berechnung (%1.3e->%1.3e)'], fval_ar(1), fval_ar(2))]; %#ok<AGROW>
+    constrvioltext = [constrvioltext, sprintf([' Verbesserung durch ', ...
+      'erneute IK-Berechnung (%1.3e->%1.3e, delta: %1.3e). Vorher: %s'], ...
+      fval_ar(1), fval_ar(2), fval_ar(2)-fval_ar(1), constrvioltext_alt)]; %#ok<AGROW>
   end
   return
 end

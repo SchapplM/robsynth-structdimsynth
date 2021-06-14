@@ -1278,6 +1278,9 @@ if nargin == 4 && init_only
   % Keine Optimierung durchführen. Damit kann nachträglich die
   % initialisierte Roboterklasse basierend auf Ergebnissen der Maßsynthese
   % erzeugt werden, ohne dass diese gespeichert werden muss.
+  % Belege die Dynamik-Parameter mit Platzhalter-Werten. Wichtig, damit die
+  % Plots in jedem Fall ordentlich ausehen.
+  cds_dimsynth_design(R, zeros(2,R.NJ), Set, Structure);
   return
 end
 
@@ -1418,7 +1421,7 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
   [~,I_unique] = unique(p_val_pareto, 'rows');
   if sum(I_unique) ~= size(p_val_pareto,1)
     cds_log(-1, sprintf(['[dimsynth] Pareto-Front bestand aus %d Partikeln, ', ...
-      'aber nur %d davon nicht doppelt'], size(p_val_pareto,1), length(I_unique)));
+      'aber nur %d davon nicht doppelt'], size(p_val_pareto,1), sum(I_unique)));
     fval_pareto = fval_pareto(I_unique,:);
     p_val_pareto = p_val_pareto(I_unique,:);
   end

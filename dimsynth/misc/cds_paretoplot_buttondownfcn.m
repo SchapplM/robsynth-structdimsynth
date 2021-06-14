@@ -163,6 +163,10 @@ if fitness_recalc_necessary
         end
       end
     end
+    % Erzwinge Prüfung der gespeicherten Konfiguration. Ist teilweise
+    % redundant zu Speicherung in qref. Führt Traj.-IK aus, auch wenn Pos.-
+    % IK bei Umklappen der Konfiguration scheitert.
+    Structure.q0_traj = q0;
     if isempty(p_desopt)
       [fval2, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure,p);
     else
