@@ -137,7 +137,11 @@ for kk = 1:length(Set.general.animation_styles)
   if strcmp(figname, 'animation')
     R.anim( RobotOptDetails.Traj_Q(I_anim,:), Traj_0.X(I_anim,:), s_anim, s_plot);
   else
-    R.plot( RobotOptDetails.Traj_Q(1,:)', Traj_0.X(1,:)', s_plot);
+    if RobData.Type == 0 % Seriell
+      R.plot( RobotOptDetails.Traj_Q(1,:)', s_plot);
+    else % PKM
+      R.plot( RobotOptDetails.Traj_Q(1,:)', Traj_0.X(1,:)', s_plot);
+    end
   end
   if any(strcmp(Set.general.eval_figures, 'robvisuanim')) % nur speichern, wenn gewünscht.
   fname = sprintf('Rob%d_%s_P%d_Skizze_%s', RNr, Name, PNr, anim_mode);
