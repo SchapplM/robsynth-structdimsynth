@@ -249,6 +249,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       end
     end
     if i_ar == 1 % IK ohne Optimierung von Nebenbedingungen
+      Stats = struct('coll', false); % Platzhalter-Variable
       if R.Type == 0
         [q, Phi, Tc_stack] = R.invkin2(R.x2tr(Traj_0.XE(i,:)'), Q0, s);
         nPhi_t = sum(R.I_EE_Task(1:3));
@@ -293,10 +294,10 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     % zweiter Durchlauf. Benutze Optimierung, da vorher Verletzung von 
     % Nebenbedingungen. Annahme: Optimierung in IK gut für Nebenbedingungen.
     % Auch für ersten Bahnpunkt machen (damit bestmöglicher Startwert für
-    % Trajektorien-IK in cds_constraints_traj.
-    if i_ar == 2 || ... % Bei AR IK erneut mit Optimierung durchführen
-        ... % Erster Bahnpunkt nur, wenn normale IK erfolgreich (und AR vorhanden ist)
-        i_ar == 1 && i == 1 && all(~isnan(q)) && ik_res_ik2 && task_red
+    % Trajektorien-IK in cds_constraints_traj).
+    if i_ar == 2% || ... % Bei AR IK erneut mit Optimierung durchführen
+%        ... % Erster Bahnpunkt nur, wenn normale IK erfolgreich (und AR vorhanden ist). TODO: Warum nochmal genau?
+%         i_ar == 1 && i == 1 && all(~isnan(q)) && ik_res_ik2 && task_red
       % Aufgabenredundanz. Benutze anderen IK-Ansatz (Reziproke
       % Euler-Winkel; gemeinsame Modellierung aller Beinketten)
       % Berechne trotzdem zuerst die einfache IK für jede Beinkette
@@ -366,7 +367,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         % Prüfe vorher, ob dieser Punkt ausschlaggebend für die Kollision
         % war. Wenn nicht, kann er übersprungen werden und die bestehende
         % Lösung wird genutzt.
-        if i~=1 && ~any(coll_self(i,:)) % Die Kollision bezog sich auf diesen Eckpunkt
+        if i~=1 && ~any(coll_self(i,:)) % Die Kollision bezog sich nicht auf diesen Eckpunkt
           continue
         end
         if R.Type == 0 % Seriell
@@ -475,6 +476,15 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         ylabel('h');
         linkxaxes
       end
+    end
+    % Prüfe, ob IK-Ergebnis eine Kollision hat. Wenn ja, müssen keine
+    % weiteren Punkte geprüft werden (schnellere Rechnung). Auswertung der
+    % Kollisionskennzahl hierfür nicht möglich (auch Warnbereich > 0)
+    if Stats.coll
+      % Damit werden für alle noch folgenden Punkte die Ergebnisse des
+      % nicht-optimierten Aufrufs genommen (kann Bewertung in Maßsynthese
+      % leicht verzerren, ist aber tolerierbar).
+      break; 
     end
 
     % Normalisiere den Winkel. Bei manchen Robotern springt das IK-Ergebnis
