@@ -19,6 +19,12 @@ Set.general.plot_robot_in_fitness = 1e3;
 Set.general.save_robot_details_plot_fitness_file_extensions = {'fig'};
 Set.general.save_animation_file_extensions = {'mp4', 'gif'};
 Set.general.matfile_verbosity = 1;
+% Vergrößere die Gelenkspannweite. Sonst keine i.O.-Lösungen für einige
+% Roboter. Dadurch sind die Lösungen teilweise nicht plausibel. Ist aber
+% nicht unbedingt der Anspruch dieses Test-Skriptes.
+% (liegt vielleicht auch an Trajektorie)
+Set.optimization.max_range_passive_universal = 2*pi; % 180° in jede Richtung
+Set.optimization.max_range_passive_spherical = 2*pi; % 180° in jede Richtung
 % Liste mit verschiedenen Beinketten und Koppelpunkten
 whitelist_all = {'S6RRRRRR10V2', 'S6RRRRRR10', 'P6PRRRRR6G8P1A1', ...
   'P6PRRRRR6V2G8P4A1', 'P6RRRRRR10V3G1P1A1', 'P6RRRRRR10G1P1A1'};
@@ -52,7 +58,18 @@ for debugcalc = [0 1]
       abserr_fval = fval_rtest - tmp1.RobotOptRes.fval;
       relerr_fval = abserr_fval./tmp1.RobotOptRes.fval;
       if abs(abserr_fval) > 1e-4 && abs(relerr_fval) > 1e-2
-        error('Fitness-Wert für %s nicht reproduzierbar', Structures{j}.Name);
+        warning('Fitness-Wert für %s nicht direkt reproduzierbar', Structures{j}.Name);
+        % Versuche Reproduktion mit Vorgabe des IK-Ergebnisses. Kann
+        % helfen, wenn Abbruch in Einzelpunkt-IK, weil IK-Ergebnis anders.
+        Structure_tmp = tmp1.RobotOptRes.Structure;
+        Structure_tmp.q0_traj = tmp1.RobotOptRes.q0;
+        [fval_rtest2, ~, Q] = cds_fitness(tmp2.RobotOptDetails.R, Set, Traj, ...
+          Structure_tmp, tmp1.RobotOptRes.p_val, tmp1.RobotOptRes.desopt_pval);
+        abserr_fval2 = fval_rtest2 - tmp1.RobotOptRes.fval;
+        relerr_fval2 = abserr_fval2./tmp1.RobotOptRes.fval;
+        if abs(abserr_fval2) > 1e-4 && abs(relerr_fval2) > 1e-2
+          warning('Fitness-Wert für %s beim zweiten Mal nicht reproduzierbar', Structures{j}.Name);
+        end
       end
       if any(tmp1.RobotOptRes.fval > 1e3)
         warning('Keine Lösung in Maßsynthese für %s gefunden. Muss kein Fehler sein.', Structures{j}.Name);

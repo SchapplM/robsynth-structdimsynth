@@ -48,7 +48,7 @@ general = struct( ...
   'eval_figures', {{'histogram', 'fitness_various', 'jointtraj', ... % Liste der zu erstellenden Bilder. ...
     'robvisuanim', 'pareto_all_phys', 'pareto_all_fval', 'pareto'}}, ... % ... Auswahl, siehe cds_vis_results.m
   'only_save_summary_figures', true, ... % Bilderzeugung dient hauptsächlich der Speicherung. Schließe alle Bilder nach Speicherung
-  'noprogressfigure', false, ... % Verzicht auf Fortschritts-Bild des PSO
+  'noprogressfigure', true, ... % Verzicht auf Fortschritts-Bild des PSO (meistens nicht hilfreich)
   'debug_calc', false, ... % Doppelte Berechnung zur Prüfung von Funktionen
   'parcomp_struct', 0, ... % Parallele Berechnung unterschiedlicher Roboter. Enthält Anzahl der Worker-Instanzen als Zahl
   'parcomp_plot', 0, ... % Parallele Erzeugung der Ergebnisbilder und -videos
