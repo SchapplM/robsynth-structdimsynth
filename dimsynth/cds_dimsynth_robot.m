@@ -1024,7 +1024,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   % Der Inhalt sind direkt die Indizes von collbodies. Das muss nicht
   % online in der Optimierung gemacht werden.
   % Abgrenzung von "bodies" (oben) und "collbodies" (ab hier) beachten.
-  Structure.selfcollchecks_collbodies = [];
+  Structure.selfcollchecks_collbodies = uint8(zeros(0,2));
   for i = 1:size(selfcollchecks_bodies,1)
     % Finde die Indizes aller Ersatzkörper der zu prüfenden Starrkörper
     % (es kann auch mehrere Ersatzkörper für einen Starrkörper geben)
@@ -1120,8 +1120,10 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   end
   % Eintragen in Roboter-Klasse
   R.collchecks = Structure.selfcollchecks_collbodies;
-  assert(max(R.collchecks(:))<=size(R.collbodies.link,1), ['Matlab-Klasse muss ', ...
-    'gleiche Anzahl in collchecks und collbodies haben']);
+  if ~isempty(Structure.selfcollchecks_collbodies)
+    assert(max(R.collchecks(:))<=size(R.collbodies.link,1), ['Matlab-Klasse ', ...
+      'muss gleiche Anzahl in collchecks und collbodies haben']);
+  end
   % Debug: Liste der Kollisionsprüfungen anzeigen
   if false
     fprintf('Liste der Kollisionsprüfungen (der Kollisionskörper):\n');   %#ok<UNRCH>
@@ -1134,7 +1136,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   end
   if isempty(Structure.selfcollchecks_collbodies)
     cds_log(-1, sprintf(['[dimsynth] Es sind keine Prüfungen von Kollisions', ...
-      'körpern vorgesehen']));
+      'körpern vorgesehen, obwohl verlangt. Liegt an Roboter-Kinematik.']));
     % Deaktiviere die Kollisionsprüfungen wieder
     Set.optimization.constraint_collisions = false;
     Set.task.obstacles.type = [];
@@ -1563,7 +1565,8 @@ q0_ik = PSO_Detail_Data.q0_ik(k_ind,:,k_gen)';
 % Struktur-Variable neu erstellen um Schalter für Dynamik-Berechnung
 % richtig zu setzen, wenn die Fitness-Funktion neu ausgeführt wird.
 Structure_tmp = Structure;
-if ~isempty(desopt_pval)
+if ~isempty(desopt_pval) && ... % Es gibt eine Entwurfsoptimierung
+    ~any(isnan(desopt_pval)) % Vorher überhaupt bis Entwurfsoptimierung gekommen
   % Keine erneute Entwurfsoptimierung, also auch keine Regressorform notwendig.
   % Direkte Berechnung der Dynamik, falls für Zielfunktion notwendig.
   Structure_tmp.calc_dyn_act = Structure.calc_dyn_act | Structure.calc_dyn_reg;
