@@ -566,7 +566,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   % Bestimme ob die maximale Spannweite der Koordinaten überschritten wurde
   qlimviol_E = qlim_range' - q_range_E;
   I_qlimviol_E = (qlimviol_E < 0);
-  if any(I_qlimviol_E)
+  if any(I_qlimviol_E) && Set.optimization.check_jointrange_points
     if Set.general.matfile_verbosity > 2
       save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_qviolE.mat'));
     end
