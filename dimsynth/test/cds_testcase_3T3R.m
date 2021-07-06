@@ -50,7 +50,7 @@ for debugcalc = [0 1]
       resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
       resdat1 = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', j, Structures{j}.Name));
       if ~exist(resdat1, 'file'), error('Ergebnisdatei %s nicht gefunden. Muss an dieser Stelle vorliegen', resdat1); end
-      tmp1 = load(resdat1, 'RobotOptRes', 'Set', 'Traj');
+      tmp1 = load(resdat1, 'RobotOptRes');
       resdat2 = fullfile(resmaindir, sprintf('Rob%d_%s_Details.mat', j, Structures{j}.Name));
       tmp2 = load(resdat2, 'RobotOptDetails');
       clear cds_save_particle_details cds_fitness cds_log % notwendig, da Dimensionsänderung in persistenten Variablen
