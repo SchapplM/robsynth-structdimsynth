@@ -63,9 +63,9 @@ for i = 1:size(Q,1)
   K_trans_norm = 1e-3*K_ges(1:3,1:3);
   if any(isnan(K_trans_norm(:))) || any(isinf(K_trans_norm(:)))
     if i_warn == 0 % Nur einmal Debug-Speicherung der Warnung.
-    repopath = fileparts(which('structgeomsynth_path_init.m'));
-    save(fullfile(repopath, 'tmp', 'cds_obj_stiffness_infnan_error.mat'));
-    cds_log(-1, '[cds_obj_stiffness] Matrix ist Inf oder NaN. Darf nicht sein');
+      repopath = fileparts(which('structgeomsynth_path_init.m'));
+      save(fullfile(repopath, 'tmp', 'cds_obj_stiffness_infnan_error.mat'));
+      cds_log(-1, '[cds_obj_stiffness] Matrix ist Inf oder NaN. Darf nicht sein');
       i_warn = i;
     end
     continue
@@ -74,7 +74,10 @@ for i = 1:size(Q,1)
   if any(Keigges(i,1:3)<0)
     repopath = fileparts(which('structgeomsynth_path_init.m'));
     save(fullfile(repopath, 'tmp', 'cds_obj_stiffness_ew_error.mat'));
-    error('Die Steifigkeitsmatrix hat negativen EW. Darf nicht sein.');
+    cds_log(-1, ['[cds_obj_stiffness] Die Steifigkeitsmatrix hat negativen ', ...
+      'EW. Darf nicht sein.']);
+    Keigges(i,1:3) = NaN;
+    break; % Die Berechnung hat einen strukturellen Fehler. TODO.
   end
   
   % Alternative Berechnung: Volumen des Steifigkeit-Ellipsoids
