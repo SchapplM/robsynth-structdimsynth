@@ -49,24 +49,205 @@
 
 function [fval,Q,QD,QDD,Jinv_ges,constrvioltext] = cds_constraints_traj(R, Traj_0, q, Set, Structure)
 fval = 1e3;
-constrvioltext = '';
-
+constrvioltext = 'i.O.';
+Q_alt = [];
+QD_alt = [];
+QDD_alt = [];
+Jinv_ges_alt = [];
+constrvioltext_alt = '';
+% Schleife über mehrere mögliche Nebenbedingungen der inversen Kinematik
+fval_ar = NaN(1,2);
+task_red = R.Type == 0 && sum(R.I_EE_Task) < R.NJ || ... % Seriell: Redundant wenn mehr Gelenke als Aufgaben-FG
+           R.Type == 2 && sum(R.I_EE_Task) < sum(R.I_EE); % Parallel: Redundant wenn mehr Plattform-FG als Aufgaben-FG
+if task_red
+  ar_loop = 1:3; % Aufgabenredundanz liegt vor. Zusätzliche Schleife. Dritte Schleife ist nur zur Prüfung.
+else
+  ar_loop = 1; % Keine Aufgabenredundanz. Nichts zu berechnen.
+end
+for i_ar = ar_loop
+% Speichere Ergebnis der vorherigen Iteration
+if i_ar > 1
+  fval_ar(i_ar-1) = fval;
+end
 %% Inverse Kinematik der Trajektorie berechnen
 % Einstellungen für IK in Trajektorien
 s = struct( ...
   ... % kein Winkel-Normalisierung, da dadurch Sprung in Trajektorie und keine 
   ... % Prüfung gegen vollständige Umdrehungen möglich
   'normalize', false, ... 
-  'n_max', 1000, ... % moderate Anzahl Iterationen
   'Phit_tol', 1e-10, 'Phir_tol', 1e-10);
 if R.Type == 0 % Seriell
+  s.wn = zeros(10,1);
+else % PKM
+  s.wn = zeros(12,1);
+end
+% Zusätzliche Optimierung für Aufgabenredundanz.
+% TODO: Die Reglereinstellungen sind noch nicht systematisch ermittelt.
+if i_ar == 1 % erster Durchlauf ohne zusätzliche Optimierung (nimmt minimale Geschwindigkeit)
+  % Dadurch auch keine Nullraumbewegung für Gelenkgrenzen o.ä.
+elseif i_ar == 2 && fval > 5e4
+  % Vorher nicht lösbar. Versuche nicht, noch weiter zu optimieren.
+  % Mit Glück ist vielleicht eine bessere Konfiguration zu finden. Kostet
+  % aber eher zu viel Rechenzeit
+  return;
+elseif i_ar == 2 && fval > 7e3 && fval < 9e3
+  % Positionsgrenzen wurden verletzt. Besonders in Nebenbedingungen
+  % berücksichtigen
+  if R.Type == 0 % Seriell
+    s.wn(1) = 0.99; % P-Anteil quadratische Grenzen
+    s.wn(2) = 0.01; % P-Anteil hyperbolische Grenzen
+    s.wn(6) = 0.1; % D-Anteil quadratische Grenzen (Dämpfung)
+  else % PKM
+    s.wn(1) = 0.99; % P-Anteil quadratische Grenzen
+    s.wn(2) = 0.01; % P-Anteil hyperbolische Grenzen
+    s.wn(7) = 0.1; % D-Anteil quadratische Grenzen (Dämpfung)
+  end
+elseif i_ar == 2 && fval > 6e3 && fval < 7e3
+  % Geschwindigkeit wurde verletzt. Wird in NB eigentlich schon automatisch
+  % berücksichtigt. Eine weitere Reduktion ist nicht möglich.
+  return
+  if R.Type == 0 %#ok<UNRCH> % Seriell
+    s.wn(6) = 1; % D-Anteil quadratische Grenzen (Dämpfung)
+  else% PKM
+    s.wn(7) = 1; % D-Anteil quadratische Grenzen (Dämpfung)
+  end
+elseif i_ar == 2 && fval > 3e3 && fval < 4e3
+  % Selbstkollision trat auf. Kollisionsvermeidung als Nebenbedingung
+  if R.Type == 0 % Seriell
+    s.wn(6) = 1; % D-Anteil quadratische Grenzen (Dämpfung, gegen Schwingungen)
+    s.wn(9) = 1; % P-Anteil Kollisionsvermeidung
+    s.wn(10) = 0.1; % D-Anteil Kollisionsvermeidung
+  else % PKM
+    s.wn(7) = 1; % D-Anteil quadratische Grenzen (Dämpfung, gegen Schwingungen)
+    s.wn(11) = 0.1; % P-Anteil Kollisionsvermeidung
+    s.wn(12) = 0.01; % D-Anteil Kollisionsvermeidung
+  end
+else
+  % Verbessere die Konditionszahl und die Geschwindigkeit
+  if R.Type == 0 % Seriell
+    s.wn(5) = 1; % P-Anteil Konditionszahl (Aufgaben-Jacobi)
+    s.wn(8) = 0.2; % D-Anteil Konditionszahl (Aufgaben-Jacobi)
+  else % PKM
+    s.wn(6) = 1; % P-Anteil Konditionszahl (PKM-Jacobi)
+    s.wn(10) = 0.1; % D-Anteil Konditionszahl (PKM-Jacobi)
+  end
+end
+if i_ar == 3
+  if fval_ar(1) < fval_ar(2)
+    cds_log(-1, sprintf(['Ergebnis der Traj.-IK hat sich nach Nullraum', ...
+      'bewegung verschlechtert: %1.3e -> %1.3e (%s -> %s), delta: %1.3e'], fval_ar(1), ...
+      fval_ar(2), constrvioltext_alt, constrvioltext, fval_ar(2)-fval_ar(1)));
+    % Anmerkung: Das muss nicht unbedingt ein Fehler sein. Das Verletzen
+    % der Geschwindigkeitsgrenzen kann eine Konsequenz sein? Darf
+    % eigentlich aber doch nicht sein... Grenzen werden ja versucht
+    % einzuhalten
+    % Debug: Vergleiche vorher-nachher.
+    if false
+      RP = ['R', 'P'];
+      change_current_figure(3009);clf;
+      for i = 1:R.NJ
+        if R.Type ~= 0
+          legnum = find(i>=R.I1J_LEG, 1, 'last');
+          legjointnum = i-(R.I1J_LEG(legnum)-1);
+        end
+        subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
+        hold on; grid on;
+        plot(Traj_0.t, Q_alt(:,i), '-');
+        plot(Traj_0.t, Q(:,i), '-');
+        plot(Traj_0.t([1,end]), repmat(Structure.qlim(i,:),2,1), 'r-');
+        ylim(minmax2([Q(:,i);Q(:,i);Q_alt(:,i);Q_alt(:,i)]'));
+        if R.Type == 0
+          title(sprintf('q %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+        else
+          title(sprintf('q %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+        end
+      end
+      linkxaxes
+      sgtitle('Gelenkpositionen (vor/nach AR)');
+      legend({'ohne AR opt.' 'mit Opt.'});
+      change_current_figure(3010);clf;
+      for i = 1:R.NJ
+        if R.Type ~= 0
+          legnum = find(i>=R.I1J_LEG, 1, 'last');
+          legjointnum = i-(R.I1J_LEG(legnum)-1);
+        end
+        subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
+        hold on; grid on;
+        plot(Traj_0.t, QD_alt(:,i), '-');
+        plot(Traj_0.t, QD(:,i), '-');
+        plot(Traj_0.t([1,end]), repmat(Structure.qDlim(i,:),2,1), 'r-');
+        ylim(minmax2([QD(:,i);QD(:,i);QD_alt(:,i);QD_alt(:,i)]'));
+        if R.Type == 0
+          title(sprintf('qD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+        else
+          title(sprintf('qD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+        end
+      end
+      linkxaxes
+      sgtitle('Gelenkgeschwindigkeiten (vor/nach AR)');
+      legend({'ohne AR opt.' 'mit Opt.'});
+      change_current_figure(3011);clf;
+      for i = 1:R.NJ
+        if R.Type ~= 0
+          legnum = find(i>=R.I1J_LEG, 1, 'last');
+          legjointnum = i-(R.I1J_LEG(legnum)-1);
+        end
+        subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
+        hold on; grid on;
+        plot(Traj_0.t, QDD_alt(:,i), '-');
+        plot(Traj_0.t, QDD(:,i), '-');
+        plot(Traj_0.t([1,end]), repmat(Structure.qDDlim(i,:),2,1), 'r-');
+        ylim(minmax2([QDD(:,i);QDD(:,i);QDD_alt(:,i);QDD_alt(:,i)]'));
+        if R.Type == 0
+          title(sprintf('qDD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+        else
+          title(sprintf('qDD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+        end
+      end
+      linkxaxes
+      sgtitle('Gelenkbeschleunigungen (vor/nach AR)');
+      legend({'ohne AR opt.' 'mit Opt.'});
+      change_current_figure(3012);clf;
+      for i = 1:6
+        subplot(2,3,i); hold on; grid on;
+        plot(Traj_0.t, Stats_alt.h(:,1+i), '-');
+        plot(Traj_0.t, Stats.h(:,1+i), '-');
+      end
+      linkxaxes
+      sgtitle('Zielkriterien (vor/nach AR)');
+      legend({'ohne AR opt.' 'mit Opt.'});
+    end
+    Q = Q_alt;
+    QD = QD_alt;
+    QDD = QDD_alt;
+    Jinv_ges = Jinv_ges_alt;
+    fval = fval_ar(1);
+    constrvioltext = [constrvioltext_alt, ' Erneute IK-Berechnung ohne Verbesserung'];
+  else
+    % Zweiter Durchlauf der Optimierung brachte Verbesserung. Jetzt ist es genug.
+    constrvioltext = [constrvioltext, sprintf([' Verbesserung durch ', ...
+      'erneute IK-Berechnung (%1.3e->%1.3e, delta: %1.3e). Vorher: %s'], ...
+      fval_ar(1), fval_ar(2), fval_ar(2)-fval_ar(1), constrvioltext_alt)]; %#ok<AGROW>
+  end
+  return
+end
+if i_ar == 2
+  Q_alt = Q;
+  QD_alt = QD;
+  QDD_alt = QDD;
+  Stats_alt = Stats;
+  Jinv_ges_alt = Jinv_ges;
+end
+if R.Type == 0 % Seriell
   qlim = R.qlim;
-  [Q, QD, QDD, PHI, JP] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+  [Q, QD, QDD, PHI, JP, Stats] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
   Jinv_ges = NaN; % Platzhalter für gleichartige Funktionsaufrufe. Speicherung nicht sinnvoll für seriell.
 else % PKM
   qlim = cat(1,R.Leg(:).qlim);
-  [Q, QD, QDD, PHI, Jinv_ges, ~, JP] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+  [Q, QD, QDD, PHI, Jinv_ges, ~, JP, Stats] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
 end
+
+constrvioltext_alt = constrvioltext;
 % Anfangswerte nochmal neu speichern, damit der Anfangswert exakt der
 % Wert ist, der für die Neuberechnung gebraucht wird. Ansonsten ist die
 % Reproduzierbarkeit durch die rng-Initialisierung der mex-Funktionen
@@ -88,7 +269,46 @@ if any(I_ZBviol)
   % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
   constrvioltext = sprintf('Keine IK-Konvergenz in Traj. Bis %1.0f%% (%d/%d) gekommen.', ...
     (1-Failratio)*100, IdxFirst, length(Traj_0.t));
-  return
+  continue
+  % Debug: Trajektorie zeichnen
+  if R.Type == 0 %#ok<UNRCH> % Seriell
+    qDlim = R.qDlim;
+    qDDlim = R.qDDlim;
+  else % PKM
+    qDlim = cat(1,R.Leg(:).qDlim);
+    qDDlim = cat(1,R.Leg(:).qDDlim);
+  end
+  RP = ['R', 'P'];
+  Q_norm = (Q - repmat(qlim(:,1)', size(Q,1), 1)) ./ ...
+            repmat(qlim(:,2)'-qlim(:,1)', size(Q,1), 1);
+  QD_norm = (QD - repmat(qDlim(:,1)', size(QD,1), 1)) ./ ...
+            repmat(qDlim(:,2)'-qDlim(:,1)', size(QD,1), 1);
+  QDD_norm = (QDD - repmat(qDDlim(:,1)', size(QDD,1), 1)) ./ ...
+            repmat(qDDlim(:,2)'-qDDlim(:,1)', size(QDD,1), 1);
+  change_current_figure(4001);clf;
+  subplot(2,2,1);
+  plot(Traj_0.t, Q, '-');
+  grid on; ylabel('q');
+  subplot(2,2,2);
+  plot(Traj_0.t, Q_norm, '-');
+  grid on; ylabel('q (norm)');
+  subplot(2,2,3);
+  plot(Traj_0.t, QD_norm, '-');
+  grid on; ylabel('qD (norm)');
+  subplot(2,2,4);
+  plot(Traj_0.t, QDD_norm, '-');
+  grid on; ylabel('qDD (norm)');
+  linkxaxes
+end
+
+%% Endeffektor-Bewegung neu für 3T2R-Roboter berechnen
+% Der letzte Euler-Winkel ist nicht definiert und kann beliebige Werte einnehmen.
+if all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
+  if R.Type == 0 % Seriell
+    [X2,XD2,XDD2] = R.fkineEE_traj(Q, QD, QDD);
+  else
+    [X2,XD2,XDD2] = R.fkineEE2_traj(Q, QD, QDD);
+  end
 end
 %% Singularität der Beinketten prüfen (für PKM)
 % Im Gegensatz zu cds_obj_condition wird hier die gesamte Beinkette
@@ -102,11 +322,19 @@ if R.Type == 2 % nur PKM; TODO: Auch für seriell prüfen?
       Jinv_kk = Jinv_jj(R.I1J_LEG(kk):R.I2J_LEG(kk),:);
       kappa_jjkk = cond(Jinv_kk);
       if Set.general.debug_calc
-        % Probe, ob es die Jinv richtig ist
-        qD_kk2 = Jinv_kk*Traj_0.XD(jj,R.I_EE)';
+        % Probe, ob Jinv richtig ist. Nehme die aktualisierte
+        % Plattform-Geschwindigkeit, falls 3T2R benutzt wird.
+        xD_jj = Traj_0.XD(jj,:)'; xD_jj(~R.I_EE_Task)=XD2(jj,~R.I_EE_Task);
+        qD_kk2 = Jinv_kk*xD_jj(R.I_EE);
         qD_kk1 = QD(jj,R.I1J_LEG(kk):R.I2J_LEG(kk))';
-        if any(abs(qD_kk1-qD_kk2) > 1e-8)
-          error('Neu berechnete Geschwindigkeit aus Beinketten-Jacobi-Matrix stimmt nicht');
+        diff_qD_abs = qD_kk1-qD_kk2;
+        diff_qD_rel = diff_qD_abs./qD_kk2;
+        if any(abs(diff_qD_abs) > 1e-8 & abs(diff_qD_rel) > 1e-3)
+          save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+            'cds_constraints_traj_sing_error_debug.mat'));
+          error(['Neu berechnete Geschwindigkeit aus Beinketten-Jacobi-Matrix ', ...
+            'stimmt nicht. Fehler: abs %1.3e, rel %1.3e'], ...
+            max(abs(diff_qD_abs)), max(abs(diff_qD_rel)));
         end
       end
       if kappa_jjkk > 1e4
@@ -126,7 +354,7 @@ if IdxFirst ~= 0
   % (Geschwindigkeit der Gelenke kann beliebig springen)
   constrvioltext = sprintf('Singularität in Beinkette %d (cond=%1.1e). Bis %1.0f%% (%d/%d) gekommen.', ...
     kk, kappa_jjkk, (1-Failratio)*100, IdxFirst, length(Traj_0.t));
-  return
+  continue
 end
 
 %% IK mit zweiter Implementierung prüfen (nur Debug, für PKM)
@@ -219,14 +447,9 @@ if R.Type == 2 && Set.general.debug_calc % PKM; Rechne nochmal mit Klassenmethod
   end
 end
 
-%% Plattform-Bewegung neu für 3T2R-Roboter berechnen
-% der letzte Euler-Winkel ist nicht definiert und kann beliebige Werte einnehmen).
+%% Prüfe neue Endeffektor-Bewegung für 3T2R-Roboter
+% Die Neuberechnung erfolgt bereits weiter oben
 if all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
-  if R.Type == 0 % Seriell
-    [X2,XD2,XDD2] = R.fkineEE_traj(Q, QD, QDD);
-  else
-    [X2,XD2,XDD2] = R.fkineEE2_traj(Q, QD, QDD);
-  end
   % Teste nur die ersten fünf Einträge (sind vorgegeben). Der sechste
   % Wert wird an dieser Stelle erst berechnet und kann nicht verglichen werden.
   % Hier wird nur eine Hin- und Rückrechnung (InvKin/DirKin) gemacht. 
@@ -242,7 +465,7 @@ if all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
     fval = 1e4*(3+fval_x_norm); % Werte zwischen 3e4 und 4e4
     constrvioltext=sprintf(['Fehler der EE-Lage der ersten Beinkette ', ...
       'zwischen invkin und fkine. Max Fehler %1.2e'], max(abs(test_X(:))));
-    return
+    continue
   end
   test_XD = Traj_0.XD(:,1:5) - XD2(:,1:5);
   if any(abs(test_XD(:))>1e-6)
@@ -254,7 +477,7 @@ if all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
     fval = 1e4*(2+fval_xD_norm); % Werte zwischen 2e4 und 3e4
     constrvioltext=sprintf(['Fehler der EE-Geschwindigkeit der ersten Beinkette ', ...
       'zwischen invkin und fkine. Max Fehler %1.2e'], max(abs(test_XD(:))));
-    return
+    continue
   end
   test_XDD = Traj_0.XDD(:,1:5) - XDD2(:,1:5);
   if any(abs(test_XDD(:))>1e-6)
@@ -266,7 +489,7 @@ if all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
     fval = 1e4*(1+fval_xDD_norm); % Werte zwischen 1e4 und 2e4
     constrvioltext=sprintf(['Fehler der EE-Beschleunigung der ersten Beinkette ', ...
       'zwischen invkin und fkine. Max Fehler %1.2e'], max(abs(test_XDD(:))));
-    return
+    continue
   end
   % Eintragen des dritten Euler-Winkels, damit spätere Vergleiche funktionieren.
   if all(R.I_EE_Task == [1 1 1 1 1 0])
@@ -298,7 +521,7 @@ if any(strcmp(Set.optimization.objective, 'valid_act')) && R.Type ~= 0 % nur sin
       'Zeitschritten. Im Mittel %1.4f (rad/s bzw. m/s). Zuerst bei Zeitschritt %d.'], ...
       sum(any(abs(PHI4D_ges)>1e-3,2)), length(Traj_0.t), fval_paras, ...
       find(any(abs(PHI4D_ges)>1e-6,2),1,'first'));
-    return
+    continue
   end
 end
 if R.Type ~= 0 && Set.general.debug_calc
@@ -378,7 +601,7 @@ if any(I_qlimviol_T)
     end
     sgtitle('Überschreitung der Gelenkwinkelspannweite');
   end
-  return
+  continue
 end
 
 %% Prüfe die Gelenkwinkelgrenzen für eine symmetrische PKM-Konfiguration
@@ -411,7 +634,7 @@ if R.Type == 2 && Set.optimization.joint_stiffness_passive_revolute
     constrvioltext = sprintf(['Gelenkgrenzverletzung in Traj bei Be', ...
       'trachtung aller Beinketten. Schlechteste Spannweite: %1.2f/%1.2f ', ...
       '(Gelenk %d)'], q_range_T_all_legs(IIw), q_range_max(IIw), IIw);
-    return
+    continue
   end
 end
 
@@ -453,7 +676,7 @@ if any(~isinf(Structure.qDlim(:)))
       linkxaxes
       sgtitle('Gelenkgeschwindigkeiten');
     end
-    return
+    continue
   end
 end
 
@@ -492,7 +715,7 @@ if any(~isinf(Structure.qDDlim(:)))
       linkxaxes
       sgtitle('Gelenkbeschleunigungen');
     end
-    return
+    continue
   end
 end
 
@@ -577,7 +800,7 @@ if any(corrQD < 0.95) || any(corrQ < 0.98)
     linkxaxes
     sgtitle('Verlauf Gelenkbeschleunigungen');
   end
-  return
+  continue
 end
 %% Aktualisiere Roboter für Kollisionsprüfung (geänderte Grenzen aus Traj.-IK)
 if Set.optimization.constraint_collisions || ...
@@ -590,6 +813,8 @@ end
 if Structure.desopt_prismaticoffset
   [fval_coll_tmp, fval_instspc_tmp] = cds_desopt_prismaticoffset(R, ...
     Traj_0.X, Set, Structure, JP, Q);
+  cds_log(4, sprintf(['[constraints_traj] Schubgelenk-Offset wurde optimiert. Ergebnis: ', ...
+    '%1.1fmm'], 1e3*R.Leg(1).DesPar.joint_offset(R.Leg(1).MDH.sigma==1)));
   % Kollisionskörper müssen nochmal aktualisiert werden (wegen Offset)
   [Structure.collbodies_robot, Structure.installspace_collbodies] = ...
     cds_update_collbodies(R, Set, Structure, Q);
@@ -606,7 +831,7 @@ if Set.optimization.constraint_collisions && ...
     fval = fval_coll_traj; % Normierung auf 3e3 bis 4e3 -> bereits in Funktion
     constrvioltext = sprintf('Kollision in %d/%d Traj.-Punkten.', ...
       sum(any(coll_traj,2)), size(coll_traj,1));
-    return
+    continue
   end
 end
 
@@ -619,7 +844,7 @@ if ~isempty(Set.task.installspace.type) && ...
     fval = fval_instspc_traj; % Normierung auf 2e3 bis 3e3 -> bereits in Funktion
     constrvioltext = sprintf(['Verletzung des zulässigen Bauraums in Traj.', ...
       'Schlimmstenfalls %1.1f mm draußen.'], 1e3*f_constrinstspc_traj);
-    return
+    continue
   end
 end
 %% Arbeitsraum-Hindernis-Kollisionsprüfung für Trajektorie
@@ -631,6 +856,7 @@ if ~isempty(Set.task.obstacles.type)
     constrvioltext = sprintf(['Arbeitsraum-Kollision in %d/%d Traj.-Punkten. ', ...
       'Schlimmstenfalls %1.1f mm in Kollision.'], sum(any(coll_obst_traj,2)), ...
       size(coll_obst_traj,1), f_constr_obstcoll_traj);
-    return
+    continue
   end
+end
 end

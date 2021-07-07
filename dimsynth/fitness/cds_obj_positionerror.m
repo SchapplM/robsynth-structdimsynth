@@ -60,7 +60,7 @@ if R.Type == 0 % Seriell
   % Berechne Manipulierbarkeit für alle Punkte der Bahn
   for i = 1:length(Traj_0.t)
     J_3T = R.jacobit(Q(i,:)'); % nur translatorisch
-    J_transl = J_3T(Set.structures.DoF(1:3),:);
+    J_transl = J_3T(Set.task.DoF(1:3),:);
     % Berechne Positionsfehler (siehe [Rob2LUH])
     deltapges(i,:) = norm(abs(J_transl)*delta_qa);
   end
@@ -70,7 +70,7 @@ else % PKM
     Jinv_IK = reshape(Jinvges(i,:), R.NJ, sum(R.I_EE));
     J = inv(Jinv_IK(R.I_qa,:));
     % Wähle translatorischen Teil der Jacobi aus
-    J_transl = J(Set.structures.DoF(1:3),:);
+    J_transl = J(Set.task.DoF(1:3),:);
     deltapges(i,:) = norm(abs(J_transl)*delta_qa); % siehe [Rob2LUH]
   end
 end

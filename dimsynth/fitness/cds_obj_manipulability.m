@@ -40,15 +40,26 @@ if R.Type == 0 % Seriell
   % Berechne Manipulierbarkeit für alle Punkte der Bahn
   for i = 1:length(Traj_0.t)
     J_3T3R = R.jacobia(Q(i,:)'); % analytisch wegen 3T2R; für alle anderen geht auch jacobig
-    J_task = J_3T3R(Set.structures.DoF,:);
-    muges(i,:) = abs(det(J_task));
+    J_task = J_3T3R(Set.task.DoF,:);
+    if size(J_task,1) < size(J_task,2) % Redundanz; allgemeiner Fall
+      muges(i,:) = sqrt(det(J_task*J_task'));
+    else % nicht-redundant
+      muges(i,:) = abs(det(J_task));
+    end
   end
 else % PKM
   % Berechne Manipulierbarkeit für alle Punkte der Bahn
   for i = 1:length(Traj_0.t)
     Jinv_IK = reshape(Jinvges(i,:), R.NJ, sum(R.I_EE));
-    % Determinante der Jacobi ist Kehrwert der Determinante der J.-Inversen
-    muges(i) = abs(1/det(Jinv_IK(R.I_qa,:)));
+    if sum(R.I_EE_Task) < sum(R.I_EE) % Aufgabenredundanz;
+      % Doppelt-Invertiert zum seriellen Fall, da nur die inverse Jacobi
+      % für PKM bestimmbar ist. TODO: Formel bestätigen und Quelle.
+      muges(i) = 1/sqrt(det( ...
+        Jinv_IK(R.I_qa,R.I_EE_Task)'*Jinv_IK(R.I_qa,R.I_EE_Task)));
+    else % nicht-redundant
+      % Determinante der Jacobi ist Kehrwert der Determinante der J.-Inversen
+      muges(i) = abs(1/det(Jinv_IK(R.I_qa,:)));
+    end
   end
 end
 % Schlechtester Wert der Manipulierbarkeit ist Kennzahl

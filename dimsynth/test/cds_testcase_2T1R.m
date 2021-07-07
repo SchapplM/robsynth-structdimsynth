@@ -20,7 +20,7 @@ Set.general.matfile_verbosity = 1;
 Set.general.verbosity = 3;
 Set.general.save_robot_details_plot_fitness_file_extensions = {'fig'};
 Set.general.save_animation_file_extensions = {'mp4', 'gif'};
-% Set.general.regenerate_summmary_only = true;
+% Set.general.regenerate_summary_only = true;
 % Wähle je einen seriellen und parallelen Roboter mit/ohne Schubgelenke
 whitelist_all = {'P3RPR1G1P1A2', 'S3RPR1', 'P3RRR1G1P1A1', 'S3RRR1'};
 Traj = cds_gen_traj(DoF, 1, Set.task);

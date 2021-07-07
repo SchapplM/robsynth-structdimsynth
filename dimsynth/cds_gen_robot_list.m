@@ -22,37 +22,36 @@ end
 %% Init
 structset = Set.structures;
 verblevel = Set.general.verbosity;
+% Datenbank serieller Roboter (und Beinketten) laden
 serroblibpath=fileparts(which('serroblib_path_init.m'));
+parroblibpath=fileparts(which('parroblib_path_init.m'));
+SerRob_DB_all = load(fullfile(serroblibpath, 'serrob_list.mat'));
 % Name der FG für Zugriff auf Listen
-if all(structset.DoF == [1 1 0 0 0 1])
+if all(Set.task.DoF == [1 1 0 0 0 1])
   task_str = '2T1R';
-elseif all(structset.DoF == [1 1 1 0 0 0])
+elseif all(Set.task.DoF == [1 1 1 0 0 0])
   task_str = '3T0R';
-elseif all(structset.DoF == [1 1 1 0 0 1])
+elseif all(Set.task.DoF == [1 1 1 0 0 1])
   task_str = '3T1R';
-elseif all(structset.DoF == [1 1 1 1 1 0])
+elseif all(Set.task.DoF == [1 1 1 1 1 0])
   task_str = '3T2R';
-elseif all(structset.DoF == [1 1 1 1 1 1])
+elseif all(Set.task.DoF == [1 1 1 1 1 1])
   task_str = '3T3R';
 end
 
 Structures = {};% struct('Name', {}, 'Type', []);
 
-if structset.max_task_redundancy > 0
-  error('Aufgabenredundanz noch nicht implementiert');
-end
 if structset.max_kin_redundancy > 0
   error('Kinematische Redundanz noch nicht implementiert');
 end
 
-EE_FG = structset.DoF;
 % Die FG in der SerRobLib sind anders kodiert: v_xyz, w_xyz, phiD_xyz
 % TODO: Vereinheitlichen mit ParRobLib
-if all(structset.DoF == [1 1 1 1 1 0])
+if all(Set.task.DoF == [1 1 1 1 1 0])
   EE_FG_ser      = [[1 1 1], [1 1 1], [1 1 1]];
   EE_FG_Mask_ser = [[1 1 1], [1 1 1], [1 1 0]];
 else
-  EE_FG_ser = EE_FG;
+  EE_FG_ser = Set.task.DoF;
   EE_FG_Mask_ser = [1 1 1 1 1 1]; % Die FG müssen genauso auch vom Roboter erfüllt werden (0 darf nicht auch 1 sein)
 end
 
@@ -60,9 +59,33 @@ ii = 0; % Laufende Nummer für alle Roboterstrukturen (seriell und parallel)
 
 %% Serielle Roboter laden
 if structset.use_serial
-  N_JointDoF = sum(structset.DoF); % Beinketten ohne irgendeine Redundanz (so viele Gelenke wie EE FG)
-  mdllistfile_Ndof = fullfile(serroblibpath, sprintf('mdl_%ddof', N_JointDoF), sprintf('S%d_list.mat',N_JointDoF));
-  l = load(mdllistfile_Ndof, 'Names_Ndof', 'AdditionalInfo');
+  % Beinketten ohne irgendeine Redundanz (so viele Gelenke wie EE FG)
+  if Set.structures.min_task_redundancy == 0
+    N_JointDoF_allowed = sum(Set.task.DoF);
+  elseif Set.structures.min_task_redundancy == 1
+    if sum(Set.task.DoF) == 6 % TODO: Weitere Fallabfragen.
+      error('Aufgabenredundanz nicht möglich bei 3T3R');
+    end
+    N_JointDoF_allowed = sum(Set.task.DoF)+1;
+  else % Set.structures.min_task_redundancy > 1
+    error('Fall nicht implementiert');
+  end
+  % Bei Aufgabenredundanz: Benutzte EE-FG der Aufgabe müssen weniger als
+  % die tatsächlich steuerbaren sein. TODO: Bessere Abgrenzung.
+  if Set.structures.max_task_redundancy > 0
+    N_JointDoF_max = max(6, sum(Set.task.DoF)+Set.structures.max_task_redundancy);
+    N_JointDoF_allowed = N_JointDoF_allowed:1:N_JointDoF_max;
+  end
+else
+  N_JointDoF_allowed = [];
+end
+% Mögliche Anzahl an Gelenken durchgehen
+for N_JointDoF = N_JointDoF_allowed
+  % Seriellroboter-Datenbank für diese Gelenk-Anzahl vor-filtern
+  I_N_in_all = SerRob_DB_all.N == N_JointDoF;
+  l = struct('Names_Ndof', {SerRob_DB_all.Names(I_N_in_all)}, ...
+             'AdditionalInfo', SerRob_DB_all.AdditionalInfo(I_N_in_all,:));
+  % Filterung auf EE-FG (zusätzlich zur Gelenkzahl)
   [~,I_FG] = serroblib_filter_robots(N_JointDoF, EE_FG_ser, EE_FG_Mask_ser);
   I_novar = (l.AdditionalInfo(:,2) == 0);
   I = I_FG;
@@ -79,36 +102,61 @@ if structset.use_serial
   II = find(I);
   for j = II'
     SName = l.Names_Ndof{j};
-    if ~isempty(structset.whitelist) && ~any(strcmp(structset.whitelist, SName))
+    IsInWhiteList = any(strcmp(structset.whitelist, SName));
+    if ~isempty(structset.whitelist) && ~IsInWhiteList
       % Es gibt eine Liste von Robotern, dieser ist nicht dabei.
       continue
     end
-    
+    TooManyPrisJoints = false;
+    FilterMatch = true;
+
     % Prüfe Anzahl Schubgelenke
     numprismatic = sum(SName == 'P');
     if numprismatic > structset.maxnumprismatic
-      if verblevel >= 3, fprintf('%s hat zu viele Schubgelenke (%d>%d). Ignoriere\n', SName, numprismatic, structset.maxnumprismatic); end
-      continue
+      TooManyPrisJoints = true;
     end
-    
+
     % Prüfe, ob die Gelenkreihenfolge zum Filter passt
     if any(~strcmp(structset.joint_filter, '*'))
       Filter = structset.joint_filter(1:N_JointDoF);
       ChainJoints_filt = SName(3:3+N_JointDoF-1);
       ChainJoints_filt(Filter=='*') = '*';
       if ~strcmp(ChainJoints_filt, structset.joint_filter(1:N_JointDoF))
-        if verblevel >= 3, fprintf('%s passt nicht zum Filter %s. Ignoriere\n', SName, structset.joint_filter); end
-        continue
+        FilterMatch = false;
       end
     end
     
+    SkipRobot = false;
+    if TooManyPrisJoints
+      if verblevel >= 3
+        fprintf('%s hat zu viele Schubgelenke (%d>%d).', ...
+          SName, numprismatic, structset.maxnumprismatic);
+      end
+      SkipRobot = true;
+    end
+    if ~SkipRobot && ~FilterMatch
+      if verblevel >= 3
+        fprintf('%s passt nicht zum Filter %s.', ...
+          SName, structset.joint_filter);
+      end
+      SkipRobot = true;
+    end
+    if SkipRobot % Einer der Ausschlussgründe oben wurde getroffen.
+      if IsInWhiteList % Positiv-Liste wird trotzdem genommen.
+        if verblevel >= 3, fprintf(' Füge trotzdem hinzu, da auf Positiv-Liste.\n'); end
+      else
+        if verblevel >= 3, fprintf(' Ignoriere.\n'); end
+        continue
+      end
+    end
+
     ii = ii + 1;
     if verblevel >= 2, fprintf('%d: %s\n', ii, SName); end
-    Structures{ii} = struct('Name', SName, 'Type', 0, 'Number', ii); %#ok<AGROW>
+    Structures{ii} = struct('Name', SName, 'Type', 0, 'Number', ii, ...
+      ... % Platzhalter, Angleichung an PKM (Erkennung altes Dateiformat)
+      'angles_values', []); %#ok<AGROW> 
   end
 end
-%% Parallele Roboter aus Liste laden
-% parroblibpath=fileparts(which('parroblib_path_init.m'));
 
 %% Parallele Roboter laden
 if structset.use_parallel
@@ -118,16 +166,50 @@ if structset.use_parallel
   else
     max_rankdeficit = 0;
   end
-  [~, PNames_Akt] = parroblib_filter_robots(EE_FG, max_rankdeficit);
+  if Set.structures.min_task_redundancy == 0
+    EE_FG_allowed = Set.task.DoF;
+  elseif Set.structures.min_task_redundancy > 1
+    error('Fall nicht implementiert');
+  else
+    EE_FG_allowed = logical([]);
+  end
+  if Set.structures.max_task_redundancy > 0
+    if all(Set.task.DoF == [1 1 1 1 1 0])
+      % Bei 3T2R-Aufgabe sind 3T3R-PKM aufgabenredundant mit Grad 1
+      EE_FG_allowed = [EE_FG_allowed; logical([1 1 1 1 1 1])];
+    elseif all(Set.task.DoF == [1 1 0 0 0 0]) && Set.task.pointing_task
+      % Bei 2T0*R-Aufgabe sind 2T1R-PKM aufgabenredundant mit Grad 1
+      EE_FG_allowed = [EE_FG_allowed; logical([1 1 0 0 0 1])];
+    elseif all(Set.task.DoF == [1 1 1 0 0 0]) && Set.task.pointing_task
+      % Bei 3T0*R-Aufgabe sind 3T1R-PKM aufgabenredundant mit Grad 1
+      EE_FG_allowed = [EE_FG_allowed; logical([1 1 1 0 0 1])];
+    else
+      error('Fall nicht definiert');
+    end
+  end
+else
+  EE_FG_allowed = logical([]);
+end
+for kkk = 1:size(EE_FG_allowed,1)
+  EEstr = sprintf('%dT%dR', sum(EE_FG_allowed(kkk,1:3)), sum(EE_FG_allowed(kkk,4:6)));
+  acttabfile=fullfile(parroblibpath, ['sym_', EEstr], ['sym_',EEstr,'_list_act.mat']);
+  tmp = load(acttabfile);
+  ActTab = tmp.ActTab;
+  [~, PNames_Akt, AdditionalInfo_Akt] = parroblib_filter_robots(EE_FG_allowed(kkk,:), max_rankdeficit);
   for j = 1:length(PNames_Akt)
     if ~isempty(structset.whitelist) && ~any(strcmp(structset.whitelist, PNames_Akt{j}))
       % Es gibt eine Liste von Robotern, dieser ist nicht dabei.
       continue
     end
-    
-    % Lade Detailierte Informationen des Robotermodells
-    [~, LEG_Names, Actuation, Coupling, ~, ~, ~, ~, ~, AdditionalInfo_Akt, ...
-      StructuralDHParam] = parroblib_load_robot(PNames_Akt{j});
+    % Lade vereinfachte Informationen des Robotermodells
+    [NLEG, LEG_Names, ~, Coupling] = parroblib_load_robot(PNames_Akt{j}, 0);
+    Ij = strcmp(ActTab.Name, PNames_Akt{j});
+    Actuation = cell(1, NLEG);
+    for kk = 1:NLEG
+      ActLeg_kk = ActTab.(sprintf('Act_Leg%d',kk));
+      Actuation{kk} = find(ActLeg_kk(Ij,:));
+    end
+    StructuralDHParam = ActTab.Values_Angle_Parameters(Ij);
     % Prüfe Koppelpunkt-Eigenschaften
     if ~any(Coupling(1) == [1:9]) || ~any(Coupling(2) == [1:6, 8])
       if verblevel >= 3, fprintf('%s hat eine nicht implementierte Koppelpunkt-Variante\n', PNames_Akt{j}); end
@@ -140,11 +222,12 @@ if structset.use_parallel
       end
       continue
     end
+    
     % Prüfe, ob Rang ordnungsgemäß in Datenbank steht. Wenn nicht, ist das
     % ein Zeichen dafür, dass die PKM noch ungeprüft ist. Bei Zielfunktion
     % "valid_act" soll in Struktursynthese der Rang geprüft werden. Dann
     % damit weitermachen.
-    if isnan(AdditionalInfo_Akt(1)) && ~strcmp(Set.optimization.objective, 'valid_act')
+    if isnan(AdditionalInfo_Akt(j,1)) && ~strcmp(Set.optimization.objective, 'valid_act')
       if verblevel >= 3
         fprintf(['%s hat keine Angabe eines Rangverlusts der Jacobi-Matrix. ', ...
           'Vermutlich ungeprüfte PKM. Ignoriere.\n'], PNames_Akt{j});
@@ -156,6 +239,7 @@ if structset.use_parallel
     LastJointActive = false;
     DistalJointActive = false;
     FilterMatch = true;
+    NumTechJointsDontMatch = false;
     WrongLegChainOrigin = false;
     IsInWhiteList = any(strcmp(structset.whitelist, PNames_Akt{j}));
     for k = 1 % Betrachte erste der symmetrischen Beinketten (für den Fall asymmetrischer PKM auch alle möglich)
@@ -190,20 +274,26 @@ if structset.use_parallel
           FilterMatch = false;
         end
       end
+      % Beinkette in Daten finden
+      ilc = find(strcmp(SerRob_DB_all.Names, LegChainName));
+      if isempty(ilc) || length(ilc)>1, error('Unerwarteter Eintrag in Datenbank für Beinkette %s', LegChainName); end
+
+      % Finde die Anzahl der technischen Gelenke der Beinkette heraus und
+      % filtere danach
+      SName_TechJoint = fliplr(regexprep(num2str(SerRob_DB_all.AdditionalInfo(ilc,7)), ...
+        {'1','2','3','4','5'}, {'R','P','C','U','S'}));
+      if ~any(length(SName_TechJoint) == structset.num_tech_joints)
+        NumTechJointsDontMatch = true;
+      end
       % Prüfe, ob die Beinkette nur manuell in die Seriellkinematik-Daten-
       % bank eingetragen wurde und das nicht erwünscht ist
       if structset.onlylegchain_from_synthesis
-        mdllistfile_Ndof = fullfile(serroblibpath, sprintf('mdl_%ddof', NLegDoF), sprintf('S%d_list.mat',NLegDoF));
-        l = load(mdllistfile_Ndof, 'Names_Ndof', 'BitArrays_Origin', 'AdditionalInfo', 'BitArrays_Ndof');
-        % Beinkette in Daten finden
-        ilc = find(strcmp(l.Names_Ndof, LegChainName));
-        if isempty(ilc) || length(ilc)>1, error('Unerwarteter Eintrag in Datenbank für Beinkette %s', LegChainName); end
         % Erzeuge eine Bit-Maske zur Prüfung, ob die Kinematik aus der
         % Struktursynthese für xTyR-Beinketten kommt
         % Modellherkunft laut Datenbank: dec2bin(l.BitArrays_Origin(ilc,:))
-        if all(structset.DoF == [1 1 1 0 0 0])
+        if all(Set.task.DoF == [1 1 1 0 0 0])
           Mask_Origin = uint16(bin2dec('00100')); % Dritte Spalte für Modellherkunft
-        elseif all(structset.DoF == [1 1 1 0 0 1])
+        elseif all(Set.task.DoF == [1 1 1 0 0 1])
           Mask_Origin = uint16(bin2dec('00010')); % Vierte Spalte (in S5RPRPR.csv o.ä.)
         else
           % Keine Einschränkung (außer manuell eingefügte Ketten)
@@ -211,21 +301,21 @@ if structset.use_parallel
         end
         % Maske für die Beinkette erstellen. Bei allgemeinen Hauptmodellen
         % direkt ablesen. Bei Varianten die Maske des Hauptmodells nehmen.
-        if bitand(Mask_Origin, l.BitArrays_Origin(ilc,:)) ~= 0
+        if bitand(Mask_Origin, SerRob_DB_all.BitArrays_Origin(ilc,:)) ~= 0
           % Beinkette kommt selbst schon aus der richtigen Synthese. Nichts
           % tun. Hierdurch werden auch Varianten aus Beinketten-
           % Struktursynthese genommen (noch ungeklärt, woher die kommen).
-        elseif l.AdditionalInfo(ilc,2) == 1 % ist Variante
+        elseif SerRob_DB_all.AdditionalInfo(ilc,2) == 1 % ist Variante
            % Beinkette ist so direkt nicht richtig
-          if ~bitand(uint16(bin2dec('10000')), l.BitArrays_Origin(ilc))
+          if ~bitand(uint16(bin2dec('10000')), SerRob_DB_all.BitArrays_Origin(ilc))
              % Variante soll zumindest aus Generierung der mehrwertigen
              % Gelenke kommen. Keine manuell eingefügten Varianten oder
              % Varianten aus direkter Struktursynthese.
              WrongLegChainOrigin = true;
              break;
           end
-          ilc_genmdl = l.AdditionalInfo(ilc,3); % Hauptmodell zu der Variante
-          if bitand(Mask_Origin, l.BitArrays_Origin(ilc_genmdl,:)) == 0
+          ilc_genmdl = SerRob_DB_all.AdditionalInfo(ilc,3); % Hauptmodell zu der Variante
+          if bitand(Mask_Origin, SerRob_DB_all.BitArrays_Origin(ilc_genmdl,:)) == 0
             WrongLegChainOrigin = true; % Serielle Kette hat falsche Modellherkunft.
             break;
           end
@@ -251,15 +341,23 @@ if structset.use_parallel
       SkipRobot = true;
     end
     if ~SkipRobot && DistalJointActive
-      if verblevel >= 3, fprintf('%s hat aktives Gelenk nach Position %d.', PNames_Akt{j}, Set.structures.max_index_active); end
+      if verblevel >= 3, fprintf('%s hat aktives Gelenk nach Position %d.', ...
+          PNames_Akt{j}, Set.structures.max_index_active); end
       SkipRobot = true;
     end
     if ~SkipRobot && ~FilterMatch
-      if verblevel >= 3, fprintf('%s passt nicht zum Filter %s.', PNames_Akt{j}, structset.joint_filter); end
+      if verblevel >= 3, fprintf('%s passt nicht zum Filter %s.', ...
+          PNames_Akt{j}, structset.joint_filter); end
+      SkipRobot = true;
+    end
+    if ~SkipRobot && NumTechJointsDontMatch
+      if verblevel >= 3, fprintf('%s hat nicht die passende Gelenkzahl in Beinkette (%s). Ist: %d. Erlaubt: [%s]\n', ...
+          PNames_Akt{j}, SName_TechJoint, length(SName_TechJoint), disp_array(structset.num_tech_joints, '%d')); end
       SkipRobot = true;
     end
     if ~SkipRobot && WrongLegChainOrigin
-      if verblevel >= 3, fprintf('%s hat keine Beinkette aus %s-PKM-Synthese (%s).', PNames_Akt{j}, task_str, LegChainName); end
+      if verblevel >= 3, fprintf('%s hat keine Beinkette aus %s-PKM-Synthese (%s).', ...
+          PNames_Akt{j}, task_str, LegChainName); end
       SkipRobot = true;
     end
     if SkipRobot % Einer der Ausschlussgründe oben wurde getroffen.
@@ -271,7 +369,7 @@ if structset.use_parallel
       end
     end
     % Stelle mögliche Werte für den Strukturparameter theta1 zusammen.
-    csvline = serroblib_bits2csvline(l.BitArrays_Ndof(ilc,:)); % DH-Parameter der Beinkette aus csv-Datei
+    csvline = serroblib_bits2csvline(SerRob_DB_all.BitArrays_Ndof(ilc,:)); % DH-Parameter der Beinkette aus csv-Datei
     % Die Indizes beziehen sich auf die MDH-Parameter in der CSV-Datei.
     % Sie sind daher schon passend sortiert (erst Gelenkreihenfolge, dann
     % alpha/theta)
@@ -286,8 +384,8 @@ if structset.use_parallel
     end
     if strcmp(Set.optimization.objective, 'valid_act') % Prüfe Laufgrad der PKM (sonst ist die Info schon vorhanden)
       if any(I_param) && ... % es gibt (mindestens) einen freien Struktur-Parameter
-          (all(structset.DoF(1:5) == [1 1 1 0 0]) || ... % 3T0R/3T1R
-           all(structset.DoF(1:6) == [1 1 1 1 1 0])) % 3T2R (vermutlich hier relevant)
+          (all(Set.task.DoF(1:5) == [1 1 1 0 0]) || ... % 3T0R/3T1R
+           all(Set.task.DoF(1:6) == [1 1 1 1 1 0])) % 3T2R (vermutlich hier relevant)
         % Siehe parroblib_load_robot
         % Falls theta ein variabler Parameter ist, werden verschiedene An- 
         % nahmen für theta getroffen und alle einzeln geprüft.
@@ -332,7 +430,7 @@ if structset.use_parallel
       end
       if verblevel >= 2, fprintf('%d: %s; %s\n', ii, PNames_Akt{j}, theta_logstr); end
       Structures{ii} = struct('Name', PNames_Akt{j}, 'Type', 2, 'Number', ii, ...
-        'Coupling', Coupling, 'angles_values', av); %#ok<AGROW>
+        'Coupling', Coupling, 'angles_values', av, 'DoF', EE_FG_allowed(kkk,:)); %#ok<AGROW>
     end
   end
 end

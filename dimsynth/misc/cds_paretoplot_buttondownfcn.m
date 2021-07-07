@@ -102,6 +102,8 @@ if ~strcmp(optfolder, OptName)
 end
 Set.optimization.resdir = resdir_tmp;
 
+% Fehlende Felder in den Einstellungen ergänzen, sonst Fehler in Funktionen
+Set = cds_settings_update(Set, 1);
 %% Bestimme die Nummer des Pareto-Partikels
 % Nummer istschon in I_point richtig sein, da xData und yData identisch
 % mit den Werten aus fval_pareto (bzw. physval) sind.
@@ -161,6 +163,10 @@ if fitness_recalc_necessary
         end
       end
     end
+    % Erzwinge Prüfung der gespeicherten Konfiguration. Ist teilweise
+    % redundant zu Speicherung in qref. Führt Traj.-IK aus, auch wenn Pos.-
+    % IK bei Umklappen der Konfiguration scheitert.
+    Structure.q0_traj = q0;
     if isempty(p_desopt)
       [fval2, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure,p);
     else

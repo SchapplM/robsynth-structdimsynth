@@ -3,7 +3,8 @@
 % Eingabe:
 % input_settings
 %   Struktur mit Einstellungen zur Generierung aller
-%   Optimierungseinstellungen
+%   Optimierungseinstellungen. Felder:
+%   DoF: FG der Aufgabe in Notation [1 1 1 0 0 1] (Geschw., Winkelgeschw.)
 % 
 % Ausgabe:
 % settings
@@ -41,14 +42,14 @@ general = struct( ...
   'maxduration_animation', 10, ... % Die Animation soll max. 10s dauern (als Videodatei)
   'save_evolution_video', false, ... % Video mit Evolution der Roboter
   'max_retry_bestfitness_reconstruction', 2, ... % Anzahl Neuversuche zur Reproduktion. 2 reichen zur Prüfung, ob Wiederholbarkeit da ist.
-  'regenerate_summmary_only', false, ... % Nur die Videos und Zusammenfassungsbilder neu generieren. Keine Optimierung durchführen.
+  'regenerate_summary_only', false, ... % Nur die Videos und Zusammenfassungsbilder neu generieren. Keine Optimierung durchführen.
   'only_finish_aborted', false, ... % Führe keine Optimierung durch, sondern werte abgebrochene vorherige Optimierungen aus
   'overwrite_existing_results', true, ... % Führe die Maßsynthese erneut durch, auch wenn schon Daten vorhanden sind. Für alleinige Berechnung unfertiger Roboter auf false setzen
   'nosummary', false, ... % Kompletter Verzicht auf die graphische Endauswertung
   'eval_figures', {{'histogram', 'fitness_various', 'jointtraj', ... % Liste der zu erstellenden Bilder. ...
     'robvisuanim', 'pareto_all_phys', 'pareto_all_fval', 'pareto'}}, ... % ... Auswahl, siehe cds_vis_results.m
   'only_save_summary_figures', true, ... % Bilderzeugung dient hauptsächlich der Speicherung. Schließe alle Bilder nach Speicherung
-  'noprogressfigure', false, ... % Verzicht auf Fortschritts-Bild des PSO
+  'noprogressfigure', true, ... % Verzicht auf Fortschritts-Bild des PSO (meistens nicht hilfreich)
   'debug_calc', false, ... % Doppelte Berechnung zur Prüfung von Funktionen
   'parcomp_struct', 0, ... % Parallele Berechnung unterschiedlicher Roboter. Enthält Anzahl der Worker-Instanzen als Zahl
   'parcomp_plot', 0, ... % Parallele Erzeugung der Ergebnisbilder und -videos
@@ -63,7 +64,7 @@ general = struct( ...
 %% Einstellungen zur Auswahl der verwendeten Strukturen
 % PKM zeigen standardmäßig von der Decke herunter. Ausnahme: 2T1R. Dort
 % nicht sinnvoll, da die Höhe nicht änderbar ist.
-if all(input_settings.DoF==[1 1 0 0 0 1])
+if all(input_settings.DoF==[1 1 0 0 0 1]) || all(input_settings.DoF==[1 1 0 0 0 0])
   mounting_parallel_default = 'floor';
 else
   mounting_parallel_default = 'ceiling';
@@ -76,10 +77,11 @@ structures = struct( ...
   'onlylegchain_from_synthesis', true, ... % Nehme keine seriellen Ketten als Beinkette, die nur manuell in die SerRobLib eingetragen wurden
   'use_kinematic_variants', true, ... % Nehme auch serielle Ketten, die eine Variante eines allgemeinen Modells sind
   'maxnumprismatic', 1, ... % Maximal ein Schubgelenk in Roboter (bzw. PKM-Beinkette)
+  'min_task_redundancy', 0, ... % Geforderter Grad der Aufgabenredundanz
   'max_task_redundancy', 0, ... % Zulässiger Grad der Aufgabenredundanz
   'max_kin_redundancy', 0, ... % Zulässiger Grad der kinematischen Redundanz
-  'DoF', input_settings.DoF, ... % FG des Roboters in Notation [1 1 1 0 0 1] (Geschw., Winkelgeschw.)
   'joint_filter', '******', ... % Vorgabe von Gelenktypen ("R", "P", "*").
+  'num_tech_joints', 1:6, ... Mögliche Anzahl technischer Gelenke (in PKM-Beinketten). Wert 3 ermöglicht bspw. Ketten UPS, PUS, RUS, ...
   'parrob_basejointfilter', 1:9, ... % Vorgabe zum Gestell-Koppelgelenktyp einer PKM
   'nopassiveprismatic', true, ... % Schubgelenke dürfen nicht passiv sein
   'activenotlastjoint', true, ... % Verhindert ein aktives Plattform-Koppelgelenk
@@ -137,6 +139,7 @@ optimization = struct( ...
   'max_velocity_active_prismatic', 5, ... % [m/s] Maximale Geschw. (zur Singularitätsvermeidung)
   'max_acceleration_prismatic', 50, ... % ca. 5g Beschleunigung ist technisch kaum zu realisieren
   'max_acceleration_revolute', 100, ... % Maximale Geschw. (20) wäre in 0.2s erreicht. Sehr hoher Wert für frühe Erkennung schlechter Konditionierung
+  'check_jointrange_points', true, ... % Prüfung der Gelenkwinkelspannweite bereits bei den Eckpunkten (Möglichkeit für falsch-positive Ausschlüsse)
   'desopt_vars', {{}}, ... % Variablen für eigene Optimierung der Entwurfsparameter. Möglich: "linkstrength", "joint_stiffness_qref"
   'safety_link_yieldstrength', 1, ... % Sicherheitsfaktor für Streckgrenze der Segmente als Nebenbedingung. Berechnung gesteuert über constraint_obj(6)
   'constraint_collisions', false, ... Schalter für Kollisionsprüfung
@@ -156,6 +159,8 @@ optimization = struct( ...
 
 %% Einstellungen für Aufgabe (Trajektorie, Bauraum, Hindernisse)
 task = struct( ...
+  'DoF', input_settings.DoF, ... % Für die Aufgabe relevante Freiheitsgrade
+  'pointing_task', false, ... % Bei true ist die Drehung um die EE-z-Achse egal (für 3T0R/2T0R notwendig)
   'profile', 1, ... % Beschleunigungs-Trapez für Kartesische Eckpunkte
   'vmax', 1, ... % maximale Geschwindigkeit (m/s oder rad/s)
   'amax', 3, ... % maximale Beschleunigung (m/s² oder rad/s²)

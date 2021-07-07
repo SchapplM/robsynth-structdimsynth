@@ -26,7 +26,11 @@ Set.optimization.MaxIter = 10;
 Set.optimization.ee_rotation = false;
 Set.optimization.movebase = false;
 Set.optimization.safety_link_yieldstrength = 1.2; % 20% Sicherheitsaufschlag
+% Setze die maximale Gelenkwinkelspannweite sehr hoch, damit das kein
+% Ausschlussgrund ist.
 Set.optimization.max_range_active_revolute = 2*pi;
+Set.optimization.max_range_passive_universal = 2*pi;
+Set.optimization.max_range_passive_spherical = 4*pi; % für Plattform-Koppel-Gelenk (Längsrotation Kugelgelenk)
 Set.optimization.obj_limit = 1e3; % Bei erstem funktionierenden Ergebnis aufhören (dauert sonst ewig)
 Set.general.plot_details_in_fitness = 0*1e3;
 Set.general.plot_robot_in_fitness = 0*1e7;

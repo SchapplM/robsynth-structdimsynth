@@ -91,6 +91,17 @@ Structure.xT_mean = mean(minmax2(Traj.X(:,1:3)'), 2);
 % Charakteristische Länge der Aufgabe (empirisch ermittelt aus der Größe
 % des notwendigen Arbeitsraums)
 Lref = norm(diff(minmax2(Traj.X(:,1:3)')'));
+% Bei vorgegebener Basis-Position: Zähle Abstand von Basis zu
+% Aufgaben-Mitte zu Referenz-Länge hinzu
+if ~Set.optimization.movebase
+  r_W_0 = zeros(3,1);
+  for k = 1:3
+    if all(~isnan(Set.optimization.basepos_limits(k,:)))
+      r_W_0(k) = mean(Set.optimization.basepos_limits(k,:));
+    end
+  end
+  Lref = Lref + norm(Structure.xT_mean-r_W_0);
+end
 % Abstand der Aufgabe vom Roboter-Basis-KS
 if any(~isnan(Set.optimization.basepos_limits(:)))
   maxdist_xyz = NaN(3,1);
@@ -120,13 +131,19 @@ elseif Structure.Type == 2 % Parallel
     p_base(2) = 0.4*p_base(1);
     p_base(3) = pi/3;
   end
+  if all(~isnan(Set.optimization.base_size_limits))
+    p_base(1) = mean(Set.optimization.base_size_limits);
+  end
   % Parameter für Plattform-Kopplung einstellen
   p_platform = 0.75*Lref;
   if any(Structure.Coupling(2) == [4,5,6])
     p_platform(2) = 0.5*p_platform(1);
   end
+  if all(~isnan(Set.optimization.platform_size_limits))
+    p_platform(1) = mean(Set.optimization.platform_size_limits);
+  end
   % Bei paralleler Rechnung der Struktursynthese auf Cluster Konflikte vermeiden
-  parroblib_writelock('check', 'csv', logical(Set.structures.DoF), 5*60, false);
+  parroblib_writelock('check', 'csv', logical(Set.task.DoF), 5*60, false);
   % Klasse initialisierung (liest auch die csv-Dateien aus).
   R = parroblib_create_robot_class(Structure.Name, p_base(:), p_platform(:));
   NLEG = R.NLEG;
@@ -137,10 +154,13 @@ end
 R.fill_fcn_handles(Set.general.use_mex, true);
 
 % Aufgaben-FG des Roboters setzen
-if Structure.Type == 0 % Seriell (nur hier notwendig. TODO: Prüfen ob obsolet)
-  R.I_EE_Task = Set.structures.DoF;
+if Structure.Type == 0 % Seriell
+  R.I_EE_Task = Set.task.DoF;
+else % Parallel
+  R.update_EE_FG(R.I_EE, Set.task.DoF);
 end
-
+% Platzhalter für Vorgabe der Traj-IK-Anfangswerte
+Structure.q0_traj = NaN(R.NJ, 1);
 for i = 1:NLEG
   if Structure.Type == 0
     R_init = R;
@@ -262,7 +282,7 @@ else
 end
 % Falls planerer Roboter: Definiere Verschiebung, damit der Roboter von
 % oben angreift. Sieht besser aus, macht die Optimierung aber schwieriger.
-% if all(Set.structures.DoF(1:3) == [1 1 0])
+% if all(Set.task.DoF(1:3) == [1 1 0])
 %   R.update_base([0;0;0.5*Lref]);
 %   R.update_EE([0;0;-0.5*Lref]);
 % end
@@ -361,7 +381,7 @@ if Structure.Type == 0 || Structure.Type == 2
     R_pkin = R.Leg(1);
   end
   % Nummern zur Indizierung der pkin, siehe SerRob/get_pkin_parameter_type
-  Ipkinrel = R_pkin.get_relevant_pkin(Set.structures.DoF);
+  Ipkinrel = R_pkin.get_relevant_pkin(Set.task.DoF);
   % Setzen den theta-Parameter für PKM-Beinketten auf einen konstant Wert,
   % falls das durch die Struktursynthese vorgegeben ist (z.B. auf 0).
   % Bei 3T0R- und 3T1R-PKM ist die Parallelität der Gelenke in den Beinketten
@@ -511,7 +531,7 @@ Structure.Ipkinrel = Ipkinrel;
 % Berechne Mittelpunkt der Aufgabe
 if Set.optimization.movebase
   % Auswahl der Indizes für die zu optimierenden Basis-Koordinaten
-  I_DoF_basepos = Set.structures.DoF(1:3); % nur die FG der Aufgabe nehmen
+  I_DoF_basepos = Set.task.DoF(1:3); % nur die FG der Aufgabe nehmen
   I_DoF_setfix = Set.optimization.basepos_limits(:,1)==...
                  Set.optimization.basepos_limits(:,2); 
   for i = 1:3
@@ -568,7 +588,7 @@ else
   if Structure.Type == 0 % Seriell
     % Stelle den seriellen Roboter vor die Aufgabe
     r_W_0 = Structure.xT_mean + [-0.4*Lref;-0.4*Lref;0];
-    if Set.structures.DoF(3) == 1 % nicht für 2T1R
+    if Set.task.DoF(3) == 1 % nicht für 2T1R
       if strcmp(mounting, 'floor')
         r_W_0(3) = -0.7*Lref; % Setze Roboter-Basis etwas unter die Aufgabe
       elseif strcmp(mounting, 'ceiling')
@@ -579,7 +599,7 @@ else
     end
   else % Parallel
     r_W_0 = zeros(3,1);
-    if Set.structures.DoF(3) == 1 % nicht für 2T1R
+    if Set.task.DoF(3) == 1 % nicht für 2T1R
       if strcmp(mounting, 'floor')
         % Setze Roboter mittig unter die Aufgabe
         r_W_0(3) = Structure.xT_mean(3)-0.7*Lref;
@@ -599,21 +619,21 @@ if Set.optimization.ee_translation && ...
     (Structure.Type == 0 || Structure.Type == 2 && ~Set.optimization.ee_translation_only_serial)
   % (bei PKM keine EE-Verschiebung durchführen. Dort soll das EE-KS bei
   % gesetzter Option immer in der Mitte sein)
-  nvars = nvars + sum(Set.structures.DoF(1:3)); % Verschiebung des EE um translatorische FG der Aufgabe
-  vartypes = [vartypes; 3*ones(sum(Set.structures.DoF(1:3)),1)];
-  varlim = [varlim; repmat([-1, 1], sum(Set.structures.DoF(1:3)), 1)]; % bezogen auf Lref
-  for i = find(Set.structures.DoF(1:3))
+  nvars = nvars + sum(Set.task.DoF(1:3)); % Verschiebung des EE um translatorische FG der Aufgabe
+  vartypes = [vartypes; 3*ones(sum(Set.task.DoF(1:3)),1)];
+  varlim = [varlim; repmat([-1, 1], sum(Set.task.DoF(1:3)), 1)]; % bezogen auf Lref
+  for i = find(Set.task.DoF(1:3))
     varnames = {varnames{:}, sprintf('ee pos %s', char(119+i))}; %#ok<CCAT>
   end
 end
 
 % EE-Rotation
 if Set.optimization.ee_rotation
-  if sum(Set.structures.DoF(4:6)) == 1
+  if sum(Set.task.DoF(4:6)) == 1
     neerot = 1;
-  elseif sum(Set.structures.DoF(4:6)) == 0
+  elseif sum(Set.task.DoF(4:6)) == 0
     neerot = 0;
-  elseif sum(Set.structures.DoF(4:6)) == 2
+  elseif sum(Set.task.DoF(4:6)) == 2
     % Bei 3T2R wird die Rotation um die Werkzeugachse nicht optimiert.
     neerot = 2;
   else
@@ -622,7 +642,7 @@ if Set.optimization.ee_rotation
   nvars = nvars + neerot; % Verschiebung des EE um translatorische FG der Aufgabe
   vartypes = [vartypes; 4*ones(neerot,1)];
   varlim = [varlim; repmat([0, pi], neerot, 1)];
-  for i = find(Set.structures.DoF(4:6))
+  for i = find(Set.task.DoF(4:6))
     varnames = [varnames(:)', {sprintf('ee rot %d', i)}];
   end
 end
@@ -730,11 +750,12 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     ~isempty(Set.task.installspace.type) || ...
     ~isnan(Set.optimization.base_size_limits(2)) && any(Structure.I_firstprismatic)
   % Lege die Starrkörper-Indizes fest, für die Kollisionen geprüft werden
-  selfcollchecks_bodies = [];
+  selfcollchecks_bodies = uint8(zeros(0,2));
   % Prüfe Selbstkollisionen einer kinematischen Kette.
   for k = 1:NLEG
     % Erneute Initialisierung (sonst eventuell doppelte Eintragungen)
-    collbodies = struct('link', [], 'type', [], 'params', []); % Liste für Beinkette
+    collbodies = struct('link', uint8([]), 'type', uint8(zeros(0,2)), ...
+      'params', zeros(0,10)); % Liste für Beinkette
     if Structure.Type == 0  % Seriell 
       NLoffset = 0;
       R_cc = R;
@@ -791,7 +812,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       end
       collbodies.params = [collbodies.params; cbi_par, NaN(1,3)];
       % Führungsschiene/Führungszylinder ist vorherigem Segment zugeordnet
-      collbodies.link = [collbodies.link; uint8(i-1)];
+      collbodies.link = [collbodies.link; [uint8(i-1), uint8(i-1)]];
     end
     
     % Erzeuge Ersatzkörper für die kinematische Kette (aus Gelenk-Trafo)
@@ -799,7 +820,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       if R_cc.MDH.a(i) ~= 0 || R_cc.MDH.d(i) ~= 0 || R_cc.MDH.sigma(i) == 1
         % Es gibt eine Verschiebung in der Koordinatentransformation i
         % Definiere einen Ersatzkörper dafür
-        collbodies.link =   [collbodies.link; uint8(i)];
+        collbodies.link =   [collbodies.link; [uint8(i),uint8(i-1)]];
         collbodies.type =   [collbodies.type; uint8(6)]; % Kapsel, direkte Verbindung
         % Wähle Kapseln mit Radius 20mm. R.DesPar.seg_par ist noch nicht belegt
         % (passiert erst in Entwurfsoptimierung).
@@ -816,7 +837,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       % Der Vorgänger bezieht sich auf den Kollisionskörper, nicht auf
       % die Nummer des Starrkörpers. Ansonsten würden zwei durch Kugel-
       % oder Kardan-Gelenk verbundene Körper in Kollision stehen.
-      j_hascollbody = collbodies.link(collbodies.link<i)';
+      j_hascollbody = collbodies.link(collbodies.link(:,1)<i,1)';
       % Sonderfall Portal-System: Abstand zwischen Kollisionskörpern noch
       % um eins vergrößern. TODO: Ist so noch nicht allgemeingültig.
       % Dadurch wird die Kollisionsprüfung effektiv deaktiviert.
@@ -847,7 +868,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         % fprintf('Kollisionsprüfung (%d): Beinkette %d Seg. %d Seg. %d. Zeile [%d,%d]\n', ...
         %   size(selfcollchecks_bodies,1), k, i, j, selfcollchecks_bodies(end,1), selfcollchecks_bodies(end,2));
       end
-    end
+    end % i-loop (NJ)
   end % k-loop (NLEG)
   % Vorgänger-Indizes für Segmente für die Kollisionsprüfung abspeichern.
   % Unterscheidet sich von normaler MDH-Notation dadurch, dass alle
@@ -864,15 +885,18 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       v(R.I1J_LEG(k)+k:R.I2J_LEG(k)+k+1) = [0; NLoffset+R.Leg(k).MDH.v];
     end
   end
-  Structure.MDH_ante_collcheck = v;
+  Structure.MDH_ante_collcheck = v; % wird nicht mehr benötigt.
   
   % Roboter-Kollisionsobjekte in Struktur abspeichern (zum Abruf in den
   % Funktionen cds_constr_collisions_... und cds_constr_installspace
   % Ist erstmal nur Platzhalter. Wird zur Laufzeit noch aktualisiert.
   Structure.collbodies_robot = cds_update_collbodies(R, Set, Structure, Structure.qlim');
-  % Probe: Sind Daten konsistent? Inkonsistenz durch obigem Aufruf möglich.
+  % Probe: Sind Daten konsistent? Inkonsistenz durch obigen Aufruf möglich.
   if any(any(~isnan(Structure.collbodies_robot.params(Structure.collbodies_robot.type==6,2:end))))
     error('Inkonsistente Kollisionsdaten: Kapsel-Direktverbindung hat zu viele Parameter');
+  end
+  if size(Structure.collbodies_robot.link,2)~=2
+    error('Structure.collbodies_robot.link muss 2 Spalten haben');
   end
   
   % Starrkörper-Kollisionsprüfung für PKM erweitern
@@ -893,8 +917,8 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         else,     NLoffset_i = 1; end
         % Alle Segmente von Beinkette k können mit allen von Kette j
         % kollidieren
-        for cb_k = R.Leg(k).collbodies.link'
-          for cb_i = R.Leg(i).collbodies.link'
+        for cb_k = R.Leg(k).collbodies.link(:,1)'
+          for cb_i = R.Leg(i).collbodies.link(:,1)'
             selfcollchecks_bodies = [selfcollchecks_bodies; ...
               uint8([NLoffset_k+cb_k, NLoffset_i+cb_i])]; %#ok<AGROW>
             % fprintf(['Kollisionsprüfung (%d): Bein %d Seg. %d vs Bein %d Seg. %d. ', ...
@@ -911,7 +935,8 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       % Prüfe keine Kollision des ersten Kollisionskörpers, da dieser
       % Körper direkt nach dem Gestell kommt. Annahme. Kollision
       % konstruktiv vermeidbar
-      for cb_k = R.Leg(k).collbodies.link(2:end)'
+      for cb_k = R.Leg(k).collbodies.link(2:end,1)'
+        if isempty(cb_k), continue; end % passiert, falls nur ein Körper in Beinkette
         % Kollision mit Kollisionskörpern fest bezüglich PKM-Basis
         selfcollchecks_bodies = [selfcollchecks_bodies; ...
           uint8([NLoffset_k+cb_k, 0])]; %#ok<AGROW>
@@ -983,7 +1008,12 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     error(['Ungültige Kollisionskörper. Maximaler Index %d in Structure.', ...
       'collbodies_robot.link überschritten'], Nmax);
   end
-  
+  assert(size(Structure.collbodies_robot.link,2)==2, ['collbodies_robot.link ', ...
+    'muss 2 Spalten haben']);
+  assert(size(Structure.collbodies_robot.params,2)==10, ['collbodies_robot.params ', ...
+    'muss 10 Spalten haben']);
+  assert(size(Structure.collbodies_robot.type,2)==1, ['collbodies_robot.type ', ...
+    'muss 1 Spalte haben']);
   if isempty(selfcollchecks_bodies)
     cds_log(-1, sprintf(['[dimsynth] Es sind keine Kollisionskörpern eingetragen, ', ...
       'obwohl Kollisionen geprüft werden sollen.']));
@@ -994,7 +1024,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   % Der Inhalt sind direkt die Indizes von collbodies. Das muss nicht
   % online in der Optimierung gemacht werden.
   % Abgrenzung von "bodies" (oben) und "collbodies" (ab hier) beachten.
-  Structure.selfcollchecks_collbodies = [];
+  Structure.selfcollchecks_collbodies = uint8(zeros(0,2));
   for i = 1:size(selfcollchecks_bodies,1)
     % Finde die Indizes aller Ersatzkörper der zu prüfenden Starrkörper
     % (es kann auch mehrere Ersatzkörper für einen Starrkörper geben)
@@ -1088,6 +1118,12 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     Structure.selfcollchecks_collbodies = ...
       uint8([Structure.selfcollchecks_collbodies; CheckCombinations]);
   end
+  % Eintragen in Roboter-Klasse
+  R.collchecks = Structure.selfcollchecks_collbodies;
+  if ~isempty(Structure.selfcollchecks_collbodies)
+    assert(max(R.collchecks(:))<=size(R.collbodies.link,1), ['Matlab-Klasse ', ...
+      'muss gleiche Anzahl in collchecks und collbodies haben']);
+  end
   % Debug: Liste der Kollisionsprüfungen anzeigen
   if false
     fprintf('Liste der Kollisionsprüfungen (der Kollisionskörper):\n');   %#ok<UNRCH>
@@ -1100,7 +1136,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   end
   if isempty(Structure.selfcollchecks_collbodies)
     cds_log(-1, sprintf(['[dimsynth] Es sind keine Prüfungen von Kollisions', ...
-      'körpern vorgesehen']));
+      'körpern vorgesehen, obwohl verlangt. Liegt an Roboter-Kinematik.']));
     % Deaktiviere die Kollisionsprüfungen wieder
     Set.optimization.constraint_collisions = false;
     Set.task.obstacles.type = [];
@@ -1244,6 +1280,9 @@ if nargin == 4 && init_only
   % Keine Optimierung durchführen. Damit kann nachträglich die
   % initialisierte Roboterklasse basierend auf Ergebnissen der Maßsynthese
   % erzeugt werden, ohne dass diese gespeichert werden muss.
+  % Belege die Dynamik-Parameter mit Platzhalter-Werten. Wichtig, damit die
+  % Plots in jedem Fall ordentlich ausehen.
+  cds_dimsynth_design(R, zeros(2,R.NJ), Set, Structure);
   return
 end
 
@@ -1509,12 +1548,8 @@ end
 
 % Fitness-Funktion nochmal mit besten Parametern aufrufen. Dadurch werden
 % die Klassenvariablen (R.pkin, R.DesPar.seg_par, ...) aktualisiert
-if any(strcmp(Set.optimization.objective, 'valid_act'))
-  % Keine nochmalige Berechnung in diesem Fall sinnvoll
-  max_retry = 0;
-else
-  max_retry = Set.general.max_retry_bestfitness_reconstruction;
-end
+% Ein mal muss immer nochmal neu berechnet werden.
+max_retry = min(1,Set.general.max_retry_bestfitness_reconstruction);
 if max_retry > Set.optimization.NumIndividuals
   % Reduziere, damit Speicherung in virtueller Post-Final-Generation läuft.
   cds_log(-1, sprintf(['[dimsynth] Anzahl der Fitness-Neuversuche begrenzt ', ...
@@ -1526,22 +1561,25 @@ end
 % Für Reproduktion Ergebnis der Entwurfsoptimierung laden.
 [k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, fval);
 desopt_pval = PSO_Detail_Data.desopt_pval(k_ind, :, k_gen)';
-
-for i = 1:max_retry
-  % Struktur-Variable neu erstellen um Schalter für Dynamik-Berechnung
-  % richtig zu setzen, wenn die Fitness-Funktion neu ausgeführt wird.
-	if i == 1
-    Structure_tmp = Structure;
-    if ~isempty(desopt_pval)
-      % Keine erneute Entwurfsoptimierung, also auch keine Regressorform notwendig.
-      % Direkte Berechnung der Dynamik, falls für Zielfunktion notwendig.
-      Structure_tmp.calc_dyn_act = Structure.calc_dyn_act | Structure.calc_dyn_reg;
-      Structure_tmp.calc_spring_act = Structure.calc_spring_act | Structure.calc_spring_reg;
-      Structure_tmp.calc_spring_reg = false;
-      Structure_tmp.calc_dyn_reg = false;
-    end
-  end
-  
+q0_ik = PSO_Detail_Data.q0_ik(k_ind,:,k_gen)';
+% Struktur-Variable neu erstellen um Schalter für Dynamik-Berechnung
+% richtig zu setzen, wenn die Fitness-Funktion neu ausgeführt wird.
+Structure_tmp = Structure;
+if ~isempty(desopt_pval) && ... % Es gibt eine Entwurfsoptimierung
+    ~any(isnan(desopt_pval)) % Vorher überhaupt bis Entwurfsoptimierung gekommen
+  % Keine erneute Entwurfsoptimierung, also auch keine Regressorform notwendig.
+  % Direkte Berechnung der Dynamik, falls für Zielfunktion notwendig.
+  Structure_tmp.calc_dyn_act = Structure.calc_dyn_act | Structure.calc_dyn_reg;
+  Structure_tmp.calc_spring_act = Structure.calc_spring_act | Structure.calc_spring_reg;
+  Structure_tmp.calc_spring_reg = false;
+  Structure_tmp.calc_dyn_reg = false;
+end
+% Gebe IK-Anfangswerte aus bekannter Lösung vor
+Structure_tmp.q0_traj = q0_ik;
+% Erneuter Aufruf der Fitness-Funktion. Hauptsächlich, um die Q-Trajektorie
+% extrahieren zu können. Rekonstruktion im Fall von Aufgabenredundanz sonst
+% nicht so einfach möglich.
+for i = 1:max_retry 
   % Mehrere Versuche vornehmen, da beim Umklappen der Roboterkonfiguration
   % andere Ergebnisse entstehen können.
   % Eigentlich darf sich das Ergebnis aber nicht ändern (wegen der
@@ -1550,7 +1588,7 @@ for i = 1:max_retry
   clear cds_fitness % persistente Variable in fitnessfcn löschen (falls Grenzwert erreicht wurde wird sonst inf zurückgegeben)
   % Aufruf nicht über anonmye Funktion, sondern vollständig, damit Param.
   % der Entwurfsoptimierung übergeben werden können.
-  [fval_test, ~, Q_test] = cds_fitness(R, Set, Traj, Structure_tmp, p_val, desopt_pval);
+  [fval_test, ~, Q, QD, QDD] = cds_fitness(R, Set, Traj, Structure_tmp, p_val, desopt_pval);
   if any(abs(fval_test-fval)>1e-8)
     if all(fval_test < fval)
       t = sprintf('Der neue Wert (%s) ist um [%s] besser als der alte (%s).', ...
@@ -1593,7 +1631,7 @@ if max_retry > 0 % nur sinnvoll, falls Fitness nach Optimierungs-Ende neu berech
   else,                   q0_ik2 = cat(1,R.Leg.qref); end
   test_q0 = q0_ik - q0_ik2;
   test_q0(abs(abs(test_q0)-2*pi)<1e-6) = 0; % entferne 2pi-Fehler
-  if any(abs(test_q0)>1e-10) && all(fval<1e10) % nur bei erfolgreicher Berechnung der IK ist der gespeicherte Wert sinnvoll
+  if any(abs(test_q0)>1e-6) && all(fval<1e10) % nur bei erfolgreicher Berechnung der IK ist der gespeicherte Wert sinnvoll
     cds_log(-1, sprintf(['[dimsynth] IK-Anfangswinkel sind bei erneuter ', ...
       'Berechnung anders. Kann passieren, aber nachteilig für Reproduzierbar', ...
       'keit des Ergebnisses. max. Abweichung: %1.2e.'], max(abs(test_q0))));
@@ -1625,71 +1663,52 @@ else % PKM
   end
 end
 
-% Berechne Inverse Kinematik zu erstem Bahnpunkt
+result_invalid = false;
+if ~any(strcmp(Set.optimization.objective, 'valid_act')) && any(isnan(Q(:))) % Toleranz wie in cds_constraints
+  % Berechnung der Trajektorie ist fehlgeschlagen
+  if any(fval<1e4*1e4) % nur bemerkenswert, falls vorher überhaupt soweit gekommen.
+    save(fullfile(resdir, 'trajikreprowarning.mat'));
+    cds_log(-1, sprintf(['[dimsynth] PSO-Ergebnis für Trajektorie nicht ', ...
+      'reproduzierbar oder nicht gültig (ZB-Verletzung).'] ));
+  end
+  result_invalid = true;
+end
+
+% Berechne die Jacobi-Matrix für PKM neu. Keine Neuberechnung der inversen
+% Kinematik (wird bereits in erneutem Aufruf der Fitness-Funktion gemacht)
 Traj_0 = cds_transform_traj(R, Traj);
-% Einstellung für Positions-IK: Keine Normalisierung mehr, da Sprung bei pi
-% ungünstig bei vorab festgelegten Grenzen für Koordinaten
-s_ik = struct('normalize', false);
-if Structure.Type == 0 % Seriell
-  % Benutze Referenzpose die bei obigen Zielfunktionsaufruf gespeichert wurde
-  [q, Phi] = R.invkin2(R.x2tr(Traj_0.XE(1,:)'), R.qref, s_ik);
-else % Parallel
-  [q, Phi] = R.invkin_ser(Traj_0.XE(1,:)', cat(1,R.Leg.qref), s_ik);
+Jinv_ges = []; % Platzhalter
+if R.Type ~= 0 && ~result_invalid % nur machen, wenn Traj.-IK erfolgreich
+  Jinv_ges = NaN(size(Q,1), sum(R.I_EE)*R.NJ);
+  test_xD_fromJ_max = 0; % Fehler dabei prüfen
+  i_maxerr = 0;
+  for i = 1:size(Q,1)
+    X_i = R.fkineEE2_traj(Q(i,:))'; % Für 3T2R Neuberechnung von X notwendig
+    [~,Jinv_x] = R.jacobi_qa_x(Q(i,:)', X_i); % Jacobi-Matrix
+    Jinv_ges(i,:) = Jinv_x(:);
+    % Prüfe, ob differentieller Zusammenhang mit Jacobi-Matrix korrekt ist.
+    % Berücksichtigung von 2T1R vs 3T3R Plattform-Koordinaten
+    test_xD_fromJ_abs = zeros(6,1);
+    test_xD_fromJ_abs(R.I_EE) =  Traj_0.XD(i,R.I_EE)' - Jinv_x(R.I_qa,:) \ QD(i,R.I_qa)';
+    if max(abs(test_xD_fromJ_abs(R.I_EE_Task))) > test_xD_fromJ_max
+      test_xD_fromJ_max = max(abs(test_xD_fromJ_abs(R.I_EE_Task)));
+      i_maxerr = i;
+    end
+  end
+  if test_xD_fromJ_max > 1e-6
+    save(fullfile(resdir, 'jacobireprowarning.mat'));
+    cds_log(-1, sprintf(['[dimsynth] Neuberechnung der Jacobi-Matrix ', ...
+      'falsch. Zuerst Schritt %d/%d. Fehler in EE-Geschw.: max %1.1e'], ...
+      i_maxerr, size(Q,1), test_xD_fromJ_max));
+  end
 end
-if ~any(strcmp(Set.optimization.objective, 'valid_act')) && any(abs(Phi)>1e-8)
-  cds_log(-1, '[dimsynth] PSO-Ergebnis für Startpunkt nicht reproduzierbar (ZB-Verletzung)');
-end
-% Berechne IK der Bahn (für spätere Visualisierung und Neuberechnung der Leistungsmerkmale)
-% Benutze ähnliche Einstellungen wie in cds_constraints.m (aber feinere
-% Toleranz und mehr Rechenaufwand bei der eigentlichen IK-Berechnung)
-% Hier auch Weglassen der Beachtung der Winkelgrenzen (führt teilweise zu
-% Abbruch, obwohl die Spannweite in Ordnung ist.)
-if Structure.Type == 0 % Seriell
-  s = struct('normalize', false, 'Phit_tol', 1e-12, ...
-    'Phir_tol', 1e-12, 'n_max', 5000);
-  [Q, QD, QDD, PHI] = R.invkin2_traj(Traj_0.X, Traj.XD, Traj.XDD, Traj.t, q, s);
-  Jinv_ges = [];
-else % Parallel
-  s = struct('normalize', false,  'Phit_tol', 1e-12, ...
-    'Phir_tol', 1e-12, 'n_max', 5000);
-  [Q, QD, QDD, PHI, Jinv_ges] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
-end
-test_q = abs(Q(1,:)'-q0_ik);
-test_q(abs(abs(test_q)-2*pi)<1e-2) = 0; % entferne 2pi-Fehler, großzügige Toleranz
-if any(test_q > 1e-6) && all(fval<1e10) % nur wenn IK erfolgreich war testen
-  cds_log(-1, sprintf(['[dimsynth] Die Neu berechneten IK-Werte (q0) der Trajektorie stimmen nicht ', ...
-    'mehr mit den ursprünglich berechneten überein. Max diff.: %1.4e'], max(test_q)));
-end
-if any(q<qlim_neu(:,1) | q>qlim_neu(:,2))
+
+if any(q0_ik<qlim_neu(:,1) | q0_ik>qlim_neu(:,2))
   cds_log(-1, sprintf(['[dimsynth] Startwert für Gelenkwinkel liegt außer', ...
     'halb des erlaubten Bereichs.']));
   save(fullfile(resdir, 'jointlimitviolationwarning.mat'));
 end
-result_invalid = false;
-if ~any(strcmp(Set.optimization.objective, 'valid_act')) && ...
-    (any(abs(PHI(:))>1e-6) || any(isnan(Q(:)))) % Toleranz wie in cds_constraints
-  % Berechnung der Trajektorie ist fehlgeschlagen
-  if any(fval<1e4*1e4) % nur bemerkenswert, falls vorher überhaupt soweit gekommen.
-    save(fullfile(resdir, 'trajikreprowarning.mat'));
-    cds_log(-1, sprintf(['[dimsynth] PSO-Ergebnis für Trajektorie nicht reproduzierbar ', ...
-      'oder nicht gültig (ZB-Verletzung). Max IK-Fehler: %1.1e. %d Fehler > 1e-6. %d mal NaN.'], ...
-      max(abs(PHI(:))), sum(sum(abs(PHI)>1e-6,2)>0), sum(isnan(Q(:))) ));
-    % Vergleiche die neu berechnete Trajektorie und die aus der Fitness-Funktion
-    if Set.general.max_retry_bestfitness_reconstruction > 0 && ~isempty(Q_test) && ...
-        ~Set.general.isoncluster
-      change_current_figure(654); clf;
-      for i = 1:R.NJ
-        subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i); hold on;
-        plot(Traj_0.t, Q(:,i));
-        plot(Traj_0.t, Q_test(:,i));
-        ylabel(sprintf('q%d', i));
-      end
-      legend({'invkin_traj', 'fitnessfcn'});
-      sgtitle('Neuberechnung Gelenk-Traj. Debug');
-    end
-  end
-  result_invalid = true;
-end
+
 %% Berechne andere Leistungsmerkmale
 Structure_tmp = Structure; % Eingabe um Berechnung der Antriebskräfte zu erzwingen
 Structure_tmp.calc_dyn_act = true;
@@ -1709,16 +1728,10 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   % Masseparameter belegen, falls das nicht vorher passiert ist.
   % Nachbildung der Bedingungen für Belegung der Masseparameter in cds_fitness.m
   % Stelle fest, ob die Zielfunktion rein kinematisch ist; dann werden die
-  % Dynamikparameter nicht in der Fitness-Funktion belegt:
-  % ... mehrkriteriell und nur kinematische Zielfunktionen ...
+  % Dynamikparameter nicht in der Fitness-Funktion belegt
   only_kinematic_objective = length(intersect(Set.optimization.objective, ...
     {'condition', 'jointrange', 'manipulability', 'minjacsingval', ...
-    'positionerror', 'chainlength'})) == 6;
-  % einkriteriell und kinematische ZF
-  only_kinematic_objective = only_kinematic_objective || ...
-    length(Set.optimization.objective) == 1 && any(strcmp(Set.optimization.objective, ...
-    {'condition', 'jointrange', 'manipulability', 'minjacsingval', ...
-    'positionerror', 'chainlength'}));
+    'positionerror', 'chainlength'})) == length(Set.optimization.objective);
   if any(fval > 1e3) ...% irgendeine Nebenbedingung wurde immer verletzt. ...
       || only_kinematic_objective % ... oder nur kinematische Zielfunktion ...
     cds_dimsynth_design(R, Q, Set, Structure); % ...  Daher nie bis zu diesem Funktionsaufruf gekommen.
@@ -1752,7 +1765,7 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
       'Konditionszahl (%1.5e) stimmt nicht mit erneuter Berechnung (%1.5e) ', ...
       'überein. Differenz %1.5e (%1.2f%%)'], ...
       PSO_Detail_Data.constraint_obj_val(dd_optind, 4, dd_optgen), ...
-      physval_cond, test_Jcond_abs, test_Jcond_rel));
+      physval_cond, test_Jcond_abs, 100*test_Jcond_rel));
   end
   test_sv = PSO_Detail_Data.constraint_obj_val(dd_optind, 6, dd_optgen) - physval_ms;
   if abs(test_sv) > 1e-5
@@ -1826,7 +1839,7 @@ for i = 1:length(Set.optimization.objective)
   if I_fval_obj_all(i) == 0, continue; end % keine Prüfung möglich.
   if fval(i) > 1e3, continue; end % Leistungsmerkmal steht nicht in Zielfunktion (NB-Verletzung)
   test_fval_i = fval(i) - fval_obj_all(I_fval_obj_all(i));
-  if abs(test_fval_i) > 1e-6
+  if abs(test_fval_i) > 1e-5
     save(fullfile(resdir, 'fvalreprowarning.mat'));
     cds_log(-1, sprintf(['[dimsynth] Zielfunktionswert %d (%s) nicht aus Neu', ...
       'berechnung der Leistungsmerkmale reproduzierbar. Aus PSO: %1.5f, neu: %1.5f.'], ...
@@ -1865,7 +1878,7 @@ RobotOptRes = struct( ...
   'p_val_pareto', p_val_pareto, ... % Alle Parametervektoren der P.-Front
   'desopt_pval_pareto', desopt_pval_pareto, ... % Alle Entwurfsparameter zu den Pareto-Punkten
   'q0_pareto', q0_pareto, ... % Alle IK-Anfangswerte aller Pareto-Partikel
-  'q0', q, ... % Anfangs-Gelenkwinkel für Lösung der IK
+  'q0', q0_ik, ... % Anfangs-Gelenkwinkel für Lösung der IK
   'I_fval_obj_all', I_fval_obj_all, ... % Zuordnung der Fitness-Einträge zu fval_obj_all
   'p_limits', varlim, ... % Grenzen für die Parameterwerte
   'timestamps_start_end', [t_start, t_end, toc(t1)], ...
@@ -1879,7 +1892,6 @@ RobotOptDetails = struct( ...
   'Traj_Q', Q, ...
   'Traj_QD', QD, ...
   'Traj_QDD', QDD, ...
-  'Traj_PHI', PHI, ...
   'timestamps_start_end', [t_start, t_end, toc(t1)], ...
   'fitnessfcn', fitnessfcn);
 % Debug: Durch laden dieser Ergebnisse kann nach Abbruch des PSO das

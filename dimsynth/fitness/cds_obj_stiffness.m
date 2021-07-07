@@ -65,7 +65,7 @@ for i = 1:size(Q,1)
     if i_warn == 0 % Nur einmal Debug-Speicherung der Warnung.
     repopath = fileparts(which('structgeomsynth_path_init.m'));
     save(fullfile(repopath, 'tmp', 'cds_obj_stiffness_infnan_error.mat'));
-    cds_log(-1, '[cds_obj_fitness] Matrix ist Inf oder NaN. Darf nicht sein');
+    cds_log(-1, '[cds_obj_stiffness] Matrix ist Inf oder NaN. Darf nicht sein');
       i_warn = i;
     end
     continue

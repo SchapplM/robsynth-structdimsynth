@@ -117,6 +117,28 @@ Traj_0 = cds_transform_traj(R, Traj_W);
 
 %% Nebenbedingungen prüfen (für Eckpunkte)
 [fval_constr,QE_iIKC, Q0, constrvioltext] = cds_constraints(R, Traj_0, Set, Structure);
+% Füge weitere Anfangswerte für die Trajektorien-IK hinzu. Diese werden
+% zusätzlich vorgegeben (bspw. aus vorherigem Ergebnis, das reproduziert
+% werden muss). Wird genutzt, falls aus numerischen Gründen die Einzelpunkt-
+% IK nicht mehr reproduzierbar ist (z.B. durch Code-Änderung)
+if all(~isnan(Structure.q0_traj))
+  % Prüfe, ob diese vorgegebene Werte auch von alleine gefunden wurden.
+  if ~any(all(abs(Q0-repmat(Structure.q0_traj',size(Q0,1),1))<1e-6,2))
+    cds_log(-1,sprintf(['[fitness] Vorgegebene Werte aus q0_traj wurden nicht ', ...
+      'in den %d IK-Konfigurationen gefunden.'], size(Q0,1)));
+    % Damit wird die Traj.-IK immer geprüft, auch wenn die Einzelpunkt-IK
+    % nicht erfolgreich gewesen sein sollte
+    fval_constr = 1e3;
+    Q0 = [Q0; Structure.q0_traj'];
+    % Erzeuge Platzhalter-Werte für spätere Rechnungen
+    QE_iIKC(:,:,size(QE_iIKC,3)+1) = repmat(Structure.q0_traj', size(QE_iIKC,1), 1);
+  elseif fval_constr > 1e3
+    cds_log(-1,sprintf(['[fitness] Vorgegebene Werte aus q0_traj erzeugen ', ...
+      'unzulässige Lösung in Positions-IK. Benutze trotzdem.']));
+    fval_constr = 1e3;
+  end
+end
+
 % Entwurfsparameter speichern (falls hiernach direkt Abbruch)
 if Structure.desopt_prismaticoffset % siehe cds_desopt_prismaticoffset.m
   if Structure.Type == 0
@@ -142,12 +164,12 @@ if fval_constr > 1000 % Nebenbedingungen verletzt.
   Q = QE_iIKC;
   
   % Speichere Gelenk-Grenzen. Damit sieht eine hieraus erstellte 3D-Bilder
-  % besser aus, weil die Schubgelenk-Führungsschienen ungefähr stimmen
+  % besser aus, weil die Schubgelenk-Führungsschienen ungefähr stimmen.
   if R.Type == 0 % Seriell
-    R.qlim(R.MDH.sigma==1,:) = minmax2(QE_iIKC(:,R.MDH.sigma==1)');
+    R.qlim(R.MDH.sigma==1,:) = minmax2(QE_iIKC(:,R.MDH.sigma==1,1)');
   else % PKM
     for i = 1:R.NLEG
-      Q_i = QE_iIKC(:,R.I1J_LEG(i):R.I2J_LEG(i));
+      Q_i = QE_iIKC(:,R.I1J_LEG(i):R.I2J_LEG(i),1);
       R.Leg(i).qlim(R.Leg(i).MDH.sigma==1,:) = minmax2(Q_i(:,R.Leg(i).MDH.sigma==1)');
     end
   end
@@ -177,12 +199,22 @@ desopt_pval_IKC = repmat(desopt_pval(:)', size(Q0,1), 1); % NaN-initialisiert od
 % TAU_IKC = NaN(size(Traj_0.X,1), n_actjoint, size(Q0,1));
 
 for iIKC = 1:size(Q0,1)
+  %% Gelenkwinkel-Grenzen aktualisieren
+  % Als Spannweite vorgegebene Gelenkgrenzen neu zentrieren. Benutze dafür
+  % alle Eckpunkte aus der Einzelpunkt-IK
+  qlim_range = qlim(:,2)-qlim(:,1);
+  qlim_neu = qlim; % Für Dreh- und Schubgelenke separat. Berücksichtige 2pi-Periodizität
+  qlim_neu(R.MDH.sigma==1,:) = repmat(mean(QE_iIKC(:,R.MDH.sigma==1,iIKC),1)',1,2)+...
+    [-qlim_range(R.MDH.sigma==1), qlim_range(R.MDH.sigma==1)]/2;
+  qlim_neu(R.MDH.sigma==0,:) = repmat(meanangle(QE_iIKC(:,R.MDH.sigma==0,iIKC),1)',1,2)+...
+    [-qlim_range(R.MDH.sigma==0), qlim_range(R.MDH.sigma==0)]/2;
+  qlim_neu(R.MDH.sigma==1) = qlim(R.MDH.sigma==1); % Schubgelenke zurücksetzen
   % Gelenkgrenzen von oben wieder erneut einsetzen. Notwendig, da Grenzen
   % in Traj.-IK berücksichtigt werden. Unten wird der Wert aktualisiert
   if R.Type == 0 % Seriell
-    R.qlim = qlim;
+    R.qlim = qlim_neu;
   else % PKM
-    for i = 1:R.NLEG, R.Leg(i).qlim = qlim(R.I1J_LEG(i):R.I2J_LEG(i),:); end
+    for i = 1:R.NLEG, R.Leg(i).qlim = qlim_neu(R.I1J_LEG(i):R.I2J_LEG(i),:); end
   end
   %% Trajektorie berechnen
   if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
@@ -639,6 +671,21 @@ else % PKM
   for i = 1:R.NLEG
     Q_i = Q_IKC(:,R.I1J_LEG(i):R.I2J_LEG(i), iIKCbest);
     R.Leg(i).qlim = minmax2(Q_i') + 1e-6*repmat([-1, 1], R.Leg(i).NJ,1);
+  end
+end
+% Trage Parameter der Entwurfsoptimierung neu in Klasse ein. Falls der
+% letzte Aufruf von constraints_traj nicht der beste war, ist sonst der
+% falsche Wert gespeichert. Ist hilfreich, wenn die Fitness-Funktion
+% aufgerufen wird, um die Parameter des Roboters zu aktualisieren. Für Maß-
+% synthese selbst nicht unbedingt notwendig.
+if Structure.desopt_prismaticoffset
+  p_prismaticoffset = desopt_pval(Structure.desopt_ptypes==1);
+  if Structure.Type == 0
+    R.DesPar.joint_offset(R.MDH.sigma==1) = p_prismaticoffset;
+  else
+    for k = 1:R.NLEG
+      R.Leg(k).DesPar.joint_offset(R.Leg(k).MDH.sigma==1) = p_prismaticoffset;
+    end
   end
 end
 
