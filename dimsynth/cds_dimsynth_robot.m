@@ -198,6 +198,15 @@ for i = 1:NLEG
       Set.optimization.max_range_passive_universal, sum(R_init.DesPar.joint_type==2),1);
     R_init.qlim(R_init.DesPar.joint_type==3,:) = repmat([-0.5, 0.5]*... % Kugelgelenk
       Set.optimization.max_range_passive_spherical, sum(R_init.DesPar.joint_type==3),1);
+    % Behandle den letzten Rotations-FG eines Kugelgelenks wie ein
+    % Drehgelenk. Ursache: Kugel kann freie Längsdrehung machen.
+    % TODO: Einbaulage des Kugelgelenks sollte frei definierbar sein (z.B.
+    % längs zur Stabrichtung)
+    I_spherical = find(R_init.DesPar.joint_type==3);
+    if ~isempty(I_spherical) % Annahme: Es gibt ein Kugelgelenk in der Kette
+      R_init.qlim(I_spherical(end),:) = [-0.5, 0.5] * ... % wie Drehgelenk
+        Set.optimization.max_range_passive_revolute;
+    end
     % Grenzen für aktives Drehgelenk setzen
     I_actrevol = R_init.MDH.mu == 2 & R_init.MDH.sigma==0;
     R_init.qlim(I_actrevol,:) = repmat([-0.5, 0.5]*Set.optimization.max_range_active_revolute, sum(I_actrevol),1);
