@@ -431,9 +431,11 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       % Näherung (1e-3) gestartet, kann man die Nebenbedingungen nicht ver-
       % gleichen.
       if s.Phit_tol < 1e-8 && h_opt_post > h_opt_pre + 1e-3 % Toleranz gegen Numerik-Fehler
-        if abs(Stats.h(1+Stats.iter,1)-h_opt_post) < 1e-3 % es lag nicht am geänderten `wn` in der Funktion
-          cds_log(-1, sprintf(['[constraints] Eckpunkt %d: IK-Berechnung mit Aufgabenredundanz hat Neben', ...
-            'optimierung verschlechtert.'], i));
+        if abs(Stats.h(1+Stats.iter,1)-h_opt_post) < 1e-3 && ... % es lag nicht am geänderten `wn` in der Funktion
+            h_opt_post < 1e8 % Es ist kein numerisch großer und ungenauer Wert
+          cds_log(-1, sprintf(['[constraints] Eckpunkt %d: IK-Berechnung ', ...
+            'mit Aufgabenredundanz hat Nebenoptimierung verschlechtert: ', ...
+            '%1.4e -> %1.4e'], i, h_opt_pre, h_opt_post));
         end
         continue % Verwerfe das neue Ergebnis (nehme dadurch das vorherige)
         % Zum Debuggen
