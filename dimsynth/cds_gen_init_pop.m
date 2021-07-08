@@ -37,12 +37,42 @@ end
 for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
   resdir = Set.optimization.result_dirs_for_init_pop{kk};
   % Unterordner sind die Ergebnis-Ordner einzelner Optimierungen
-  optdirs = dir(fullfile(resdir, '*'));
-  for i = 1:length(optdirs) % Unterordner durchgehen.
-    if ~optdirs(i).isdir || optdirs(i).name(1) == '.'
+  % Lade die Liste der Verzeichnisse mit Linux-Find-Befehl. Scheinbar ist
+  % der Dateisystemzugriff auf dem Cluster über Matlab sehr langsam
+  status = 1;
+  if isunix()
+    [status,dirlist] = system(sprintf( ...
+      'find %s -maxdepth 2 -name "Rob*_%s_Endergebnis.mat"', resdir, RobName));
+    % Erzeuge Liste der Verzeichnisse aus der Vorauswahl
+    if status == 0
+      dirlist_cell = splitlines(dirlist);
+      for i = 1:length(dirlist_cell) % Entferne den Dateinamen
+        dirlist_cell{i} = fileparts(dirlist_cell{i});
+      end
+      dirlist_cell = unique(dirlist_cell);
+    else
+      cds_log(-1, sprintf('Find-Befehl funktionierte nicht in %s', resdir));
+    end
+  end
+  if status ~= 0 % Entweder Windows oder Find-Befehl erfolglos
+    optdirs = dir(fullfile(resdir, '*'));
+    dirlist_cell = cell(length(optdirs), 1);
+    for i = 1:length(optdirs) % Unterordner durchgehen.
+      if ~optdirs(i).isdir || optdirs(i).name(1) == '.'
+        continue % Kein passendes Verzeichnis
+      end
+      dirlist_cell{i} = optdirs(i).name;
+    end
+  end
+  % Entferne leere Einträge
+  dirlist_cell = dirlist_cell(~cellfun(@isempty,dirlist_cell));
+  cds_log(2, sprintf(['[cds_gen_init_pop] Lade Ergebnisse aus %d Unter', ...
+    'verzeichnissen von %s'], length(dirlist_cell), resdir));
+  for i = 1:length(dirlist_cell) % Unterordner durchgehen.
+    if isempty(dirlist_cell)
       continue % Kein passendes Verzeichnis
     end
-    dirname_i = fullfile(resdir, optdirs(i).name);
+    dirname_i = fullfile(resdir, dirlist_cell{i});
     % Aktuellen Roboter suchen
     resfiles = dir(fullfile(dirname_i, 'Rob*_Endergebnis.mat'));
     III = find(contains({resfiles(:).name}, RobName));
@@ -182,7 +212,7 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
         % Parameter aus unvollständigen Daten neu aufzubauen.
         cds_log(1, sprintf(['[cds_gen_init_pop] Optimierungsparameter in Ergebnis-', ...
           'Ordner %s unterschiedlich (%d vs %d). Keine Anfangswerte ableitbar. Unterschied: {%s}'], ...
-          optdirs(i).name, length(Structure.vartypes), length(Structure_i.vartypes), ...
+          dirlist_cell{i}, length(Structure.vartypes), length(Structure_i.vartypes), ...
           disp_array(setxor(Structure_i.varnames, Structure.varnames))));
         continue
       end
@@ -214,8 +244,8 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
     % gespeicherter Werte Zufallswerte eingesetzt.
     I_param_iO = all(ll_repmat <= pval_i & ul_repmat >= pval_i | isnan(pval_i) ,2);
     cds_log(1, sprintf(['[cds_gen_init_pop] Auswertung %d/%d Nr. %d (%s) geladen. ', ...
-      'Bewertung: %d. Bei %d/%d Parametergrenzen passend.'], i, length(optdirs), ...
-      II, optdirs(i).name, score_i, sum(I_param_iO), size(pval_i,1)));
+      'Bewertung: %d. Bei %d/%d Parametergrenzen passend.'], i, length(dirlist_cell), ...
+      II, dirlist_cell{i}, score_i, sum(I_param_iO), size(pval_i,1)));
     if any(~I_param_iO)
       for jjj = find(~I_param_iO & ~any(isnan(pval_i),2))'
         I_pniO = varlim(:,1)' > pval_i(jjj,:) | varlim(:,2)' < pval_i(jjj,:);
