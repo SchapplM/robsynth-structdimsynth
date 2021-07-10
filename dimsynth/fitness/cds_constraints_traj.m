@@ -223,6 +223,10 @@ if i_ar == 3
     Jinv_ges = Jinv_ges_alt;
     fval = fval_ar(1);
     constrvioltext = [constrvioltext_alt, ' Erneute IK-Berechnung ohne Verbesserung'];
+  elseif fval_ar(1) == fval_ar(2)
+    % Ergebnisse identisch. Wurden die identischen Einstellungen benutzt.
+    % Dann noch Logik-Fehler.
+    constrvioltext = [constrvioltext, sprintf(' Identisches Ergebnis mehrfach berechnet')];
   else
     % Zweiter Durchlauf der Optimierung brachte Verbesserung. Jetzt ist es genug.
     constrvioltext = [constrvioltext, sprintf([' Verbesserung durch ', ...
@@ -308,6 +312,25 @@ if all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
     [X2,XD2,XDD2] = R.fkineEE_traj(Q, QD, QDD);
   else
     [X2,XD2,XDD2] = R.fkineEE2_traj(Q, QD, QDD);
+  end
+  X2(:,6) = denormalize_angle_traj(X2(:,6), XD2(:,6), Traj_0.t);
+  % Debug: EE-Trajektorie zeichnen
+  if false
+    figure(4002);clf;
+    for rr = 1:2
+      if rr == 1, l = 'trans'; else, l = 'rot'; end
+      subplot(3,2,sprc2no(3,2,1,rr));
+      plot(Traj_0.t, X2(:,(1:3)+(rr-1)*3), '-');
+      grid on; ylabel(sprintf('x %s', l));
+      subplot(3,2,sprc2no(3,2,2,rr));
+      plot(Traj_0.t, XD2(:,(1:3)+(rr-1)*3), '-');
+      grid on; ylabel(sprintf('xD %s', l));
+      subplot(3,2,sprc2no(3,2,3,rr));
+      plot(Traj_0.t, XDD2(:,(1:3)+(rr-1)*3), '-');
+      grid on; ylabel(sprintf('xDD %s', l));
+    end
+    linkxaxes
+    
   end
 end
 %% Singularität der Beinketten prüfen (für PKM)
