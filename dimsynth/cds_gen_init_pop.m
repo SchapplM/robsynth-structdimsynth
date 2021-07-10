@@ -169,6 +169,12 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
           Structure.Type == 2 && Structure.Name(3) == 'P' && any(Structure.Coupling(1)==[1 4])
         missing_local_in_file(missing_local_in_file==find(strcmp(Structure_i.varnames, 'base z'))) = 0;
       end
+      % Wenn in der Datei 3T3R benutzt wurde und jetzt 3T2R, ist die letzte
+      % EE-Rotation egal und der Parameter wird ignoriert
+      I_eerotz = find(strcmp(Structure_i.varnames, 'ee rot 3')) == missing_local_in_file;
+      if ~isempty(I_eerotz) && Set.task.pointing_task
+        missing_local_in_file(missing_local_in_file==find(strcmp(Structure_i.varnames, 'ee rot 3'))) = 0;
+      end
       if all(missing_local_in_file==0)
         % Alle in Datei überflüssigen Parameter sind egal. Mache weiter.
       else
