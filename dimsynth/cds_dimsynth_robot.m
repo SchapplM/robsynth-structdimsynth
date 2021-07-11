@@ -1586,8 +1586,12 @@ if ~isempty(desopt_pval) && ... % Es gibt eine Entwurfsoptimierung
   Structure_tmp.calc_spring_reg = false;
   Structure_tmp.calc_dyn_reg = false;
 end
-% Gebe IK-Anfangswerte aus bekannter Lösung vor
-Structure_tmp.q0_traj = q0_ik;
+% Gebe IK-Anfangswerte aus bekannter Lösung vor, falls einmal die Trajek-
+% torie berechnet werden konnte. Falls nicht, würde die Vorgabe hier die 
+% Traj.-Berechnung erzwingen und automatisch ein verbessertes Ergebnis zeigen.
+if any(fval < 1e9)
+  Structure_tmp.q0_traj = q0_ik;
+end
 % Erneuter Aufruf der Fitness-Funktion. Hauptsächlich, um die Q-Trajektorie
 % extrahieren zu können. Rekonstruktion im Fall von Aufgabenredundanz sonst
 % nicht so einfach möglich.
