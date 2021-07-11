@@ -654,9 +654,12 @@ if R.Type == 2 && Set.optimization.joint_stiffness_passive_revolute
     fval = 1e3*(7+1*fval_qlimv_T_norm); % Wert zwischen 7e3 und 8e3
     % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Dadurch werden die
     % Bedingungen für Gelenkfedern später nicht mehr erfüllt.
+    legnum = find(IIw>=R.I1J_LEG, 1, 'last');
+    legjointnum = IIw-(R.I1J_LEG(legnum)-1);
     constrvioltext = sprintf(['Gelenkgrenzverletzung in Traj bei Be', ...
       'trachtung aller Beinketten. Schlechteste Spannweite: %1.2f/%1.2f ', ...
-      '(Gelenk %d)'], q_range_T_all_legs(IIw), q_range_max(IIw), IIw);
+      '(Gelenk %d; Beinkette %d, Beingelenk %d)'], q_range_T_all_legs(IIw), ...
+      q_range_max(IIw), IIw, legnum, legjointnum);
     continue
   end
 end

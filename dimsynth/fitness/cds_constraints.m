@@ -579,8 +579,16 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     fval = 1e5*(5+5*fval_qlimv_E_norm); % Normierung auf 5e5 bis 1e6
     fval_jic(jic) = fval;
     % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Weitere Rechnungen machen keinen Sinn.
+    if R.Type ~= 0
+      legnum = find(IIw>=R.I1J_LEG, 1, 'last');
+      legjointnum = IIw-(R.I1J_LEG(legnum)-1);
+      jointstr = sprintf('; Bein %d, Beingelenk %d', legnum, legjointnum);
+    else
+      jointstr = '';
+    end
     constrvioltext_jic{jic} = sprintf(['Gelenkgrenzverletzung in AR-Eckwerten. ', ...
-      'Schlechteste Spannweite: %1.2f/%1.2f (Gelenk %d)'], q_range_E(IIw), qlim(IIw,2)-qlim(IIw,1), IIw);
+      'Schlechteste Spannweite: %1.2f/%1.2f (Gelenk %d%s)'], q_range_E(IIw), ...
+      qlim(IIw,2)-qlim(IIw,1), IIw, jointstr);
     if 1e4*fval < Set.general.plot_details_in_fitness
       change_current_figure(1000); clf; hold on;
       % Gut-Einträge: Dummy-NaN-Eintrag mit plotten, damit Handle für Legende nicht leer bleibt.
