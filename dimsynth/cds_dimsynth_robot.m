@@ -1680,8 +1680,9 @@ else % PKM
 end
 
 result_invalid = false;
-if ~any(strcmp(Set.optimization.objective, 'valid_act')) && any(isnan(Q(:))) % Toleranz wie in cds_constraints
-  % Berechnung der Trajektorie ist fehlgeschlagen
+if ~any(strcmp(Set.optimization.objective, 'valid_act')) && ...
+    (any(isnan(Q(:))) || isempty(QD) && Set.task.profile~=0)
+  % Berechnung der Trajektorie ist fehlgeschlagen. Toleranz wie in cds_constraints
   if any(fval<1e4*1e4) % nur bemerkenswert, falls vorher überhaupt soweit gekommen.
     save(fullfile(resdir, 'trajikreprowarning.mat'));
     cds_log(-1, sprintf(['[dimsynth] PSO-Ergebnis für Trajektorie nicht ', ...
@@ -1694,7 +1695,7 @@ end
 % Kinematik (wird bereits in erneutem Aufruf der Fitness-Funktion gemacht)
 Traj_0 = cds_transform_traj(R, Traj);
 Jinv_ges = []; % Platzhalter
-if R.Type ~= 0 && ~result_invalid % nur machen, wenn Traj.-IK erfolgreich
+if R.Type ~= 0 && ~result_invalid && ~isempty(QD) % nur machen, wenn Traj.-IK erfolgreich
   Jinv_ges = NaN(size(Q,1), sum(R.I_EE)*R.NJ);
   test_xD_fromJ_max = 0; % Fehler dabei prüfen
   i_maxerr = 0;
