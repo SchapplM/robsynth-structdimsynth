@@ -209,6 +209,13 @@ for kkk = 1:size(EE_FG_allowed,1)
       end
       continue
     end
+    if ~any(Coupling(2) == Set.structures.parrob_platformjointfilter)
+      if verblevel >= 3
+        fprintf( '%s hat nicht die gewünschte Plattform-Koppelgelenk-Variante (%s). Ignoriere.\n', ...
+          PNames_Akt{j}, disp_array(Set.structures.parrob_platformjointfilter,'%d') );
+      end
+      continue
+    end
     
     % Prüfe, ob Rang ordnungsgemäß in Datenbank steht. Wenn nicht, ist das
     % ein Zeichen dafür, dass die PKM noch ungeprüft ist. Bei Zielfunktion
