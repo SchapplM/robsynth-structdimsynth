@@ -102,33 +102,47 @@ if fval == 0 && (Structure.calc_dyn_reg || Structure.calc_spring_reg)
       Structure_tmp.calc_spring_reg = false;
     end
     data_dyn2 = cds_obj_dependencies(R, Traj_0, Set, Structure_tmp, Q, QD, QDD, Jinv_ges);
-    test_TAU = data_dyn2.TAU - data_dyn.TAU;
-    if any(abs(test_TAU(:))>1e-6)
+    test_TAU_abs = data_dyn2.TAU - data_dyn.TAU;
+    test_TAU_rel = test_TAU_abs ./ data_dyn2.TAU;
+    I_err = abs(test_TAU_abs)>1e-3 & abs(test_TAU_rel)>1e-2;
+    if any(I_err(:))
       save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
         sprintf('%d_%s', Structure.Number, Structure.Name), 'desopt_TAU_reprowarning.mat'));
-      error('Antriebskräfte aus Regressorform stimmt nicht. Fehler: %1.2e', max(abs(test_TAU(:))));
+      error('Antriebskräfte aus Regressorform stimmt nicht. Fehler: abs %1.2e, rel %1.2e', ...
+        max(abs(test_TAU_abs(I_err))), max(abs(test_TAU_rel(I_err))));
     end
-    test_W = data_dyn2.Wges - data_dyn.Wges;
-    if any(abs(test_W(:))>1e-6)
-      save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
-        sprintf('%d_%s', Structure.Number, Structure.Name), 'desopt_W_reprowarning.mat'));
-      error('Schnittkräfte aus Regressorform stimmt nicht. Fehler: %1.2e', max(abs(test_W(:))));
+    if Structure.calc_cut
+      test_W_abs = data_dyn2.Wges - data_dyn.Wges;
+      test_W_rel = test_W_abs ./ data_dyn2.Wges;
+      I_err = abs(test_W_abs)>1e-3 & abs(test_W_rel)>1e-2;
+      if any(I_err(:))
+        save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
+          sprintf('%d_%s', Structure.Number, Structure.Name), 'desopt_W_reprowarning.mat'));
+        error('Schnittkräfte aus Regressorform stimmt nicht. Fehler: abs %1.2e, rel %1.e2', ...
+          max(abs(test_W_abs(I_err))), max(abs(test_W_rel(I_err))));
+      end
     end
     if any(Set.optimization.joint_stiffness_passive_revolute~=0)
       if isfield(data_dyn2, 'TAU_spring') && isfield(data_dyn, 'TAU_spring')
-        test_TAU_spring = data_dyn2.TAU_spring - data_dyn.TAU_spring;
-        if any(abs(test_TAU_spring(:))>1e-6)
+        test_TAU_spring_abs = data_dyn2.TAU_spring - data_dyn.TAU_spring;
+        test_TAU_spring_rel = test_TAU_spring_abs ./ data_dyn2.TAU_spring;
+        I_err = abs(test_TAU_spring_abs)>1e-3 & abs(test_TAU_spring_rel)>1e-2;
+        if any(I_err(:))
           save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
             sprintf('%d_%s', Structure.Number, Structure.Name), 'desopt_TAUspring_reprowarning.mat'));
-          error('Antriebskräfte für Gelenkfeder aus Regressorform stimmt nicht. Fehler: %1.2e', max(abs(test_TAU_spring(:))));
+          error('Antriebskräfte für Gelenkfeder aus Regressorform stimmt nicht. Fehler: abs %1.2e, rel %1.2e', ...
+            max(abs(test_TAU_spring_abs(I_err))), max(abs(test_TAU_spring_rel(I_err))));
         end
       end
       if isfield(data_dyn2, 'Wges_spring') && isfield(data_dyn, 'Wges_spring')
-        test_W_spring = data_dyn2.Wges_spring - data_dyn.Wges_spring;
-        if any(abs(test_W_spring(:))>1e-6)
+        test_W_spring_abs = data_dyn2.Wges_spring - data_dyn.Wges_spring;
+        test_W_spring_rel = test_W_spring_abs ./ data_dyn2.Wges_spring;
+        I_err = abs(test_W_spring_abs)>1e-3 & abs(test_W_spring_rel)>1e-2;
+        if any(I_err(:))
           save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
             sprintf('%d_%s', Structure.Number, Structure.Name), 'desopt_Wspring_reprowarning.mat'));
-          error('Schnittkräfte für Gelenkfeder aus Regressorform stimmt nicht. Fehler: %1.2e', max(abs(test_W_spring(:))));
+          error('Schnittkräfte für Gelenkfeder aus Regressorform stimmt nicht. Fehler: abs %1.2e, rel %1.2e', ...
+            max(abs(test_W_spring_abs(I_err))), max(abs(test_W_spring_rel(I_err))));
         end
       end
     end
