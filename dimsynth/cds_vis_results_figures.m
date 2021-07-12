@@ -104,8 +104,10 @@ for kk = 1:length(Set.general.animation_styles)
     s_anim.(sprintf('%s_name', file_ext)) = fullfile(resrobdir, ...
       sprintf('Rob%d_%s_P%d_Animation_%s.%s', RNr, Name, PNr, anim_mode, file_ext));
   end
-  if Set.task.profile == 0
+  if Set.task.profile == 0 || all(fval > 1e9)
+    % Keine Trajektorie mit Zeitverlauf gefordert oder Fehler dabei
     I_anim = 1:size(RobotOptDetails.Traj_Q,1); % Zeichne jeden Zeitschritt
+    Traj_X = Traj_0.XE;
   else
     if Traj_0.t(end) > Set.general.maxduration_animation
       % Reduziere das Video auf die maximale Länge. Die Abtastrate ist 30Hz
@@ -118,6 +120,7 @@ for kk = 1:length(Set.general.animation_styles)
       t_Vid = (0:1/30:Traj_0.t(end))'; % Zeitstempel des Videos
     end
     I_anim = knnsearch( Traj_0.t , t_Vid ); % Berechne Indizes in Traj.-Zeitstempeln
+    Traj_X = Traj_0.X;
   end
   if RobData.Type == 0 % Seriell
     s_plot = struct( 'straight', 1);
@@ -135,12 +138,12 @@ for kk = 1:length(Set.general.animation_styles)
     error('Modus %s für Animation nicht definiert', anim_mode);
   end
   if strcmp(figname, 'animation')
-    R.anim( RobotOptDetails.Traj_Q(I_anim,:), Traj_0.X(I_anim,:), s_anim, s_plot);
+    R.anim( RobotOptDetails.Traj_Q(I_anim,:), Traj_X(I_anim,:), s_anim, s_plot);
   else
     if RobData.Type == 0 % Seriell
       R.plot( RobotOptDetails.Traj_Q(1,:)', s_plot);
     else % PKM
-      R.plot( RobotOptDetails.Traj_Q(1,:)', Traj_0.X(1,:)', s_plot);
+      R.plot( RobotOptDetails.Traj_Q(1,:)', Traj_X(1,:)', s_plot);
     end
   end
   if any(strcmp(Set.general.eval_figures, 'robvisuanim')) % nur speichern, wenn gewünscht.
@@ -151,7 +154,7 @@ for kk = 1:length(Set.general.animation_styles)
   end
 end
 %% Kinematik-Bild
-if strcmp(figname, 'jointtraj')
+if strcmp(figname, 'jointtraj') && any(fval < 1e9)
   fhdl = figure();clf;hold all;
   set(fhdl, 'Name', sprintf('Rob%d_P%d_KinematikZeit', RNr, PNr), 'NumberTitle', 'off', 'color','w');
   if ~strcmp(get(fhdl, 'windowstyle'), 'docked')
