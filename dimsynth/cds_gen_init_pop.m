@@ -41,8 +41,8 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
   % der Dateisystemzugriff auf dem Cluster über Matlab sehr langsam
   status = 1;
   if isunix()
-    [status,dirlist] = system(sprintf( ...
-      'find %s -maxdepth 2 -name "Rob*_%s_Endergebnis.mat"', resdir, RobName));
+    [status,dirlist] = system(sprintf(['find -L "%s" -maxdepth 2 ', ...
+      '-name "Rob*_%s_Endergebnis.mat"'], resdir, RobName));
     % Erzeuge Liste der Verzeichnisse aus der Vorauswahl
     if status == 0
       dirlist_cell = splitlines(dirlist);
@@ -61,7 +61,7 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
       if ~optdirs(i).isdir || optdirs(i).name(1) == '.'
         continue % Kein passendes Verzeichnis
       end
-      dirlist_cell{i} = optdirs(i).name;
+      dirlist_cell{i} = fullfile(resdir, optdirs(i).name);
     end
   end
   % Entferne leere Einträge
@@ -69,12 +69,12 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
   cds_log(2, sprintf(['[cds_gen_init_pop] Lade Ergebnisse aus %d Unter', ...
     'verzeichnissen von %s'], length(dirlist_cell), resdir));
   for i = 1:length(dirlist_cell) % Unterordner durchgehen.
-    if isempty(dirlist_cell)
+    if isempty(dirlist_cell{i})
       continue % Kein passendes Verzeichnis
     end
-    dirname_i = fullfile(resdir, dirlist_cell{i});
+    dirname_i = dirlist_cell{i};
     % Aktuellen Roboter suchen
-    resfiles = dir(fullfile(dirname_i, 'Rob*_Endergebnis.mat'));
+    resfiles = dir(fullfile(dirname_i, sprintf('Rob*%s*_Endergebnis.mat',RobName)));
     III = find(contains({resfiles(:).name}, RobName));
     if isempty(III)
       continue % Roboter nicht enthalten
