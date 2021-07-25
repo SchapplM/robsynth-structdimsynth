@@ -174,8 +174,12 @@ elseif ~Set.general.computing_cluster % nicht bei Hochladen des Jobs
 end
 % Verzeichnisse zum Laden alter Ergebnisse vorbereiten
 if Set.optimization.InitPopRatioOldResults > 0
-  Set.optimization.result_dirs_for_init_pop = unique( ... % bei mehrfacher Durchführung von cds_start sonst doppelt
-    [Set.optimization.result_dirs_for_init_pop, Set.optimization.resdir]);
+  % Bei Hochladen der Berechnung auf das Cluster darf nicht das lokale
+  % Verzeichnis eingetragen werden. Sonst immer das lokale Verzeichnis.
+  if ~(Set.general.computing_cluster && ~Set.general.isoncluster)
+    Set.optimization.result_dirs_for_init_pop = unique( ... % bei mehrfacher Durchführung von cds_start sonst doppelt
+      [Set.optimization.result_dirs_for_init_pop, Set.optimization.resdir]);
+  end
 else
   Set.optimization.result_dirs_for_init_pop = {};
 end
@@ -297,7 +301,7 @@ if Set.general.computing_cluster
     fprintf(['Berechnung von %d Robotern wurde auf Cluster hochgeladen. Ende. ', ...
       'Die Ergebnisse müssen nach Beendigung der Rechnung manuell heruntergeladen ', ...
       'werden.\n'], length(I1_kk:I2_kk));
-    if kk > 1 % Damit nicht alle exakt zeitgleich starten; exakt gleichzeitiger, ...
+    if kk < length(I1_Struct) % Damit nicht alle exakt zeitgleich starten; exakt gleichzeitiger, ...
       pause(30); % ... paralleler Start des parpools sowieso nicht möglich
     end
   end

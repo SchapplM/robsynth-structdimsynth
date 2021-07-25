@@ -36,7 +36,7 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function [fval, physval, Q, QD, QDD, TAU] = cds_fitness(R, Set, Traj_W, Structure, p, desopt_pval)
+function [fval, physval, Q_out, QD_out, QDD_out, TAU] = cds_fitness(R, Set, Traj_W, Structure, p, desopt_pval)
 repopath = fileparts(which('structgeomsynth_path_init.m'));
 rng(0); % Für Wiederholbarkeit der Versuche: Zufallszahlen-Initialisierung
 
@@ -47,7 +47,7 @@ end
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_fitness_1.mat'),  '-regexp', '^(?!abort_fitnesscalc$).');
 
 t1=tic();
-Q = []; QD = []; QDD = []; TAU = [];
+Q_out = []; QD_out = []; QDD_out = []; TAU = [];
 debug_info = {};
 % Alle möglichen physikalischen Werte von Nebenbedingungen (für spätere Auswertung)
 constraint_obj_val = NaN(length(Set.optimization.constraint_obj),1);
@@ -161,7 +161,7 @@ if fval_constr > 1000 % Nebenbedingungen verletzt.
   end
   % Belege die Ausgabe mit den berechneten Gelenkwinkeln. Dann kann immer
   % noch das Bild gezeichnet werden (zur Fehlersuche)
-  Q = QE_iIKC;
+  Q_out = QE_iIKC;
   
   % Speichere Gelenk-Grenzen. Damit sieht eine hieraus erstellte 3D-Bilder
   % besser aus, weil die Schubgelenk-Führungsschienen ungefähr stimmen.
@@ -191,6 +191,7 @@ constrvioltext_IKC = cell(size(Q0,1), 1);
 constraint_obj_val_IKC = NaN(length(Set.optimization.constraint_obj),size(Q0,1));
 fval_debugtext_IKC = constrvioltext_IKC;
 Q_IKC = NaN(size(Traj_0.X,1), R.NJ, size(Q0,1));
+QD_IKC = Q_IKC; QDD_IKC = Q_IKC;
 desopt_pval_IKC = repmat(desopt_pval(:)', size(Q0,1), 1); % NaN-initialisiert oder aus Eingabe-Argument.
 
 % Zum Debuggen
@@ -256,6 +257,8 @@ for iIKC = 1:size(Q0,1)
     end
   end
   Q_IKC(:,:,iIKC) = Q;
+  QD_IKC(:,:,iIKC) = QD;
+  QDD_IKC(:,:,iIKC) = QDD;
   % Kein Normalisieren der Winkel (wenn dann erst hier durchführen, da
   % einige Prüfungen oben davon beeinflusst werden).
   % Falls Gelenksteifigkeiten vorgesehen sind springt das Federmoment.
@@ -652,7 +655,9 @@ physval = physval_IKC(iIKCbest,:)';
 constraint_obj_val = constraint_obj_val_IKC(:,iIKCbest);
 desopt_pval = desopt_pval_IKC(iIKCbest,:)';
 n_fval_iO = length(I_IKC_iO);
-
+Q_out = Q_IKC(:,:,iIKCbest);
+QD_out = QD_IKC(:,:,iIKCbest);
+QDD_out = QDD_IKC(:,:,iIKCbest);
 %% Ende
 % Anfangs-Gelenkwinkel in Roboter-Klasse speichern (zur Reproduktion der
 % Ergebnisse)

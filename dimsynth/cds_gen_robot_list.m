@@ -26,19 +26,6 @@ verblevel = Set.general.verbosity;
 serroblibpath=fileparts(which('serroblib_path_init.m'));
 parroblibpath=fileparts(which('parroblib_path_init.m'));
 SerRob_DB_all = load(fullfile(serroblibpath, 'serrob_list.mat'));
-% Name der FG für Zugriff auf Listen
-if all(Set.task.DoF == [1 1 0 0 0 1])
-  task_str = '2T1R';
-elseif all(Set.task.DoF == [1 1 1 0 0 0])
-  task_str = '3T0R';
-elseif all(Set.task.DoF == [1 1 1 0 0 1])
-  task_str = '3T1R';
-elseif all(Set.task.DoF == [1 1 1 1 1 0])
-  task_str = '3T2R';
-elseif all(Set.task.DoF == [1 1 1 1 1 1])
-  task_str = '3T3R';
-end
-
 Structures = {};% struct('Name', {}, 'Type', []);
 
 if structset.max_kin_redundancy > 0
@@ -222,6 +209,13 @@ for kkk = 1:size(EE_FG_allowed,1)
       end
       continue
     end
+    if ~any(Coupling(2) == Set.structures.parrob_platformjointfilter)
+      if verblevel >= 3
+        fprintf( '%s hat nicht die gewünschte Plattform-Koppelgelenk-Variante (%s). Ignoriere.\n', ...
+          PNames_Akt{j}, disp_array(Set.structures.parrob_platformjointfilter,'%d') );
+      end
+      continue
+    end
     
     % Prüfe, ob Rang ordnungsgemäß in Datenbank steht. Wenn nicht, ist das
     % ein Zeichen dafür, dass die PKM noch ungeprüft ist. Bei Zielfunktion
@@ -291,9 +285,11 @@ for kkk = 1:size(EE_FG_allowed,1)
         % Erzeuge eine Bit-Maske zur Prüfung, ob die Kinematik aus der
         % Struktursynthese für xTyR-Beinketten kommt
         % Modellherkunft laut Datenbank: dec2bin(l.BitArrays_Origin(ilc,:))
-        if all(Set.task.DoF == [1 1 1 0 0 0])
+        % Prüfe nicht die Einstellungsvariable Set.task.DoF, da bei
+        % Aufgabenredundanz mehrere EE-FG in Frage kommen.
+        if all(EE_FG_allowed(kkk,:) == [1 1 1 0 0 0])
           Mask_Origin = uint16(bin2dec('00100')); % Dritte Spalte für Modellherkunft
-        elseif all(Set.task.DoF == [1 1 1 0 0 1])
+        elseif all(EE_FG_allowed(kkk,:) == [1 1 1 0 0 1])
           Mask_Origin = uint16(bin2dec('00010')); % Vierte Spalte (in S5RPRPR.csv o.ä.)
         else
           % Keine Einschränkung (außer manuell eingefügte Ketten)
@@ -351,13 +347,13 @@ for kkk = 1:size(EE_FG_allowed,1)
       SkipRobot = true;
     end
     if ~SkipRobot && NumTechJointsDontMatch
-      if verblevel >= 3, fprintf('%s hat nicht die passende Gelenkzahl in Beinkette (%s). Ist: %d. Erlaubt: [%s]\n', ...
+      if verblevel >= 3, fprintf('%s hat nicht die passende Gelenkzahl in Beinkette (%s). Ist: %d. Erlaubt: [%s]', ...
           PNames_Akt{j}, SName_TechJoint, length(SName_TechJoint), disp_array(structset.num_tech_joints, '%d')); end
       SkipRobot = true;
     end
     if ~SkipRobot && WrongLegChainOrigin
       if verblevel >= 3, fprintf('%s hat keine Beinkette aus %s-PKM-Synthese (%s).', ...
-          PNames_Akt{j}, task_str, LegChainName); end
+          PNames_Akt{j}, EEstr, LegChainName); end
       SkipRobot = true;
     end
     if SkipRobot % Einer der Ausschlussgründe oben wurde getroffen.

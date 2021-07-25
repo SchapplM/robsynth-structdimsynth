@@ -159,6 +159,9 @@ if Structure.Type == 0 % Seriell
 else % Parallel
   R.update_EE_FG(R.I_EE, Set.task.DoF);
 end
+if all(Set.task.DoF == [1 1 1 1 1 0])
+  Set.task.pointing_task = true;
+end
 % Platzhalter für Vorgabe der Traj-IK-Anfangswerte
 Structure.q0_traj = NaN(R.NJ, 1);
 for i = 1:NLEG
@@ -195,6 +198,15 @@ for i = 1:NLEG
       Set.optimization.max_range_passive_universal, sum(R_init.DesPar.joint_type==2),1);
     R_init.qlim(R_init.DesPar.joint_type==3,:) = repmat([-0.5, 0.5]*... % Kugelgelenk
       Set.optimization.max_range_passive_spherical, sum(R_init.DesPar.joint_type==3),1);
+    % Behandle den letzten Rotations-FG eines Kugelgelenks wie ein
+    % Drehgelenk. Ursache: Kugel kann freie Längsdrehung machen.
+    % TODO: Einbaulage des Kugelgelenks sollte frei definierbar sein (z.B.
+    % längs zur Stabrichtung)
+    I_spherical = find(R_init.DesPar.joint_type==3);
+    if ~isempty(I_spherical) % Annahme: Es gibt ein Kugelgelenk in der Kette
+      R_init.qlim(I_spherical(end),:) = [-0.5, 0.5] * ... % wie Drehgelenk
+        Set.optimization.max_range_passive_revolute;
+    end
     % Grenzen für aktives Drehgelenk setzen
     I_actrevol = R_init.MDH.mu == 2 & R_init.MDH.sigma==0;
     R_init.qlim(I_actrevol,:) = repmat([-0.5, 0.5]*Set.optimization.max_range_active_revolute, sum(I_actrevol),1);
@@ -1574,8 +1586,12 @@ if ~isempty(desopt_pval) && ... % Es gibt eine Entwurfsoptimierung
   Structure_tmp.calc_spring_reg = false;
   Structure_tmp.calc_dyn_reg = false;
 end
-% Gebe IK-Anfangswerte aus bekannter Lösung vor
-Structure_tmp.q0_traj = q0_ik;
+% Gebe IK-Anfangswerte aus bekannter Lösung vor, falls einmal die Trajek-
+% torie berechnet werden konnte. Falls nicht, würde die Vorgabe hier die 
+% Traj.-Berechnung erzwingen und automatisch ein verbessertes Ergebnis zeigen.
+if any(fval < 1e9)
+  Structure_tmp.q0_traj = q0_ik;
+end
 % Erneuter Aufruf der Fitness-Funktion. Hauptsächlich, um die Q-Trajektorie
 % extrahieren zu können. Rekonstruktion im Fall von Aufgabenredundanz sonst
 % nicht so einfach möglich.
@@ -1664,8 +1680,9 @@ else % PKM
 end
 
 result_invalid = false;
-if ~any(strcmp(Set.optimization.objective, 'valid_act')) && any(isnan(Q(:))) % Toleranz wie in cds_constraints
-  % Berechnung der Trajektorie ist fehlgeschlagen
+if ~any(strcmp(Set.optimization.objective, 'valid_act')) && ...
+    (any(isnan(Q(:))) || isempty(QD) && Set.task.profile~=0)
+  % Berechnung der Trajektorie ist fehlgeschlagen. Toleranz wie in cds_constraints
   if any(fval<1e4*1e4) % nur bemerkenswert, falls vorher überhaupt soweit gekommen.
     save(fullfile(resdir, 'trajikreprowarning.mat'));
     cds_log(-1, sprintf(['[dimsynth] PSO-Ergebnis für Trajektorie nicht ', ...
@@ -1678,7 +1695,7 @@ end
 % Kinematik (wird bereits in erneutem Aufruf der Fitness-Funktion gemacht)
 Traj_0 = cds_transform_traj(R, Traj);
 Jinv_ges = []; % Platzhalter
-if R.Type ~= 0 && ~result_invalid % nur machen, wenn Traj.-IK erfolgreich
+if R.Type ~= 0 && ~result_invalid && ~isempty(QD) % nur machen, wenn Traj.-IK erfolgreich
   Jinv_ges = NaN(size(Q,1), sum(R.I_EE)*R.NJ);
   test_xD_fromJ_max = 0; % Fehler dabei prüfen
   i_maxerr = 0;

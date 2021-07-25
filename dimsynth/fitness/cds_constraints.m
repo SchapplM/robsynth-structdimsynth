@@ -431,9 +431,11 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       % Näherung (1e-3) gestartet, kann man die Nebenbedingungen nicht ver-
       % gleichen.
       if s.Phit_tol < 1e-8 && h_opt_post > h_opt_pre + 1e-3 % Toleranz gegen Numerik-Fehler
-        if abs(Stats.h(1+Stats.iter,1)-h_opt_post) < 1e-3 % es lag nicht am geänderten `wn` in der Funktion
-          cds_log(-1, sprintf(['[constraints] Eckpunkt %d: IK-Berechnung mit Aufgabenredundanz hat Neben', ...
-            'optimierung verschlechtert.'], i));
+        if abs(Stats.h(1+Stats.iter,1)-h_opt_post) < 1e-3 && ... % es lag nicht am geänderten `wn` in der Funktion
+            h_opt_post < 1e8 % Es ist kein numerisch großer und ungenauer Wert
+          cds_log(-1, sprintf(['[constraints] Eckpunkt %d: IK-Berechnung ', ...
+            'mit Aufgabenredundanz hat Nebenoptimierung verschlechtert: ', ...
+            '%1.4e -> %1.4e'], i, h_opt_pre, h_opt_post));
         end
         continue % Verwerfe das neue Ergebnis (nehme dadurch das vorherige)
         % Zum Debuggen
@@ -577,8 +579,16 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     fval = 1e5*(5+5*fval_qlimv_E_norm); % Normierung auf 5e5 bis 1e6
     fval_jic(jic) = fval;
     % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Weitere Rechnungen machen keinen Sinn.
+    if R.Type ~= 0
+      legnum = find(IIw>=R.I1J_LEG, 1, 'last');
+      legjointnum = IIw-(R.I1J_LEG(legnum)-1);
+      jointstr = sprintf('; Bein %d, Beingelenk %d', legnum, legjointnum);
+    else
+      jointstr = '';
+    end
     constrvioltext_jic{jic} = sprintf(['Gelenkgrenzverletzung in AR-Eckwerten. ', ...
-      'Schlechteste Spannweite: %1.2f/%1.2f (Gelenk %d)'], q_range_E(IIw), qlim(IIw,2)-qlim(IIw,1), IIw);
+      'Schlechteste Spannweite: %1.2f/%1.2f (Gelenk %d%s)'], q_range_E(IIw), ...
+      qlim(IIw,2)-qlim(IIw,1), IIw, jointstr);
     if 1e4*fval < Set.general.plot_details_in_fitness
       change_current_figure(1000); clf; hold on;
       % Gut-Einträge: Dummy-NaN-Eintrag mit plotten, damit Handle für Legende nicht leer bleibt.

@@ -135,7 +135,7 @@ end
 if i_ar == 3
   if fval_ar(1) < fval_ar(2)
     cds_log(-1, sprintf(['Ergebnis der Traj.-IK hat sich nach Nullraum', ...
-      'bewegung verschlechtert: %1.3e -> %1.3e (%s -> %s), delta: %1.3e'], fval_ar(1), ...
+      'bewegung verschlechtert: %1.3e -> %1.3e ("%s" -> "%s"), delta: %1.3e'], fval_ar(1), ...
       fval_ar(2), constrvioltext_alt, constrvioltext, fval_ar(2)-fval_ar(1)));
     % Anmerkung: Das muss nicht unbedingt ein Fehler sein. Das Verletzen
     % der Geschwindigkeitsgrenzen kann eine Konsequenz sein? Darf
@@ -143,7 +143,7 @@ if i_ar == 3
     % einzuhalten
     % Debug: Vergleiche vorher-nachher.
     if false
-      RP = ['R', 'P'];
+      RP = ['R', 'P']; %#ok<UNRCH>
       change_current_figure(3009);clf;
       for i = 1:R.NJ
         if R.Type ~= 0
@@ -223,6 +223,10 @@ if i_ar == 3
     Jinv_ges = Jinv_ges_alt;
     fval = fval_ar(1);
     constrvioltext = [constrvioltext_alt, ' Erneute IK-Berechnung ohne Verbesserung'];
+  elseif fval_ar(1) == fval_ar(2)
+    % Ergebnisse identisch. Wurden die identischen Einstellungen benutzt.
+    % Dann noch Logik-Fehler.
+    constrvioltext = [constrvioltext, sprintf(' Identisches Ergebnis mehrfach berechnet')]; %#ok<AGROW>
   else
     % Zweiter Durchlauf der Optimierung brachte Verbesserung. Jetzt ist es genug.
     constrvioltext = [constrvioltext, sprintf([' Verbesserung durch ', ...
@@ -235,7 +239,7 @@ if i_ar == 2
   Q_alt = Q;
   QD_alt = QD;
   QDD_alt = QDD;
-  Stats_alt = Stats;
+  Stats_alt = Stats; %#ok<NASGU>
   Jinv_ges_alt = Jinv_ges;
 end
 if R.Type == 0 % Seriell
@@ -259,7 +263,10 @@ else
 end
 % Erkenne eine valide Trajektorie bereits bei Fehler kleiner als 1e-6 an.
 % Das ist deutlich großzügiger als die eigentliche IK-Toleranz
-I_ZBviol = any(abs(PHI) > 1e-6,2) | any(isnan(Q),2);
+I_ZBviol = any(abs(PHI) > 1e-6,2) | any(isnan(Q),2) | ...
+  ... % Falls beim letzten Schritt die Position noch i.O. ist, aber die Ge-
+  ... % schwindigkeit schon NaN ist: Auch hier als Abbruch zählen.
+  any(isnan(QD),2) | any(isnan(QDD),2);
 if any(I_ZBviol)
   % Bestimme die erste Verletzung der ZB (je später, desto besser)
   IdxFirst = find(I_ZBviol, 1 );
@@ -309,6 +316,25 @@ if all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
   else
     [X2,XD2,XDD2] = R.fkineEE2_traj(Q, QD, QDD);
   end
+  X2(:,6) = denormalize_angle_traj(X2(:,6), XD2(:,6), Traj_0.t);
+  % Debug: EE-Trajektorie zeichnen
+  if false
+    figure(4002);clf; %#ok<UNRCH>
+    for rr = 1:2
+      if rr == 1, l = 'trans'; else, l = 'rot'; end
+      subplot(3,2,sprc2no(3,2,1,rr));
+      plot(Traj_0.t, X2(:,(1:3)+(rr-1)*3), '-');
+      grid on; ylabel(sprintf('x %s', l));
+      subplot(3,2,sprc2no(3,2,2,rr));
+      plot(Traj_0.t, XD2(:,(1:3)+(rr-1)*3), '-');
+      grid on; ylabel(sprintf('xD %s', l));
+      subplot(3,2,sprc2no(3,2,3,rr));
+      plot(Traj_0.t, XDD2(:,(1:3)+(rr-1)*3), '-');
+      grid on; ylabel(sprintf('xDD %s', l));
+    end
+    linkxaxes
+    
+  end
 end
 %% Singularität der Beinketten prüfen (für PKM)
 % Im Gegensatz zu cds_obj_condition wird hier die gesamte Beinkette
@@ -320,8 +346,12 @@ if R.Type == 2 % nur PKM; TODO: Auch für seriell prüfen?
     for kk = 1:R.NLEG
       % Jacobi-Matrix für alle Gelenke der Beinkette (bezug zu XD des EE)
       Jinv_kk = Jinv_jj(R.I1J_LEG(kk):R.I2J_LEG(kk),:);
-      kappa_jjkk = cond(Jinv_kk);
-      if Set.general.debug_calc
+      if any(isinf(Jinv_kk(:))) || any(isnan(Jinv_kk(:)))
+        kappa_jjkk = NaN; % keine Bestimmung der Kondition möglich
+      else
+        kappa_jjkk = cond(Jinv_kk);
+      end
+      if Set.general.debug_calc && ~isinf(kappa_jjkk)
         % Probe, ob Jinv richtig ist. Nehme die aktualisierte
         % Plattform-Geschwindigkeit, falls 3T2R benutzt wird.
         xD_jj = Traj_0.XD(jj,:)'; xD_jj(~R.I_EE_Task)=XD2(jj,~R.I_EE_Task);
@@ -631,9 +661,12 @@ if R.Type == 2 && Set.optimization.joint_stiffness_passive_revolute
     fval = 1e3*(7+1*fval_qlimv_T_norm); % Wert zwischen 7e3 und 8e3
     % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Dadurch werden die
     % Bedingungen für Gelenkfedern später nicht mehr erfüllt.
+    legnum = find(IIw>=R.I1J_LEG, 1, 'last');
+    legjointnum = IIw-(R.I1J_LEG(legnum)-1);
     constrvioltext = sprintf(['Gelenkgrenzverletzung in Traj bei Be', ...
       'trachtung aller Beinketten. Schlechteste Spannweite: %1.2f/%1.2f ', ...
-      '(Gelenk %d)'], q_range_T_all_legs(IIw), q_range_max(IIw), IIw);
+      '(Gelenk %d; Beinkette %d, Beingelenk %d)'], q_range_T_all_legs(IIw), ...
+      q_range_max(IIw), IIw, legnum, legjointnum);
     continue
   end
 end
@@ -735,7 +768,13 @@ corrQ = diag(corr(Q_num, Q));
 % wird eine große Abweichung per Korrelation erkannt. Setze als i.O.
 corrQ(all(abs(Q_num-Q)<1e-6)) = 1;
 corrQD(all(abs(QD_num-QD)<1e-3)) = 1;
-if any(corrQD < 0.95) || any(corrQ < 0.98)
+if task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
+  % TODO: Inkonsistenz ist Fehler in Traj.-IK. Dort korrigieren.
+  cds_log(-1, sprintf(['Nullraumbewegung führt zu nicht konsistenten ', ...
+    'Gelenkverläufen. Korrelation Geschw. min. %1.2f, Position %1.2f'], ...
+    min(corrQD), min(corrQ)'));
+end
+if ~task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
   % Wenn eine Gelenkgröße konstant ist (ohne Rundungsfehler), wird die
   % Korrelation NaN (Teilen durch 0). Werte NaN als Korrelation 1.
   % Damit werden zwei unterschiedliche, konstante Werte auch als Korr.=1
