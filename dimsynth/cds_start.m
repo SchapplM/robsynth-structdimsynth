@@ -161,6 +161,7 @@ elseif Set.general.regenerate_summary_only && (Set.general.isoncluster || ...
   Set.general.parcomp_plot = Set_tmp.general.parcomp_plot;
   Set.general.parcomp_struct = false; % keine Struktursynthese.
   Set.general.regenerate_summary_only = true;
+  Set.general.nosummary = Set_tmp.general.nosummary; % für nur Tabelle ohne Bilder
   Set.optimization.resdir = Set_tmp.optimization.resdir; % anders auf Cluster
   Structures = d.Structures;
   fprintf('Einstellungsdatei %s für Bild-Generierung geladen.\n', settingsfile);
