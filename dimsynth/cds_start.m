@@ -82,8 +82,14 @@ end
 if ~isa(Set.task.installspace.links, 'cell')
   error('Set.task.installspace: Feld "links" muss cell Array sein');
 end
+if size(Set.task.installspace.type,2) > 1
+  error('Set.task.installspace: Feld "type" hat mehr als eine Spalte.');
+end
 if size(Set.task.obstacles.params,1) ~= length(Set.task.obstacles.type)
   error('Set.task.obstacles: Länge von Feldern params und type stimmt nicht überein');
+end
+if size(Set.task.obstacles.type,2) > 1
+  error('Set.task.obstacles: Feld "type" hat mehr als eine Spalte.');
 end
 if length(union(Set.optimization.desopt_vars, {'joint_stiffness_qref', ...
     'linkstrength'})) ~= 2
