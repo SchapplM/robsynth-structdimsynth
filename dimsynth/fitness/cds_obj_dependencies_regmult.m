@@ -47,17 +47,12 @@ end
 if isfield(data_dyn, 'TAU_spring_reg') && R.Type ~= 0
   TAU_spring = R.jointtorque2_actjoint_traj(data_dyn.TAU_spring_reg, R.springtorque_traj(Q));
   output.TAU_spring = TAU_spring;
-  if isfield(data_dyn, 'TAU_ID_reg')
-    output.TAU = output.TAU + TAU_spring;
-  else
-    output.TAU = data_dyn.TAU_ID + TAU_spring;
-  end
 end
 %% Berechne Schnittkraft
 if isfield(data_dyn, 'Wges_ID_reg')
   % Berechne die Schnittkräfte in allen Segmenten
   W_ID_reg = data_dyn.Wges_ID_reg;
-  if R.Type == 0 % Seriell
+  if R.Type == 0 %#ok<IFBDUP> % Seriell
     Wges_ID = R.internforce3_traj(W_ID_reg);
   else % PKM
     Wges_ID = R.internforce3_traj(W_ID_reg);
@@ -70,7 +65,7 @@ if isfield(data_dyn, 'Wges_spring_reg') && R.Type ~= 0
   Wges_spring_reg = data_dyn.Wges_spring_reg;
   Wges_spring = R.internforce3_traj(Wges_spring_reg, R.springtorque_traj(Q));
   if isfield(data_dyn, 'Wges_ID_reg')
-    output.Wges = output.Wges+ Wges_spring;
+    output.Wges = output.Wges + Wges_spring;
   else
     output.Wges = data_dyn.Wges_ID + Wges_spring;
   end
@@ -116,5 +111,9 @@ if ~isfield(data_dyn, 'TAU_spring_reg') && isfield(data_dyn, 'Wges_spring_reg') 
     TAU_spring(:,j) = squeeze(Wges_spring(j, I_actjoint_j, :));
   end
   output.TAU_spring = TAU_spring;
-  output.TAU = output.TAU + TAU_spring;
+end
+
+%% Füge Federmomente hinzu
+if isfield(output, 'TAU_spring')
+  output.TAU = output.TAU + output.TAU_spring;
 end
