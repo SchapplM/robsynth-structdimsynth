@@ -51,6 +51,8 @@ for jj = 1:length(Set.optimization.objective)
   elseif strcmp(Set.optimization.objective{jj}, 'chainlength')
     obj_units{jj} = 'mm';
     objscale(jj) = 1e3;
+  elseif strcmp(Set.optimization.objective{jj}, 'installspace')
+    obj_units{jj} = 'm³';
   else
     error('Zielfunktion %s nicht vorgesehen', Set.optimization.objective{jj});
   end

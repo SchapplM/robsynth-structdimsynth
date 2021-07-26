@@ -1604,7 +1604,7 @@ for i = 1:max_retry
   clear cds_fitness % persistente Variable in fitnessfcn löschen (falls Grenzwert erreicht wurde wird sonst inf zurückgegeben)
   % Aufruf nicht über anonmye Funktion, sondern vollständig, damit Param.
   % der Entwurfsoptimierung übergeben werden können.
-  [fval_test, ~, Q, QD, QDD] = cds_fitness(R, Set, Traj, Structure_tmp, p_val, desopt_pval);
+  [fval_test, ~, Q, QD, QDD, ~, JP] = cds_fitness(R, Set, Traj, Structure_tmp, p_val, desopt_pval);
   if any(abs(fval_test-fval)>1e-8)
     if all(fval_test < fval)
       t = sprintf('Der neue Wert (%s) ist um [%s] besser als der alte (%s).', ...
@@ -1747,8 +1747,8 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   % Stelle fest, ob die Zielfunktion rein kinematisch ist; dann werden die
   % Dynamikparameter nicht in der Fitness-Funktion belegt
   only_kinematic_objective = length(intersect(Set.optimization.objective, ...
-    {'condition', 'jointrange', 'manipulability', 'minjacsingval', ...
-    'positionerror', 'chainlength'})) == length(Set.optimization.objective);
+    {'condition','jointrange','manipulability','minjacsingval','positionerror', ...
+    'chainlength','installspace'})) == length(Set.optimization.objective);
   if any(fval > 1e3) ...% irgendeine Nebenbedingung wurde immer verletzt. ...
       || only_kinematic_objective % ... oder nur kinematische Zielfunktion ...
     cds_dimsynth_design(R, Q, Set, Structure); % ...  Daher nie bis zu diesem Funktionsaufruf gekommen.
@@ -1765,13 +1765,14 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   [fval_pe,~, ~, physval_pe] = cds_obj_positionerror(R, Set, Jinv_ges, Traj_0, Q);
   [fval_jrange,~, ~, physval_jrange] = cds_obj_jointrange(R, Set, Structure, Q);
   [fval_chainlength,~, ~, physval_chainlength] = cds_obj_chainlength(R);
+  [fval_instspc,~, ~, physval_instspc] = cds_obj_installspace(R, Set, Structure, Traj_0, Q, JP);
   [fval_stiff,~, ~, physval_stiff] = cds_obj_stiffness(R, Set, Q);
   % Reihenfolge siehe Variable Set.optimization.constraint_obj aus cds_settings_defaults
   fval_obj_all = [fval_mass; fval_energy; fval_actforce; fval_ms; fval_cond; ...
-    fval_mani; fval_msv; fval_pe; fval_jrange; fval_chainlength; fval_stiff];
+    fval_mani; fval_msv; fval_pe; fval_jrange; fval_chainlength; fval_instspc; fval_stiff];
   physval_obj_all = [physval_mass; physval_energy; physval_actforce; ...
     physval_ms; physval_cond; physval_mani; physval_msv; physval_pe; ...
-    physval_jrange; physval_chainlength; physval_stiff];
+    physval_jrange; physval_chainlength; physval_instspc; physval_stiff];
   % Vergleiche neu berechnete Werte mit den zuvor abgespeicherten (müssen
   % übereinstimmen)
   test_Jcond_abs = PSO_Detail_Data.constraint_obj_val(dd_optind, 4, dd_optgen) - physval_cond;
@@ -1809,8 +1810,8 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
 else
   % Keine Berechnung der Leistungsmerkmale möglich, da keine zulässige Lösung
   % gefunden wurde.
-  fval_obj_all = NaN(11,1);
-  physval_obj_all = NaN(11,1);
+  fval_obj_all = NaN(12,1);
+  physval_obj_all = NaN(12,1);
 end
 % Prüfe auf Plausibilität, ob die Optimierungsziele erreicht wurden. Neben-
 % bedingungen nur prüfen, falls überhaupt gültige Lösung erreicht wurde.
@@ -1821,7 +1822,7 @@ objconstr_names_all = {'mass', 'energy', 'actforce', 'condition', ...
   'stiffness', 'materialstress'};
 obj_names_all = {'mass', 'energy', 'actforce', 'materialstress', 'condition', ...
   'manipulability', 'minjacsingval', 'positionerror', 'jointrange', ...
-  'chainlength', 'stiffness'};
+  'chainlength', 'installspace', 'stiffness'}; % konsistent zu fval_obj_all und physval_obj_all
 I_constr = zeros(length(objconstr_names_all),1);
 for i = 1:length(objconstr_names_all)
   I_constr(i) = find(strcmp(objconstr_names_all{i}, obj_names_all));

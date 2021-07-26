@@ -40,6 +40,8 @@
 %   Zeilenweise (inverse) Jacobi-Matrizen des Roboters (für PKM). Wird hier
 %   ausgegeben, da sie bei Berechnung der IK anfällt. Bezogen auf
 %   Geschwindigkeit aller Gelenke und EE-Geschwindigkeit
+% JP
+%   Zeilenweise Gelenkpositionen aller Gelenke des Roboters
 % constrvioltext [char]
 %   Text mit Zusatzinformationen, die beim Aufruf der Fitness-Funktion
 %   ausgegeben werden
@@ -47,13 +49,14 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function [fval,Q,QD,QDD,Jinv_ges,constrvioltext] = cds_constraints_traj(R, Traj_0, q, Set, Structure)
+function [fval,Q,QD,QDD,Jinv_ges,JP,constrvioltext] = cds_constraints_traj(R, Traj_0, q, Set, Structure)
 fval = 1e3;
 constrvioltext = 'i.O.';
 Q_alt = [];
 QD_alt = [];
 QDD_alt = [];
 Jinv_ges_alt = [];
+JP_alt = [];
 constrvioltext_alt = '';
 % Schleife über mehrere mögliche Nebenbedingungen der inversen Kinematik
 fval_ar = NaN(1,2);
@@ -221,6 +224,7 @@ if i_ar == 3
     QD = QD_alt;
     QDD = QDD_alt;
     Jinv_ges = Jinv_ges_alt;
+    JP = JP_alt;
     fval = fval_ar(1);
     constrvioltext = [constrvioltext_alt, ' Erneute IK-Berechnung ohne Verbesserung'];
   elseif fval_ar(1) == fval_ar(2)
@@ -241,6 +245,7 @@ if i_ar == 2
   QDD_alt = QDD;
   Stats_alt = Stats; %#ok<NASGU>
   Jinv_ges_alt = Jinv_ges;
+  JP_alt = JP;
 end
 if R.Type == 0 % Seriell
   qlim = R.qlim;
