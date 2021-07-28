@@ -95,10 +95,6 @@ if isempty(abort_fitnesscalc)
   abort_fitnesscalc = false;
 elseif abort_fitnesscalc
   fval(:) = Inf;
-  if length(fval)>1, fvalstr=['[',disp_array(fval', '%1.3e'),']'];
-  else,              fvalstr=sprintf('%1.3e', fval); end
-  cds_log(2,sprintf(['[fitness] Fitness-Evaluation in %1.2fs. fval=%s. ', ...
-    'Bereits anderes Gut-Partikel berechnet.'], toc(t1), fvalstr));
   cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, desopt_pval);
   return;
 end
@@ -457,7 +453,9 @@ for iIKC = 1:size(Q0,1)
   fval_debugtext = '';
   if any(strcmp(Set.optimization.objective, 'valid_act'))
     [fval_va,fval_debugtext_va, debug_info] = cds_obj_valid_act(R, Set, Jinv_ges);
-    if fval_va < 1e3 % Wenn einmal der Freiheitsgrad festgestellt wurde, reicht das 
+    if fval_va < 1e3 % Wenn einmal der Freiheitsgrad festgestellt wurde, reicht das
+      cds_log(2,sprintf(['[fitness] Der PKM-Laufgrad wurde festgestellt. ', ...
+        'Hiernach Abbruch der Optimierung.']));
       abort_fitnesscalc = true;
     end
     fval_IKC(iIKC,strcmp(Set.optimization.objective, 'valid_act')) = fval_va;
@@ -562,8 +560,8 @@ for iIKC = 1:size(Q0,1)
   end
   if all(fval_IKC(iIKC,:)' <= Set.optimization.obj_limit) || ...
      all(physval_IKC(iIKC,:)' <= Set.optimization.obj_limit_physval)
-    % Die Fitness-Funktion ist besser als die Grenze. Optimierung kann
-    % hiernach beendet werden.
+    cds_log(2,sprintf(['[fitness] Geforderte Grenze der Zielfunktion erreicht. ', ...
+      'Abbruch der Optimierung.']));
     abort_fitnesscalc = true;
     % break; % zur Nachvollziehbarkeit kein direkter Abbruch.
   end
@@ -670,6 +668,24 @@ QD_out = QD_IKC(:,:,iIKCbest);
 QDD_out = QDD_IKC(:,:,iIKCbest);
 TAU_out = TAU_IKC(:,:,iIKCbest);
 JP_out = JP_IKC(:,:,iIKCbest);
+
+%% Abbruchbedingung aufgrund von Singularität prüfen
+if ~isinf(Set.optimization.condition_limit_sing) && R.Type == 2 && ...
+    all(fval > 1e4*5e4) && all(fval < 1e4*6e4) % Grenzen für PKM-Singularität
+  % Prüfe, wie oft schon dieses Ergebnis vorlag
+  PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, NaN, 'output');
+  % Bei mehrkriterieller Optimierung bei NB-Verletzung gleiche Einträge 
+  if length(fval) > 1, fval_constr = PSO_Detail_Data.fval(:,1,:);
+  else,                fval_constr = fval; end
+  I_sing = fval_constr > 1e4*5e4 & fval_constr < 1e4*6e4;
+  I_nonsing = fval_constr < 1e4*5e4;
+  if sum(I_sing(:)) > 4 && sum(I_nonsing(:)) == 0
+    cds_log(2,sprintf(['[fitness] Es gab 5 singuläre Ergebnisse und kein ', ...
+      'nicht-singuläres. PKM nicht geeignet. Abbruch der Optimierung.']));
+    abort_fitnesscalc = true;
+  end
+end
+
 %% Ende
 % Anfangs-Gelenkwinkel in Roboter-Klasse speichern (zur Reproduktion der
 % Ergebnisse)

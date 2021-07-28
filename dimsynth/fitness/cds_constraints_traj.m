@@ -31,7 +31,8 @@
 %   9e3...1e4: Parasitäre Bewegung (Roboter strukturell unpassend)
 %   1e4...4e4: Inkonsistente Pos./Geschw./Beschl. in Traj.-IK. für Beink. 1 (Sonderfall 3T2R)
 %   4e4...5e4: Singularität in Beinkette (obige Betrachtung daher sinnlos)
-%   5e4...1e5: IK in Trajektorie nicht lösbar (später mit vorherigem zusammengefasst)
+%   5e4...6e4: Singularität der PKM (bezogen auf Aktuierung)
+%   6e4...1e5: IK in Trajektorie nicht lösbar (später mit vorherigem zusammengefasst)
 %   1e5...1e9: Nicht belegt (siehe cds_constraints.m)
 % Q,QD,QDD
 %   Gelenkpositionen und -geschwindigkeiten des Roboters (für PKM auch
@@ -277,7 +278,7 @@ if any(I_ZBviol)
   IdxFirst = find(I_ZBviol, 1 );
   % Umrechnung in Prozent der Traj.
   Failratio = 1-IdxFirst/length(Traj_0.t); % Wert zwischen 0 und 1
-  fval = 1e4*(5+5*Failratio); % Wert zwischen 5e4 und 1e5.
+  fval = 1e4*(6+4*Failratio); % Wert zwischen 6e4 und 1e5.
   % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
   constrvioltext = sprintf('Keine IK-Konvergenz in Traj. Bis %1.0f%% (%d/%d) gekommen.', ...
     (1-Failratio)*100, IdxFirst, length(Traj_0.t));
@@ -341,6 +342,32 @@ if all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
     
   end
 end
+
+%% Singularität der PKM prüfen (bezogen auf Aktuierung)
+% Wird bereits hier gemacht, damit die Anzahl der Berechnungen reduziert
+% werden. Annahme: Wenn eine PKM strukturell immer singulär ist, gibt es
+% nie eine Lösung.
+% Nur für PKM prüfen. Annahme: Serielle Singularität immer vermeidbar.
+if ~isinf(Set.optimization.condition_limit_sing) && R.Type == 2
+  IdxFirst = 0; c = 0;
+  % Berechne Konditionszahl für alle Punkte der Bahn
+  for i = 1:length(Traj_0.t)
+    % Vollständige (inverse) PKM-Jacobi-Matrix (bezogen auf alle Gelenke)
+    Jinv_IK = reshape(Jinv_ges(i,:), R.NJ, sum(R.I_EE));
+    % Konditionszahl der auf Antriebe bezogengen (inversen) Jacobi-Matrix
+    c = cond(Jinv_IK(R.I_qa,:));
+    IdxFirst = i;
+    break;
+  end
+  if c > Set.optimization.condition_limit_sing
+    Failratio = 1-IdxFirst/length(Traj_0.t); % Wert zwischen 0 und 1
+    constrvioltext = sprintf(['PKM ist singulär (Konditionszahl %1.1e ', ...
+      'bei %1.0f%% der Traj. bzw. %d/%d).'], c, 100*(1-Failratio), IdxFirst, length(Traj_0.t));
+    fval = 1e4*(5+1*Failratio); % Wert zwischen 5e4 und 6e4.
+    continue
+  end
+end
+
 %% Singularität der Beinketten prüfen (für PKM)
 % Im Gegensatz zu cds_obj_condition wird hier die gesamte Beinkette
 % betrachtet. Entspricht Singularität der direkten Kinematik der Beinkette.

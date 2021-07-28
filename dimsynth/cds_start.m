@@ -114,6 +114,11 @@ if ~isempty(Set.structures.repeatlist)
       'Eintrag in Set.structures.repeatlist hat nicht Dimension 2');
   end
 end
+% Bei PKM-Struktursynthese darf nicht frühzeitig bei Singularität abbrechen
+if length(Set.optimization.objective) == 1 && ... % ist immer einkriteriell
+    any(strcmp(Set.optimization.objective, {'valid_act', 'valid_kin'}))
+  Set.optimization.condition_limit_sing = inf; % Überschreibe Standardwert
+end
 %% Menge der Roboter laden
 if ~(Set.general.only_finish_aborted && Set.general.isoncluster) && ...
     ~Set.general.regenerate_summary_only

@@ -99,7 +99,8 @@ for i = 1:length(Structures)
   elseif f <= 1e4*2e4, fval_text = 'Traj.-IK Fehler (Beschl. 3T2R)';
   elseif f <= 1e4*3e4, fval_text = 'Traj.-IK Fehler (Geschw. 3T2R)';
   elseif f <= 1e4*4e4, fval_text = 'Traj.-IK Fehler (Pos. 3T2R)';
-  elseif f <= 1e4*5e4, fval_text = 'Traj.-IK Fehler (Sing.)';
+  elseif f <= 1e4*5e4, fval_text = 'Traj.-IK Fehler (Sing. Beinkette)';
+  elseif f <= 1e4*6e4, fval_text = 'Traj.-IK Fehler (Sing. PKM)';
   elseif f <= 1e4*1e5, fval_text = 'Traj.-IK Fehler';
   elseif f <= 1e4*2e5, fval_text = 'AR-Hindernis Eckpkt.'; % ab hier aus cds_constraints.m
   elseif f <= 1e4*3e5, fval_text = 'Bauraum-verl. Eckpkt.';

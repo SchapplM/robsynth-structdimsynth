@@ -1613,7 +1613,7 @@ for i = 1:max_retry
       t = sprintf('Der alte Wert (%s) ist um [%s] besser als der neue (%s).', ...
         disp_array(fval','%1.1f'), disp_array(fval_test'-fval','%1.1e'), disp_array(fval_test','%1.1f'));
     end
-    if fval < 5e8 % Warnung ergibt nur Sinn, wenn IK erfolgreich. Sonst immer Abweichung.
+    if fval < 1e4*5e4 % Warnung ergibt nur Sinn, wenn IK erfolgreich. Sonst immer Abweichung.
       cds_log(-1, sprintf('[dimsynth] Bei nochmaligem Aufruf der Fitness-Funktion kommt nicht der gleiche Wert heraus (Versuch %d). %s', i, t));
     end
     if all(fval_test < fval)
