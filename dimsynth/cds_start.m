@@ -409,6 +409,17 @@ if ~Set.general.regenerate_summary_only
     % in der Struktursynthese möglich sind)
     [Names, I] = unique(Names);
     Structures_I = Structures(I);
+    % Entferne doppelte PKM-Namen, die sich nur durch die Gestell-/Platt-
+    % formausrichtung unterscheiden. Die Dateien sind gleich.
+    if type == 2
+      Names_Legs = cell(size(Names));
+      for i = 1:length(Names) % Bestimme Namen der PKM ohne P-/G-Nummer
+        [~,~,~,~,~,~,~,~,Names_Legs{i}] = parroblib_load_robot(Names{i}, 0);
+      end
+      [~,I] = unique(Names_Legs);
+      Names = Names(I);
+      Structures_I = Structures(I);
+    end
     % Vorlagen-Funktionen neu generieren (falls dort Änderungen gemacht
     % wurden). Die automatische Neugenerierung in der parfor-Schleife
     % funktioniert nicht aufgrund von Dateikonflikten, autom. Ordnerlöschung.
