@@ -55,6 +55,7 @@ general = struct( ...
   'parcomp_plot', 0, ... % Parallele Erzeugung der Ergebnisbilder und -videos
   'parcomp_maxworkers', inf, ... % Beschränkung der Anzahl paralleler Instanzen
   'computing_cluster', false, ... % Berechnung auf PBS-Cluster (Hochladen auf Server)
+  'computing_cluster_cores', 32, ... % (Maximale) Anzahl der benutzten Kerne pro Node auf dem Cluster (32 maximal)
   'isoncluster', false, ... % Merker, ob gerade auf dem Cluster gerechnet wird. Dann sind einige Bilder und Debug-Auswertungen unnötig.
   'cluster_maxrobotspernode', inf, ... % Unbegrenzte Anzahl von Robotern auf jeder Cluster-Node. Niedrigere Zahl dient zur stärkeren Parallelisierung
   'compile_missing_functions', true, ... % Bei Start alle mex-Funktionen kompilieren
