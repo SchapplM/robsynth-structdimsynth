@@ -493,7 +493,9 @@ if ~Set.general.regenerate_summary_only
   t1 = tic();
   parfor (i = 1:length(Structures), parfor_numworkers)
     % Maßsynthese für diesen Roboter starten
-    fprintf('Starte Maßsynthese für Roboter %d (%s)\n', i, Structures{i}.Name);
+    if ~Set.general.only_finish_aborted, mode = 'Maßsynthese'; %#ok<PFBNS>
+    else,                                mode = 'Abschluss'; end
+    fprintf('Starte %s für Roboter %d (%s)\n', mode, i, Structures{i}.Name);
     cds_dimsynth_robot(Set, Traj, Structures{i});
   end
   fprintf('Optimierung von %d Robotern abgeschlossen. Dauer: %1.1fs\n', length(Structures), toc(t1));
