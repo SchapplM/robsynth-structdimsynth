@@ -120,11 +120,14 @@ if length(Set.optimization.objective) == 1 && ... % ist immer einkriteriell
   Set.optimization.condition_limit_sing = inf; % Überschreibe Standardwert
 end
 %% Menge der Roboter laden
-if ~(Set.general.only_finish_aborted && Set.general.isoncluster) && ...
-    ~Set.general.regenerate_summary_only
+if ~(Set.general.only_finish_aborted && Set.general.isoncluster) && ... % Abschluss auf Cluster
+    ~Set.general.regenerate_summary_only || ... % Nur Bilder (ohne Abschluss)
+    (Set.general.only_finish_aborted && Set.general.computing_cluster) % Abschluss lokal. Kein Aufruf zum Hochladen des Abschluss-Auftrags auf das Cluster
   % Bei Fortsetzen der abgebrochenen Berechnung auf dem Cluster nicht
   % notwendig. Sonst schon (lokal oder Hochladen des Abschluss-Jobs).
   % Auch nicht notwendig bei reiner Neu-Erzeugung der Ergebnis-Bilder.
+  % Der Fall des Hochladens des Auftrags zum Abschluss auf das Cluster wird
+  % mit obiger Logik berücksichtigt (zum Aufteilen auf parallele Jobs)
   Structures = cds_gen_robot_list(Set);
   if isempty(Structures)
     fprintf('Keine Strukturen entsprechen den Filterkriterien\n');
@@ -154,9 +157,16 @@ if Set.general.only_finish_aborted && (Set.general.isoncluster || ...
   end
   d = load(settingsfile, 'Set', 'Traj', 'Structures');
   Traj = d.Traj;
-  Set = d.Set;
-  Set.general.only_finish_aborted = true; % Überschreibe geladene Einstellung
   Structures = d.Structures;
+  Set_tmp = Set;
+  Set = d.Set;
+  % Überschreibe geladene Einstellungen, damit ein kopierter Ordner vom
+  % Cluster auch lokal abgeschlossen werden kann.
+  Set.general.only_finish_aborted = true; % Überschreibe geladene Einstellung
+  Set.general.parcomp_plot = Set_tmp.general.parcomp_plot;
+  Set.general.parcomp_struct = Set_tmp.general.parcomp_struct;
+  Set.optimization.resdir = Set_tmp.optimization.resdir;
+  Set.general.create_template_functions = Set_tmp.general.create_template_functions;
   fprintf('Einstellungsdatei %s für Abschluss geladen.\n', settingsfile);
 elseif Set.general.regenerate_summary_only && (Set.general.isoncluster || ...
     ~Set.general.computing_cluster)
@@ -233,6 +243,10 @@ if Set.general.computing_cluster
     end
     computation_name = sprintf('dimsynth_%s_%s%s', ...
       datestr(now,'yyyymmdd_HHMMSS'), Set.optimization.optname, suffix);
+    if Set.general.only_finish_aborted
+      % Es wird keine Optimierung durchgeführt. Kennzeichnung im Namen.
+      computation_name = [computation_name, '_finish']; %#ok<AGROW>
+    end
     jobdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
       'dimsynth', 'cluster_jobs', computation_name);
     mkdirs(fullfile(jobdir, 'results')); % Unterordner notwendig für Cluster-Transfer-Toolbox

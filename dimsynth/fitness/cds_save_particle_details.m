@@ -26,8 +26,12 @@
 %   Steuerungsparameter für das Verhalten der Funktion
 %   output: Nur Ausgabe der gespeicherten persistenten Variable
 %   reset: Zurücksetzen der persistenten Variable
+%   overwrite: Überschreiben der persistenten Variable aus Eingabe
 %   <leer lassen>: Einfügen der Daten in die persistente Variable bei jedem
 %     Aufruf
+% PSO_Detail_Data_in
+%   Eingabewert der persistenten Variable (z.B. gelesen aus Datei) zum
+%   Überschreiben bestehender Werte
 % 
 % Ausgabe:
 % PSO_Detail_Data_output
@@ -37,7 +41,7 @@
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
 function PSO_Detail_Data_output = cds_save_particle_details(Set, R, comptime, ...
-  fval, pval, physval, constraint_obj_val, desopt_pval, option)
+  fval, pval, physval, constraint_obj_val, desopt_pval, option, PSO_Detail_Data_in)
 if isnan(comptime) || any(isnan(fval))
   error('Rechenzeit darf nicht NaN sein');
 end
@@ -47,6 +51,11 @@ PSO_Detail_Data_output = [];
 % Eingabe verarbeiten
 if nargin < 9
   option = 'iter';
+end
+if strcmp(option, 'overwrite')
+  PSO_Detail_Data = PSO_Detail_Data_in;
+  PSO_Detail_Data_output = PSO_Detail_Data;
+  return
 end
 if strcmp(option, 'output')
   PSO_Detail_Data_output = PSO_Detail_Data;

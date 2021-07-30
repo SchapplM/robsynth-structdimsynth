@@ -34,13 +34,19 @@ end
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot1.mat'));
 
 % Prüfe, ob die Optimierung bereits erfolgreich war
+resultfile = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+    sprintf('Rob%d_%s_Endergebnis.mat', Structure.Number, Structure.Name));
 if ~Set.general.overwrite_existing_results
-  if exist(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
-    sprintf('Rob%d_%s_Endergebnis.mat', Structure.Number, Structure.Name)), 'file')
+  if exist(resultfile, 'file')
     fprintf('[dimsynth] Ergebnis für Rob %d (%s) liegt bereits vor. Abbruch.\n', ...
       Structure.Number, Structure.Name);
     return
   end
+end
+if Set.general.only_finish_aborted && exist(resultfile, 'file')
+  fprintf(['[dimsynth] Ergebnis für Rob %d (%s) liegt bereits vor. Kein ', ...
+    'erneuter Abschluss notwendig.\n'], Structure.Number, Structure.Name);
+  return
 end
 %% Initialisierung
 % Log-Datei initialisieren
@@ -151,8 +157,9 @@ elseif Structure.Type == 2 % Parallel
 else
   error('Typ-Nummer nicht definiert');
 end
+% Initialisieren der Funktionsdatei-Verknüpfungen. Keine Synchronisation
+% mit parroblib_writelock notwendig, da bereits zu Beginn geprüft.
 R.fill_fcn_handles(Set.general.use_mex, true);
-
 % Aufgaben-FG des Roboters setzen
 if Structure.Type == 0 % Seriell
   R.I_EE_Task = Set.task.DoF;
@@ -1410,7 +1417,7 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
       return
     else
       cds_log(1, sprintf(['[dimsynth] Laden des letzten abgebrochenen Durch', ...
-        'laufs aus gespeicherten Daten erfolgreich.'], resdir));
+        'laufs aus gespeicherten Daten erfolgreich aus %s.'], resdir));
     end
     [~,I_newest] = max([filelist_tmpres.datenum]);
     d = load(fullfile(resdir, filelist_tmpres(I_newest).name));
@@ -1510,9 +1517,10 @@ if ~Set.general.only_finish_aborted
   % Detail-Ergebnisse extrahieren (persistente Variable in Funktion)
   PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, NaN, 'output');
 else
-  % Nachträgliche Reproduktion eines Ergebnisses evtl problematisch.
-  % Ergebnis wird nicht in der persistenten Variable PSO_Detail_Data gespeichert.
-  PSO_Detail_Data = d.PSO_Detail_Data;
+  % Trage in die persistente Variable der Speicher-Funktion ein für
+  % Reproduktion der Ergebnisse
+  PSO_Detail_Data = cds_save_particle_details([],[],0, 0, NaN, NaN, NaN, NaN,...
+    'overwrite', d.PSO_Detail_Data);
   if length(Set.optimization.objective) > 1
     if strcmp(Set.optimization.algorithm, 'mopso')
       options.P0 = PSO_Detail_Data.pval(:,:,1);
@@ -1629,9 +1637,7 @@ end
 % Detail-Ergebnisse extrahieren (persistente Variable in Funktion).
 % (Nochmal, da Neuberechnung oben eventuell anderes Ergebnis bringt)
 % Kein Zurücksetzen der persistenten Variablen notwendig.
-if ~Set.general.only_finish_aborted
-  PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, NaN, 'output');
-end
+PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, NaN, 'output');
 % Schreibe die Anfangswerte der Gelenkwinkel für das beste Individuum in
 % die Roboterklasse. Suche dafür den besten Funktionswert in den zusätzlich
 % gespeicherten Daten für die Position des Partikels in dem Optimierungsverfahren
@@ -1918,9 +1924,7 @@ if Set.general.matfile_verbosity > 0
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot4.mat'));
 end
 % Gesamtergebnis der Optimierung speichern
-save(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
-  sprintf('Rob%d_%s_Endergebnis.mat', Structure.Number, Structure.Name)), ...
-  'RobotOptRes');
+save(resultfile, 'RobotOptRes');
 save(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
   sprintf('Rob%d_%s_Details.mat', Structure.Number, Structure.Name)), ...
   'RobotOptDetails', 'PSO_Detail_Data');
