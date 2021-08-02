@@ -50,6 +50,7 @@ if Set.general.only_finish_aborted && exist(resultfile, 'file')
 end
 %% Initialisierung
 % Log-Datei initialisieren
+clear cds_log % Falls Durchlauf direkt hiervor und jetzt mit only_finish_aborted
 if ~init_only && ~Set.general.only_finish_aborted
   resdir_rob = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
     sprintf('Rob%d_%s', Structure.Number, Structure.Name));
@@ -1889,6 +1890,25 @@ end
 
 %% Ausgabe der Ergebnisse
 t_end = now(); % End-Zeitstempel der Optimierung dieses Roboters
+lfp = cds_log(1,sprintf(['[dimsynth] Optimierung von Rob. %d (%s) abgeschlossen. ', ...
+  'Dauer: %1.1fs'], Structure.Number, Structure.Name, toc(t1)));
+if isempty(lfp) % Aufruf mit Set.general.only_finish_aborted. Log nicht initialisiert.
+  robstr = sprintf('Rob%d_%s', Structure.Number, Structure.Name);
+  lfp = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+    robstr, sprintf('%s.log', robstr));
+end
+if Set.general.only_finish_aborted
+  % Zeitstempel von Start und Ende der Optimierung aus Log-Datei auslesen
+  if exist(lfp, 'file') % Findet alle Datums-Zeit-Stempel in eckigen Klammern (sollten nur am Zeilenanfang stehen)
+    matches = regexp(fileread(lfp), '\[(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)\]', 'match');
+    t_start = datenum(matches{1});
+    t_end = datenum(matches{end});
+  else % Überschreibe Werte mit NaN, damit zumindest keine falschen Werte in die Tabelle kommen
+    t_start = NaN;
+    t_end = NaN;
+  end
+end
+
 % Allgemeine Ergebnis-Struktur. Enthält die wichtisten Informationen
 % um das Endergebnis reproduzieren zu können.
 RobotOptRes = struct( ...
@@ -1928,12 +1948,6 @@ save(resultfile, 'RobotOptRes');
 save(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
   sprintf('Rob%d_%s_Details.mat', Structure.Number, Structure.Name)), ...
   'RobotOptDetails', 'PSO_Detail_Data');
-lfp = cds_log(1,sprintf(['[dimsynth] Optimierung von Rob. %d (%s) abgeschlossen. ', ...
-  'Dauer: %1.1fs'], Structure.Number, Structure.Name, toc(t1)));
-if isempty(lfp) % Aufruf mit Set.general.only_finish_aborted. Log nicht initialisiert.
-  robstr = sprintf('Rob%d_%s', Structure.Number, Structure.Name);
-  lfp = fullfile(resdir, robstr, sprintf('%s.log', robstr));
-end
 % Log-Datei komprimieren und Textdatei löschen
 if exist(lfp, 'file')
   gzip(lfp); delete(lfp);
