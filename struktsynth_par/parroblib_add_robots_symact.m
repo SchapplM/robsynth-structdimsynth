@@ -75,7 +75,7 @@ if settings.comp_cluster
   % schon Ergebnisse vorliegen. Die Datenbank muss also eventuell vor der
   % Auswertung wieder zurückgesetzt werden.
   if settings.clustercomp_if_res_olderthan > 0
-    if settings.dryrun && clustercomp_if_res_olderthan == 0
+    if settings.dryrun && settings.clustercomp_if_res_olderthan == 0
       error(['Option "dryrun" nicht zusammen mit "comp_cluster" und ', ...
         '"clustercomp_if_res_olderthan" möglich.']);
     end
@@ -92,6 +92,9 @@ if settings.comp_cluster
     end
     settings.offline = false; % Kein Laden vorheriger Ergebnisse
     settings.dryrun = true; % Dann kein Füllen der Datenbank notwendig
+  end
+  if ~settings.parcomp_structsynth
+    warning('Rechnung auf Cluster aber nicht parallel ist nicht sinnvoll');
   end
 end
 %% Initialisierung
