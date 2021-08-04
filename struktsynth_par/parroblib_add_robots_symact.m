@@ -93,9 +93,6 @@ if settings.comp_cluster
     settings.offline = false; % Kein Laden vorheriger Ergebnisse
     settings.dryrun = true; % Dann kein Füllen der Datenbank notwendig
   end
-  if ~settings.parcomp_structsynth
-    warning('Rechnung auf Cluster aber nicht parallel ist nicht sinnvoll');
-  end
 end
 %% Initialisierung
 EE_FG_ges = [1 1 0 0 0 1; ...
@@ -723,9 +720,11 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       fprintf('Starte die Berechnung der Struktursynthese auf dem Rechencluster: %s\n', computation_name);
       addpath(cluster_repo_path);
       jobStart(struct('name', computation_name, ...
-                      'matFileName', [computation_name, '.m'], ...
-                      'locUploadFolder', jobdir, ...
-                      'time', 12+length(Whitelist_PKM)*0.5/12));
+        ... % Nur so viele Kerne beantragen, wie auch benötigt werden ("ppn")
+        'ppn', min(length(Whitelist_PKM),12), ... % 12 Kerne ermöglicht Lauf auf fast allen Cluster-Nodes
+        'matFileName', [computation_name, '.m'], ...
+        'locUploadFolder', jobdir, ...
+        'time', 12+length(Whitelist_PKM)*0.5/min(length(Whitelist_PKM),12))); % Zeit in h. Schätze 30min pro PKM im Durchschnitt
       rmpath_genpath(cluster_repo_path, false);
       continue % Nachfolgendes muss nicht gemacht werden
     end
