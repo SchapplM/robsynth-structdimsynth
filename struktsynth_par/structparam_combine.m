@@ -88,6 +88,14 @@ end
 % Summanden extrahieren
 aes = expand(aes); % Aufteilen des Ausdrucks in seine Summanden
 aesc = children(aes+1);
+% Typumwandlung cell -> sym array (je nach Matlab-Version vorheriges Ergebnis anders?)
+if isa(aesc, 'cell')
+  tmp = aesc;
+  aesc = sym(zeros(size(tmp)));
+  for i = 1:length(aesc)
+    aesc(i) = tmp{i};
+  end
+end
 % Entferne addierte +1 wieder
 aesc = aesc(~(logical(aesc==1)));
 

@@ -560,7 +560,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         % Suche den Ergebnis-Ordner mit der größten Übereinstimmung
         reslist_nummatch = zeros(length(reslist),1); % Anzahl der Treffer
         reslist_rationomatch = zeros(length(reslist),1); % Anzahl der unpassenden Ergebnisse im Ordner
-        reslist_age = zeros(length(reslist),1); % Alter der durchgeführten Optimierungen in Ergebnisordner
+        reslist_age = inf(length(reslist),1); % Alter der durchgeführten Optimierungen in Ergebnisordner
         for i = 1:length(reslist) % Alle Ergebnis-Ordner durchgehen
           % Prüfe, wie viele passende Ergebnisse in dem Ordner sind
           Whitelist_PKM_match = false(length(Whitelist_PKM),1);
@@ -579,10 +579,6 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
               end
             end
           end
-          reslist_nummatch(i) = sum(Whitelist_PKM_match); % Anzahl der Treffer
-          % Verhältnis der gefundenen PKM: Berücksichtige freie alpha-/theta-
-          % Parameter, die zu doppelten Ergebnissen für einen Namen führen.
-          reslist_rationomatch(i) = 1 - reslist_nummatch(i)/length(unique(reslist_pkm_names));
           % Alter des Ordners bestimmen (aus bekanntem Namensschema)
           [datestr_match, ~] = regexp(reslist(i).name,'[A-Za-z0-9_]*_tmp_(\d+)_(\d+)', 'tokens','match');
           if isempty(datestr_match)
@@ -591,6 +587,10 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           end
           date_i = datenum([datestr_match{1}{1}, ' ', datestr_match{1}{2}], 'yyyymmdd HHMMSS');
           reslist_age(i) = now() - date_i; % Alter in Tagen
+          reslist_nummatch(i) = sum(Whitelist_PKM_match); % Anzahl der Treffer
+          % Verhältnis der gefundenen PKM: Berücksichtige freie alpha-/theta-
+          % Parameter, die zu doppelten Ergebnissen für einen Namen führen.
+          reslist_rationomatch(i) = 1 - reslist_nummatch(i)/length(unique(reslist_pkm_names));
         end
         reslist_rationomatch(isnan(reslist_rationomatch)) = 0;
         % Bestimme das am sinnvollsten auszuwählendste Ergebnis:
@@ -757,11 +757,15 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           resfile = fullfile(resmaindir, Ergebnisliste(jj).name);
           tmp = load(resfile, 'RobotOptRes');
           RobotOptRes = tmp.RobotOptRes;
+          if ~isfield(RobotOptRes.Structure, 'angles_values')
+            warning('Datei %s hat veraltetes Format', resfile);
+            continue
+          end
           fval_jjj = [fval_jjj, RobotOptRes.fval]; %#ok<AGROW>
           if isempty(angles_jjj) % Syntax-Fehler vermeiden bei leerem char als erstem
-            angles_jjj = {tmp.RobotOptRes.Structure.angles_values};
+            angles_jjj = {RobotOptRes.Structure.angles_values};
           else
-            angles_jjj = [angles_jjj, tmp.RobotOptRes.Structure.angles_values]; %#ok<AGROW>
+            angles_jjj = [angles_jjj, RobotOptRes.Structure.angles_values]; %#ok<AGROW>
           end
         elseif isempty(fval_jjj) && jj == length(Ergebnisliste)
           warning('Ergebnisdatei zu %s nicht gefunden', Name);
