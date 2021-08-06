@@ -535,7 +535,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.general.save_animation_file_extensions = {'gif'};
     Set.general.parcomp_struct = settings.parcomp_structsynth;
     Set.general.use_mex = settings.use_mex;
-    Set.general.compile_missing_functions = false; % wurde schon weiter oben gemacht.
+    Set.general.compile_missing_functions = true; % wurde schon weiter oben gemacht. Mache nochmal, da es manchmal nicht funktioniert (unklare Gründe, womöglich Synchronisationsprobleme der parallelen Ausführung)
     offline_result_complete = false;
     if ~settings.offline && ~settings.comp_cluster
       fprintf(['Starte Prüfung des Laufgrads der PKM mit Maßsynthese für ', ...
