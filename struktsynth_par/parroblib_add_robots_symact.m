@@ -553,7 +553,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           % Falls auf Cluster gerechnet werden soll, war das hier nur eine
           % Prüfung.
           warning(['Offline-Modus gewählt, aber keine Ergebnisse für %s* im ', ...
-            'passenden Ordner.'], Set.optimization.optname(1:end-15));
+            'passenden Ordner.'], Set.optimization.optname(1:29));
           continue % Beendet Prüfung dieser Koppelgelenk-Kombination
         end
       else
