@@ -448,10 +448,16 @@ if ~Set.general.regenerate_summary_only
         else % PKM
           % Sperrschutz für PKM-Bibliothek (hauptsächlich für Struktursynthese)
           parroblib_writelock('check', 'csv', Structure_i.DoF, 5*60, false);
+          % Die Vorlagen-Funktionen können nicht in Parallelinstanzen
+          % gleichzeitig erzeugt werden.
+          parroblib_writelock('lock', 'template', Structure_i.DoF, 5*60, false);
           parroblib_create_template_functions(Names(i), false, false);
+          parroblib_writelock('free', 'template', Structure_i.DoF, 5*60, false);
           % Auch Funktionen für serielle Beinketten neu generieren
           [~, LEG_Names] = parroblib_load_robot(Names{i});
+          serroblib_writelock('lock', 'template', 0, 5*60, false);
           serroblib_create_template_functions(LEG_Names(1), false, false);
+          serroblib_writelock('free', 'template', 0, 5*60, false);
         end
         continue
       end
