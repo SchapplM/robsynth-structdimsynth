@@ -1440,10 +1440,10 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
       'Durchlaufs aus %s geladen.'], filelist_tmpres(I_newest).name));
   end
   % Entferne doppelte Partikel aus der Pareto-Front (bei MOPSO beobachtet)
-  [~,I_unique] = unique(p_val_pareto, 'rows');
-  if sum(I_unique) ~= size(p_val_pareto,1)
+  [~,I_unique] = unique(p_val_pareto, 'rows'); % Ausgabe sind Zahlen-Indizes (nicht: Binär)
+  if length(I_unique) ~= size(p_val_pareto,1)
     cds_log(-1, sprintf(['[dimsynth] Pareto-Front bestand aus %d Partikeln, ', ...
-      'aber nur %d davon nicht doppelt'], size(p_val_pareto,1), sum(I_unique)));
+      'aber nur %d davon nicht doppelt'], size(p_val_pareto,1), length(I_unique)));
     fval_pareto = fval_pareto(I_unique,:);
     p_val_pareto = p_val_pareto(I_unique,:);
   end
