@@ -483,9 +483,11 @@ if ~Set.general.regenerate_summary_only
         % Hierdurch werden fehlende mex-Funktionen kompiliert.
         if type == 2 % keine gleichzeitige mex-Kompilierung gleicher Kinematiken erlauben.
           parroblib_writelock('lock', Names{i}, R.I_EE, 60*60, Set.general.verbosity>2);
+          serroblib_writelock('lock', R.Leg(1).mdlname, NaN, 60*60, Set.general.verbosity>2); % Auch SerRobLib für Beinkette sperren
         end
         R.fill_fcn_handles(true, true);
-        if type == 2 % Sperrschutz für PKM aufheben
+        if type == 2 % Sperrschutz für PKM und Beinkette aufheben
+          serroblib_writelock('free', R.Leg(1).mdlname, NaN); 
           parroblib_writelock('free', Names{i}, R.I_EE);
         end
         if toc(t_ll) > 20 || i == III(end)
