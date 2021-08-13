@@ -34,16 +34,23 @@ end
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot1.mat'));
 
 % Prüfe, ob die Optimierung bereits erfolgreich war
+resultfile = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+    sprintf('Rob%d_%s_Endergebnis.mat', Structure.Number, Structure.Name));
 if ~Set.general.overwrite_existing_results
-  if exist(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
-    sprintf('Rob%d_%s_Endergebnis.mat', Structure.Number, Structure.Name)), 'file')
+  if exist(resultfile, 'file')
     fprintf('[dimsynth] Ergebnis für Rob %d (%s) liegt bereits vor. Abbruch.\n', ...
       Structure.Number, Structure.Name);
     return
   end
 end
+if Set.general.only_finish_aborted && exist(resultfile, 'file')
+  fprintf(['[dimsynth] Ergebnis für Rob %d (%s) liegt bereits vor. Kein ', ...
+    'erneuter Abschluss notwendig.\n'], Structure.Number, Structure.Name);
+  return
+end
 %% Initialisierung
 % Log-Datei initialisieren
+clear cds_log % Falls Durchlauf direkt hiervor und jetzt mit only_finish_aborted
 if ~init_only && ~Set.general.only_finish_aborted
   resdir_rob = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
     sprintf('Rob%d_%s', Structure.Number, Structure.Name));
@@ -151,8 +158,9 @@ elseif Structure.Type == 2 % Parallel
 else
   error('Typ-Nummer nicht definiert');
 end
+% Initialisieren der Funktionsdatei-Verknüpfungen. Keine Synchronisation
+% mit parroblib_writelock notwendig, da bereits zu Beginn geprüft.
 R.fill_fcn_handles(Set.general.use_mex, true);
-
 % Aufgaben-FG des Roboters setzen
 if Structure.Type == 0 % Seriell
   R.I_EE_Task = Set.task.DoF;
@@ -1410,7 +1418,7 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
       return
     else
       cds_log(1, sprintf(['[dimsynth] Laden des letzten abgebrochenen Durch', ...
-        'laufs aus gespeicherten Daten erfolgreich.'], resdir));
+        'laufs aus gespeicherten Daten erfolgreich aus %s.'], resdir));
     end
     [~,I_newest] = max([filelist_tmpres.datenum]);
     d = load(fullfile(resdir, filelist_tmpres(I_newest).name));
@@ -1432,10 +1440,10 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
       'Durchlaufs aus %s geladen.'], filelist_tmpres(I_newest).name));
   end
   % Entferne doppelte Partikel aus der Pareto-Front (bei MOPSO beobachtet)
-  [~,I_unique] = unique(p_val_pareto, 'rows');
-  if sum(I_unique) ~= size(p_val_pareto,1)
+  [~,I_unique] = unique(p_val_pareto, 'rows'); % Ausgabe sind Zahlen-Indizes (nicht: Binär)
+  if length(I_unique) ~= size(p_val_pareto,1)
     cds_log(-1, sprintf(['[dimsynth] Pareto-Front bestand aus %d Partikeln, ', ...
-      'aber nur %d davon nicht doppelt'], size(p_val_pareto,1), sum(I_unique)));
+      'aber nur %d davon nicht doppelt'], size(p_val_pareto,1), length(I_unique)));
     fval_pareto = fval_pareto(I_unique,:);
     p_val_pareto = p_val_pareto(I_unique,:);
   end
@@ -1510,9 +1518,10 @@ if ~Set.general.only_finish_aborted
   % Detail-Ergebnisse extrahieren (persistente Variable in Funktion)
   PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, NaN, 'output');
 else
-  % Nachträgliche Reproduktion eines Ergebnisses evtl problematisch.
-  % Ergebnis wird nicht in der persistenten Variable PSO_Detail_Data gespeichert.
-  PSO_Detail_Data = d.PSO_Detail_Data;
+  % Trage in die persistente Variable der Speicher-Funktion ein für
+  % Reproduktion der Ergebnisse
+  PSO_Detail_Data = cds_save_particle_details([],[],0, 0, NaN, NaN, NaN, NaN,...
+    'overwrite', d.PSO_Detail_Data);
   if length(Set.optimization.objective) > 1
     if strcmp(Set.optimization.algorithm, 'mopso')
       options.P0 = PSO_Detail_Data.pval(:,:,1);
@@ -1604,7 +1613,7 @@ for i = 1:max_retry
   clear cds_fitness % persistente Variable in fitnessfcn löschen (falls Grenzwert erreicht wurde wird sonst inf zurückgegeben)
   % Aufruf nicht über anonmye Funktion, sondern vollständig, damit Param.
   % der Entwurfsoptimierung übergeben werden können.
-  [fval_test, ~, Q, QD, QDD] = cds_fitness(R, Set, Traj, Structure_tmp, p_val, desopt_pval);
+  [fval_test, ~, Q, QD, QDD, ~, JP] = cds_fitness(R, Set, Traj, Structure_tmp, p_val, desopt_pval);
   if any(abs(fval_test-fval)>1e-8)
     if all(fval_test < fval)
       t = sprintf('Der neue Wert (%s) ist um [%s] besser als der alte (%s).', ...
@@ -1613,7 +1622,7 @@ for i = 1:max_retry
       t = sprintf('Der alte Wert (%s) ist um [%s] besser als der neue (%s).', ...
         disp_array(fval','%1.1f'), disp_array(fval_test'-fval','%1.1e'), disp_array(fval_test','%1.1f'));
     end
-    if fval < 5e8 % Warnung ergibt nur Sinn, wenn IK erfolgreich. Sonst immer Abweichung.
+    if fval < 1e4*5e4 % Warnung ergibt nur Sinn, wenn IK erfolgreich. Sonst immer Abweichung.
       cds_log(-1, sprintf('[dimsynth] Bei nochmaligem Aufruf der Fitness-Funktion kommt nicht der gleiche Wert heraus (Versuch %d). %s', i, t));
     end
     if all(fval_test < fval)
@@ -1629,9 +1638,7 @@ end
 % Detail-Ergebnisse extrahieren (persistente Variable in Funktion).
 % (Nochmal, da Neuberechnung oben eventuell anderes Ergebnis bringt)
 % Kein Zurücksetzen der persistenten Variablen notwendig.
-if ~Set.general.only_finish_aborted
-  PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, NaN, 'output');
-end
+PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, NaN, 'output');
 % Schreibe die Anfangswerte der Gelenkwinkel für das beste Individuum in
 % die Roboterklasse. Suche dafür den besten Funktionswert in den zusätzlich
 % gespeicherten Daten für die Position des Partikels in dem Optimierungsverfahren
@@ -1747,8 +1754,8 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   % Stelle fest, ob die Zielfunktion rein kinematisch ist; dann werden die
   % Dynamikparameter nicht in der Fitness-Funktion belegt
   only_kinematic_objective = length(intersect(Set.optimization.objective, ...
-    {'condition', 'jointrange', 'manipulability', 'minjacsingval', ...
-    'positionerror', 'chainlength'})) == length(Set.optimization.objective);
+    {'condition','jointrange','manipulability','minjacsingval','positionerror', ...
+    'chainlength','installspace'})) == length(Set.optimization.objective);
   if any(fval > 1e3) ...% irgendeine Nebenbedingung wurde immer verletzt. ...
       || only_kinematic_objective % ... oder nur kinematische Zielfunktion ...
     cds_dimsynth_design(R, Q, Set, Structure); % ...  Daher nie bis zu diesem Funktionsaufruf gekommen.
@@ -1765,13 +1772,14 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   [fval_pe,~, ~, physval_pe] = cds_obj_positionerror(R, Set, Jinv_ges, Traj_0, Q);
   [fval_jrange,~, ~, physval_jrange] = cds_obj_jointrange(R, Set, Structure, Q);
   [fval_chainlength,~, ~, physval_chainlength] = cds_obj_chainlength(R);
+  [fval_instspc,~, ~, physval_instspc] = cds_obj_installspace(R, Set, Structure, Traj_0, Q, JP);
   [fval_stiff,~, ~, physval_stiff] = cds_obj_stiffness(R, Set, Q);
   % Reihenfolge siehe Variable Set.optimization.constraint_obj aus cds_settings_defaults
   fval_obj_all = [fval_mass; fval_energy; fval_actforce; fval_ms; fval_cond; ...
-    fval_mani; fval_msv; fval_pe; fval_jrange; fval_chainlength; fval_stiff];
+    fval_mani; fval_msv; fval_pe; fval_jrange; fval_chainlength; fval_instspc; fval_stiff];
   physval_obj_all = [physval_mass; physval_energy; physval_actforce; ...
     physval_ms; physval_cond; physval_mani; physval_msv; physval_pe; ...
-    physval_jrange; physval_chainlength; physval_stiff];
+    physval_jrange; physval_chainlength; physval_instspc; physval_stiff];
   % Vergleiche neu berechnete Werte mit den zuvor abgespeicherten (müssen
   % übereinstimmen)
   test_Jcond_abs = PSO_Detail_Data.constraint_obj_val(dd_optind, 4, dd_optgen) - physval_cond;
@@ -1809,8 +1817,8 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
 else
   % Keine Berechnung der Leistungsmerkmale möglich, da keine zulässige Lösung
   % gefunden wurde.
-  fval_obj_all = NaN(11,1);
-  physval_obj_all = NaN(11,1);
+  fval_obj_all = NaN(12,1);
+  physval_obj_all = NaN(12,1);
 end
 % Prüfe auf Plausibilität, ob die Optimierungsziele erreicht wurden. Neben-
 % bedingungen nur prüfen, falls überhaupt gültige Lösung erreicht wurde.
@@ -1821,7 +1829,7 @@ objconstr_names_all = {'mass', 'energy', 'actforce', 'condition', ...
   'stiffness', 'materialstress'};
 obj_names_all = {'mass', 'energy', 'actforce', 'materialstress', 'condition', ...
   'manipulability', 'minjacsingval', 'positionerror', 'jointrange', ...
-  'chainlength', 'stiffness'};
+  'chainlength', 'installspace', 'stiffness'}; % konsistent zu fval_obj_all und physval_obj_all
 I_constr = zeros(length(objconstr_names_all),1);
 for i = 1:length(objconstr_names_all)
   I_constr(i) = find(strcmp(objconstr_names_all{i}, obj_names_all));
@@ -1882,6 +1890,25 @@ end
 
 %% Ausgabe der Ergebnisse
 t_end = now(); % End-Zeitstempel der Optimierung dieses Roboters
+lfp = cds_log(1,sprintf(['[dimsynth] Optimierung von Rob. %d (%s) abgeschlossen. ', ...
+  'Dauer: %1.1fs'], Structure.Number, Structure.Name, toc(t1)));
+if isempty(lfp) % Aufruf mit Set.general.only_finish_aborted. Log nicht initialisiert.
+  robstr = sprintf('Rob%d_%s', Structure.Number, Structure.Name);
+  lfp = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+    robstr, sprintf('%s.log', robstr));
+end
+if Set.general.only_finish_aborted
+  % Zeitstempel von Start und Ende der Optimierung aus Log-Datei auslesen
+  if exist(lfp, 'file') % Findet alle Datums-Zeit-Stempel in eckigen Klammern (sollten nur am Zeilenanfang stehen)
+    matches = regexp(fileread(lfp), '\[(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)\]', 'match');
+    t_start = datenum(matches{1});
+    t_end = datenum(matches{end});
+  else % Überschreibe Werte mit NaN, damit zumindest keine falschen Werte in die Tabelle kommen
+    t_start = NaN;
+    t_end = NaN;
+  end
+end
+
 % Allgemeine Ergebnis-Struktur. Enthält die wichtisten Informationen
 % um das Endergebnis reproduzieren zu können.
 RobotOptRes = struct( ...
@@ -1917,18 +1944,10 @@ if Set.general.matfile_verbosity > 0
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot4.mat'));
 end
 % Gesamtergebnis der Optimierung speichern
-save(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
-  sprintf('Rob%d_%s_Endergebnis.mat', Structure.Number, Structure.Name)), ...
-  'RobotOptRes');
+save(resultfile, 'RobotOptRes');
 save(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
   sprintf('Rob%d_%s_Details.mat', Structure.Number, Structure.Name)), ...
   'RobotOptDetails', 'PSO_Detail_Data');
-lfp = cds_log(1,sprintf(['[dimsynth] Optimierung von Rob. %d (%s) abgeschlossen. ', ...
-  'Dauer: %1.1fs'], Structure.Number, Structure.Name, toc(t1)));
-if isempty(lfp) % Aufruf mit Set.general.only_finish_aborted. Log nicht initialisiert.
-  robstr = sprintf('Rob%d_%s', Structure.Number, Structure.Name);
-  lfp = fullfile(resdir, robstr, sprintf('%s.log', robstr));
-end
 % Log-Datei komprimieren und Textdatei löschen
 if exist(lfp, 'file')
   gzip(lfp); delete(lfp);

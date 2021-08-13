@@ -36,7 +36,7 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function [fval, physval, Q_out, QD_out, QDD_out, TAU] = cds_fitness(R, Set, Traj_W, Structure, p, desopt_pval)
+function [fval, physval, Q_out, QD_out, QDD_out, TAU_out, JP_out] = cds_fitness(R, Set, Traj_W, Structure, p, desopt_pval)
 repopath = fileparts(which('structgeomsynth_path_init.m'));
 rng(0); % Für Wiederholbarkeit der Versuche: Zufallszahlen-Initialisierung
 
@@ -47,7 +47,7 @@ end
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_fitness_1.mat'),  '-regexp', '^(?!abort_fitnesscalc$).');
 
 t1=tic();
-Q_out = []; QD_out = []; QDD_out = []; TAU = [];
+Q_out = []; QD_out = []; QDD_out = []; TAU_out = []; JP_out = [];
 debug_info = {};
 % Alle möglichen physikalischen Werte von Nebenbedingungen (für spätere Auswertung)
 constraint_obj_val = NaN(length(Set.optimization.constraint_obj),1);
@@ -95,10 +95,6 @@ if isempty(abort_fitnesscalc)
   abort_fitnesscalc = false;
 elseif abort_fitnesscalc
   fval(:) = Inf;
-  if length(fval)>1, fvalstr=['[',disp_array(fval', '%1.3e'),']'];
-  else,              fvalstr=sprintf('%1.3e', fval); end
-  cds_log(2,sprintf(['[fitness] Fitness-Evaluation in %1.2fs. fval=%s. ', ...
-    'Bereits anderes Gut-Partikel berechnet.'], toc(t1), fvalstr));
   cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, desopt_pval);
   return;
 end
@@ -192,12 +188,15 @@ constraint_obj_val_IKC = NaN(length(Set.optimization.constraint_obj),size(Q0,1))
 fval_debugtext_IKC = constrvioltext_IKC;
 Q_IKC = NaN(size(Traj_0.X,1), R.NJ, size(Q0,1));
 QD_IKC = Q_IKC; QDD_IKC = Q_IKC;
+if R.Type == 0
+  JP_IKC = NaN(size(Traj_0.X,1), 3*(1+R.NJ), size(Q0,1));
+else
+  JP_IKC = NaN(size(Traj_0.X,1), 3*(1+R.NJ+R.NLEG), size(Q0,1));
+end
 desopt_pval_IKC = repmat(desopt_pval(:)', size(Q0,1), 1); % NaN-initialisiert oder aus Eingabe-Argument.
-
-% Zum Debuggen
-% if R.Type == 0, n_actjoint = R.NJ;
-% else,           n_actjoint = sum(R.I_qa); end
-% TAU_IKC = NaN(size(Traj_0.X,1), n_actjoint, size(Q0,1));
+if R.Type == 0, n_actjoint = R.NJ;
+else,           n_actjoint = sum(R.I_qa); end
+TAU_IKC = NaN(size(Traj_0.X,1), n_actjoint, size(Q0,1));
 
 for iIKC = 1:size(Q0,1)
   %% Gelenkwinkel-Grenzen aktualisieren
@@ -219,7 +218,7 @@ for iIKC = 1:size(Q0,1)
   end
   %% Trajektorie berechnen
   if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
-    [fval_trajconstr,Q,QD,QDD,Jinv_ges,constrvioltext_IKC{iIKC}] = cds_constraints_traj( ...
+    [fval_trajconstr,Q,QD,QDD,Jinv_ges,JP,constrvioltext_IKC{iIKC}] = cds_constraints_traj( ...
       R, Traj_0, Q0(iIKC,:)', Set, Structure);
     % NB-Verletzung in Traj.-IK wird in Ausgabe mit Werten von 1e3 aufwärts
     % angegeben. Umwandlung in Werte von 1e7 aufwärts.
@@ -259,6 +258,7 @@ for iIKC = 1:size(Q0,1)
   Q_IKC(:,:,iIKC) = Q;
   QD_IKC(:,:,iIKC) = QD;
   QDD_IKC(:,:,iIKC) = QDD;
+  JP_IKC(:,:,iIKC) = JP;
   % Kein Normalisieren der Winkel (wenn dann erst hier durchführen, da
   % einige Prüfungen oben davon beeinflusst werden).
   % Falls Gelenksteifigkeiten vorgesehen sind springt das Federmoment.
@@ -405,7 +405,7 @@ for iIKC = 1:size(Q0,1)
   if ~isempty(intersect(Set.optimization.objective, {'energy', 'actforce'})) || ...  % Für Zielf. benötigt
       Set.optimization.constraint_obj(3) ~= 0 % Für NB benötigt
     TAU = data_dyn2.TAU;
-%     TAU_IKC(:,:,iIKC) = TAU; % Zum Debuggen
+    TAU_IKC(:,:,iIKC) = TAU; % Zum Debuggen
   else
     TAU = [];
   end
@@ -453,7 +453,9 @@ for iIKC = 1:size(Q0,1)
   fval_debugtext = '';
   if any(strcmp(Set.optimization.objective, 'valid_act'))
     [fval_va,fval_debugtext_va, debug_info] = cds_obj_valid_act(R, Set, Jinv_ges);
-    if fval_va < 1e3 % Wenn einmal der Freiheitsgrad festgestellt wurde, reicht das 
+    if fval_va < 1e3 % Wenn einmal der Freiheitsgrad festgestellt wurde, reicht das
+      cds_log(2,sprintf(['[fitness] Der PKM-Laufgrad wurde festgestellt. ', ...
+        'Hiernach Abbruch der Optimierung.']));
       abort_fitnesscalc = true;
     end
     fval_IKC(iIKC,strcmp(Set.optimization.objective, 'valid_act')) = fval_va;
@@ -475,6 +477,12 @@ for iIKC = 1:size(Q0,1)
     fval_IKC(iIKC,strcmp(Set.optimization.objective, 'chainlength')) = fval_cl;
     physval_IKC(iIKC,strcmp(Set.optimization.objective, 'chainlength')) = physval_cl;
     fval_debugtext = [fval_debugtext, ' ', fval_debugtext_cl]; %#ok<AGROW>
+  end
+  if any(strcmp(Set.optimization.objective, 'installspace'))
+    [fval_instspc, fval_debugtext_instspc, ~, physval_instspc] = cds_obj_installspace(R, Set, Structure, Traj_0, Q, JP);
+    fval_IKC(iIKC,strcmp(Set.optimization.objective, 'installspace')) = fval_instspc;
+    physval_IKC(iIKC,strcmp(Set.optimization.objective, 'installspace')) = physval_instspc;
+    fval_debugtext = [fval_debugtext, ' ', fval_debugtext_instspc]; %#ok<AGROW>
   end
   if any(strcmp(Set.optimization.objective, 'energy'))
     [fval_en,fval_debugtext_en, debug_info, physval_en] = cds_obj_energy(R, Set, Structure, Traj_0, TAU, QD);
@@ -552,8 +560,8 @@ for iIKC = 1:size(Q0,1)
   end
   if all(fval_IKC(iIKC,:)' <= Set.optimization.obj_limit) || ...
      all(physval_IKC(iIKC,:)' <= Set.optimization.obj_limit_physval)
-    % Die Fitness-Funktion ist besser als die Grenze. Optimierung kann
-    % hiernach beendet werden.
+    cds_log(2,sprintf(['[fitness] Geforderte Grenze der Zielfunktion erreicht. ', ...
+      'Abbruch der Optimierung.']));
     abort_fitnesscalc = true;
     % break; % zur Nachvollziehbarkeit kein direkter Abbruch.
   end
@@ -658,6 +666,26 @@ n_fval_iO = length(I_IKC_iO);
 Q_out = Q_IKC(:,:,iIKCbest);
 QD_out = QD_IKC(:,:,iIKCbest);
 QDD_out = QDD_IKC(:,:,iIKCbest);
+TAU_out = TAU_IKC(:,:,iIKCbest);
+JP_out = JP_IKC(:,:,iIKCbest);
+
+%% Abbruchbedingung aufgrund von Singularität prüfen
+if ~isinf(Set.optimization.condition_limit_sing) && R.Type == 2 && ...
+    all(fval > 1e4*5e4) && all(fval < 1e4*6e4) % Grenzen für PKM-Singularität
+  % Prüfe, wie oft schon dieses Ergebnis vorlag
+  PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, NaN, 'output');
+  % Bei mehrkriterieller Optimierung bei NB-Verletzung gleiche Einträge 
+  if length(fval) > 1, fval_constr = PSO_Detail_Data.fval(:,1,:);
+  else,                fval_constr = fval; end
+  I_sing = fval_constr > 1e4*5e4 & fval_constr < 1e4*6e4;
+  I_nonsing = fval_constr < 1e4*5e4;
+  if sum(I_sing(:)) > 4 && sum(I_nonsing(:)) == 0
+    cds_log(2,sprintf(['[fitness] Es gab 5 singuläre Ergebnisse und kein ', ...
+      'nicht-singuläres. PKM nicht geeignet. Abbruch der Optimierung.']));
+    abort_fitnesscalc = true;
+  end
+end
+
 %% Ende
 % Anfangs-Gelenkwinkel in Roboter-Klasse speichern (zur Reproduktion der
 % Ergebnisse)

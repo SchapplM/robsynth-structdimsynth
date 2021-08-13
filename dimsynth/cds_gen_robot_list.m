@@ -171,7 +171,10 @@ if structset.use_parallel
       % Bei 3T0*R-Aufgabe sind 3T1R-PKM aufgabenredundant mit Grad 1
       EE_FG_allowed = [EE_FG_allowed; logical([1 1 1 0 0 1])];
     else
-      error('Fall nicht definiert');
+      if verblevel >= 2
+        fprintf(['Aufgabenredundanz gefordert aber Aufgaben-FG %dT%dR nicht ', ...
+          'dafür vorgesehen\n'], sum(Set.task.DoF(1:3)), sum(Set.task.DoF(4:6)));
+      end
     end
   end
 else

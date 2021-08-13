@@ -75,7 +75,7 @@ if settings.comp_cluster
   % schon Ergebnisse vorliegen. Die Datenbank muss also eventuell vor der
   % Auswertung wieder zurückgesetzt werden.
   if settings.clustercomp_if_res_olderthan > 0
-    if settings.dryrun && clustercomp_if_res_olderthan == 0
+    if settings.dryrun && settings.clustercomp_if_res_olderthan == 0
       error(['Option "dryrun" nicht zusammen mit "comp_cluster" und ', ...
         '"clustercomp_if_res_olderthan" möglich.']);
     end
@@ -535,7 +535,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.general.save_animation_file_extensions = {'gif'};
     Set.general.parcomp_struct = settings.parcomp_structsynth;
     Set.general.use_mex = settings.use_mex;
-    Set.general.compile_missing_functions = false; % wurde schon weiter oben gemacht.
+    Set.general.compile_missing_functions = true; % wurde schon weiter oben gemacht. Mache nochmal, da es manchmal nicht funktioniert (unklare Gründe, womöglich Synchronisationsprobleme der parallelen Ausführung)
     offline_result_complete = false;
     if ~settings.offline && ~settings.comp_cluster
       fprintf(['Starte Prüfung des Laufgrads der PKM mit Maßsynthese für ', ...
@@ -553,14 +553,14 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           % Falls auf Cluster gerechnet werden soll, war das hier nur eine
           % Prüfung.
           warning(['Offline-Modus gewählt, aber keine Ergebnisse für %s* im ', ...
-            'passenden Ordner.'], Set.optimization.optname(1:end-15));
+            'passenden Ordner.'], Set.optimization.optname(1:29));
           continue % Beendet Prüfung dieser Koppelgelenk-Kombination
         end
       else
         % Suche den Ergebnis-Ordner mit der größten Übereinstimmung
         reslist_nummatch = zeros(length(reslist),1); % Anzahl der Treffer
         reslist_rationomatch = zeros(length(reslist),1); % Anzahl der unpassenden Ergebnisse im Ordner
-        reslist_age = zeros(length(reslist),1); % Alter der durchgeführten Optimierungen in Ergebnisordner
+        reslist_age = inf(length(reslist),1); % Alter der durchgeführten Optimierungen in Ergebnisordner
         for i = 1:length(reslist) % Alle Ergebnis-Ordner durchgehen
           % Prüfe, wie viele passende Ergebnisse in dem Ordner sind
           Whitelist_PKM_match = false(length(Whitelist_PKM),1);
@@ -579,10 +579,6 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
               end
             end
           end
-          reslist_nummatch(i) = sum(Whitelist_PKM_match); % Anzahl der Treffer
-          % Verhältnis der gefundenen PKM: Berücksichtige freie alpha-/theta-
-          % Parameter, die zu doppelten Ergebnissen für einen Namen führen.
-          reslist_rationomatch(i) = 1 - reslist_nummatch(i)/length(unique(reslist_pkm_names));
           % Alter des Ordners bestimmen (aus bekanntem Namensschema)
           [datestr_match, ~] = regexp(reslist(i).name,'[A-Za-z0-9_]*_tmp_(\d+)_(\d+)', 'tokens','match');
           if isempty(datestr_match)
@@ -591,6 +587,10 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           end
           date_i = datenum([datestr_match{1}{1}, ' ', datestr_match{1}{2}], 'yyyymmdd HHMMSS');
           reslist_age(i) = now() - date_i; % Alter in Tagen
+          reslist_nummatch(i) = sum(Whitelist_PKM_match); % Anzahl der Treffer
+          % Verhältnis der gefundenen PKM: Berücksichtige freie alpha-/theta-
+          % Parameter, die zu doppelten Ergebnissen für einen Namen führen.
+          reslist_rationomatch(i) = 1 - reslist_nummatch(i)/length(unique(reslist_pkm_names));
         end
         reslist_rationomatch(isnan(reslist_rationomatch)) = 0;
         % Bestimme das am sinnvollsten auszuwählendste Ergebnis:
@@ -720,9 +720,11 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       fprintf('Starte die Berechnung der Struktursynthese auf dem Rechencluster: %s\n', computation_name);
       addpath(cluster_repo_path);
       jobStart(struct('name', computation_name, ...
-                      'matFileName', [computation_name, '.m'], ...
-                      'locUploadFolder', jobdir, ...
-                      'time', 12+length(Whitelist_PKM)*0.5/12));
+        ... % Nur so viele Kerne beantragen, wie auch benötigt werden ("ppn")
+        'ppn', min(length(Whitelist_PKM),12), ... % 12 Kerne ermöglicht Lauf auf fast allen Cluster-Nodes
+        'matFileName', [computation_name, '.m'], ...
+        'locUploadFolder', jobdir, ...
+        'time', 12+length(Whitelist_PKM)*0.5/min(length(Whitelist_PKM),12))); % Zeit in h. Schätze 30min pro PKM im Durchschnitt
       rmpath_genpath(cluster_repo_path, false);
       continue % Nachfolgendes muss nicht gemacht werden
     end
@@ -755,11 +757,15 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           resfile = fullfile(resmaindir, Ergebnisliste(jj).name);
           tmp = load(resfile, 'RobotOptRes');
           RobotOptRes = tmp.RobotOptRes;
+          if ~isfield(RobotOptRes.Structure, 'angles_values')
+            warning('Datei %s hat veraltetes Format', resfile);
+            continue
+          end
           fval_jjj = [fval_jjj, RobotOptRes.fval]; %#ok<AGROW>
           if isempty(angles_jjj) % Syntax-Fehler vermeiden bei leerem char als erstem
-            angles_jjj = {tmp.RobotOptRes.Structure.angles_values};
+            angles_jjj = {RobotOptRes.Structure.angles_values};
           else
-            angles_jjj = [angles_jjj, tmp.RobotOptRes.Structure.angles_values]; %#ok<AGROW>
+            angles_jjj = [angles_jjj, RobotOptRes.Structure.angles_values]; %#ok<AGROW>
           end
         elseif isempty(fval_jjj) && jj == length(Ergebnisliste)
           warning('Ergebnisdatei zu %s nicht gefunden', Name);

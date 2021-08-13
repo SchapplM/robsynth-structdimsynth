@@ -82,8 +82,14 @@ end
 if ~isa(Set.task.installspace.links, 'cell')
   error('Set.task.installspace: Feld "links" muss cell Array sein');
 end
+if size(Set.task.installspace.type,2) > 1
+  error('Set.task.installspace: Feld "type" hat mehr als eine Spalte.');
+end
 if size(Set.task.obstacles.params,1) ~= length(Set.task.obstacles.type)
   error('Set.task.obstacles: Länge von Feldern params und type stimmt nicht überein');
+end
+if size(Set.task.obstacles.type,2) > 1
+  error('Set.task.obstacles: Feld "type" hat mehr als eine Spalte.');
 end
 if length(union(Set.optimization.desopt_vars, {'joint_stiffness_qref', ...
     'linkstrength'})) ~= 2
@@ -108,12 +114,20 @@ if ~isempty(Set.structures.repeatlist)
       'Eintrag in Set.structures.repeatlist hat nicht Dimension 2');
   end
 end
+% Bei PKM-Struktursynthese darf nicht frühzeitig bei Singularität abbrechen
+if length(Set.optimization.objective) == 1 && ... % ist immer einkriteriell
+    any(strcmp(Set.optimization.objective, {'valid_act', 'valid_kin'}))
+  Set.optimization.condition_limit_sing = inf; % Überschreibe Standardwert
+end
 %% Menge der Roboter laden
-if ~(Set.general.only_finish_aborted && Set.general.isoncluster) && ...
-    ~Set.general.regenerate_summary_only
+if ~(Set.general.only_finish_aborted && Set.general.isoncluster) && ... % Abschluss auf Cluster
+    ~Set.general.regenerate_summary_only || ... % Nur Bilder (ohne Abschluss)
+    (Set.general.only_finish_aborted && Set.general.computing_cluster) % Abschluss lokal. Kein Aufruf zum Hochladen des Abschluss-Auftrags auf das Cluster
   % Bei Fortsetzen der abgebrochenen Berechnung auf dem Cluster nicht
   % notwendig. Sonst schon (lokal oder Hochladen des Abschluss-Jobs).
   % Auch nicht notwendig bei reiner Neu-Erzeugung der Ergebnis-Bilder.
+  % Der Fall des Hochladens des Auftrags zum Abschluss auf das Cluster wird
+  % mit obiger Logik berücksichtigt (zum Aufteilen auf parallele Jobs)
   Structures = cds_gen_robot_list(Set);
   if isempty(Structures)
     fprintf('Keine Strukturen entsprechen den Filterkriterien\n');
@@ -143,9 +157,16 @@ if Set.general.only_finish_aborted && (Set.general.isoncluster || ...
   end
   d = load(settingsfile, 'Set', 'Traj', 'Structures');
   Traj = d.Traj;
-  Set = d.Set;
-  Set.general.only_finish_aborted = true; % Überschreibe geladene Einstellung
   Structures = d.Structures;
+  Set_tmp = Set;
+  Set = d.Set;
+  % Überschreibe geladene Einstellungen, damit ein kopierter Ordner vom
+  % Cluster auch lokal abgeschlossen werden kann.
+  Set.general.only_finish_aborted = true; % Überschreibe geladene Einstellung
+  Set.general.parcomp_plot = Set_tmp.general.parcomp_plot;
+  Set.general.parcomp_struct = Set_tmp.general.parcomp_struct;
+  Set.optimization.resdir = Set_tmp.optimization.resdir;
+  Set.general.create_template_functions = Set_tmp.general.create_template_functions;
   fprintf('Einstellungsdatei %s für Abschluss geladen.\n', settingsfile);
 elseif Set.general.regenerate_summary_only && (Set.general.isoncluster || ...
     ~Set.general.computing_cluster)
@@ -161,6 +182,7 @@ elseif Set.general.regenerate_summary_only && (Set.general.isoncluster || ...
   Set.general.parcomp_plot = Set_tmp.general.parcomp_plot;
   Set.general.parcomp_struct = false; % keine Struktursynthese.
   Set.general.regenerate_summary_only = true;
+  Set.general.nosummary = Set_tmp.general.nosummary; % für nur Tabelle ohne Bilder
   Set.optimization.resdir = Set_tmp.optimization.resdir; % anders auf Cluster
   Structures = d.Structures;
   fprintf('Einstellungsdatei %s für Bild-Generierung geladen.\n', settingsfile);
@@ -221,6 +243,10 @@ if Set.general.computing_cluster
     end
     computation_name = sprintf('dimsynth_%s_%s%s', ...
       datestr(now,'yyyymmdd_HHMMSS'), Set.optimization.optname, suffix);
+    if Set.general.only_finish_aborted
+      % Es wird keine Optimierung durchgeführt. Kennzeichnung im Namen.
+      computation_name = [computation_name, '_finish']; %#ok<AGROW>
+    end
     jobdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
       'dimsynth', 'cluster_jobs', computation_name);
     mkdirs(fullfile(jobdir, 'results')); % Unterordner notwendig für Cluster-Transfer-Toolbox
@@ -293,8 +319,8 @@ if Set.general.computing_cluster
     addpath(cluster_repo_path);
     jobStart(struct( ...
       'name', computation_name, ...
-      ... % Nur so viele Nodes beantragen, wie auch benötigt werden ("ppn")
-      'ppn', min(length(I1_kk:I2_kk),32), ... % 32 ist max. auf Cluster
+      ... % Nur so viele Kerne beantragen, wie auch benötigt werden ("ppn")
+      'ppn', min(length(I1_kk:I2_kk),Set.general.computing_cluster_cores), ... % 32 ist max. auf Cluster
       'matFileName', [computation_name, '.m'], ...
       'locUploadFolder', jobdir, ...
       'time',comptime_est/3600)); % Angabe in h
@@ -397,6 +423,17 @@ if ~Set.general.regenerate_summary_only
     % in der Struktursynthese möglich sind)
     [Names, I] = unique(Names);
     Structures_I = Structures(I);
+    % Entferne doppelte PKM-Namen, die sich nur durch die Gestell-/Platt-
+    % formausrichtung unterscheiden. Die Dateien sind gleich.
+    if type == 2
+      Names_Legs = cell(size(Names));
+      for i = 1:length(Names) % Bestimme Namen der PKM ohne P-/G-Nummer
+        [~,~,~,~,~,~,~,~,Names_Legs{i}] = parroblib_load_robot(Names{i}, 0);
+      end
+      [~,I] = unique(Names_Legs);
+      Names = Names(I);
+      Structures_I = Structures(I);
+    end
     % Vorlagen-Funktionen neu generieren (falls dort Änderungen gemacht
     % wurden). Die automatische Neugenerierung in der parfor-Schleife
     % funktioniert nicht aufgrund von Dateikonflikten, autom. Ordnerlöschung.
@@ -411,10 +448,16 @@ if ~Set.general.regenerate_summary_only
         else % PKM
           % Sperrschutz für PKM-Bibliothek (hauptsächlich für Struktursynthese)
           parroblib_writelock('check', 'csv', Structure_i.DoF, 5*60, false);
+          % Die Vorlagen-Funktionen können nicht in Parallelinstanzen
+          % gleichzeitig erzeugt werden.
+          parroblib_writelock('lock', 'template', Structure_i.DoF, 5*60, false);
           parroblib_create_template_functions(Names(i), false, false);
+          parroblib_writelock('free', 'template', Structure_i.DoF, 5*60, false);
           % Auch Funktionen für serielle Beinketten neu generieren
           [~, LEG_Names] = parroblib_load_robot(Names{i});
+          serroblib_writelock('lock', 'template', 0, 5*60, false);
           serroblib_create_template_functions(LEG_Names(1), false, false);
+          serroblib_writelock('free', 'template', 0, 5*60, false);
         end
         continue
       end
@@ -440,9 +483,11 @@ if ~Set.general.regenerate_summary_only
         % Hierdurch werden fehlende mex-Funktionen kompiliert.
         if type == 2 % keine gleichzeitige mex-Kompilierung gleicher Kinematiken erlauben.
           parroblib_writelock('lock', Names{i}, R.I_EE, 60*60, Set.general.verbosity>2);
+          serroblib_writelock('lock', R.Leg(1).mdlname, NaN, 60*60, Set.general.verbosity>2); % Auch SerRobLib für Beinkette sperren
         end
         R.fill_fcn_handles(true, true);
-        if type == 2 % Sperrschutz für PKM aufheben
+        if type == 2 % Sperrschutz für PKM und Beinkette aufheben
+          serroblib_writelock('free', R.Leg(1).mdlname, NaN); 
           parroblib_writelock('free', Names{i}, R.I_EE);
         end
         if toc(t_ll) > 20 || i == III(end)
@@ -456,7 +501,9 @@ if ~Set.general.regenerate_summary_only
   t1 = tic();
   parfor (i = 1:length(Structures), parfor_numworkers)
     % Maßsynthese für diesen Roboter starten
-    fprintf('Starte Maßsynthese für Roboter %d (%s)\n', i, Structures{i}.Name);
+    if ~Set.general.only_finish_aborted, mode = 'Maßsynthese'; %#ok<PFBNS>
+    else,                                mode = 'Abschluss'; end
+    fprintf('Starte %s für Roboter %d (%s)\n', mode, i, Structures{i}.Name);
     cds_dimsynth_robot(Set, Traj, Structures{i});
   end
   fprintf('Optimierung von %d Robotern abgeschlossen. Dauer: %1.1fs\n', length(Structures), toc(t1));

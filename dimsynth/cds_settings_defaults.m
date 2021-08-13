@@ -55,6 +55,7 @@ general = struct( ...
   'parcomp_plot', 0, ... % Parallele Erzeugung der Ergebnisbilder und -videos
   'parcomp_maxworkers', inf, ... % Beschränkung der Anzahl paralleler Instanzen
   'computing_cluster', false, ... % Berechnung auf PBS-Cluster (Hochladen auf Server)
+  'computing_cluster_cores', 32, ... % (Maximale) Anzahl der benutzten Kerne pro Node auf dem Cluster (32 maximal)
   'isoncluster', false, ... % Merker, ob gerade auf dem Cluster gerechnet wird. Dann sind einige Bilder und Debug-Auswertungen unnötig.
   'cluster_maxrobotspernode', inf, ... % Unbegrenzte Anzahl von Robotern auf jeder Cluster-Node. Niedrigere Zahl dient zur stärkeren Parallelisierung
   'compile_missing_functions', true, ... % Bei Start alle mex-Funktionen kompilieren
@@ -98,11 +99,13 @@ structures = struct( ...
 optimization = struct( ...
   'objective', {'energy'}, ... % Zielfunktion. Möglich: mass, energy, condition, 
    ... % valid_kin, valid_act, actforce, materialstress, stiffness, jointrange,
-   ... % manipulability, minjacsingval, positionerror, chainlength; auch mehrere gleichzeitig möglich.
+   ... % manipulability, minjacsingval, positionerror, chainlength, installspace;
+   ... % auch mehrere gleichzeitig möglich.
   'obj_jointrange', ... % Zusatzeinstellungen für die Zielfunktion "jointrange"
     struct( 'only_revolute', true, ... % Minimiere nur Wertebereich von Drehgelenken
             'only_passive', true), ... % Minimiere nur Wertebereich passiver Gelenke
   'constraint_obj', zeros(6,1), ... % Nebenbedingungen, 1=Mass, 2=Energy, 3=Actforce, 4=Condition, 5=Stiffness, 6=MaterialStress; Eintrag entspricht physikalischem Wert
+  'condition_limit_sing', 1e5, ... % Wenn die Konditionszahl (der PKM-Jacobi) schlechter ist, wird sofort abgebrochen. Schwellwert für Singularität. Deaktivieren durch setzen auf inf.
   'algorithm', 'mopso', ... % Optimierungsalgorithmus für mehrkriterielle Optimierung. Möglich: mopso, gamultiobj
   'movebase', true, ... % Position der Roboter-Basis
   'basepos_limits', NaN(3,2), ... % Grenzen für Basis-Position (Absolut, im Welt-KS)
