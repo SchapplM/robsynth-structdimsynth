@@ -259,7 +259,8 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
     end
     InitPopLoadTmp = [InitPopLoadTmp; pval_i(I_param_iO,:)]; %#ok<AGROW>
     fval_mean_all = mean(fval_i(I_param_iO,:),2);
-    ScoreLoad = [ScoreLoad; [score_i-2*floor(log10(fval_mean_all)),fval_mean_all]]; %#ok<AGROW>
+    ScoreLoad = [ScoreLoad; [score_i-2*floor(log10(fval_mean_all)), ...
+      repmat(score_i,size(fval_mean_all,1),1),fval_mean_all]]; %#ok<AGROW>
     continue
     % Lade Details aus den Iterationen (für weitere Vergleiche)
 %     resfilename_II_details = strrep(resfiles(II).name, 'Endergebnis', 'Details');
@@ -281,12 +282,17 @@ end
 %% Entferne Duplikate. Sortiere dafür die Partikel anhand ihrer Bewertung
 % Damit die beste Bewertung bei doppelten Partikeln genommen wird.
 if ~isempty(InitPopLoadTmp)
+  num1 = size(InitPopLoadTmp,1);
   [~,I] = sort(ScoreLoad(:,1), 'descend');
   InitPopLoadTmp = InitPopLoadTmp(I,:);
   ScoreLoad = ScoreLoad(I,:);
-  [~,I] = unique(InitPopLoadTmp, 'rows');
+  % Lösche Duplikate. Behalte die mit den besten Bewertungen.
+  [~,I] = unique(InitPopLoadTmp, 'rows', 'stable');
   InitPopLoadTmp = InitPopLoadTmp(I,:);
   ScoreLoad = ScoreLoad(I,:);
+  num2 = size(InitPopLoadTmp,1);
+  cds_log(1, sprintf(['[cds_gen_init_pop] Insgesamt %d Partikel geladen. ', ...
+    'Davon %d unterschiedlich.'], num1, num2));
 end
 %% Wähle aus den geladenen Parametern eine Anfangspopulation mit hoher Diversität
 % Anzahl der zu ladenden Parameter (begrenzt durch vorhandene)
@@ -342,9 +348,9 @@ if size(InitPopLoadTmp,1) > 0
     % Markiere als bereits gewählt, damit es nicht erneut gewählt wird.
     I_selected(II_search(I_best)) = true;
     cds_log(4, sprintf(['[cds_gen_init_pop] Partikel %d hinzugefügt ', ...
-      '(Bewertung %d, fval %1.1e). p_norm=[%s]'], II_search(I_best), ...
-      ScoreLoad(II_search(I_best),1), ScoreLoad(II_search(I_best),2), ...
-      disp_array(InitPopLoadNorm(i,:), '%1.3f')));
+      '(Bewertung %d, fval %1.1e, gew. Bew. %d). p_norm=[%s]'], II_search(I_best), ...
+      ScoreLoad(II_search(I_best),2), ScoreLoad(II_search(I_best),3), ...
+      ScoreLoad(II_search(I_best),1), disp_array(InitPopLoadNorm(i,:), '%1.3f')));
   end
   % Entferne die Normierung.
   InitPopLoad = repmat(varlim(:,1)',size(InitPopLoadNorm,1),1) + InitPopLoadNorm .* ...
