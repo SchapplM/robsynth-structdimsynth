@@ -1311,8 +1311,12 @@ end
 NumIndividuals = Set.optimization.NumIndividuals;
 if ~Set.general.only_finish_aborted
   % Generiere Anfangspopulation aus Funktion mit Annahmen bezüglich Winkel.
-  % Lädt bisherige Ergebnisse, um schneller i.O.-Werte zu bekommen.
-  InitPop = cds_gen_init_pop(Set, Structure);
+  % Lädt zusätzlich bisherige Ergebnisse, um schneller i.O.-Werte zu bekommen.
+  [InitPop, QPop] = cds_gen_init_pop(Set, Structure);
+  % Speichere die Gelenkwinkel der Anfangspopulation, um sie später wieder
+  % abzurufen (betrifft die aus alten Ergebnissen geladenen).
+  I_dict = all(~isnan(QPop),2);
+  Structure.dict_param_q = struct('p', InitPop(I_dict,:), 'q', QPop(I_dict,:));
 end
 %% Tmp-Ordner leeren
 resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...

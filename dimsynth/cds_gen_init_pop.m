@@ -10,11 +10,14 @@
 % Ausgabe:
 % InitPop
 %   Anfangspopulation für PSO-Optimierung
+% Q_Pop
+%   Gelenk-Konfigurationen für die Parameter aus InitPop zu gespeicherten
+%   Ergebnissen führen (NaN, falls keine Daten vorliegen).
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function InitPop = cds_gen_init_pop(Set, Structure)
+function [InitPop, Q_Pop] = cds_gen_init_pop(Set, Structure)
 nIndTotal = Set.optimization.NumIndividuals;
 varlim = Structure.varlim;
 varnames = Structure.varnames;
@@ -25,6 +28,7 @@ t1 = tic();
 counter_optresults = 0;
 counter_filesize = 0;
 InitPopLoadTmp = [];
+Q_PopTmp = [];
 ScoreLoad = [];
 RobName = Structure.Name;
 if Set.optimization.InitPopRatioOldResults == 0
@@ -159,9 +163,11 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
     if ~isempty(d.RobotOptRes.p_val_pareto)
       pval_i_file = d.RobotOptRes.p_val_pareto;
       fval_i = d.RobotOptRes.fval_pareto;
+      qval_i = d.RobotOptRes.q0_pareto;
     else
       pval_i_file = d.RobotOptRes.p_val(:)';
-      fval_i = d.RobotOptRes.fval;
+      fval_i = d.RobotOptRes.fval(:)';
+      qval_i = d.RobotOptRes.q0(:)';
     end
     % Index-Vektor zum Finden der aktuellen Optimierungsparameter pval in
     % den Optimierungsparametern pval_i_file
@@ -258,6 +264,7 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
       end
     end
     InitPopLoadTmp = [InitPopLoadTmp; pval_i(I_param_iO,:)]; %#ok<AGROW>
+    Q_PopTmp = [Q_PopTmp; qval_i(I_param_iO,:)]; %#ok<AGROW>
     fval_mean_all = mean(fval_i(I_param_iO,:),2);
     ScoreLoad = [ScoreLoad; [score_i-2*floor(log10(fval_mean_all)), ...
       repmat(score_i,size(fval_mean_all,1),1),fval_mean_all]]; %#ok<AGROW>
@@ -285,10 +292,12 @@ if ~isempty(InitPopLoadTmp)
   num1 = size(InitPopLoadTmp,1);
   [~,I] = sort(ScoreLoad(:,1), 'descend');
   InitPopLoadTmp = InitPopLoadTmp(I,:);
+  Q_PopTmp = Q_PopTmp(I,:);
   ScoreLoad = ScoreLoad(I,:);
   % Lösche Duplikate. Behalte die mit den besten Bewertungen.
   [~,I] = unique(InitPopLoadTmp, 'rows', 'stable');
   InitPopLoadTmp = InitPopLoadTmp(I,:);
+  Q_PopTmp = Q_PopTmp(I,:);
   ScoreLoad = ScoreLoad(I,:);
   num2 = size(InitPopLoadTmp,1);
   cds_log(1, sprintf(['[cds_gen_init_pop] Insgesamt %d Partikel geladen. ', ...
@@ -308,6 +317,7 @@ if size(InitPopLoadTmp,1) > 0
   [~,I] = unique(InitPopLoadTmpNorm, 'rows');
   InitPopLoadTmpNorm = InitPopLoadTmpNorm(I,:);
   ScoreLoad = ScoreLoad(I,:);
+  Q_PopLoadTmp = Q_PopTmp(I,:);
   nIndLoad = min(nIndLoad, size(InitPopLoadTmpNorm,1));
   % Indizies der bereits ausgewählten Partikel (in InitPopLoadTmpNorm)
   I_selected = false(size(ScoreLoad,1),1);
@@ -318,6 +328,7 @@ if size(InitPopLoadTmp,1) > 0
   % Population der gewählten geladenen Partikel. Baue eins nach dem anderen
   % auf.
   InitPopLoadNorm = NaN(nIndLoad, nvars);
+  Q_PopLoad = NaN(nIndLoad, size(Q_PopTmp,2));
   for i = 1:nIndLoad
     % Erlaube insgesamt nur die besten 30% der Bewertungen. Nehme am Anfang
     % nur die besten, am Ende dann bis zu 30%
@@ -345,6 +356,7 @@ if size(InitPopLoadTmp,1) > 0
     % Vereinfachte Annahme: Dadurch wird die Diversität maximal vergrößert.
     [~,I_best] = min(score_div);
     InitPopLoadNorm(i,:) = InitPopLoadTmpNorm(II_search(I_best),:);
+    Q_PopLoad(i,:) = Q_PopLoadTmp(II_search(I_best),:);
     % Markiere als bereits gewählt, damit es nicht erneut gewählt wird.
     I_selected(II_search(I_best)) = true;
     cds_log(4, sprintf(['[cds_gen_init_pop] Partikel %d hinzugefügt ', ...
@@ -372,6 +384,7 @@ end
 nIndRand = nIndTotal - nIndLoad;
 InitPopRand = NaN(nIndRand,nvars);
 InitPop = [InitPopLoad(1:nIndLoad,:); InitPopRand(1:nIndRand,:)];
+Q_Pop = [Q_PopLoad(1:nIndLoad,:); NaN(nIndRand,size(Q_PopLoad,2))];
 % Belege alle mit NaN gesetzten Parameter mit Zufallswerten. Dadurch können
 % auch unvollständige Parameter aus vorherigen Optimierungen nachträglich
 % mit Zufallswerten erweitert und genutzt werden.

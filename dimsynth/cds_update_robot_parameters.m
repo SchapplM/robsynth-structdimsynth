@@ -247,3 +247,20 @@ end
 if R_neu.Type == 2 && changed_plf
   R_neu.align_platform_coupling(R.DesPar.platform_method, p_plfpar);
 end
+
+%% Vorab festgelegte Gelenkwinkel für bestimmte Parameter
+% Hiermit werden Gelenkwinkel aus der Initialpopulation vorgegeben. Hilf-
+% reich, wenn IK-Ergebnisse nicht exakt reproduziert werden können.
+if isfield(Structure, 'dict_param_q')
+  % Prüfe, ob der Parametersatz in der Tabelle gelistet ist
+  I = all(Structure.dict_param_q.p - repmat(p(:)',size(Structure.dict_param_q.p,1),1)==0,2);
+  % Belege die Referenzpose des Roboters mit diesen Werten. Dadurch IK-Startwert
+  if any(I) && sum(I) == 1
+    qref = Structure.dict_param_q.q(I,:)';
+    if R.Type == 0 % Seriell
+      R.qref = qref;
+    else % Parallel
+      for i = 1:R.NLEG, R.Leg(i).qref = qref(R.I1J_LEG(i):R.I2J_LEG(i)); end
+    end
+  end
+end
