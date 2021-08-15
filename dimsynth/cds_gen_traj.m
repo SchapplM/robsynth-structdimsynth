@@ -243,16 +243,17 @@ if trajset.profile == 1
   % TODO: Hier wäre eine echte Orientierungsinterpolation besser (z.B.
   % SLERP). Aktuell unplausibel, wenn Euler-Winkel über 180° springen.
   % Dann komplette Interpolation von -180° bis +180° hier.
-  [X_ges,XD_ges,XDD_ges,T_ges] = traj_trapez2_multipoint(XE, ...
+  [X_ges,XD_ges,XDD_ges,T_ges,IE] = traj_trapez2_multipoint(XE, ...
     trajset.vmax, trajset.vmax/trajset.amax, trajset.Tv, trajset.Ts, 0); % muss noch bearbeiten
 elseif trajset.profile == 0 % Nur Eckpunkte
   X_ges = XE;
   XD_ges = XE*0;
   XDD_ges = XE*0;
   T_ges = (1:size(XE,1))'; % Muss Spaltenvektor sein
+  IE = (1:size(XE,1))';
 else
   error('Profil nicht definiert');
 end
 
 %% Ausgabe
-Traj = struct('X', X_ges, 'XD', XD_ges, 'XDD', XDD_ges, 't', T_ges, 'XE', XE);
+Traj = struct('X', X_ges, 'XD', XD_ges, 'XDD', XDD_ges, 't', T_ges, 'XE', XE, 'IE', IE);

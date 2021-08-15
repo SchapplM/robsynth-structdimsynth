@@ -36,6 +36,10 @@ end
 % In der aktuellen Generation sind Einträge ungleich NaN.
 % Die erste Zeile entspricht der Initial-Population (Generation 0).
 currgen = find(any(~isnan(PSO_Detail_Data.comptime),2),1,'last')-1;
+if isempty(currgen)
+  % Erstes Partikel der Initialgenereration
+  currgen = 0;
+end
 % Wenn dieses Partikel das erste der aktuellen Generation ist, ist die vor-
 % herige Zeile komplett voll (ungleich NaN)
 if all(~isnan(PSO_Detail_Data.comptime(currgen+1,:)))

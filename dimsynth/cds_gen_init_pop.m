@@ -55,7 +55,7 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
       end
       dirlist_cell = unique(dirlist_cell);
     else
-      cds_log(-1, sprintf('Find-Befehl funktionierte nicht in %s', resdir));
+      cds_log(-1, sprintf('Find-Befehl funktionierte nicht in %s. Ausgabe:\n%s', resdir, dirlist));
     end
   end
   if status ~= 0 % Entweder Windows oder Find-Befehl erfolglos
