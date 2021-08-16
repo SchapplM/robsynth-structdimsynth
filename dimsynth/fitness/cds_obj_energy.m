@@ -100,12 +100,12 @@ if fval < Set.general.plot_details_in_fitness
   ylabel('Gelenk-Moment.'); grid on;
   linkxaxes
   drawnow();
+  [currgen,currimg,currind, resdir] = cds_get_new_figure_filenumber(Set, Structure,'ParRobEnergy');
   for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
-    [currgen,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'ParRobEnergy');
     if strcmp(fileext{1}, 'fig')
-      saveas(202, fullfile(resdir, sprintf('PSO_Gen%02d_FitEval%03d_ParRobEnergy.fig', currgen, currimg)));
+      saveas(202, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ParRobEnergy.fig', currgen, currind, currimg)));
     else
-      export_fig(202, fullfile(resdir, sprintf('PSO_Gen%02d_FitEval%03d_ParRobEnergy.%s', currgen, currimg, fileext{1})));
+      export_fig(202, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ParRobEnergy.%s', currgen, currind, currimg, fileext{1})));
     end
   end
 end

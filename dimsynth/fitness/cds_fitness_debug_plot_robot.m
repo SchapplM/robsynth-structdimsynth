@@ -57,13 +57,13 @@ else % PKM
 end
 title(sprintf('fval=%1.2e; p=[%s]; %s', fval,disp_array(p','%1.3f'), tt));
 axis auto
+[currgen,currind,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'Details');
 if ~isempty(Set.general.save_robot_details_plot_fitness_file_extensions)
-  [currgen,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'Details');
   for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
     if strcmp(fileext{1}, 'fig')
-      saveas(200, fullfile(resdir, sprintf('PSO_Gen%02d_FitEval%03d_Details.fig', currgen, currimg)));
+      saveas(200, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_Details.fig', currgen, currind, currimg)));
     else
-      export_fig(200, fullfile(resdir, sprintf('PSO_Gen%02d_FitEval%03d_Details.%s', currgen, currimg, fileext{1})));
+      export_fig(200, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_Details.%s', currgen, currind, currimg, fileext{1})));
     end
   end
 end

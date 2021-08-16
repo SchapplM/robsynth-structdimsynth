@@ -30,7 +30,11 @@ for oc = 1:length(fval) % Gehe alle Optimierungskriterien durch
   fval_oc = squeeze(PSO_Detail_Data.fval(:,oc,:))';
   % Lasse nur dort eine 1, wo dieses Zielkriterium exakt den als
   % Endergebnis der Optimierung gefundenen Wert hat.
-  fval_oc_mask = fval_oc_mask & (fval(oc) == fval_oc');
+  if ~isnan(fval(oc))
+    fval_oc_mask = fval_oc_mask & (fval(oc) == fval_oc');
+  else % NaN zum Suchen der aktuellen Iterationsnummer
+    fval_oc_mask = fval_oc_mask & isnan(fval_oc');
+  end
 end
 k = find(fval_oc_mask, 1, 'first'); % Umrechnen der Indizes
 if isempty(k)
@@ -40,7 +44,11 @@ end
 [k_ind,k_gen] = ind2sub(fliplr(size(PSO_Detail_Data.comptime)),k); % Umrechnung in 2D-Indizes: Generation und Individuum
 
 % Prüfe, ob die Indizes stimmen
-test_fval = PSO_Detail_Data.fval(k_ind,:,k_gen)' - fval;
+if ~any(isnan(fval))
+  test_fval = PSO_Detail_Data.fval(k_ind,:,k_gen)' - fval;
+else
+  test_fval = ~isnan(PSO_Detail_Data.fval(k_ind,:,k_gen)');
+end
 if any(test_fval~=0)
   error('Geladene Daten stimmen nicht zu dem übergebenen Fitness-Wert');
 end

@@ -235,12 +235,12 @@ end
 sgtitle(sprintf(['Arbeitsraum-Kollisionsprüfung. Schritt %d/%d: Größte ', ...
   'Durchdringung: %1.2fmm'], j, size(Q,1), 1e3*f_constr));
 drawnow();
+[currgen,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'CollisionsWS');
 for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
-  [currgen,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'CollisionsWS');
   if strcmp(fileext{1}, 'fig')
-    saveas(869, fullfile(resdir, sprintf('PSO_Gen%02d_FitEval%03d_CollisionsWS.fig', currgen, currimg)));
+    saveas(869, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_CollisionsWS.fig', currgen, currind, currimg)));
   else
-    export_fig(869, fullfile(resdir, sprintf('PSO_Gen%02d_FitEval%03d_CollisionsWS.%s', currgen, currimg, fileext{1})));
+    export_fig(869, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_CollisionsWS.%s', currgen, currind, currimg, fileext{1})));
   end
 end
 if num_coll_plot == 0

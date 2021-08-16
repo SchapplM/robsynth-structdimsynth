@@ -11,8 +11,8 @@
 %   Name des zu speichernden Bildes
 % 
 % Ausgabe:
-% currgen
-%   Aktuelle Generation der zu speichernden Bilder
+% currgen, currind
+%   Aktuelle Generation und Individuum der laufenden Optimierung
 % currimg
 %   Laufende Nummer des neu hinzuzufügenden Bildes für diese Generation
 % resdir
@@ -21,7 +21,7 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-10
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function [currgen,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure, suffix)
+function [currgen,currind,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure, suffix)
 resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
   'tmp', sprintf('%d_%s', Structure.Number, Structure.Name));
 % Finde die aktuelle Generation anhand der bisher gespeicherten
@@ -30,26 +30,17 @@ PSO_Detail_Data = cds_save_particle_details([], [], 0, 0, NaN, NaN, NaN, NaN, 'o
 if isempty(PSO_Detail_Data)
   % Die Speicherfunktion wurde nicht initialisiert. Voraussichtlich Aufruf
   % außerhalb der Maßsynthese. Bild-Speicherung sowieso nicht sinnvoll.
-  currgen = -1; currimg = -1; % Dummy-Werte. Wird dann im Dateinamen benutzt.
+  currgen = -1; currimg = -1; currind = -1;% Dummy-Werte. Wird dann im Dateinamen benutzt.
   return
 end
-% In der aktuellen Generation sind Einträge ungleich NaN.
-% Die erste Zeile entspricht der Initial-Population (Generation 0).
-currgen = find(any(~isnan(PSO_Detail_Data.comptime),2),1,'last')-1;
-if isempty(currgen)
-  % Erstes Partikel der Initialgenereration
-  currgen = 0;
-end
-% Wenn dieses Partikel das erste der aktuellen Generation ist, ist die vor-
-% herige Zeile komplett voll (ungleich NaN)
-if all(~isnan(PSO_Detail_Data.comptime(currgen+1,:)))
-  currgen = currgen + 1;
-end
-imgfiles = dir(fullfile(resdir, sprintf('PSO_Gen%02d_FitEval*_%s*',currgen,suffix)));
+% Aktuelle Generation und Individuum durch Vergleich der geladenen Daten
+[currgen, currind] = cds_load_particle_details(PSO_Detail_Data, NaN(size(PSO_Detail_Data.fval,2),1));
+
+imgfiles = dir(fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval*_%s*',currgen,currind,suffix)));
 if isempty(imgfiles)
   % Es liegen noch keine Bild-Dateien vor.
-  currimg = 0;
+  currimg = 1;
 else
-  [tokens_img,~] = regexp(imgfiles(end).name,sprintf('PSO_Gen%02d_FitEval(\\d+)_%s',currgen,suffix),'tokens','match');
+  [tokens_img,~] = regexp(imgfiles(end).name,sprintf('Gen%02d_Ind%02d_Eval(\\d+)_%s',currgen,currind,suffix),'tokens','match');
   currimg = str2double(tokens_img{1}{1})+1;
 end

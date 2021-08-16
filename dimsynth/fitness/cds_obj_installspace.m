@@ -131,11 +131,11 @@ end
 shp.plot('FaceAlpha', 0.3, 'EdgeAlpha', 0);
 title(sprintf('AlphaShape of Joint Positions over Trajectory. V=%1.1fm³, A=%1.1fm²', shp.volume(), shp.surfaceArea()));
 drawnow();
+[currgen,currimg,currind,resdir] = cds_get_new_figure_filenumber(Set, Structure,'ObjInstallspace');
 for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
-  [currgen,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'ObjInstallspace');
   if strcmp(fileext{1}, 'fig')
-    saveas(700, fullfile(resdir, sprintf('PSO_Gen%02d_FitEval%03d_ObjInstallspace.fig', currgen, currimg)));
+    saveas(700, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ObjInstallspace.fig', currgen, currind, currimg)));
   else
-    export_fig(700, fullfile(resdir, sprintf('PSO_Gen%02d_FitEval%03d_ObjInstallspace.%s', currgen, currimg, fileext{1})));
+    export_fig(700, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ObjInstallspace.%s', currgen, currind, currimg, fileext{1})));
   end
 end

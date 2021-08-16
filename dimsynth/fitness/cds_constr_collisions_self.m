@@ -143,12 +143,12 @@ end
 sgtitle(sprintf('Selbstkollisionsprüfung. Schritt %d/%d: %d/%d Koll. Sum. rel. Tiefe: %1.2f', ...
   j, size(Q,1), sum(coll(j,:)), size(coll, 2), colldepth_t(j)));
 drawnow();
+[currgen,currind,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'CollisionsSelf');
 for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
-  [currgen,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'CollisionsSelf');
   if strcmp(fileext{1}, 'fig')
-    saveas(867, fullfile(resdir, sprintf('PSO_Gen%02d_FitEval%03d_CollisionsSelf.fig', currgen, currimg)));
+    saveas(867, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_CollisionsSelf.fig', currgen, currind, currimg)));
   else
-    export_fig(867, fullfile(resdir, sprintf('PSO_Gen%02d_FitEval%03d_CollisionsSelf.%s', currgen, currimg, fileext{1})));
+    export_fig(867, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_CollisionsSelf.%s', currgen, currind, currimg, fileext{1})));
   end
 end
 if any(num_coll_plot) ~= any(coll(j,:))
