@@ -54,7 +54,9 @@ Set.optimization.constraint_collisions = true; %für plausible Ergebnisse und Nu
 Set.general.eval_figures = {};
 Set.general.animation_styles = {};
 Set.general.debug_calc = true;
-
+% Auswertungsbild zum Debuggen der Aufgabenredundanz
+Set.general.debug_task_redundancy = true;
+Set.general.save_robot_details_plot_fitness_file_extensions = {'png', 'fig'};
 % Wähle vier verschiedene Strukturen: 3T2R/3T3R, Seriell/Parallel
 Set.structures.whitelist = {'S6RRRRRR10V2', 'S5RRRRR1', ...
   'P5RPRRR8V1G9P8A1', 'P6PRRRRR6V4G8P1A1'};

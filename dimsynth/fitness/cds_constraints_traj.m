@@ -73,6 +73,43 @@ for i_ar = ar_loop
 if i_ar > 1
   fval_ar(i_ar-1) = fval;
 end
+
+%% Debug vorherige Iteration: Karte der Leistungsmerkmale für Aufgabenredundanz zeichnen
+if i_ar > 1 && task_red && Set.general.debug_task_redundancy
+  x2 = R.fkineEE2_traj(q'); % Ist-EE-Orientierung bestimmen
+  nt_red = size(Traj_0.X,1); % Zum Debuggen: Reduktion der Stützstellen
+  if i_ar == 2 % Nur einmal die Rasterung generieren
+    t1 = tic();
+    cds_log(2, sprintf(['[constraints_traj] Beginne Aufgabenredundanz-', ...
+      'Diagnosebild für Trajektorie mit %d Zeit-Stützstellen'], nt_red));
+    [H_all, ~, s_ref, s_tref, phiz_range] = R.perfmap_taskred_ik( ...
+      Traj_0.X(1:nt_red,:), Traj_0.IE, struct( ...
+      'q0', q, 'I_EE_red', Set.task.DoF, 'map_phistart', x2(end), ...
+      ... % nur grobe Diskretisierung für die Karte (geht schneller)
+      'mapres_thresh_eepos', 10e-3, 'mapres_thresh_eerot', 5*pi/180, ...
+      'mapres_thresh_pathcoordres', 0.2, 'mapres_redcoord_dist_deg', 5));
+    cds_log(2, sprintf(['[constraints_traj] Daten für Diagnose-Bild der Aufgabenredundanz ', ...
+      'erstellt. Auflösung: %dx%d. Dauer: %1.0fs'], length(s_ref), ...
+      length(phiz_range), toc(t1)));
+    % Speichere die Redundanzkarte (da die Berechnung recht lange dauert)
+    [currgen,currind,currmat,resdir] = cds_get_new_figure_filenumber(Set, Structure, 'TaskRedPerfMap_Data');
+    name = sprintf('Gen%02d_Ind%02d_Eval%d_TaskRedPerfMap_Data', currgen, currind, currmat);
+    save(fullfile(resdir,sprintf('%s.mat', name)), 'Set', 'Structure', ...
+      'H_all', 's_ref', 's_tref', 'phiz_range', 'X2', 'Q', 'i_ar', 'q');
+  end
+  if R.Type == 0
+    % Reihenfolge: quadratischer Grenzabstand, hyperbolischer Grenzabstand,
+    % Konditionszahl Jacobi
+    I_wn_traj = [1 2 5 9];
+  else
+    I_wn_traj = [1 2 5 6 11];
+  end
+  cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref(1:nt_red), ...
+    phiz_range, X2(1:nt_red,6), struct('wn', s.wn(I_wn_traj), 'i_ar', i_ar-1));
+  % Falls beim Debuggen die Aufgaben-Indizes zurückgesetzt wurden
+  R.update_EE_FG(R.I_EE, Set.task.DoF);
+end
+
 %% Inverse Kinematik der Trajektorie berechnen
 % Einstellungen für IK in Trajektorien
 s = struct( ...
@@ -267,6 +304,8 @@ if R.Type == 0 % Seriell
 else
   for i = 1:R.NLEG, R.Leg(i).qref = Q(1,R.I1J_LEG(i):R.I2J_LEG(i))'; end
 end
+
+%% Prüfe Erfolg der Trajektorien-IK
 % Erkenne eine valide Trajektorie bereits bei Fehler kleiner als 1e-6 an.
 % Das ist deutlich großzügiger als die eigentliche IK-Toleranz
 I_ZBviol = any(abs(PHI) > 1e-6,2) | any(isnan(Q),2) | ...
