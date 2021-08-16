@@ -58,6 +58,7 @@ QD_alt = [];
 QDD_alt = [];
 Jinv_ges_alt = [];
 JP_alt = [];
+wn_alt = [];
 constrvioltext_alt = '';
 % Schleife über mehrere mögliche Nebenbedingungen der inversen Kinematik
 fval_ar = NaN(1,2);
@@ -87,15 +88,16 @@ if i_ar > 1 && task_red && Set.general.debug_task_redundancy
       'q0', q, 'I_EE_red', Set.task.DoF, 'map_phistart', x2(end), ...
       ... % nur grobe Diskretisierung für die Karte (geht schneller)
       'mapres_thresh_eepos', 10e-3, 'mapres_thresh_eerot', 5*pi/180, ...
-      'mapres_thresh_pathcoordres', 0.2, 'mapres_redcoord_dist_deg', 5));
+      'mapres_thresh_pathcoordres', 0.2, 'mapres_redcoord_dist_deg', 5, ...
+      'maplim_phi', [-1, +1]*210*pi/180)); % 210° statt 180° als Grenze
     cds_log(2, sprintf(['[constraints_traj] Daten für Diagnose-Bild der Aufgabenredundanz ', ...
       'erstellt. Auflösung: %dx%d. Dauer: %1.0fs'], length(s_ref), ...
       length(phiz_range), toc(t1)));
     % Speichere die Redundanzkarte (da die Berechnung recht lange dauert)
     [currgen,currind,currmat,resdir] = cds_get_new_figure_filenumber(Set, Structure, 'TaskRedPerfMap_Data');
     name = sprintf('Gen%02d_Ind%02d_Eval%d_TaskRedPerfMap_Data', currgen, currind, currmat);
-    save(fullfile(resdir,sprintf('%s.mat', name)), 'Set', 'Structure', ...
-      'H_all', 's_ref', 's_tref', 'phiz_range', 'X2', 'Q', 'i_ar', 'q');
+    save(fullfile(resdir,sprintf('%s.mat', name)), 'Set', 'Structure', 'Stats', ...
+      'H_all', 's_ref', 's_tref', 'phiz_range', 'X2', 'Q', 'i_ar', 'q', 'nt_red', 's');
   end
   if R.Type == 0
     % Reihenfolge: quadratischer Grenzabstand, hyperbolischer Grenzabstand,
@@ -105,7 +107,7 @@ if i_ar > 1 && task_red && Set.general.debug_task_redundancy
     I_wn_traj = [1 2 5 6 11];
   end
   cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref(1:nt_red), ...
-    phiz_range, X2(1:nt_red,6), struct('wn', s.wn(I_wn_traj), 'i_ar', i_ar-1));
+    phiz_range, X2(1:nt_red,6), Stats.h(:,1), struct('wn', s.wn(I_wn_traj), 'i_ar', i_ar-1));
   % Falls beim Debuggen die Aufgaben-Indizes zurückgesetzt wurden
   R.update_EE_FG(R.I_EE, Set.task.DoF);
 end
@@ -174,6 +176,11 @@ else
   end
 end
 if i_ar == 3
+  Q_change = Q - Q_alt;
+  if all(abs(Q_change(:)) < 1e-6)
+    cds_log(-1, sprintf('Ergebnis der IK unverändert, trotz erneuter Durchführung mit anderer Gewichtung. Vorher: [%s], nachher: [%s]', ...
+      disp_array(wn_alt', '%1.1f'), disp_array(s.wn', '%1.1f')));
+  end
   if fval_ar(1) < fval_ar(2)
     cds_log(-1, sprintf(['Ergebnis der Traj.-IK hat sich nach Nullraum', ...
       'bewegung verschlechtert: %1.3e -> %1.3e ("%s" -> "%s"), delta: %1.3e'], fval_ar(1), ...
@@ -281,6 +288,7 @@ if i_ar == 2
   Q_alt = Q;
   QD_alt = QD;
   QDD_alt = QDD;
+  wn_alt = s.wn;
   Stats_alt = Stats; %#ok<NASGU>
   Jinv_ges_alt = Jinv_ges;
   JP_alt = JP;

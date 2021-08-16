@@ -33,8 +33,12 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref, phiz_range, phiz_traj, s_in)
+function cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref, phiz_range, phiz_traj, h_traj, s_in)
 %% Initialisierung
+if any(diff(s_ref<0)) || any(diff(s_tref)<0) || any(diff(phiz_range)<0)
+  cds_log(-1, '[debug/taskred_perfmap] Eingabedaten sind nicht monoton');
+  return
+end
 % Einstellungen laden und Standard-Werte setzen
 s = struct( ...
   ... % high condition numers all get the same dark (or magenta) color to
@@ -45,7 +49,7 @@ s = struct( ...
   'condsat_limit', 100, ...
   'i_ar', 0, ... % Iteration der Aufgabenredundanz-Schleife
   'wn', NaN); % Standard-Werte
-if nargin == 8
+if nargin == 9
   for f = fields(s_in)'
     if isfield(s, f{1})
       s.(f{1}) = s_in.(f{1});
@@ -65,7 +69,13 @@ if all(isnan(s.wn)) || all(s.wn==0)
 end
 condsat_limit = s.condsat_limit;
 colorlimit = s.colorlimit;
-
+% NaN-Werte aus Eingabe entfernen
+I_valid = ~isnan(s_ref);
+if any(~I_valid)
+  cds_log(-1, sprintf('[debug/taskred_perfmap] Ungültige Bahnkoordinate in Eingabe'));
+  s_ref = s_ref(I_valid);
+  H_all = H_all(I_valid,:,:);
+end
 %% Bild vorbereiten
 phiz_range_ext = phiz_range;
 fighdl = change_current_figure(2400+s.i_ar);clf;hold on;
@@ -96,6 +106,7 @@ end
 assert(colorlimit > condsat_limit, 'colorlimit muss größer als condsat_limit sein');
 % Wenn für die IK kein Kriterium aktiv war, zeichne trotzdem das
 % Konditionszahl-Kriterium
+CC_ext_orig = CC_ext;
 if all(wn_plot(i)==0)
   CC_ext = Hcond';
 end
@@ -111,7 +122,7 @@ CC_ext(I_exc) = condsat_limit+10*log10(CC_ext(I_exc)/condsat_limit); % last term
 % Create color plot
 surf(X_ext,Y_ext,Z_ext,CC_ext, 'EdgeColor', 'none');
 xlabel('Normalized trajectory progress s (per point of support)', 'interpreter', 'none');
-ylabel('Redundant coordinate phi_z in deg', 'interpreter', 'tex');
+ylabel('Redundant coordinate phiz in deg', 'interpreter', 'tex');
 view([0,90])
 % Set Colormap: low condition numbers white, high/singularity dark red.
 colors_map = flipud(hot(1024));
@@ -128,20 +139,20 @@ if Structure.Type == 0 % Seriell
 else % Parallel
   critnames = {'quadlim', 'hyplim', 'cond_ik', 'cond_pkm', 'coll'};
 end
-titlestr = '';
+wnstr = '';
 for i = 1:length(s.wn)
   if s.wn(i)
-    if ~isempty(titlestr), titlestr = [titlestr, ', ']; end %#ok<AGROW>
-    titlestr = [titlestr, sprintf('wn(%s)=%1.1f', critnames{i}, s.wn(i))]; %#ok<AGROW>
+    if ~isempty(wnstr), wnstr = [wnstr, ', ']; end %#ok<AGROW>
+    wnstr = [wnstr, sprintf('wn(%s)=%1.1f', critnames{i}, s.wn(i))]; %#ok<AGROW>
   end
 end
-if isempty(titlestr)
-  titlestr = 'wn=0. Plot: cond(J).';
+if isempty(wnstr)
+  wnstr = 'wn=0. Plot: cond(J).';
 end
-sgtitle(sprintf('Traj.-IK Iteration %d; %s', s.i_ar, titlestr), 'interpreter', 'none');
+sgtitle(sprintf('Traj.-IK Iteration %d; %s', s.i_ar, wnstr), 'interpreter', 'none');
 % Legende für Farben eintragen.
 cb = colorbar();
-cbtext = 'h(s,phi_z)';
+cbtext = 'h(s,phiz)';
 if any(I_exc(:))
   cbtext = [cbtext, sprintf('; logscale for h>%1.0f (%1.0f%%)', ...
     condsat_limit, 100*sum(I_exc(:))/numel(I_exc))];
@@ -177,5 +188,32 @@ for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
     saveas(fighdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_%s.fig', currgen, currind, currimg, name)));
   else
     export_fig(fighdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_%s.%s', currgen, currind, currimg, name, fileext{1})));
+  end
+end
+
+%% Bild mit Verlauf der Kriterien über die Trajektorie
+if all(s.wn==0)
+  return; % Nichts zu zeichnen
+end
+% Dient zum Abgleich der Redundanz-Karte mit der IK
+% Interpoliere die Werte der Redundanz-Karte über die Trajektorie
+h_interp = interp2(s_ref,180/pi*phiz_range_ext,CC_ext_orig,s_tref,phiz_traj);
+fighdl2 = change_current_figure(2410+s.i_ar);clf;hold on;
+set(fighdl2, 'Name', sprintf('PerfValues_Iter%d', s.i_ar), 'NumberTitle', 'off');
+plot(s_tref, h_traj);
+plot(s_tref, h_interp);
+xlabel('Normalized trajectory progress s (per point of support)', 'interpreter', 'none');
+ylabel(sprintf('Performance criterion for trajectory IK: %s', wnstr), 'interpreter', 'none');
+set(fighdl2, 'color','w');
+legend({'from IK', 'interp. from map'});
+
+% Zweites Bild speichern
+name = sprintf('TaskRedPerfValues_Iter%d', s.i_ar);
+[currgen,currind,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure, name);
+for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
+  if strcmp(fileext{1}, 'fig')
+    saveas(fighdl2, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_%s.fig', currgen, currind, currimg, name)));
+  else
+    export_fig(fighdl2, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_%s.%s', currgen, currind, currimg, name, fileext{1})));
   end
 end

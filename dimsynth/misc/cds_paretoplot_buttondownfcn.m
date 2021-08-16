@@ -237,5 +237,10 @@ if strcmp(SelStr(Selection), 'Pareto')
   cds_vis_results_figures('pareto', Set, Traj, RobData, ResTab, ...
     RobotOptRes, RobotOptDetails, PSO_Detail_Data);
 end
+if strcmp(SelStr(Selection), 'Redundanzkarte')
+  % Suche die gespeicherten Werte derRedundanzkarte in den Debug-Dateien
+  % TODO.
+  
+end
 fprintf('Bilder gezeichnet. Dauer: %1.1fs zur Vorbereitung, %1.1fs zum Zeichnen.\n', ...
   toc(t1)-toc(t2), toc(t2));
