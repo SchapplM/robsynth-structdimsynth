@@ -169,7 +169,9 @@ if fval_constr > 1000 % Nebenbedingungen verletzt.
       R.Leg(i).qlim(R.Leg(i).MDH.sigma==1,:) = minmax2(Q_i(:,R.Leg(i).MDH.sigma==1)');
     end
   end
-  cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.2fs. fval=%1.3e. %s', toc(t1), fval(1), constrvioltext));
+  [~, i_gen, i_ind] = cds_save_particle_details([],[],0,0,NaN,NaN,NaN,NaN,'output');
+  cds_log(2,sprintf(['[fitness] G=%d;I=%d. Fitness-Evaluation in %1.2fs. ', ...
+    'fval=%1.3e. %s'],i_gen, i_ind, toc(t1), fval(1), constrvioltext));
   cds_fitness_debug_plot_robot(R, Q0(1,:)', Traj_0, Traj_W, Set, Structure, p, mean(fval), debug_info);
   cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, desopt_pval);
   return
@@ -721,18 +723,17 @@ if Structure.desopt_prismaticoffset
     end
   end
 end
-
+cds_fitness_debug_plot_robot(R, Q_IKC(1,:, iIKCbest)', Traj_0, Traj_W, Set, Structure, p, mean(fval), debug_info);
+[~, i_gen, i_ind] = cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, desopt_pval);
 if all(fval<1e3)
   if length(fval)>1, fvalstr=['[',disp_array(fval', '%1.3e'),']'];
   else,              fvalstr=sprintf('%1.3e', fval); end
-  cds_log(2,sprintf(['[fitness] Fitness-Evaluation in %1.2fs. fval=%s. Erfolg', ...
+  cds_log(2,sprintf(['[fitness] G=%d;I=%d. Fitness-Evaluation in %1.2fs. fval=%s. Erfolg', ...
     'reich. %s Auswahl aus %d IK-Konfigurationen (davon %d i.O., %d optimal)'], ...
-    toc(t1), fvalstr, fval_debugtext_IKC{iIKCbest}(2:end), ...
+    i_gen, i_ind, toc(t1), fvalstr, fval_debugtext_IKC{iIKCbest}(2:end), ...
     size(fval_IKC,1), n_fval_iO, n_fval_opt));
 else
-  cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.2fs. fval=%1.3e. %s', ...
-    toc(t1), fval(1), constrvioltext_IKC{iIKCbest}));
+  cds_log(2,sprintf('[fitness] G=%d;I=%d. Fitness-Evaluation in %1.2fs. fval=%1.3e. %s', ...
+    i_gen, i_ind, toc(t1), fval(1), constrvioltext_IKC{iIKCbest}));
 end
-cds_fitness_debug_plot_robot(R, Q_IKC(1,:, iIKCbest)', Traj_0, Traj_W, Set, Structure, p, mean(fval), debug_info);
-cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, desopt_pval);
 rng('shuffle'); % damit Zufallszahlen in anderen Funktionen zufällig bleiben 

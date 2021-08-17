@@ -40,11 +40,12 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function PSO_Detail_Data_output = cds_save_particle_details(Set, R, comptime, ...
-  fval, pval, physval, constraint_obj_val, desopt_pval, option, PSO_Detail_Data_in)
+function [PSO_Detail_Data_output, i_gen, i_ind] = cds_save_particle_details( ...
+  Set, R, comptime, fval, pval, physval, constraint_obj_val, desopt_pval, option, PSO_Detail_Data_in)
 if isnan(comptime) || any(isnan(fval))
   error('Rechenzeit darf nicht NaN sein');
 end
+i_gen = 0; i_ind = 0;
 % Variable zum Speichern der Ergebnisse
 persistent PSO_Detail_Data
 PSO_Detail_Data_output = [];
@@ -55,6 +56,10 @@ end
 if strcmp(option, 'overwrite')
   PSO_Detail_Data = PSO_Detail_Data_in;
   PSO_Detail_Data_output = PSO_Detail_Data;
+  if nargout > 1
+    % Bestimme auch die aktuelle Generation/Indiviuums-Nr der Optimierung
+    [i_gen, i_ind] = cds_load_particle_details(PSO_Detail_Data, NaN(size(PSO_Detail_Data.fval,2),1));
+  end
   return
 end
 if strcmp(option, 'output')
@@ -89,15 +94,15 @@ end
 % dann Spalten=Partikel)
 data_transp = PSO_Detail_Data.comptime'; % Transp., da spaltenweise gesucht wird
 k=find(isnan(data_transp(:)), 1, 'first'); % 1D-Index in Matrix
-[j,i] = ind2sub(fliplr(size_data),k); % Umrechnung in 2D-Indizes. i=Generation, j=Individuum
+[i_ind, i_gen] = ind2sub(fliplr(size_data),k); % Umrechnung in 2D-Indizes.
 % Eintragen der eingegebenen Daten für aktuelles PSO-Partikel
-PSO_Detail_Data.comptime(i,j) = comptime; % Rechenzeit
-PSO_Detail_Data.fval_mean(i,j) = mean(fval); % Mittelwert für mehrkriterielle Optimierung
-PSO_Detail_Data.fval(j,:,i) = fval; % vollständiger Vektor bei mehrkriteriell
-PSO_Detail_Data.pval(j,:,i) = pval; % Parametersatz zu fval
-PSO_Detail_Data.physval(j,:,i) = physval; % physikalische Werte zu fval (ohne Sättigung/Normierung)
-PSO_Detail_Data.desopt_pval(j,:,i) = desopt_pval; % Ergebnisse der Entwurfsoptimierung
-PSO_Detail_Data.constraint_obj_val(j,:,i) = constraint_obj_val; % physikalische Werte zu Set.optimization.constraint_obj
-PSO_Detail_Data.q_min(j,:,i) = qlim(:,1); % untere Grenze der Gelenkkoord.
-PSO_Detail_Data.q_max(j,:,i) = qlim(:,2); % obere Grenze
-PSO_Detail_Data.q0_ik(j,:,i) = q0; % IK-Anfangswerte
+PSO_Detail_Data.comptime(i_gen,i_ind) = comptime; % Rechenzeit
+PSO_Detail_Data.fval_mean(i_gen,i_ind) = mean(fval); % Mittelwert für mehrkriterielle Optimierung
+PSO_Detail_Data.fval(i_ind,:,i_gen) = fval; % vollständiger Vektor bei mehrkriteriell
+PSO_Detail_Data.pval(i_ind,:,i_gen) = pval; % Parametersatz zu fval
+PSO_Detail_Data.physval(i_ind,:,i_gen) = physval; % physikalische Werte zu fval (ohne Sättigung/Normierung)
+PSO_Detail_Data.desopt_pval(i_ind,:,i_gen) = desopt_pval; % Ergebnisse der Entwurfsoptimierung
+PSO_Detail_Data.constraint_obj_val(i_ind,:,i_gen) = constraint_obj_val; % physikalische Werte zu Set.optimization.constraint_obj
+PSO_Detail_Data.q_min(i_ind,:,i_gen) = qlim(:,1); % untere Grenze der Gelenkkoord.
+PSO_Detail_Data.q_max(i_ind,:,i_gen) = qlim(:,2); % obere Grenze
+PSO_Detail_Data.q0_ik(i_ind,:,i_gen) = q0; % IK-Anfangswerte
