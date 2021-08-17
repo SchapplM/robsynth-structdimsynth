@@ -77,7 +77,7 @@ end
 
 %% Debug vorherige Iteration: Karte der Leistungsmerkmale für Aufgabenredundanz zeichnen
 if i_ar > 1 && task_red && Set.general.debug_task_redundancy
-  x2 = R.fkineEE2_traj(q'); % Ist-EE-Orientierung bestimmen
+  x2 = R.fkineEE2_traj(q')'; % Ist-EE-Orientierung bestimmen
   nt_red = size(Traj_0.X,1); % Zum Debuggen: Reduktion der Stützstellen
   if i_ar == 2 % Nur einmal die Rasterung generieren
     t1 = tic();
@@ -363,7 +363,7 @@ end
 
 %% Endeffektor-Bewegung neu für 3T2R-Roboter berechnen
 % Der letzte Euler-Winkel ist nicht definiert und kann beliebige Werte einnehmen.
-if all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
+if task_red || Set.general.debug_calc % all(R.I_EE_Task == [1 1 1 1 1 0])
   if R.Type == 0 % Seriell
     [X2,XD2,XDD2] = R.fkineEE_traj(Q, QD, QDD);
   else
@@ -558,7 +558,7 @@ end
 
 %% Prüfe neue Endeffektor-Bewegung für 3T2R-Roboter
 % Die Neuberechnung erfolgt bereits weiter oben
-if all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
+if task_red || Set.general.debug_calc %  all(R.I_EE_Task == [1 1 1 1 1 0])
   % Teste nur die ersten fünf Einträge (sind vorgegeben). Der sechste
   % Wert wird an dieser Stelle erst berechnet und kann nicht verglichen werden.
   % Hier wird nur eine Hin- und Rückrechnung (InvKin/DirKin) gemacht. 
@@ -601,7 +601,7 @@ if all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
     continue
   end
   % Eintragen des dritten Euler-Winkels, damit spätere Vergleiche funktionieren.
-  if all(R.I_EE_Task == [1 1 1 1 1 0])
+  if task_red % all(R.I_EE_Task == [1 1 1 1 1 0])
     Traj_0.X(:,6) = X2(:,6);
     Traj_0.XD(:,6) = XD2(:,6);
     Traj_0.XDD(:,6) = XDD2(:,6);
