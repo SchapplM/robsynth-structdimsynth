@@ -369,6 +369,7 @@ if size(InitPopLoadTmp,1) > 0
     (repmat(varlim(:,2)'-varlim(:,1)',size(InitPopLoadNorm,1),1));
 else
   InitPopLoad = [];
+  Q_PopLoad = [];
 end
 InitPopLoad_unique = unique(InitPopLoad, 'rows');
 if size(InitPopLoad_unique,1) ~= size(InitPopLoad,1)
