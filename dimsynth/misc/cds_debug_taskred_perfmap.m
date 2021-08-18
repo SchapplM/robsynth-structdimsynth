@@ -39,6 +39,12 @@ if any(diff(s_ref<0)) || any(diff(s_tref)<0) || any(diff(phiz_range)<0)
   cds_log(-1, '[debug/taskred_perfmap] Eingabedaten sind nicht monoton');
   return
 end
+assert(size(s_ref,2)==1, 's_ref muss NI x 1 sein');
+assert(size(s_tref,2)==1, 's_tref muss NT x 1 sein');
+assert(size(phiz_range,2)==1, 'phiz_range muss NP x 1 sein');
+assert(size(h_traj,2)==1&&size(h_traj,1)==size(s_tref,1), 'h_traj muss NT x 1 sein');
+assert(size(H_all,1)==size(s_ref,1)&&size(H_all,2)==size(phiz_range,1), 'H_all muss NI x NP x NK sein');
+
 % Einstellungen laden und Standard-Werte setzen
 s = struct( ...
   ... % high condition numers all get the same dark (or magenta) color to
@@ -104,12 +110,7 @@ if isnan(colorlimit)
   colorlimit = condsat_limit + 40;
 end
 assert(colorlimit > condsat_limit, 'colorlimit muss größer als condsat_limit sein');
-% Wenn für die IK kein Kriterium aktiv war, zeichne trotzdem das
-% Konditionszahl-Kriterium
 CC_ext_orig = CC_ext;
-if all(wn_plot(i)==0)
-  CC_ext = Hcond';
-end
 % Begrenze die Farbwerte (siehe oben, Beschreibung von colorlimit)
 I_colorlim = CC_ext>colorlimit;
 CC_ext(I_colorlim) = colorlimit;
@@ -147,9 +148,10 @@ for i = 1:length(s.wn)
   end
 end
 if isempty(wnstr)
-  wnstr = 'wn=0. Plot: cond(J).';
+  wnstr = 'wn=0. Plot: cond(J) + Limits.';
 end
-sgtitle(sprintf('Traj.-IK Iteration %d; %s', s.i_ar, wnstr), 'interpreter', 'none');
+titlestr = sprintf('Traj.-IK Iteration %d; %s', s.i_ar, wnstr);
+sgtitle(titlestr, 'interpreter', 'none');
 % Legende für Farben eintragen.
 cb = colorbar();
 cbtext = 'h(s,phiz)';
@@ -169,15 +171,13 @@ plot(s_tref, 180/pi*phiz_traj, 'c-', 'linewidth', 2);
 
 % Sonstige Formatierung
 xlim([0, ceil(max(s_tref))]);
-% Diagramm-Grenzen sind die Grenzen des berechneten Bereiches
-ylim(180/pi*minmax2(phiz_range') + [-20, +20]);
+% Diagramm-Grenzen sind die Grenzen des berechneten Bereiches und die der
+% Trajektorie
+ylim(180/pi*minmax2([phiz_range', phiz_traj(phiz_traj>-4*pi&phiz_traj<4*pi)']) + [-20, +20]);
 % Alternative: Diagramm-Grenzen nur um gegebene Trajektorie
 % ylim(180/pi*[min([-120*pi/180;min(phiz_traj)-20*pi/180]), ...
 %              max([120*pi/180;max(phiz_traj)+20*pi/180])]);
 set(fighdl, 'color','w');
-if ~strcmp(get(fighdl, 'windowstyle'), 'docked')
-  set(fighdl,'units','normalized','outerposition',[0 0 1 1]);
-end
 drawnow();
 
 %% Save files
@@ -192,12 +192,14 @@ for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
 end
 
 %% Bild mit Verlauf der Kriterien über die Trajektorie
-if all(s.wn==0)
+if all(isnan(phiz_traj))
   return; % Nichts zu zeichnen
 end
 % Dient zum Abgleich der Redundanz-Karte mit der IK
-% Interpoliere die Werte der Redundanz-Karte über die Trajektorie
-h_interp = interp2(s_ref,180/pi*phiz_range_ext,CC_ext_orig,s_tref,phiz_traj);
+% Interpoliere die Werte der Redundanz-Karte über die Trajektorie. Abfangen
+% von Fehlerhaften Daten für die Interp-Funktion
+[~,I] = unique(s_ref);
+h_interp = interp2(s_ref(I),180/pi*phiz_range_ext,CC_ext_orig(:,I),s_tref,phiz_traj);
 fighdl2 = change_current_figure(2410+s.i_ar);clf;hold on;
 set(fighdl2, 'Name', sprintf('PerfValues_Iter%d', s.i_ar), 'NumberTitle', 'off');
 plot(s_tref, h_traj);
@@ -206,6 +208,8 @@ xlabel('Normalized trajectory progress s (per point of support)', 'interpreter',
 ylabel(sprintf('Performance criterion for trajectory IK: %s', wnstr), 'interpreter', 'none');
 set(fighdl2, 'color','w');
 legend({'from IK', 'interp. from map'});
+grid on;
+sgtitle(titlestr, 'interpreter', 'none');
 
 % Zweites Bild speichern
 name = sprintf('TaskRedPerfValues_Iter%d', s.i_ar);

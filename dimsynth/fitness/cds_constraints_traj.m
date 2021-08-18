@@ -59,6 +59,8 @@ QDD_alt = [];
 Jinv_ges_alt = [];
 JP_alt = [];
 wn_alt = [];
+% Speicherung der Trajektorie mit aktualisierter EE-Drehung bei Aufg.-Red.
+X2 = NaN(size(Traj_0.X)); XD2 = NaN(size(Traj_0.X)); XDD2 = NaN(size(Traj_0.X));
 constrvioltext_alt = '';
 % Schleife über mehrere mögliche Nebenbedingungen der inversen Kinematik
 fval_ar = NaN(1,2);
@@ -77,7 +79,6 @@ end
 
 %% Debug vorherige Iteration: Karte der Leistungsmerkmale für Aufgabenredundanz zeichnen
 if i_ar > 1 && task_red && Set.general.debug_task_redundancy
-  x2 = R.fkineEE2_traj(q')'; % Ist-EE-Orientierung bestimmen
   nt_red = size(Traj_0.X,1); % Zum Debuggen: Reduktion der Stützstellen
   if i_ar == 2 % Nur einmal die Rasterung generieren
     t1 = tic();
@@ -85,7 +86,7 @@ if i_ar > 1 && task_red && Set.general.debug_task_redundancy
       'Diagnosebild für Trajektorie mit %d Zeit-Stützstellen'], nt_red));
     [H_all, ~, s_ref, s_tref, phiz_range] = R.perfmap_taskred_ik( ...
       Traj_0.X(1:nt_red,:), Traj_0.IE, struct( ...
-      'q0', q, 'I_EE_red', Set.task.DoF, 'map_phistart', x2(end), ...
+      'q0', q, 'I_EE_red', Set.task.DoF, 'map_phistart', X2(1,end), ...
       ... % nur grobe Diskretisierung für die Karte (geht schneller)
       'mapres_thresh_eepos', 10e-3, 'mapres_thresh_eerot', 5*pi/180, ...
       'mapres_thresh_pathcoordres', 0.2, 'mapres_redcoord_dist_deg', 5, ...
@@ -313,13 +314,44 @@ else
   for i = 1:R.NLEG, R.Leg(i).qref = Q(1,R.I1J_LEG(i):R.I2J_LEG(i))'; end
 end
 
-%% Prüfe Erfolg der Trajektorien-IK
+% Prüfe Erfolg der Trajektorien-IK
 % Erkenne eine valide Trajektorie bereits bei Fehler kleiner als 1e-6 an.
 % Das ist deutlich großzügiger als die eigentliche IK-Toleranz
 I_ZBviol = any(abs(PHI) > 1e-6,2) | any(isnan(Q),2) | ...
   ... % Falls beim letzten Schritt die Position noch i.O. ist, aber die Ge-
   ... % schwindigkeit schon NaN ist: Auch hier als Abbruch zählen.
   any(isnan(QD),2) | any(isnan(QDD),2);
+%% Endeffektor-Bewegung neu für 3T2R-Roboter berechnen
+% Der letzte Euler-Winkel ist nicht definiert und kann beliebige Werte einnehmen.
+% Muss schon berechnet werden, bevor der Abbruch der Trajektorie geprüft
+% wird (Variable X2 wird für Redundanzkarte benötigt)
+if task_red || Set.general.debug_calc % all(R.I_EE_Task == [1 1 1 1 1 0])
+  LastTrajIdx = find(~I_ZBviol, 1, 'last' ); % berechne nur für i.O.-Punkte dir Kin.
+  [X2(1:LastTrajIdx,:), XD2(1:LastTrajIdx,:), XDD2(1:LastTrajIdx,:)] = ...
+    R.fkineEE2_traj(Q(1:LastTrajIdx,:), QD(1:LastTrajIdx,:), QDD(1:LastTrajIdx,:));
+  % Erlaube auch EE-Drehungen größer als 180°
+  X2(:,6) = denormalize_angle_traj(X2(:,6), XD2(:,6), Traj_0.t);
+  % Debug: EE-Trajektorie zeichnen
+  if false
+    figure(4002);clf; %#ok<UNRCH>
+    for rr = 1:2
+      if rr == 1, l = 'trans'; else, l = 'rot'; end
+      subplot(3,2,sprc2no(3,2,1,rr));
+      plot(Traj_0.t, X2(:,(1:3)+(rr-1)*3), '-');
+      grid on; ylabel(sprintf('x %s', l));
+      subplot(3,2,sprc2no(3,2,2,rr));
+      plot(Traj_0.t, XD2(:,(1:3)+(rr-1)*3), '-');
+      grid on; ylabel(sprintf('xD %s', l));
+      subplot(3,2,sprc2no(3,2,3,rr));
+      plot(Traj_0.t, XDD2(:,(1:3)+(rr-1)*3), '-');
+      grid on; ylabel(sprintf('xDD %s', l));
+    end
+    legend({'x', 'y', 'z'});
+    linkxaxes
+  end
+end
+
+%% Prüfe Erfolg der Trajektorien-IK
 if any(I_ZBviol)
   % Bestimme die erste Verletzung der ZB (je später, desto besser)
   IdxFirst = find(I_ZBviol, 1 );
@@ -359,35 +391,6 @@ if any(I_ZBviol)
   plot(Traj_0.t, QDD_norm, '-');
   grid on; ylabel('qDD (norm)');
   linkxaxes
-end
-
-%% Endeffektor-Bewegung neu für 3T2R-Roboter berechnen
-% Der letzte Euler-Winkel ist nicht definiert und kann beliebige Werte einnehmen.
-if task_red || Set.general.debug_calc % all(R.I_EE_Task == [1 1 1 1 1 0])
-  if R.Type == 0 % Seriell
-    [X2,XD2,XDD2] = R.fkineEE_traj(Q, QD, QDD);
-  else
-    [X2,XD2,XDD2] = R.fkineEE2_traj(Q, QD, QDD);
-  end
-  X2(:,6) = denormalize_angle_traj(X2(:,6), XD2(:,6), Traj_0.t);
-  % Debug: EE-Trajektorie zeichnen
-  if false
-    figure(4002);clf; %#ok<UNRCH>
-    for rr = 1:2
-      if rr == 1, l = 'trans'; else, l = 'rot'; end
-      subplot(3,2,sprc2no(3,2,1,rr));
-      plot(Traj_0.t, X2(:,(1:3)+(rr-1)*3), '-');
-      grid on; ylabel(sprintf('x %s', l));
-      subplot(3,2,sprc2no(3,2,2,rr));
-      plot(Traj_0.t, XD2(:,(1:3)+(rr-1)*3), '-');
-      grid on; ylabel(sprintf('xD %s', l));
-      subplot(3,2,sprc2no(3,2,3,rr));
-      plot(Traj_0.t, XDD2(:,(1:3)+(rr-1)*3), '-');
-      grid on; ylabel(sprintf('xDD %s', l));
-    end
-    linkxaxes
-    
-  end
 end
 
 %% Singularität der PKM prüfen (bezogen auf Aktuierung)
