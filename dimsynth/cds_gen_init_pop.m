@@ -254,7 +254,8 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
       II, dirlist_cell{i}, score_i, sum(I_param_iO), size(pval_i,1)));
     if any(~I_param_iO)
       for jjj = find(~I_param_iO & ~any(isnan(pval_i),2))'
-        I_pniO = varlim(:,1)' > pval_i(jjj,:) | varlim(:,2)' < pval_i(jjj,:);
+        I_pniO = varlim(:,1)'-1e-10 > pval_i(jjj,:) | ...  % Grenzen gegen numerische ... 
+                 varlim(:,2)'+1e-10 < pval_i(jjj,:); % ... Ungenauigkeit aufweiten
         for kkk = find(I_pniO)
           cds_log(3, sprintf(['[cds_gen_init_pop] Partikel %d/%d: Parameter ', ...
             '%d (%s) nicht passend. %1.2f < %1.2f < %1.2f'], ...
@@ -312,6 +313,10 @@ if size(InitPopLoadTmp,1) > 0
   % Bestimmung der Diversität der Population besser möglich.
   InitPopLoadTmpNorm = (InitPopLoadTmp-repmat(varlim(:,1)',size(InitPopLoadTmp,1),1)) ./ ...
     repmat(varlim(:,2)'-varlim(:,1)',size(InitPopLoadTmp,1),1);
+  % Erzwinge Begrenzung der Parameter auf vorher vorgegebene Grenzen. Falls
+  % zu große/kleine Parameter geladen werden, werden sie begrenzt.
+  InitPopLoadTmpNorm(InitPopLoadTmpNorm>1) = 1;
+  InitPopLoadTmpNorm(InitPopLoadTmpNorm<0) = 0;
   % Entferne Duplikate erneut (wegen Rundungsfehler bei Rechenungenauigkeit
   % möglich)
   [~,I] = unique(InitPopLoadTmpNorm, 'rows');
