@@ -35,8 +35,8 @@
 
 function cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref, phiz_range, phiz_traj, h_traj, s_in)
 %% Initialisierung
-if any(diff(s_ref<0)) || any(diff(s_tref)<0) || any(diff(phiz_range)<0)
-  cds_log(-1, '[debug/taskred_perfmap] Eingabedaten sind nicht monoton');
+if any(diff(s_ref<0)) || any(diff(phiz_range)<0) % Prüfe für Stützstellen
+  cds_log(-1, '[debug/taskred_perfmap] Eingabedaten s_ref oder phiz_range sind nicht monoton');
   return
 end
 assert(size(s_ref,2)==1, 's_ref muss NI x 1 sein');
