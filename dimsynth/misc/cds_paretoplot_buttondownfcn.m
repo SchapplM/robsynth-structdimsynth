@@ -104,6 +104,8 @@ Set.optimization.resdir = resdir_tmp;
 
 % Fehlende Felder in den Einstellungen ergänzen, sonst Fehler in Funktionen
 Set = cds_settings_update(Set, 1);
+% Debug-Plots teilweise deaktivieren, da hier nicht gewünscht.
+Set.general.debug_task_redundancy = false;
 %% Bestimme die Nummer des Pareto-Partikels
 % Nummer istschon in I_point richtig sein, da xData und yData identisch
 % mit den Werten aus fval_pareto (bzw. physval) sind.
@@ -167,23 +169,23 @@ if fitness_recalc_necessary
     % redundant zu Speicherung in qref. Führt Traj.-IK aus, auch wenn Pos.-
     % IK bei Umklappen der Konfiguration scheitert.
     Structure.q0_traj = q0;
-    if isempty(p_desopt)
-      [fval2, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure,p);
-    else
-      % Keine erneute Entwurfsoptimierung, also auch keine Regressorform notwendig.
-      % Direkte Berechnung der Dynamik, falls für Zielfunktion notwendig.
-      Structure.calc_dyn_act = Structure.calc_dyn_act | Structure.calc_dyn_reg;
-      Structure.calc_spring_act = Structure.calc_spring_act | Structure.calc_spring_reg;
-      Structure.calc_spring_reg = false;
-      Structure.calc_dyn_reg = false;
-      [fval2, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure,p,p_desopt);
-    end
   else
     % Alternative Berechnung (erfordert Laden der Detail-Daten).
     % Hier ist die Reproduktion der Zielfunktion besser möglich, da Anfangs-
     % werte für die Gelenkwinkel besser passen.
-    [fval2, ~, Q, QD, QDD, TAU] = RobotOptDetails.fitnessfcn(p);
     R = RobotOptDetails.R;
+    Structure = RobotOptRes.Structure;
+  end
+  if isempty(p_desopt)
+    [fval2, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure,p);
+  else
+    % Keine erneute Entwurfsoptimierung, also auch keine Regressorform notwendig.
+    % Direkte Berechnung der Dynamik, falls für Zielfunktion notwendig.
+    Structure.calc_dyn_act = Structure.calc_dyn_act | Structure.calc_dyn_reg;
+    Structure.calc_spring_act = Structure.calc_spring_act | Structure.calc_spring_reg;
+    Structure.calc_spring_reg = false;
+    Structure.calc_dyn_reg = false;
+    [fval2, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure,p,p_desopt);
   end
   if any(abs(fval-fval2) > 1e-4)
     warning(['Fitness-Wert von [%s] aus Pareto-Front konnte nicht reproduziert ', ...
@@ -238,9 +240,79 @@ if strcmp(SelStr(Selection), 'Pareto')
     RobotOptRes, RobotOptDetails, PSO_Detail_Data);
 end
 if strcmp(SelStr(Selection), 'Redundanzkarte')
-  % Suche die gespeicherten Werte derRedundanzkarte in den Debug-Dateien
-  % TODO.
-  
+  task_red = R.Type == 0 && sum(R.I_EE_Task) < R.NJ || ... % Seriell: Redundant wenn mehr Gelenke als Aufgaben-FG
+             R.Type == 2 && sum(R.I_EE_Task) < sum(R.I_EE); % Parallel: Redundant wenn mehr Plattform-FG als Aufgaben-FG
+  if ~task_red
+    error('Redundanzkarte für %s nicht sinnvoll (keine Redundanz)', RobName);
+  end
+  % Suche die gespeicherten Werte der Redundanzkarte in den Debug-Dateien
+  % Prüfe, ob Bild erzeugt werden kann.
+  tmpdir = fullfile(resdir_opt, 'tmp', sprintf('%d_%s', RobNr, RobName));
+  % Lade bereits während der Optimierung generierte Redundanzkarte aus
+  % gespeicherten Daten.
+  if ~isempty(PSO_Detail_Data) % daraus Gen.-/Ind.-Nummer bestimmbar
+    [k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, fval);
+    matcand = dir(fullfile(tmpdir, sprintf( ...
+      'Gen%02d_Ind%02d_Eval*_TaskRedPerfMap_Data.mat', k_gen, k_ind)));
+  else
+    matcand = dir(fullfile(tmpdir, 'Gen*_Ind*_Eval*_TaskRedPerfMap_Data.mat'));
+  end
+  % Öffne mat-Dateien und prüfe, ob passende Daten zur Reproduktion des
+  % Bildes enthalten sind. Benutze dafür die gespeicherten Gelenkwinkel und
+  % den Zielfunktionswert (aus cds_constraints_traj), da es mehrere
+  % passende Gelenkwinkel geben könnte. Nehme dann den besten F.-Wert unter
+  % der Annahme, dass dieser der gewählten Alternative entspricht.
+  i_bestf = 0; % Index in mat-Dateien für besten Funktionswert
+  bestf = inf; % bester Funktionswert (mit passendem q)
+  bestf_qdist = inf; % Gelenkwinkel-Distanz dazu
+  bestqdist = inf; % Beste Gelenkwinkel-Distanz unabhängig vom F.-Wert
+  n_iOmat = 0; % Anzahl der i.O.-mat-Dateien (für Textausgabe)
+  dlist = NaN(length(matcand), 2); % Speichere Werte für f und qdist ab
+  for i = 1:length(matcand)
+    d = load(fullfile(tmpdir, matcand(i).name), 'q', 'fval');
+    dist_qi = max(abs((Q(1,:)'-d.q))); % exakte Reproduktion müsste möglich sein
+    dlist(i,:) = [dist_qi, d.fval];
+    if dist_qi < bestqdist
+      bestqdist = dist_qi;
+    end
+    if dist_qi > 1e-1
+      continue % Geladene Datei passt nicht
+    end
+    n_iOmat = n_iOmat + 1;
+    if d.fval < bestf % besserer Kandidat für Werte, die zum Pareto-Punkt gehören
+      bestf = d.fval;
+      bestf_qdist = dist_qi;
+      i_bestf = i;
+    end
+  end
+  if n_iOmat > 0
+    fprintf(['Nächster gespeicherter Wert für Redundanzkarte in Datei %s ', ...
+      'mit Gelenkwinkel-Abstand %1.2e (aus %d Kandidaten)\n'], ...
+      matcand(i_bestf).name, bestf_qdist, n_iOmat);
+    % erst hier vollständig laden
+    d = load(fullfile(tmpdir, matcand(i_bestf).name));
+  end
+  if n_iOmat == 0
+    fprintf(['Keine vorab generierten Daten zur Redundanzkarte in %d mat-', ...
+      'Dateien gefunden. Nächster Wert für Gelenkwinkel mit Abstand %1.2e. ', ...
+      'Neuberechnung der Karte.\n'], bestqdist, length(matcand));
+    % Bild neu generieren
+    Traj_0 = cds_transform_traj(R, Traj);
+    d.X2 = R.fkineEE2_traj(Q); nt_red = size(Traj.X,1);
+    [d.H_all, ~, d.s_ref, d.s_tref, d.phiz_range] = R.perfmap_taskred_ik( ...
+      Traj_0.X(1:nt_red,:), Traj_0.IE, struct( ...
+      'q0', Q(1,:)', 'I_EE_red', Set.task.DoF, 'map_phistart', d.X2(1,end), ...
+      ... % nur grobe Diskretisierung für die Karte (geht schneller)
+      'mapres_thresh_eepos', 10e-3, 'mapres_thresh_eerot', 5*pi/180, ...
+      'mapres_thresh_pathcoordres', 0.2, 'mapres_redcoord_dist_deg', 5, ...
+      'maplim_phi', [-1, +1]*210*pi/180, ... % 210° statt 180° als Grenze
+      'verbose', true));
+  end
+  if R.Type == 0, I_wn_traj = [1 2 5 9];
+  else,           I_wn_traj = [1 2 5 6 11]; end
+  % Bild zeichnen
+  cds_debug_taskred_perfmap(Set, Structure, d.H_all, d.s_ref, d.s_tref(1:d.nt_red), ...
+    d.phiz_range, d.X2(1:d.nt_red,6), d.Stats.h(:,1), struct('wn', d.s.wn(I_wn_traj), 'i_ar', 0));
 end
 fprintf('Bilder gezeichnet. Dauer: %1.1fs zur Vorbereitung, %1.1fs zum Zeichnen.\n', ...
   toc(t1)-toc(t2), toc(t2));

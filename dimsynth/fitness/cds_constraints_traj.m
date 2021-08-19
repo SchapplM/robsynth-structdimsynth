@@ -97,7 +97,7 @@ if i_ar > 1 && task_red && Set.general.debug_task_redundancy
     % Speichere die Redundanzkarte (da die Berechnung recht lange dauert)
     [currgen,currind,currmat,resdir] = cds_get_new_figure_filenumber(Set, Structure, 'TaskRedPerfMap_Data');
     name = sprintf('Gen%02d_Ind%02d_Eval%d_TaskRedPerfMap_Data', currgen, currind, currmat);
-    save(fullfile(resdir,sprintf('%s.mat', name)), 'Set', 'Structure', 'Stats', ...
+    save(fullfile(resdir,sprintf('%s.mat', name)), 'Set', 'Structure', 'Stats', 'fval', ...
       'H_all', 's_ref', 's_tref', 'phiz_range', 'X2', 'Q', 'i_ar', 'q', 'nt_red', 's');
   end
   if R.Type == 0
