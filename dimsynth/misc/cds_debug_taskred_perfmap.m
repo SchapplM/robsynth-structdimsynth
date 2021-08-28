@@ -53,6 +53,7 @@ s = struct( ...
   ... % Saturate all values above 100 to have more colors in the range of low
   ... % condition numbers. Saturate by decadic logarithm.
   'condsat_limit', 100, ...
+  'name_prefix_ardbg', '', ... % Für Dateinamen der zu speichernden Bilder
   'i_ar', 0, ... % Iteration der Aufgabenredundanz-Schleife
   'wn', NaN); % Standard-Werte
 if nargin == 9
@@ -125,8 +126,10 @@ surf(X_ext,Y_ext,Z_ext,CC_ext, 'EdgeColor', 'none');
 xlabel('Normalized trajectory progress s (per point of support)', 'interpreter', 'none');
 ylabel('Redundant coordinate phiz in deg', 'interpreter', 'tex');
 view([0,90])
-% Set Colormap: low condition numbers white, high/singularity dark red.
-colors_map = flipud(hot(1024));
+% Set Colormap:
+% colors_map = flipud(hot(1024)); white to dark red.
+colors_map = colormap(flipud(parula(1024))); % yellow to blue
+
 % Falls starke Singularitäten oder Grenzverletzungen vorliegen, wird dies
 % durch eine neue Farbe (Magenta) hervorgehoben
 if any(I_colorlim(:))
@@ -167,7 +170,11 @@ ylabel(cb, cbtext, 'Rotation', 90, 'interpreter', 'tex');
 
 % insert trajectory into plot
 change_current_figure(fighdl);
-plot(s_tref, 180/pi*phiz_traj, 'c-', 'linewidth', 2);
+plot(s_tref, 180/pi*phiz_traj, 'k+-', 'linewidth', 2);
+
+% Grenzen einzeichnen
+plot(minmax2(s_tref')', 180/pi*min(phiz_range)*[1;1], 'k--');
+plot(minmax2(s_tref')', 180/pi*max(phiz_range)*[1;1], 'k--');
 
 % Sonstige Formatierung
 xlim([0, ceil(max(s_tref))]);
@@ -181,13 +188,14 @@ set(fighdl, 'color','w');
 drawnow();
 
 %% Save files
-name = sprintf('TaskRedPerfMap_Iter%d', s.i_ar);
-[currgen,currind,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure, name);
+[~,~,~,resdir] = cds_get_new_figure_filenumber(Set, Structure, '');
 for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
   if strcmp(fileext{1}, 'fig')
-    saveas(fighdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_%s.fig', currgen, currind, currimg, name)));
+    saveas(fighdl, fullfile(resdir, sprintf('%s_TaskRed_Traj%d_PerfMap.fig', ...
+      s.name_prefix_ardbg, s.i_ar)));
   else
-    export_fig(fighdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_%s.%s', currgen, currind, currimg, name, fileext{1})));
+    export_fig(fighdl, fullfile(resdir, sprintf('%s_TaskRed_Traj%d_PerfMap.%s', ...
+      s.name_prefix_ardbg, s.i_ar, fileext{1})));
   end
 end
 
@@ -212,12 +220,13 @@ grid on;
 sgtitle(titlestr, 'interpreter', 'none');
 
 % Zweites Bild speichern
-name = sprintf('TaskRedPerfValues_Iter%d', s.i_ar);
-[currgen,currind,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure, name);
 for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
   if strcmp(fileext{1}, 'fig')
-    saveas(fighdl2, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_%s.fig', currgen, currind, currimg, name)));
+    saveas(fighdl2, fullfile(resdir, sprintf('%s_TaskRed_Traj%d_PerfValues.fig', ...
+      s.name_prefix_ardbg, s.i_ar)));
   else
-    export_fig(fighdl2, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_%s.%s', currgen, currind, currimg, name, fileext{1})));
+    export_fig(fighdl2, fullfile(resdir, sprintf('%s_TaskRed_Traj%d_PerfValues.%s', ...
+      s.name_prefix_ardbg, s.i_ar, fileext{1})));
   end
 end
+

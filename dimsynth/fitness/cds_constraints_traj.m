@@ -95,10 +95,18 @@ if i_ar > 1 && task_red && Set.general.debug_task_redundancy
       'erstellt. Auflösung: %dx%d. Dauer: %1.0fs'], length(s_ref), ...
       length(phiz_range), toc(t1)));
     % Speichere die Redundanzkarte (da die Berechnung recht lange dauert)
-    [currgen,currind,currmat,resdir] = cds_get_new_figure_filenumber(Set, Structure, 'TaskRedPerfMap_Data');
-    name = sprintf('Gen%02d_Ind%02d_Eval%d_TaskRedPerfMap_Data', currgen, currind, currmat);
-    save(fullfile(resdir,sprintf('%s.mat', name)), 'Set', 'Structure', 'Stats', 'fval', ...
-      'H_all', 's_ref', 's_tref', 'phiz_range', 'X2', 'Q', 'i_ar', 'q', 'nt_red', 's');
+    suffix = 'TaskRedPerfMap_Data';
+    [currgen,currind,~,resdir] = cds_get_new_figure_filenumber(Set, Structure, '');
+    matfiles = dir(fullfile(resdir, sprintf('Gen%02d_Ind%02d_Konfig*_%s*',currgen,currind,suffix)));
+    if isempty(matfiles), currmat = 1;
+    else
+      [tokens_mat,~] = regexp(matfiles(end).name,sprintf('Gen%02d_Ind%02d_Konfig(\\d+)_%s',currgen,currind,suffix),'tokens','match');
+      currmat = str2double(tokens_mat{1}{1})+1;
+    end
+    name_prefix_ardbg = sprintf('Gen%02d_Ind%02d_Konfig%d', currgen, currind, currmat);
+    save(fullfile(resdir,sprintf('%s_%s.mat', name_prefix_ardbg, suffix)), ...
+      'Structure', 'H_all', 's_ref', 's_tref', 'phiz_range', 'i_ar', 'q', ...
+      'nt_red');
   end
   if R.Type == 0
     % Reihenfolge: quadratischer Grenzabstand, hyperbolischer Grenzabstand,
@@ -107,8 +115,11 @@ if i_ar > 1 && task_red && Set.general.debug_task_redundancy
   else
     I_wn_traj = [1 2 5 6 11];
   end
+  save(fullfile(resdir,sprintf('%s_TaskRed_Traj%d.mat', name_prefix_ardbg, i_ar-1)), ...
+    'X2', 'Q', 'i_ar', 'q', 'Stats', 'fval', 's');
   cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref(1:nt_red), ...
-    phiz_range, X2(1:nt_red,6), Stats.h(:,1), struct('wn', s.wn(I_wn_traj), 'i_ar', i_ar-1));
+    phiz_range, X2(1:nt_red,6), Stats.h(:,1), struct('wn', s.wn(I_wn_traj), ...
+    'i_ar', i_ar-1, 'name_prefix_ardbg', name_prefix_ardbg));
   % Falls beim Debuggen die Aufgaben-Indizes zurückgesetzt wurden
   R.update_EE_FG(R.I_EE, Set.task.DoF);
 end

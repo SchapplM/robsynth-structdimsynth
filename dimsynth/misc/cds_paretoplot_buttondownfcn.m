@@ -253,9 +253,9 @@ if strcmp(SelStr(Selection), 'Redundanzkarte')
   if ~isempty(PSO_Detail_Data) % daraus Gen.-/Ind.-Nummer bestimmbar
     [k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, fval);
     matcand = dir(fullfile(tmpdir, sprintf( ...
-      'Gen%02d_Ind%02d_Eval*_TaskRedPerfMap_Data.mat', k_gen, k_ind)));
+      'Gen%02d_Ind%02d_Konfig*_TaskRedPerfMap_Data.mat', k_gen, k_ind)));
   else
-    matcand = dir(fullfile(tmpdir, 'Gen*_Ind*_Eval*_TaskRedPerfMap_Data.mat'));
+    matcand = dir(fullfile(tmpdir, 'Gen*_Ind*_Konfig*_TaskRedPerfMap_Data.mat'));
   end
   % Öffne mat-Dateien und prüfe, ob passende Daten zur Reproduktion des
   % Bildes enthalten sind. Benutze dafür die gespeicherten Gelenkwinkel und
@@ -264,14 +264,15 @@ if strcmp(SelStr(Selection), 'Redundanzkarte')
   % der Annahme, dass dieser der gewählten Alternative entspricht.
   i_bestf = 0; % Index in mat-Dateien für besten Funktionswert
   bestf = inf; % bester Funktionswert (mit passendem q)
+  bestf_filename = '';
   bestf_qdist = inf; % Gelenkwinkel-Distanz dazu
   bestqdist = inf; % Beste Gelenkwinkel-Distanz unabhängig vom F.-Wert
   n_iOmat = 0; % Anzahl der i.O.-mat-Dateien (für Textausgabe)
   dlist = NaN(length(matcand), 2); % Speichere Werte für f und qdist ab
   for i = 1:length(matcand)
-    d = load(fullfile(tmpdir, matcand(i).name), 'q', 'fval');
+    d = load(fullfile(tmpdir, matcand(i).name), 'q');
     dist_qi = max(abs((Q(1,:)'-d.q))); % exakte Reproduktion müsste möglich sein
-    dlist(i,:) = [dist_qi, d.fval];
+    dlist(i,:) = [dist_qi, NaN];
     if dist_qi < bestqdist
       bestqdist = dist_qi;
     end
@@ -279,10 +280,22 @@ if strcmp(SelStr(Selection), 'Redundanzkarte')
       continue % Geladene Datei passt nicht
     end
     n_iOmat = n_iOmat + 1;
-    if d.fval < bestf % besserer Kandidat für Werte, die zum Pareto-Punkt gehören
-      bestf = d.fval;
-      bestf_qdist = dist_qi;
-      i_bestf = i;
+    % Lade Trajektorien-Dateien
+    [tokens_mat,~] = regexp(matcand(i).name,sprintf(['Gen%02d_Ind%02d_', ...
+      'Konfig(\\d+)_TaskRedPerfMap_Data'],k_gen,k_ind),'tokens','match');
+    k_conf = str2double(tokens_mat{1}{1});
+    matcand2 = dir(fullfile(tmpdir, sprintf( ...
+      'Gen%02d_Ind%02d_Konfig%d_TaskRed_Traj*.mat', k_gen, k_ind, k_conf)));
+    for i2 = 1:length(matcand2)
+      d2 = load(fullfile(tmpdir, matcand2(i2).name), 'q', 'fval');
+      dlist(i,2) = d2.fval;
+      assert(all(abs(d.q-d2.q)<1e-8), 'Geladene Daten nicht konsistent');
+      if d2.fval < bestf % besserer Kandidat für Werte, die zum Pareto-Punkt gehören
+        bestf = d2.fval;
+        bestf_filename = matcand2(i2).name;
+        bestf_qdist = dist_qi;
+        i_bestf = i;
+      end
     end
   end
   if n_iOmat > 0
@@ -291,6 +304,8 @@ if strcmp(SelStr(Selection), 'Redundanzkarte')
       matcand(i_bestf).name, bestf_qdist, n_iOmat);
     % erst hier vollständig laden
     d = load(fullfile(tmpdir, matcand(i_bestf).name));
+    d2 = load(fullfile(tmpdir, bestf_filename));
+    wn = d2.s.wn;
   end
   if n_iOmat == 0
     fprintf(['Keine vorab generierten Daten zur Redundanzkarte in %d mat-', ...
@@ -307,12 +322,13 @@ if strcmp(SelStr(Selection), 'Redundanzkarte')
       'mapres_thresh_pathcoordres', 0.2, 'mapres_redcoord_dist_deg', 5, ...
       'maplim_phi', [-1, +1]*210*pi/180, ... % 210° statt 180° als Grenze
       'verbose', true));
+    wn = zeros(20,1); % Platzhalter-Variable
   end
   if R.Type == 0, I_wn_traj = [1 2 5 9];
   else,           I_wn_traj = [1 2 5 6 11]; end
   % Bild zeichnen
-  cds_debug_taskred_perfmap(Set, Structure, d.H_all, d.s_ref, d.s_tref(1:d.nt_red), ...
-    d.phiz_range, d.X2(1:d.nt_red,6), d.Stats.h(:,1), struct('wn', d.s.wn(I_wn_traj), 'i_ar', 0));
+  cds_debug_taskred_perfmap(Set, Structure, d.H_all, d.s_ref, d.s_tref(:), ...
+    d.phiz_range, d2.X2(:,6), NaN(size(d2.X2,1),1), struct('wn', wn(I_wn_traj), 'i_ar', 0));
 end
 fprintf('Bilder gezeichnet. Dauer: %1.1fs zur Vorbereitung, %1.1fs zum Zeichnen.\n', ...
   toc(t1)-toc(t2), toc(t2));
