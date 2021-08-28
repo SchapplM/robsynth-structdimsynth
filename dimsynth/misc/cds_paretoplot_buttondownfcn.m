@@ -299,13 +299,14 @@ if strcmp(SelStr(Selection), 'Redundanzkarte')
     end
   end
   if n_iOmat > 0
-    fprintf(['Nächster gespeicherter Wert für Redundanzkarte in Datei %s ', ...
+    fprintf(['Gespeicherter Wert für Redundanzkarte in Datei %s und %s ', ...
       'mit Gelenkwinkel-Abstand %1.2e (aus %d Kandidaten)\n'], ...
-      matcand(i_bestf).name, bestf_qdist, n_iOmat);
+      matcand(i_bestf).name, bestf_filename, bestf_qdist, n_iOmat);
     % erst hier vollständig laden
     d = load(fullfile(tmpdir, matcand(i_bestf).name));
     d2 = load(fullfile(tmpdir, bestf_filename));
     wn = d2.s.wn;
+    h1 = d2.Stats.h(:,1);
   end
   if n_iOmat == 0
     fprintf(['Keine vorab generierten Daten zur Redundanzkarte in %d mat-', ...
@@ -323,12 +324,13 @@ if strcmp(SelStr(Selection), 'Redundanzkarte')
       'maplim_phi', [-1, +1]*210*pi/180, ... % 210° statt 180° als Grenze
       'verbose', true));
     wn = zeros(20,1); % Platzhalter-Variable
+    h1 = NaN(size(d2.X2,1),1);
   end
   if R.Type == 0, I_wn_traj = [1 2 5 9];
   else,           I_wn_traj = [1 2 5 6 11]; end
   % Bild zeichnen
   cds_debug_taskred_perfmap(Set, Structure, d.H_all, d.s_ref, d.s_tref(:), ...
-    d.phiz_range, d2.X2(:,6), NaN(size(d2.X2,1),1), struct('wn', wn(I_wn_traj), 'i_ar', 0));
+    d.phiz_range, d2.X2(:,6), h1, struct('wn', wn(I_wn_traj), 'i_ar', 0));
 end
 fprintf('Bilder gezeichnet. Dauer: %1.1fs zur Vorbereitung, %1.1fs zum Zeichnen.\n', ...
   toc(t1)-toc(t2), toc(t2));

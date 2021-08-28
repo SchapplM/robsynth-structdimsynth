@@ -69,9 +69,9 @@ wn_plot = s.wn;
 % Standard-Einstellung für Darstellung der Kriterien im Plot setzen
 if all(isnan(s.wn)) || all(s.wn==0)
   if Structure.Type == 0
-    wn_plot = [0;1;1;0]; % Grenzen und Jacobi-Kondition
+    wn_plot = [0;0;1;0]; % Jacobi-Kondition
   else
-    wn_plot = [0;1;0;1;0]; % Grenzen und PKM-Jacobi-Kondition
+    wn_plot = [0;0;0;1;0]; % PKM-Jacobi-Kondition
   end
 end
 condsat_limit = s.condsat_limit;
@@ -151,7 +151,7 @@ for i = 1:length(s.wn)
   end
 end
 if isempty(wnstr)
-  wnstr = 'wn=0. Plot: cond(J) + Limits.';
+  wnstr = 'wn=0. Plot: cond(J)';
 end
 titlestr = sprintf('Traj.-IK Iteration %d; %s', s.i_ar, wnstr);
 sgtitle(titlestr, 'interpreter', 'none');
