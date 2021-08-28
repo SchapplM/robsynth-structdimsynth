@@ -69,6 +69,9 @@ for kk = 1:length(Set.general.animation_styles)
   hold on;grid on;
   xlabel('x in m');ylabel('y in m');zlabel('z in m');
   plot3(Traj.X(:,1), Traj.X(:,2),Traj.X(:,3), 'k-');
+  % Falls ein 2T1R-/2T0R-Roboter gezeichnet wird, werden die z-Grenzen
+  % automatisch auf -1/+1 gesetzt. Dann ist der Roboter im Video sehr klein
+  if Set.task.DoF(3) == 0, zlim(Traj.X(1,3)+[-0.1, +0.1]); end
   % Arbeitsraum-Objekte einzeichnen
   for co_sets = 1:2 % einmal Bauraum-Begrenzung, einmal Störkulissen
     if co_sets == 1, color = 'c'; collobjset = Set.task.installspace;
