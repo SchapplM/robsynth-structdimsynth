@@ -429,6 +429,22 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   % Pareto-Punkt ausgelesen.
   menuitems = {'Visualisierung', 'Parameter', 'Kinematik', 'Pareto', ...
     'Animation', 'Dynamik', 'Dynamikparameter'};
+  % Füge Möglichkeiten hinzu, die nur bei Aufgabenredundanz bestehen
+  % Prüfe dafür, ob bei einem Roboter Aufgabenredundanz vorliegt
+  task_red = false;
+  for i = 1:length(Structures)
+    S = Structures{i};
+    if S.Type == 0
+      NJ = str2double(S.Name(2));
+      task_red = sum(Set.task.DoF) < NJ; % Seriell: Redundant wenn mehr Gelenke als Aufgaben-FG
+    else
+      task_red = sum(Set.task.DoF) < sum(S.DoF); % Parallel: Redundant wenn mehr Plattform-FG als Aufgaben-FG
+    end
+    if task_red, break; end
+  end
+  if task_red
+    menuitems = [menuitems, 'Redundanzkarte']; %#ok<AGROW>
+  end
   if Set.optimization.joint_stiffness_passive_revolute
     menuitems = [menuitems, 'Feder-Ruhelage']; %#ok<AGROW>
   end

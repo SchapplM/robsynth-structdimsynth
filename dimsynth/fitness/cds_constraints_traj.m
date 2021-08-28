@@ -58,6 +58,9 @@ QD_alt = [];
 QDD_alt = [];
 Jinv_ges_alt = [];
 JP_alt = [];
+wn_alt = [];
+% Speicherung der Trajektorie mit aktualisierter EE-Drehung bei Aufg.-Red.
+X2 = NaN(size(Traj_0.X)); XD2 = NaN(size(Traj_0.X)); XDD2 = NaN(size(Traj_0.X));
 constrvioltext_alt = '';
 % Schleife über mehrere mögliche Nebenbedingungen der inversen Kinematik
 fval_ar = NaN(1,2);
@@ -73,6 +76,54 @@ for i_ar = ar_loop
 if i_ar > 1
   fval_ar(i_ar-1) = fval;
 end
+
+%% Debug vorherige Iteration: Karte der Leistungsmerkmale für Aufgabenredundanz zeichnen
+if i_ar > 1 && task_red && Set.general.debug_task_redundancy
+  nt_red = size(Traj_0.X,1); % Zum Debuggen: Reduktion der Stützstellen
+  if i_ar == 2 % Nur einmal die Rasterung generieren
+    t1 = tic();
+    cds_log(2, sprintf(['[constraints_traj] Beginne Aufgabenredundanz-', ...
+      'Diagnosebild für Trajektorie mit %d Zeit-Stützstellen'], nt_red));
+    [H_all, ~, s_ref, s_tref, phiz_range] = R.perfmap_taskred_ik( ...
+      Traj_0.X(1:nt_red,:), Traj_0.IE, struct( ...
+      'q0', q, 'I_EE_red', Set.task.DoF, 'map_phistart', X2(1,end), ...
+      ... % nur grobe Diskretisierung für die Karte (geht schneller)
+      'mapres_thresh_eepos', 10e-3, 'mapres_thresh_eerot', 5*pi/180, ...
+      'mapres_thresh_pathcoordres', 0.2, 'mapres_redcoord_dist_deg', 5, ...
+      'maplim_phi', [-1, +1]*210*pi/180)); % 210° statt 180° als Grenze
+    cds_log(2, sprintf(['[constraints_traj] Daten für Diagnose-Bild der Aufgabenredundanz ', ...
+      'erstellt. Auflösung: %dx%d. Dauer: %1.0fs'], length(s_ref), ...
+      length(phiz_range), toc(t1)));
+    % Speichere die Redundanzkarte (da die Berechnung recht lange dauert)
+    suffix = 'TaskRedPerfMap_Data';
+    [currgen,currind,~,resdir] = cds_get_new_figure_filenumber(Set, Structure, '');
+    matfiles = dir(fullfile(resdir, sprintf('Gen%02d_Ind%02d_Konfig*_%s*',currgen,currind,suffix)));
+    if isempty(matfiles), currmat = 1;
+    else
+      [tokens_mat,~] = regexp(matfiles(end).name,sprintf('Gen%02d_Ind%02d_Konfig(\\d+)_%s',currgen,currind,suffix),'tokens','match');
+      currmat = str2double(tokens_mat{1}{1})+1;
+    end
+    name_prefix_ardbg = sprintf('Gen%02d_Ind%02d_Konfig%d', currgen, currind, currmat);
+    save(fullfile(resdir,sprintf('%s_%s.mat', name_prefix_ardbg, suffix)), ...
+      'Structure', 'H_all', 's_ref', 's_tref', 'phiz_range', 'i_ar', 'q', ...
+      'nt_red');
+  end
+  if R.Type == 0
+    % Reihenfolge: quadratischer Grenzabstand, hyperbolischer Grenzabstand,
+    % Konditionszahl Jacobi
+    I_wn_traj = [1 2 5 9];
+  else
+    I_wn_traj = [1 2 5 6 11];
+  end
+  save(fullfile(resdir,sprintf('%s_TaskRed_Traj%d.mat', name_prefix_ardbg, i_ar-1)), ...
+    'X2', 'Q', 'i_ar', 'q', 'Stats', 'fval', 's');
+  cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref(1:nt_red), ...
+    phiz_range, X2(1:nt_red,6), Stats.h(:,1), struct('wn', s.wn(I_wn_traj), ...
+    'i_ar', i_ar-1, 'name_prefix_ardbg', name_prefix_ardbg));
+  % Falls beim Debuggen die Aufgaben-Indizes zurückgesetzt wurden
+  R.update_EE_FG(R.I_EE, Set.task.DoF);
+end
+
 %% Inverse Kinematik der Trajektorie berechnen
 % Einstellungen für IK in Trajektorien
 s = struct( ...
@@ -137,6 +188,11 @@ else
   end
 end
 if i_ar == 3
+  Q_change = Q - Q_alt;
+  if all(abs(Q_change(:)) < 1e-6)
+    cds_log(-1, sprintf('Ergebnis der IK unverändert, trotz erneuter Durchführung mit anderer Gewichtung. Vorher: [%s], nachher: [%s]', ...
+      disp_array(wn_alt', '%1.1f'), disp_array(s.wn', '%1.1f')));
+  end
   if fval_ar(1) < fval_ar(2)
     cds_log(-1, sprintf(['Ergebnis der Traj.-IK hat sich nach Nullraum', ...
       'bewegung verschlechtert: %1.3e -> %1.3e ("%s" -> "%s"), delta: %1.3e'], fval_ar(1), ...
@@ -244,6 +300,7 @@ if i_ar == 2
   Q_alt = Q;
   QD_alt = QD;
   QDD_alt = QDD;
+  wn_alt = s.wn;
   Stats_alt = Stats; %#ok<NASGU>
   Jinv_ges_alt = Jinv_ges;
   JP_alt = JP;
@@ -267,12 +324,45 @@ if R.Type == 0 % Seriell
 else
   for i = 1:R.NLEG, R.Leg(i).qref = Q(1,R.I1J_LEG(i):R.I2J_LEG(i))'; end
 end
+
+% Prüfe Erfolg der Trajektorien-IK
 % Erkenne eine valide Trajektorie bereits bei Fehler kleiner als 1e-6 an.
 % Das ist deutlich großzügiger als die eigentliche IK-Toleranz
 I_ZBviol = any(abs(PHI) > 1e-6,2) | any(isnan(Q),2) | ...
   ... % Falls beim letzten Schritt die Position noch i.O. ist, aber die Ge-
   ... % schwindigkeit schon NaN ist: Auch hier als Abbruch zählen.
   any(isnan(QD),2) | any(isnan(QDD),2);
+%% Endeffektor-Bewegung neu für 3T2R-Roboter berechnen
+% Der letzte Euler-Winkel ist nicht definiert und kann beliebige Werte einnehmen.
+% Muss schon berechnet werden, bevor der Abbruch der Trajektorie geprüft
+% wird (Variable X2 wird für Redundanzkarte benötigt)
+if task_red || Set.general.debug_calc % all(R.I_EE_Task == [1 1 1 1 1 0])
+  LastTrajIdx = find(~I_ZBviol, 1, 'last' ); % berechne nur für i.O.-Punkte dir Kin.
+  [X2(1:LastTrajIdx,:), XD2(1:LastTrajIdx,:), XDD2(1:LastTrajIdx,:)] = ...
+    R.fkineEE2_traj(Q(1:LastTrajIdx,:), QD(1:LastTrajIdx,:), QDD(1:LastTrajIdx,:));
+  % Erlaube auch EE-Drehungen größer als 180°
+  X2(:,6) = denormalize_angle_traj(X2(:,6), XD2(:,6), Traj_0.t);
+  % Debug: EE-Trajektorie zeichnen
+  if false
+    figure(4002);clf; %#ok<UNRCH>
+    for rr = 1:2
+      if rr == 1, l = 'trans'; else, l = 'rot'; end
+      subplot(3,2,sprc2no(3,2,1,rr));
+      plot(Traj_0.t, X2(:,(1:3)+(rr-1)*3), '-');
+      grid on; ylabel(sprintf('x %s', l));
+      subplot(3,2,sprc2no(3,2,2,rr));
+      plot(Traj_0.t, XD2(:,(1:3)+(rr-1)*3), '-');
+      grid on; ylabel(sprintf('xD %s', l));
+      subplot(3,2,sprc2no(3,2,3,rr));
+      plot(Traj_0.t, XDD2(:,(1:3)+(rr-1)*3), '-');
+      grid on; ylabel(sprintf('xDD %s', l));
+    end
+    legend({'x', 'y', 'z'});
+    linkxaxes
+  end
+end
+
+%% Prüfe Erfolg der Trajektorien-IK
 if any(I_ZBviol)
   % Bestimme die erste Verletzung der ZB (je später, desto besser)
   IdxFirst = find(I_ZBviol, 1 );
@@ -312,35 +402,6 @@ if any(I_ZBviol)
   plot(Traj_0.t, QDD_norm, '-');
   grid on; ylabel('qDD (norm)');
   linkxaxes
-end
-
-%% Endeffektor-Bewegung neu für 3T2R-Roboter berechnen
-% Der letzte Euler-Winkel ist nicht definiert und kann beliebige Werte einnehmen.
-if all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
-  if R.Type == 0 % Seriell
-    [X2,XD2,XDD2] = R.fkineEE_traj(Q, QD, QDD);
-  else
-    [X2,XD2,XDD2] = R.fkineEE2_traj(Q, QD, QDD);
-  end
-  X2(:,6) = denormalize_angle_traj(X2(:,6), XD2(:,6), Traj_0.t);
-  % Debug: EE-Trajektorie zeichnen
-  if false
-    figure(4002);clf; %#ok<UNRCH>
-    for rr = 1:2
-      if rr == 1, l = 'trans'; else, l = 'rot'; end
-      subplot(3,2,sprc2no(3,2,1,rr));
-      plot(Traj_0.t, X2(:,(1:3)+(rr-1)*3), '-');
-      grid on; ylabel(sprintf('x %s', l));
-      subplot(3,2,sprc2no(3,2,2,rr));
-      plot(Traj_0.t, XD2(:,(1:3)+(rr-1)*3), '-');
-      grid on; ylabel(sprintf('xD %s', l));
-      subplot(3,2,sprc2no(3,2,3,rr));
-      plot(Traj_0.t, XDD2(:,(1:3)+(rr-1)*3), '-');
-      grid on; ylabel(sprintf('xDD %s', l));
-    end
-    linkxaxes
-    
-  end
 end
 
 %% Singularität der PKM prüfen (bezogen auf Aktuierung)
@@ -511,7 +572,7 @@ end
 
 %% Prüfe neue Endeffektor-Bewegung für 3T2R-Roboter
 % Die Neuberechnung erfolgt bereits weiter oben
-if all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
+if task_red || Set.general.debug_calc %  all(R.I_EE_Task == [1 1 1 1 1 0])
   % Teste nur die ersten fünf Einträge (sind vorgegeben). Der sechste
   % Wert wird an dieser Stelle erst berechnet und kann nicht verglichen werden.
   % Hier wird nur eine Hin- und Rückrechnung (InvKin/DirKin) gemacht. 
@@ -554,7 +615,7 @@ if all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
     continue
   end
   % Eintragen des dritten Euler-Winkels, damit spätere Vergleiche funktionieren.
-  if all(R.I_EE_Task == [1 1 1 1 1 0])
+  if task_red % all(R.I_EE_Task == [1 1 1 1 1 0])
     Traj_0.X(:,6) = X2(:,6);
     Traj_0.XD(:,6) = XD2(:,6);
     Traj_0.XDD(:,6) = XDD2(:,6);
