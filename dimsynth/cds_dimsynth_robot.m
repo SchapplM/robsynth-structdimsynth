@@ -1315,8 +1315,10 @@ if ~Set.general.only_finish_aborted
   [InitPop, QPop] = cds_gen_init_pop(Set, Structure);
   % Speichere die Gelenkwinkel der Anfangspopulation, um sie später wieder
   % abzurufen (betrifft die aus alten Ergebnissen geladenen).
-  I_dict = all(~isnan(QPop),2);
-  Structure.dict_param_q = struct('p', InitPop(I_dict,:), 'q', QPop(I_dict,:));
+  if ~isempty(QPop)
+    I_dict = all(~isnan(QPop),2);
+    Structure.dict_param_q = struct('p', InitPop(I_dict,:), 'q', QPop(I_dict,:));
+  end
 end
 %% Tmp-Ordner leeren
 resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...

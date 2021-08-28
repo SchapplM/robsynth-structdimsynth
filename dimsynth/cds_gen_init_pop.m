@@ -390,7 +390,7 @@ end
 nIndRand = nIndTotal - nIndLoad;
 InitPopRand = NaN(nIndRand,nvars);
 InitPop = [InitPopLoad(1:nIndLoad,:); InitPopRand(1:nIndRand,:)];
-Q_Pop = [Q_PopLoad(1:nIndLoad,:); NaN(nIndRand,size(Q_PopLoad,2))];
+Q_Pop = [Q_PopLoad(1:nIndLoad,:); NaN(nIndRand,length(Structure.q0_traj))];
 % Belege alle mit NaN gesetzten Parameter mit Zufallswerten. Dadurch können
 % auch unvollständige Parameter aus vorherigen Optimierungen nachträglich
 % mit Zufallswerten erweitert und genutzt werden.
