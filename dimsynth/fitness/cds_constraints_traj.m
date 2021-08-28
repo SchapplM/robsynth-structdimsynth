@@ -130,7 +130,9 @@ s = struct( ...
   ... % kein Winkel-Normalisierung, da dadurch Sprung in Trajektorie und keine 
   ... % Prüfung gegen vollständige Umdrehungen möglich
   'normalize', false, ... 
-  'Phit_tol', 1e-10, 'Phir_tol', 1e-10);
+  ... % Einhaltung der Gelenkwinkelgrenzen nicht über NR-Bewegung erzwingen
+  'enforce_qlim', false, ...
+  'Phit_tol', 1e-10, 'Phir_tol', 1e-10); % feine Toleranz
 if R.Type == 0 % Seriell
   s.wn = zeros(10,1);
 else % PKM
@@ -157,6 +159,7 @@ elseif i_ar == 2 && fval > 7e3 && fval < 9e3
     s.wn(2) = 0.01; % P-Anteil hyperbolische Grenzen
     s.wn(7) = 0.1; % D-Anteil quadratische Grenzen (Dämpfung)
   end
+  s.enforce_qlim = true; % Bei Verletzung maximal entgegenwirken
 elseif i_ar == 2 && fval > 6e3 && fval < 7e3
   % Geschwindigkeit wurde verletzt. Wird in NB eigentlich schon automatisch
   % berücksichtigt. Eine weitere Reduktion ist nicht möglich.
