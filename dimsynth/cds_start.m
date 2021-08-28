@@ -413,16 +413,19 @@ if ~Set.general.regenerate_summary_only
   for type = [0 2] % seriell und PKM
     % Stelle vorher eine Liste von Namen zusammen, um doppelte zu finden.
     Names = {};
+    I_type = false(length(Structures), 1);
     for k = 1:length(Structures)
       if Structures{k}.Type == type
         Names = [Names, Structures{k}.Name]; %#ok<AGROW>
+        I_type(k) = true;
       end
     end
     if isempty(Names), continue; end
+    Structures_Type = Structures(I_type); % Strukturen des gesuchten Typs
     % Duplikate löschen (treten z.B. auf, wenn verschiedene Werte für theta
     % in der Struktursynthese möglich sind)
     [Names, I] = unique(Names);
-    Structures_I = Structures(I);
+    Structures_I = Structures_Type(I);
     % Entferne doppelte PKM-Namen, die sich nur durch die Gestell-/Platt-
     % formausrichtung unterscheiden. Die Dateien sind gleich.
     if type == 2
@@ -432,7 +435,7 @@ if ~Set.general.regenerate_summary_only
       end
       [~,I] = unique(Names_Legs);
       Names = Names(I);
-      Structures_I = Structures(I);
+      Structures_I = Structures_Type(I);
     end
     % Vorlagen-Funktionen neu generieren (falls dort Änderungen gemacht
     % wurden). Die automatische Neugenerierung in der parfor-Schleife
