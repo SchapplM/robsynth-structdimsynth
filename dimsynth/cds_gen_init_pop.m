@@ -102,7 +102,7 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
       continue
     end
     counter_filesize = counter_filesize + resfiles(II).bytes;
-    if ~isfield(d.RobotOptRes, 'p_val_pareto')
+    if ~isfield(d.RobotOptRes, 'p_val_pareto') || ~isfield(d.RobotOptRes, 'q0')
       continue % Altes Dateiformat
     end
     counter_optresults = counter_optresults + 1;
