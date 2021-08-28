@@ -184,6 +184,23 @@ ylim(180/pi*minmax2([phiz_range', phiz_traj(phiz_traj>-4*pi&phiz_traj<4*pi)']) +
 % Alternative: Diagramm-Grenzen nur um gegebene Trajektorie
 % ylim(180/pi*[min([-120*pi/180;min(phiz_traj)-20*pi/180]), ...
 %              max([120*pi/180;max(phiz_traj)+20*pi/180])]);
+
+% Replizieren der Daten des Bildes über berechneten Bereich hinaus. Dadurch
+% bessere Lesbarkeit bei Rotationen >180°. Funktioniert nicht für das
+% Gelenkwinkel-Kriterium, nur z.B. bei Konditionszahl
+for ysign = [-1, +1]
+  Y_ext2 = Y_ext + ysign*360;
+  % Wähle nur die Indizes aus, die nicht mit den bisherigen Daten
+  % überlappen. Alle Spalten von Y_ext sind identisch (grid)
+  if ysign < 0
+    Iy2 = Y_ext2(:,1)<=min(Y_ext(:,1));
+  else
+    Iy2 = Y_ext2(:,1)>=max(Y_ext(:,1));
+  end
+  % Erneuter Plot
+  surf(X_ext(Iy2,:),Y_ext2(Iy2,:),Z_ext(Iy2,:),CC_ext(Iy2,:), 'EdgeColor', 'none', 'FaceAlpha', 0.5);
+end
+
 set(fighdl, 'color','w');
 drawnow();
 
