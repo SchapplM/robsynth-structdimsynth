@@ -863,6 +863,7 @@ corrQ = diag(corr(Q_num, Q));
 % wird eine große Abweichung per Korrelation erkannt. Setze als i.O.
 corrQ(all(abs(Q_num-Q)<1e-6)) = 1;
 corrQD(all(abs(QD_num-QD)<1e-3)) = 1;
+corrQ(all(abs(QD)<1e-10)) = 1; % qD=0 und q schwankt numerisch (als Nullraumbewegung) wegen IK-Positionskorrektur
 if task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
   % TODO: Inkonsistenz ist Fehler in Traj.-IK. Dort korrigieren.
   cds_log(-1, sprintf(['Nullraumbewegung führt zu nicht konsistenten ', ...
