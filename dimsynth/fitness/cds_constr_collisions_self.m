@@ -98,7 +98,7 @@ end
 num_coll_plot = 0; % zum Debuggen, s.u.
 for i = 1:size(collbodies.link,1)
   % Anfangs- und Endpunkt des Ersatzkörpers bestimmen
-  if ~any(collbodies.type(i) == [6 13])
+  if ~any(collbodies.type(i) == [6 13 15])
     warning('Andere Methoden als Kapsel-Direktverbindung und Kapsel im Basis-KS nicht implementiert');
     continue
   end
@@ -116,8 +116,11 @@ for i = 1:size(collbodies.link,1)
         i, size(collbodies.link,1), jj1, jj2);
     end
   elseif collbodies.type(i) == 13 % Kapsel mit 2 angegebenen Punkten im Basis-KS
-    r = collbodies.params(i,7)*3;
+    r = collbodies.params(i,7)*3; % Vergrößerung für Plot
     pts = collbodies.params(i,1:6);
+  elseif collbodies.type(i) == 15 % Kugel mit angegebenem Punkt im Basis-KS
+    r = collbodies.params(i,4); % Keine Vergrößerung für Plot
+    pts = [collbodies.params(i,1:3), NaN(1,3)]; % zweiter Teil ist Platzhalter
   else
     error('Fall nicht implementiert');
   end
@@ -138,7 +141,11 @@ for i = 1:size(collbodies.link,1)
   else
     color = 'b';
   end
-  drawCapsule([pts_W(1:3)',pts_W(4:6)',r],'FaceColor', color, 'FaceAlpha', 0.3);
+  if any(collbodies.type(i) == [6 13]) % Kapsel
+    drawCapsule([pts_W(1:3)',pts_W(4:6)',r],'FaceColor', color, 'FaceAlpha', 0.3);
+  else
+    drawSphere([pts_W(1:3)',r],'FaceColor', color, 'FaceAlpha', 0.3);
+  end
 end
 sgtitle(sprintf('Selbstkollisionsprüfung. Schritt %d/%d: %d/%d Koll. Sum. rel. Tiefe: %1.2f', ...
   j, size(Q,1), sum(coll(j,:)), size(coll, 2), colldepth_t(j)));

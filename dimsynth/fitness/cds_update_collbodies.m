@@ -131,6 +131,63 @@ end
 % erster Körper, usw. Wird für serielle Roboter auch benutzt. Dort aber
 % nur eine Basis (=0).
 collbodies_robot = struct('link', [], 'type', [], 'params', []);
+
+% Erzeuge Kollisionsobjekte für Gestell und Plattform einer PKM. Muss vor
+% der Definition der Kollisionsobjekte von Beinketten passieren, da die
+% Variablen sonst nicht konsistent zur Roboter-Klasse sind. Reihenfolge
+% dort ist festelegt durch Funktion ParRob/update_collbodies
+if Structure.Type ~= 0 % PKM
+  cbbpidx1 = size(collbodies_robot.link,1)+1;
+  % Indizes der jeweiligen vorherigen benachbarten Beinkette
+  I1 = (1:NLEG)'; I2 = [NLEG, 1:NLEG-1]';
+  % Kollisionsobjekte für das Gestell
+  if Set.task.DoF(3) ~= 0 % räumliche PKM
+    % Sternförmige Basis mit Kollisionskörpern: Nummer für PKM-Basis=0; Setze
+    % den Vorgänger auf die jeweiligen Basiskörper der einzelnen Beinketten.
+    % Kapseln verbinden die Koppelgelenke.
+    collbodies_robot.link = [collbodies_robot.link; ...
+      uint8([zeros(NLEG,1), R.I1L_LEG-(I1-1)])];
+    collbodies_robot.type = [collbodies_robot.type; repmat(uint8(6),NLEG,1)];
+    collbodies_robot.params = [collbodies_robot.params; ...
+      [repmat(10e-3, NLEG, 1), NaN(NLEG, 9)]];
+    % Ringförmige Basis; verbindet die Basis der Beinketten mit der jeweils
+    % vorherigen
+    collbodies_robot.link = [collbodies_robot.link; ...
+      uint8([R.I1L_LEG(I1)-(I1-1), R.I1L_LEG(I2)-(I2-1)])];
+    collbodies_robot.type = [collbodies_robot.type; repmat(uint8(6),NLEG,1)];
+    collbodies_robot.params = [collbodies_robot.params; ...
+      [repmat(10e-3, NLEG, 1), NaN(NLEG, 9)]];
+  else % planare PKM
+    % Nur Gestellgelenke als Kugel, damit eine Kollision anderer Beinketten
+    % damit verhindert wird. Kein ausgedehntes Gestell, da 2T1R nur akade-
+    % misches Beispiel ist. Konstruktiv sowieso lösbar durch Verschiebung
+    % des Gestells aus der Bewegungsebene heraus.
+    collbodies_robot.link = [collbodies_robot.link; uint8(zeros(NLEG,2))]; % PKM-Basis
+    T_base_stack = [R.Leg(:).T_W_0]; % Alle Beinketten-Basis-KS als Trafo spaltenweise
+    collbodies_robot.type = [collbodies_robot.type; repmat(uint8(15),NLEG,1)]; % Kugel
+    collbodies_robot.params = [collbodies_robot.params; ... % Koordinaten der Gestell-Koppelgelenke eintragen
+      [T_base_stack(1:3,4:4:end)', repmat(0.05, NLEG, 1), NaN(NLEG, 6)]]; % Geringer Radius 50mm
+  end
+  
+  % Kollisionsobjekte für die Plattform. Kapseln für jeden virtuellen
+  % Körper der Plattform-Koppelgelenke (auf Plattform-Seite). Kapsel als
+  % Verbindung zum jeweils vorherigen Koppelgelenk. Erzeugt Ring an der
+  % Plattform
+  collbodies_robot.link = [collbodies_robot.link; ...
+    uint8([R.I2L_LEG(I1)-(I1-1)-1, R.I2L_LEG(I2)-(I2-1)-1])];
+  collbodies_robot.type = [collbodies_robot.type; repmat(uint8(6),NLEG,1)];
+  collbodies_robot.params = [collbodies_robot.params; ...
+    [repmat(10e-3, NLEG, 1), NaN(NLEG, 9)]];
+  cbbpidx2 = size(collbodies_robot.link,1);
+  % Eintragen in Klassen-Variable
+  R.collbodies_nonleg =struct( ...
+    'link',   collbodies_robot.link(cbbpidx1:cbbpidx2,:), ...
+    'type',   collbodies_robot.type(cbbpidx1:cbbpidx2,:), ...
+    'params', collbodies_robot.params(cbbpidx1:cbbpidx2,:));
+  R.update_collbodies();
+end
+
+% Kollisionskörper für PKM-Beinketten oder serielle Roboter
 isidx = 1; % Index für collbodies_instspc
 for k = 1:NLEG
   if R.Type == 0  % Seriell 
@@ -188,45 +245,6 @@ for k = 1:NLEG
   % Die übrigen Punktkoordinaten wurden schon vorher auf Null gesetzt.
   % (Entspricht Ursprung des jeweiligen Körper-KS)
   isidx = isidx + R_cc.NJ;
-end
-% Erzeuge Kollisionsobjekte für Gestell und Plattform einer PKM
-if Structure.Type ~= 0 % PKM
-  cbbpidx1 = size(collbodies_robot.link,1)+1;
-  % Indizes der jeweiligen vorherigen benachbarten Beinkette
-  I1 = (1:NLEG)'; I2 = [NLEG, 1:NLEG-1]';
-  % Kollisionsobjekte für das Gestell
-  % Sternförmige Basis mit Kollisionskörpern: Nummer für PKM-Basis=0; Setze
-  % den Vorgänger auf die jeweiligen Basiskörper der einzelnen Beinketten.
-  % Kapseln verbinden die Koppelgelenke.
-  collbodies_robot.link = [collbodies_robot.link; ...
-    uint8([zeros(NLEG,1), R.I1L_LEG-(I1-1)])];
-  collbodies_robot.type = [collbodies_robot.type; repmat(uint8(6),NLEG,1)];
-  collbodies_robot.params = [collbodies_robot.params; ...
-    [repmat(10e-3, NLEG, 1), NaN(NLEG, 9)]];
-  % Ringförmige Basis; verbindet die Basis der Beinketten mit der jeweils
-  % vorherigen
-  collbodies_robot.link = [collbodies_robot.link; ...
-    uint8([R.I1L_LEG(I1)-(I1-1), R.I1L_LEG(I2)-(I2-1)])];
-  collbodies_robot.type = [collbodies_robot.type; repmat(uint8(6),NLEG,1)];
-  collbodies_robot.params = [collbodies_robot.params; ...
-    [repmat(10e-3, NLEG, 1), NaN(NLEG, 9)]];
-  
-  % Kollisionsobjekte für die Plattform. Kapseln für jeden virtuellen
-  % Körper der Plattform-Koppelgelenke (auf Plattform-Seite). Kapsel als
-  % Verbindung zum jeweils vorherigen Koppelgelenk. Erzeugt Ring an der
-  % Plattform
-  collbodies_robot.link = [collbodies_robot.link; ...
-    uint8([R.I2L_LEG(I1)-(I1-1)-1, R.I2L_LEG(I2)-(I2-1)-1])];
-  collbodies_robot.type = [collbodies_robot.type; repmat(uint8(6),NLEG,1)];
-  collbodies_robot.params = [collbodies_robot.params; ...
-    [repmat(10e-3, NLEG, 1), NaN(NLEG, 9)]];
-  cbbpidx2 = size(collbodies_robot.link,1);
-  % Eintragen in Klassen-Variable
-  R.collbodies_nonleg =struct( ...
-    'link',   collbodies_robot.link(cbbpidx1:cbbpidx2,:), ...
-    'type',   collbodies_robot.type(cbbpidx1:cbbpidx2,:), ...
-    'params', collbodies_robot.params(cbbpidx1:cbbpidx2,:));
-  R.update_collbodies();
 end
 
 % Ausgabe der aktualisierten Liste der Bauraum-Kollisionsprüfungen
