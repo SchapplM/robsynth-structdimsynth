@@ -51,8 +51,13 @@
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
 function [fval,Q,QD,QDD,Jinv_ges,JP,constrvioltext] = cds_constraints_traj(R, Traj_0, q, Set, Structure)
-fval = 1e3;
-constrvioltext = 'i.O.';
+% Debug
+% save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_0.mat'));
+% load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_0.mat'));
+
+% Initialisierung
+fval = NaN;
+constrvioltext = 'Undefiniert';
 Q_alt = [];
 QD_alt = [];
 QDD_alt = [];
@@ -200,9 +205,9 @@ if i_ar == 3
       'bewegung verschlechtert: %1.3e -> %1.3e ("%s" -> "%s"), delta: %1.3e'], fval_ar(1), ...
       fval_ar(2), constrvioltext_alt, constrvioltext, fval_ar(2)-fval_ar(1)));
     % Anmerkung: Das muss nicht unbedingt ein Fehler sein. Das Verletzen
-    % der Geschwindigkeitsgrenzen kann eine Konsequenz sein? Darf
-    % eigentlich aber doch nicht sein... Grenzen werden ja versucht
-    % einzuhalten
+    % der Geschwindigkeitsgrenzen kann eine Konsequenz sein. Die Hinzunahme
+    % eines vorher nicht betrachteten Kriteriums kann eine Verschlechterung
+    % erst erzeugen (z.B. Scheitern bei Ausweichbewegung)
     % Debug: Vergleiche vorher-nachher.
     if false
       RP = ['R', 'P']; %#ok<UNRCH>
@@ -1009,4 +1014,7 @@ if ~isempty(Set.task.obstacles.type)
     continue
   end
 end
+%% Fertig. Bis hier wurden alle Nebenbedingungen geprüft.
+fval = 1e3;
+constrvioltext = 'i.O.';
 end
