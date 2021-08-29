@@ -142,11 +142,10 @@ end
 % TODO: Die Reglereinstellungen sind noch nicht systematisch ermittelt.
 if i_ar == 1 % erster Durchlauf ohne zusätzliche Optimierung (nimmt minimale Geschwindigkeit)
   % Dadurch auch keine Nullraumbewegung für Gelenkgrenzen o.ä.
-elseif i_ar == 2 && fval > 5e4
-  % Vorher nicht lösbar. Versuche nicht, noch weiter zu optimieren.
-  % Mit Glück ist vielleicht eine bessere Konfiguration zu finden. Kostet
-  % aber eher zu viel Rechenzeit
-  return;
+elseif false && i_ar == 2 && fval > 5e4 % deaktiviert
+  % Vorher nicht lösbar. Optimiere noch weiter. Die normale Lösung kann bei
+  % Annäherung an Arbeitsraumgrenzen fehlschlagen.
+  % Gehe in Fall ganz unten (Konditionszahl-Optimierung)
 elseif i_ar == 2 && fval > 7e3 && fval < 9e3
   % Positionsgrenzen wurden verletzt. Besonders in Nebenbedingungen
   % berücksichtigen
