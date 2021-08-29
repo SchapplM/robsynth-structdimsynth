@@ -56,7 +56,7 @@ end
 if strcmp(option, 'overwrite')
   PSO_Detail_Data = PSO_Detail_Data_in;
   PSO_Detail_Data_output = PSO_Detail_Data;
-  if nargout > 1
+  if nargout > 1 && ~isempty(PSO_Detail_Data)
     % Bestimme auch die aktuelle Generation/Indiviuums-Nr der Optimierung
     [i_gen, i_ind] = cds_load_particle_details(PSO_Detail_Data, ...
       NaN(size(PSO_Detail_Data.fval,2),1));
@@ -65,7 +65,7 @@ if strcmp(option, 'overwrite')
 end
 if strcmp(option, 'output')
   PSO_Detail_Data_output = PSO_Detail_Data;
-  if nargout > 1
+  if nargout > 1 && ~isempty(PSO_Detail_Data)
     [i_gen, i_ind] = cds_load_particle_details(PSO_Detail_Data, ...
       NaN(size(PSO_Detail_Data.fval,2),1));
   end
