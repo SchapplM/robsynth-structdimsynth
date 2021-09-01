@@ -40,7 +40,7 @@ for iFG = 1%1:3
   Traj = cds_gen_traj(DoF, 1, Set.task);
   %% Starten
   if ~offline
-    cds_start
+    cds_start(Set,Traj);
   else % Direkte Auswertung der vorher generierten Ergebnisse
     parroblib_addtopath(whitelist);
   end

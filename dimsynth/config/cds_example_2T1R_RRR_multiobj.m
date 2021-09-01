@@ -41,5 +41,5 @@ for obj_case = 1:5
       Set.optimization.objective = {'jointrange', 'condition'};
   end
   Set.optimization.optname = sprintf('2T1R_motest_RRR_O%d', obj_case);
-  cds_start
+  cds_start(Set,Traj);
 end

@@ -41,4 +41,4 @@ Set.general.nosummary = true;
 Set.general.debug_calc = true;
 Set.structures.whitelist = {'S6RRRRRR10V3', 'P6RRPRRR14V3G1P4A1'};
 
-cds_start
+cds_start(Set,Traj);

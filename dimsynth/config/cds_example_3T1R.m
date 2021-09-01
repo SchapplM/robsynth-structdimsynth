@@ -26,4 +26,4 @@ Set.general.verbosity = 3;
 Set.general.matfile_verbosity = 3;
 Set.structures.maxnumprismatic = 3; % für Portal-Systeme
 
-cds_start
+cds_start(Set,Traj);

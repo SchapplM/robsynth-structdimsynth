@@ -540,7 +540,10 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     if ~settings.offline && ~settings.comp_cluster
       fprintf(['Starte Prüfung des Laufgrads der PKM mit Maßsynthese für ', ...
         '%d Roboter\n'], length(Whitelist_PKM));
-      cds_start
+      cds_start(Set,Traj);
+      resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
+      ds = load(fullfile(resmaindir, [Set.optimization.optname, '_settings.mat']));
+      Structures = ds.Structures;
     elseif settings.offline
       % Debug: Lade Ergebnisse aus temporärem Cluster-Download-Ordner
       % Set.optimization.resdir = '/mnt/FP500/IMES/CLUSTER/REPO/structgeomsynth/dimsynth/results';

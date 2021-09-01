@@ -45,4 +45,4 @@ Set.structures.whitelist = {'P6PRRRRR6V2G8P4A1'}; % '',  S6RRPRRR14
 %   'P6PRRRRR6G8P4A1', 'P6PRRRRR6V2G8P4A1', ...
 %   'P6RRRRRR10G1P1A1', 'P6RRRRRR10V3G1P1A1'};
 
-cds_start
+cds_start(Set,Traj);

@@ -60,7 +60,7 @@ Set.general.save_robot_details_plot_fitness_file_extensions = {'png', 'fig'};
 % Wähle vier verschiedene Strukturen: 3T2R/3T3R, Seriell/Parallel
 Set.structures.whitelist = {'S6RRRRRR10V2', 'S5RRRRR1', ...
   'P5RPRRR8V1G9P8A1', 'P6PRRRRR6V4G8P1A1'};
-cds_start
+cds_start(Set,Traj);
 
 % Nachträglich das Pareto-Diagramm zeichnen (zum Debuggen)
 return
@@ -72,4 +72,4 @@ Set.general.eval_figures = {'pareto_all_phys'};
 Set.general.animation_styles = {};
 Set.general.parcomp_plot = false;
 Set.optimization.optname = '3T2R_taskred_test';
-cds_start
+cds_start(Set,Traj);

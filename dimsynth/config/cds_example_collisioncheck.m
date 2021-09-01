@@ -39,4 +39,4 @@ Set.structures.whitelist = {'S6RRRRRR10', 'P6RRRRRR10G1P4A2'};
 % Begrenze die Euler-Winkel, damit es mehr funktionierende Lösungen gibt
 Set.task.maxangle = 10*pi/180;
    
-cds_start
+cds_start(Set,Traj);

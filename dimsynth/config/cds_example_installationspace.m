@@ -63,4 +63,4 @@ Set.structures.maxnumprismatic = 3; % für Portal-Systeme (trotzdem ohne passive
 % Mögliche Kandidaten, die halbwegs gut für obigen Aufgabe funktionieren:
 % P3RRRRR6G2P2A1, P3RRRRR7G3P3A1, P3RRRRR10G3P3A1, P3RRRRR10G2P2A2, S3PPP1
 Set.structures.whitelist = {'P3PRRRR6G4P2A1'};
-cds_start
+cds_start(Set,Traj);

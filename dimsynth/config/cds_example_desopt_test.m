@@ -91,7 +91,7 @@ for dbc = [false, true]
           Set.structures.whitelist = whitelist_par; % Gelenkfeder nur für PKM
       end
       Set.optimization.optname = sprintf('desopt_test_%d_%d_dbc%d', i, k, dbc);
-      cds_start
+      cds_start(Set,Traj);
     end
   end
 end

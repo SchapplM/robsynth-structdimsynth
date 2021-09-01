@@ -1,10 +1,13 @@
 % Start der komb. Struktur und Maßsynthese für alle Roboter
-% Erwartet Workspace-Variablen:
-% Set (Globale Einstellungen)
-% Traj (Eigenschaften der Trajektorie)
+% 
+% Eingabe:
+%   Set (Globale Einstellungen). Siehe cds_settings_defaults.m
+%   Traj (Eigenschaften der Trajektorie). Siehe cds_gen_traj.m
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
-% (C) Institut für Mechatronische Systeme, Universität Hannover
+% (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
+
+function cds_start(Set, Traj)
 
 % Warnungen unterdrücken, die bei der Maßsynthese typischerweise auftreten
 warning('off', 'MATLAB:singularMatrix');
@@ -17,9 +20,6 @@ warning('off', 'Coder:MATLAB:illConditionedMatrix');
 warning('off', 'Coder:MATLAB:rankDeficientMatrix');
 
 %% Eingabe prüfen
-if ~exist('Set', 'var') || ~exist('Traj', 'var')
-  error('Eingabevariablen des Startskriptes existieren nicht');
-end
 if ~Set.general.only_finish_aborted
   fprintf('Starte Maßsynthese %s.\n', Set.optimization.optname);
 else
@@ -293,7 +293,7 @@ if Set.general.computing_cluster
     % gesetzt, von dem der Job gestartet wird.
     fprintf(fid, ['Set.optimization.resdir=fullfile(fileparts(', ...
       'which(''structgeomsynth_path_init.m'')),''results'');\n']);
-    fprintf(fid, 'cds_start;\n');
+    fprintf(fid, 'cds_start(Set,Traj);\n');
     % Schließen des ParPools auch in Datei hineinschreiben
     fprintf(fid, 'parpool_writelock(''lock'', 300, true);\n');
     fprintf(fid, 'delete(gcp(''nocreate''));\n');
@@ -378,7 +378,7 @@ if ~isempty(Set.structures.whitelist)
     error('Die Positiv-Liste enthält doppelte Einträge');
   end
   Names_in_Struct = {}; % Es können bei Struktursynthese Strukturen doppelt getestet werden
-  for i = 1:length(Structures), Names_in_Struct{i} = Structures{i}.Name; end %#ok<SAGROW>
+  for i = 1:length(Structures), Names_in_Struct{i} = Structures{i}.Name; end %#ok<AGROW>
   if length(Set.structures.whitelist) ~= length(unique(Names_in_Struct))
     warning('Es wurde eine Positiv-Liste übergeben, aber nicht alle dieser Strukturen wurden gewählt.');
     disp('Gültige Roboter:');
@@ -518,6 +518,6 @@ if isempty(Structures)
 end
 
 %% Ergebnisse darstellen
-cds_results_table(Set, Traj, Structures)
+cds_results_table(Set, Traj, Structures);
 cds_vis_results(Set, Traj, Structures);
-cds_create_evolution_videos(Set, Traj, Structures)
+cds_create_evolution_videos(Set, Traj, Structures);

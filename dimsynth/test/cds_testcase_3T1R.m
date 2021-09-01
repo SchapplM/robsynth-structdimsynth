@@ -34,10 +34,12 @@ for debugcalc = [0 1]
     Set.optimization.objective = obj_name;
     Set.general.debug_calc = logical(debugcalc);
     Set.optimization.optname = sprintf('testcase_3T1R_D-%d_O-%s', debugcalc, obj_name{1});
-    cds_start
+    cds_start(Set,Traj);
     % Ergebnisse laden und prüfen
+    resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
+    ds = load(fullfile(resmaindir, [Set.optimization.optname, '_settings.mat']));
+    Structures = ds.Structures;
     for j = 1:length(Structures)
-      resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
       resdat1 = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', j, Structures{j}.Name));
       if ~exist(resdat1, 'file'), error('Ergebnisdatei %s nicht gefunden. Muss an dieser Stelle vorliegen', resdat1); end
       tmp1 = load(resdat1, 'RobotOptRes', 'Set', 'Traj');

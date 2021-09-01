@@ -45,9 +45,9 @@ Set.general.matfile_verbosity = 3;
 Set.general.nosummary = true;
 Set.structures.whitelist = {'P6RRPRRR14V3G1P4A1'}; % , S6RRPRRR14 'S6RRRRRR10V3'
 
-cds_start
+cds_start(Set,Traj);
 
 return
 Set.general.regenerate_summary_only = true;
 Set.general.nosummary = false;
-cds_start
+cds_start(Set,Traj);

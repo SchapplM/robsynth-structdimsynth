@@ -85,4 +85,4 @@ Set.optimization.obj_limit = 1e3; % Gültige Lösung führt zum Abbruch.
 Set.general.parcomp_struct = true;
 Set.optimization.optname = 'synth_alphatheta_test';
 Traj = cds_gen_traj(DoF, 1, Set.task);
-cds_start
+cds_start(Set,Traj);

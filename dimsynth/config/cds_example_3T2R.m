@@ -29,4 +29,4 @@ Set.optimization.ee_translation = false;
 Set.structures.maxnumprismatic = 3; % für Portal-Systeme
 Set.structures.use_parallel = false;
 Set.structures.whitelist = {'S5PRRRR10'};
-cds_start
+cds_start(Set,Traj);

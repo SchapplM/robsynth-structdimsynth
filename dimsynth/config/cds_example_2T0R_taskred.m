@@ -48,7 +48,7 @@ if dbg_perfmap
 end
 Set.structures.whitelist = {'S3RRR1', 'S2RR3'};
 Set.optimization.ee_translation = true; % Für S2RR3 benötigt. Für S3RRR1 sinnvoll.
-cds_start
+cds_start(Set,Traj);
 
 Set.optimization.optname = '2T0R_taskred_test2';
 if dbg_perfmap
@@ -56,6 +56,6 @@ if dbg_perfmap
 end
 Set.structures.whitelist = {'S2PP1', 'P2PP1G1P1A1', 'P3RPR1G1P1A1'};
 Set.optimization.ee_translation = false; % Hier nicht benötigt.
-cds_start
+cds_start(Set,Traj);
 
 end

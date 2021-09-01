@@ -35,4 +35,4 @@ Set.general.parcomp_struct = true; % Parallele Berechnung
 Set.structures.use_serial = false;
 Set.optimization.ee_rotation = false;
 
-cds_start
+cds_start(Set,Traj);

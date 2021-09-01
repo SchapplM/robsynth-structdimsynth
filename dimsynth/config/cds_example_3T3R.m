@@ -28,4 +28,4 @@ Set.general.verbosity = 3;
 Set.general.matfile_verbosity = 3;
 Set.structures.whitelist = {'P6RRPRRR14V3G1P4A1'};
 
-cds_start
+cds_start(Set,Traj);

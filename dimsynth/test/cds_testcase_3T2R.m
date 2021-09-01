@@ -42,10 +42,12 @@ for debugcalc = [0 1]
      % max. Wert für Konditionszahl (problematisch für 3T2R-PKM; wenn
      % Kondition fast singulär, dann sind die Ergebnisse nicht reproduzierbar)
     Set.optimization.constraint_obj(4) = 1000;
-    cds_start
+    cds_start(Set,Traj);
     % Ergebnisse laden und prüfen
+    resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
+    ds = load(fullfile(resmaindir, [Set.optimization.optname, '_settings.mat']));
+    Structures = ds.Structures;
     for j = 1:length(Structures)
-      resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
       resdat = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', j, Structures{j}.Name));
       if ~exist(resdat, 'file'), error('Ergebnisdatei %s nicht gefunden. Muss an dieser Stelle vorliegen', resdat); end
       tmp1 = load(resdat, 'RobotOptRes', 'Set', 'Traj');

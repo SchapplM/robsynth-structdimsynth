@@ -26,6 +26,6 @@ for Traj_no = 1:2
     Traj = cds_gen_traj(DoF, Traj_no, Set.task);
     Set.optimization.objective = obj_name;
     Set.optimization.optname = sprintf('2T1R_test_RRR_T-%d_O-%s', Traj_no, obj_name{1});
-    cds_start
+    cds_start(Set,Traj);
   end
 end

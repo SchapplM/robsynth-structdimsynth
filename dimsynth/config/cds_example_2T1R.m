@@ -27,7 +27,7 @@ Set.general.matfile_verbosity = 3;
 Set.structures.whitelist = {'P3RRR1G1P1A1'}; % '' S3RRR1
 
 Set.task.payload = struct('m', 0, 'rS', zeros(3,1), 'Ic', zeros(6,1));
-cds_start
+cds_start(Set,Traj);
 
 return
 % Beispiel für Fitness-Funktion 3RRR
