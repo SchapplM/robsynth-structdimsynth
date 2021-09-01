@@ -119,6 +119,8 @@ if length(Set.optimization.objective) == 1 && ... % ist immer einkriteriell
     any(strcmp(Set.optimization.objective, {'valid_act', 'valid_kin'}))
   Set.optimization.condition_limit_sing = inf; % Überschreibe Standardwert
 end
+assert(isa(Set.task.DoF, 'logical') && all(size(Set.task.DoF)==[1 6]), ...
+  'Set.task.DoF muss 1x6 logical sein');
 %% Menge der Roboter laden
 if ~(Set.general.only_finish_aborted && Set.general.isoncluster) && ... % Abschluss auf Cluster
     ~Set.general.regenerate_summary_only || ... % Nur Bilder (ohne Abschluss)

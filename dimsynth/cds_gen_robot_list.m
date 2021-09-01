@@ -154,7 +154,7 @@ if structset.use_parallel
     max_rankdeficit = 0;
   end
   if Set.structures.min_task_redundancy == 0
-    EE_FG_allowed = Set.task.DoF;
+    EE_FG_allowed = logical(Set.task.DoF);
   elseif Set.structures.min_task_redundancy > 1
     error('Fall nicht implementiert');
   else
