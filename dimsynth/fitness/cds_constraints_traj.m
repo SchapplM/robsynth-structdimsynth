@@ -342,8 +342,9 @@ I_ZBviol = any(abs(PHI) > 1e-6,2) | any(isnan(Q),2) | ...
 %% Endeffektor-Bewegung neu für 3T2R-Roboter berechnen
 % Der letzte Euler-Winkel ist nicht definiert und kann beliebige Werte einnehmen.
 % Muss schon berechnet werden, bevor der Abbruch der Trajektorie geprüft
-% wird (Variable X2 wird für Redundanzkarte benötigt)
-if task_red || Set.general.debug_calc % all(R.I_EE_Task == [1 1 1 1 1 0])
+% wird (Variable X2 wird für Redundanzkarte benötigt).
+% Gilt für 3T2R-PKM und für 3T3R-PKM in 3T2R-Aufgaben
+if task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
   LastTrajIdx = find(~I_ZBviol, 1, 'last' ); % berechne nur für i.O.-Punkte dir Kin.
   [X2(1:LastTrajIdx,:), XD2(1:LastTrajIdx,:), XDD2(1:LastTrajIdx,:)] = ...
     R.fkineEE2_traj(Q(1:LastTrajIdx,:), QD(1:LastTrajIdx,:), QDD(1:LastTrajIdx,:));
@@ -518,9 +519,8 @@ if R.Type == 2 && Set.general.debug_calc % PKM; Rechne nochmal mit Klassenmethod
       test_JP = JointPos_all_i_frominvkin(:,kk+(-1+R.I1J_LEG(kk):R.I2J_LEG(kk))) - ...
       JointPos_all_i_fromdirkin(:,kk*2+(-2+R.I1J_LEG(kk):-1+R.I2J_LEG(kk)));
       if any(abs(test_JP(:)) > 1e-8)
-        if Set.general.matfile_verbosity > 0
-          save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_trajjointpos_error_debug.mat'));
-        end
+        save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+          'tmp', 'cds_constraints_trajjointpos_error_debug.mat'));
         error(['Ausgegebene Gelenkpositionen stimmen nicht gegen direkte ', ...
           'Kinematik. Zeitpunkt %d, Beinkette %d. Max Fehler %1.1e'], i, kk, max(abs(test_JP(:))));
       end
@@ -532,9 +532,8 @@ if R.Type == 2 && Set.general.debug_calc % PKM; Rechne nochmal mit Klassenmethod
   if ik_res_ik2 && ik_res_iks 
     test_Q = Q-Q_debug;
     if any(abs(test_Q(:))>1e-3)
-      if Set.general.matfile_verbosity > 0
-        save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_trajq_error_debug.mat'));
-      end
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+        'tmp', 'cds_constraints_trajq_error_debug.mat'));
       % Bei schlecht konditionierten PKM oder bei Verzweigungspunkten der
       % IK-Lösung können verschiedene Lösungen entstehen (durch numerische 
       % Abweichungen in der Implementierung). Dann springen Winkel um
@@ -546,9 +545,8 @@ if R.Type == 2 && Set.general.debug_calc % PKM; Rechne nochmal mit Klassenmethod
     test_QD = QD-QD_debug;
     if any(abs(test_QD(:))>1e-3) && ~any(abs(test_Q(:))>1e-3)
       % Nur Geschwindigkeit testen, wenn Position erfolgreich war
-      if Set.general.matfile_verbosity > 0
-        save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_trajqD_error_debug.mat'));
-      end
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+        'tmp', 'cds_constraints_trajqD_error_debug.mat'))
       error(['Ausgabevariable QD aus invkin_traj vs invkin2_traj stimmt nicht. ', ...
         'Max Fehler %1.4e.'], max(abs(test_QD(:))));
     end
@@ -557,9 +555,8 @@ if R.Type == 2 && Set.general.debug_calc % PKM; Rechne nochmal mit Klassenmethod
     I_err = abs(test_QDD_abs)>1e-3 & abs(test_QDD_rel)>1e-3; % 0,1% Abweichung erlaubt
     if any(I_err(:)) && ~any(abs(test_Q(:))>1e-3)
       % Nur Beschleunigung testen, wenn Position erfolgreich war
-      if Set.general.matfile_verbosity > 0
-        save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_trajqDD_error_debug.mat'));
-      end
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+        'tmp', 'cds_constraints_trajqDD_error_debug.mat'));
       error(['Ausgabevariable QDD aus invkin_traj vs invkin2_traj stimmt nicht. ', ...
         'Max Fehler abs %1.4e., rel %1.4f%%. Zuerst Zeitschritt %d.'], ...
         max(abs(test_QDD_abs(:))), 100*max(abs(test_QDD_rel(:))), ...
@@ -568,18 +565,17 @@ if R.Type == 2 && Set.general.debug_calc % PKM; Rechne nochmal mit Klassenmethod
     test_JPtraj = JP-JP_debug;
     if any(abs(test_JPtraj(:))>1e-6) && ~any(abs(test_Q(:))>1e-3)
       % Nur testen, wenn Gelenkkoordinaten übereinstimmen
-      if Set.general.matfile_verbosity > 0
-        save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_trajjointpos2_error_debug.mat'));
-      end
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+        'tmp', 'cds_constraints_trajjointpos2_error_debug.mat'));
       error(['Ausgabevariable JP aus invkin_traj vs invkin2_traj stimmt nicht. ', ...
-        'Max Fehler %1.1e.'], max(abs(test_JPtraj(:))));
+        'Max Fehler %1.4e.'], max(abs(test_JPtraj(:))));
     end
   end
 end
 
 %% Prüfe neue Endeffektor-Bewegung für 3T2R-Roboter
-% Die Neuberechnung erfolgt bereits weiter oben
-if task_red || Set.general.debug_calc %  all(R.I_EE_Task == [1 1 1 1 1 0])
+% Die Neuberechnung erfolgt bereits weiter oben (3T2R-PKM/3T2R-Aufgabe)
+if task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
   % Teste nur die ersten fünf Einträge (sind vorgegeben). Der sechste
   % Wert wird an dieser Stelle erst berechnet und kann nicht verglichen werden.
   % Hier wird nur eine Hin- und Rückrechnung (InvKin/DirKin) gemacht. 
@@ -622,7 +618,7 @@ if task_red || Set.general.debug_calc %  all(R.I_EE_Task == [1 1 1 1 1 0])
     continue
   end
   % Eintragen des dritten Euler-Winkels, damit spätere Vergleiche funktionieren.
-  if task_red % all(R.I_EE_Task == [1 1 1 1 1 0])
+  if task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) % 3T2R-Aufgabe oder 3T2R-PKM
     Traj_0.X(:,6) = X2(:,6);
     Traj_0.XD(:,6) = XD2(:,6);
     Traj_0.XDD(:,6) = XDD2(:,6);
@@ -664,27 +660,24 @@ if R.Type ~= 0 && Set.general.debug_calc
     test_XD = Traj_0.XD(:,1:6) - XD3(:,1:6);
     test_XDD = Traj_0.XDD(:,1:6) - XDD3(:,1:6);
     if any(abs(test_X(:))>1e-6)
-      if Set.general.matfile_verbosity > 0
-        save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_xtraj_legs_inconsistency.mat'));
-      end
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+        'tmp', 'cds_constraints_xtraj_legs_inconsistency.mat'));
       error(['Die Endeffektor-Trajektorie X aus Beinkette %d stimmt nicht ', ...
-        'gegen Beinkette 1. Zuerst in Zeitschritt %d/%d. Fehler max. %1.1e.'], j, ...
+        'gegen Beinkette 1. Zuerst in Zeitschritt %d/%d. Fehler max. %1.4e.'], j, ...
         find(any(abs(test_X)>1e-6,2),1,'first'), length(Traj_0.t), max(abs(test_X(:))));
     end
     if any(abs(test_XD(:))>1e-6)
-      if Set.general.matfile_verbosity > 0
-        save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_xDtraj_legs_inconsistency.mat'));
-      end
+        save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+        'tmp', 'cds_constraints_xDtraj_legs_inconsistency.mat'));
       error(['Die Endeffektor-Trajektorie XD aus Beinkette %d stimmt nicht ', ...
-        'gegen Beinkette 1. Zuerst in Zeitschritt %d/%d. Fehler max. %1.1e.'], j, ...
+        'gegen Beinkette 1. Zuerst in Zeitschritt %d/%d. Fehler max. %1.4e.'], j, ...
         find(any(abs(test_XD)>1e-6,2),1,'first'), length(Traj_0.t), max(abs(test_XD(:))));
     end
     if any(abs(test_XDD(:))>1e-6)
-      if Set.general.matfile_verbosity > 0
-        save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_xDDtraj_legs_inconsistency.mat'));
-      end
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+        'tmp', 'cds_constraints_xDDtraj_legs_inconsistency.mat'));
       error(['Die Endeffektor-Trajektorie XDD aus Beinkette %d stimmt nicht ', ...
-        'gegen Beinkette 1. Zuerst in Zeitschritt %d/%d. Fehler max. %1.1e.'], j, ...
+        'gegen Beinkette 1. Zuerst in Zeitschritt %d/%d. Fehler max. %1.4e.'], j, ...
         find(any(abs(test_XDD)>1e-6,2),1,'first'), length(Traj_0.t), max(abs(test_XDD(:))));
     end
   end
