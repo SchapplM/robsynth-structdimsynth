@@ -161,7 +161,7 @@ if Set.general.only_finish_aborted && (Set.general.isoncluster || ...
   Traj = d.Traj;
   Structures = d.Structures;
   Set_tmp = Set;
-  Set = d.Set;
+  Set = cds_settings_update(d.Set);
   % Überschreibe geladene Einstellungen, damit ein kopierter Ordner vom
   % Cluster auch lokal abgeschlossen werden kann.
   Set.general.only_finish_aborted = true; % Überschreibe geladene Einstellung
