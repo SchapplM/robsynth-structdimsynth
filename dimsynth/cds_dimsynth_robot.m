@@ -241,7 +241,8 @@ for i = 1:NLEG
   R_init.qDDlim = repmat([-1,1]*Set.optimization.max_acceleration_revolute, R_init.NJ, 1);
   R_init.qDDlim(R_init.MDH.sigma==1,:) = repmat([-1,1]*... % Schubgelenk
     Set.optimization.max_acceleration_prismatic, sum(R_init.MDH.sigma==1), 1);
-  
+  % Eintragen der Grenzen in die Strukturvariable. Maßgeblich für die
+  % Prüfung der Grenzen in der Maßsynthese
   if Structure.Type == 0 % Serieller Roboter
     Structure.qDlim = R_init.qDlim;
     Structure.qDDlim = R_init.qDDlim;
@@ -260,6 +261,20 @@ for i = 1:NLEG
   R_init.DesPar.seg_par(:,1) = 50e-3;
   R_init.DesPar.seg_par(:,2) = 5e-3;
 end
+% Reduziere die Grenzen in der Klassenvariable. Diese Grenzen werden für
+% die inverse (Trajektorien-)Kinematik benutzt. Aufgrund von numerischen
+% Ungenauigkeiten können die Grenzen dort teilweise überschritten werden
+for i = 1:NLEG
+  if Structure.Type == 0
+    R_init = R;
+  else
+    R_init = R.Leg(i);
+  end
+  R_init.qDlim =  0.99*R_init.qDlim;
+  R_init.qDDlim = 0.98*R_init.qDDlim;
+end
+
+
 % Merke die ursprünglich aus der Datenbank geladene EE-Rotation. Die in der
 % Optimierung ergänzte Rotation ist zusätzlich dazu. (Bei 2T1R-Robotern
 % wird teilweise die EE-Rotation notwendig, damit das letzte KS planar ist)

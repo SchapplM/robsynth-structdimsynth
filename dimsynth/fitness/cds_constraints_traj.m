@@ -382,13 +382,8 @@ if any(I_ZBviol)
     (1-Failratio)*100, IdxFirst, length(Traj_0.t));
   continue
   % Debug: Trajektorie zeichnen
-  if R.Type == 0 %#ok<UNRCH> % Seriell
-    qDlim = R.qDlim;
-    qDDlim = R.qDDlim;
-  else % PKM
-    qDlim = cat(1,R.Leg(:).qDlim);
-    qDDlim = cat(1,R.Leg(:).qDDlim);
-  end
+  qDlim = Structure.qDlim;
+  qDDlim = Structure.qDDlim;
   RP = ['R', 'P'];
   Q_norm = (Q - repmat(qlim(:,1)', size(Q,1), 1)) ./ ...
             repmat(qlim(:,2)'-qlim(:,1)', size(Q,1), 1);
