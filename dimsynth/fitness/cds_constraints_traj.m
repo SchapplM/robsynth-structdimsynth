@@ -894,10 +894,11 @@ if ~task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
       plot(Traj_0.t([1,end]), repmat(Structure.qDlim(i,:),2,1), 'r-');
       ylim(minmax2([QD_num(:,i);QD_num(:,i)]'));
       if R.Type == 0
-        title(sprintf('qD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+        ylabel(sprintf('qD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
       else
-        title(sprintf('qD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+        ylabel(sprintf('qD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
       end
+      title(sprintf('corr(qD/qDD)=%1.2f', corrQD(i)));
       if i == length(q), legend([hdl1;hdl2;hdl3], {'qD','diff(q)', 'int(qDD)'}); end
     end
     linkxaxes
@@ -913,17 +914,19 @@ if ~task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
       hdl1=plot(Traj_0.t, Q(:,i), '-');
       hdl2=plot(Traj_0.t, Q_num(:,i), '--');
       if R.Type == 0
-        title(sprintf('q %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+        ylabel(sprintf('q %d (%s)', i, RP(R.MDH.sigma(i)+1)));
       else
-        title(sprintf('q %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+        ylabel(sprintf('q %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
       end
+      title(sprintf('corr(q/qD)=%1.2f', corrQ(i)));
       if i == length(q), legend([hdl1;hdl2], {'q','int(qD)'}); end
     end
     linkxaxes
     sgtitle('Verlauf Gelenkkoordinaten');
     change_current_figure(1003);clf;
     QDD_num = zeros(size(Q)); % Differenzenquotient
-    QDD_num(2:end,:) = diff(QD(:,:))./ repmat(diff(Traj_0.t), 1, R.NJ);
+    QDD_num(1:end-1,:) = diff(QD(:,:))./ repmat(diff(Traj_0.t), 1, R.NJ);
+    corrQDD = diag(corr(QDD_num, QDD));
     for i = 1:R.NJ
       if R.Type == 2
       legnum = find(i>=R.I1J_LEG, 1, 'last');
@@ -934,10 +937,11 @@ if ~task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
       hdl1=plot(Traj_0.t, QDD(:,i), '-');
       hdl2=plot(Traj_0.t, QDD_num(:,i), '--');
       if R.Type == 0
-        title(sprintf('qDD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+        ylabel(sprintf('qDD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
       else
-        title(sprintf('qDD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+        ylabel(sprintf('qDD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
       end
+      title(sprintf('corrQDD(qD/qDD)=%1.2f', corrQDD(i)));
       if i == length(q), legend([hdl1;hdl2], {'qDD','diff(qD)'}); end
     end
     linkxaxes
