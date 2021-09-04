@@ -655,8 +655,10 @@ if R.Type ~= 0 && Set.general.debug_calc
     [X3,XD3,XDD3] = R.fkineEE2_traj(Q, QD, QDD, uint8(j));
     test_X = Traj_0.X(:,1:6) - X3(:,1:6);
     test_X([false(size(test_X,1),3),abs(abs(test_X(:,4:6))-2*pi)<1e-3]) = 0; % 2pi-Fehler entfernen
-    test_XD = Traj_0.XD(:,1:6) - XD3(:,1:6);
-    test_XDD = Traj_0.XDD(:,1:6) - XDD3(:,1:6);
+    test_XD_abs = Traj_0.XD(:,1:6) - XD3(:,1:6);
+    test_XD_rel = test_XD_abs ./ Traj_0.XD(:,1:6);
+    test_XDD_abs = Traj_0.XDD(:,1:6) - XDD3(:,1:6);
+    test_XDD_rel = test_XDD_abs ./ Traj_0.XDD(:,1:6);
     if any(abs(test_X(:))>1e-6)
       save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
         'tmp', 'cds_constraints_xtraj_legs_inconsistency.mat'));
@@ -664,14 +666,14 @@ if R.Type ~= 0 && Set.general.debug_calc
         'gegen Beinkette 1. Zuerst in Zeitschritt %d/%d. Fehler max. %1.4e.'], j, ...
         find(any(abs(test_X)>1e-6,2),1,'first'), length(Traj_0.t), max(abs(test_X(:))));
     end
-    if any(abs(test_XD(:))>1e-6)
+    if any(abs(test_XD_abs(:))>1e-5 & abs(test_XD_rel(:))>1e-3)
         save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
         'tmp', 'cds_constraints_xDtraj_legs_inconsistency.mat'));
       error(['Die Endeffektor-Trajektorie XD aus Beinkette %d stimmt nicht ', ...
         'gegen Beinkette 1. Zuerst in Zeitschritt %d/%d. Fehler max. %1.4e.'], j, ...
         find(any(abs(test_XD)>1e-6,2),1,'first'), length(Traj_0.t), max(abs(test_XD(:))));
     end
-    if any(abs(test_XDD(:))>1e-6)
+    if any(abs(test_XDD_abs(:))>1e-4 & abs(test_XDD_rel(:))>1e-2)
       save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
         'tmp', 'cds_constraints_xDDtraj_legs_inconsistency.mat'));
       error(['Die Endeffektor-Trajektorie XDD aus Beinkette %d stimmt nicht ', ...
