@@ -184,6 +184,9 @@ elseif i_ar == 2 && fval > 3e3 && fval < 4e3
     s.wn(11) = 0.1; % P-Anteil Kollisionsvermeidung
     s.wn(12) = 0.01; % D-Anteil Kollisionsvermeidung
   end
+  % Aktivierungsbereich für Kollisionsvermeidung stark vergrößern, damit
+  % ausreichend Vorlauf zur Vermeidung der Kollision besteht
+  s.collbodies_thresh = 3; % 200% größere Kollisionskörper für Aktivierung (statt 50%)
 else
   % Verbessere die Konditionszahl und die Geschwindigkeit
   if R.Type == 0 % Seriell
