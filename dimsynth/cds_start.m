@@ -44,6 +44,9 @@ end
 if Set.task.profile == 0 && any(strcmp(Set.optimization.objective, 'energy'))
   error('Energieberechnung ohne Zeitverlauf der Trajektorie nicht sinnvoll');
 end
+if Set.optimization.nolinkmass && any(strcmp(Set.optimization.objective, 'stiffness'))
+  error('Berechnung der Steifigkeit zusammen mit nolinkmass aktuell nicht möglich');
+end
 % Prüfe Plausibilität von Abbruchbedingungen und Wahl mehrkriterieller Ziele
 if length(Set.optimization.obj_limit_physval) == 1 && length(Set.optimization.objective) > 1 && ...
     Set.optimization.obj_limit_physval == 0 % nur, falls Null nicht bereits überschrieben wurde

@@ -1806,7 +1806,15 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   [fval_jrange,~, ~, physval_jrange] = cds_obj_jointrange(R, Set, Structure, Q);
   [fval_chainlength,~, ~, physval_chainlength] = cds_obj_chainlength(R);
   [fval_instspc,~, ~, physval_instspc] = cds_obj_installspace(R, Set, Structure, Traj_0, Q, JP);
-  [fval_stiff,~, ~, physval_stiff] = cds_obj_stiffness(R, Set, Q);
+  if Set.optimization.nolinkmass
+    % Die Formel für die Berechnung der Steifigkeit benutzt als Hilfsgröße
+    % die Masse der Beinketten. TODO: Ansatz überarbeiten.
+    fval_stiff = NaN; physval_stiff = NaN;
+    cds_log(2, sprintf(['[dimsynth] Keine Berechnung der Steifigkeit möglich, ', ...
+      'da masselose Beinketten.']));
+  else
+    [fval_stiff,~, ~, physval_stiff] = cds_obj_stiffness(R, Set, Q);
+  end
   % Reihenfolge siehe Variable Set.optimization.constraint_obj aus cds_settings_defaults
   fval_obj_all = [fval_mass; fval_energy; fval_actforce; fval_ms; fval_cond; ...
     fval_mani; fval_msv; fval_pe; fval_jrange; fval_chainlength; fval_instspc; fval_stiff];
