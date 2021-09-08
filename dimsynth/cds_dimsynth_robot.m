@@ -1166,8 +1166,8 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     colltypes_check_struct = [...
        Structure.collbodies_robot.type(Structure.selfcollchecks_collbodies(:,1)), ...
        Structure.collbodies_robot.type(Structure.selfcollchecks_collbodies(:,2))];
-     assert(all(colltypes_check_class(:)==colltypes_check_struct(:)), ...
-       'Typen der Objekte zu den Kollisionsprüfungen nicht konsistent nach Matlab-Klasse');
+    assert(all(colltypes_check_class(:)==colltypes_check_struct(:)), ...
+      'Typen der Objekte zu den Kollisionsprüfungen nicht konsistent nach Matlab-Klasse');
   end
   % Debug: Liste der Kollisionsprüfungen anzeigen
   if false
@@ -1193,43 +1193,53 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
 end
 %% Initialisierung der Bauraumprüfung
 % Erstelle Liste der Kollisionsprüfungen für cds_constr_installspace.m
-% Die Geometrie-Objekte werden erst dort ins Basis-KS des Roboters trans-
-% formiert.
 if ~isempty(Set.task.installspace.type)
   % Liste für alle Kollisionskörper des Roboters bei Bauraumprüfung.
-  % Es werden nur Punkte anstatt der Ersatz-Volumen benutzt.
-  % Das Format der Struktur ist genauso wie oben.
-  collbodies_instspc = struct('link', [], 'type', [], 'params', []);
-  instspc_collchecks_collbodies = []; % Liste der Bauraum-Kollisionsprüfungen (bezogen auf obige Variable)
+  % Es werden nur Punkte anstatt der Ersatz-Volumen für den Roboter benutzt.
+  % Das Format der Struktur ist genauso wie oben für die Kollisionen.
+  % Initialisiere die Struktur mit den Objekten, die zur Basis gehören.
+  % (aus Set.task.installspace.type)
+  % Diese stehen am Anfang und werden auch durch die update-Funktion später
+  % aktualisiert (Transformation Welt -> Basis)
+  % Die Reihenfolge der Definition der Ersatzkörper ist konsistent mit
+  % cds_update_collbodies.
+  Structure.installspace_collbodies = struct('link',[], 'type',[], 'params',[]);
+  % Zuerst nur Definition der Ersatzkörper aus Set.task.installspace.type
+  [~, collbodies_instspc_fix] = cds_update_collbodies(R, Set, Structure);
+
   % Stelle Ersatz-Punkte für alle Robotergelenke zusammen
   for k = 1:NLEG
-    % Offset für PKM-Beinketten bestimmen, s.o.
+    % Ersatzkörper nur bezogen auf die Beinkette oder den seriellen Roboter
+    collbodies_instspc_k = struct('link',[], 'type',[], 'params',[]);
+    % Offset für PKM-Beinketten wird in Funktion ParRob/update_collbodies
+    % durchgeführt. Hier nur Definition relativ zu PKM-Beinkette / SerRob
     if Structure.Type == 0  % Seriell 
-      NLoffset = 0;
       R_cc = R;
     else % PKM-Beinkette
-      NLoffset = 1;
       R_cc = R.Leg(k);
-      if k > 1
-        NLoffset = 1+R.I2L_LEG(k-1)-(k-1); % in I1L wird auch Basis und EE-Link noch mitgezählt. Hier nicht.
-      end
     end
     % Erzeuge Kollisionskörper für den statischen Teil von Schub- 
     % gelenken (z.B. Linearachsen). Siehe: SerRob/plot
     for i = find(R_cc.MDH.sigma'==1)
+      if i > 1
+        warning('Führungsschiene für nicht gestellfeste Linearantriebe nicht implementiert');
+        continue
+      end
       % Hänge zwei Punkte für Anfang und Ende jeder Linearführung an
-      % Setze als Körper Nr. 14 (Punkt im Basis-KS)
-      collbodies_instspc.type = [collbodies_instspc.type; repmat(uint8(14),2,1)];
-      collbodies_instspc.params = [collbodies_instspc.params; NaN(2,10)];
+      % Setze als Körper Nr. 14 (Punkt im Basis-KS).
+      collbodies_instspc_k.type = [collbodies_instspc_k.type; repmat(uint8(14),2,1)];
+      collbodies_instspc_k.params = [collbodies_instspc_k.params; NaN(2,10)];
       % Führungsschiene/Führungszylinder ist vorherigem Segment zugeordnet
-      links_i = repmat(NLoffset+uint8(i-1),2,1);
-      collbodies_instspc.link = [collbodies_instspc.link; [links_i, v(1+links_i)]];
+      % Bei gestellfestem Schubgelenk wird ein Punkt bzgl Beinketten-Basis
+      % und ein Punkt bzgl. PKM-Basis eingetragen
+      links_i = repmat(uint8(i-1),2,1);
+      collbodies_instspc_k.link = [collbodies_instspc_k.link; [links_i, v(1+links_i)]]; % TODO: Unklar welche Bedeutung die zweite Spalte hat
     end
     % Hänge einen Punkt (Nr. 9) für jedes Gelenk an. Unabhängig, ob 3D-Körper dafür
-    collbodies_instspc.type = [collbodies_instspc.type; repmat(uint8(9),R_cc.NJ,1)];
-    collbodies_instspc.params = [collbodies_instspc.params; NaN(R_cc.NJ,10)];
-    collbodies_instspc.link = [collbodies_instspc.link; ...
-      repmat(uint8(NLoffset+(1:R_cc.NJ)'),1,2)];
+    collbodies_instspc_k.type = [collbodies_instspc_k.type; repmat(uint8(9),R_cc.NJ,1)];
+    collbodies_instspc_k.params = [collbodies_instspc_k.params; NaN(R_cc.NJ,10)];
+    collbodies_instspc_k.link = [collbodies_instspc_k.link; ...
+      repmat(uint8((1:R_cc.NJ)'),1,2)];
     % Prüfe den Offset-Parameter für das Schubgelenk
     for i = find(R_cc.MDH.sigma'==1)
       for j = 1:length(Set.task.installspace.links)
@@ -1242,11 +1252,24 @@ if ~isempty(Set.task.installspace.type)
         end
       end
     end
+    % Trage in Roboter-Klasse der PKM-Beinkette ein
+    R_cc.collbodies_instspc = collbodies_instspc_k;
   end
+  % Trage Bauraum-Objekte in die Klassen ein (Gesamt-PKM bzw. SerRob)
+  if Structure.Type == 0  % Seriell 
+    R.collbodies_instspc.type = [collbodies_instspc_fix.type; collbodies_instspc_k.type];
+    R.collbodies_instspc.link = [collbodies_instspc_fix.link; collbodies_instspc_k.link];
+    R.collbodies_instspc.params = [collbodies_instspc_fix.params; collbodies_instspc_k.params];
+  else % PKM
+    R.update_collbodies(2); % Aktualisiert R.collbodies_instspc
+  end
+  collbodies_instspc = R.collbodies_instspc;
+  % Definiere die virtuellen Kollisionsprüfungen zur Bauraumüberwachung
+  instspc_collchecks_collbodies = []; % Liste der Bauraum-Kollisionsprüfungen (bezogen auf obige Variable)
   % Stelle äquivalente Gelenknummer von PKM zusammen (als  Übersetzungs- 
   % tabelle). Zeile 1 ursprünglich, Zeile 2 Übersetzung. Siehe oben.
   % Seriell: 0=Basis, 1=erstes bewegtes Segment, ...
-  equiv_link = repmat(0:collbodies_instspc.link(end,1),2,1);
+  equiv_link = repmat(0:max(collbodies_instspc.link(:,1)),2,1);
   if Structure.Type == 2 % PKM
     % Kollisionskörper-Zählung: 0=Basis, 1=Beinkette1-Basis, 2=Beinkette1-1.Seg., ...
     % Zählung für äquivalente Indizes: PKM-Basis und Beinketten-Basis ist
@@ -1264,20 +1287,23 @@ if ~isempty(Set.task.installspace.type)
       end
     end
   end
-  n_cb_robot = size(collbodies_instspc.type,1);
-  for i = 1:size(Set.task.installspace.type,1)
+  n_cb_task = length(Set.task.installspace.type); 
+  for i = 1:n_cb_task
     % Prüfe, für welches Robotersegment das Bauraum-Geometrieobjekt i
     % definiert ist
     links_i = Set.task.installspace.links{i}; % erlaubte Segmente
     % Gehe alle Kollisionskörper j des Roboters durch und prüfe, ob passend
-    for j = 1:size(collbodies_instspc.type,1)
+    % (in collbodies_instspc zuerst Bauraumgrenzen, dann Roboter-Körper)
+    for j = (n_cb_task+1):size(collbodies_instspc.type,1)
       % Nehme nicht die Segmentnummer selbst, sondern die des äquivalenten
       % Segments (jew. von der Basis aus gesehen, egal ob PKM oder seriell)
       iii = equiv_link(1,:) == collbodies_instspc.link(j,1);
+      assert(~isempty(iii), 'Zuordnungsfehler bei equiv_link');
       equiv_link_j = equiv_link(2,iii); % 0=Basis, 1=erstes bewegtes,...
       if any(links_i == equiv_link_j)
+        % Notation: Zuerst die Bauraumobjekte, dann die Roboterobjekte
         instspc_collchecks_collbodies = [instspc_collchecks_collbodies; ...
-          uint8([j, n_cb_robot+i])]; %#ok<AGROW> % Prüfe "Kollision" Roboter-Segment j mit Bauraum-Begrenzung i
+          uint8([j, i])]; %#ok<AGROW> % Prüfe "Kollision" Roboter-Segment j mit Bauraum-Begrenzung i
       end
     end
   end
@@ -1285,6 +1311,37 @@ if ~isempty(Set.task.installspace.type)
   [~,collbodies_instspc] = cds_update_collbodies(R, Set, Structure, Structure.qlim');
   Structure.installspace_collbodies = collbodies_instspc; % modifizerte Struktur abspeichern
   Structure.installspace_collchecks_collbodies = instspc_collchecks_collbodies;
+  assert(size(collbodies_instspc.link,2)==2, ['collbodies_instspc.link ', ...
+    'muss 2 Spalten haben']);
+  assert(size(collbodies_instspc.params,2)==10, ['collbodies_instspc.params ', ...
+    'muss 10 Spalten haben']);
+  assert(size(collbodies_instspc.type,2)==1, ['collbodies_instspc.type ', ...
+    'muss 1 Spalte haben']);
+  assert(size(collbodies_instspc.link,1)==size(collbodies_instspc.type,1), ...
+    'collbodies_instspc.link muss so viele Zeilen wie type haben');
+  assert(size(collbodies_instspc.params,1)==size(collbodies_instspc.type,1), ...
+    'collbodies_instspc.params muss so viele Zeilen wie type haben');
+  % Entferne Bauraumprüfungen von statischen Objekten aus der Roboterklasse
+  % Diese können mit der IK nicht verbessert werden (z.B. Führungsschienen)
+  % Dazu Nummer der Kollisionskörper aus Prüf-Liste holen
+  links_collchecks = [collbodies_instspc.link(instspc_collchecks_collbodies(:,1),1), ...
+                      collbodies_instspc.link(instspc_collchecks_collbodies(:,2),1)];
+  % Aus der laufenden Nummer eine Zuordnung zur Nummer bzgl. Roboterbasis:
+  equlinks_collchecks = NaN(size(links_collchecks)); % Zuordnung von oben
+  for i = 1:length(equlinks_collchecks(:)) % Ordne den Prüfungen das äquivalente Segment zu
+    equlinks_collchecks(i) = equiv_link(2,equiv_link(1,:)==links_collchecks(i));
+  end
+  % Filtern und eintragen in Klassenvariable
+  I_basecheck = all(equlinks_collchecks==0,2); % 0 in equlinks_collchecks ist (PKM-)Basis
+  R.collchecks_instspc = instspc_collchecks_collbodies(~I_basecheck,:);
+  assert(size(R.collbodies_instspc.link,2)==2, ['R.collbodies_instspc.link ', ...
+    'muss 2 Spalten haben']);
+  assert(size(R.collbodies_instspc.params,2)==10, ['R.collbodies_instspc.params ', ...
+    'muss 10 Spalten haben']);
+  assert(size(R.collbodies_instspc.type,2)==1, ['R.collbodies_instspc.type ', ...
+    'muss 1 Spalte haben']);
+  assert(size(R.collbodies_instspc.link,1)==size(collbodies_instspc.type,1), ...
+    'R.collbodies_instspc.link muss so viele Zeilen wie lokale Variable haben');
 end
 
 %% Parameter der Entwurfsoptimierung festlegen

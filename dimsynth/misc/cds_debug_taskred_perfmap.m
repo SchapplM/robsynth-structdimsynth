@@ -69,9 +69,9 @@ wn_plot = s.wn;
 % Standard-Einstellung für Darstellung der Kriterien im Plot setzen
 if all(isnan(s.wn)) || all(s.wn==0)
   if Structure.Type == 0
-    wn_plot = [0;0;1;0]; % Jacobi-Kondition
+    wn_plot = [0;0;1;0;0]; % Jacobi-Kondition
   else
-    wn_plot = [0;0;0;1;0]; % PKM-Jacobi-Kondition
+    wn_plot = [0;0;0;1;0;0]; % PKM-Jacobi-Kondition
   end
 end
 condsat_limit = s.condsat_limit;
@@ -139,9 +139,9 @@ end
 colormap(colors_map); % Farbskalierung mit Magenta als Farbe aktualisieren
 % Titel eintragen
 if Structure.Type == 0 % Seriell
-  critnames = {'quadlim', 'hyplim', 'cond', 'coll'};
+  critnames = {'quadlim', 'hyplim', 'cond', 'coll', 'installspace'};
 else % Parallel
-  critnames = {'quadlim', 'hyplim', 'cond_ik', 'cond_pkm', 'coll'};
+  critnames = {'quadlim', 'hyplim', 'cond_ik', 'cond_pkm', 'coll', 'installspace'};
 end
 wnstr = '';
 for i = 1:length(s.wn)

@@ -116,9 +116,9 @@ if i_ar > 1 && task_red && Set.general.debug_task_redundancy
   if R.Type == 0
     % Reihenfolge: quadratischer Grenzabstand, hyperbolischer Grenzabstand,
     % Konditionszahl Jacobi
-    I_wn_traj = [1 2 5 9];
+    I_wn_traj = [1 2 5 9 11];
   else
-    I_wn_traj = [1 2 5 6 11];
+    I_wn_traj = [1 2 5 6 11 13];
   end
   save(fullfile(resdir,sprintf('%s_TaskRed_Traj%d.mat', name_prefix_ardbg, i_ar-1)), ...
     'X2', 'Q', 'i_ar', 'q', 'Stats', 'fval', 's');
@@ -139,9 +139,9 @@ s = struct( ...
   'enforce_qlim', false, ...
   'Phit_tol', 1e-10, 'Phir_tol', 1e-10); % feine Toleranz
 if R.Type == 0 % Seriell
-  s.wn = zeros(10,1);
-else % PKM
   s.wn = zeros(12,1);
+else % PKM
+  s.wn = zeros(14,1);
 end
 % Zusätzliche Optimierung für Aufgabenredundanz.
 % TODO: Die Reglereinstellungen sind noch nicht systematisch ermittelt.
@@ -173,7 +173,7 @@ elseif i_ar == 2 && fval > 6e3 && fval < 7e3
   else% PKM
     s.wn(7) = 1; % D-Anteil quadratische Grenzen (Dämpfung)
   end
-elseif i_ar == 2 && fval > 3e3 && fval < 4e3
+elseif i_ar == 2 && any(fval_ar > 3e3 & fval_ar < 4e3)
   % Selbstkollision trat auf. Kollisionsvermeidung als Nebenbedingung
   if R.Type == 0 % Seriell
     s.wn(6) = 1; % D-Anteil quadratische Grenzen (Dämpfung, gegen Schwingungen)
@@ -187,6 +187,20 @@ elseif i_ar == 2 && fval > 3e3 && fval < 4e3
   % Aktivierungsbereich für Kollisionsvermeidung stark vergrößern, damit
   % ausreichend Vorlauf zur Vermeidung der Kollision besteht
   s.collbodies_thresh = 3; % 200% größere Kollisionskörper für Aktivierung (statt 50%)
+elseif i_ar == 2 && (any(fval_ar > 2e3 & fval_ar < 3e3) || ...
+    ... % auch vorsorglich aktivieren, wenn Bauraum geprüft wird. Sehr wahrscheinlich,
+    ... % dass nach der Kollision direkt der Bauraum fehlschlägt.
+    any(fval_ar > 3e3 & fval_ar < 4e3) && ~isempty(Set.task.installspace.type))
+  % Bauraumverletzung trat auf. Bauraum als Nebenbedingung
+  if R.Type == 0 % Seriell
+    s.wn(6) = 1; % D-Anteil quadratische Grenzen (Dämpfung, gegen Schwingungen)
+    s.wn(11) = 1e-5; % P-Anteil Bauraumeinhaltung
+    s.wn(12) = 4e-6; % D-Anteil Bauraumeinhaltung
+  else % PKM
+    s.wn(7) = 1; % D-Anteil quadratische Grenzen (Dämpfung, gegen Schwingungen)
+    s.wn(13) = 1e-4; % P-Anteil Bauraumeinhaltung
+    s.wn(14) = 1e-5; % D-Anteil Bauraumeinhaltung
+  end
 else
   % Verbessere die Konditionszahl und die Geschwindigkeit
   if R.Type == 0 % Seriell
