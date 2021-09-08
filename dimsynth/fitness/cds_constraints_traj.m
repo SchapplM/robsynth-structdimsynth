@@ -147,11 +147,12 @@ end
 % TODO: Die Reglereinstellungen sind noch nicht systematisch ermittelt.
 if i_ar == 1 % erster Durchlauf ohne zusätzliche Optimierung (nimmt minimale Geschwindigkeit)
   % Dadurch auch keine Nullraumbewegung für Gelenkgrenzen o.ä.
-elseif false && i_ar == 2 && fval > 5e4 % deaktiviert
-  % Vorher nicht lösbar. Optimiere noch weiter. Die normale Lösung kann bei
-  % Annäherung an Arbeitsraumgrenzen fehlschlagen.
-  % Gehe in Fall ganz unten (Konditionszahl-Optimierung)
-elseif i_ar == 2 && fval > 7e3 && fval < 9e3
+end
+% elseif false && i_ar == 2 && fval > 5e4 % deaktiviert
+%   % Vorher nicht lösbar. Optimiere noch weiter. Die normale Lösung kann bei
+%   % Annäherung an Arbeitsraumgrenzen fehlschlagen.
+%   % Gehe in Fall ganz unten (Konditionszahl-Optimierung)
+if i_ar == 2 && fval > 7e3 && fval < 9e3
   % Positionsgrenzen wurden verletzt. Besonders in Nebenbedingungen
   % berücksichtigen
   if R.Type == 0 % Seriell
@@ -164,7 +165,8 @@ elseif i_ar == 2 && fval > 7e3 && fval < 9e3
     s.wn(7) = 0.1; % D-Anteil quadratische Grenzen (Dämpfung)
   end
   s.enforce_qlim = true; % Bei Verletzung maximal entgegenwirken
-elseif i_ar == 2 && fval > 6e3 && fval < 7e3
+end
+if i_ar == 2 && fval > 6e3 && fval < 7e3
   % Geschwindigkeit wurde verletzt. Wird in NB eigentlich schon automatisch
   % berücksichtigt. Eine weitere Reduktion ist nicht möglich.
   return
@@ -173,7 +175,11 @@ elseif i_ar == 2 && fval > 6e3 && fval < 7e3
   else% PKM
     s.wn(7) = 1; % D-Anteil quadratische Grenzen (Dämpfung)
   end
-elseif i_ar == 2 && any(fval_ar > 3e3 & fval_ar < 4e3)
+end
+if i_ar == 2 && (any(fval_ar > 3e3 & fval_ar < 4e3) || ... % Ausgabewert für Kollision
+    ... % Wenn Kollisionen grundsätzlich geprüft werden sollen, immer als NB setzen,
+    ... % wenn vorher auch die Bauraumprüfung fehlgeschlagen ist. Beide im Zielkonflikt
+    Set.optimization.constraint_collisions && any(fval_ar > 2e3 & fval_ar < 3e3))
   % Selbstkollision trat auf. Kollisionsvermeidung als Nebenbedingung
   if R.Type == 0 % Seriell
     s.wn(6) = 1; % D-Anteil quadratische Grenzen (Dämpfung, gegen Schwingungen)
@@ -187,10 +193,12 @@ elseif i_ar == 2 && any(fval_ar > 3e3 & fval_ar < 4e3)
   % Aktivierungsbereich für Kollisionsvermeidung stark vergrößern, damit
   % ausreichend Vorlauf zur Vermeidung der Kollision besteht
   s.collbodies_thresh = 3; % 200% größere Kollisionskörper für Aktivierung (statt 50%)
-elseif i_ar == 2 && (any(fval_ar > 2e3 & fval_ar < 3e3) || ...
+end
+if i_ar == 2 && ~isempty(Set.task.installspace.type) && ...
+    (any(fval_ar > 2e3 & fval_ar < 3e3) || ... % Ausgabewert für Bauraumverletzung
     ... % auch vorsorglich aktivieren, wenn Bauraum geprüft wird. Sehr wahrscheinlich,
     ... % dass nach der Kollision direkt der Bauraum fehlschlägt.
-    any(fval_ar > 3e3 & fval_ar < 4e3) && ~isempty(Set.task.installspace.type))
+    any(fval_ar > 3e3 & fval_ar < 4e3)) % Ausgabewert für Kollision
   % Bauraumverletzung trat auf. Bauraum als Nebenbedingung
   if R.Type == 0 % Seriell
     s.wn(6) = 1; % D-Anteil quadratische Grenzen (Dämpfung, gegen Schwingungen)
@@ -201,7 +209,8 @@ elseif i_ar == 2 && (any(fval_ar > 2e3 & fval_ar < 3e3) || ...
     s.wn(13) = 1e-4; % P-Anteil Bauraumeinhaltung
     s.wn(14) = 1e-5; % D-Anteil Bauraumeinhaltung
   end
-else
+end
+if i_ar == 2 && ~any(s.wn) % es wurde noch keine Optimierung gesetzt (alles vorher erfolgreich)
   % Verbessere die Konditionszahl und die Geschwindigkeit
   if R.Type == 0 % Seriell
     s.wn(5) = 1; % P-Anteil Konditionszahl (Aufgaben-Jacobi)
