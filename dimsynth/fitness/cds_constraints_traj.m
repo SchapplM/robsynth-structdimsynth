@@ -192,7 +192,7 @@ if i_ar == 2 && (any(fval_ar > 3e3 & fval_ar < 4e3) || ... % Ausgabewert für Ko
   end
   % Aktivierungsbereich für Kollisionsvermeidung stark vergrößern, damit
   % ausreichend Vorlauf zur Vermeidung der Kollision besteht
-  s.collbodies_thresh = 3; % 200% größere Kollisionskörper für Aktivierung (statt 50%)
+  s.collbodies_thresh = 5; % 400% größere Kollisionskörper für Aktivierung (statt 50%)
 end
 if i_ar == 2 && ~isempty(Set.task.installspace.type) && ...
     (any(fval_ar > 2e3 & fval_ar < 3e3) || ... % Ausgabewert für Bauraumverletzung
@@ -209,6 +209,9 @@ if i_ar == 2 && ~isempty(Set.task.installspace.type) && ...
     s.wn(13) = 1e-4; % P-Anteil Bauraumeinhaltung
     s.wn(14) = 1e-5; % D-Anteil Bauraumeinhaltung
   end
+    % Aktivierung der Bauraum-Nebenbedingung bereits mit größerem Abstand.
+    % TODO: Bezug auf charakteristische Länge des Bauraums
+    s.installspace_thresh = 0.2; % 200mm Abstand von Bauraumgrenze von innen
 end
 if i_ar == 2 && ~any(s.wn) % es wurde noch keine Optimierung gesetzt (alles vorher erfolgreich)
   % Verbessere die Konditionszahl und die Geschwindigkeit
