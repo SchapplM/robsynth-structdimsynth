@@ -27,7 +27,7 @@ cds_show_task(Traj, Set);
 for debugcalc = [0 1]
   for obj_name = {'valid_act', 'mass', 'energy', 'condition', 'actforce', ...
       'materialstress', 'stiffness', 'jointrange', 'manipulability', ...
-      'minjacsingval', 'positionerror', 'chainlength', 'installspace'}
+      'minjacsingval', 'positionerror', 'chainlength', 'actvelo', 'installspace'}
     if strcmp(obj_name, 'valid_act') % nur für parallele Roboter
       Set.structures.whitelist = whitelist_all(~contains(whitelist_all, 'S'));
     else % für alle Roboter

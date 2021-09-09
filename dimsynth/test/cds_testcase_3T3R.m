@@ -33,7 +33,7 @@ for debugcalc = [0 1]
   %% Optimiere jedes mögliche Zielkriterium einzeln
   obj_list = {'valid_act', 'mass', 'energy', 'condition', 'actforce', ...
     'materialstress', 'stiffness', 'jointrange', 'manipulability', ...
-    'minjacsingval', 'positionerror', 'chainlength', 'installspace'};
+    'minjacsingval', 'positionerror', 'chainlength', 'actvelo', 'installspace'};
   % Speichere Erfolg aller Maßsynthese-Versuche ab. Auswertung unten.
   success_matrix = false(length(whitelist_all), length(obj_list));
   for obj_name = obj_list
