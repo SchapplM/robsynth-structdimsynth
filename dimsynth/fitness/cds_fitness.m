@@ -480,6 +480,12 @@ for iIKC = 1:size(Q0,1)
     physval_IKC(iIKC,strcmp(Set.optimization.objective, 'chainlength')) = physval_cl;
     fval_debugtext = [fval_debugtext, ' ', fval_debugtext_cl]; %#ok<AGROW>
   end
+  if any(strcmp(Set.optimization.objective, 'actvelo'))
+    [fval_av, fval_debugtext_av, ~, physval_av] = cds_obj_actvelo(R, QD);
+    fval_IKC(iIKC,strcmp(Set.optimization.objective, 'actvelo')) = fval_av;
+    physval_IKC(iIKC,strcmp(Set.optimization.objective, 'actvelo')) = physval_av;
+    fval_debugtext = [fval_debugtext, ' ', fval_debugtext_av]; %#ok<AGROW>
+  end
   if any(strcmp(Set.optimization.objective, 'installspace'))
     [fval_instspc, fval_debugtext_instspc, ~, physval_instspc] = cds_obj_installspace(R, Set, Structure, Traj_0, Q, JP);
     fval_IKC(iIKC,strcmp(Set.optimization.objective, 'installspace')) = fval_instspc;

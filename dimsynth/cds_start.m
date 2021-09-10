@@ -44,6 +44,9 @@ end
 if Set.task.profile == 0 && any(strcmp(Set.optimization.objective, 'energy'))
   error('Energieberechnung ohne Zeitverlauf der Trajektorie nicht sinnvoll');
 end
+if Set.optimization.nolinkmass && any(strcmp(Set.optimization.objective, 'stiffness'))
+  error('Berechnung der Steifigkeit zusammen mit nolinkmass aktuell nicht möglich');
+end
 % Prüfe Plausibilität von Abbruchbedingungen und Wahl mehrkriterieller Ziele
 if length(Set.optimization.obj_limit_physval) == 1 && length(Set.optimization.objective) > 1 && ...
     Set.optimization.obj_limit_physval == 0 % nur, falls Null nicht bereits überschrieben wurde
@@ -161,7 +164,7 @@ if Set.general.only_finish_aborted && (Set.general.isoncluster || ...
   Traj = d.Traj;
   Structures = d.Structures;
   Set_tmp = Set;
-  Set = d.Set;
+  Set = cds_settings_update(d.Set);
   % Überschreibe geladene Einstellungen, damit ein kopierter Ordner vom
   % Cluster auch lokal abgeschlossen werden kann.
   Set.general.only_finish_aborted = true; % Überschreibe geladene Einstellung
@@ -256,9 +259,6 @@ if Set.general.computing_cluster
     Set_cluster = Set;
     Set_cluster.optimization.optname = [Set.optimization.optname, suffix]; % sonst wird bei Zerlegung mehrfach der gleiche Name benutzt.
     Set_cluster.general.noprogressfigure = true; % Fortschritts-Bild des PSO auf Cluster nicht notwendig
-    Set_cluster.general.plot_details_in_fitness = 0; % Keine Debug-Bilder
-    Set_cluster.general.plot_robot_in_fitness = 0;
-    Set_cluster.general.save_robot_details_plot_fitness_file_extensions = {}; % Auch nichts zum Debuggen speichern
     Set_cluster.general.computing_cluster = false; % auf Cluster muss "lokal" gerechnet werden
     Set_cluster.general.isoncluster = true; % Damit einige Debug-Bilder reduziert werden können
     Set_cluster.general.parcomp_struct = true; % parallele Berechnung auf Cluster (sonst sinnlos)

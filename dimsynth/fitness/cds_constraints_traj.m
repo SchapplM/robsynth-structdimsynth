@@ -184,6 +184,9 @@ elseif i_ar == 2 && fval > 3e3 && fval < 4e3
     s.wn(11) = 0.1; % P-Anteil Kollisionsvermeidung
     s.wn(12) = 0.01; % D-Anteil Kollisionsvermeidung
   end
+  % Aktivierungsbereich für Kollisionsvermeidung stark vergrößern, damit
+  % ausreichend Vorlauf zur Vermeidung der Kollision besteht
+  s.collbodies_thresh = 3; % 200% größere Kollisionskörper für Aktivierung (statt 50%)
 else
   % Verbessere die Konditionszahl und die Geschwindigkeit
   if R.Type == 0 % Seriell
@@ -382,13 +385,8 @@ if any(I_ZBviol)
     (1-Failratio)*100, IdxFirst, length(Traj_0.t));
   continue
   % Debug: Trajektorie zeichnen
-  if R.Type == 0 %#ok<UNRCH> % Seriell
-    qDlim = R.qDlim;
-    qDDlim = R.qDDlim;
-  else % PKM
-    qDlim = cat(1,R.Leg(:).qDlim);
-    qDDlim = cat(1,R.Leg(:).qDDlim);
-  end
+  qDlim = Structure.qDlim;
+  qDDlim = Structure.qDDlim;
   RP = ['R', 'P'];
   Q_norm = (Q - repmat(qlim(:,1)', size(Q,1), 1)) ./ ...
             repmat(qlim(:,2)'-qlim(:,1)', size(Q,1), 1);
@@ -657,8 +655,10 @@ if R.Type ~= 0 && Set.general.debug_calc
     [X3,XD3,XDD3] = R.fkineEE2_traj(Q, QD, QDD, uint8(j));
     test_X = Traj_0.X(:,1:6) - X3(:,1:6);
     test_X([false(size(test_X,1),3),abs(abs(test_X(:,4:6))-2*pi)<1e-3]) = 0; % 2pi-Fehler entfernen
-    test_XD = Traj_0.XD(:,1:6) - XD3(:,1:6);
-    test_XDD = Traj_0.XDD(:,1:6) - XDD3(:,1:6);
+    test_XD_abs = Traj_0.XD(:,1:6) - XD3(:,1:6);
+    test_XD_rel = test_XD_abs ./ Traj_0.XD(:,1:6);
+    test_XDD_abs = Traj_0.XDD(:,1:6) - XDD3(:,1:6);
+    test_XDD_rel = test_XDD_abs ./ Traj_0.XDD(:,1:6);
     if any(abs(test_X(:))>1e-6)
       save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
         'tmp', 'cds_constraints_xtraj_legs_inconsistency.mat'));
@@ -666,14 +666,14 @@ if R.Type ~= 0 && Set.general.debug_calc
         'gegen Beinkette 1. Zuerst in Zeitschritt %d/%d. Fehler max. %1.4e.'], j, ...
         find(any(abs(test_X)>1e-6,2),1,'first'), length(Traj_0.t), max(abs(test_X(:))));
     end
-    if any(abs(test_XD(:))>1e-6)
+    if any(abs(test_XD_abs(:))>1e-5 & abs(test_XD_rel(:))>1e-3)
         save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
         'tmp', 'cds_constraints_xDtraj_legs_inconsistency.mat'));
       error(['Die Endeffektor-Trajektorie XD aus Beinkette %d stimmt nicht ', ...
         'gegen Beinkette 1. Zuerst in Zeitschritt %d/%d. Fehler max. %1.4e.'], j, ...
         find(any(abs(test_XD)>1e-6,2),1,'first'), length(Traj_0.t), max(abs(test_XD(:))));
     end
-    if any(abs(test_XDD(:))>1e-6)
+    if any(abs(test_XDD_abs(:))>1e-4 & abs(test_XDD_rel(:))>1e-2)
       save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
         'tmp', 'cds_constraints_xDDtraj_legs_inconsistency.mat'));
       error(['Die Endeffektor-Trajektorie XDD aus Beinkette %d stimmt nicht ', ...
@@ -899,10 +899,11 @@ if ~task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
       plot(Traj_0.t([1,end]), repmat(Structure.qDlim(i,:),2,1), 'r-');
       ylim(minmax2([QD_num(:,i);QD_num(:,i)]'));
       if R.Type == 0
-        title(sprintf('qD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+        ylabel(sprintf('qD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
       else
-        title(sprintf('qD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+        ylabel(sprintf('qD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
       end
+      title(sprintf('corr(qD/qDD)=%1.2f', corrQD(i)));
       if i == length(q), legend([hdl1;hdl2;hdl3], {'qD','diff(q)', 'int(qDD)'}); end
     end
     linkxaxes
@@ -918,17 +919,19 @@ if ~task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
       hdl1=plot(Traj_0.t, Q(:,i), '-');
       hdl2=plot(Traj_0.t, Q_num(:,i), '--');
       if R.Type == 0
-        title(sprintf('q %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+        ylabel(sprintf('q %d (%s)', i, RP(R.MDH.sigma(i)+1)));
       else
-        title(sprintf('q %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+        ylabel(sprintf('q %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
       end
+      title(sprintf('corr(q/qD)=%1.2f', corrQ(i)));
       if i == length(q), legend([hdl1;hdl2], {'q','int(qD)'}); end
     end
     linkxaxes
     sgtitle('Verlauf Gelenkkoordinaten');
     change_current_figure(1003);clf;
     QDD_num = zeros(size(Q)); % Differenzenquotient
-    QDD_num(2:end,:) = diff(QD(:,:))./ repmat(diff(Traj_0.t), 1, R.NJ);
+    QDD_num(1:end-1,:) = diff(QD(:,:))./ repmat(diff(Traj_0.t), 1, R.NJ);
+    corrQDD = diag(corr(QDD_num, QDD));
     for i = 1:R.NJ
       if R.Type == 2
       legnum = find(i>=R.I1J_LEG, 1, 'last');
@@ -939,10 +942,11 @@ if ~task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
       hdl1=plot(Traj_0.t, QDD(:,i), '-');
       hdl2=plot(Traj_0.t, QDD_num(:,i), '--');
       if R.Type == 0
-        title(sprintf('qDD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+        ylabel(sprintf('qDD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
       else
-        title(sprintf('qDD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+        ylabel(sprintf('qDD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
       end
+      title(sprintf('corrQDD(qD/qDD)=%1.2f', corrQDD(i)));
       if i == length(q), legend([hdl1;hdl2], {'qDD','diff(qD)'}); end
     end
     linkxaxes

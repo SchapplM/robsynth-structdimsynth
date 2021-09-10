@@ -241,7 +241,8 @@ for i = 1:NLEG
   R_init.qDDlim = repmat([-1,1]*Set.optimization.max_acceleration_revolute, R_init.NJ, 1);
   R_init.qDDlim(R_init.MDH.sigma==1,:) = repmat([-1,1]*... % Schubgelenk
     Set.optimization.max_acceleration_prismatic, sum(R_init.MDH.sigma==1), 1);
-  
+  % Eintragen der Grenzen in die Strukturvariable. Maßgeblich für die
+  % Prüfung der Grenzen in der Maßsynthese
   if Structure.Type == 0 % Serieller Roboter
     Structure.qDlim = R_init.qDlim;
     Structure.qDDlim = R_init.qDDlim;
@@ -260,6 +261,20 @@ for i = 1:NLEG
   R_init.DesPar.seg_par(:,1) = 50e-3;
   R_init.DesPar.seg_par(:,2) = 5e-3;
 end
+% Reduziere die Grenzen in der Klassenvariable. Diese Grenzen werden für
+% die inverse (Trajektorien-)Kinematik benutzt. Aufgrund von numerischen
+% Ungenauigkeiten können die Grenzen dort teilweise überschritten werden
+for i = 1:NLEG
+  if Structure.Type == 0
+    R_init = R;
+  else
+    R_init = R.Leg(i);
+  end
+  R_init.qDlim =  0.99*R_init.qDlim;
+  R_init.qDDlim = 0.98*R_init.qDDlim;
+end
+
+
 % Merke die ursprünglich aus der Datenbank geladene EE-Rotation. Die in der
 % Optimierung ergänzte Rotation ist zusätzlich dazu. (Bei 2T1R-Robotern
 % wird teilweise die EE-Rotation notwendig, damit das letzte KS planar ist)
@@ -1773,7 +1788,7 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   % Dynamikparameter nicht in der Fitness-Funktion belegt
   only_kinematic_objective = length(intersect(Set.optimization.objective, ...
     {'condition','jointrange','manipulability','minjacsingval','positionerror', ...
-    'chainlength','installspace'})) == length(Set.optimization.objective);
+    'actvelo','chainlength','installspace'})) == length(Set.optimization.objective);
   if any(fval > 1e3) ...% irgendeine Nebenbedingung wurde immer verletzt. ...
       || only_kinematic_objective % ... oder nur kinematische Zielfunktion ...
     cds_dimsynth_design(R, Q, Set, Structure); % ...  Daher nie bis zu diesem Funktionsaufruf gekommen.
@@ -1789,15 +1804,24 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   [fval_msv,~, ~, physval_msv] = cds_obj_minjacsingval(R, Set, Jinv_ges, Traj_0, Q);
   [fval_pe,~, ~, physval_pe] = cds_obj_positionerror(R, Set, Jinv_ges, Traj_0, Q);
   [fval_jrange,~, ~, physval_jrange] = cds_obj_jointrange(R, Set, Structure, Q);
+  [fval_actvelo,~, ~, physval_actvelo] = cds_obj_actvelo(R, QD);
   [fval_chainlength,~, ~, physval_chainlength] = cds_obj_chainlength(R);
   [fval_instspc,~, ~, physval_instspc] = cds_obj_installspace(R, Set, Structure, Traj_0, Q, JP);
-  [fval_stiff,~, ~, physval_stiff] = cds_obj_stiffness(R, Set, Q);
+  if Set.optimization.nolinkmass
+    % Die Formel für die Berechnung der Steifigkeit benutzt als Hilfsgröße
+    % die Masse der Beinketten. TODO: Ansatz überarbeiten.
+    fval_stiff = NaN; physval_stiff = NaN;
+    cds_log(2, sprintf(['[dimsynth] Keine Berechnung der Steifigkeit möglich, ', ...
+      'da masselose Beinketten.']));
+  else
+    [fval_stiff,~, ~, physval_stiff] = cds_obj_stiffness(R, Set, Q);
+  end
   % Reihenfolge siehe Variable Set.optimization.constraint_obj aus cds_settings_defaults
   fval_obj_all = [fval_mass; fval_energy; fval_actforce; fval_ms; fval_cond; ...
-    fval_mani; fval_msv; fval_pe; fval_jrange; fval_chainlength; fval_instspc; fval_stiff];
+    fval_mani; fval_msv; fval_pe; fval_jrange; fval_actvelo; fval_chainlength; fval_instspc; fval_stiff];
   physval_obj_all = [physval_mass; physval_energy; physval_actforce; ...
     physval_ms; physval_cond; physval_mani; physval_msv; physval_pe; ...
-    physval_jrange; physval_chainlength; physval_instspc; physval_stiff];
+    physval_jrange; physval_actvelo; physval_chainlength; physval_instspc; physval_stiff];
   % Vergleiche neu berechnete Werte mit den zuvor abgespeicherten (müssen
   % übereinstimmen)
   test_Jcond_abs = PSO_Detail_Data.constraint_obj_val(dd_optind, 4, dd_optgen) - physval_cond;
@@ -1835,8 +1859,8 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
 else
   % Keine Berechnung der Leistungsmerkmale möglich, da keine zulässige Lösung
   % gefunden wurde.
-  fval_obj_all = NaN(12,1);
-  physval_obj_all = NaN(12,1);
+  fval_obj_all = NaN(13,1);
+  physval_obj_all = NaN(13,1);
 end
 % Prüfe auf Plausibilität, ob die Optimierungsziele erreicht wurden. Neben-
 % bedingungen nur prüfen, falls überhaupt gültige Lösung erreicht wurde.
@@ -1847,7 +1871,7 @@ objconstr_names_all = {'mass', 'energy', 'actforce', 'condition', ...
   'stiffness', 'materialstress'};
 obj_names_all = {'mass', 'energy', 'actforce', 'materialstress', 'condition', ...
   'manipulability', 'minjacsingval', 'positionerror', 'jointrange', ...
-  'chainlength', 'installspace', 'stiffness'}; % konsistent zu fval_obj_all und physval_obj_all
+  'actvelo','chainlength', 'installspace', 'stiffness'}; % konsistent zu fval_obj_all und physval_obj_all
 I_constr = zeros(length(objconstr_names_all),1);
 for i = 1:length(objconstr_names_all)
   I_constr(i) = find(strcmp(objconstr_names_all{i}, obj_names_all));

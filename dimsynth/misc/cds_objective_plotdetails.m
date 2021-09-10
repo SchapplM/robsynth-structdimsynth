@@ -51,6 +51,9 @@ for jj = 1:length(Set.optimization.objective)
   elseif strcmp(Set.optimization.objective{jj}, 'chainlength')
     obj_units{jj} = 'mm';
     objscale(jj) = 1e3;
+  elseif strcmp(Set.optimization.objective{jj}, 'actvelo')
+    obj_units{jj} = '{rad/m}/s';
+    objscale(jj) = 1;
   elseif strcmp(Set.optimization.objective{jj}, 'installspace')
     obj_units{jj} = 'm³';
   else
