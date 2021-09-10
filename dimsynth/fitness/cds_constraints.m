@@ -316,9 +316,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       s4.avoid_collision_finish = true; % Am Ende versuchen, Kollisionen aufzulösen
       % Nebenbedingung: Optimiere die Konditionszahl (ist fast immer gut)
       if R.Type == 0 % Seriell
-        s4.wn = [0;0;1;0];
+        s4.wn = [0;0;1;0;0];
       else % PKM
-        s4.wn = [0;0;0;1;0]; % PKM-Jacobi, nicht IK-Jacobi
+        s4.wn = [0;0;0;1;0;0]; % PKM-Jacobi, nicht IK-Jacobi
       end
       % Setze die Einstellungen und Nebenbedingungen so, dass sich das
       % Ergebnis bestmöglich verändert.
@@ -335,9 +335,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           continue
         end
         if R.Type == 0 % Seriell
-          s4.wn = zeros(4,1);
-        else % PKM
           s4.wn = zeros(5,1);
+        else % PKM
+          s4.wn = zeros(6,1);
         end
         s4.wn(1) = 1; % quadratische Funktion für Gelenkgrenzen (Startwinkel bereits außerhalb der Grenzen)
         % Setze die Gelenkwinkel-Grenzen neu. Annahme: Die absoluten Werte
@@ -371,12 +371,33 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           continue
         end
         if R.Type == 0 % Seriell
-          s4.wn = zeros(4,1);
+          s4.wn = zeros(5,1);
           s4.wn(4) = 1;
         else % PKM
-          s4.wn = zeros(5,1);
+          s4.wn = zeros(6,1);
           s4.wn(5) = 1;
         end
+        if ~isempty(Set.task.installspace.type)
+          % Vorsorglich auch Optimierung nach Bauraumgrenzen aktivieren.
+          % Bei Kollisionsvermeidung größtmöglicher Abstand von Segmenten
+          % zueinander führt tendenziell zu Bauraumüberschreitung.
+          if R.Type == 0 % Seriell
+            s4.wn(5) = 1;
+          else % PKM
+            s4.wn(6) = 1;
+          end
+          s4.installspace_thresh = 0.05; % Nur bei geringem Abstand aktiv
+        end
+      elseif i_ar == 2 && fval_jic(jic) > 2e5 && fval_jic(jic) < 3e5
+        % Der vorherige Ausschlussgrund war eine Bauraumverletzung.
+        if R.Type == 0 % Seriell
+          s4.wn = zeros(5,1);
+          s4.wn(5) = 1;
+        else % PKM
+          s4.wn = zeros(6,1);
+          s4.wn(6) = 1;
+        end
+        s4.installspace_thresh = 0.1500; % Etwas höherer Abstand zur Aktivierung der Funktion
       end
       if i == 1
         % nur für ersten Traj.-Punkt die Kondition verbessern
@@ -424,8 +445,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       end
       % Ergebnis der Nullraumoptimierung auswerten und vergleichen.
       % Benutzung der Summe aus Ausgabe nicht möglich (wn verändert sich).
-      h_opt_pre = sum(s4.wn' .* Stats.h(1,2:end));
-      h_opt_post = sum(s4.wn' .* Stats.h(1+Stats.iter,2:end));
+      h_opt_pre  = sum(s4.wn' .* Stats.h(1,2:(1+length(s4.wn))) );
+      h_opt_post = sum(s4.wn' .* Stats.h(1+Stats.iter,2:(1+length(s4.wn))) );
       % Die Nebenbedingungen müssen sich verbessern, wenn schon bei einer
       % gültigen Startpose gestartet wurde. Wurde nur mit einer groben
       % Näherung (1e-3) gestartet, kann man die Nebenbedingungen nicht ver-
@@ -476,6 +497,12 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         plot(Stats.h(1:Stats.iter,:));
         xlabel('Iterationen'); grid on;
         ylabel('h');
+        if R.Type == 0 && s4.wn(5) || R.Type ~= 0 && s4.wn(6)
+          subplot(3,3,9);
+          plot(Stats.instspc_mindst(1:Stats.iter,:));
+          xlabel('Iterationen'); grid on;
+          ylabel('Abstand zum Bauraum (>0 draußen)');
+        end
         linkxaxes
       end
     end

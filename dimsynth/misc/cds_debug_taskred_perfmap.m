@@ -69,9 +69,9 @@ wn_plot = s.wn;
 % Standard-Einstellung für Darstellung der Kriterien im Plot setzen
 if all(isnan(s.wn)) || all(s.wn==0)
   if Structure.Type == 0
-    wn_plot = [0;0;1;0]; % Jacobi-Kondition
+    wn_plot = [0;0;1;0;0]; % Jacobi-Kondition
   else
-    wn_plot = [0;0;0;1;0]; % PKM-Jacobi-Kondition
+    wn_plot = [0;0;0;1;0;0]; % PKM-Jacobi-Kondition
   end
 end
 condsat_limit = s.condsat_limit;
@@ -139,15 +139,15 @@ end
 colormap(colors_map); % Farbskalierung mit Magenta als Farbe aktualisieren
 % Titel eintragen
 if Structure.Type == 0 % Seriell
-  critnames = {'quadlim', 'hyplim', 'cond', 'coll'};
+  critnames = {'quadlim', 'hyplim', 'cond', 'coll', 'installspace'};
 else % Parallel
-  critnames = {'quadlim', 'hyplim', 'cond_ik', 'cond_pkm', 'coll'};
+  critnames = {'quadlim', 'hyplim', 'cond_ik', 'cond_pkm', 'coll', 'installspace'};
 end
 wnstr = '';
 for i = 1:length(s.wn)
   if s.wn(i)
     if ~isempty(wnstr), wnstr = [wnstr, ', ']; end %#ok<AGROW>
-    wnstr = [wnstr, sprintf('wn(%s)=%1.1f', critnames{i}, s.wn(i))]; %#ok<AGROW>
+    wnstr = [wnstr, sprintf('wn(%s)=%1.1g', critnames{i}, s.wn(i))]; %#ok<AGROW>
   end
 end
 if isempty(wnstr)
@@ -170,7 +170,44 @@ ylabel(cb, cbtext, 'Rotation', 90, 'interpreter', 'tex');
 
 % insert trajectory into plot
 change_current_figure(fighdl);
-plot(s_tref, 180/pi*phiz_traj, 'k+-', 'linewidth', 2);
+hdl = NaN(5,1);
+hdl(1) = plot(s_tref, 180/pi*phiz_traj, 'k+-', 'linewidth', 2);
+
+if Structure.Type == 0 % Seriell
+  idxshift = 0;
+else % Parallel (PKM)
+  idxshift = 1;
+end
+formats = {'cx', 'r*', 'co', 'cv'};
+legtxt = {'Traj', 'Joint Lim', 'Singularity', 'Collision', 'Install. Space'};
+for i = 1:4
+  % Nur einzeichnen, falls in Farbskala integriert
+  % Bestimme Indizes für bestimmte Sonderfälle, wie Gelenküberschreitung,
+  % Singularität, Kollision, Bauraumverletzung.
+  % Mit den Farben sind diese Bereiche nicht eindeutig zu kennzeichnen, da
+  % immer die summierte Zielfunktion gezeichnet wird
+  switch i
+    case 1
+      I = isinf(H_all(:,:,2)'); % Gelenkgrenzen
+      if ~wn_plot(2), continue; end
+    case 2
+      I = H_all(:,:,3+idxshift)' > 1e3; % Kondition
+      if ~wn_plot(3+idxshift), continue; end
+    case 3
+      I = isinf(H_all(:,:,4+idxshift)'); % Kollision
+      if ~wn_plot(4+idxshift), continue; end
+    case 4
+      I = isinf(H_all(:,:,5+idxshift)'); % Bauraum
+      if ~wn_plot(5+idxshift), continue; end
+  end
+  if ~any(I(:))
+    continue
+  end
+  x_i = X_ext(I);
+  y_i = Y_ext(I);
+  hdl(1+i) = plot(x_i(:), y_i(:), formats{i}, 'MarkerSize', 4);
+end
+I_hdl = ~isnan(hdl);
 
 % Grenzen einzeichnen
 plot(minmax2(s_tref')', 180/pi*min(phiz_range)*[1;1], 'k--');
@@ -200,7 +237,9 @@ for ysign = [-1, +1]
   % Erneuter Plot
   surf(X_ext(Iy2,:),Y_ext2(Iy2,:),Z_ext(Iy2,:),CC_ext(Iy2,:), 'EdgeColor', 'none', 'FaceAlpha', 0.5);
 end
-
+% Legende erst hier einzeichnen. Sonst werden spätere Objekte auch
+% eingetragen.
+legend(hdl(I_hdl), legtxt(I_hdl), 'Location', 'NorthOutside', 'Orientation', 'horizontal');
 set(fighdl, 'color','w');
 drawnow();
 

@@ -125,6 +125,56 @@ if false
     R.plot( Q(1,:)', NaN(6,1), s_plot);
   end
 end
+
+%% Bauraum-Geometrie als Kollisionsobjekte eintragen
+n_cb_instspc = size(Set.task.installspace.type,1);
+if update_installspcbodies && n_cb_instspc > 0
+  T_0_W = invtr(R.T_W_0);
+  % Füge Geometrien des Bauraums als virtuelle Kollisionsobjekte hinzu.
+  % Transformiere ins Basis-KS des Roboters
+  for i = 1:n_cb_instspc
+    type_i = Set.task.installspace.type(i);
+    % Umrechnung der Parameter ins Basis-KS
+    params_W = Set.task.installspace.params(i,:);
+    if type_i == 1 % Quader
+      params_0 = transform_box(params_W, T_0_W);
+      % Setze Typ auf "Quader im Basis-KS". Information ist notwendig für
+      % automatische Verarbeitung (im Gegensatz zu "körperfester Quader").
+      type_i = uint8(10);
+    elseif type_i == 2 % Zylinder
+      params_0 = transform_cylinder(params_W, T_0_W);
+      % Setze Typ auf "Zylinder im Basis-KS". Information ist notwendig für
+      % automatische Verarbeitung (im Gegensatz zu "körperfester Zylinder").
+      type_i = uint8(12);
+    elseif type_i == 3 % Kapsel
+      params_0 = transform_capsule(params_W, T_0_W);
+      % Setze Typ auf "Kapsel im Basis-KS". Information ist notwendig für
+      % automatische Verarbeitung (im Gegensatz zu "körperfeste Kapsel").
+      type_i = uint8(13);
+    else
+      error('Fall %d nicht definiert', type_i);
+    end
+    % Eintragen Liste, in der auch schon die Roboter-Objekte stehen
+    collbodies_instspc.params(i,:) = params_0;
+    collbodies_instspc.type(i,1) = type_i;
+    % Bauraum wird zur Basis (=0) gezählt (ortsfest)
+    collbodies_instspc.link(i,:) = uint8([0,0]);
+  end
+
+  % Aktualisiere die Bauraum-Objekte in der Roboter-Klasse
+  if Structure.Type ~= 0 % PKM
+    % Aufteilung der Objekte in allgemein und Beinketten zugeordnet.
+    % Hier nur Aktualisierung des allgemeinen Teils (zu PKM-Basis gehörig)
+    collbodies_instspc_fix = struct( ...
+      'link', collbodies_instspc.link(1:n_cb_instspc,:), ...
+      'type', collbodies_instspc.type(1:n_cb_instspc,:), ...
+      'params', collbodies_instspc.params(1:n_cb_instspc,:));
+    R.collbodies_instspc_nonleg = collbodies_instspc_fix;
+  else
+    R.collbodies_instspc = collbodies_instspc;
+  end
+end
+
 %% Gebe Kollisionskörper des Roboters heraus
 
 % Liste für gesamte PKM. 0=PKM-Basis, 1=Beinkette1-Basis, 2=Beinkette1-
@@ -187,8 +237,12 @@ if Structure.Type ~= 0 % PKM
   R.update_collbodies();
 end
 
-% Kollisionskörper für PKM-Beinketten oder serielle Roboter
-isidx = 1; % Index für collbodies_instspc
+%% Kollisionskörper für PKM-Beinketten oder serielle Roboter
+if nargin < 4
+  % Vereinfachter Aufruf um nur die Basis-Bauraumgeometrien zu initialisieren
+  update_installspcbodies = false;
+end
+isidx = n_cb_instspc+1; % Nächster Index für collbodies_instspc
 for k = 1:NLEG
   if R.Type == 0  % Seriell 
     NLoffset = 0;
@@ -248,9 +302,7 @@ for k = 1:NLEG
 end
 
 % Ausgabe der aktualisierten Liste der Bauraum-Kollisionsprüfungen
-if update_installspcbodies
-  Structure.installspace_collbodies = collbodies_instspc;
-end
+
 return
 Q(isinf(Q)) = 0; %#ok<UNRCH> % Grenzen können inf sein bei Drehgelenken
 %% Debug: Bauraum-Ersatzpunkte zeichnen
@@ -292,4 +344,21 @@ if false
     s_plot = struct( 'ks_legs', [], 'ks_platform', [], 'straight', 1, 'mode', 5);
     R.plot( Q(1,:)', NaN(6,1), s_plot);
   end
+end
+end
+
+function params_0 = transform_box(params_W, T_0_W)
+params_0 = [eye(3,4)*T_0_W*[params_W(1:3)';1]; ... % Aufpunkt
+            T_0_W(1:3,1:3)*params_W(4:6)'; ... % Richtungsvektoren
+            T_0_W(1:3,1:3)*params_W(7:9)'; params_W(10)]';
+end
+
+function params_0 = transform_cylinder(params_W, T_0_W)
+params_0 = [eye(3,4)*T_0_W*[params_W(1:3)';1]; ... % Punkt 1
+            eye(3,4)*T_0_W*[params_W(4:6)';1]; ... % Punkt 2
+            params_W(7); NaN(3,1)]'; % Radius, auffüllen auf Array-Größe
+end
+function params_0 = transform_capsule(params_W, T_0_W)
+% identische Funktion wie für Zylinder
+params_0 = transform_cylinder(params_W, T_0_W);
 end

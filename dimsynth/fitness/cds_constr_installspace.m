@@ -41,45 +41,16 @@ if Set.general.matfile_verbosity > 1
   % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constr_installspace_0.mat'));
 end
 %% Daten der Roboterstruktur laden
-% Lade die vorab initialisierten Ersatzpunkte für die Bauraumprüfung
+% Lade die vorab initialisierten Ersatzpunkte für die Bauraumprüfung.
+% Hier sind die Bauraum-Geometrien und die Roboter-Punkte bereits definiert
+% Siehe cds_update_collbodies.
 collbodies = Structure.installspace_collbodies;
-% Merke, bis wohin die Kollisionsobjekte zum Roboter gehören
-n_cb_robot = size(collbodies.type,1);
-
-%% Bauraum-Geometrie als Kollisionsobjekte eintragen
-T_0_W = invtr(R.T_W_0);
- % Liste der Kollisionsprüfungen: Schon vorab bestimmt.
+% Merke, bis wohin die Kollisionsobjekte zum Bauraum gehören (die ersten
+% der Liste). Die restlichen gehören zum Roboter
+n_cb_instspc = size(Set.task.installspace.type,1);
+n_cb_robot = size(collbodies.type,1) - n_cb_instspc;
+% Liste der Kollisionsprüfungen: Schon vorab bestimmt.
 collchecks = Structure.installspace_collchecks_collbodies;
-% Füge Geometrien des Bauraums als virtuelle Kollisionsobjekte hinzu.
-% Transformiere ins Basis-KS des Roboters
-for i = 1:size(Set.task.installspace.type,1)
-  type_i = Set.task.installspace.type(i);
-  % Umrechnung der Parameter ins Basis-KS
-  params_W = Set.task.installspace.params(i,:);
-  if type_i == 1 % Quader
-    params_0 = transform_box(params_W, T_0_W);
-    % Setze Typ auf "Quader im Basis-KS". Information ist notwendig für
-    % automatische Verarbeitung (im Gegensatz zu "körperfester Quader").
-    type_i = uint8(10);
-  elseif type_i == 2 % Zylinder
-    params_0 = transform_cylinder(params_W, T_0_W);
-    % Setze Typ auf "Zylinder im Basis-KS". Information ist notwendig für
-    % automatische Verarbeitung (im Gegensatz zu "körperfester Zylinder").
-    type_i = uint8(12);
-  elseif type_i == 3 % Kapsel
-    params_0 = transform_capsule(params_W, T_0_W);
-    % Setze Typ auf "Kapsel im Basis-KS". Information ist notwendig für
-    % automatische Verarbeitung (im Gegensatz zu "körperfeste Kapsel").
-    type_i = uint8(13);
-  else
-    error('Fall %d nicht definiert', type_i);
-  end
-  % Anhängen an Liste, in der auch schon die Roboter-Objekte stehen
-  collbodies.params = [collbodies.params; params_0];
-  collbodies.type = [collbodies.type; type_i];
-  % Bauraum wird zur Basis (=0) gezählt (ortsfest)
-  collbodies.link = [collbodies.link; uint8([0,0])];
-end
 
 %% Bestimme Geometrieübereinstimmung mit Bauraum
 % Nehme Funktion für Kollisionsprüfung mit geänderter Einstellung.
@@ -94,8 +65,8 @@ idx_timestep_worst = ones(n_cb_robot,1); % Zu welchem Zeitschritt tritt der schl
 % Alle Roboter-Objekte durchgehen
 for i = 1:n_cb_robot
   % Indizes aller Kollisionsprüfungen mit diesem Roboter-Objekt i
-  % (Roboter-Objekte sind immer das erste Kollisionsobjekt (s.o.)
-  I = collchecks(:,1) == i;
+  % (Roboter-Objekte sind immer die letzten Kollisionsobjekte (s.o.)
+  I = collchecks(:,1) == n_cb_instspc+i;
   % Kollisionsergebnis für alle Bauraum-Prüfungen für dieses Roboter-Objekt
   collstate_i = coll(:,I);
   % Wenn Objekt i in irgendeinem Bauraum-Objekt (any-Prüfung) und das für
@@ -145,7 +116,11 @@ if fval == 0 || 1e4*fval >= Set.general.plot_details_in_fitness
   return
 end
 % Suche Datenpunkt mit weitester Entfernung vom Bauraum (schlechtester Fall)
-j = idx_timestep_worst(idx_body_worst); % Index für Zeitschritt in Daten 
+if isempty(idx_timestep_worst)
+  j = 1; % Debug: Keine Verletzung aufgetreten. Trotzdem zeichnen
+else
+  j = idx_timestep_worst(idx_body_worst); % Index für Zeitschritt in Daten
+end
 % Bild zeichnen
 change_current_figure(868); clf; hold all
 view(3); axis auto; grid on;
@@ -176,7 +151,7 @@ for i = 1:size(collbodies.link,1)
   pts = JP(j,[3*(ii1-1)+1:3*ii1, 3*(ii2-1)+1:3*ii2]); % bezogen auf Basis-KS
   % Umrechnung ins Welt-KS
   pts_W = repmat(R.T_W_0(1:3,4),2,1) + rotate_wrench(pts', R.T_W_0(1:3,1:3));
-  if i <= n_cb_robot
+  if i > n_cb_instspc
     % Das Objekt ist Teil des Roboters und muss innerhalb mindestens eines
     % Bauraum-Objektes liegen
     % Kollisions-Ergebnis für diesen Kollisionskörper herausfinden
@@ -251,20 +226,3 @@ if num_outside_plot == 0
   error('Anzahl der geplotteten Bauraumverletzungen stimmt nicht mit vorab berechneten überein');
 end
 return
-end
-
-function params_0 = transform_box(params_W, T_0_W)
-params_0 = [eye(3,4)*T_0_W*[params_W(1:3)';1]; ... % Aufpunkt
-            T_0_W(1:3,1:3)*params_W(4:6)'; ... % Richtungsvektoren
-            T_0_W(1:3,1:3)*params_W(7:9)'; params_W(10)]';
-end
-
-function params_0 = transform_cylinder(params_W, T_0_W)
-params_0 = [eye(3,4)*T_0_W*[params_W(1:3)';1]; ... % Punkt 1
-            eye(3,4)*T_0_W*[params_W(4:6)';1]; ... % Punkt 2
-            params_W(7); NaN(3,1)]'; % Radius, auffüllen auf Array-Größe
-end
-function params_0 = transform_capsule(params_W, T_0_W)
-% identische Funktion wie für Zylinder
-params_0 = transform_cylinder(params_W, T_0_W);
-end
