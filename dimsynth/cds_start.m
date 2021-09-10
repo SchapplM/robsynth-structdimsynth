@@ -124,6 +124,11 @@ if length(Set.optimization.objective) == 1 && ... % ist immer einkriteriell
 end
 assert(isa(Set.task.DoF, 'logical') && all(size(Set.task.DoF)==[1 6]), ...
   'Set.task.DoF muss 1x6 logical sein');
+if ~isempty(Traj.X) && any(abs(Traj.X(1,:)-Traj.XE(1,:))>1e-6)
+  error(['Erster Eckpunkt Traj.XE sollte identisch zum Trajektorienstart ', ...
+    'Traj.X sein: [%s] vs [%s]'], disp_array(Traj.X(1,:), '%1.1f'), ...
+    disp_array(Traj.XE(1,:), '%1.1f'));
+end
 %% Menge der Roboter laden
 if ~(Set.general.only_finish_aborted && Set.general.isoncluster) && ... % Abschluss auf Cluster
     ~Set.general.regenerate_summary_only || ... % Nur Bilder (ohne Abschluss)

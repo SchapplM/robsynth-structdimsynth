@@ -433,10 +433,12 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
 %         R.fill_fcn_handles(true);
 %         [q, Phi, Tc_stack, Stats] = R.invkin2(R.x2tr(Traj_0.XE(i,:)'), q0_arik, s4);
       end
-      if ~ik_res_ikar % Keine Lösung gefunden
-        if s4.scale_lim == 0 % Sollte eigentlich nicht passieren
-          cds_log(-1, sprintf(['[constraints] Eckpunkt %d: IK-Berechnung mit Aufgabenredundanz ', ...
-            'fehlerhaft, obwohl ohne AR funktioniert hat.'], i));
+      if ~ik_res_ikar % Keine Lösung gefunden. Sollte eigentlich nicht passieren.
+        if s4.scale_lim == 0 && ... % Bei scale_lim kann der Algorithmus feststecken
+            ~Stats.coll % Wenn Kollisionsvermeidung aktiv wurde, kann das zum Scheitern führen
+          cds_log(-1, sprintf(['[constraints] Eckpunkt %d: IK-Berechnung ', ...
+            'mit Aufgabenredundanz fehlerhaft, obwohl es ohne AR funktioniert ', ...
+            'hat. wn=[%s]'], i, disp_array(s4.wn','%1.1g')));
         else
           % Falls neue Grenzen gesetzt wurden, ist die IK eventuell nicht
           % innerhalb der Grenzen lösbar. In diesem Fall hier kein Fehler
@@ -456,7 +458,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
             h_opt_post < 1e8 % Es ist kein numerisch großer und ungenauer Wert
           cds_log(-1, sprintf(['[constraints] Eckpunkt %d: IK-Berechnung ', ...
             'mit Aufgabenredundanz hat Nebenoptimierung verschlechtert: ', ...
-            '%1.4e -> %1.4e'], i, h_opt_pre, h_opt_post));
+            '%1.4e -> %1.4e. wn=[%s]'], i, h_opt_pre, h_opt_post, disp_array(s4.wn','%1.1g')));
         end
         continue % Verwerfe das neue Ergebnis (nehme dadurch das vorherige)
         % Zum Debuggen
@@ -490,14 +492,22 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         xlabel('Iterationen'); grid on;
         ylabel('Phi');
         subplot(3,3,7);
-        plot([diff(Stats.h(1:Stats.iter,:));NaN(1,size(Stats.h,2))]);
+        plot(diff(Stats.h(1:Stats.iter,[true,s4.wn'~=0])));
         xlabel('Iterationen'); grid on;
         ylabel('diff h');
         subplot(3,3,8);
-        plot(Stats.h(1:Stats.iter,:));
+        plot(Stats.h(1:Stats.iter,[true,s4.wn'~=0]));
+        legend(['w.sum',cellfun(@(s)sprintf('h%d',s),num2cell(find(s4.wn'~=0)),'UniformOutput',false)]);
+   
         xlabel('Iterationen'); grid on;
         ylabel('h');
-        if R.Type == 0 && s4.wn(5) || R.Type ~= 0 && s4.wn(6)
+        if (R.Type == 0 && s4.wn(4) || R.Type ~= 0 && s4.wn(5)) && ...
+            any(Stats.maxcolldepth>0) % es sollte auch eine Kollision geben
+          subplot(3,3,9);
+          plot(Stats.maxcolldepth(1:Stats.iter,:));
+          xlabel('Iterationen'); grid on;
+          ylabel('Kollisionstiefe (>0 Koll.)');
+        elseif R.Type == 0 && s4.wn(5) || R.Type ~= 0 && s4.wn(6)
           subplot(3,3,9);
           plot(Stats.instspc_mindst(1:Stats.iter,:));
           xlabel('Iterationen'); grid on;

@@ -54,6 +54,8 @@ s = struct( ...
   ... % condition numbers. Saturate by decadic logarithm.
   'condsat_limit', 100, ...
   'name_prefix_ardbg', '', ... % Für Dateinamen der zu speichernden Bilder
+  'fval', NaN, ... % Für Titelbeschriftung
+  'constrvioltext', '', ... % Für Titelbeschriftung
   'i_ar', 0, ... % Iteration der Aufgabenredundanz-Schleife
   'wn', NaN); % Standard-Werte
 if nargin == 9
@@ -153,7 +155,7 @@ end
 if isempty(wnstr)
   wnstr = 'wn=0. Plot: cond(J)';
 end
-titlestr = sprintf('Traj.-IK Iteration %d; %s', s.i_ar, wnstr);
+titlestr = sprintf('It. %d, fval=%1.1e; %s; %s', s.i_ar, s.fval, wnstr, s.constrvioltext);
 sgtitle(titlestr, 'interpreter', 'none');
 % Legende für Farben eintragen.
 cb = colorbar();

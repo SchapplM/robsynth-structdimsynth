@@ -124,7 +124,8 @@ if i_ar > 1 && task_red && Set.general.debug_task_redundancy
     'X2', 'Q', 'i_ar', 'q', 'Stats', 'fval', 's');
   cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref(1:nt_red), ...
     phiz_range, X2(1:nt_red,6), Stats.h(:,1), struct('wn', s.wn(I_wn_traj), ...
-    'i_ar', i_ar-1, 'name_prefix_ardbg', name_prefix_ardbg));
+    'i_ar', i_ar-1, 'name_prefix_ardbg', name_prefix_ardbg, 'fval', fval, ...
+    'constrvioltext', constrvioltext));
   % Falls beim Debuggen die Aufgaben-Indizes zurückgesetzt wurden
   R.update_EE_FG(R.I_EE, Set.task.DoF);
 end
