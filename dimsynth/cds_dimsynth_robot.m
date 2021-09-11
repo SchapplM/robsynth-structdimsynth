@@ -936,21 +936,16 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   
   % Starrkörper-Kollisionsprüfung für PKM erweitern
   if Structure.Type == 2  % PKM
-    % Auch Kollisionen aller Beinsegmente mit allen anderen Beinketten
-    % prüfen. Einschränkungen: Nur direkt benachbarte Beinketten prüfen
-    for k = 1:NLEG
+    % Prüfe Kollisionen aller Beinsegmente mit allen anderen Beinketten
+    for k = 1:NLEG % Index erste Beinkette für Koll.-Prüfung
       if k > 1, NLoffset_k = 1+R.I2L_LEG(k-1)-(k-1);
       else,     NLoffset_k = 1; end
-      for j = k-1 % Beinketten müssen benachbart sein. Prüfe nur linken Nachbarn
-        % Durch Prüfung aller Beinketten sind auch alle Nachbarn abgedeckt
-        % Rechne Beinkette 0-7 um in 1-6 (zur einfachereren Zählung)
-        i = j; % Periodizität der Nummern
-        if i == 0, i = NLEG; end
-        if i == NLEG+1, i = 1; end
+      for i = [1:(k-1), (k+1):NLEG] % Index zweite Beinkette für Koll.-Prüfung
+        if i > k, continue; end % Nur in eine Richtung prüfen, sonst doppelt
         % Offset der Beinketten-Körper in den PKM-Körpern
         if i > 1, NLoffset_i = 1+R.I2L_LEG(i-1)-(i-1);
         else,     NLoffset_i = 1; end
-        % Alle Segmente von Beinkette k können mit allen von Kette j
+        % Alle Segmente von Beinkette k können mit allen von Kette i
         % kollidieren
         for cb_k = R.Leg(k).collbodies.link(:,1)'
           for cb_i = R.Leg(i).collbodies.link(:,1)'
@@ -1168,17 +1163,21 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
        Structure.collbodies_robot.type(Structure.selfcollchecks_collbodies(:,2))];
     assert(all(colltypes_check_class(:)==colltypes_check_struct(:)), ...
       'Typen der Objekte zu den Kollisionsprüfungen nicht konsistent nach Matlab-Klasse');
+    assert(all(diff(Structure.selfcollchecks_collbodies')==0), ...
+      'Prüfung eines Kollisionskörpers mit sich selbst ergibt keinen Sinn');
   end
   % Debug: Liste der Kollisionsprüfungen anzeigen
   if false
     fprintf('Liste der Kollisionsprüfungen (der Kollisionskörper):\n');   %#ok<UNRCH>
     for i = 1:size(Structure.selfcollchecks_collbodies,1)
-      fprintf('%d - collbodies %d vs %d (links %d vs %d; type %d vs %d)\n', i, ...
+      fprintf('%03d - collbodies %02d vs %02d (links %02d vs %02d; type %02d vs %02d; "%s" vs "%s")\n', i, ...
         Structure.selfcollchecks_collbodies(i,1), Structure.selfcollchecks_collbodies(i,2), ...
         Structure.collbodies_robot.link(Structure.selfcollchecks_collbodies(i,1),1), ...
         Structure.collbodies_robot.link(Structure.selfcollchecks_collbodies(i,2),1), ...
         Structure.collbodies_robot.type(Structure.selfcollchecks_collbodies(i,1)), ...
-        Structure.collbodies_robot.type(Structure.selfcollchecks_collbodies(i,2)));
+        Structure.collbodies_robot.type(Structure.selfcollchecks_collbodies(i,2)), ...
+        names_collbodies{1+Structure.selfcollchecks_collbodies(i,1)}, ...
+        names_collbodies{1+Structure.selfcollchecks_collbodies(i,2)});
     end
   end
   if isempty(Structure.selfcollchecks_collbodies)
