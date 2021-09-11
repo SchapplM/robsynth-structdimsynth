@@ -438,7 +438,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
             ~Stats.coll % Wenn Kollisionsvermeidung aktiv wurde, kann das zum Scheitern führen
           cds_log(-1, sprintf(['[constraints] Eckpunkt %d: IK-Berechnung ', ...
             'mit Aufgabenredundanz fehlerhaft, obwohl es ohne AR funktioniert ', ...
-            'hat. wn=[%s]'], i, disp_array(s4.wn','%1.1g')));
+            'hat. wn=[%s]. max(Phi)=%1.1e.'], i, disp_array(s4.wn','%1.1g'), max(abs(Phi))));
         else
           % Falls neue Grenzen gesetzt wurden, ist die IK eventuell nicht
           % innerhalb der Grenzen lösbar. In diesem Fall hier kein Fehler

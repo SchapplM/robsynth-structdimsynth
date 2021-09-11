@@ -210,9 +210,9 @@ if i_ar == 2 && ~isempty(Set.task.installspace.type) && ...
     s.wn(13) = 1e-4; % P-Anteil Bauraumeinhaltung
     s.wn(14) = 1e-5; % D-Anteil Bauraumeinhaltung
   end
-    % Aktivierung der Bauraum-Nebenbedingung bereits mit größerem Abstand.
-    % TODO: Bezug auf charakteristische Länge des Bauraums
-    s.installspace_thresh = 0.2; % 200mm Abstand von Bauraumgrenze von innen
+  % Aktivierung der Bauraum-Nebenbedingung bereits mit größerem Abstand.
+  % TODO: Bezug auf charakteristische Länge des Bauraums
+  s.installspace_thresh = 0.2; % 200mm Abstand von Bauraumgrenze von innen
 end
 if i_ar == 2 && ~any(s.wn) % es wurde noch keine Optimierung gesetzt (alles vorher erfolgreich)
   % Verbessere die Konditionszahl und die Geschwindigkeit
@@ -223,6 +223,44 @@ if i_ar == 2 && ~any(s.wn) % es wurde noch keine Optimierung gesetzt (alles vorh
     s.wn(6) = 1; % P-Anteil Konditionszahl (PKM-Jacobi)
     s.wn(10) = 0.1; % D-Anteil Konditionszahl (PKM-Jacobi)
   end
+end
+if R.Type == 0 % Seriell
+  I_wn_instspc = 5;
+else % PKM
+  I_wn_instspc = 6;
+end
+if i_ar == 2 && ~isempty(Set.task.installspace.type) && s.wn(I_wn_instspc)==0
+  % Bauraumprüfung ist allgemein aktiv, wird aber in der
+  % Nullraumoptimierung nicht bedacht. Zusätzliche Aktivierung mit sehr
+  % kleinem Schwellwert zur Aktivierung (nur für Notfälle)
+  if R.Type == 0 % Seriell
+    s.wn(11) = 1e-5; % P-Anteil Bauraumeinhaltung
+    s.wn(12) = 4e-6; % D-Anteil Bauraumeinhaltung
+  else % PKM
+    s.wn(13) = 1e-4; % P-Anteil Bauraumeinhaltung
+    s.wn(14) = 1e-5; % D-Anteil Bauraumeinhaltung
+  end
+  s.installspace_thresh = 0.050; % 50mm Abstand von Bauraumgrenze von innen
+end
+if R.Type == 0 % Seriell
+  I_wn_coll = 4;
+else % PKM
+  I_wn_coll = 5;
+end
+if i_ar == 2 && Set.optimization.constraint_collisions && s.wn(I_wn_coll)==0
+  % Kollisionsprüfung ist allgemein aktiv, wird aber in der
+  % Nullraumoptimierung nicht bedacht. Zusätzliche Aktivierung mit sehr
+  % kleinem Schwellwert zur Aktivierung (nur für Notfälle)
+  if R.Type == 0 % Seriell
+    s.wn(9) = 1; % P-Anteil Kollisionsvermeidung
+    s.wn(10) = 0.1; % D-Anteil Kollisionsvermeidung
+  else % PKM
+    s.wn(11) = 0.1; % P-Anteil Kollisionsvermeidung
+    s.wn(12) = 0.01; % D-Anteil Kollisionsvermeidung
+  end
+  % Aktivierungsbereich für Kollisionsvermeidung verkleinern (nur für
+  % Ausnahmefälle stark an Grenze)
+  s.collbodies_thresh = 1.25; % 25% größere Kollisionskörper für Aktivierung (statt 50%)
 end
 if i_ar == 3
   Q_change = Q - Q_alt;
