@@ -384,7 +384,14 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
       end
     end
     leghdl(countmarker,:) = hdl; %#ok<AGROW>
-    legstr{countmarker} = sprintf('%d/%d (%s)', i, length_Structures, Structures{i}.Name); %#ok<AGROW>
+    RobShortName = ResTab.Beschreibung{strcmp(ResTab.Name,Name) & ResTab.LfdNr==i};
+    if isempty(RobShortName)
+      addtxt = sprintf('; %s', RobShortName);
+    else
+      addtxt = '';
+    end
+    legstr{countmarker} = sprintf('%d/%d (%s%s)', i, length_Structures, ...
+      Structures{i}.Name, addtxt); %#ok<AGROW>
     % Funktions-Handle zum Anklicken der Datenpunkte
     ButtonDownFcn=@(src,event)cds_paretoplot_buttondownfcn(src,event,...
       Set.optimization.optname,Structures{i}.Name, i);
