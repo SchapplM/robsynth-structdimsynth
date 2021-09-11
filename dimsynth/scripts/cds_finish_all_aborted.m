@@ -82,5 +82,11 @@ for i = 1:length(optdirs)
   Set_tmp = cds_settings_update(sd.Set, 1);
   Set_tmp.computing_cluster = false; % Abschluss muss immer lokal gemacht werden bezogen auf System, das dieses Skript hier ausführt
   Set_tmp.general.only_finish_aborted = true;
+  Set_tmp.general.isoncluster = false;
+  % Überschreibe das Verzeichnis, das in den Einstellungen gesetzt ist.
+  % Dadurch auch lokaler Abschluss, wenn vom Cluster heruntergeladen.
+  % TODO: Eigentlich gibt es dafür schon eine Logik in cds_start, die
+  % aber scheinbar nicht funktioniert.
+  Set_tmp.optimization.resdir = respath;
   cds_start(Set_tmp, sd.Traj);
 end

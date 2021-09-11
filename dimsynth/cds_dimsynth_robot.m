@@ -1694,6 +1694,11 @@ end
 % Erneuter Aufruf der Fitness-Funktion. Hauptsächlich, um die Q-Trajektorie
 % extrahieren zu können. Rekonstruktion im Fall von Aufgabenredundanz sonst
 % nicht so einfach möglich.
+% Bei erneutem Aufruf keine Debug-Bilder. Dauert sonst bei Abschluss von
+% Berechnung zu lange.
+Set.general.debug_task_redundancy = false;
+Set.general.plot_details_in_fitness = 0;
+Set.general.plot_robot_in_fitness = 0;
 for i = 1:max_retry 
   % Mehrere Versuche vornehmen, da beim Umklappen der Roboterkonfiguration
   % andere Ergebnisse entstehen können.
