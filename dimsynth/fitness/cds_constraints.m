@@ -438,7 +438,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
             ~Stats.coll % Wenn Kollisionsvermeidung aktiv wurde, kann das zum Scheitern führen
           cds_log(-1, sprintf(['[constraints] Eckpunkt %d: IK-Berechnung ', ...
             'mit Aufgabenredundanz fehlerhaft, obwohl es ohne AR funktioniert ', ...
-            'hat. wn=[%s]. max(Phi)=%1.1e.'], i, disp_array(s4.wn','%1.1g'), max(abs(Phi))));
+            'hat. wn=[%s]. max(Phi)=%1.1e. Iter %d/%d'], i, disp_array(s4.wn','%1.1g'), ...
+            max(abs(Phi)), Stats.iter, size(Stats.Q,1)));
         else
           % Falls neue Grenzen gesetzt wurden, ist die IK eventuell nicht
           % innerhalb der Grenzen lösbar. In diesem Fall hier kein Fehler
@@ -453,7 +454,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       % gültigen Startpose gestartet wurde. Wurde nur mit einer groben
       % Näherung (1e-3) gestartet, kann man die Nebenbedingungen nicht ver-
       % gleichen.
-      if s.Phit_tol < 1e-8 && h_opt_post > h_opt_pre + 1e-3 % Toleranz gegen Numerik-Fehler
+      if ik_res_ikar && h_opt_post > h_opt_pre + 1e-3 % Toleranz gegen Numerik-Fehler
         if abs(Stats.h(1+Stats.iter,1)-h_opt_post) < 1e-3 && ... % es lag nicht am geänderten `wn` in der Funktion
             h_opt_post < 1e8 % Es ist kein numerisch großer und ungenauer Wert
           cds_log(-1, sprintf(['[constraints] Eckpunkt %d: IK-Berechnung ', ...
@@ -501,8 +502,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
    
         xlabel('Iterationen'); grid on;
         ylabel('h');
-        if (R.Type == 0 && s4.wn(4) || R.Type ~= 0 && s4.wn(5)) && ...
-            any(Stats.maxcolldepth>0) % es sollte auch eine Kollision geben
+        if any(Stats.maxcolldepth>0) % es sollte eine Kollision gegeben haben
+          % Die Ausgabe maxcolldepth wird nur geschrieben, wenn Kollisionen
+          % geprüft werden sollten
           subplot(3,3,9);
           plot(Stats.maxcolldepth(1:Stats.iter,:));
           xlabel('Iterationen'); grid on;
