@@ -356,15 +356,25 @@ if Set.general.parcomp_struct && ... % Parallele Rechnung ist ausgewählt
   Set.general.noprogressfigure = true;
   % Keine (allgemeinen) mat-Dateien speichern
   Set.general.matfile_verbosity = 0;
-  parpool_writelock('lock', 180, true); % Synchronisationsmittel für ParPool
-  try
-    parpool([1,Set.general.parcomp_maxworkers]);
-  catch err
-    fprintf('Fehler beim Starten des parpool: %s\n', err.message);
+  if Set.general.isoncluster % auf Cluster möglicher Zugriffskonflikt für ParPool
+    parpool_writelock('lock', 180, true); % Synchronisationsmittel für ParPool
   end
-  parpool_writelock('free', 0, true);
-  Pool=gcp();
-  parfor_numworkers = Pool.NumWorkers;
+  Pool = gcp('nocreate');
+  if isempty(Pool)
+    try
+      Pool=parpool([1,Set.general.parcomp_maxworkers]);
+      parfor_numworkers = Pool.NumWorkers;
+    catch err
+      fprintf('Fehler beim Starten des parpool: %s\n', err.message);
+      parfor_numworkers = 1;
+    end
+  else
+    parfor_numworkers = Pool.NumWorkers;
+  end
+  clear Pool
+  if Set.general.isoncluster
+    parpool_writelock('free', 0, true);
+  end
   if ~isinf(Set.general.parcomp_maxworkers) && parfor_numworkers ~= Set.general.parcomp_maxworkers
     warning('Die gewünschte Zahl von %d Parallelinstanzen konnte nicht erfüllt werden. Es sind jetzt %d.', ...
       Set.general.parcomp_maxworkers, parfor_numworkers)

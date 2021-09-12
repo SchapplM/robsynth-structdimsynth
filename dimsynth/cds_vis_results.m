@@ -72,16 +72,22 @@ if Set.general.parcomp_plot && length_Structures_parfor > 0
   if Set.general.isoncluster % auf Cluster möglicher Zugriffskonflikt für ParPool
     parpool_writelock('lock', 180, true); % Synchronisationsmittel für ParPool
   end
-  try
-    parpool([1 Set.general.parcomp_maxworkers]);
-  catch err
-    fprintf('Fehler beim Starten des parpool: %s\n', err.message);
+  Pool = gcp('nocreate');
+  if isempty(Pool)
+    try
+      Pool=parpool([1,Set.general.parcomp_maxworkers]);
+      parfor_numworkers = Pool.NumWorkers;
+    catch err
+      fprintf('Fehler beim Starten des parpool: %s\n', err.message);
+      parfor_numworkers = 1;
+    end
+  else
+    parfor_numworkers = Pool.NumWorkers;
   end
-  Pool=gcp();
+  clear Pool
   if Set.general.isoncluster
     parpool_writelock('free', 0, true);
   end
-  parfor_numworkers = Pool.NumWorkers;
   if ~isinf(Set.general.parcomp_maxworkers) && parfor_numworkers ~= Set.general.parcomp_maxworkers
     warning('Die gewünschte Zahl von %d Parallelinstanzen konnte nicht erfüllt werden. Es sind jetzt %d.', ...
       Set.general.parcomp_maxworkers, parfor_numworkers)
