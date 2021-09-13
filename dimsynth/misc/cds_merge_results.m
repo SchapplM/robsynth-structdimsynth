@@ -26,7 +26,9 @@ end
 if nargin < 3
   create_missing_tables = false;
 end
-
+if nargin < 4
+  create_pareto_fig = false;
+end
 resdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), 'results');
 resdir_ges = fullfile(resdir, optname);
 
@@ -207,9 +209,57 @@ for i = 1:maxnum_parts
       end
     end
   end
+  % Kopiere auch den Inhalt des tmp-Ordners
+  tmpdirs = dir(fullfile(resdir, dirname_i, 'tmp', '*_*'));
+  for k = 1:length(tmpdirs)
+    tokens = regexp(tmpdirs(k).name, '([\d]+)_([A-Z0-9]+)', 'tokens');
+    if isempty(tokens) || ~tmpdirs(k).isdir
+      continue
+    end
+    % Lese Daten des Roboters aus den Datei-/Ordnernamen
+    RobNr_j_alt = str2double(tokens{1}{1});
+    RobName_j = tokens{1}{2};
+    RobNr_j_neu = IdxNeu(IdxAlt==RobNr_j_alt); % Setze neue Nummer
+    tmpdir_j_alt = fullfile(resdir, dirname_i, 'tmp', sprintf('%d_%s', ...
+      RobNr_j_alt, RobName_j));
+    tmpdir_j_neu = fullfile(resdir_ges, 'tmp', sprintf('%d_%s', ...
+      RobNr_j_neu, RobName_j));
+    % Prüfe, ob das Verzeichnis nicht leer ist
+    tmpobjects_j = dir(tmpdir_j_alt);
+    emptydir = true;
+    for l = 1:length(tmpobjects_j)
+      if tmpobjects_j(l).name(1) == '.', continue; end
+      emptydir = false; break;
+    end
+    if emptydir, continue; end
+    % Gesamt-Verzeichnis erstellen
+    mkdirs(fullfile(resdir_ges, 'tmp'));
+    % Kopiere das tmp-Verzeichnis
+    if strcmp(mode, 'copy')
+      copyfile(tmpdir_j_alt, tmpdir_j_neu);
+    elseif strcmp(mode, 'move')
+      movefile(tmpdir_j_alt, tmpdir_j_neu);
+    elseif strcmp(mode, 'symlink')
+      if ~isunix()
+        error('Symbolische Verknüpfung nur unter Linux möglich');
+      end
+      % Erstelle den Ordner, damit nicht der Ordner selbst verlinkt wird,
+      % sondern alle darin enthaltenen Dateien
+      mkdirs(tmpdir_j_neu);
+      % Verlinke alle Dateien im Verzeichnis
+      for l = 1:length(tmpobjects_j)
+        if tmpobjects_j(l).name(1) == '.', continue; end
+        status_k = system(sprintf('ln -s %s %s', fullfile(tmpdir_j_alt,tmpobjects_j(l).name), ...
+          fullfile(tmpdir_j_neu,tmpobjects_j(l).name)));
+      end
+    else
+      error('Modus %s nicht definiert', mode);
+    end
+  end
   fprintf('%s: Teil-Ergebnis %d/%d kopiert.\n', optname, i, length(optdirs));
   numdirs_processed = numdirs_processed + 1;
 end
+
 if numdirs_processed == 0
   warning('Keine Ergebnisse zu %s gefunden', optname);
   return
