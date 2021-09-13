@@ -310,10 +310,13 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       end
       % Einstellungs-Struktur für Optimierungs-IK vorbereiten
       s4 = s;
-      s4.Phit_tol = 1e-9; s4.Phir_tol = 1e-9; % feine Toleranz (für Nullraumbewegung)
+      s4.Phit_tol = 1e-8; s4.Phir_tol = 1e-8; % feine Toleranz (für Nullraumbewegung)
       s4.scale_lim = 0; % Überschreitung von Grenzen zulassen
       s4.retry_limit = 0;
-      s4.avoid_collision_finish = true; % Am Ende versuchen, Kollisionen aufzulösen
+      if Set.optimization.constraint_collisions
+        s4.avoid_collision_finish = true; % Am Ende versuchen, Kollisionen aufzulösen
+        s4.n_max = 1500; %erlaube mehr Versuch zur finalen Kollisionsvermeidung
+      end
       % Nebenbedingung: Optimiere die Konditionszahl (ist fast immer gut)
       if R.Type == 0 % Seriell
         s4.wn = [0;0;1;0;0];
@@ -411,14 +414,12 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       % IK für Nullraumbewegung durchführen
       if R.Type == 0
         [q, Phi, Tc_stack, Stats] = R.invkin2(R.x2tr(Traj_0.XE(i,:)'), q0_arik, s4);
-        nPhi_t = sum(R.I_EE_Task(1:3));
-        ik_res_ikar = all(abs(Phi(1:nPhi_t))<s.Phit_tol) && ...
-                      all(abs(Phi(nPhi_t+1:end))<s.Phir_tol);
       else
         [q, Phi, Tc_stack, Stats] = R.invkin4(Traj_0.XE(i,:)', q0_arik, s4);
-        ik_res_ikar = (all(abs(Phi(R.I_constr_t_red))<s.Phit_tol) && ...
-            all(abs(Phi(R.I_constr_r_red))<s.Phir_tol));
       end
+      % Benutze nicht die sehr strenge Grenze von Phit_tol von oben, da aus
+      % numerischen Gründen diese teilweise nicht erreicht werden kann
+      ik_res_ikar = all(abs(Phi) < 1e-6);
       if Set.general.debug_calc && all(abs(q-q0_arik) < 1e-9)
         cds_log(-1, sprintf(['[constraints] Eckpunkt %d, Iter. %d: IK-Berechnung mit Aufgabenredundanz ', ...
           'hat gleiches Ergebnis wie ohne (max delta q = %1.1e).'], i, i_ar, max(abs(q-q0_arik))));
@@ -439,7 +440,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           cds_log(-1, sprintf(['[constraints] Eckpunkt %d: IK-Berechnung ', ...
             'mit Aufgabenredundanz fehlerhaft, obwohl es ohne AR funktioniert ', ...
             'hat. wn=[%s]. max(Phi)=%1.1e. Iter %d/%d'], i, disp_array(s4.wn','%1.1g'), ...
-            max(abs(Phi)), Stats.iter, size(Stats.Q,1)));
+            max(abs(Phi)), Stats.iter, size(Stats.Q,1)-1));
         else
           % Falls neue Grenzen gesetzt wurden, ist die IK eventuell nicht
           % innerhalb der Grenzen lösbar. In diesem Fall hier kein Fehler
