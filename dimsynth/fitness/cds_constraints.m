@@ -159,6 +159,7 @@ else % PKM
 end
 n_jic = 30;
 fval_jic = NaN(1,n_jic);
+calctimes_jic = NaN(2,n_jic);
 constrvioltext_jic = cell(n_jic,1);
 Q_jic = NaN(size(Traj_0.XE,1), R.NJ, n_jic);
 fval_jic_old = fval_jic;
@@ -225,13 +226,14 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   % ohne Optimierung (schnell), einmal mit darauf aufbauender Nullraum-
   % Optimierung (etwas langsamer). Dadurch bessere Einhaltung von Nebenbed.
   for i_ar = ar_loop % 1=ohne Nebenopt.; 2=mit
+  t1 = tic();
   if Set.general.debug_calc && i_ar == 2
     fval_jic_old(jic) = fval_jic(jic);
     Q_jic_old(:,:,jic) = Q_jic(:,:,jic);
     constrvioltext_jic_old{jic} = constrvioltext_jic{jic};
   end
   if i_ar == 2 && ... % Optimierung von Nebenbedingungen nur, ...
-      fval_jic(jic) > 1e6 % ... falls normale IK erfolgreich war.
+      fval_jic(jic) > 1e3 % ... falls normale IK erfolgreich war. Keine Nebenbedingungen versuchen zu verbessern
     break; % sonst ist die zweite Iteration nicht notwendig.
   end
   constrvioltext_jic{jic} = 'i.O.'; % hier zurücksetzen. Berechne Nebenbedingungen ab hier neu.
@@ -518,17 +520,21 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         end
         linkxaxes
       end
+      % Prüfe, ob IK-Ergebnis eine Kollision hat. Wenn ja, müssen keine
+      % weiteren Punkte geprüft werden (schnellere Rechnung). Auswertung der
+      % Kollisionskennzahl hierfür nicht möglich (auch Warnbereich > 0)
+      if Stats.coll
+        % Damit werden für alle noch folgenden Punkte die Ergebnisse des
+        % nicht-optimierten Aufrufs genommen (kann Bewertung in Maßsynthese
+        % leicht verzerren, ist aber tolerierbar).
+        break; 
+      end
+      % Gleiche Betrachtung bei Bauraumprüfung. Ausgabe wird nur belegt, wenn
+      % Kennzahl auch geprüft wird
+      if Stats.instspc_mindst(1+Stats.iter,:) > 0
+        break;
+      end
     end
-    % Prüfe, ob IK-Ergebnis eine Kollision hat. Wenn ja, müssen keine
-    % weiteren Punkte geprüft werden (schnellere Rechnung). Auswertung der
-    % Kollisionskennzahl hierfür nicht möglich (auch Warnbereich > 0)
-    if Stats.coll
-      % Damit werden für alle noch folgenden Punkte die Ergebnisse des
-      % nicht-optimierten Aufrufs genommen (kann Bewertung in Maßsynthese
-      % leicht verzerren, ist aber tolerierbar).
-      break; 
-    end
-
     % Normalisiere den Winkel. Bei manchen Robotern springt das IK-Ergebnis
     % sehr stark. Dadurch wird die Gelenkspannweite sonst immer verletzt.
     q(R.MDH.sigma==0) = normalize_angle(q(R.MDH.sigma==0));
@@ -581,7 +587,10 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       end
     end
   end % Schleife über Trajektorienpunkte
-  if isinf(fval_jic(jic)), continue; end % Aufhören bei Duplikat.
+  if isinf(fval_jic(jic)) % Aufhören bei Duplikat.
+    calctimes_jic(i_ar,jic) = toc(t1);
+    continue;
+  end
   QE(isnan(QE)) = 0;
   Q_jic(:,:,jic) = QE;
   JP_jic(jic,:) = JPE(1,:);
@@ -598,6 +607,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     constrvioltext_jic{jic} = sprintf(['Keine IK-Konvergenz in Eckwerten. ', ...
       'Untersuchte Eckpunkte: %d/%d. Durchschnittliche ZB-Verl. %1.2e'], ...
       i, size(Traj_0.XE,1), f_PhiE);
+    calctimes_jic(i_ar,jic) = toc(t1);
     continue;
   end
 
@@ -641,6 +651,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       legend([hdl_iO(1);hdl_niO(1);hdl1;hdl2], {'iO-Gelenke', 'niO-Gelenke', 'qmax''', 'qmin''=0'});
       sgtitle(sprintf('Auswertung Grenzverletzung AR-Eckwerte. fval=%1.2e', fval));
     end
+    calctimes_jic(i_ar,jic) = toc(t1);
     continue;
 %   elseif i_ar == 2 && fval_jic(jic) > 1e3
 %     fprintf('Vorher Fehler. Jetzt erfolgreich!\n');
@@ -681,6 +692,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       fval_rbase_norm = 2/pi*atan(fval_rbase*3); % Normierung auf 0 bis 1; 100% zu groß ist 0.8
       fval = 1e5*(4+1*fval_rbase_norm); % Normierung auf 4e5 bis 5e5
       fval_jic(jic) = fval;
+      calctimes_jic(i_ar,jic) = toc(t1);
       continue;
     end
   end
@@ -715,6 +727,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         cds_log(3, sprintf(['[constraints] Die Schwere der Kollisionen hat ', ...
           'sich trotz Optimierung vergrößert (Konfig %d)'], jic)); % Gewertet wird die Eindringtiefe, nicht die Anzahl
       end
+      calctimes_jic(i_ar,jic) = toc(t1);
       continue;
     elseif i_ar == 2 && fval_jic_old(jic) > 3e5 && fval_jic_old(jic) < 4e5
 %       cds_log(3, sprintf('[constraints] Nach Optimierung keine Kollision mehr (Konfig %d).', jic));
@@ -728,6 +741,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       fval_jic(jic) = fval_instspc; % Normierung auf 2e5 bis 3e5 -> bereits in Funktion
       constrvioltext_jic{jic} = sprintf(['Verletzung des zulässigen Bauraums in AR-', ...
         'Eckpunkten. Schlimmstenfalls %1.1f mm draußen.'], 1e3*f_constrinstspc);
+      calctimes_jic(i_ar,jic) = toc(t1);
       continue;
     end
   end
@@ -739,15 +753,25 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       constrvioltext_jic{jic} = sprintf(['Arbeitsraum-Kollision in %d/%d AR-Eckwerten. ', ...
         'Schlimmstenfalls %1.1f mm in Kollision.'], sum(any(coll_obst,2)), ...
         size(coll_obst,1), 1e3*f_constr_obstcoll);
+      calctimes_jic(i_ar,jic) = toc(t1);
       continue;
     end
   end
   fval_jic(jic) = 1e3; % Bis hier hin gekommen. Also erfolgreich.
+  calctimes_jic(i_ar,jic) = toc(t1);
   end % Schleife über IK ohne/mit zusätzlicher Optimierung
 end % Schleife über IK-Konfigurationen
 
 % Debuggen der IK-Optimierung (zum Nachvollziehen, ob die Nutzung von
 % Redundanz an dieser Stelle überhaupt etwas bringt)
+if task_red
+  cds_log(3, sprintf(['[constraints] %d Konfigurationen berechnet. Dauer ', ...
+    'AR=0 %1.1fs (mean %1.2fs; n=%d): AR=1 %1.1fs (mean %1.2fs; n=%d)'], ...
+    size(calctimes_jic,2), sum(calctimes_jic(1,:),'omitnan'), ...
+    mean(calctimes_jic(1,:),'omitnan'), sum(~isnan(calctimes_jic(1,:))), ...
+    sum(calctimes_jic(2,:),'omitnan'), mean(calctimes_jic(2,:),'omitnan'), ...
+    sum(~isnan(calctimes_jic(2,:)))));
+end
 if Set.general.debug_calc && task_red
   % Prüfe, für wie viele Konfigurationen eine Verbesserung eintritt.
   I_besser = fval_jic < fval_jic_old;
