@@ -391,7 +391,7 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     end
     leghdl(countmarker,:) = hdl; %#ok<AGROW>
     RobShortName = ResTab.Beschreibung{strcmp(ResTab.Name,Name) & ResTab.LfdNr==i};
-    if isempty(RobShortName)
+    if ~isempty(RobShortName)
       addtxt = sprintf('; %s', RobShortName);
     else
       addtxt = '';

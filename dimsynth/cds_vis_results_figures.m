@@ -222,7 +222,7 @@ end
 %% Pareto-Fronten für die Zielkriterien
 if strcmp(figname, 'pareto')
   if isempty(PSO_Detail_Data)
-    warning(['Variable PSO_Detail_Data wurde nicht gespeichert. Daher kein ', ...
+    error(['Variable PSO_Detail_Data wurde nicht gespeichert. Daher kein ', ...
       'detailliertes Pareto-Diagramm möglich']);
   end
   % Einheiten für die physikalischen Werte der Zielfunktionen vorbereiten
@@ -233,7 +233,7 @@ if strcmp(figname, 'pareto')
     objcomb = allcomb(1:length(Set.optimization.objective), 1:length(Set.optimization.objective));
     objcomb(objcomb(:,1)==objcomb(:,2),:) = [];
     objcomb(objcomb(:,1)>objcomb(:,2),:) = [];
-    for pffig = 1 % Zwei Bilder: Physikalische Werte (1) und normierte Werte (2)
+    for pffig = 1 % Zwei Bilder: Physikalische Werte (1) und normierte Werte (2; deaktiviert)
     fhdl = figure();clf;hold all;
     set(fhdl, 'Name', sprintf('Rob%d_Pareto', RNr), ...
       'NumberTitle', 'off', 'color','w');
