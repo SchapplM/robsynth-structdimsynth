@@ -334,6 +334,14 @@ if Set.general.computing_cluster
       % berechnete Zeit (nur Bilderstellung).
       comptime_est = ceil(length(I1_kk:I2_kk)/12)*30*60;
     end
+    if ~isnan(Set.general.computing_cluster_max_time)
+      if length(I1_kk:I2_kk) > Set.general.computing_cluster_cores
+        warning(['Keine Nutzung von computing_cluster_max_time möglich ', ...
+          '(Jobs nicht voll parallel)']);
+      else
+        comptime_est = Set.general.computing_cluster_max_time;
+      end
+    end
     % Matlab-Skript auf Cluster starten.
     addpath(cluster_repo_path);
     jobIDs(1,kk) = jobStart(struct( ...
