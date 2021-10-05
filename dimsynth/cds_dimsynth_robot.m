@@ -1379,13 +1379,15 @@ if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref'))
 end
 Structure.desopt_ptypes = desopt_ptypes;
 
+% Belege die Dynamik-Parameter mit Platzhalter-Werten. Wichtig, damit die
+% Plots in jedem Fall ordentlich ausehen. Wird später überschrieben.
+% Wenn immer vor Trajektorien-Berechnung abgebrochen wird, sind die Werte
+% sonst nicht gesetzt.
+cds_dimsynth_design(R, zeros(2,R.NJ), Set, Structure);
 if nargin == 4 && init_only
   % Keine Optimierung durchführen. Damit kann nachträglich die
   % initialisierte Roboterklasse basierend auf Ergebnissen der Maßsynthese
   % erzeugt werden, ohne dass diese gespeichert werden muss.
-  % Belege die Dynamik-Parameter mit Platzhalter-Werten. Wichtig, damit die
-  % Plots in jedem Fall ordentlich ausehen.
-  cds_dimsynth_design(R, zeros(2,R.NJ), Set, Structure);
   return
 end
 
