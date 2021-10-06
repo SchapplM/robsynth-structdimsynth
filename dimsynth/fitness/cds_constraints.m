@@ -252,19 +252,33 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     end
     if i_ar == 1 % IK ohne Optimierung von Nebenbedingungen
       Stats = struct('coll', false); % Platzhalter-Variable
-      if R.Type == 0
+      if R.Type == 0 % Seriell
         [q, Phi, Tc_stack] = R.invkin2(R.x2tr(Traj_0.XE(i,:)'), Q0, s);
         nPhi_t = sum(R.I_EE_Task(1:3));
         ik_res_ik2 = all(abs(Phi(1:nPhi_t))<s.Phit_tol) && ...
                      all(abs(Phi(nPhi_t+1:end))<s.Phir_tol);
-      else
-        Q0(R.I1J_LEG(2):end,end) = NaN; % Für Beinkette 2 Ergebnis von BK 1 nehmen (dabei letzten Anfangswert für BK 2 und folgende verwerfen)
-        [q, Phi, Tc_stack] = R.invkin2(Traj_0.XE(i,:)', Q0, s, s_par); % kompilierter Aufruf
+      else % PKM
+        Q0_mod = Q0;
+        Q0_mod(R.I1J_LEG(2):end,end) = NaN; % Für Beinkette 2 Ergebnis von BK 1 nehmen (dabei letzten Anfangswert für BK 2 und folgende verwerfen)
+        [q, Phi, Tc_stack] = R.invkin2(Traj_0.XE(i,:)', Q0_mod, s, s_par); % kompilierter Aufruf
         ik_res_ik2 = (all(abs(Phi(R.I_constr_t_red))<s.Phit_tol) && ...
             all(abs(Phi(R.I_constr_r_red))<s.Phir_tol));% IK-Status Funktionsdatei
+        Phi_Leg1 = Phi(1:sum(R.I_EE_Task)); % Zwangsbed. für erste Beinkette (aufgabenredundant)
+        if ~ik_res_ik2 && task_red && all(abs(Phi_Leg1)<s.Phit_tol) % Vereinfachung: Toleranz transl/rot identisch.
+          % Die Einzelbeinketten-IK für die erste Beinkette war erfolgreich, 
+          % aber nicht für die weiteren Beinketten. Mögliche Ursache
+          % ist die freie Drehung der Plattform durch die erste Beinkette.
+          % Erneuter Versuch mit der IK für alle Beinketten gemeinsam.
+          Q0_v2 = [q,Q0];
+          [q, Phi, Tc_stack] = R.invkin4(Traj_0.XE(i,:)', Q0_v2, s);
+%           if all(abs(Phi)<s.Phit_tol)
+%             cds_log(3, sprintf(['[constraints] jic=%d, i=%d. IK-Berechnung mit invkin2 ', ...
+%               'fehlgeschlagen für eine Beinkette, mit invkin4 erfolgreich.'], jic, i));
+%           end
+        end
       end
       if R.Type == 2 && Set.general.debug_calc
-        [~, Phi_debug, ~] = R.invkin_ser(Traj_0.XE(i,:)', Q0, s, s_par); % Klassenmethode
+        [~, Phi_debug, ~] = R.invkin_ser(Traj_0.XE(i,:)', Q0_mod, s, s_par); % Klassenmethode
         ik_res_iks = (all(abs(Phi_debug(R.I_constr_t_red))<s.Phit_tol) && ... 
             all(abs(Phi_debug(R.I_constr_r_red))<s.Phir_tol)); % IK-Status Klassenmethode
         if ik_res_ik2 ~= ik_res_iks % Vergleiche IK-Status (Erfolg / kein Erfolg)
