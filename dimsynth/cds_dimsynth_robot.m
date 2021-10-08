@@ -997,34 +997,36 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   % (unterscheidet sich von den Kollisionskörpern, den Körpern zugeordnet)
   if false
     if Structure.Type == 0   %#ok<UNRCH>
-      names_collbodies = cell(R.NL,1);
-      names_collbodies{1} = 'Base';
+      names_bodies = cell(R.NL,1);
+      names_bodies{1} = 'Base';
       for k = 2:R.NL
-        names_collbodies{k} = sprintf('Link %d', k-1);
+        names_bodies{k} = sprintf('Link %d', k-1);
       end
     else % PKM
-      names_collbodies = cell(R.I2L_LEG(end)-R.NLEG,1);
-      names_collbodies{1} = 'Base';
+      names_bodies = cell(R.I2L_LEG(end)-R.NLEG,1);
+      names_bodies{1} = 'Base';
       i = 1;
       for k = 1:NLEG
         i = i + 1;
-        names_collbodies{i} = sprintf('Leg %d Base', k);
+        names_bodies{i} = sprintf('Leg %d Base', k);
         for j = 1:R.Leg(1).NL-1
           i = i + 1;
-          names_collbodies{i} = sprintf('Leg %d Link %d', k, j);
+          names_bodies{i} = sprintf('Leg %d Link %d', k, j);
         end
       end
     end
     fprintf('Liste der Körper:\n');
-    for i = 1:length(names_collbodies)
-      fprintf('%d - %s\n', i-1, names_collbodies{i});
+    for i = 1:length(names_bodies)
+      fprintf('%d - %s\n', i-1, names_bodies{i});
     end
     % Debug: Liste der Kollisionskörper anzeigen
     fprintf('Liste der Kollisionskörper:\n');
+    names_collbodies = cell(size(Structure.collbodies_robot.link,1),1);
     for i = 1:size(Structure.collbodies_robot.link,1)
-      fprintf('%d - links %d+%d (%s + %s) (Typ: %d)\n', i, Structure.collbodies_robot.link(i,1), ...
-        Structure.collbodies_robot.link(i,2), names_collbodies{1+Structure.collbodies_robot.link(i,1)}, ...
-        names_collbodies{1+Structure.collbodies_robot.link(i,2)}, Structure.collbodies_robot.type(i));
+      names_collbodies{i} = sprintf('%s + %s', names_bodies{1+Structure.collbodies_robot.link(i,1)}, ...
+        names_bodies{1+Structure.collbodies_robot.link(i,2)});
+      fprintf('%d - links %d+%d (%s) (Typ: %d)\n', i, Structure.collbodies_robot.link(i,1), ...
+        Structure.collbodies_robot.link(i,2), names_collbodies{i}, Structure.collbodies_robot.type(i));
     end
   end
   % Prüfe die zusammengestellten Kollisionskörper. Die höchste Nummer
@@ -1163,21 +1165,22 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
        Structure.collbodies_robot.type(Structure.selfcollchecks_collbodies(:,2))];
     assert(all(colltypes_check_class(:)==colltypes_check_struct(:)), ...
       'Typen der Objekte zu den Kollisionsprüfungen nicht konsistent nach Matlab-Klasse');
-    assert(all(diff(Structure.selfcollchecks_collbodies')==0), ...
+    assert(all(Structure.selfcollchecks_collbodies(:,1)~=Structure.selfcollchecks_collbodies(:,2)), ...
       'Prüfung eines Kollisionskörpers mit sich selbst ergibt keinen Sinn');
   end
   % Debug: Liste der Kollisionsprüfungen anzeigen
   if false
     fprintf('Liste der Kollisionsprüfungen (der Kollisionskörper):\n');   %#ok<UNRCH>
     for i = 1:size(Structure.selfcollchecks_collbodies,1)
+      collbodies_i = Structure.selfcollchecks_collbodies(i,:);
       fprintf('%03d - collbodies %02d vs %02d (links %02d vs %02d; type %02d vs %02d; "%s" vs "%s")\n', i, ...
         Structure.selfcollchecks_collbodies(i,1), Structure.selfcollchecks_collbodies(i,2), ...
-        Structure.collbodies_robot.link(Structure.selfcollchecks_collbodies(i,1),1), ...
-        Structure.collbodies_robot.link(Structure.selfcollchecks_collbodies(i,2),1), ...
-        Structure.collbodies_robot.type(Structure.selfcollchecks_collbodies(i,1)), ...
-        Structure.collbodies_robot.type(Structure.selfcollchecks_collbodies(i,2)), ...
-        names_collbodies{1+Structure.selfcollchecks_collbodies(i,1)}, ...
-        names_collbodies{1+Structure.selfcollchecks_collbodies(i,2)});
+        Structure.collbodies_robot.link(collbodies_i(1),1), ...
+        Structure.collbodies_robot.link(collbodies_i(2),1), ...
+        Structure.collbodies_robot.type(collbodies_i(1)), ...
+        Structure.collbodies_robot.type(collbodies_i(2)), ...
+        names_collbodies{collbodies_i(1)}, ...
+        names_collbodies{collbodies_i(2)});
     end
   end
   if isempty(Structure.selfcollchecks_collbodies)
