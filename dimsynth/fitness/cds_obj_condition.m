@@ -127,7 +127,7 @@ else % PKM
   ylabel('Log |Determinanten|'); grid on;
   legend({'Jinv (x->qa)'}); % 'A (dh/dx; DirKin)', 'B (dh/dq; InvKin)', 
   linkxaxes
-  [currgen,currimg,currind,resdir] = cds_get_new_figure_filenumber(Set, Structure,'ParRobJacobian');
+  [currgen,currind,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'ParRobJacobian');
   for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
     if strcmp(fileext{1}, 'fig')
       saveas(201, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ParRobJacobian.fig', currgen, currind, currimg)));
