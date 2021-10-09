@@ -94,6 +94,12 @@ end
 if size(Set.task.obstacles.type,2) > 1
   error('Set.task.obstacles: Feld "type" hat mehr als eine Spalte.');
 end
+assert(isa(Set.optimization.collshape_base, 'cell'), ...
+  'Set.optimization.collshape_base muss cell array sein');
+if length(intersect(Set.optimization.collshape_base, {'default', 'ring', ...
+    'star', 'joint'})) ~= length(Set.optimization.collshape_base)
+  error('Set.optimization.collshape_base enthält unerwarteten Wert');
+end
 if length(union(Set.optimization.desopt_vars, {'joint_stiffness_qref', ...
     'linkstrength'})) ~= 2
   error('Unerwarteter Wert in Set.optimization.desopt_vars');

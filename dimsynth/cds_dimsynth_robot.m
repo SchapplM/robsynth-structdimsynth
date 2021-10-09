@@ -1167,12 +1167,27 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       'Typen der Objekte zu den Kollisionsprüfungen nicht konsistent nach Matlab-Klasse');
     assert(all(Structure.selfcollchecks_collbodies(:,1)~=Structure.selfcollchecks_collbodies(:,2)), ...
       'Prüfung eines Kollisionskörpers mit sich selbst ergibt keinen Sinn');
+    for i = 1:size(Structure.selfcollchecks_collbodies,1)
+      collbodies_i = Structure.selfcollchecks_collbodies(i,:);
+      bodies_i = [Structure.collbodies_robot.link(collbodies_i(1),:), ...
+        Structure.collbodies_robot.link(collbodies_i(2),:)];
+      if bodies_i(3) == bodies_i(4)
+        bodies_i = bodies_i(1:3); % letzter Eintrag trägt keine Information
+      end
+      if bodies_i(1) == bodies_i(2)
+        bodies_i = bodies_i(2:end); % erster Eintrag trägt keine Information
+      end
+      assert(length(bodies_i)==length(unique(bodies_i)), sprintf(['Ein Körper ist ', ...
+        'mehrfach an Kollisionsprüfung %d beteiligt. Nicht sinnvoll.'], i));
+    end
   end
   % Debug: Liste der Kollisionsprüfungen anzeigen
   if false
     fprintf('Liste der Kollisionsprüfungen (der Kollisionskörper):\n');   %#ok<UNRCH>
     for i = 1:size(Structure.selfcollchecks_collbodies,1)
       collbodies_i = Structure.selfcollchecks_collbodies(i,:);
+      bodies_i = [Structure.collbodies_robot.link(collbodies_i(1),:), ...
+        Structure.collbodies_robot.link(collbodies_i(2),:)];
       fprintf('%03d - collbodies %02d vs %02d (links %02d vs %02d; type %02d vs %02d; "%s" vs "%s")\n', i, ...
         Structure.selfcollchecks_collbodies(i,1), Structure.selfcollchecks_collbodies(i,2), ...
         Structure.collbodies_robot.link(collbodies_i(1),1), ...
