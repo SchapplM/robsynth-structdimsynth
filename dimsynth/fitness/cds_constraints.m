@@ -233,7 +233,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     constrvioltext_jic_old{jic} = constrvioltext_jic{jic};
   end
   if i_ar == 2 && ... % Optimierung von Nebenbedingungen nur, ...
-      fval_jic(jic) > 1e3 % ... falls normale IK erfolgreich war. Keine Nebenbedingungen versuchen zu verbessern
+      fval_jic(jic) > 1e6 % ... falls normale IK erfolgreich war.
     break; % sonst ist die zweite Iteration nicht notwendig.
   end
   constrvioltext_jic{jic} = 'i.O.'; % hier zurücksetzen. Berechne Nebenbedingungen ab hier neu.
