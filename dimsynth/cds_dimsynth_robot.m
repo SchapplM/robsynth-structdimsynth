@@ -143,11 +143,11 @@ elseif Structure.Type == 2 % Parallel
   end
   % Parameter für Plattform-Kopplung einstellen
   p_platform = 0.75*Lref;
-  if any(Structure.Coupling(2) == [4,5,6])
-    p_platform(2) = 0.5*p_platform(1);
-  end
   if all(~isnan(Set.optimization.platform_size_limits))
     p_platform(1) = mean(Set.optimization.platform_size_limits);
+  end
+  if any(Structure.Coupling(2) == [4,5,6])
+    p_platform(2) = 0.5*p_platform(1); % Paar-Abstand halb so groß wie Radius
   end
   % Bei paralleler Rechnung der Struktursynthese auf Cluster Konflikte vermeiden
   parroblib_writelock('check', 'csv', logical(Set.task.DoF), 5*60, false);
