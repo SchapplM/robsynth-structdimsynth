@@ -949,6 +949,15 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         % kollidieren
         for cb_k = R.Leg(k).collbodies.link(:,1)'
           for cb_i = R.Leg(i).collbodies.link(:,1)'
+            % Ausnahmen definieren: Bei paarweiser Anordnung der Beinketten
+            % wird das letzte Segment der Beinketten-Paare nicht geprüft.
+            % Dadurch können konstruktive Anpassungen berücksichtigt werden
+            if any(R.DesPar.platform_method == [4 5 6]) && ...% paarweise Anordnung
+                any(all(repmat(sort([k,i]),3,1)==[1 2; 3 4; 5 6],2)) && ... % betrifft Paar-Kombination
+                cb_k == R.Leg(k).collbodies.link(end,1) && cb_i == R.Leg(i).collbodies.link(end,1) % letztes Segment
+              continue % Nicht prüfen
+            end
+            % Eintragen
             selfcollchecks_bodies = [selfcollchecks_bodies; ...
               uint8([NLoffset_k+cb_k, NLoffset_i+cb_i])]; %#ok<AGROW>
             % fprintf(['Kollisionsprüfung (%d): Bein %d Seg. %d vs Bein %d Seg. %d. ', ...
