@@ -350,10 +350,12 @@ if Set.general.computing_cluster
     end
     % Matlab-Skript auf Cluster starten.
     addpath(cluster_repo_path);
+    ppn = min(length(I1_kk:I2_kk),Set.general.computing_cluster_cores);
     jobIDs(1,kk) = jobStart(struct( ...
       'name', computation_name, ...
       ... % Nur so viele Kerne beantragen, wie auch benötigt werden ("ppn")
-      'ppn', min(length(I1_kk:I2_kk),Set.general.computing_cluster_cores), ... % 32 ist max. auf Cluster
+      'ppn', ppn, ... % 32 ist max. auf Cluster
+      'mem', 32+2*ppn, ... % mit 30GB kam es öfter mal zu Speicherfehlern
       'matFileName', [computation_name, '.m'], ...
       'locUploadFolder', jobdir, ...
       'time',comptime_est/3600)); % Angabe in h
