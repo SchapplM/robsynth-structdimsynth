@@ -949,8 +949,8 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         % kollidieren. Nehme die vorgesehenen Kollisionssegmente und ein
         % letztes Segment für die Plattform-Körper. Überzählige Prüfungen
         % werden weiter unten wieder entfernt
-        for cb_k = [R.Leg(k).collbodies.link(:,1)',R.Leg(k).NL-1]
-          for cb_i = [R.Leg(i).collbodies.link(:,1)',R.Leg(i).NL-1]
+        for cb_k = unique([R.Leg(k).collbodies.link(:,1)',R.Leg(k).NL-1])
+          for cb_i = unique([R.Leg(i).collbodies.link(:,1)',R.Leg(i).NL-1])
             % Ausnahmen definieren: Bei paarweiser Anordnung der Beinketten
             % wird das letzte Segment der Beinketten-Paare nicht geprüft.
             % Dadurch können konstruktive Anpassungen berücksichtigt werden
@@ -989,11 +989,18 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         for j = 1:NLEG % gehe andere Beinketten durch (auch diese selbst)
           if j > 1, NLoffset_j = 1+R.I2L_LEG(j-1)-(j-1);
           else,     NLoffset_j = 1; end
-          selfcollchecks_bodies = [selfcollchecks_bodies; ...
-            uint8([NLoffset_k+cb_k, NLoffset_j+0])]; %#ok<AGROW>
-          fprintf(['Kollisionsprüfung (%d): Bein %d Seg. %d vs Gestell-Körper ', ...
-            'Bein %d. Zeile [%d,%d]\n'], size(selfcollchecks_bodies,1), k, cb_k, ...
-            j, selfcollchecks_bodies(end,1), selfcollchecks_bodies(end,2));
+          row_kj = uint8([NLoffset_k+cb_k, NLoffset_j+0]);
+          if any(all(selfcollchecks_bodies==...
+              repmat(row_kj,size(selfcollchecks_bodies,1),1),2))
+            % Eintrag ist schon vorhanden. Liegt voraussichtlich daran,
+            % dass gestellfeste Kollisionskörper bereits den Beinketten
+            % zugeordnet waren und nicht der PKM (bei Führungsschienen)
+            continue
+          end
+          selfcollchecks_bodies = [selfcollchecks_bodies; row_kj]; %#ok<AGROW>
+          % fprintf(['Kollisionsprüfung (%d): Bein %d Seg. %d vs Gestell-Körper ', ...
+          %   'Bein %d. Zeile [%d,%d]\n'], size(selfcollchecks_bodies,1), k, cb_k, ...
+          %   j, selfcollchecks_bodies(end,1), selfcollchecks_bodies(end,2));
         end
       end
     end
@@ -1002,8 +1009,13 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       for j = 1:NLEG
         k_plf = R.I2L_LEG(k)-(k-1)-1;
         j_base = R.I1L_LEG(j)-(j-1);
-        selfcollchecks_bodies = [selfcollchecks_bodies; ...
-          uint8([k_plf, j_base])]; %#ok<AGROW>
+        row_kj = uint8([k_plf, j_base]);
+        if any(all(selfcollchecks_bodies==...
+            repmat(row_kj,size(selfcollchecks_bodies,1),1),2))
+          % Eintrag ist schon vorhanden. Siehe oben
+          continue
+        end
+        selfcollchecks_bodies = [selfcollchecks_bodies; row_kj]; %#ok<AGROW>
         % fprintf(['Kollisionsprüfung (%d): Plattform-Körper zugeordnet zu ', ...
         %   'Bein %d vs Gestell-Körper zugeordnet zu Bein %d. ', ...
         %   'Zeile [%d,%d]\n'], size(selfcollchecks_bodies,1), k, j, ...
@@ -1050,6 +1062,12 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     for i = 1:size(Structure.collbodies_robot.link,1)
       fprintf('%d - links %d+%d (%s) (Typ: %d)\n', i, Structure.collbodies_robot.link(i,1), ...
         Structure.collbodies_robot.link(i,2), names_collbodies{i}, Structure.collbodies_robot.type(i));
+    end
+    fprintf('Liste der zu prüfenden Körper:\n');
+    for i = 1:size(selfcollchecks_bodies,1)
+      fprintf('%03d - %02d vs %02d (%s vs %s)\n', i, selfcollchecks_bodies(i,1), ...
+        selfcollchecks_bodies(i,2), names_bodies{1+selfcollchecks_bodies(i,1)}, ...
+        names_bodies{1+selfcollchecks_bodies(i,2)});
     end
   end
   % Prüfe die zusammengestellten Kollisionskörper. Die höchste Nummer
@@ -1106,6 +1124,18 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
           % hat zwei Roboter-Körper zugewiesen)
           ii_links = [Structure.collbodies_robot.link(ii1,:), ...
             Structure.collbodies_robot.link(ii2,:)];
+          % Ein Körper darf nicht zwei mal auftreten (bei beiden
+          % Kollisionsparteien). Dann sind es direkt benachbarte Objekte.
+          ii_links_test = ii_links;
+          if ii_links_test(3) == ii_links_test(4)
+            ii_links_test = ii_links_test(1:3); % letzter Eintrag trägt keine Information
+          end
+          if ii_links_test(1) == ii_links_test(2)
+            ii_links_test = ii_links_test(2:end); % erster Eintrag trägt keine Information
+          end
+          if length(ii_links_test)>length(unique(ii_links_test))
+            continue
+          end
           % Bestimme die Nummern der zugehörigen Beinketten
           ii_leg = NaN(1,4);
           for kkk = 1:4
@@ -1151,9 +1181,10 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
             % prüfung notwendig.
             continue
           elseif c1_is_base && c2_is_base
-            % Beide Körper sind Teil des Gestells. Sollte eigentlich gar
-            % nicht geprüft werden
-            error('Prüfung sollte eigentlich nicht stattfinden');
+            % Beide Körper sind Teil des Gestells. Wird weitestgehend
+            % vorher ausgeschlossen, außer, wenn Führungsschienen von
+            % Linearachsen betrachtet werden. Werden nicht geprüft.
+            continue
           elseif c1_is_platform || c2_is_platform
             % Ein Körper ist Teil der Plattform, der andere aber nicht.
             % Zähle keine Kollisionen, wenn die Körper zu den gleichen
@@ -1168,8 +1199,8 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         end
         kk = kk + 1;
         CheckCombinations(kk,:) = [ii1,ii2];
-        fprintf('Kollisionsprüfung (%d): Koll.-körper %d (%s) vs Koll.-körper %d (%s).\n', ...
-          i, ii1, names_collbodies{ii1}, ii2, names_collbodies{ii2});
+        % fprintf('Kollisionsprüfung (%d+x): Koll.-körper %d (%s) vs Koll.-körper %d (%s).\n', ...
+        %   size(Structure.selfcollchecks_collbodies,1), ii1, names_collbodies{ii1}, ii2, names_collbodies{ii2});
       end
     end
     CheckCombinations = CheckCombinations(1:kk,:);
