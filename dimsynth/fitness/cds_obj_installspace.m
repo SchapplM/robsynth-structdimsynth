@@ -37,7 +37,7 @@ fval_debugtext = '';
 f_instspc = NaN;
 fval = 1e3;
 %% Gelenkpositionen berechnen
-if nargin < 5 || isempty(JP_in) || Set.general.debug_calc
+if nargin < 6 || isempty(JP_in) || Set.general.debug_calc
   if R.Type == 0
     JP = NaN(size(Q,1), 3*(1+R.NJ));
   else
@@ -53,7 +53,7 @@ if nargin < 5 || isempty(JP_in) || Set.general.debug_calc
     end
     JP(i,:) = JointPos_all_i_fromdirkin(:);
   end
-  if Set.general.debug_calc && nargin == 5 && ~isempty(JP_in)
+  if Set.general.debug_calc && nargin == 6 && ~isempty(JP_in)
     % Prüfe, ob die neu berechneten Gelenkpositionen korrekt sind
     for i = 1:size(Q,1)
       JointPos_all_i_fromdirkin = reshape(JP(i,:)',   3,size(JP,2)/3);
@@ -86,18 +86,17 @@ if any(isnan(JP(:))) || any(isinf(JP(:)))
   return
 end
 %% AlphaShape für die Punkte erzeugen
-x = JP(:,1:3:end);
-y = JP(:,2:3:end);
-z = JP(:,3:3:end);
+% Bestimme die xyz-Koordinaten aller Gelenkpunkte (ohne die Basis)
+x = JP(:,3+(1:3:end-3));
+y = JP(:,3+(2:3:end-3));
+z = JP(:,3+(3:3:end-3));
 xyz = unique([x(:) y(:) z(:)], 'rows');
-
-% Gelenkpunkte ins Welt-KS transformieren
-% Traj_JPxyz_W = R.transform_traj(struct('X', [xyz, zeros(size(xyz,1),3)]));
-% xyz_W = Traj_JPxyz_W.X(:,1:3);
-shp = alphaShape(xyz);
-
+% Alpha-Shape berechnen. Benutze nur die ganz außen liegenden Punkte um
+% einen konvexen Polyeder zu erzeugen (alpha=inf)
+shp = alphaShape(xyz, inf);
 % Volumen berechnen
 f_instspc = shp.volume();
+% Kennzahl berechnen
 f_instspc_norm = 2/pi*atan((f_instspc)/0.1); % Normierung auf 0 bis 1; 1m³ ist 0.9
 fval = 1e3*f_instspc_norm; % Normiert auf 0 bis 1e3
 fval_debugtext = sprintf('Bauraum %1.4fm³.', f_instspc);
@@ -116,9 +115,7 @@ end
 view(3); axis auto; hold on; grid on;
 xlabel('x in m'); ylabel('y in m'); zlabel('z in m');
 % Gelenkpunkte zeichnen
-for i = 1:size(JP,2)/3
-  plot3(JP(:,3*i-2), JP(:,3*i-1), JP(:,3*i), 'k-');
-end
+plot3(xyz(:,1), xyz(:,2), xyz(:,3), 'kx');
 plotmode = 1; % Strichzeichnung
 if R.Type == 0 % Seriell
   s_plot = struct( 'ks', 1:R.NJ+2, 'straight', 1, 'mode', plotmode);
