@@ -55,10 +55,13 @@ general = struct( ...
   'parcomp_struct', 0, ... % Parallele Berechnung unterschiedlicher Roboter. Enthält Anzahl der Worker-Instanzen als Zahl
   'parcomp_plot', 0, ... % Parallele Erzeugung der Ergebnisbilder und -videos
   'parcomp_maxworkers', inf, ... % Beschränkung der Anzahl paralleler Instanzen
+  ... % Einstellungen zur Benutzung des Clusters. Siehe auch https://www.luis.uni-hannover.de/de/services/computing/scientific-computing/
   'computing_cluster', false, ... % Berechnung auf PBS-Cluster (Hochladen auf Server)
-  'computing_cluster_cores', 32, ... % (Maximale) Anzahl der benutzten Kerne pro Node auf dem Cluster (32 maximal)
+  'computing_cluster_cores', 16, ... % Anzahl der benutzten Kerne  pro Node auf dem Cluster (16 ist vergleichsweise flexibel)
+  'computing_cluster_max_time', NaN, ... % maximale Rechenzeit pro Roboter (in Sekunden). Bedingt voll-parallele Berechnung
   'isoncluster', false, ... % Merker, ob gerade auf dem Cluster gerechnet wird. Dann sind einige Bilder und Debug-Auswertungen unnötig.
-  'cluster_maxrobotspernode', inf, ... % Unbegrenzte Anzahl von Robotern auf jeder Cluster-Node. Niedrigere Zahl dient zur stärkeren Parallelisierung
+  'cluster_maxrobotspernode', inf, ... % Unbegrenzte Anzahl von Robotern auf jeder Cluster-Node. Niedrigere Zahl dient zur stärkeren Parallelisierung. Bei "inf" nur eine Cluster-Node.
+  ... % Optionen zur Benutzung kompilierter Funktionen
   'compile_missing_functions', true, ... % Bei Start alle mex-Funktionen kompilieren
   'create_template_functions', false, ... % Erzeuge Funktionen neu aus Vorlagen-Dateien
   'use_mex', true);
@@ -148,6 +151,7 @@ optimization = struct( ...
   'desopt_vars', {{}}, ... % Variablen für eigene Optimierung der Entwurfsparameter. Möglich: "linkstrength", "joint_stiffness_qref"
   'safety_link_yieldstrength', 1, ... % Sicherheitsfaktor für Streckgrenze der Segmente als Nebenbedingung. Berechnung gesteuert über constraint_obj(6)
   'constraint_collisions', false, ... Schalter für Kollisionsprüfung
+  'collshape_base', {{'default'}}, ... % Form der Kollisionskörper für die PKM-Basis: default, star, ring, joint. Siehe cds_update_collbodies.m; mehrere Möglich.
   'obj_limit', 0, ... % Grenze des Fitness-Wertes zum Beenden der Simulation
   'obj_limit_physval', 0, ... % Grenze für den physikalischen Wert zum Beenden
   'NumIndividuals', 50, ... % Anzahl der Partikel im PSO
@@ -157,7 +161,7 @@ optimization = struct( ...
   'nolinkmass', false, ... % Setze die Masse der Robotersegmente auf Null.
   'noplatformmass', false, ... % Setze die Masse der PKM-Plattform auf Null.
   'ElectricCoupling', true, ... % Kopplung der Achsen für Energieberechnung. TODO
-  'InitPopRatioOldResults', 0.50, ... % 75% der Initialpopulation aus bisherigen Ergebnissen generieren
+  'InitPopRatioOldResults', 0.50, ... % Diesen Anteil der Initialpopulation aus bisherigen Ergebnissen generieren
   'result_dirs_for_init_pop', {{}}, ... % Zusätzliche Verzeichnisse zum Laden der Initialpopulation
   'resdir', fullfile(fileparts(which('structgeomsynth_path_init.m')), 'results'), ...
   'optname', 'unnamed');

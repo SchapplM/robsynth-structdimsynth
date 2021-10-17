@@ -235,13 +235,16 @@ if R_neu.Type == 2 && Set.optimization.platform_size && any(Structure.vartypes =
 end
 
 %% Plattform-Morphologie-Parameter (z.B. Gelenkpaarabstand)
-
-if R_neu.Type == 2 && Set.optimization.platform_morphology && any(Structure.vartypes == 9)
-  % Methoden und Parameter, siehe align_platform_coupling
-  if R.DesPar.platform_method == 4
+% Methoden und Parameter, siehe align_platform_coupling
+if R_neu.Type == 2 && any(R.DesPar.platform_method == [4 5 6])
+  if Set.optimization.platform_morphology && any(Structure.vartypes == 9)
     p_plfpar(2) = p(Structure.vartypes == 9)*p_plfpar(1);
     p_phys(Structure.vartypes == 9) = p_plfpar(2);
     changed_plf = true;
+  else
+    % Aktualisiere die Proportionen (gleicher Wert wie in cds_dimsynth_robot). 
+    % Sonst würde sich mit der Größe die Proportion ändern).
+    p_plfpar(2) = 0.5*p_plfpar(1);
   end
 end
 if R_neu.Type == 2 && changed_plf

@@ -94,6 +94,12 @@ end
 if size(Set.task.obstacles.type,2) > 1
   error('Set.task.obstacles: Feld "type" hat mehr als eine Spalte.');
 end
+assert(isa(Set.optimization.collshape_base, 'cell'), ...
+  'Set.optimization.collshape_base muss cell array sein');
+if length(intersect(Set.optimization.collshape_base, {'default', 'ring', ...
+    'star', 'joint'})) ~= length(Set.optimization.collshape_base)
+  error('Set.optimization.collshape_base enthält unerwarteten Wert');
+end
 if length(union(Set.optimization.desopt_vars, {'joint_stiffness_qref', ...
     'linkstrength'})) ~= 2
   error('Unerwarteter Wert in Set.optimization.desopt_vars');
@@ -178,6 +184,15 @@ if Set.general.only_finish_aborted && (Set.general.isoncluster || ...
   Set.optimization.resdir = Set_tmp.optimization.resdir;
   Set.general.create_template_functions = Set_tmp.general.create_template_functions;
   fprintf('Einstellungsdatei %s für Abschluss geladen.\n', settingsfile);
+  % Prüfe, ob der Abschluss noch notwendig ist. Annahme: Ist die Ergebnis-
+  % Tabelle einmal erstellt, sind alle einzelnen Roboter abgeschlossen.
+  restabfile = fullfile(resdir_main, sprintf('%s_results_table.csv', ...
+    Set.optimization.optname));
+  if exist(restabfile, 'file')
+    fprintf(['Ergebnis-Tabelle existiert schon. Kein Abschluss der abge', ...
+      'brochenen Berechnung notwendig.\n']);
+    return
+  end
 elseif Set.general.regenerate_summary_only && (Set.general.isoncluster || ...
     ~Set.general.computing_cluster)
   % Es sollen nur die Bilder neu generiert werden. Lade die alten Ein-
@@ -239,6 +254,7 @@ if Set.general.computing_cluster
   else
     fprintf('Lade die Optimierung von %d Robotern auf das Cluster hoch\n', length(Structures));
   end
+  jobIDs = NaN(2,length(I1_Struct)); % erste Zeile: Produktiv-Job; zweite Zeile: Aufräum-Job
   for kk = 1:length(I1_Struct)
     I1_kk = I1_Struct(kk); % Anfangs-Index in allen Roboter-Namen
     if kk < length(I1_Struct) % Bestimme End-Index
@@ -300,6 +316,8 @@ if Set.general.computing_cluster
     % gesetzt, von dem der Job gestartet wird.
     fprintf(fid, ['Set.optimization.resdir=fullfile(fileparts(', ...
       'which(''structgeomsynth_path_init.m'')),''results'');\n']);
+    % Platzhalter-Eintrag, der weiter unten ersetzt wird:
+    fprintf(fid, '%% Set.general.only_finish_aborted = true;\n');
     fprintf(fid, 'cds_start(Set,Traj);\n');
     % Schließen des ParPools auch in Datei hineinschreiben
     fprintf(fid, 'parpool_writelock(''lock'', 300, true);\n');
@@ -322,15 +340,48 @@ if Set.general.computing_cluster
       % berechnete Zeit (nur Bilderstellung).
       comptime_est = ceil(length(I1_kk:I2_kk)/12)*30*60;
     end
+    if ~isnan(Set.general.computing_cluster_max_time)
+      if length(I1_kk:I2_kk) > Set.general.computing_cluster_cores
+        warning(['Keine Nutzung von computing_cluster_max_time möglich ', ...
+          '(Jobs nicht voll parallel)']);
+      else
+        comptime_est = Set.general.computing_cluster_max_time;
+      end
+    end
     % Matlab-Skript auf Cluster starten.
     addpath(cluster_repo_path);
-    jobStart(struct( ...
+    ppn = min(length(I1_kk:I2_kk),Set.general.computing_cluster_cores);
+    jobIDs(1,kk) = jobStart(struct( ...
       'name', computation_name, ...
       ... % Nur so viele Kerne beantragen, wie auch benötigt werden ("ppn")
-      'ppn', min(length(I1_kk:I2_kk),Set.general.computing_cluster_cores), ... % 32 ist max. auf Cluster
+      'ppn', ppn, ... % 32 ist max. auf Cluster
+      'mem', 32+2*ppn, ... % mit 30GB kam es öfter mal zu Speicherfehlern
       'matFileName', [computation_name, '.m'], ...
       'locUploadFolder', jobdir, ...
       'time',comptime_est/3600)); % Angabe in h
+    % Zusätzlich direkt das Aufräum-Skript starten. Es ist davon auszugehen, 
+    % dass der Job vorzeitig abgebrochen wird, da die Rechenzeit unterschätzt
+    % wird.
+    if Set.general.only_finish_aborted
+      continue % In diesem Fall war der Zweck des Aufrufs schon das Aufräum-Skript
+    end
+    % Neues Skript vorbereiten (im gleichen Ordner)
+    computation_name2 = [computation_name,'_finish'];
+    targetfile2 = fullfile(jobdir, [computation_name2,'.m']);
+    copyfile(targetfile,targetfile2);
+    f = strrep(fileread(targetfile2), '% Set.general.only_finish_aborted', ...
+      'Set.general.only_finish_aborted');
+    fid  = fopen(targetfile2,'w'); fprintf(fid,'%s',f); fclose(fid);
+    % Skript hochladen mit dem vorherigen Job als Abhängigkeit. Wenn der
+    % Job vom PBS abgebrochen wird, wird der Aufräum-Job gestartet. Bei
+    % Erfolg verfällt der Aufräum-Job.
+    jobIDs(2,kk) = jobStart(struct( ...
+      'name', computation_name2, ...
+      'ppn', min(length(I1_kk:I2_kk),Set.general.computing_cluster_cores), ... % gleiche Anzahl wie oben
+      'matFileName', [computation_name2, '.m'], ...
+      'locUploadFolder', jobdir, ...
+      'time',2), ... % % Geht schnell. Veranschlage 2h. Evtl. länger wegen ParPool-Synchronisation.
+      struct('afternotok', jobIDs(1,kk))); % Abbruch des vorherigen Jobs als Start-Bedingung
     fprintf(['Berechnung von %d Robotern wurde auf Cluster hochgeladen. Ende. ', ...
       'Die Ergebnisse müssen nach Beendigung der Rechnung manuell heruntergeladen ', ...
       'werden.\n'], length(I1_kk:I2_kk));
@@ -338,7 +389,33 @@ if Set.general.computing_cluster
       pause(30); % ... paralleler Start des parpools sowieso nicht möglich
     end
   end
-  if length(I1_Struct) > 1
+  if length(I1_Struct) > 1 && ~Set.general.only_finish_aborted
+    % Bei mehreren aufgeteilten Läufen direkt die Zusammenfassung aller Teile
+    % als zusätzlichen Job starten
+    computation_name3 = sprintf('dimsynth_%s_%s%s', ...
+      datestr(now,'yyyymmdd_HHMMSS'), Set.optimization.optname, '_merge');
+    jobdir3 = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+      'dimsynth', 'cluster_jobs', computation_name3);
+    mkdirs(fullfile(jobdir3, 'results')); % Unterordner notwendig für Cluster-Transfer-Toolbox
+    targetfile3 = fullfile(jobdir3, [computation_name3,'.m']);
+    clusterheaderfile=fullfile(jobdir3,'..','..','dimsynth_cluster_header.m');
+    if ~exist(clusterheaderfile, 'file')
+      error('Datei %s existiert nicht. Muss manuell aus template-Datei erstellt werden.', clusterheaderfile);
+    end
+    copyfile(clusterheaderfile, targetfile3);
+    fid = fopen(targetfile3, 'a');
+    fprintf(fid, 'cds_merge_results( ''%s'', ''move'', true, true );', ...
+      Set.optimization.optname);
+    fclose(fid);
+    % Zusammenfassungs-Job auf Cluster hochladen
+    jobStart(struct( ...
+      'name', computation_name3, ...
+      'ppn', 1, ... % gleiche Anzahl wie oben
+      'matFileName', [computation_name3, '.m'], ...
+      'locUploadFolder', jobdir3, ...
+      'time',1), ... % Geht schnell
+      ... % Nur starten, wenn vorherige Produktiv- und Aufräum-Jobs erledigt
+      struct('afterany', jobIDs(:)'));
     fprintf('Insgesamt %d Optimierungen mit in Summe %d Robotern hochgeladen\n',...
       length(I1_Struct), length(Structures));
   end
@@ -356,15 +433,25 @@ if Set.general.parcomp_struct && ... % Parallele Rechnung ist ausgewählt
   Set.general.noprogressfigure = true;
   % Keine (allgemeinen) mat-Dateien speichern
   Set.general.matfile_verbosity = 0;
-  parpool_writelock('lock', 180, true); % Synchronisationsmittel für ParPool
-  try
-    parpool([1,Set.general.parcomp_maxworkers]);
-  catch err
-    fprintf('Fehler beim Starten des parpool: %s\n', err.message);
+  if Set.general.isoncluster % auf Cluster möglicher Zugriffskonflikt für ParPool
+    parpool_writelock('lock', 180, true); % Synchronisationsmittel für ParPool
   end
-  parpool_writelock('free', 0, true);
-  Pool=gcp();
-  parfor_numworkers = Pool.NumWorkers;
+  Pool = gcp('nocreate');
+  if isempty(Pool)
+    try
+      Pool=parpool([1,Set.general.parcomp_maxworkers]);
+      parfor_numworkers = Pool.NumWorkers;
+    catch err
+      fprintf('Fehler beim Starten des parpool: %s\n', err.message);
+      parfor_numworkers = 1;
+    end
+  else
+    parfor_numworkers = Pool.NumWorkers;
+  end
+  clear Pool
+  if Set.general.isoncluster
+    parpool_writelock('free', 0, true);
+  end
   if ~isinf(Set.general.parcomp_maxworkers) && parfor_numworkers ~= Set.general.parcomp_maxworkers
     warning('Die gewünschte Zahl von %d Parallelinstanzen konnte nicht erfüllt werden. Es sind jetzt %d.', ...
       Set.general.parcomp_maxworkers, parfor_numworkers)

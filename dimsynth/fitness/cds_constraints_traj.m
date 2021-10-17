@@ -210,9 +210,9 @@ if i_ar == 2 && ~isempty(Set.task.installspace.type) && ...
     s.wn(13) = 1e-4; % P-Anteil Bauraumeinhaltung
     s.wn(14) = 1e-5; % D-Anteil Bauraumeinhaltung
   end
-    % Aktivierung der Bauraum-Nebenbedingung bereits mit größerem Abstand.
-    % TODO: Bezug auf charakteristische Länge des Bauraums
-    s.installspace_thresh = 0.2; % 200mm Abstand von Bauraumgrenze von innen
+  % Aktivierung der Bauraum-Nebenbedingung bereits mit größerem Abstand.
+  % TODO: Bezug auf charakteristische Länge des Bauraums
+  s.installspace_thresh = 0.2; % 200mm Abstand von Bauraumgrenze von innen
 end
 if i_ar == 2 && ~any(s.wn) % es wurde noch keine Optimierung gesetzt (alles vorher erfolgreich)
   % Verbessere die Konditionszahl und die Geschwindigkeit
@@ -224,14 +224,53 @@ if i_ar == 2 && ~any(s.wn) % es wurde noch keine Optimierung gesetzt (alles vorh
     s.wn(10) = 0.1; % D-Anteil Konditionszahl (PKM-Jacobi)
   end
 end
+if R.Type == 0 % Seriell
+  I_wn_instspc = 5;
+else % PKM
+  I_wn_instspc = 6;
+end
+if i_ar == 2 && ~isempty(Set.task.installspace.type) && s.wn(I_wn_instspc)==0
+  % Bauraumprüfung ist allgemein aktiv, wird aber in der
+  % Nullraumoptimierung nicht bedacht. Zusätzliche Aktivierung mit sehr
+  % kleinem Schwellwert zur Aktivierung (nur für Notfälle)
+  if R.Type == 0 % Seriell
+    s.wn(11) = 1e-5; % P-Anteil Bauraumeinhaltung
+    s.wn(12) = 4e-6; % D-Anteil Bauraumeinhaltung
+  else % PKM
+    s.wn(13) = 1e-4; % P-Anteil Bauraumeinhaltung
+    s.wn(14) = 1e-5; % D-Anteil Bauraumeinhaltung
+  end
+  s.installspace_thresh = 0.050; % 50mm Abstand von Bauraumgrenze von innen
+end
+if R.Type == 0 % Seriell
+  I_wn_coll = 4;
+else % PKM
+  I_wn_coll = 5;
+end
+if i_ar == 2 && Set.optimization.constraint_collisions && s.wn(I_wn_coll)==0
+  % Kollisionsprüfung ist allgemein aktiv, wird aber in der
+  % Nullraumoptimierung nicht bedacht. Zusätzliche Aktivierung mit sehr
+  % kleinem Schwellwert zur Aktivierung (nur für Notfälle)
+  if R.Type == 0 % Seriell
+    s.wn(9) = 1; % P-Anteil Kollisionsvermeidung
+    s.wn(10) = 0.1; % D-Anteil Kollisionsvermeidung
+  else % PKM
+    s.wn(11) = 0.1; % P-Anteil Kollisionsvermeidung
+    s.wn(12) = 0.01; % D-Anteil Kollisionsvermeidung
+  end
+  % Aktivierungsbereich für Kollisionsvermeidung verkleinern (nur für
+  % Ausnahmefälle stark an Grenze)
+  s.collbodies_thresh = 1.25; % 25% größere Kollisionskörper für Aktivierung (statt 50%)
+end
 if i_ar == 3
   Q_change = Q - Q_alt;
   if all(abs(Q_change(:)) < 1e-6)
-    cds_log(-1, sprintf('Ergebnis der IK unverändert, trotz erneuter Durchführung mit anderer Gewichtung. Vorher: [%s], nachher: [%s]', ...
-      disp_array(wn_alt', '%1.1f'), disp_array(s.wn', '%1.1f')));
+    cds_log(-1, sprintf(['[constraints_traj] Ergebnis der IK unverändert, ', ...
+      'trotz erneuter Durchführung mit anderer Gewichtung. Vorher: [%s], ', ...
+      'nachher: [%s]'], disp_array(wn_alt', '%1.1f'), disp_array(s.wn', '%1.1f')));
   end
   if fval_ar(1) < fval_ar(2)
-    cds_log(-1, sprintf(['Ergebnis der Traj.-IK hat sich nach Nullraum', ...
+    cds_log(-1, sprintf(['[constraints_traj] Ergebnis der Traj.-IK hat sich nach Nullraum', ...
       'bewegung verschlechtert: %1.3e -> %1.3e ("%s" -> "%s"), delta: %1.3e'], fval_ar(1), ...
       fval_ar(2), constrvioltext_alt, constrvioltext, fval_ar(2)-fval_ar(1)));
     % Anmerkung: Das muss nicht unbedingt ein Fehler sein. Das Verletzen
@@ -530,7 +569,7 @@ if R.Type == 2 && Set.general.debug_calc % PKM; Rechne nochmal mit Klassenmethod
     % Hier keine Warnung wie oben. Traj.-IK darf nicht von Zufall abhängen.
     % TODO: Wirklich Fehlermeldung einsetzen. Erstmal so lassen, da
     % nicht kritisch.
-    cds_log(-1, sprintf(['Traj.-IK-Berechnung mit Funktionsdatei hat anderen ', ...
+    cds_log(-1, sprintf(['[constraints_traj] Traj.-IK-Berechnung mit Funktionsdatei hat anderen ', ...
       'Status (%d) als Klassenmethode (%d).'], ik_res_ik2, ik_res_iks));
   end
   % Prüfe, ob die ausgegebenen Gelenk-Positionen auch stimmen
@@ -891,9 +930,9 @@ corrQD(all(abs(QD_num-QD)<1e-3)) = 1;
 corrQ(all(abs(QD)<1e-10)) = 1; % qD=0 und q schwankt numerisch (als Nullraumbewegung) wegen IK-Positionskorrektur
 if task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
   % TODO: Inkonsistenz ist Fehler in Traj.-IK. Dort korrigieren.
-  cds_log(-1, sprintf(['Nullraumbewegung führt zu nicht konsistenten ', ...
-    'Gelenkverläufen. Korrelation Geschw. min. %1.2f, Position %1.2f'], ...
-    min(corrQD), min(corrQ)'));
+  cds_log(-1, sprintf(['[constraints_traj] Nullraumbewegung führt zu nicht ', ...
+    'konsistenten Gelenkverläufen. Korrelation Geschw. min. %1.2f, ', ...
+    'Position %1.2f'], min(corrQD), min(corrQ)'));
 end
 if ~task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
   % Wenn eine Gelenkgröße konstant ist (ohne Rundungsfehler), wird die

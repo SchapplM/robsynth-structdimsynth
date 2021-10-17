@@ -213,7 +213,7 @@ end
 sgtitle(sprintf('Bauraumprüfung. Schritt %d/%d: Weitester Abstand: %1.2fmm', ...
   j, size(Q,1), 1e3*f_constr));
 drawnow();
-[currgen,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'InstallSpace');
+[currgen,currind,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'InstallSpace');
 for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
   if strcmp(fileext{1}, 'fig')
     saveas(868, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_InstallSpace.fig', currgen, currind, currimg)));

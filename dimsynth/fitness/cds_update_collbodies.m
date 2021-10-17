@@ -191,7 +191,19 @@ if Structure.Type ~= 0 % PKM
   % Indizes der jeweiligen vorherigen benachbarten Beinkette
   I1 = (1:NLEG)'; I2 = [NLEG, 1:NLEG-1]';
   % Kollisionsobjekte für das Gestell
-  if Set.task.DoF(3) ~= 0 % räumliche PKM
+  if any(strcmp(Set.optimization.collshape_base, 'default'))
+    if Set.task.DoF(3) ~= 0 % räumliche PKM
+      collshape_base = {'star', 'ring'};
+    else % planare PKM
+      % Kein ausgedehntes Gestell, da 2T1R nur akademisches Beispiel ist. 
+      % Konstruktiv sowieso lösbar durch Verschiebung des Gestells aus der 
+      % Bewegungsebene heraus.
+      collshape_base = {'joint'};
+    end
+  else
+    collshape_base = Set.optimization.collshape_base;
+  end
+  if any(strcmp(collshape_base, 'star'))
     % Sternförmige Basis mit Kollisionskörpern: Nummer für PKM-Basis=0; Setze
     % den Vorgänger auf die jeweiligen Basiskörper der einzelnen Beinketten.
     % Kapseln verbinden die Koppelgelenke.
@@ -200,6 +212,8 @@ if Structure.Type ~= 0 % PKM
     collbodies_robot.type = [collbodies_robot.type; repmat(uint8(6),NLEG,1)];
     collbodies_robot.params = [collbodies_robot.params; ...
       [repmat(10e-3, NLEG, 1), NaN(NLEG, 9)]];
+  end
+  if any(strcmp(collshape_base, 'ring'))
     % Ringförmige Basis; verbindet die Basis der Beinketten mit der jeweils
     % vorherigen
     collbodies_robot.link = [collbodies_robot.link; ...
@@ -207,11 +221,10 @@ if Structure.Type ~= 0 % PKM
     collbodies_robot.type = [collbodies_robot.type; repmat(uint8(6),NLEG,1)];
     collbodies_robot.params = [collbodies_robot.params; ...
       [repmat(10e-3, NLEG, 1), NaN(NLEG, 9)]];
-  else % planare PKM
+  end
+  if any(strcmp(collshape_base, 'joint'))
     % Nur Gestellgelenke als Kugel, damit eine Kollision anderer Beinketten
-    % damit verhindert wird. Kein ausgedehntes Gestell, da 2T1R nur akade-
-    % misches Beispiel ist. Konstruktiv sowieso lösbar durch Verschiebung
-    % des Gestells aus der Bewegungsebene heraus.
+    % damit verhindert wird.
     collbodies_robot.link = [collbodies_robot.link; uint8(zeros(NLEG,2))]; % PKM-Basis
     T_base_stack = [R.Leg(:).T_W_0]; % Alle Beinketten-Basis-KS als Trafo spaltenweise
     collbodies_robot.type = [collbodies_robot.type; repmat(uint8(15),NLEG,1)]; % Kugel

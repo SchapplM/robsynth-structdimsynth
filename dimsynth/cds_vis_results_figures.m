@@ -56,6 +56,7 @@ end
 
 % Hole Erklärungstext zum Fitness-Wert aus Tabelle
 fval_text = ResTab.Fval_Text{strcmp(ResTab.Name,Name) & ResTab.LfdNr==RNr};
+RobShortName = ResTab.Beschreibung{strcmp(ResTab.Name,Name) & ResTab.LfdNr==RNr};
 for kk = 1:length(Set.general.animation_styles)
   anim_mode = Set.general.animation_styles{kk}; % Strichzeichnung, 3D-Modell, Kollisionskörper
   fhdl = figure();clf;hold all;
@@ -63,7 +64,7 @@ for kk = 1:length(Set.general.animation_styles)
   if ~strcmp(get(fhdl, 'windowstyle'), 'docked')
     set(fhdl,'units','normalized','outerposition',[0 0 1 1]);
   end
-  title(sprintf('Rob.%d, P.%d %s: fval=%s (%s)', RNr, PNr, Name, fval_str, fval_text));
+  title(sprintf('Rob.%d, P.%d %s (%s): fval=%s (%s)', RNr, PNr, Name, RobShortName, fval_str, fval_text));
   view(3);
   axis auto
   hold on;grid on;
@@ -221,7 +222,7 @@ end
 %% Pareto-Fronten für die Zielkriterien
 if strcmp(figname, 'pareto')
   if isempty(PSO_Detail_Data)
-    warning(['Variable PSO_Detail_Data wurde nicht gespeichert. Daher kein ', ...
+    error(['Variable PSO_Detail_Data wurde nicht gespeichert. Daher kein ', ...
       'detailliertes Pareto-Diagramm möglich']);
   end
   % Einheiten für die physikalischen Werte der Zielfunktionen vorbereiten
@@ -232,7 +233,7 @@ if strcmp(figname, 'pareto')
     objcomb = allcomb(1:length(Set.optimization.objective), 1:length(Set.optimization.objective));
     objcomb(objcomb(:,1)==objcomb(:,2),:) = [];
     objcomb(objcomb(:,1)>objcomb(:,2),:) = [];
-    for pffig = 1 % Zwei Bilder: Physikalische Werte (1) und normierte Werte (2)
+    for pffig = 1 % Zwei Bilder: Physikalische Werte (1) und normierte Werte (2; deaktiviert)
     fhdl = figure();clf;hold all;
     set(fhdl, 'Name', sprintf('Rob%d_Pareto', RNr), ...
       'NumberTitle', 'off', 'color','w');

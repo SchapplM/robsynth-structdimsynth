@@ -69,19 +69,25 @@ if isempty(Set.general.animation_styles) && isempty(setdiff( ...
 end
 %% Parallele Durchführung der Plots vorbereiten
 if Set.general.parcomp_plot && length_Structures_parfor > 0
-  if Set.general.isoncluster % auf Cluster möglicher Zugriffskonflikt für ParPool
-    parpool_writelock('lock', 180, true); % Synchronisationsmittel für ParPool
+  Pool = gcp('nocreate');
+  if isempty(Pool) % kein Pool aktiv
+    if Set.general.isoncluster % auf Cluster möglicher Zugriffskonflikt für ParPool
+      parpool_writelock('lock', 180, true); % Synchronisationsmittel für ParPool
+    end
+    try % Pool starten
+      Pool=parpool([1,Set.general.parcomp_maxworkers]);
+      parfor_numworkers = Pool.NumWorkers;
+    catch err
+      fprintf('Fehler beim Starten des parpool: %s\n', err.message);
+      parfor_numworkers = 1;
+    end
+    if Set.general.isoncluster
+      parpool_writelock('free', 0, true);
+    end
+  else
+    parfor_numworkers = Pool.NumWorkers;
   end
-  try
-    parpool([1 Set.general.parcomp_maxworkers]);
-  catch err
-    fprintf('Fehler beim Starten des parpool: %s\n', err.message);
-  end
-  Pool=gcp();
-  if Set.general.isoncluster
-    parpool_writelock('free', 0, true);
-  end
-  parfor_numworkers = Pool.NumWorkers;
+  clear Pool
   if ~isinf(Set.general.parcomp_maxworkers) && parfor_numworkers ~= Set.general.parcomp_maxworkers
     warning('Die gewünschte Zahl von %d Parallelinstanzen konnte nicht erfüllt werden. Es sind jetzt %d.', ...
       Set.general.parcomp_maxworkers, parfor_numworkers)
@@ -384,7 +390,14 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
       end
     end
     leghdl(countmarker,:) = hdl; %#ok<AGROW>
-    legstr{countmarker} = sprintf('%d/%d (%s)', i, length_Structures, Structures{i}.Name); %#ok<AGROW>
+    RobShortName = ResTab.Beschreibung{strcmp(ResTab.Name,Name) & ResTab.LfdNr==i};
+    if ~isempty(RobShortName)
+      addtxt = sprintf('; %s', RobShortName);
+    else
+      addtxt = '';
+    end
+    legstr{countmarker} = sprintf('%d/%d (%s%s)', i, length_Structures, ...
+      Structures{i}.Name, addtxt); %#ok<AGROW>
     % Funktions-Handle zum Anklicken der Datenpunkte
     ButtonDownFcn=@(src,event)cds_paretoplot_buttondownfcn(src,event,...
       Set.optimization.optname,Structures{i}.Name, i);
