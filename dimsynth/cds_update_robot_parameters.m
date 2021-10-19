@@ -149,9 +149,16 @@ if Set.optimization.ee_rotation && any(Structure.vartypes == 4)
   R.update_EE([], phi_N_E);
 end
 
-%% Basis-Rotation
+%% Basis-Rotation (um die z-Achse nach der Drehung in Boden-/Deckenmontage)
 if Set.optimization.rotate_base
-  error('Noch nicht implementiert');
+  p_baserot = p(Structure.vartypes == 5);
+  p_phys(Structure.vartypes == 5) = p_baserot;
+  if Structure.R_W_0_isset
+    phi_W_0 = r2eulxyz(Structure.R_W_0*rotz(p_baserot));
+  else
+    phi_W_0 = [0;0;p_baserot];
+  end
+  R.update_base([], phi_W_0);
 end
 
 %% Basis-Koppelpunkt Positionsparameter (z.B. Gestell-Radius)

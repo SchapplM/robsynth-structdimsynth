@@ -289,32 +289,37 @@ if Structure.Type == 0 % Seriell
 else % PKM
   mounting = Set.structures.mounting_parallel;
 end
-if ~Set.optimization.rotate_base
-  if strcmp(mounting, 'floor')
-    % Nichts ändern. Basis-KS zeigt (mit z-Achse) nach oben
-    R.update_base([], zeros(3,1));
-  elseif strcmp(mounting, 'ceiling')
-    % Roboter zeigt nach unten. x-Achse bleibt gleich
-    R.update_base([], [pi;0;0]); % xyz-Euler-Winkel
-    R.update_gravity([0;0;-9.81]); % Gravitation wird für Dynamik im Basis-KS definiert.
-    % Drehe End-Effektor auch um. Die Aufgaben sind so definiert, dass die
-    % z-Achse standardmäßig (im Welt-KS) nach oben zeigt. Sonst ist bei
-    % 2T1R, 3T0R und 3T1R die IK nicht lösbar.
-    % Vorher sind die KS schon so definiert, dass die z-Achse im Basis-KS
-    % nach oben zeigt. Jetzt zeigt sie im Basis-KS nach unten.
-    Structure.R_N_E = Structure.R_N_E*rotx(pi); % wird damit in Opt. der EE-Rotation berücksichtigt
-    R.update_EE([], r2eulxyz(Structure.R_N_E));
-  else
-    error('Fall %s noch nicht implementiert', mounting);
-  end
+if strcmp(mounting, 'floor')
+  % Nichts ändern. Basis-KS zeigt (mit z-Achse) nach oben
+  R.update_base([], zeros(3,1));
+elseif strcmp(mounting, 'ceiling')
+  % Roboter zeigt nach unten. x-Achse bleibt gleich
+  R.update_base([], [pi;0;0]); % xyz-Euler-Winkel
+  R.update_gravity([0;0;-9.81]); % Gravitation wird für Dynamik im Basis-KS definiert.
+  % Drehe End-Effektor auch um. Die Aufgaben sind so definiert, dass die
+  % z-Achse standardmäßig (im Welt-KS) nach oben zeigt. Sonst ist bei
+  % 2T1R, 3T0R und 3T1R die IK nicht lösbar.
+  % Vorher sind die KS schon so definiert, dass die z-Achse im Basis-KS
+  % nach oben zeigt. Jetzt zeigt sie im Basis-KS nach unten.
+  Structure.R_N_E = Structure.R_N_E*rotx(pi); % wird damit in Opt. der EE-Rotation berücksichtigt
+  R.update_EE([], r2eulxyz(Structure.R_N_E));
 else
-  error('Rotation der Basis ist noch nicht implementiert');
+  error('Fall %s noch nicht implementiert', mounting);
 end
 if any(any(abs(Structure.R_N_E-eye(3)) > 1e-10))
   Structure.R_N_E_isset = true;
 else
   Structure.R_N_E_isset = false;
 end
+% Merke diese ursprünglich gesetzte Basis-Rotation. Weitere Rotation kann
+% dazukommen, falls in Optimierung gewünscht.
+Structure.R_W_0 = R.T_W_0(1:3,1:3);
+if any(any(abs(Structure.R_W_0-eye(3)) > 1e-10))
+  Structure.R_W_0_isset = true;
+else
+  Structure.R_W_0_isset = false;
+end
+
 % Falls planerer Roboter: Definiere Verschiebung, damit der Roboter von
 % oben angreift. Sieht besser aus, macht die Optimierung aber schwieriger.
 % if all(Set.task.DoF(1:3) == [1 1 0])
@@ -680,6 +685,16 @@ if Set.optimization.ee_rotation
   for i = find(Set.task.DoF(4:6))
     varnames = [varnames(:)', {sprintf('ee rot %d', i)}];
   end
+end
+
+% Gestell-Rotation: Besonders für PKM relevant. Für Serielle Roboter mit
+% erstem Drehgelenk in z-Richtung irrelevant.
+if Set.optimization.rotate_base && ...
+    ~(Structure.Type == 0 && R.MDH.sigma(1)==0 && R.MDH.alpha(1)==0)
+  nvars = nvars + 1;
+  vartypes = [vartypes; 5];
+  varlim = [varlim; repmat([-pi, pi], 1, 1)];
+  varnames = [varnames(:)', {'baserotation z'}];
 end
 
 % Basis-Koppelpunkt Positionsparameter (z.B. Gestell-Radius)

@@ -123,7 +123,7 @@ optimization = struct( ...
   'platform_size_limits', [NaN, NaN], ... % Grenzen für Plattform-Größe (Radius; Absolut)
   'base_morphology', false, ... % Aussehen des Gestells (z.B. Schrägheit, Gelenkpaarabstand)
   'platform_morphology', false, ... % Aussehen der Plattform (z.B. Gelenkpaarabstand)
-  'rotate_base', false, ... % Orientierung der Roboter-Basis
+  'rotate_base', true, ... % Orientierung der Roboter-Basis (nur um die z-Achse). Hilft bei PKM.
   ... % Begrenzung des Verfahrweges von Schubgelenken. Mit NaN deaktiviert 
   ... % (wird dann aus Größe des Roboters plausibel abgeleitet).
   'max_range_prismatic', NaN, ...
