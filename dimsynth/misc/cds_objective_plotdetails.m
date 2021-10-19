@@ -56,6 +56,8 @@ for jj = 1:length(Set.optimization.objective)
     objscale(jj) = 1;
   elseif strcmp(Set.optimization.objective{jj}, 'installspace')
     obj_units{jj} = 'm³';
+  elseif strcmp(Set.optimization.objective{jj}, 'footprint')
+    obj_units{jj} = 'm²';
   else
     error('Zielfunktion %s nicht vorgesehen', Set.optimization.objective{jj});
   end
