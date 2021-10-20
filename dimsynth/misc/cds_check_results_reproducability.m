@@ -44,10 +44,13 @@ else
   RobNames = {RobName};
 end
 RobNames = unique(RobNames);
+ReproStatsTab = cell2table(cell(0,7), 'VariableNames', ...
+  {'RobNr', 'Name', 'Partikel', 'ResOpt', 'ResRepro', 'ErrMax', 'Status'});
 %% Roboter auswerten und Nachrechnen der Fitness-Funktion
 for i = 1:length(RobNames)
   RobName = RobNames{i};
   RobNr = find(strcmp(RobName,Structures_Names),1,'first');
+  fprintf('Untersuche Reproduzierbarkeit für Rob %d/%d: %s\n', i, length(RobNames), RobName);
   Structure = Structures{RobNr};
   resfile1 = fullfile(resdir_opt, sprintf('Rob%d_%s_Endergebnis.mat', ...
     RobNr, RobName));
@@ -91,12 +94,16 @@ for i = 1:length(RobNames)
       fval_all = RobotOptRes.fval;
       p_desopt_all = RobotOptRes.desopt_pval(:)';
     end
+    % Variable PSO_Detail_Data nachträglich erzeugen
+    PSO_Detail_Data = struct('fval', NaN(size(fval_all,1),size(fval_all,2),2));
+    PSO_Detail_Data.fval(:,:,1) = fval_all;
   end
   % Debug: Zusätzliche Bilder
   % Set.general.plot_details_in_fitness = 1e10;
   % Initialisiere die Roboter-Klasse
   [R, Structure] = cds_dimsynth_robot(Set, Traj, Structure, true);
-  % Sortiere die Fitness-Werte absteigend. Fange mit den besten an.
+  % Sortiere die Fitness-Werte aufsteigend. Fange mit den besten für
+  % Kriterium 1 an (links in 2D-Pareto-Diagramm)
   [~,I] = sortrows(fval_all, 1:size(fval_all,2));
   for jj = I(:)'
     p_jj = pval_all(jj,:)';
@@ -115,18 +122,26 @@ for i = 1:length(RobNames)
     end
     % TODO: Berücksichtige Structure_jj.q0_traj, falls nicht reproduzierbar.
     [k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, f_jj);
-    fprintf('Reproduktion Partikel Nr. %d (Gen. %d, Ind. %d): ', jj, k_gen, k_ind);
+    fprintf('Reproduktion Partikel Nr. %d (Gen. %d, Ind. %d):\n', jj, k_gen, k_ind);
     f2_jj = cds_fitness(R,Set,Traj,Structure_jj,p_jj,p_desopt_jj);
     test_f = f_jj - f2_jj;
-    if any(abs(test_f) > 1e-4)
+    rescode = 0;
+    if any(abs(test_f) > 1e-4) && f_jj(1)<1e3 || ... % Bei Erfolg feine Toleranz
+        any(abs(test_f) > 1e-1) && f_jj(1)>1e3 % Bei ZB-Verletzung gröbere Toleranz
       warning(['Fitness-Wert zu Partikel Nr. %d (Gen. %d, Ind. %d) nicht ', ...
         'reproduzierbar. In Optimierung (%s): [%s]. Neu: [%s]. Diff.: [%s]'], ...
         jj, k_gen, k_ind, disp_array(Set.optimization.objective), ...
         disp_array(f_jj', '%1.4f'), disp_array(f2_jj', '%1.4f'), ...
         disp_array(test_f', '%1.4e'));
-      if all(abs(test_f) < 1e3) && any(abs(f2_jj) > 1e3)
-        error('Vorher i.O., jetzt n.i.O.');
+      rescode = 1;
+      if all(abs(f_jj) < 1e3) && any(abs(f2_jj) > 1e3)
+        rescode = 2;
+        warning('Vorher i.O., jetzt n.i.O.');
       end
     end
+    % Auswertungs-Tabelle schreiben
+    ReproStatsTab = [ReproStatsTab; {i, RobName, jj, f_jj(1), f2_jj(1), ...
+      max(abs(test_f)), rescode}]; %#ok<AGROW>
+    writetable(ReproStatsTab, fullfile(resdir_opt, 'reproducability_stats.csv'), 'Delimiter', ';');
   end
 end
