@@ -610,7 +610,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   JP_jic(jic,:) = JPE(1,:);
   Phi_E(isnan(Phi_E)) = 1e6;
   if any(abs(Phi_E(:)) > 1e-2) || ... % Die Toleranz beim IK-Verfahren ist etwas größer
-      any(abs(Phi_E(1,:))>1e-9) % Startpunkt für Traj. Hat feine Toleranz, sonst missverständliche Ergebnisse
+      any(abs(Phi_E(1,:))>1e-8) % Startpunkt für Traj. Hat feine Toleranz, sonst missverständliche Ergebnisse. Konsistent mit Toleranz oben.
     % Nehme die mittlere IK-Abweichung aller Eckpunkte (Translation/Rotation
     % gemischt). Typische Werte von 1e-2 bis 10.
     % Bei vorzeitigem Abbruch zählt die Anzahl der erfolgreichen Eckpunkte
