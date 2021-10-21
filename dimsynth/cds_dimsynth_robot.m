@@ -220,7 +220,7 @@ for i = 1:NLEG
   R_init.qDlim(R_init.MDH.sigma==1,:) = repmat([-1,1]*... % Schubgelenk
     Set.optimization.max_velocity_active_prismatic, sum(R_init.MDH.sigma==1), 1);
   if Structure.Type == 2 % Paralleler Roboter
-    I_passrevolute = R_init.MDH.mu == 1 & R_init.MDH.sigma==0;
+    I_passrevolute =  R_init.MDH.mu == 1 & R_init.MDH.sigma==0;
     I_passuniversal = R_init.MDH.mu == 1 & R_init.DesPar.joint_type==2;
     I_passspherical = R_init.MDH.mu == 1 & R_init.DesPar.joint_type==3;
     R_init.qDlim(I_passrevolute,:) = repmat([-1,1]*... % Drehgelenk
@@ -337,8 +337,11 @@ if R.Type ~= 0 && (Set.optimization.joint_stiffness_passive_revolute > 0 || ...
   for k = 1:R.NLEG
     % Ruhelage der Feder muss erst später eingestellt werden (nach IK)
     % Federsteifigkeit auf vorgegebenen Wert setzen.
+    I_actrevolute =   R.Leg(k).MDH.mu ~= 1 & R.Leg(k).DesPar.joint_type==0;
     I_passrevolute =  R.Leg(k).MDH.mu == 1 & R.Leg(k).DesPar.joint_type==0;
     I_passuniversal = R.Leg(k).MDH.mu == 1 & R.Leg(k).DesPar.joint_type==2;
+    R.Leg(k).DesPar.joint_stiffness(I_actrevolute) = ...
+      Set.optimization.joint_stiffness_active_revolute;
     R.Leg(k).DesPar.joint_stiffness(I_passrevolute) = ...
       Set.optimization.joint_stiffness_passive_revolute;
     R.Leg(k).DesPar.joint_stiffness(I_passuniversal) = ...
@@ -1902,11 +1905,13 @@ if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref'))
   if Structure.Type == 0 % Serieller Roboter
     error('Gelenkfedern für serielle Roboter noch nicht implementiert');
   else % symmetrische PKM
+    I_actrevolute_opt =  R.Leg(1).MDH.mu ~= 1 & R.Leg(1).DesPar.joint_type==0 & ...
+      Set.optimization.joint_stiffness_active_revolute ~= 0;
     I_passrevolute_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==0 & ...
       Set.optimization.joint_stiffness_passive_revolute ~= 0;
     I_passuniversal_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==2 & ...
       Set.optimization.joint_stiffness_passive_universal ~= 0;
-    desopt_nvars_js = sum(I_passrevolute_opt|I_passuniversal_opt);
+    desopt_nvars_js = sum(I_actrevolute_opt|I_passrevolute_opt|I_passuniversal_opt);
     if desopt_nvars_js == 0
       error('Anzahl der zu optimierenden Variablen für joint_stiffness_qref ist Null. Logik-Fehler.');
     end
@@ -1918,11 +1923,13 @@ if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness'))
   if Structure.Type == 0 % Serieller Roboter
     error('Gelenkfedern für serielle Roboter noch nicht implementiert');
   else % symmetrische PKM
+    I_actrevolute_opt = R.Leg(1).MDH.mu ~= 1 & R.Leg(1).DesPar.joint_type==0 & ...
+      isnan(Set.optimization.joint_stiffness_active_revolute);
     I_passrevolute_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==0 & ...
       isnan(Set.optimization.joint_stiffness_passive_revolute);
     I_passuniversal_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==2 & ...
       isnan(Set.optimization.joint_stiffness_passive_universal);
-    desopt_nvars_js = sum(I_passrevolute_opt|I_passuniversal_opt);
+    desopt_nvars_js = sum(I_actrevolute_opt|I_passrevolute_opt|I_passuniversal_opt);
     if desopt_nvars_js == 0
       error('Anzahl der zu optimierenden Variablen für joint_stiffness ist Null. Logik-Fehler.');
     end
@@ -2398,7 +2405,8 @@ Structure_tmp = Structure; % Eingabe um Berechnung der Antriebskräfte zu erzwin
 Structure_tmp.calc_dyn_act = true;
 Structure_tmp.calc_cut = true; % ... und der Schnittkräfte
 Structure_tmp.calc_dyn_reg = false;
-if Set.optimization.joint_stiffness_passive_revolute
+if Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
+    Set.optimization.joint_stiffness_passive_universal ~= 0
   Structure_tmp.calc_spring_act = true;
   Structure_tmp.calc_spring_reg = false;
 end

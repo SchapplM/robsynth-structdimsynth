@@ -85,21 +85,25 @@ end
 %% Gelenksteifigkeiten aktualisieren
 if any(vartypes==3)
   for i = 1:R.NLEG
+    I_actrevolute_opt = R.Leg(i).MDH.mu ~= 1 & R.Leg(i).DesPar.joint_type==0 & ...
+      Set.optimization.joint_stiffness_active_revolute ~= 0;
     I_passrevolute_opt = R.Leg(i).MDH.mu == 1 & R.Leg(i).DesPar.joint_type==0 & ...
       Set.optimization.joint_stiffness_passive_revolute ~= 0;
     I_passuniversal_opt = R.Leg(i).MDH.mu == 1 & R.Leg(i).DesPar.joint_type==2 & ...
       Set.optimization.joint_stiffness_passive_universal ~= 0;
-    I_update = I_passrevolute_opt | I_passuniversal_opt;
+    I_update = I_actrevolute_opt | I_passrevolute_opt | I_passuniversal_opt;
     R.Leg(i).DesPar.joint_stiffness_qref(I_update) = p_jsoff;
   end
 end
 if any(vartypes==4)
   for i = 1:R.NLEG
-    I_passrevolute_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==0 & ...
+    I_actrevolute_opt = R.Leg(i).MDH.mu ~= 1 & R.Leg(i).DesPar.joint_type==0 & ...
+      isnan(Set.optimization.joint_stiffness_active_revolute);
+    I_passrevolute_opt = R.Leg(i).MDH.mu == 1 & R.Leg(i).DesPar.joint_type==0 & ...
       isnan(Set.optimization.joint_stiffness_passive_revolute);
-    I_passuniversal_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==2 & ...
+    I_passuniversal_opt = R.Leg(i).MDH.mu == 1 & R.Leg(i).DesPar.joint_type==2 & ...
       isnan(Set.optimization.joint_stiffness_passive_universal);
-    I_update = I_passrevolute_opt | I_passuniversal_opt;
+    I_update = I_actrevolute_opt | I_passrevolute_opt | I_passuniversal_opt;
     R.Leg(i).DesPar.joint_stiffness(I_update) = p_js;
   end
 end
@@ -210,7 +214,7 @@ if fval == 0  && Set.optimization.constraint_obj(5) % NB für Steifigkeit gesetz
   end
 end
 if fval > 1000 % Nebenbedingungen verletzt.
-  cds_log(4,sprintf(['[desopt/fitness] DesOpt-Fitness-Evaluation in %1.1fs. ', ...
+  cds_log(4,sprintf(['[desopt/fitness] DesOpt-Fitness-Evaluation in %1.2fs. ', ...
     'Parameter: [%s]. fval=%1.3e. %s'], toc(t1), disp_array(p_desopt', '%1.3f'), ...
     fval, constrvioltext));
 end

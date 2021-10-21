@@ -68,11 +68,13 @@ if any(vartypes == 2) % Dimensionierung der Segmente
 end
 if any(vartypes == 3) % Einbaulage von Gelenkfedern
   % Annahme: Roboter ist symmetrische PKM.
+  I_actrevolute_opt = R.Leg(1).MDH.mu ~= 1 & R.Leg(1).DesPar.joint_type==0 & ...
+    Set.optimization.joint_stiffness_active_revolute ~= 0;
   I_passrevolute_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==0 & ...
     Set.optimization.joint_stiffness_passive_revolute ~= 0;
   I_passuniversal_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==2 & ...
     Set.optimization.joint_stiffness_passive_universal ~= 0;
-  I_joints = I_passrevolute_opt | I_passuniversal_opt;
+  I_joints = I_actrevolute_opt | I_passrevolute_opt | I_passuniversal_opt;
   % Bestimme die Grenzen der Gelenkkoordinaten der Beinketten. Fasse die
   % Gelenke jeder Beinkette zusammen, da eine symmetrische Anordnung für
   % die Feder-Mittelstellungen gesucht wird.
@@ -102,15 +104,15 @@ if any(vartypes == 3) % Einbaulage von Gelenkfedern
   varlim = [varlim; varlim_js_off]; % in Grenzen für PSO eintragen
 end
 if any(vartypes == 4) % Steifigkeit von Gelenkfedern
+  I_actrevolute_opt = R.Leg(1).MDH.mu ~= 1 & R.Leg(1).DesPar.joint_type==0 & ...
+    isnan(Set.optimization.joint_stiffness_active_revolute);
   I_passrevolute_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==0 & ...
     isnan(Set.optimization.joint_stiffness_passive_revolute);
   I_passuniversal_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==2 & ...
     isnan(Set.optimization.joint_stiffness_passive_universal);
-  I_joints = I_passrevolute_opt | I_passuniversal_opt;
-  % Maximale sinnvolle Gelenksteifigkeit schätzen. 100Nm/rad sind 1.7Nm/Grad
-  % TODO: Dieser Wert ist aktuell komplett willkürlich und muss an die
-  % Aufgaben angepasst werden. Eventuell als Einstellung.
-  varlim_js = repmat([0, 100], sum(I_joints), 1);
+  I_joints = I_actrevolute_opt | I_passrevolute_opt | I_passuniversal_opt;
+  % Maximale sinnvolle Gelenksteifigkeit einstellen. Für alle Gelenke gleich.
+  varlim_js = repmat([0, Set.optimization.joint_stiffness_max], sum(I_joints), 1);
   varlim = [varlim; varlim_js]; % in Grenzen für PSO eintragen
 end
 assert(size(varlim,1)==nvars, 'Dimension von varlim passt nicht zu nvars');
@@ -297,21 +299,25 @@ if any(vartypes == 2)
 end
 if any(vartypes == 3)
   for i = 1:R.NLEG
+    I_actrevolute_opt = R.Leg(i).MDH.mu ~= 1 & R.Leg(i).DesPar.joint_type==0 & ...
+      Set.optimization.joint_stiffness_active_revolute ~= 0;
     I_passrevolute_opt = R.Leg(i).MDH.mu == 1 & R.Leg(i).DesPar.joint_type==0 & ...
       Set.optimization.joint_stiffness_passive_revolute ~= 0;
     I_passuniversal_opt = R.Leg(i).MDH.mu == 1 & R.Leg(i).DesPar.joint_type==2 & ...
       Set.optimization.joint_stiffness_passive_universal ~= 0;
-    I_update = I_passrevolute_opt | I_passuniversal_opt;
+    I_update = I_actrevolute_opt | I_passrevolute_opt | I_passuniversal_opt;
     R.Leg(i).DesPar.joint_stiffness_qref(I_update) = p_val(vartypes==3);
   end
 end
 if any(vartypes == 4)
   for i = 1:R.NLEG
-    I_passrevolute_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==0 & ...
+    I_actrevolute_opt = R.Leg(i).MDH.mu ~= 1 & R.Leg(i).DesPar.joint_type==0 & ...
+      isnan(Set.optimization.joint_stiffness_active_revolute);
+    I_passrevolute_opt = R.Leg(i).MDH.mu == 1 & R.Leg(i).DesPar.joint_type==0 & ...
       isnan(Set.optimization.joint_stiffness_passive_revolute);
-    I_passuniversal_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==2 & ...
+    I_passuniversal_opt = R.Leg(i).MDH.mu == 1 & R.Leg(i).DesPar.joint_type==2 & ...
       isnan(Set.optimization.joint_stiffness_passive_universal);
-    I_update = I_passrevolute_opt | I_passuniversal_opt;
+    I_update = I_actrevolute_opt | I_passrevolute_opt | I_passuniversal_opt;
     R.Leg(i).DesPar.joint_stiffness(I_update) = p_val(vartypes==4);
   end
 end
