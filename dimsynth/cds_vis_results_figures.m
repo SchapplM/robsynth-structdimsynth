@@ -730,7 +730,14 @@ if strcmp(figname, 'springrestpos')
   % Trajektorie erzeugen.
   q_start = RobotOptDetails.Traj_Q(1,:)'; q_end = q_start;
   for i = 1:R.NLEG
-    q_start([false(R.I1J_LEG(i)-1,1);R.Leg(i).MDH.sigma==0]) = R.Leg(i).DesPar.joint_stiffness_qref(R.Leg(i).MDH.sigma==0);
+    I_passrevolute_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==0 & ...
+      Set.optimization.joint_stiffness_passive_revolute ~= 0;
+    I_passuniversal_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==2 & ...
+      Set.optimization.joint_stiffness_passive_universal ~= 0;
+    q_start([false(R.I1J_LEG(i)-1,1);I_passrevolute_opt]) = ...
+      R.Leg(i).DesPar.joint_stiffness_qref(I_passrevolute_opt);
+    q_start([false(R.I1J_LEG(i)-1,1);I_passuniversal_opt]) = ...
+      R.Leg(i).DesPar.joint_stiffness_qref(I_passuniversal_opt);
   end
   [Q_ges,~,~,T_ges] = traj_trapez2_multipoint([q_start';q_end'], 1, 0.05, 0.01, 0.005, 0);
   % Video auf Länge 10s bringen

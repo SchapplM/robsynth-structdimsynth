@@ -89,6 +89,12 @@ for dbc = [false, true]
           Set.optimization.desopt_vars = {};
           Set.optimization.joint_stiffness_passive_revolute = 1*180/pi;
           Set.structures.whitelist = whitelist_par; % Gelenkfeder nur für PKM
+        case 6
+          % Ruhelage und Steifigkeit der Gelenkelastizität optimieren
+          Set.optimization.desopt_vars = {'joint_stiffness_qref', 'joint_stiffness'};
+          Set.optimization.joint_stiffness_passive_revolute = NaN;
+          Set.optimization.joint_stiffness_passive_universal = 0;
+          Set.structures.whitelist = whitelist_par; % Gelenkfeder nur für PKM
       end
       Set.optimization.optname = sprintf('desopt_test_%d_%d_dbc%d', i, k, dbc);
       cds_start(Set,Traj);

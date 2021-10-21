@@ -66,7 +66,8 @@ elseif abort_fitnesscalc
 end
 vartypes = Structure.desopt_ptypes(Structure.desopt_ptypes~=1);
 p_ls = p_desopt(vartypes==2);
-p_js = p_desopt(vartypes==3);
+p_jsoff = p_desopt(vartypes==3);
+p_js = p_desopt(vartypes==4);
 
 %% Plausibilität der Eingabe prüfen
 if any(vartypes==2) && p_ls(1) > p_ls(2)/2 % Wandstärke darf nicht größer als Radius sein
@@ -84,7 +85,22 @@ end
 %% Gelenksteifigkeiten aktualisieren
 if any(vartypes==3)
   for i = 1:R.NLEG
-    R.Leg(i).DesPar.joint_stiffness_qref(R.Leg(i).MDH.sigma==0) = p_js;
+    I_passrevolute_opt = R.Leg(i).MDH.mu == 1 & R.Leg(i).DesPar.joint_type==0 & ...
+      Set.optimization.joint_stiffness_passive_revolute ~= 0;
+    I_passuniversal_opt = R.Leg(i).MDH.mu == 1 & R.Leg(i).DesPar.joint_type==2 & ...
+      Set.optimization.joint_stiffness_passive_universal ~= 0;
+    I_update = I_passrevolute_opt | I_passuniversal_opt;
+    R.Leg(i).DesPar.joint_stiffness_qref(I_update) = p_jsoff;
+  end
+end
+if any(vartypes==4)
+  for i = 1:R.NLEG
+    I_passrevolute_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==0 & ...
+      isnan(Set.optimization.joint_stiffness_passive_revolute);
+    I_passuniversal_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==2 & ...
+      isnan(Set.optimization.joint_stiffness_passive_universal);
+    I_update = I_passrevolute_opt | I_passuniversal_opt;
+    R.Leg(i).DesPar.joint_stiffness(I_update) = p_js;
   end
 end
 %% Dynamik neu berechnen
@@ -97,7 +113,7 @@ if fval == 0 && (Structure.calc_dyn_reg || Structure.calc_spring_reg)
     Structure_tmp = Structure;
     Structure_tmp.calc_dyn_act = true;
     Structure_tmp.calc_dyn_reg = false;
-    if Set.optimization.joint_stiffness_passive_revolute
+    if Set.optimization.joint_stiffness_passive_revolute ~= 0
       Structure_tmp.calc_spring_act = true;
       Structure_tmp.calc_spring_reg = false;
     end

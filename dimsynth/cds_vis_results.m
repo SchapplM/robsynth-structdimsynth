@@ -610,7 +610,7 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   if task_red
     menuitems = [menuitems, 'Redundanzkarte']; %#ok<AGROW>
   end
-  if Set.optimization.joint_stiffness_passive_revolute
+  if Set.optimization.joint_stiffness_passive_revolute ~= 0
     menuitems = [menuitems, 'Feder-Ruhelage']; %#ok<AGROW>
   end
   uicontrol('Style', 'popupmenu', ...

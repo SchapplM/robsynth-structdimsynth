@@ -332,12 +332,17 @@ end
 % end
 
 % Gelenk-Steifigkeit einsetzen (Sonderfall für Starrkörpergelenke)
-if R.Type ~= 0 && Set.optimization.joint_stiffness_passive_revolute
+if R.Type ~= 0 && (Set.optimization.joint_stiffness_passive_revolute > 0 || ...
+                   Set.optimization.joint_stiffness_passive_universal > 0)
   for k = 1:R.NLEG
     % Ruhelage der Feder muss erst später eingestellt werden (nach IK)
     % Federsteifigkeit auf vorgegebenen Wert setzen.
-    R.Leg(k).DesPar.joint_stiffness(R.Leg(k).MDH.sigma==0) = ...
+    I_passrevolute =  R.Leg(k).MDH.mu == 1 & R.Leg(k).DesPar.joint_type==0;
+    I_passuniversal = R.Leg(k).MDH.mu == 1 & R.Leg(k).DesPar.joint_type==2;
+    R.Leg(k).DesPar.joint_stiffness(I_passrevolute) = ...
       Set.optimization.joint_stiffness_passive_revolute;
+    R.Leg(k).DesPar.joint_stiffness(I_passuniversal) = ...
+      Set.optimization.joint_stiffness_passive_universal;
   end
 end
 %% Umfang der Berechnungen prüfen: Schnittkraft / Regressorform / Dynamik
@@ -355,20 +360,23 @@ calc_spring_reg = false;
 
 if ~isempty(intersect(Set.optimization.objective, {'energy', 'actforce'}))
   calc_dyn_act = true; % Antriebskraft für Zielfunktion benötigt
-  if Set.optimization.joint_stiffness_passive_revolute
+  if (Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
+      Set.optimization.joint_stiffness_passive_universal ~= 0)
     calc_spring_act = true;
   end
 end
 if any(Set.optimization.constraint_obj(2:3)) % Energie oder Antriebskraft
   calc_dyn_act = true; % Antriebskraft für Nebenbedingung benötigt
-  if Set.optimization.joint_stiffness_passive_revolute
+  if (Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
+      Set.optimization.joint_stiffness_passive_universal ~= 0)
     calc_spring_act = true;
   end
 end
 if any(strcmp(Set.optimization.desopt_vars, 'linkstrength'))
   calc_dyn_reg = true; % Entwurfsoptimierung schneller mit Regressor
 end
-if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref'))
+if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref')) || ...
+    any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness'))
   calc_spring_reg = true; % Entwurfsoptimierung schneller mit Regressor
 end
 if Set.optimization.constraint_obj(6) > 0 || ... % Schnittkraft als Nebenbedingung ...
@@ -377,7 +385,8 @@ if Set.optimization.constraint_obj(6) > 0 || ... % Schnittkraft als Nebenbedingu
 end
 if Structure.Type == 2 && calc_cut
   calc_dyn_act = true;
-  if Set.optimization.joint_stiffness_passive_revolute
+  if Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
+     Set.optimization.joint_stiffness_passive_universal ~= 0
     calc_spring_act = true;
   end
 end
@@ -1861,7 +1870,7 @@ end
 %% Parameter der Entwurfsoptimierung festlegen
 % Dies enthält alle Parameter, die zusätzlich gespeichert werden sollen.
 % Typen von Parametern in der Entwurfsoptimierung: 1=Gelenk-Offset, 
-% 2=Segmentstärke, 3=Nullstellung von Gelenkfedern
+% 2=Segmentstärke, 3=Nullstellung von Gelenkfedern, 4=Gelenk-Steifigkeit
 desopt_ptypes = [];
 if Structure.desopt_prismaticoffset
   % Gelenk-Offsets. Siehe cds_desopt_prismaticoffset.m
@@ -1880,7 +1889,12 @@ if any(strcmp(Set.optimization.desopt_vars, 'linkstrength'))
 end
 
 if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref'))
-  if ~Set.optimization.joint_stiffness_passive_revolute
+  if ~any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness')) && ... % keine Optimierung der Steifigkeit
+      (Set.optimization.joint_stiffness_passive_revolute == 0 && ... % und konstante Steifigkeit sind zu Null gesetzt
+      Set.optimization.joint_stiffness_passive_universal == 0) || ...
+    any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness')) && ... % Steifigkeiten werden optimiert
+     (~isnan(Set.optimization.joint_stiffness_passive_revolute) && ... % aber keine Komponente wird dafür gewählt
+     ~isnan(Set.optimization.joint_stiffness_passive_universal))
     error(['Nullstellung der Gelenksteifigkeit soll optimiert werden, ', ...
       'aber es ist keine Steifigkeit definiert']);
   end
@@ -1888,9 +1902,32 @@ if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref'))
   if Structure.Type == 0 % Serieller Roboter
     error('Gelenkfedern für serielle Roboter noch nicht implementiert');
   else % symmetrische PKM
-    desopt_nvars_js = sum(R.Leg(1).MDH.sigma==0);
+    I_passrevolute_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==0 & ...
+      Set.optimization.joint_stiffness_passive_revolute ~= 0;
+    I_passuniversal_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==2 & ...
+      Set.optimization.joint_stiffness_passive_universal ~= 0;
+    desopt_nvars_js = sum(I_passrevolute_opt|I_passuniversal_opt);
+    if desopt_nvars_js == 0
+      error('Anzahl der zu optimierenden Variablen für joint_stiffness_qref ist Null. Logik-Fehler.');
+    end
   end
   desopt_ptypes = [desopt_ptypes; 3*ones(desopt_nvars_js, 1)];
+end
+if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness'))
+  % Siehe cds_dimsynth_desopt
+  if Structure.Type == 0 % Serieller Roboter
+    error('Gelenkfedern für serielle Roboter noch nicht implementiert');
+  else % symmetrische PKM
+    I_passrevolute_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==0 & ...
+      isnan(Set.optimization.joint_stiffness_passive_revolute);
+    I_passuniversal_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==2 & ...
+      isnan(Set.optimization.joint_stiffness_passive_universal);
+    desopt_nvars_js = sum(I_passrevolute_opt|I_passuniversal_opt);
+    if desopt_nvars_js == 0
+      error('Anzahl der zu optimierenden Variablen für joint_stiffness ist Null. Logik-Fehler.');
+    end
+  end
+  desopt_ptypes = [desopt_ptypes; 4*ones(desopt_nvars_js, 1)];
 end
 Structure.desopt_ptypes = desopt_ptypes;
 

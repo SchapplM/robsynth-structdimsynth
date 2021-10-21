@@ -423,6 +423,11 @@ for iIKC = 1:size(Q0,1)
         % gleich). Siehe cds_dimsynth_desopt_fitness.
         desopt_pval_IKC(iIKC,Structure.desopt_ptypes==3) = desopt_pval(vartypes_desopt==3);
       end
+      if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness'))
+        % Speichere die Parameter der Gelenkfeder-Steifigkeit (jede Beinkette
+        % gleich). Siehe cds_dimsynth_desopt_fitness.
+        desopt_pval_IKC(iIKC,Structure.desopt_ptypes==4) = pval_desopt(vartypes_desopt==4);
+      end
       if fval_desopt > 1000 % Nebenbedingungen in Entwurfsoptimierung verletzt.
         % Neue Werte (geändert gegenüber cds_dimsynth_desopt_fitness.)
         % 1e4...1e5: Nebenbedingung von Zielfunktion überschritten
@@ -443,13 +448,26 @@ for iIKC = 1:size(Q0,1)
 
   %% Berechnungen für Zielfunktionen
   % Nullstellung der Gelenk-Steifigkeit einsetzen (Sonderfall für Starrkörpergelenke)
-  if R.Type ~= 0 && Set.optimization.joint_stiffness_passive_revolute && ...
+  if R.Type ~= 0 && Set.optimization.joint_stiffness_passive_revolute ~= 0 && ...
       ~any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref'))
     if desopt_pval_given && any(Structure.desopt_ptypes==3)
       % Ruhelage der Federn ist vorgegeben
-      p_js = desopt_pval(Structure.desopt_ptypes==3);
+      p_js_off = desopt_pval(Structure.desopt_ptypes==3);
       for i = 1:R.NLEG
-        R.Leg(i).DesPar.joint_stiffness_qref(R.Leg(i).MDH.sigma==0) = p_js;
+        I_passrevolute_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==0 & ...
+          Set.optimization.joint_stiffness_passive_revolute ~= 0;
+        I_passuniversal_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==2 & ...
+          Set.optimization.joint_stiffness_passive_universal ~= 0;
+        R.Leg(i).DesPar.joint_stiffness_qref(I_passrevolute_opt|I_passuniversal_opt) = p_js_off;
+      end
+      % Feder-Steifigkeit ist auch vorgegeben
+      p_js = desopt_pval(Structure.desopt_ptypes==4);
+      for i = 1:R.NLEG
+        I_passrevolute_opt = R.Leg(i).MDH.mu == 1 & R.Leg(i).DesPar.joint_type==0 & ...
+          isnan(Set.optimization.joint_stiffness_passive_revolute);
+        I_passuniversal_opt = R.Leg(i).MDH.mu == 1 & R.Leg(i).DesPar.joint_type==2 & ...
+          isnan(Set.optimization.joint_stiffness_passive_universal);
+        R.Leg(i).DesPar.joint_stiffness(I_passrevolute_opt|I_passuniversal_opt) = p_js;
       end
     else
       % Ruhelage der Feder ist Mittelstellung der Gelenk-Trajektorie (erzeugt

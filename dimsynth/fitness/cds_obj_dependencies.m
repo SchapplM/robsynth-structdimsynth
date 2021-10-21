@@ -198,8 +198,9 @@ if R.Type ~= 0 && (Structure.calc_cut && ~Structure.calc_dyn_reg || Set.general.
   Wges_ID = R.internforce_traj(Q, QD, QDD, TAU_ID);
 end
 
-if R.Type ~= 0 && (Structure.calc_cut && ~Structure.calc_spring_reg && ...
-    Set.optimization.joint_stiffness_passive_revolute)
+if R.Type ~= 0 && Structure.calc_cut && ~Structure.calc_spring_reg && ...
+    (Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
+     Set.optimization.joint_stiffness_passive_universal ~= 0)
   Wges_spring = R.internforce_traj(Q, 0*QD, 0*QDD, TAU_spring, R.springtorque_traj(Q));
 end
 
@@ -315,7 +316,8 @@ if ~Structure.calc_dyn_reg && Structure.calc_cut
   data_dyn.Wges_ID = Wges_ID;
 end
 if ~Structure.calc_spring_reg && Structure.calc_cut && ...
-    Set.optimization.joint_stiffness_passive_revolute
+    (Set.optimization.joint_stiffness_passive_revolute~=0 || ...
+     Set.optimization.joint_stiffness_passive_universal~=0)
   data_dyn.Wges_spring = Wges_spring;
 end
 if Structure.calc_dyn_reg || Set.general.debug_calc
@@ -334,7 +336,8 @@ if Structure.calc_spring_reg
 end
 
 if isfield(data_dyn, 'TAU_ID')
-  if ~Set.optimization.joint_stiffness_passive_revolute
+  if ~(Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
+      Set.optimization.joint_stiffness_passive_universal ~= 0)
     data_dyn.TAU = data_dyn.TAU_ID;
   end
   % Drehfeder in Gelenken berücksichtigen (nur PKM). Gebe die Summe aus den
@@ -353,7 +356,8 @@ end
 
 if isfield(data_dyn, 'Wges_ID')
   % Das gleiche wie im vorherigen Block, nur für Schnittkräfte statt Antriebskräfte.
-  if ~Set.optimization.joint_stiffness_passive_revolute
+  if ~(Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
+      Set.optimization.joint_stiffness_passive_universal ~= 0)
     data_dyn.Wges = data_dyn.Wges_ID;
   end
   if isfield(data_dyn, 'Wges_spring') && ~isfield(data_dyn, 'Wges_spring_reg')

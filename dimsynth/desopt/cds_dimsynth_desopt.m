@@ -55,7 +55,7 @@ nvars = length(vartypes); % Variablen: Wandstärke, Durchmesser der Segmente, Ru
 NumIndividuals = 10*nvars;
 
 varlim = [];
-if any(vartypes == 2)
+if any(vartypes == 2) % Dimensionierung der Segmente
   % Allgemeine Einstellungen (werden für serielle Roboter beibehalten)
   varlim_ls = [ 5e-3, 150e-3; ... % Grenzen für Wandstärke
                80e-3, 600e-3];  % Grenze für Durchmesser
@@ -66,9 +66,13 @@ if any(vartypes == 2)
   end
   varlim = [varlim; varlim_ls];
 end
-if any(vartypes == 3)
+if any(vartypes == 3) % Einbaulage von Gelenkfedern
   % Annahme: Roboter ist symmetrische PKM.
-  I_joints = R.Leg(1).MDH.sigma==0;
+  I_passrevolute_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==0 & ...
+    Set.optimization.joint_stiffness_passive_revolute ~= 0;
+  I_passuniversal_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==2 & ...
+    Set.optimization.joint_stiffness_passive_universal ~= 0;
+  I_joints = I_passrevolute_opt | I_passuniversal_opt;
   % Bestimme die Grenzen der Gelenkkoordinaten der Beinketten. Fasse die
   % Gelenke jeder Beinkette zusammen, da eine symmetrische Anordnung für
   % die Feder-Mittelstellungen gesucht wird.
@@ -94,9 +98,22 @@ if any(vartypes == 3)
                             varlim_js_from_traj(:,2)-rangelim+1e-3, ...
                             varlim_js_from_traj(:,1)+rangelim-1e-3];
   % Bestimme die Ober- und Untergrenze aus den beiden Fällen
-  varlim_js = minmax2([varlim_js_from_traj, varlim_from_jointrange]);
+  varlim_js_off = minmax2([varlim_js_from_traj, varlim_from_jointrange]);
+  varlim = [varlim; varlim_js_off]; % in Grenzen für PSO eintragen
+end
+if any(vartypes == 4) % Steifigkeit von Gelenkfedern
+  I_passrevolute_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==0 & ...
+    isnan(Set.optimization.joint_stiffness_passive_revolute);
+  I_passuniversal_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==2 & ...
+    isnan(Set.optimization.joint_stiffness_passive_universal);
+  I_joints = I_passrevolute_opt | I_passuniversal_opt;
+  % Maximale sinnvolle Gelenksteifigkeit schätzen. 100Nm/rad sind 1.7Nm/Grad
+  % TODO: Dieser Wert ist aktuell komplett willkürlich und muss an die
+  % Aufgaben angepasst werden. Eventuell als Einstellung.
+  varlim_js = repmat([0, 100], sum(I_joints), 1);
   varlim = [varlim; varlim_js]; % in Grenzen für PSO eintragen
 end
+assert(size(varlim,1)==nvars, 'Dimension von varlim passt nicht zu nvars');
 % Erzeuge zufällige Startpopulation
 options_desopt.SwarmSize = NumIndividuals;
 InitPop = repmat(varlim(:,1)', NumIndividuals,1) + rand(NumIndividuals, nvars) .* ...
@@ -123,9 +140,9 @@ if any(vartypes == 3)
   end
   % Eine weitere plausible Lösung liegt am Rand (dann maximaler Effekt der
   % Feder zur Gravitationskompensation)
-  allcombinput = cell(1,size(varlim_js,1)); % Definiere die Eingabe als Cell
+  allcombinput = cell(1,size(varlim_js_off,1)); % Definiere die Eingabe als Cell
   for k = 1:length(allcombinput)
-    allcombinput{k} = varlim_js(k,:)';
+    allcombinput{k} = varlim_js_off(k,:)';
   end
   InitPop_js_border = allcomb(allcombinput{:});
   % Begrenze die Anzahl dieser Grenz-Partikel
@@ -280,7 +297,22 @@ if any(vartypes == 2)
 end
 if any(vartypes == 3)
   for i = 1:R.NLEG
-    R.Leg(i).DesPar.joint_stiffness_qref(R.Leg(i).MDH.sigma==0) = p_val(vartypes==3);
+    I_passrevolute_opt = R.Leg(i).MDH.mu == 1 & R.Leg(i).DesPar.joint_type==0 & ...
+      Set.optimization.joint_stiffness_passive_revolute ~= 0;
+    I_passuniversal_opt = R.Leg(i).MDH.mu == 1 & R.Leg(i).DesPar.joint_type==2 & ...
+      Set.optimization.joint_stiffness_passive_universal ~= 0;
+    I_update = I_passrevolute_opt | I_passuniversal_opt;
+    R.Leg(i).DesPar.joint_stiffness_qref(I_update) = p_val(vartypes==3);
+  end
+end
+if any(vartypes == 4)
+  for i = 1:R.NLEG
+    I_passrevolute_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==0 & ...
+      isnan(Set.optimization.joint_stiffness_passive_revolute);
+    I_passuniversal_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==2 & ...
+      isnan(Set.optimization.joint_stiffness_passive_universal);
+    I_update = I_passrevolute_opt | I_passuniversal_opt;
+    R.Leg(i).DesPar.joint_stiffness(I_update) = p_val(vartypes==4);
   end
 end
 return
