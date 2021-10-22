@@ -300,7 +300,7 @@ end
 if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_details_in_desopt) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
    Set.general.plot_details_in_desopt > 0 && fval <= abs(Set.general.plot_details_in_desopt) % Gütefunktion ist besser als Schwellwert: Zeichne
   % Plotte die Antriebskraft, wenn die Feder-Ruhelagen optimiert werden
-  if any(vartypes==3)
+  if any(vartypes==3) || any(vartypes==4)
     change_current_figure(986);clf;
     set(986, 'Name', 'DesOpt_ActForce', 'NumberTitle', 'off');
     ntau = size(data_dyn.TAU_spring, 2);
@@ -317,18 +317,27 @@ if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_detail
     legend({'ID', 'spring', 'total'});
     sgtitle(sprintf('Antriebskraft in Entwurfsoptimierung. fval=%1.2e', fval));
     drawnow();
-    
+  end
+  if any(vartypes==3)
     change_current_figure(987);clf;
     set(987, 'Name', 'JointSpring_Angles', 'NumberTitle', 'off');
-    RP = ['R', 'P'];
     for i = 1:R.NJ
       legnum = find(i>=R.I1J_LEG, 1, 'last');
       legjointnum = i-(R.I1J_LEG(legnum)-1);
+      switch R.Leg(legnum).DesPar.joint_type(legjointnum)
+        case 0, type = 'R';
+        case 1, type = 'P';
+        case 2, type = 'U';
+        case 3, type = 'S';
+      end
       subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
       hold on; grid on;
       hdl1=plot(Traj_0.t, Q(:,i));
-      hdl2=plot(Traj_0.t([1,end]), R.Leg(legnum).DesPar.joint_stiffness_qref(legjointnum)*[1;1]);
-      title(sprintf('q %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+      if R.Leg(legnum).DesPar.joint_stiffness(legjointnum) ~= 0
+        hdl2=plot(Traj_0.t([1,end]), R.Leg(legnum).DesPar.joint_stiffness_qref(legjointnum)*[1;1]);
+      end
+      title(sprintf('q %d (%s), L%d,J%d, k=%1.2f', i, type, legnum, legjointnum, ...
+        R.Leg(legnum).DesPar.joint_stiffness(legjointnum)));
       if i == R.NJ, legend([hdl1;hdl2], {'q','qref'}); end
       if legjointnum == 1, ylabel(sprintf('Beinkette %d',legnum)); end
     end

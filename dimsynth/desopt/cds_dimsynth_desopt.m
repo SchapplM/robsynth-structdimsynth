@@ -49,11 +49,19 @@ end
 vartypes = Structure.desopt_ptypes(Structure.desopt_ptypes~=1);
 options_desopt = optimoptions('particleswarm');
 options_desopt.Display = 'off';
-options_desopt.MaxIter = 5;
+
 options_desopt.MaxStallIterations = 1; % Oft ist das Optimum der Startwert
 nvars = length(vartypes); % Variablen: Wandstärke, Durchmesser der Segmente, Ruhelage von Gelenkfedern
-NumIndividuals = 10*nvars;
-
+if isnan(Set.optimization.desopt_NumIndividuals)
+  NumIndividuals = 10*nvars;
+else
+  NumIndividuals = Set.optimization.desopt_NumIndividuals;
+end
+if isnan(Set.optimization.desopt_MaxIter)
+  options_desopt.MaxIter = 5;
+else
+  options_desopt.MaxIter = Set.optimization.desopt_MaxIter;
+end
 varlim = [];
 if any(vartypes == 2) % Dimensionierung der Segmente
   % Allgemeine Einstellungen (werden für serielle Roboter beibehalten)
@@ -261,7 +269,7 @@ end
 if ~avoid_optimization
   cds_log(3,sprintf(['[desopt] Führe Entwurfsoptimierung durch. Dauer für ', ...
     'eine Zielfunktionsauswertung: %1.1fms. Max. Dauer für Optimierung: ', ...
-    '%1.1fs (%d Iterationen, %d Individuen)'], 1e3*T2, NumIndividuals*...
+    '%1.1fs (%d+1 Iterationen, %d Individuen)'], 1e3*T2, NumIndividuals*...
     (options_desopt.MaxIter+1)*T2, options_desopt.MaxIter, NumIndividuals));
   clear cds_dimsynth_desopt_fitness % für persistente Variable
   [p_val,fval,~,output] = particleswarm(fitnessfcn_desopt,nvars,varlim(:,1),varlim(:,2),options_desopt);
@@ -323,9 +331,11 @@ if any(vartypes == 4)
 end
 return
 %% Debug
+% Rufe Fitness-Funktion mit bestem Partikel auf
+fitnessfcn_desopt(p_val); %#ok<UNRCH>
 
 % Zeichne Verlauf der Fitness-Funktion
-np1 = 8; np2 = 8; %#ok<UNRCH>
+np1 = 8; np2 = 8;
 fval_grid = NaN(np1,np2);
 p1_grid = linspace(varlim(1,1), varlim(1,2), np1)
 p2_grid = linspace(varlim(2,1), varlim(2,2), np2)
