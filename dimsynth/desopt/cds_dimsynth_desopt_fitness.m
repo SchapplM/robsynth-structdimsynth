@@ -320,6 +320,30 @@ if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_detail
     legend({'ID', 'spring', 'total'});
     sgtitle(sprintf('Antriebskraft in Entwurfsoptimierung. fval=%1.2e', fval));
     drawnow();
+    % Berechne die Kraft in Endeffektor-Koordinaten
+    Fx_TAU = NaN(length(Traj_0.t), 6);
+    Fx_TAU_spring = Fx_TAU; Fx_TAU_ID = Fx_TAU;
+    for i = 1:length(Traj_0.t)
+      Jinv_all = reshape(Jinv_ges(i,:), R.NJ, sum(R.I_EE));
+      Jinv_qa = Jinv_all(R.I_qa,:);
+      Fx_TAU(i,:) = (Jinv_qa')*data_dyn.TAU(i,:)';
+      Fx_TAU_ID(i,:) = (Jinv_qa')*data_dyn.TAU_ID(i,:)';
+      Fx_TAU_spring(i,:) = (Jinv_qa')*data_dyn.TAU_spring(i,:)';
+    end
+    change_current_figure(988);clf;
+    set(988, 'Name', 'DesOpt_PlfForce', 'NumberTitle', 'off');
+    tauplf_names = {'fx', 'fy', 'fz', 'mx', 'my', 'mz'};
+    for i = 1:6
+      subplot(2,3,i);hold on; grid on;
+      plot(Traj_0.t, Fx_TAU_ID(:,i));
+      plot(Traj_0.t, Fx_TAU_spring(:,i));
+      plot(Traj_0.t, Fx_TAU(:,i));
+      if i < 4, plotunit = 'N'; else, plotunit = 'Nm'; end
+      ylabel(sprintf('%s in %s', tauplf_names{i}, plotunit));
+    end
+    legend({'ID', 'spring', 'total'});
+    sgtitle(sprintf('Plattformkraft in Entwurfsoptimierung. fval=%1.2e', fval));
+    drawnow();
   end
   if any(vartypes==3)
     change_current_figure(987);clf;

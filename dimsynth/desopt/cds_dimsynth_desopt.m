@@ -50,7 +50,7 @@ vartypes = Structure.desopt_ptypes(Structure.desopt_ptypes~=1);
 options_desopt = optimoptions('particleswarm');
 options_desopt.Display = 'off';
 
-options_desopt.MaxStallIterations = 1; % Oft ist das Optimum der Startwert
+options_desopt.MaxStallIterations = 2; % Oft ist das Optimum der Startwert. Nicht sehr lange nach besseren Lösungen suchen.
 nvars = length(vartypes); % Variablen: Wandstärke, Durchmesser der Segmente, Ruhelage von Gelenkfedern
 if isnan(Set.optimization.desopt_NumIndividuals)
   NumIndividuals = 10*nvars;
@@ -338,8 +338,12 @@ return
 % Extrahiere Detail-Daten aus den einzelnen PSO-Partikeln
 PSO_Detail_Data = cds_desopt_save_particle_details(0, 0, NaN, 'output'); %#ok<UNRCH>
 
-% Rufe Fitness-Funktion mit bestem Partikel auf
-fitnessfcn_desopt(p_val);
+% Rufe Fitness-Funktion mit bestem Partikel auf (mit Plotten von
+% zusätzlichen Debug-Bildern).
+Set_tmp = Set;
+Set_tmp.general.plot_details_in_desopt = 1e10;
+cds_dimsynth_desopt_fitness(R, Set_tmp, Traj_0, Q, QD, QDD, Jinv_ges, ...
+  data_dyn, Structure, p_val);
 
 % Zeichne Fitness-Fortschritt über Iteration des PSO
 figure(9);clf;
