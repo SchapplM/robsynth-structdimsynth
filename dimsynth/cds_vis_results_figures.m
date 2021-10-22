@@ -44,6 +44,12 @@ elseif length(fval) == 1 % Einkriteriell
 else % Mehrkriteriell
   fval_str = ['[',disp_array(fval', '%1.1f'),']'];
 end
+% Setze die Aufgaben-FG bei PKM auf vollständig. Sonst wird bei
+% Aufgabenredundanz die Jacobi-Matrix in den Dynamik-Funktionen falsch
+% berechnet.
+if RobData.Type ~= 0
+  R.update_EE_FG(R.I_EE, R.I_EE);
+end
 %% Animation
 if strcmp(figname, 'robvisu')
   % Die Roboter-Visualisierung ist größtenteils identisch zur Animation.
