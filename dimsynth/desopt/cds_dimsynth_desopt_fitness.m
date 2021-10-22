@@ -62,6 +62,7 @@ if isempty(abort_fitnesscalc)
   abort_fitnesscalc = false;
 elseif abort_fitnesscalc
   fval = Inf;
+  cds_desopt_save_particle_details(toc(t1), fval, p_desopt);
   return;
 end
 vartypes = Structure.desopt_ptypes(Structure.desopt_ptypes~=1);
@@ -214,9 +215,10 @@ if fval == 0  && Set.optimization.constraint_obj(5) % NB für Steifigkeit gesetz
   end
 end
 if fval > 1000 % Nebenbedingungen verletzt.
-  cds_log(4,sprintf(['[desopt/fitness] DesOpt-Fitness-Evaluation in %1.2fs. ', ...
-    'Parameter: [%s]. fval=%1.3e. %s'], toc(t1), disp_array(p_desopt', '%1.3f'), ...
-    fval, constrvioltext));
+  [~, i_gen, i_ind] = cds_desopt_save_particle_details(toc(t1), fval, p_desopt);
+  cds_log(4,sprintf(['[desopt/fitness] G=%d;I=%d. DesOpt-Fitness-Evaluation ', ...
+    'in %1.2fs. Parameter: [%s]. fval=%1.3e. %s'], i_gen, i_ind, toc(t1), ...
+    disp_array(p_desopt', '%1.3f'), fval, constrvioltext));
 end
 
 %% Fitness-Wert berechnen
@@ -293,9 +295,10 @@ if fval <= 1000 && (all(fval_main(~isnan(fval_main)) <= Set.optimization.obj_lim
   abort_logtext = ' Abbruchgrenze für Zielfunktion erreicht.';
 end
 if fval <= 1000
-  cds_log(4,sprintf(['[desopt/fitness] DesOpt-Fitness-Evaluation in %1.2fs. ', ...
-    'Parameter: [%s]. fval=%1.3e. Erfolgreich. %s %s'], toc(t1), ...
-    disp_array(p_desopt', '%1.3f'), fval, fval_debugtext, abort_logtext));
+  [~, i_gen, i_ind] = cds_desopt_save_particle_details(toc(t1), fval, p_desopt);
+  cds_log(4,sprintf(['[desopt/fitness] G=%d;I=%d. DesOpt-Fitness-Evaluation ', ...
+    'in %1.2fs. Parameter: [%s]. fval=%1.3e. Erfolgreich. %s %s'], i_gen, ...
+    i_ind, toc(t1), disp_array(p_desopt', '%1.3f'), fval, fval_debugtext, abort_logtext));
 end
 if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_details_in_desopt) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
    Set.general.plot_details_in_desopt > 0 && fval <= abs(Set.general.plot_details_in_desopt) % Gütefunktion ist besser als Schwellwert: Zeichne

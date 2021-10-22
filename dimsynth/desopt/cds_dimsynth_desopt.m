@@ -171,6 +171,8 @@ end
 options_desopt.InitialSwarmMatrix = InitPop;
 % Erstelle die Fitness-Funktion und führe sie einmal zu testzwecken aus
 clear cds_dimsynth_desopt_fitness % Für persistente Variablen von vorheriger Iteration in Maßsynthese
+cds_desopt_save_particle_details(0, 0,  zeros(nvars,1), 'reset', ... % Zurücksetzen der ...
+  struct('comptime', NaN([options_desopt.MaxIter+1, NumIndividuals]))); % ... Detail-Speicherfunktion
 fitnessfcn_desopt=@(p_desopt)cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn, Structure, p_desopt(:));
 t2 = tic();
 [fval_test, physval_test, abort_fitnesscalc] = fitnessfcn_desopt(InitPop(1,:)');
@@ -266,6 +268,8 @@ end
 % Debug:
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt2.mat'));
 %% Optimierung der Entwurfsparameter durchführen
+cds_desopt_save_particle_details(0, 0,  zeros(nvars,1), 'reset', ...
+  struct('comptime', NaN([options_desopt.MaxIter+1, NumIndividuals])));
 if ~avoid_optimization
   cds_log(3,sprintf(['[desopt] Führe Entwurfsoptimierung durch. Dauer für ', ...
     'eine Zielfunktionsauswertung: %1.1fms. Max. Dauer für Optimierung: ', ...
@@ -331,27 +335,63 @@ if any(vartypes == 4)
 end
 return
 %% Debug
-% Rufe Fitness-Funktion mit bestem Partikel auf
-fitnessfcn_desopt(p_val); %#ok<UNRCH>
+% Extrahiere Detail-Daten aus den einzelnen PSO-Partikeln
+PSO_Detail_Data = cds_desopt_save_particle_details(0, 0, NaN, 'output'); %#ok<UNRCH>
 
-% Zeichne Verlauf der Fitness-Funktion
-np1 = 8; np2 = 8;
-fval_grid = NaN(np1,np2);
-p1_grid = linspace(varlim(1,1), varlim(1,2), np1)
-p2_grid = linspace(varlim(2,1), varlim(2,2), np2)
-for i = 1:np1
-  for j = 1:np2
-    p_ij = [p1_grid(i); p2_grid(j)];
-    fval_grid(i,j) = fitnessfcn_desopt(p_ij);
-  end
+% Rufe Fitness-Funktion mit bestem Partikel auf
+fitnessfcn_desopt(p_val);
+
+% Zeichne Fitness-Fortschritt über Iteration des PSO
+figure(9);clf;
+axhdl = subplot(2,1,1);
+plot(PSO_Detail_Data.fval, 'kx');
+set(axhdl, 'yscale', 'log');
+grid on;
+ylabel('Fitness-Wert');
+subplot(2,1,2);
+plot(min(PSO_Detail_Data.fval,[],2), 'kx-');
+ylabel('Fitness-Wert');
+xlabel('Generation');
+grid on;
+linkxaxes
+sgtitle('Konvergenz der Fitness-Werte über die Optimierung');
+
+% Zeichne Ausnutzung des Parameterraums
+pval_stack_norm = NaN(size(PSO_Detail_Data.pval,1)*size(PSO_Detail_Data.pval,3), ...
+  size(PSO_Detail_Data.pval,2));
+pval_stack = pval_stack_norm;
+for i = 1:size(PSO_Detail_Data.pval,2)
+  pval_stack(:,i) = reshape(squeeze(PSO_Detail_Data.pval(:,i,:)), size(pval_stack,1),1);
+  pval_stack_norm(:,i) = (pval_stack(:,i)-varlim(i,1))./... % untere Grenze abziehen
+    repmat(varlim(i,2)-varlim(i,1),size(pval_stack,1),1); % auf 1 normieren
 end
-fval_grid(fval_grid==1e8) = NaN; % Damit unzulässiger Bereich im Plot leer bleibt
-figure(10);clf;
-hold on;
-surf(1e3*p1_grid, 1e3*p2_grid, fval_grid, 'FaceAlpha',0.7);
-xlabel('p1 (Wandstärke) in mm');
-ylabel('p2 (Durchmesser) in mm');
-zlabel('Zielfunktion Entwurfsoptimierung');
-hdl=plot3(1e3*p_val(1), 1e3*p_val(2), fval, 'ro', 'MarkerSize', 8);
-legend(hdl, {'Optimum'});
-view(3)
+figure(8);clf;
+plot(pval_stack_norm', 'x-');
+xlabel('Parameter Nr.');
+ylabel('Parameter Wert (normiert)');
+title('Ausnutzung des möglichen Parameterraums');
+
+% Zeichne Verlauf der Fitness-Funktion (für den Fall der
+% Entwurfsoptimierung der Segmentdimensionierung
+if all(vartypes == 2) && nvars == 2
+  np1 = 8; np2 = 8;
+  fval_grid = NaN(np1,np2);
+  p1_grid = linspace(varlim(1,1), varlim(1,2), np1)
+  p2_grid = linspace(varlim(2,1), varlim(2,2), np2)
+  for i = 1:np1
+    for j = 1:np2
+      p_ij = [p1_grid(i); p2_grid(j)];
+      fval_grid(i,j) = fitnessfcn_desopt(p_ij);
+    end
+  end
+  fval_grid(fval_grid==1e8) = NaN; % Damit unzulässiger Bereich im Plot leer bleibt
+  figure(10);clf;
+  hold on;
+  surf(1e3*p1_grid, 1e3*p2_grid, fval_grid, 'FaceAlpha',0.7);
+  xlabel('p1 (Wandstärke) in mm');
+  ylabel('p2 (Durchmesser) in mm');
+  zlabel('Zielfunktion Entwurfsoptimierung');
+  hdl=plot3(1e3*p_val(1), 1e3*p_val(2), fval, 'ro', 'MarkerSize', 8);
+  legend(hdl, {'Optimum'});
+  view(3)
+end
