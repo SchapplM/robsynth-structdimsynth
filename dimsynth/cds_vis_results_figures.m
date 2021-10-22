@@ -449,20 +449,21 @@ if strcmp(figname, 'dynamics') && traj_available
   QD = RobotOptDetails.Traj_QD;
   QDD = RobotOptDetails.Traj_QDD;
   if RobData.Type == 0
-    Dyn_C = NaN(size(Q,1),R.NJ);
+    Dyn_C = NaN(size(Q,1),R.NJ); Dyn_Tau_Static = Dyn_C;
     Dyn_G = Dyn_C; Dyn_A = Dyn_C; Dyn_Tau = Dyn_C; Dyn_S = Dyn_C;
     for i = 1:size(Q,1)
       Dyn_C(i,:) = R.coriolisvec(Q(i,:)', QD(i,:)');
       Dyn_G(i,:) = R.gravload(Q(i,:)');
       Dyn_A(i,:) = R.inertia(Q(i,:)', QD(i,:)')*QDD(i,:)';
+      Dyn_Tau_Static(i,:) = R.invdyn(Q(i,:)', 0*QD(i,:)', 0*QDD(i,:)');
       Dyn_Tau(i,:) = R.invdyn(Q(i,:)', QD(i,:)', QDD(i,:)');
       Dyn_S(i,:) = 0; % keine Federn in Gelenken bei seriellen Robotern
     end
   else
-    Dyn_C = NaN(size(Q,1),sum(R.I_qa));
+    Dyn_C = NaN(size(Q,1),sum(R.I_qa)); Dyn_Tau_Static = Dyn_C;
     Dyn_G = Dyn_C; Dyn_A = Dyn_C; Dyn_Tau = Dyn_C; Dyn_S = Dyn_C;
     Dyn_Plf_C = Dyn_C; Dyn_Plf_G = Dyn_C; Dyn_Plf_A = Dyn_C;
-    Dyn_Plf_Tau = Dyn_C; Dyn_Plf_S = Dyn_C;
+    Dyn_Plf_Tau = Dyn_C; Dyn_Plf_S = Dyn_C; Dyn_Plf_Tau_Static = Dyn_C;
     for i = 1:size(Q,1)
       % Dynamik berechnen. Siehe cds_obj_dependencies und ParRob.
       % Trajektorie in Plattform-Koordinaten umrechnen
@@ -485,6 +486,7 @@ if strcmp(figname, 'dynamics') && traj_available
       Dyn_Plf_G(i,:) = R.gravload2_platform(Q(i,:)', xP, JinvP);
       Dyn_Plf_A(i,:) = R.inertia2_platform(Q(i,:)', xP, JinvP)*xPDD(R.I_EE);
       Dyn_Plf_S(i,:) = R.jointtorque_platform(Q(i,:)', xP, R.springtorque(Q(i,:)'), JinvP);
+      Dyn_Plf_Tau_Static(i,:) = Dyn_Plf_S(i,:)' + R.invdyn2_platform(Q(i,:)', QD(i,:)', QDD(i,:)', xP, 0*xPD, 0*xPDD);
       Dyn_Plf_Tau(i,:) = Dyn_Plf_S(i,:)' + R.invdyn2_platform(Q(i,:)', QD(i,:)', QDD(i,:)', xP, xPD, xPDD);
       % ...und auf Antriebe umrechnen.
       Dyn_C(i,:) = Jinv_qaD_sD' \ Dyn_Plf_C(i,:)';
@@ -492,6 +494,7 @@ if strcmp(figname, 'dynamics') && traj_available
       Dyn_A(i,:) = Jinv_qaD_sD' \ Dyn_Plf_A(i,:)';
       Dyn_S(i,:) = Jinv_qaD_sD' \ Dyn_Plf_S(i,:)';
       Dyn_Tau(i,:) = Jinv_qaD_sD' \ Dyn_Plf_Tau(i,:)';
+      Dyn_Tau_Static(i,:) = Jinv_qaD_sD' \ Dyn_Plf_Tau_Static(i,:)';
     end
   end
   % Ergebnis aus der Optimierung (Fitness-Funktion)
@@ -504,7 +507,7 @@ if strcmp(figname, 'dynamics') && traj_available
   if ~Set.optimization.static_force_only
     test_TAU = Dyn_Tau - Dyn_Tau_fitness;
   else
-    test_TAU = Dyn_S+Dyn_G - Dyn_Tau_fitness;
+    test_TAU = Dyn_Tau_Static - Dyn_Tau_fitness;
   end
   if any(abs(test_TAU(:)) > 1e-6)
     warning('Antriebsmomente konnten nicht reproduziert werden. Fehler: %1.3e', ...
@@ -541,7 +544,7 @@ if strcmp(figname, 'dynamics') && traj_available
     plot(Traj_0.t, Dyn_A(:,i));
     plot(Traj_0.t, Dyn_S(:,i));
     plot(Traj_0.t, Dyn_Tau(:,i));
-    plot(Traj_0.t, Dyn_S(:,i)+Dyn_G(:,i));
+    plot(Traj_0.t, Dyn_Tau_Static(:,i));
     plot(Traj_0.t, Dyn_Tau_fitness(:,i), '--');
     ylabel(sprintf('\\tau_%d in %s', i, plotunits{i}));
   end
@@ -573,10 +576,11 @@ if strcmp(figname, 'dynamics') && traj_available && RobData.Type ~= 0
     plot(Traj_0.t, Dyn_Plf_A(:,i));
     plot(Traj_0.t, Dyn_Plf_S(:,i));
     plot(Traj_0.t, Dyn_Plf_Tau(:,i));
+    plot(Traj_0.t, Dyn_Plf_Tau_Static(:,i));
     if Idx_6FG(i) < 4, plotunit = 'N'; else, plotunit = 'Nm'; end
     ylabel(sprintf('%s in %s', tauplf_names{Idx_6FG(i)}, plotunit));
   end
-  legend({'Cor.', 'Grav.', 'Acc.', 'Spring', 'Sum'});
+  legend({'Cor.', 'Grav.', 'Acc.', 'Spring', 'Sum', 'Sum (Static)'});
   linkxaxes;
   fname = sprintf('Rob%d_%s_P%d_Plattformkraft_Dynamik', RNr, Name, PNr);
   saveas(fhdl,     fullfile(resrobdir, [fname, '.fig']));
