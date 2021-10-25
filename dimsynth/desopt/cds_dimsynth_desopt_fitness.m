@@ -118,7 +118,9 @@ if fval == 0 && (Structure.calc_dyn_reg || Structure.calc_spring_reg)
     Structure_tmp = Structure;
     Structure_tmp.calc_dyn_act = true;
     Structure_tmp.calc_dyn_reg = false;
-    if Set.optimization.joint_stiffness_passive_revolute ~= 0
+    if Set.optimization.joint_stiffness_active_revolute ~= 0 || ...
+       Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
+       Set.optimization.joint_stiffness_passive_universal ~= 0
       Structure_tmp.calc_spring_act = true;
       Structure_tmp.calc_spring_reg = false;
     end
@@ -143,7 +145,9 @@ if fval == 0 && (Structure.calc_dyn_reg || Structure.calc_spring_reg)
           max(abs(test_W_abs(I_err))), max(abs(test_W_rel(I_err))));
       end
     end
-    if any(Set.optimization.joint_stiffness_passive_revolute~=0)
+    if any(Set.optimization.joint_stiffness_active_revolute~=0) || ...
+        any(Set.optimization.joint_stiffness_passive_revolute~=0) || ...
+        any(Set.optimization.joint_stiffness_passive_universal~=0)
       if isfield(data_dyn2, 'TAU_spring') && isfield(data_dyn, 'TAU_spring')
         test_TAU_spring_abs = data_dyn2.TAU_spring - data_dyn.TAU_spring;
         test_TAU_spring_rel = test_TAU_spring_abs ./ data_dyn2.TAU_spring;

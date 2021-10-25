@@ -332,7 +332,8 @@ end
 % end
 
 % Gelenk-Steifigkeit einsetzen (Sonderfall für Starrkörpergelenke)
-if R.Type ~= 0 && (Set.optimization.joint_stiffness_passive_revolute > 0 || ...
+if R.Type ~= 0 && (Set.optimization.joint_stiffness_active_revolute > 0 || ...
+                   Set.optimization.joint_stiffness_passive_revolute > 0 || ...
                    Set.optimization.joint_stiffness_passive_universal > 0)
   for k = 1:R.NLEG
     % Ruhelage der Feder muss erst später eingestellt werden (nach IK)
@@ -363,14 +364,16 @@ calc_spring_reg = false;
 
 if ~isempty(intersect(Set.optimization.objective, {'energy', 'actforce'}))
   calc_dyn_act = true; % Antriebskraft für Zielfunktion benötigt
-  if (Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
+  if (Set.optimization.joint_stiffness_active_revolute ~= 0 || ...
+      Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
       Set.optimization.joint_stiffness_passive_universal ~= 0)
     calc_spring_act = true;
   end
 end
 if any(Set.optimization.constraint_obj(2:3)) % Energie oder Antriebskraft
   calc_dyn_act = true; % Antriebskraft für Nebenbedingung benötigt
-  if (Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
+  if (Set.optimization.joint_stiffness_active_revolute ~= 0 || ...
+      Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
       Set.optimization.joint_stiffness_passive_universal ~= 0)
     calc_spring_act = true;
   end
@@ -388,7 +391,8 @@ if Set.optimization.constraint_obj(6) > 0 || ... % Schnittkraft als Nebenbedingu
 end
 if Structure.Type == 2 && calc_cut
   calc_dyn_act = true;
-  if Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
+  if Set.optimization.joint_stiffness_active_revolute ~= 0 || ...
+     Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
      Set.optimization.joint_stiffness_passive_universal ~= 0
     calc_spring_act = true;
   end
@@ -1893,10 +1897,12 @@ end
 
 if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref'))
   if ~any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness')) && ... % keine Optimierung der Steifigkeit
-      (Set.optimization.joint_stiffness_passive_revolute == 0 && ... % und konstante Steifigkeit sind zu Null gesetzt
+      (Set.optimization.joint_stiffness_active_revolute == 0 && ... % und konstante Steifigkeit sind zu Null gesetzt
+      Set.optimization.joint_stiffness_passive_revolute == 0 && ...
       Set.optimization.joint_stiffness_passive_universal == 0) || ...
     any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness')) && ... % Steifigkeiten werden optimiert
-     (~isnan(Set.optimization.joint_stiffness_passive_revolute) && ... % aber keine Komponente wird dafür gewählt
+     (~isnan(Set.optimization.joint_stiffness_active_revolute) && ... % aber keine Komponente wird dafür gewählt
+     ~isnan(Set.optimization.joint_stiffness_passive_revolute) && ...
      ~isnan(Set.optimization.joint_stiffness_passive_universal))
     error(['Nullstellung der Gelenksteifigkeit soll optimiert werden, ', ...
       'aber es ist keine Steifigkeit definiert']);
