@@ -404,7 +404,7 @@ else
     m_ges(1:end-1) = 0; mrS_ges(1:end-1,:) = 0; If_ges(1:end-1,:) = 0;
   end
   if Set.optimization.noplatformmass
-    m_ges(end-1) = 0; mrS_ges(end-1,:) = 0; If_ges(end-1,:) = 0;
+    m_ges(end) = 0; mrS_ges(end,:) = 0; If_ges(end,:) = 0;
   end
 end
 % Zusätzliche Masse der Traglast erst hier einsetzen. Falls der Wert Null

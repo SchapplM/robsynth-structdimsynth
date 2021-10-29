@@ -23,8 +23,10 @@
 function [k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, fval)
 assert(size(fval,2) == 1 && size(fval,1) == size(PSO_Detail_Data.fval,2), ...
   'cds_load_particle_details: fval muss %dx1 sein.', size(PSO_Detail_Data.fval,2))
-% Benutze Variable comptime als Hilfe (Dim.1: Gen., Dim.2: Ind.)
-fval_oc_mask = true(size(PSO_Detail_Data.comptime))';
+size_data = [size(PSO_Detail_Data.fval,3), size(PSO_Detail_Data.fval,1)];
+% Suche den exakten Treffer für alle Zielkriterien. Benutze eine Maske zur
+% Prüfung aller Kriterien der Pareto-Optimierung.
+fval_oc_mask = true(size_data)';
 for oc = 1:length(fval) % Gehe alle Optimierungskriterien durch
   % Variable zum Finden: Dim. 1: Generationen, Dim. 2: Individuen
   fval_oc = squeeze(PSO_Detail_Data.fval(:,oc,:))';
@@ -41,7 +43,7 @@ if isempty(k)
   % Abbruch, deutet auf einen Syntax-Fehler hin. Wert muss da sein.
   error('Gesuchter Wert nicht in gespeicherten Daten gefunden.');
 end
-[k_ind,k_gen] = ind2sub(fliplr(size(PSO_Detail_Data.comptime)),k); % Umrechnung in 2D-Indizes: Generation und Individuum
+[k_ind,k_gen] = ind2sub(fliplr(size_data),k); % Umrechnung in 2D-Indizes: Generation und Individuum
 
 % Prüfe, ob die Indizes stimmen
 if ~any(isnan(fval))

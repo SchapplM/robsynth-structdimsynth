@@ -492,6 +492,12 @@ for iIKC = 1:size(Q0,1)
     physval_IKC(iIKC,strcmp(Set.optimization.objective, 'installspace')) = physval_instspc;
     fval_debugtext = [fval_debugtext, ' ', fval_debugtext_instspc]; %#ok<AGROW>
   end
+  if any(strcmp(Set.optimization.objective, 'footprint'))
+    [fval_footprint, fval_debugtext_footprint, ~, physval_footprint] = cds_obj_footprint(R, Set, Structure, Traj_0, Q, JP);
+    fval_IKC(iIKC,strcmp(Set.optimization.objective, 'footprint')) = fval_footprint;
+    physval_IKC(iIKC,strcmp(Set.optimization.objective, 'footprint')) = physval_footprint;
+    fval_debugtext = [fval_debugtext, ' ', fval_debugtext_footprint]; %#ok<AGROW>
+  end
   if any(strcmp(Set.optimization.objective, 'energy'))
     [fval_en,fval_debugtext_en, debug_info, physval_en] = cds_obj_energy(R, Set, Structure, Traj_0, TAU, QD);
     fval_IKC(iIKC,strcmp(Set.optimization.objective, 'energy')) = fval_en;

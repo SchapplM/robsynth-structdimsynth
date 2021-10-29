@@ -390,7 +390,11 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
       end
     end
     leghdl(countmarker,:) = hdl; %#ok<AGROW>
-    RobShortName = ResTab.Beschreibung{strcmp(ResTab.Name,Name) & ResTab.LfdNr==i};
+    if ~isa(ResTab.Beschreibung, 'cell')
+      RobShortName = ''; % Wenn kein Wert belegt ist, wird NaN gesetzt
+    else
+      RobShortName = ResTab.Beschreibung{strcmp(ResTab.Name,Name) & ResTab.LfdNr==i};
+    end
     if ~isempty(RobShortName)
       addtxt = sprintf('; %s', RobShortName);
     else

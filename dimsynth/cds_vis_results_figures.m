@@ -44,6 +44,12 @@ elseif length(fval) == 1 % Einkriteriell
 else % Mehrkriteriell
   fval_str = ['[',disp_array(fval', '%1.1f'),']'];
 end
+% Setze die Aufgaben-FG bei PKM auf vollständig. Sonst wird bei
+% Aufgabenredundanz die Jacobi-Matrix in den Dynamik-Funktionen falsch
+% berechnet.
+if RobData.Type ~= 0
+  R.update_EE_FG(R.I_EE, R.I_EE);
+end
 %% Animation
 if strcmp(figname, 'robvisu')
   % Die Roboter-Visualisierung ist größtenteils identisch zur Animation.
@@ -56,7 +62,12 @@ end
 
 % Hole Erklärungstext zum Fitness-Wert aus Tabelle
 fval_text = ResTab.Fval_Text{strcmp(ResTab.Name,Name) & ResTab.LfdNr==RNr};
-RobShortName = ResTab.Beschreibung{strcmp(ResTab.Name,Name) & ResTab.LfdNr==RNr};
+if ~isa(ResTab.Beschreibung, 'cell')
+  RobShortName_str = ''; % Wenn kein Wert belegt ist, wird NaN gesetzt
+else
+  RobShortName = ResTab.Beschreibung{strcmp(ResTab.Name,Name) & ResTab.LfdNr==RNr};
+  RobShortName_str = sprintf(' (%s)', RobShortName);
+end
 for kk = 1:length(Set.general.animation_styles)
   anim_mode = Set.general.animation_styles{kk}; % Strichzeichnung, 3D-Modell, Kollisionskörper
   fhdl = figure();clf;hold all;
@@ -64,7 +75,8 @@ for kk = 1:length(Set.general.animation_styles)
   if ~strcmp(get(fhdl, 'windowstyle'), 'docked')
     set(fhdl,'units','normalized','outerposition',[0 0 1 1]);
   end
-  title(sprintf('Rob.%d, P.%d %s (%s): fval=%s (%s)', RNr, PNr, Name, RobShortName, fval_str, fval_text));
+  title(sprintf('Rob.%d, P.%d %s%s: fval=%s (%s)', RNr, PNr, Name, ...
+    RobShortName_str, fval_str, fval_text));
   view(3);
   axis auto
   hold on;grid on;

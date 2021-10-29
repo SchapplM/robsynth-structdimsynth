@@ -1,6 +1,7 @@
 % Zielfunktion ("objective function") für Optimierung in der Maßsynthese
-% basierend auf Volumen des Bauraums des Roboters (insbes. PKM).
-% Ansatz: Je weniger Bauraum (Volumen) der Roboter einnimmt, desto besser.
+% basierend auf Grundfläche des Roboters ("Fußabdruck", insbes. PKM).
+% Ansatz: Je weniger Bauraum (Grundfläche) der Roboter einnimmt, desto besser.
+% Die Höhe des Roboters ist egal, da normalerweise nach oben hin Platz ist.
 % Benutzt alle Aufenthaltsorte der Gelenke des Roboters in der Trajektorie
 % 
 % Eingabe:
@@ -23,20 +24,20 @@
 %   Zeile mit Hinweistext, der bei PSO nach Fitness-Berechnung ausgegeben wird
 % debug_info [cell]
 %   Zusatz-Informationen, die im Debug-Bild des Roboters angezeigt werden
-% f_instspc [1x1]
+% f_footprint [1x1]
 %   Physikalischer Wert, der dem Zielfunktionswert zugrunde liegt
-%   Hier: Volumen der konvexen Hülle aller Punkte
+%   Hier: Fläche der konvexen Hülle aller Punkte
 % 
-% Siehe auch: cds_obj_footprint.m
+% Siehe auch: cds_obj_installspace.m
 
-% Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2021-07
+% Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2021-10
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function [fval, fval_debugtext, debug_info, f_instspc] = cds_obj_installspace(R, Set, Structure, Traj_0, Q, JP_in)
+function [fval, fval_debugtext, debug_info, f_footprint] = cds_obj_footprint(R, Set, Structure, Traj_0, Q, JP_in)
 
 debug_info = '';
 fval_debugtext = '';
-f_instspc = NaN;
+f_footprint = NaN;
 fval = 1e3;
 %% Gelenkpositionen berechnen
 if nargin < 6 || isempty(JP_in) || Set.general.debug_calc
@@ -94,14 +95,16 @@ y = JP(:,3+(2:3:end-3));
 z = JP(:,3+(3:3:end-3));
 xyz = unique([x(:) y(:) z(:)], 'rows');
 % Alpha-Shape berechnen. Benutze nur die ganz außen liegenden Punkte um
-% einen konvexen Polyeder zu erzeugen (alpha=inf)
-shp = alphaShape(xyz, inf);
-% Volumen berechnen
-f_instspc = shp.volume();
+% einen konvexen Polyeder zu erzeugen (alpha=inf).
+% Benutze nur die xy-Informationen, um die Ausdehnung projiziert auf die
+% Grundfläche zu bestimmen
+shp = alphaShape(unique(xyz(:,1:2), 'rows'), inf);
+% Fläche berechnen
+f_footprint = shp.area();
 % Kennzahl berechnen
-f_instspc_norm = 2/pi*atan((f_instspc)/0.1); % Normierung auf 0 bis 1; 1m³ ist 0.9
+f_instspc_norm = 2/pi*atan((f_footprint)/0.1); % Normierung auf 0 bis 1; 1m² ist ca. 0.9
 fval = 1e3*f_instspc_norm; % Normiert auf 0 bis 1e3
-fval_debugtext = sprintf('Bauraum %1.4fm³.', f_instspc);
+fval_debugtext = sprintf('Grundfläche %1.4fm².', f_footprint);
 
 %% Debug-Plot
 if Set.general.plot_robot_in_fitness < 0 && 1e4*fval > abs(Set.general.plot_robot_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
@@ -110,11 +113,8 @@ if Set.general.plot_robot_in_fitness < 0 && 1e4*fval > abs(Set.general.plot_robo
 else
   return
 end
-change_current_figure(700); clf; hold all;
-if ~strcmp(get(700, 'windowstyle'), 'docked')
-  % set(200,'units','normalized','outerposition',[0 0 1 1]);
-end
-view(3); axis auto; hold on; grid on;
+change_current_figure(701); clf; hold all;
+view([0 90]); axis auto; hold on; grid on;
 xlabel('x in m'); ylabel('y in m'); zlabel('z in m');
 % Gelenkpunkte zeichnen
 plot3(xyz(:,1), xyz(:,2), xyz(:,3), 'kx');
@@ -128,13 +128,13 @@ else % PKM
   R.plot( Q(1,:)', Traj_0.X(1,:)', s_plot);
 end
 shp.plot('FaceAlpha', 0.3, 'EdgeAlpha', 0);
-title(sprintf('AlphaShape of Joint Positions over Trajectory. V=%1.1fm³, A=%1.1fm²', shp.volume(), shp.surfaceArea()));
+title(sprintf('AlphaShape of Joint Positions over Trajectory. A=%1.1fm²', shp.area()));
 drawnow();
 [currgen,currind,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'ObjInstallspace');
 for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
   if strcmp(fileext{1}, 'fig')
-    saveas(700, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ObjInstallspace.fig', currgen, currind, currimg)));
+    saveas(701, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ObjFootprint.fig', currgen, currind, currimg)));
   else
-    export_fig(700, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ObjInstallspace.%s', currgen, currind, currimg, fileext{1})));
+    export_fig(701, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ObjFootprint.%s', currgen, currind, currimg, fileext{1})));
   end
 end
