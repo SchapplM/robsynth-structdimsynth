@@ -169,8 +169,10 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
       fval_i = d.RobotOptRes.fval(:)';
       qval_i = d.RobotOptRes.q0(:)';
     end
+    pval_i_const = NaN(nvars,1); % In Datei konstante Parameter, umgerechnet auf aktuelle Parameter
     % Index-Vektor zum Finden der aktuellen Optimierungsparameter pval in
-    % den Optimierungsparametern pval_i_file
+    % den Optimierungsparametern pval_i_file. 0-Einträge deuten auf nicht
+    % vorhandene Parameter, NaN-Einträge auf aus Einstellungen gelesene.
     I_p_file = zeros(nvars,1);
     for jjj = 1:length(I_p_file)
       Ii = find(strcmp(Structure.varnames{jjj},Structure_i.varnames));
@@ -180,10 +182,15 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
     end
     % TODO: Belege die Parameter aus den gespeicherten Eigenschaften des Roboters
     
-    % Falls Optimierungsparameter in der Datei nicht gesetzt sind, müssen
-    % diese zufällig neu gewählt werden. Dafür gibt es Abzug in der
-    % Bewertung.
-    score_i = score_i - sum(I_p_file==0)*5;
+    % Bestimme Indizes der in der Datei benutzten und aktuell nicht benutzten Parameter
+    [~,missing_local_in_file, missing_file_in_local] = ...
+      setxor(Structure_i.varnames,Structure.varnames);
+    % Debug:
+%     fprintf('Lokale Parameter, fehlend in Datei: {%s}\n', ...
+%       disp_array(Structure_i.varnames{missing_local_in_file},'%s'));
+%     fprintf('Parameter in Datei, lokal fehlend: {%s}\n', ...
+%       disp_array(Structure.varnames(missing_file_in_local), '%s'));
+
     % Rechne Parameter aus Datei in aktuelle Parameter um.
     pval_i = NaN(size(pval_i_file,1), nvars);
     for jjj = 1:length(I_p_file)
@@ -191,12 +198,35 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
         pval_i(:,jjj) = pval_i_file(:,I_p_file(jjj));
       end
     end
+    % Trage zusätzliche Parameter ein, die in Datei konstant sind und jetzt
+    % Variabel und damit direkt umgerechnet werden können.
+    
+    % Wenn in der Datei kein rotate_base benutzt wird, und hier schon,
+    % ist es egal. Dann kann der Parameter direkt Null gesetzt werden.
+    I_baserotz = find(strcmp(Structure.varnames, 'baserotation z'));
+    if ~isempty(I_baserotz) && any(I_baserotz == missing_file_in_local)
+      pval_i_const(I_baserotz) = 0;
+    end
+    % TODO: Weitere Abfragen zu anderen Parametern
+    % Aus konstanten Einstellungen gesetzte Parameter eintragen
+    for jjj = 1:length(I_p_file)
+      if any(isnan(pval_i(:,jjj))) && ~isnan(pval_i_const(jjj))
+        pval_i(:,jjj) = pval_i_const(jjj);
+        % Parameter ist nicht in Datei explizit gesetzt, aber kein
+        % Null-Eintrag da aus Einstellungen ableitbar
+        I_p_file(jjj) = NaN;
+      end
+    end
+    
+    % Falls Optimierungsparameter in der Datei nicht gesetzt sind, müssen
+    % diese zufällig neu gewählt werden. Dafür gibt es Abzug in der
+    % Bewertung.
+    score_i = score_i - sum(I_p_file==0)*5;
+    
     % Prüfe, ob die Optimierungsparameter gleich sind
     if length(Structure.vartypes) ~= length(Structure_i.vartypes) || ...
         any(Structure.vartypes ~= Structure_i.vartypes)
-      % Die Optimierungsparameter sind unterschiedlich. Bestimme Indizes
-      % der in der Datei benutzten und aktuell nicht benutzten Parameter
-      [~,missing_local_in_file,~] = setxor(Structure_i.varnames,Structure.varnames);
+      % Die Optimierungsparameter sind unterschiedlich. 
       I_basez = find(strcmp(Structure_i.varnames, 'base z')) == missing_local_in_file;
       % PKM mit Schubantrieben die nach oben zeigen. Die Basis-Position ist
       % egal. Falls der Parameter nicht mehr optimiert wird, sind vorherige
