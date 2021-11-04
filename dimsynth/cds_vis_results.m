@@ -363,12 +363,13 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     % Für Legende: Nur erfolgreiche PKM zählen
     countmarker = countmarker + 1; % Hochzählen für die Marker und Farben
     if countmarker > length(markerlist)*length(colorlist)
-      warning('Zu viele verschiedene Roboter. Plotten nicht mehr möglich.');
-      break;
+      warning('Zu viele verschiedene Roboter. Eindeutiges Plotten nicht mehr möglich.');
+      marker = 'k.'; % ab jetzt sehen alle Marker gleich aus
+    else
+      ic = mod((countmarker-1),6)+1; % Index für Farben und Marker generieren
+      im = ceil(countmarker/6);
+      marker = [markerlist{im}, colorlist{ic}];
     end
-    ic = mod((countmarker-1),6)+1; % Index für Farben und Marker generieren
-    im = ceil(countmarker/6);
-    marker = [markerlist{im}, colorlist{ic}];
     % Pareto-Front für diesen Roboter einzeichnen
     if length(Set.optimization.objective) == 2
       if pffig == 1 % Bild mit physikalischen Werten
