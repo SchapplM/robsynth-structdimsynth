@@ -22,7 +22,8 @@
 %   2e5...3e5: Bauraumverletzung in Einzelpunkten
 %   3e5...4e5: Selbstkollision in Einzelpunkten
 %   4e5...5e5: Gestell ist wegen Schubgelenken zu groß (nach IK erkannt)
-%   5e5...1e6: Gelenkwinkelgrenzen in Einzelpunkten
+%   5e5...9e5: Gelenkwinkelgrenzen in Einzelpunkten
+%   9e5...1e6  Singularität in Eckpunkten (trotz lösbarer IK)
 %   1e6...1e7: IK in Einzelpunkten nicht lösbar
 %   1e7...1e8: Geometrie nicht plausibel lösbar (2: Reichweite PKM-Koppelpunkte)
 %   1e8...1e9: Geometrie nicht plausibel lösbar (1: Schließen PKM-Ketten)
@@ -143,6 +144,7 @@ if R.Type == 0 % Seriell
   qlim = R.qlim;
   qref = R.qref;
   Phi_E = NaN(size(Traj_0.XE,1), sum(Set.task.DoF));
+  condJik = NaN(size(Traj_0.XE,1), 1);
   QE = NaN(size(Traj_0.XE,1), R.NQJ);
   % Variable zum Speichern der Gelenkpositionen (für Kollisionserkennung)
   JPE = NaN(size(Traj_0.XE,1), R.NL*3);
@@ -151,6 +153,7 @@ else % PKM
   qref = cat(1,R.Leg(:).qref);
   nPhi = R.I2constr_red(end);
   Phi_E = NaN(size(Traj_0.XE,1), nPhi);
+  condJik = NaN(size(Traj_0.XE,1), R.NLEG);
   QE = NaN(size(Traj_0.XE,1), R.NJ);
   % Abbruch der IK-Berechnung, wenn eine Beinkette nicht erfolgreich war.
   % Dadurch wesentlich schnellerer Durchlauf der PKM-IK
@@ -251,18 +254,20 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       end
     end
     if i_ar == 1 % IK ohne Optimierung von Nebenbedingungen
-      Stats = struct('coll', false); % Platzhalter-Variable
+      Stats = struct('coll', false); %#ok<NASGU> % Platzhalter-Variable
       if R.Type == 0 % Seriell
-        [q, Phi, Tc_stack] = R.invkin2(R.x2tr(Traj_0.XE(i,:)'), Q0, s);
+        [q, Phi, Tc_stack, Stats] = R.invkin2(R.x2tr(Traj_0.XE(i,:)'), Q0, s);
         nPhi_t = sum(R.I_EE_Task(1:3));
         ik_res_ik2 = all(abs(Phi(1:nPhi_t))<s.Phit_tol) && ...
                      all(abs(Phi(nPhi_t+1:end))<s.Phir_tol);
+        condJik(i) = Stats.condJ(1+Stats.iter);
       else % PKM
         Q0_mod = Q0;
         Q0_mod(R.I1J_LEG(2):end,end) = NaN; % Für Beinkette 2 Ergebnis von BK 1 nehmen (dabei letzten Anfangswert für BK 2 und folgende verwerfen)
-        [q, Phi, Tc_stack] = R.invkin2(Traj_0.XE(i,:)', Q0_mod, s, s_par); % kompilierter Aufruf
+        [q, Phi, Tc_stack, Stats] = R.invkin2(Traj_0.XE(i,:)', Q0_mod, s, s_par); % kompilierter Aufruf
         ik_res_ik2 = (all(abs(Phi(R.I_constr_t_red))<s.Phit_tol) && ...
             all(abs(Phi(R.I_constr_r_red))<s.Phir_tol));% IK-Status Funktionsdatei
+        for ll=1:R.NLEG, condJik(i,ll) = Stats.condJ(1+Stats.iter(ll),ll); end
         Phi_Leg1 = Phi(1:sum(R.I_EE_Task)); % Zwangsbed. für erste Beinkette (aufgabenredundant)
         if ~ik_res_ik2 && task_red && all(abs(Phi_Leg1)<s.Phit_tol) % Vereinfachung: Toleranz transl/rot identisch.
           % Die Einzelbeinketten-IK für die erste Beinkette war erfolgreich, 
@@ -341,7 +346,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       end
       % Setze die Einstellungen und Nebenbedingungen so, dass sich das
       % Ergebnis bestmöglich verändert.
-      if i_ar == 2 && fval_jic(jic) > 5e5 && fval_jic(jic) < 1e6
+      if i_ar == 2 && fval_jic(jic) > 5e5 && fval_jic(jic) < 9e5
         % Der vorherige Ausschlussgrund war eine zu große Winkelspannweite.
         % Als IK-Nebenbedingung sollte die Winkelspannweite verkleinert
         % werden
@@ -471,7 +476,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       % gültigen Startpose gestartet wurde. Wurde nur mit einer groben
       % Näherung (1e-3) gestartet, kann man die Nebenbedingungen nicht ver-
       % gleichen.
-      if ik_res_ikar && h_opt_post > h_opt_pre + 1e-3 % Toleranz gegen Numerik-Fehler
+      if ik_res_ikar && h_opt_post > h_opt_pre + 1e-3 && ...% Toleranz gegen Numerik-Fehler
+          Stats.condJ(1) < 1e3 % Wenn die PKM am vorher singulär ist, dann ist die Verschlechterung der Nebenopt. kein Ausschlussgrund für die neue Lösung
         if abs(Stats.h(1+Stats.iter,1)-h_opt_post) < 1e-3 && ... % es lag nicht am geänderten `wn` in der Funktion
             h_opt_post < 1e8 % Es ist kein numerisch großer und ungenauer Wert
           cds_log(-1, sprintf(['[constraints] Eckpunkt %d: IK-Berechnung ', ...
@@ -548,6 +554,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       if Stats.instspc_mindst(1+Stats.iter,:) > 0
         break;
       end
+      % Neue Werte aus der IK wurden nicht verworfen. Schreiben Konditionszahl
+      condJik(i,:) = Stats.condJ(1+Stats.iter,:);
     end
     % Normalisiere den Winkel. Bei manchen Robotern springt das IK-Ergebnis
     % sehr stark. Dadurch wird die Gelenkspannweite sonst immer verletzt.
@@ -624,6 +632,18 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     calctimes_jic(i_ar,jic) = toc(t1);
     continue;
   end
+  %% Prüfe die Konditionszahl der vollständigen Jacobi-Matrix der inversen Kinematik
+  % Wenn die PKM schon bezüglich der Beinketten singulär ist, ist die
+  % weitere Rechnung für die Trajektorie sowieso sinnlos
+  n_condexc = sum(any(condJik > Set.optimization.condition_limit_sing, 2));
+  if n_condexc > 0
+    fval = 1e5*(9+n_condexc/size(condJik,1)); % Normierung auf 9e5 bis 1e6
+    fval_jic(jic) = fval;
+    constrvioltext_jic{jic} = sprintf(['Konditionszahl in IK für %d ', ...
+      'Eckpunkte zu groß. max(cond(J))=%1.1e.'], n_condexc, max(condJik(:)));
+    calctimes_jic(i_ar,jic) = toc(t1);
+    continue;
+  end
 
   %% Bestimme die Spannweite der Gelenkkoordinaten (getrennt Dreh/Schub)
   q_range_E = NaN(1, R.NJ);
@@ -640,7 +660,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     [fval_qlimv_E, I_worst] = min(qlimviol_E(I_qlimviol_E)./(qlim(I_qlimviol_E,2)-qlim(I_qlimviol_E,1))');
     II_qlimviol_E = find(I_qlimviol_E); IIw = II_qlimviol_E(I_worst);
     fval_qlimv_E_norm = 2/pi*atan((-fval_qlimv_E)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
-    fval = 1e5*(5+5*fval_qlimv_E_norm); % Normierung auf 5e5 bis 1e6
+    fval = 1e5*(5+4*fval_qlimv_E_norm); % Normierung auf 5e5 bis 9e5
     fval_jic(jic) = fval;
     % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Weitere Rechnungen machen keinen Sinn.
     if R.Type ~= 0
