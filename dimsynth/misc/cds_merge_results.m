@@ -50,7 +50,12 @@ end
 % fehlen)
 maxnum_parts = 0;
 for i = 1:length(optdirs)
-  tokens = regexp(optdirs(i).name, '.*?_p([\d]+)', 'tokens');
+  tokens = regexp(optdirs(i).name, '.*?_p([\d]+)$', 'tokens');
+  if isempty(tokens)
+    % Der Ordner passt nicht ins Namensschema. Eventuell ist das Ende nicht
+    % p1,p2,p5,..., sondern etwas anderes, wie z.B. "_perfmap"
+    continue
+  end
   maxnum_parts = max(maxnum_parts, str2double(tokens{1}{1}));
 end
 numdirs_processed = 0;
