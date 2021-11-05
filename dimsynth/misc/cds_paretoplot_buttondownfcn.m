@@ -176,6 +176,12 @@ if fitness_recalc_necessary
     R = RobotOptDetails.R;
     Structure = RobotOptRes.Structure;
   end
+  % Falls Die Fitness-Funktion mit Debug-Einstellungen gestartet wird, muss
+  % der Speicher-Ordner für die Bilder erstellt werden (Debug-Ordner)
+  if ~isempty(Set.general.save_robot_details_plot_fitness_file_extensions)
+    mkdirs(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+      'tmp', sprintf('%d_%s', Structure.Number, Structure.Name)));
+  end
   if isempty(p_desopt)
     [fval2, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure,p);
   else
