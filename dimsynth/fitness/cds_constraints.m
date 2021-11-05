@@ -457,7 +457,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       end
       if ~ik_res_ikar % Keine Lösung gefunden. Sollte eigentlich nicht passieren.
         if s4.scale_lim == 0 && ... % Bei scale_lim kann der Algorithmus feststecken
-            ~Stats.coll % Wenn Kollisionsvermeidung aktiv wurde, kann das zum Scheitern führen
+            ~Stats.coll && ... % Wenn Kollisionsvermeidung aktiv wurde, kann das zum Scheitern führen
+            any(Stats.condJ([1,1+Stats.iter]) < 1e3) % Bei singulären Beinketten ist das Scheitern erwartbar
           cds_log(-1, sprintf(['[constraints] Eckpunkt %d: IK-Berechnung ', ...
             'mit Aufgabenredundanz fehlerhaft, obwohl es ohne AR funktioniert ', ...
             'hat. wn=[%s]. max(Phi)=%1.1e. Iter %d/%d'], i, disp_array(s4.wn','%1.1g'), ...
@@ -639,8 +640,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   if n_condexc > 0
     fval = 1e5*(9+n_condexc/size(condJik,1)); % Normierung auf 9e5 bis 1e6
     fval_jic(jic) = fval;
-    constrvioltext_jic{jic} = sprintf(['Konditionszahl in IK für %d ', ...
-      'Eckpunkte zu groß. max(cond(J))=%1.1e.'], n_condexc, max(condJik(:)));
+    constrvioltext_jic{jic} = sprintf(['Konditionszahl in IK für %d/%d ', ...
+      'Eckpunkte zu groß. max(cond(J))=%1.1e.'], n_condexc, size(condJik,1), max(condJik(:)));
     calctimes_jic(i_ar,jic) = toc(t1);
     continue;
   end
