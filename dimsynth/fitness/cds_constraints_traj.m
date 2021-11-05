@@ -143,6 +143,11 @@ if R.Type == 0 % Seriell
   s.wn = zeros(12,1);
 else % PKM
   s.wn = zeros(14,1);
+  if all(R.I_EE == [1 1 1 0 0 1])
+    % 3T1R-PKM sind aus irgend einem Grund immer singulär in IK, aber nicht
+    % bezogen auf PKM-Jacobi. Benutze letztere zur Nullraumprojektion
+    s.thresh_ns_qa = inf;
+  end
 end
 % Zusätzliche Optimierung für Aufgabenredundanz.
 % TODO: Die Reglereinstellungen sind noch nicht systematisch ermittelt.
@@ -658,7 +663,7 @@ if task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
     continue
   end
   test_XD = Traj_0.XD(:,1:5) - XD2(:,1:5);
-  if any(abs(test_XD(:))>1e-6)
+  if any(abs(test_XD(:))>1e-5)
     % Bestimme die mittlere Abweichung zwischen Geschwindigkeit des Endeffektors
     % aus inverser und direkter differentieller Kinematik. Darf
     % eigentlich nicht passieren (s.o.).
@@ -670,7 +675,7 @@ if task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
     continue
   end
   test_XDD = Traj_0.XDD(:,1:5) - XDD2(:,1:5);
-  if any(abs(test_XDD(:))>1e-6)
+  if any(abs(test_XDD(:))>1e-4)
     % Bestimme die mittlere Abweichung zwischen Beschleunigung des Endeffektors
     % aus inverser und direkter differentieller Kinematik. Darf
     % eigentlich nicht passieren (s.o.).
