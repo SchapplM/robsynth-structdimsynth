@@ -143,11 +143,6 @@ if R.Type == 0 % Seriell
   s.wn = zeros(12,1);
 else % PKM
   s.wn = zeros(14,1);
-  if all(R.I_EE == [1 1 1 0 0 1])
-    % 3T1R-PKM sind aus irgend einem Grund immer singulär in IK, aber nicht
-    % bezogen auf PKM-Jacobi. Benutze letztere zur Nullraumprojektion
-    s.thresh_ns_qa = inf;
-  end
 end
 % Zusätzliche Optimierung für Aufgabenredundanz.
 % TODO: Die Reglereinstellungen sind noch nicht systematisch ermittelt.
