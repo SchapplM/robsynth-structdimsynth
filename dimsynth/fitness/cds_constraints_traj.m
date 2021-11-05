@@ -663,7 +663,7 @@ if task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
     continue
   end
   test_XD = Traj_0.XD(:,1:5) - XD2(:,1:5);
-  if any(abs(test_XD(:))>1e-6)
+  if any(abs(test_XD(:))>1e-5)
     % Bestimme die mittlere Abweichung zwischen Geschwindigkeit des Endeffektors
     % aus inverser und direkter differentieller Kinematik. Darf
     % eigentlich nicht passieren (s.o.).
@@ -675,7 +675,7 @@ if task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
     continue
   end
   test_XDD = Traj_0.XDD(:,1:5) - XDD2(:,1:5);
-  if any(abs(test_XDD(:))>1e-6)
+  if any(abs(test_XDD(:))>1e-4)
     % Bestimme die mittlere Abweichung zwischen Beschleunigung des Endeffektors
     % aus inverser und direkter differentieller Kinematik. Darf
     % eigentlich nicht passieren (s.o.).
