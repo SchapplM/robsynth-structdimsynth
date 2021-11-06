@@ -274,8 +274,12 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           % aber nicht für die weiteren Beinketten. Mögliche Ursache
           % ist die freie Drehung der Plattform durch die erste Beinkette.
           % Erneuter Versuch mit der IK für alle Beinketten gemeinsam.
+          % Bei genanntem Abbruch sind nicht funktionierende Beinketten
+          % direkt NaN. Dafür andere Werte einsetzen.
+          q(isnan(q)) = Q0(isnan(q),1);
           Q0_v2 = [q,Q0];
-          [q, Phi, Tc_stack] = R.invkin4(Traj_0.XE(i,:)', Q0_v2, s);
+          [q, Phi, Tc_stack, Stats] = R.invkin4(Traj_0.XE(i,:)', Q0_v2, s);
+          condJik(i,:) = Stats.condJ(1+Stats.iter);
 %           if all(abs(Phi)<s.Phit_tol)
 %             cds_log(3, sprintf(['[constraints] jic=%d, i=%d. IK-Berechnung mit invkin2 ', ...
 %               'fehlgeschlagen für eine Beinkette, mit invkin4 erfolgreich.'], jic, i));
