@@ -164,6 +164,9 @@ n_jic = 30;
 fval_jic = NaN(1,n_jic);
 calctimes_jic = NaN(2,n_jic);
 constrvioltext_jic = cell(n_jic,1);
+% IK-Statistik (für Aufgabenredundanz). Absolute Verbesserung von
+% Zielkriterien gegenüber der nicht-redundanten Kinematik
+arikstats_jic = NaN(size(Traj_0.XE,1),n_jic);
 Q_jic = NaN(size(Traj_0.XE,1), R.NJ, n_jic);
 fval_jic_old = fval_jic;
 constrvioltext_jic_old = constrvioltext_jic;
@@ -446,8 +449,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       % numerischen Gründen diese teilweise nicht erreicht werden kann
       ik_res_ikar = all(abs(Phi) < 1e-6);
       if Set.general.debug_calc && all(abs(q-q0_arik) < 1e-9)
-        cds_log(-1, sprintf(['[constraints] Eckpunkt %d, Iter. %d: IK-Berechnung mit Aufgabenredundanz ', ...
-          'hat gleiches Ergebnis wie ohne (max delta q = %1.1e).'], i, i_ar, max(abs(q-q0_arik))));
+        cds_log(-1, sprintf(['[constraints] Konfig %d, Eckpunkt %d, Iter. %d: IK-Berechnung mit Aufgabenredundanz ', ...
+          'hat gleiches Ergebnis wie ohne (max delta q = %1.1e).'], jic, i, i_ar, max(abs(q-q0_arik))));
         % TODO: Eventuell liegt hier noch ein Implementierungsfehler vor.
         % Alternativ kann ein Fehler im Matlab Coder vorliegen.
 %         R.fill_fcn_handles(false);
@@ -463,9 +466,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         if s4.scale_lim == 0 && ... % Bei scale_lim kann der Algorithmus feststecken
             ~Stats.coll && ... % Wenn Kollisionsvermeidung aktiv wurde, kann das zum Scheitern führen
             any(Stats.condJ([1,1+Stats.iter]) < 1e3) % Bei singulären Beinketten ist das Scheitern erwartbar
-          cds_log(-1, sprintf(['[constraints] Eckpunkt %d: IK-Berechnung ', ...
+          cds_log(3, sprintf(['[constraints] Konfig %d, Eckpunkt %d: IK-Berechnung ', ...
             'mit Aufgabenredundanz fehlerhaft, obwohl es ohne AR funktioniert ', ...
-            'hat. wn=[%s]. max(Phi)=%1.1e. Iter %d/%d'], i, disp_array(s4.wn','%1.1g'), ...
+            'hat. wn=[%s]. max(Phi)=%1.1e. Iter %d/%d'], jic, i, disp_array(s4.wn','%1.1g'), ...
             max(abs(Phi)), Stats.iter, size(Stats.Q,1)-1));
         else
           % Falls neue Grenzen gesetzt wurden, ist die IK eventuell nicht
@@ -481,13 +484,18 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       % gültigen Startpose gestartet wurde. Wurde nur mit einer groben
       % Näherung (1e-3) gestartet, kann man die Nebenbedingungen nicht ver-
       % gleichen.
+      if ik_res_ikar % Speichern der Debug-Information
+        arikstats_jic(i, jic) = h_opt_post - h_opt_pre;
+      else
+        arikstats_jic(i, jic) = inf; % steht für "Fehlerhafte IK". Annahme, dass es nachher nicht auf "inf" geht.
+      end
       if ik_res_ikar && h_opt_post > h_opt_pre + 1e-3 && ...% Toleranz gegen Numerik-Fehler
           Stats.condJ(1) < 1e3 % Wenn die PKM am vorher singulär ist, dann ist die Verschlechterung der Nebenopt. kein Ausschlussgrund für die neue Lösung
         if abs(Stats.h(1+Stats.iter,1)-h_opt_post) < 1e-3 && ... % es lag nicht am geänderten `wn` in der Funktion
             h_opt_post < 1e8 % Es ist kein numerisch großer und ungenauer Wert
-          cds_log(-1, sprintf(['[constraints] Eckpunkt %d: IK-Berechnung ', ...
+          cds_log(3, sprintf(['[constraints] Konfig %d, Eckpunkt %d: IK-Berechnung ', ...
             'mit Aufgabenredundanz hat Nebenoptimierung verschlechtert: ', ...
-            '%1.4e -> %1.4e. wn=[%s]'], i, h_opt_pre, h_opt_post, disp_array(s4.wn','%1.1g')));
+            '%1.4e -> %1.4e. wn=[%s]'], jic, i, h_opt_pre, h_opt_post, disp_array(s4.wn','%1.1g')));
         end
         continue % Verwerfe das neue Ergebnis (nehme dadurch das vorherige)
         % Zum Debuggen
@@ -805,12 +813,19 @@ end % Schleife über IK-Konfigurationen
 % Debuggen der IK-Optimierung (zum Nachvollziehen, ob die Nutzung von
 % Redundanz an dieser Stelle überhaupt etwas bringt)
 if task_red
-  cds_log(3, sprintf(['[constraints] %d Konfigurationen berechnet. Dauer ', ...
+  cds_log(3, sprintf(['[constraints] Eckpunkte mit %d Konfigurationen berechnet. Dauer ', ...
     'AR=0 %1.1fs (mean %1.2fs; n=%d): AR=1 %1.1fs (mean %1.2fs; n=%d)'], ...
     size(calctimes_jic,2), sum(calctimes_jic(1,:),'omitnan'), ...
     mean(calctimes_jic(1,:),'omitnan'), sum(~isnan(calctimes_jic(1,:))), ...
     sum(calctimes_jic(2,:),'omitnan'), mean(calctimes_jic(2,:),'omitnan'), ...
     sum(~isnan(calctimes_jic(2,:)))));
+  if any(~isnan(arikstats_jic(:)))
+    cds_log(3, sprintf(['[constraints] Insgesamt für %d Punkte (von max. %dx%d=%d) die IK nochmal ', ...
+      'neu gerechnet. Dabei %d mal mit Verbesserung, %d mal mit Verschlechterung ', ...
+      'der Zusatzoptimierung. %d Mal Kein Erfolg der AR-IK. '], sum(~isnan(arikstats_jic(:))), ...
+      size(arikstats_jic,1), size(arikstats_jic,2), length(arikstats_jic(:)), ...
+      sum(arikstats_jic(:)<0), sum(arikstats_jic(:)>0), sum(isinf(arikstats_jic(:)))));
+  end
 end
 if Set.general.debug_calc && task_red
   % Prüfe, für wie viele Konfigurationen eine Verbesserung eintritt.

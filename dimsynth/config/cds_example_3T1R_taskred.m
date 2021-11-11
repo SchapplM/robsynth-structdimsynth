@@ -14,7 +14,9 @@ clear
 % Aufgaben-FG (Rotations-FG nicht belegt)
 DoF = [1 1 1 0 0 0];
 
-% Starte die Maßsynthese einmal mit Debug-Option für Redundanzkarte
+% Starte die Maßsynthese einmal mit Debug-Option für Redundanzkarte.
+% Dadurch wird das i.O.-Ergebnis des schnelleren Durchlaufs ohne Redundanz-
+% karte direkt als Anfangswert für den Versuch ohne benutzt.
 for dbg_perfmap = [false, true] 
 Traj_no = 1;
 Set = cds_settings_defaults(struct('DoF', DoF));
@@ -31,12 +33,11 @@ Set.optimization.objective = {'condition', 'chainlength'};
 Set.optimization.constraint_obj(4) = 1000; % max. Wert für Konditionszahl
 Set.optimization.NumIndividuals = 50;
 Set.optimization.MaxIter = 20;
-if dbg_perfmap
+if dbg_perfmap % Nicht so viele Versuche machen, sonst dauert es ewig
   Set.optimization.NumIndividuals = 3;
   Set.optimization.MaxIter = 4;
-else
-  Set.optimization.obj_limit = [1e3;1e3]; % Bei erstem Erfolg aufhören
 end
+Set.optimization.obj_limit = [1e3;1e3]; % Bei erstem Erfolg aufhören
 Set.general.plot_details_in_fitness = 1e3;
 Set.general.plot_robot_in_fitness = 1e3;
 Set.general.verbosity = 3;
@@ -63,8 +64,9 @@ end
 % Beispielhafte 3T1R-PKM. TODO: Noch ungeklärtes Verhalten in IK. Unklar,
 % ob PKM nicht dauerhaft singulär ist und gar nicht funktioniert.
 Set.structures.whitelist = {'P4RRRRR5V1G1P1A1'};
+% Set.structures.whitelist = {}; % Zum Ausprobieren aller möglicher PKM
 Set.structures.use_serial = false;
-Set.structures.max_index_active = 1;
+Set.structures.max_index_active = 1; % Zum Einschränken aller möglicher PKM
 Set.optimization.ee_translation = false;
 Set.optimization.condition_limit_sing = inf; % Damit singuläre Beinketten nicht zum Abbruch führen
 % Debug:
