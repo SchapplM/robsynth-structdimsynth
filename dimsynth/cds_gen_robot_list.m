@@ -224,7 +224,7 @@ for kkk = 1:size(EE_FG_allowed,1)
     % ein Zeichen dafür, dass die PKM noch ungeprüft ist. Bei Zielfunktion
     % "valid_act" soll in Struktursynthese der Rang geprüft werden. Dann
     % damit weitermachen.
-    if isnan(AdditionalInfo_Akt(j,1)) && ~strcmp(Set.optimization.objective, 'valid_act')
+    if isnan(AdditionalInfo_Akt(j,1)) && ~any(strcmp(Set.optimization.objective, 'valid_act'))
       if verblevel >= 3
         fprintf(['%s hat keine Angabe eines Rangverlusts der Jacobi-Matrix. ', ...
           'Vermutlich ungeprüfte PKM. Ignoriere.\n'], PNames_Akt{j});
