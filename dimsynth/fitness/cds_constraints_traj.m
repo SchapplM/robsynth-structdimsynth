@@ -489,10 +489,12 @@ if ~isinf(Set.optimization.condition_limit_sing) && R.Type == 2
     Jinv_IK = reshape(Jinv_ges(i,:), R.NJ, sum(R.I_EE));
     % Konditionszahl der auf Antriebe bezogengen (inversen) Jacobi-Matrix
     c = cond(Jinv_IK(R.I_qa,:));
-    IdxFirst = i;
-    break;
+    if c > Set.optimization.condition_limit_sing
+      IdxFirst = i;
+      break;
+    end
   end
-  if c > Set.optimization.condition_limit_sing
+  if IdxFirst ~= 0
     Failratio = 1-IdxFirst/length(Traj_0.t); % Wert zwischen 0 und 1
     constrvioltext = sprintf(['PKM ist singulär (Konditionszahl %1.1e ', ...
       'bei %1.0f%% der Traj. bzw. %d/%d).'], c, 100*(1-Failratio), IdxFirst, length(Traj_0.t));
