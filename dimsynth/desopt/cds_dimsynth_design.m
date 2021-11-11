@@ -341,6 +341,7 @@ for i = 1:length(m_ges_Link)
         R_i_Si = eye(3); % Es gibt keinen Abstand zum letzten KS. EE hat keine eigene Ausdehnung
       end
       if abs(det(R_i_Si)-1) > 1e-6 || any(isnan(R_i_Si(:)))
+        save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_design_error.mat'));
         error('Letztes Segment-KS stimmt nicht');
       end
     else % Paralleler Roboter
@@ -349,6 +350,7 @@ for i = 1:length(m_ges_Link)
       % EE-Transformation berücksichtigt werden.
       R_i_Si = eye(3);
       if any(R.T_P_E(1:3,4))
+        save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_design_error.mat'));
         error('Der Vergleich zwischen Seriell und Parallel bei vorhandener Trafo P-E ist aktuell nicht möglich');
       end
     end
@@ -414,9 +416,11 @@ mrS_ges = mrS_ges + mrS_ges_Zus;
 If_ges = If_ges + If_ges_Zus;
 
 if any(m_ges<0)
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_design_error.mat'));
   error('Eine Masse ist kleiner Null. Vorher war ein Fehler');
 end
 if any(isnan([If_ges(:);mrS_ges(:)]))
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_design_error.mat'));
   error('Irgendein Dynamik-Parameter ist NaN. Das stört spätere Berechnungen!');
 end
 if Set.general.matfile_verbosity > 2 + (~use_default_link_param)
