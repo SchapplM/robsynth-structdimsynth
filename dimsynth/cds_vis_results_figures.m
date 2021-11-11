@@ -44,10 +44,11 @@ elseif length(fval) == 1 % Einkriteriell
 else % Mehrkriteriell
   fval_str = ['[',disp_array(fval', '%1.1f'),']'];
 end
-% Setze die Aufgaben-FG bei PKM auf vollständig. Sonst wird bei
-% Aufgabenredundanz die Jacobi-Matrix in den Dynamik-Funktionen falsch
-% berechnet.
-if RobData.Type ~= 0
+% Setze die Aufgaben-FG bei PKM auf vollständig. Sonst wird bei Aufgaben- 
+% redundanz die Jacobi-Matrix in den Dynamik-Funktionen falsch berechnet. 
+% Dadurch wird die EE-Drehung beim Plot aber inkonsistent. Darf nur für 
+% Dynamik-Plots gesetzt werden und muss danach rückgängig gemacht werden.
+if RobData.Type ~= 0 && strcmp(figname, 'dynamics')
   R.update_EE_FG(R.I_EE, R.I_EE);
 end
 %% Animation
@@ -591,4 +592,9 @@ if strcmp(figname, 'springrestpos')
   t_Vid = (0:1/30*(T_ges(end)/10):T_ges(end))';
   I_anim = knnsearch( T_ges, t_Vid ); % Indizes für gewünschte Länge
   R.anim( Q_ges(I_anim,:), repmat(Traj_0.X(1,:),length(I_anim),1), s_anim, s_plot);
+end
+
+% EE-FG von PKM wieder zurücksetzen auf Aufgaben-FG
+if RobData.Type ~= 0
+  R.update_EE_FG(R.I_EE, Set.task.DoF);
 end

@@ -150,7 +150,7 @@ if Set.optimization.ee_rotation && any(Structure.vartypes == 4)
 end
 
 %% Basis-Rotation (um die z-Achse nach der Drehung in Boden-/Deckenmontage)
-if Set.optimization.rotate_base
+if Set.optimization.rotate_base && any(Structure.vartypes == 5)
   p_baserot = p(Structure.vartypes == 5);
   p_phys(Structure.vartypes == 5) = p_baserot;
   if Structure.R_W_0_isset
