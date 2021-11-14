@@ -574,8 +574,10 @@ for iIKC = 1:size(Q0,1)
   end
   if all(fval_IKC(iIKC,:)' <= Set.optimization.obj_limit) || ...
      all(physval_IKC(iIKC,:)' <= Set.optimization.obj_limit_physval)
-    cds_log(2,sprintf(['[fitness] Geforderte Grenze der Zielfunktion erreicht. ', ...
-      'Abbruch der Optimierung.']));
+    if ~abort_fitnesscalc % Folgende Meldung nur einmal anzeigen.
+      cds_log(2,sprintf(['[fitness] Geforderte Grenze der Zielfunktion erreicht. ', ...
+        'Abbruch der Optimierung.']));
+    end
     abort_fitnesscalc = true;
     % break; % zur Nachvollziehbarkeit kein direkter Abbruch.
   end
