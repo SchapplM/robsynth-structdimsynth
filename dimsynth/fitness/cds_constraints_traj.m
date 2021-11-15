@@ -138,6 +138,7 @@ s = struct( ...
   'normalize', false, ... 
   ... % Einhaltung der Gelenkwinkelgrenzen nicht über NR-Bewegung erzwingen
   'enforce_qlim', false, ...
+  'debug', Set.general.debug_calc, ...
   'Phit_tol', 1e-10, 'Phir_tol', 1e-10); % feine Toleranz
 if R.Type == 0 % Seriell
   s.wn = zeros(12,1);
@@ -559,7 +560,8 @@ end
 % durchgeführt. Annahme: Ist diese schlecht konditioniert, können bei den
 % beiden IK-Implementierungen verschiedene Ergebnisse herauskommen.
 if R.Type == 2 && Set.general.debug_calc % PKM; Rechne nochmal mit Klassenmethode nach
-  [Q_debug, QD_debug, QDD_debug, PHI_debug, ~, ~, JP_debug] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+  [Q_debug, QD_debug, QDD_debug, PHI_debug, ~, ~, JP_debug] = R.invkin_traj( ...
+    Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
   ik_res_ik2 = (all(max(abs(PHI(:,R.I_constr_t_red)))<s.Phit_tol) && ...
       all(max(abs(PHI(:,R.I_constr_r_red)))<s.Phir_tol));% IK-Status Funktionsdatei
   ik_res_iks = (all(max(abs(PHI_debug(:,R.I_constr_t_red)))<s.Phit_tol) && ... 
@@ -595,7 +597,7 @@ if R.Type == 2 && Set.general.debug_calc % PKM; Rechne nochmal mit Klassenmethod
   % Prüfe ob die Gelenk-Positionen aus Klasse und Vorlage stimmen
   % (nur prüfen, wenn die IK erfolgreich war. Sonst große Fehler bei
   % Zeitschritt des Abbruchs der Berechnung)
-  if ik_res_ik2 && ik_res_iks 
+  if ik_res_ik2 && ik_res_iks
     test_Q = Q-Q_debug;
     if any(abs(test_Q(:))>1e-3)
       save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
