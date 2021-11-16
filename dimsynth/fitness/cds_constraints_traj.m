@@ -138,12 +138,12 @@ s = struct( ...
   'normalize', false, ... 
   ... % Einhaltung der Gelenkwinkelgrenzen nicht über NR-Bewegung erzwingen
   'enforce_qlim', false, ...
-  'debug', Set.general.debug_calc, ...
   'Phit_tol', 1e-10, 'Phir_tol', 1e-10); % feine Toleranz
 if R.Type == 0 % Seriell
   s.wn = zeros(12,1);
 else % PKM
   s.wn = zeros(14,1);
+  s.debug = Set.general.debug_calc;
 end
 % Zusätzliche Optimierung für Aufgabenredundanz.
 % TODO: Die Reglereinstellungen sind noch nicht systematisch ermittelt.
@@ -482,7 +482,7 @@ end
 % werden. Annahme: Wenn eine PKM strukturell immer singulär ist, gibt es
 % nie eine Lösung.
 % Nur für PKM prüfen. Annahme: Serielle Singularität immer vermeidbar.
-if ~isinf(Set.optimization.condition_limit_sing) && R.Type == 2
+if ~isinf(Set.optimization.condition_limit_sing_act) && R.Type == 2
   IdxFirst = 0; c = 0;
   % Berechne Konditionszahl für alle Punkte der Bahn
   for i = 1:length(Traj_0.t)
@@ -498,7 +498,7 @@ if ~isinf(Set.optimization.condition_limit_sing) && R.Type == 2
   if IdxFirst ~= 0
     Failratio = 1-IdxFirst/length(Traj_0.t); % Wert zwischen 0 und 1
     constrvioltext = sprintf(['PKM ist singulär (Konditionszahl %1.1e ', ...
-      'bei %1.0f%% der Traj. bzw. %d/%d).'], c, 100*(1-Failratio), IdxFirst, length(Traj_0.t));
+      'bei %1.0f%% der Traj. bzw. Schritt %d/%d).'], c, 100*(1-Failratio), IdxFirst, length(Traj_0.t));
     fval = 1e4*(5+1*Failratio); % Wert zwischen 5e4 und 6e4.
     continue
   end
