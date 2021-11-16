@@ -689,15 +689,17 @@ JP_out = JP_IKC(:,:,iIKCbest);
 if ~isinf(Set.optimization.condition_limit_sing) && R.Type == 2 && ...
     all(fval > 1e4*5e4) && all(fval < 1e4*6e4) % Grenzen für PKM-Singularität
   % Prüfe, wie oft schon dieses Ergebnis vorlag
-  PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, NaN, 'output');
-  % Bei mehrkriterieller Optimierung bei NB-Verletzung gleiche Einträge 
-  fval_constr = PSO_Detail_Data.fval(:,1,:);
-  I_sing = fval_constr > 1e4*5e4 & fval_constr < 1e4*6e4;
-  I_nonsing = fval_constr < 1e4*5e4;
-  if sum(I_sing(:)) > 4 && sum(I_nonsing(:)) == 0
-    cds_log(2,sprintf(['[fitness] Es gab %d singuläre Ergebnisse und kein ', ...
-      'nicht-singuläres. PKM nicht geeignet. Abbruch der Optimierung.'], sum(I_sing(:))));
-    abort_fitnesscalc = true;
+  PSO_Detail_Data = cds_save_particle_details([], [], 0, 0, NaN, NaN, NaN, NaN, 'output');
+  if ~isempty(PSO_Detail_Data)
+    % Bei mehrkriterieller Optimierung bei NB-Verletzung gleiche Einträge 
+    fval_constr = PSO_Detail_Data.fval(:,1,:);
+    I_sing = fval_constr > 1e4*5e4 & fval_constr < 1e4*6e4;
+    I_nonsing = fval_constr < 1e4*5e4;
+    if sum(I_sing(:)) > 4 && sum(I_nonsing(:)) == 0
+      cds_log(2,sprintf(['[fitness] Es gab %d singuläre Ergebnisse und kein ', ...
+        'nicht-singuläres. PKM nicht geeignet. Abbruch der Optimierung.'], sum(I_sing(:))));
+      abort_fitnesscalc = true;
+    end
   end
 end
 %% Abbruchbedingung aufgrund von parasitärer Bewegung prüfen
@@ -707,15 +709,17 @@ end
 if any(strcmp(Set.optimization.objective, 'valid_act')) && R.Type == 2 && ...
     all(fval > 1e4*9e3) && all(fval < 1e4*1e4) % Grenzen für parasitäre Bewegung
   % Prüfe, wie oft schon dieses Ergebnis vorlag
-  PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, NaN, 'output');
-  % Bei mehrkriterieller Optimierung bei NB-Verletzung gleiche Einträge 
-  fval_constr = PSO_Detail_Data.fval(:,1,:);
-  I_para = fval_constr > 1e4*9e3 & fval_constr < 1e4*1e4;
-  I_nonpara = fval_constr < 1e4*9e3; % erfolgreicherere Berechnung (besser)
-  if sum(I_para(:)) > 4 && sum(I_nonpara(:)) == 0
-    cds_log(2,sprintf(['[fitness] Es gab %d Ergebnisse mit parasitärer ', ...
-      'Bewegung und keins ohne. PKM nicht geeignet. Abbruch der Optimierung.'], sum(I_para(:))));
-    abort_fitnesscalc = true;
+  PSO_Detail_Data = cds_save_particle_details([], [], 0, 0, NaN, NaN, NaN, NaN, 'output');
+  if ~isempty(PSO_Detail_Data)
+    % Bei mehrkriterieller Optimierung bei NB-Verletzung gleiche Einträge 
+    fval_constr = PSO_Detail_Data.fval(:,1,:);
+    I_para = fval_constr > 1e4*9e3 & fval_constr < 1e4*1e4;
+    I_nonpara = fval_constr < 1e4*9e3; % erfolgreicherere Berechnung (besser)
+    if sum(I_para(:)) > 4 && sum(I_nonpara(:)) == 0
+      cds_log(2,sprintf(['[fitness] Es gab %d Ergebnisse mit parasitärer ', ...
+        'Bewegung und keins ohne. PKM nicht geeignet. Abbruch der Optimierung.'], sum(I_para(:))));
+      abort_fitnesscalc = true;
+    end
   end
 end
 %% Ende
