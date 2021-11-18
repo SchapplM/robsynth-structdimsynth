@@ -456,8 +456,10 @@ for iIKC = 1:size(Q0,1)
   if any(strcmp(Set.optimization.objective, 'valid_act'))
     [fval_va,fval_debugtext_va, debug_info] = cds_obj_valid_act(R, Set, Jinv_ges);
     if fval_va < 1e3 % Wenn einmal der Freiheitsgrad festgestellt wurde, reicht das
-      cds_log(2,sprintf(['[fitness] Der PKM-Laufgrad wurde festgestellt. ', ...
-        'Hiernach Abbruch der Optimierung.']));
+      if ~abort_fitnesscalc % Folgende Meldung nur einmal anzeigen.
+        cds_log(2,sprintf(['[fitness] Der PKM-Laufgrad wurde festgestellt. ', ...
+          'Hiernach Abbruch der Optimierung.']));
+      end
       abort_fitnesscalc = true;
     end
     fval_IKC(iIKC,strcmp(Set.optimization.objective, 'valid_act')) = fval_va;
@@ -696,8 +698,10 @@ if ~isinf(Set.optimization.condition_limit_sing) && R.Type == 2 && ...
     I_sing = fval_constr > 1e4*5e4 & fval_constr < 1e4*6e4;
     I_nonsing = fval_constr < 1e4*5e4;
     if sum(I_sing(:)) > 4 && sum(I_nonsing(:)) == 0
-      cds_log(2,sprintf(['[fitness] Es gab %d singuläre Ergebnisse und kein ', ...
-        'nicht-singuläres. PKM nicht geeignet. Abbruch der Optimierung.'], sum(I_sing(:))));
+      if ~abort_fitnesscalc % Meldung nur einmal zeigen
+        cds_log(2,sprintf(['[fitness] Es gab %d singuläre Ergebnisse und kein ', ...
+          'nicht-singuläres. PKM nicht geeignet. Abbruch der Optimierung.'], sum(I_sing(:))));
+      end
       abort_fitnesscalc = true;
     end
   end
@@ -716,8 +720,10 @@ if any(strcmp(Set.optimization.objective, 'valid_act')) && R.Type == 2 && ...
     I_para = fval_constr > 1e4*9e3 & fval_constr < 1e4*1e4;
     I_nonpara = fval_constr < 1e4*9e3; % erfolgreicherere Berechnung (besser)
     if sum(I_para(:)) > 4 && sum(I_nonpara(:)) == 0
-      cds_log(2,sprintf(['[fitness] Es gab %d Ergebnisse mit parasitärer ', ...
-        'Bewegung und keins ohne. PKM nicht geeignet. Abbruch der Optimierung.'], sum(I_para(:))));
+      if ~abort_fitnesscalc % Meldung nur einmal zeigen
+        cds_log(2,sprintf(['[fitness] Es gab %d Ergebnisse mit parasitärer ', ...
+          'Bewegung und keins ohne. PKM nicht geeignet. Abbruch der Optimierung.'], sum(I_para(:))));
+      end
       abort_fitnesscalc = true;
     end
   end
