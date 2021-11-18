@@ -898,7 +898,7 @@ else % Gebe alle gültigen Lösungen aus
   QE_all = Q_jic(:,:,I_iO);
   % Debug: Zeige die verschiedenen Lösungen an
   if 1e4*fval < Set.general.plot_details_in_fitness
-    figure(2000);clf;
+    change_current_figure(2000);clf;
     for k = 1:length(I_iO)
       subplot(floor(ceil(length(I_iO))), ceil(sqrt(length(I_iO))), k);
       view(3); axis auto; hold on; grid on;
