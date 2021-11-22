@@ -160,7 +160,7 @@ if Set.optimization.rotate_base && any(Structure.vartypes == 5)
     phi_W_0 = [0;0;p_baserot];
   end
   R.update_base([], phi_W_0);
-  if all(R.Type == 2) && all(R.I_EE == [1 1 1 0 0 0])
+  if all(R.Type == 2) && (all(R.I_EE == [1 1 1 0 0 0]) || all(R.I_EE == [1 1 0 0 0 0]))
     % Bei 3T0R-PKM kann die Basis nicht einfach gedreht werden. Dann ist
     % das EE-KS verdreht gegenüber der Aufgabe. Daher muss das EE-KS um den 
     % Winkel der Basis-Drehung zurückgedreht werden. Annahme: z-Achsen von
