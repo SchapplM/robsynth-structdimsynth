@@ -268,6 +268,22 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         Q0_mod = Q0;
         Q0_mod(R.I1J_LEG(2):end,end) = NaN; % Für Beinkette 2 Ergebnis von BK 1 nehmen (dabei letzten Anfangswert für BK 2 und folgende verwerfen)
         [q, Phi, Tc_stack, Stats] = R.invkin2(Traj_0.XE(i,:)', Q0_mod, s, s_par); % kompilierter Aufruf
+        % Rechne kinematische Zwangsbedingungen nach. Ist für Struktur-
+        % synthese sinnvoll, falls die Modellierung unsicher ist.
+        if any(strcmp(Set.optimization.objective, 'valid_act')) || Set.general.debug_calc
+          [~,Phi_test] = R.constr1(q, Traj_0.XE(i,:)');
+          if all(abs(Phi) < 1e-6) && any(abs(Phi_test) > 1e-3)
+            if Set.general.matfile_verbosity > 0
+              save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+                'tmp', 'cds_constraints_constr1error.mat'));
+            end
+            cds_log(-1, sprintf(['[constraints] Kinematische Zwangsbedingungen ', ...
+              'in vollständiger Form werden nicht erfüllt, in reduzierter Form aber schon']));
+            Phi_E(:) = inf; % Dadurch schlechtestmöglicher Ergebniswert
+            QE(i,:) = q;
+            break; % keine weiteren Punkte prüfen
+          end
+        end
         ik_res_ik2 = (all(abs(Phi(R.I_constr_t_red))<s.Phit_tol) && ...
             all(abs(Phi(R.I_constr_r_red))<s.Phir_tol));% IK-Status Funktionsdatei
         for ll=1:R.NLEG, condJik(i,ll) = Stats.condJ(1+Stats.iter(ll),ll); end

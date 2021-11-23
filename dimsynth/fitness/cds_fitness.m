@@ -143,6 +143,16 @@ if Structure.desopt_prismaticoffset % siehe cds_desopt_prismaticoffset.m
     desopt_pval(Structure.desopt_ptypes==1) = R.Leg(1).DesPar.joint_offset(R.Leg(1).MDH.sigma==1);
   end
 end
+% Bei Struktursynthese soll die prinzipielle Nicht-Lösbarkeit zum Abbruch
+% führen. Wird durch Abfrage auf Inkonsistenz der NB in cds_constraints ausgelöst.
+if any(strcmp(Set.optimization.objective, 'valid_act')) && fval_constr==1e7
+  if ~abort_fitnesscalc % Folgende Meldung nur einmal anzeigen.
+    cds_log(2,sprintf('[fitness] Die PKM ist nicht modellierbar.'));
+  end
+  abort_fitnesscalc = true;
+  % Der Abbruch erfolgt innerhalb der nächsten Prüfung
+end
+
 % NB-Verletzung in Eckpunkt-IK wird in Ausgabe mit Werten von 1e5 aufwärts
 % angegeben. Umwandlung in Werte von 1e9 aufwärts.
 % Ursache: Nachträgliches Einfügen von weiteren Nebenbedingungen.
