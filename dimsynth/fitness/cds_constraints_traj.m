@@ -143,11 +143,7 @@ if R.Type == 0 % Seriell
   s.wn = zeros(12,1);
 else % PKM
   s.wn = zeros(14,1);
-  if all(R.I_EE == [1 1 1 0 0 1])
-    % 3T1R-PKM sind aus irgend einem Grund immer singulär in IK, aber nicht
-    % bezogen auf PKM-Jacobi. Benutze letztere zur Nullraumprojektion
-    s.thresh_ns_qa = inf;
-  end
+  s.debug = Set.general.debug_calc;
 end
 % Zusätzliche Optimierung für Aufgabenredundanz.
 % TODO: Die Reglereinstellungen sind noch nicht systematisch ermittelt.
@@ -275,7 +271,7 @@ if i_ar == 3
       'nachher: [%s]'], disp_array(wn_alt', '%1.1f'), disp_array(s.wn', '%1.1f')));
   end
   if fval_ar(1) < fval_ar(2)
-    cds_log(-1, sprintf(['[constraints_traj] Ergebnis der Traj.-IK hat sich nach Nullraum', ...
+    cds_log(3, sprintf(['[constraints_traj] Ergebnis der Traj.-IK hat sich nach Nullraum', ...
       'bewegung verschlechtert: %1.3e -> %1.3e ("%s" -> "%s"), delta: %1.3e'], fval_ar(1), ...
       fval_ar(2), constrvioltext_alt, constrvioltext, fval_ar(2)-fval_ar(1)));
     % Anmerkung: Das muss nicht unbedingt ein Fehler sein. Das Verletzen
@@ -486,7 +482,7 @@ end
 % werden. Annahme: Wenn eine PKM strukturell immer singulär ist, gibt es
 % nie eine Lösung.
 % Nur für PKM prüfen. Annahme: Serielle Singularität immer vermeidbar.
-if ~isinf(Set.optimization.condition_limit_sing) && R.Type == 2
+if ~isinf(Set.optimization.condition_limit_sing_act) && R.Type == 2
   IdxFirst = 0; c = 0;
   % Berechne Konditionszahl für alle Punkte der Bahn
   for i = 1:length(Traj_0.t)
@@ -494,13 +490,15 @@ if ~isinf(Set.optimization.condition_limit_sing) && R.Type == 2
     Jinv_IK = reshape(Jinv_ges(i,:), R.NJ, sum(R.I_EE));
     % Konditionszahl der auf Antriebe bezogengen (inversen) Jacobi-Matrix
     c = cond(Jinv_IK(R.I_qa,:));
-    IdxFirst = i;
-    break;
+    if c > Set.optimization.condition_limit_sing
+      IdxFirst = i;
+      break;
+    end
   end
-  if c > Set.optimization.condition_limit_sing
+  if IdxFirst ~= 0
     Failratio = 1-IdxFirst/length(Traj_0.t); % Wert zwischen 0 und 1
     constrvioltext = sprintf(['PKM ist singulär (Konditionszahl %1.1e ', ...
-      'bei %1.0f%% der Traj. bzw. %d/%d).'], c, 100*(1-Failratio), IdxFirst, length(Traj_0.t));
+      'bei %1.0f%% der Traj. bzw. Schritt %d/%d).'], c, 100*(1-Failratio), IdxFirst, length(Traj_0.t));
     fval = 1e4*(5+1*Failratio); % Wert zwischen 5e4 und 6e4.
     continue
   end
@@ -562,7 +560,8 @@ end
 % durchgeführt. Annahme: Ist diese schlecht konditioniert, können bei den
 % beiden IK-Implementierungen verschiedene Ergebnisse herauskommen.
 if R.Type == 2 && Set.general.debug_calc % PKM; Rechne nochmal mit Klassenmethode nach
-  [Q_debug, QD_debug, QDD_debug, PHI_debug, ~, ~, JP_debug] = R.invkin_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+  [Q_debug, QD_debug, QDD_debug, PHI_debug, ~, ~, JP_debug] = R.invkin_traj( ...
+    Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
   ik_res_ik2 = (all(max(abs(PHI(:,R.I_constr_t_red)))<s.Phit_tol) && ...
       all(max(abs(PHI(:,R.I_constr_r_red)))<s.Phir_tol));% IK-Status Funktionsdatei
   ik_res_iks = (all(max(abs(PHI_debug(:,R.I_constr_t_red)))<s.Phit_tol) && ... 
@@ -598,7 +597,7 @@ if R.Type == 2 && Set.general.debug_calc % PKM; Rechne nochmal mit Klassenmethod
   % Prüfe ob die Gelenk-Positionen aus Klasse und Vorlage stimmen
   % (nur prüfen, wenn die IK erfolgreich war. Sonst große Fehler bei
   % Zeitschritt des Abbruchs der Berechnung)
-  if ik_res_ik2 && ik_res_iks 
+  if ik_res_ik2 && ik_res_iks
     test_Q = Q-Q_debug;
     if any(abs(test_Q(:))>1e-3)
       save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...

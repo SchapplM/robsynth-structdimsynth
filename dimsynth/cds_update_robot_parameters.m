@@ -128,6 +128,7 @@ if any(Structure.vartypes == 3) % Set.optimization.ee_translation
 end
 
 %% EE-Rotation
+phi_N_E = NaN(3,1);
 if Set.optimization.ee_rotation && any(Structure.vartypes == 4)
   p_eerot = p(Structure.vartypes == 4);
   p_phys(Structure.vartypes == 4) = p_eerot;
@@ -150,7 +151,7 @@ if Set.optimization.ee_rotation && any(Structure.vartypes == 4)
 end
 
 %% Basis-Rotation (um die z-Achse nach der Drehung in Boden-/Deckenmontage)
-if Set.optimization.rotate_base
+if Set.optimization.rotate_base && any(Structure.vartypes == 5)
   p_baserot = p(Structure.vartypes == 5);
   p_phys(Structure.vartypes == 5) = p_baserot;
   if Structure.R_W_0_isset
@@ -159,6 +160,20 @@ if Set.optimization.rotate_base
     phi_W_0 = [0;0;p_baserot];
   end
   R.update_base([], phi_W_0);
+  if all(R.Type == 2) && (all(R.I_EE == [1 1 1 0 0 0]) || all(R.I_EE == [1 1 0 0 0 0]))
+    % Bei 3T0R-PKM kann die Basis nicht einfach gedreht werden. Dann ist
+    % das EE-KS verdreht gegenüber der Aufgabe. Daher muss das EE-KS um den 
+    % Winkel der Basis-Drehung zurückgedreht werden. Annahme: z-Achsen von
+    % Basis und Plattform (nicht: EE) zeigen in die gleiche Richtung.
+    if any(isnan(phi_N_E)) % Wurde noch nicht oben belegt
+      if Structure.R_N_E_isset
+        phi_N_E = r2eulxyz(Structure.R_N_E); % Kann durch Deckenmontage bereits gesetzt sein
+      else
+        phi_N_E = zeros(3,1);
+      end
+    end
+    R.update_EE([], phi_N_E+[0;0;p_baserot]);
+  end
 end
 
 %% Basis-Koppelpunkt Positionsparameter (z.B. Gestell-Radius)

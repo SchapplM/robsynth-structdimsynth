@@ -36,6 +36,11 @@ for subconf = fields(Set_default)'
     end
   end
 end
+for ftmp = fields(Set)'
+  if ~isfield(Set_default, ftmp{1})
+    warning('Feld %s in der Eingabestruktur ist nicht vorgesehen', ftmp{1})
+  end
+end
 if isa(Set.optimization.objective, 'char')
   % Bei mehrkriterieller Optimierung mehrere Zielfunktionsnamen als cell.
   % Einheitliches Format für Ein- und Mehrkriteriell.

@@ -181,6 +181,11 @@ for i = 1:length(m_ges_Link)
       % nicht den Anfangspunkt des Schubgelenks
       r_i_i_D = [R_pkin.MDH.a(i); 0; q_range(i)];
       R_i_Si = rotx(R_pkin.MDH.alpha(i)) * roty(atan2(q_range(i), R_pkin.MDH.a(i)));
+    elseif any(isinf(R_pkin.qlim(i,:))) % Schubgelenk mit unendlichen Grenzen
+      % Für unendliche Grenzen kann kein physikalisches Modell des Schub-
+      % gelenks aufgestellt werden. Untersuchung ist rein kinematisch.
+      r_i_i_D = zeros(3,1); % Damit Masse zu Null setzen
+      R_i_Si = eye(3); % spielt keine Rolle
     else % Schubgelenk mit Modell
       % Betrachte nur die Verschiebung des a-Parameters als Segment. Der
       % d-Parameter wird durch ein spezielles Schubgelenkmodell
@@ -245,7 +250,8 @@ for i = 1:length(m_ges_Link)
       error('Segment-Darstellung stimmt nicht');
     end
     %% Bestimme zusätzliche Dynamikparameter für Schubgelenke:
-    if R_pkin.MDH.sigma(i) == 1
+    % (nur, falls Grenzen auf endliche Werte gesetzt sind)
+    if R_pkin.MDH.sigma(i) == 1 && ~any(isinf(R_pkin.qlim(i,:)))
       if R_pkin.DesPar.joint_type(i) ==  5
         % Bei ausfahrbaren Zylindern gibt es zusätzlich noch einen
         % statischen Teil. Dieser Teil wird dem vorherigen Segment
@@ -341,6 +347,7 @@ for i = 1:length(m_ges_Link)
         R_i_Si = eye(3); % Es gibt keinen Abstand zum letzten KS. EE hat keine eigene Ausdehnung
       end
       if abs(det(R_i_Si)-1) > 1e-6 || any(isnan(R_i_Si(:)))
+        save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_design_error.mat'));
         error('Letztes Segment-KS stimmt nicht');
       end
     else % Paralleler Roboter
@@ -349,6 +356,7 @@ for i = 1:length(m_ges_Link)
       % EE-Transformation berücksichtigt werden.
       R_i_Si = eye(3);
       if any(R.T_P_E(1:3,4))
+        save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_design_error.mat'));
         error('Der Vergleich zwischen Seriell und Parallel bei vorhandener Trafo P-E ist aktuell nicht möglich');
       end
     end
@@ -414,9 +422,11 @@ mrS_ges = mrS_ges + mrS_ges_Zus;
 If_ges = If_ges + If_ges_Zus;
 
 if any(m_ges<0)
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_design_error.mat'));
   error('Eine Masse ist kleiner Null. Vorher war ein Fehler');
 end
-if any(isnan([If_ges(:);mrS_ges(:)]))
+if any(isnan([If_ges(:);mrS_ges(:);m_ges(:)]))
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_design_error.mat'));
   error('Irgendein Dynamik-Parameter ist NaN. Das stört spätere Berechnungen!');
 end
 if Set.general.matfile_verbosity > 2 + (~use_default_link_param)

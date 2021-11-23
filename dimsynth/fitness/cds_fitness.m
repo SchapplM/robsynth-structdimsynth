@@ -143,6 +143,16 @@ if Structure.desopt_prismaticoffset % siehe cds_desopt_prismaticoffset.m
     desopt_pval(Structure.desopt_ptypes==1) = R.Leg(1).DesPar.joint_offset(R.Leg(1).MDH.sigma==1);
   end
 end
+% Bei Struktursynthese soll die prinzipielle Nicht-Lösbarkeit zum Abbruch
+% führen. Wird durch Abfrage auf Inkonsistenz der NB in cds_constraints ausgelöst.
+if any(strcmp(Set.optimization.objective, 'valid_act')) && fval_constr==1e7
+  if ~abort_fitnesscalc % Folgende Meldung nur einmal anzeigen.
+    cds_log(2,sprintf('[fitness] Die PKM ist nicht modellierbar.'));
+  end
+  abort_fitnesscalc = true;
+  % Der Abbruch erfolgt innerhalb der nächsten Prüfung
+end
+
 % NB-Verletzung in Eckpunkt-IK wird in Ausgabe mit Werten von 1e5 aufwärts
 % angegeben. Umwandlung in Werte von 1e9 aufwärts.
 % Ursache: Nachträgliches Einfügen von weiteren Nebenbedingungen.
@@ -456,8 +466,10 @@ for iIKC = 1:size(Q0,1)
   if any(strcmp(Set.optimization.objective, 'valid_act'))
     [fval_va,fval_debugtext_va, debug_info] = cds_obj_valid_act(R, Set, Jinv_ges);
     if fval_va < 1e3 % Wenn einmal der Freiheitsgrad festgestellt wurde, reicht das
-      cds_log(2,sprintf(['[fitness] Der PKM-Laufgrad wurde festgestellt. ', ...
-        'Hiernach Abbruch der Optimierung.']));
+      if ~abort_fitnesscalc % Folgende Meldung nur einmal anzeigen.
+        cds_log(2,sprintf(['[fitness] Der PKM-Laufgrad wurde festgestellt. ', ...
+          'Hiernach Abbruch der Optimierung.']));
+      end
       abort_fitnesscalc = true;
     end
     fval_IKC(iIKC,strcmp(Set.optimization.objective, 'valid_act')) = fval_va;
@@ -574,8 +586,10 @@ for iIKC = 1:size(Q0,1)
   end
   if all(fval_IKC(iIKC,:)' <= Set.optimization.obj_limit) || ...
      all(physval_IKC(iIKC,:)' <= Set.optimization.obj_limit_physval)
-    cds_log(2,sprintf(['[fitness] Geforderte Grenze der Zielfunktion erreicht. ', ...
-      'Abbruch der Optimierung.']));
+    if ~abort_fitnesscalc % Folgende Meldung nur einmal anzeigen.
+      cds_log(2,sprintf(['[fitness] Geforderte Grenze der Zielfunktion erreicht. ', ...
+        'Abbruch der Optimierung.']));
+    end
     abort_fitnesscalc = true;
     % break; % zur Nachvollziehbarkeit kein direkter Abbruch.
   end
@@ -687,19 +701,43 @@ JP_out = JP_IKC(:,:,iIKCbest);
 if ~isinf(Set.optimization.condition_limit_sing) && R.Type == 2 && ...
     all(fval > 1e4*5e4) && all(fval < 1e4*6e4) % Grenzen für PKM-Singularität
   % Prüfe, wie oft schon dieses Ergebnis vorlag
-  PSO_Detail_Data = cds_save_particle_details(Set, R, 0, 0, NaN, NaN, NaN, NaN, 'output');
-  % Bei mehrkriterieller Optimierung bei NB-Verletzung gleiche Einträge 
-  if length(fval) > 1, fval_constr = PSO_Detail_Data.fval(:,1,:);
-  else,                fval_constr = fval; end
-  I_sing = fval_constr > 1e4*5e4 & fval_constr < 1e4*6e4;
-  I_nonsing = fval_constr < 1e4*5e4;
-  if sum(I_sing(:)) > 4 && sum(I_nonsing(:)) == 0
-    cds_log(2,sprintf(['[fitness] Es gab 5 singuläre Ergebnisse und kein ', ...
-      'nicht-singuläres. PKM nicht geeignet. Abbruch der Optimierung.']));
-    abort_fitnesscalc = true;
+  PSO_Detail_Data = cds_save_particle_details([], [], 0, 0, NaN, NaN, NaN, NaN, 'output');
+  if ~isempty(PSO_Detail_Data)
+    % Bei mehrkriterieller Optimierung bei NB-Verletzung gleiche Einträge 
+    fval_constr = PSO_Detail_Data.fval(:,1,:);
+    I_sing = fval_constr > 1e4*5e4 & fval_constr < 1e4*6e4;
+    I_nonsing = fval_constr < 1e4*5e4;
+    if sum(I_sing(:)) > 4 && sum(I_nonsing(:)) == 0
+      if ~abort_fitnesscalc % Meldung nur einmal zeigen
+        cds_log(2,sprintf(['[fitness] Es gab %d singuläre Ergebnisse und kein ', ...
+          'nicht-singuläres. PKM nicht geeignet. Abbruch der Optimierung.'], sum(I_sing(:))));
+      end
+      abort_fitnesscalc = true;
+    end
   end
 end
-
+%% Abbruchbedingung aufgrund von parasitärer Bewegung prüfen
+% Eine Struktursynthese wird durchgeführt und die PKM ist zwar beweglich,
+% aber in ungewünschte Richtungen. Annahme: PKM ist strukturell nicht
+% änderbar durch Kinematik-Parameter
+if any(strcmp(Set.optimization.objective, 'valid_act')) && R.Type == 2 && ...
+    all(fval > 1e4*9e3) && all(fval < 1e4*1e4) % Grenzen für parasitäre Bewegung
+  % Prüfe, wie oft schon dieses Ergebnis vorlag
+  PSO_Detail_Data = cds_save_particle_details([], [], 0, 0, NaN, NaN, NaN, NaN, 'output');
+  if ~isempty(PSO_Detail_Data)
+    % Bei mehrkriterieller Optimierung bei NB-Verletzung gleiche Einträge 
+    fval_constr = PSO_Detail_Data.fval(:,1,:);
+    I_para = fval_constr > 1e4*9e3 & fval_constr < 1e4*1e4;
+    I_nonpara = fval_constr < 1e4*9e3; % erfolgreicherere Berechnung (besser)
+    if sum(I_para(:)) > 4 && sum(I_nonpara(:)) == 0
+      if ~abort_fitnesscalc % Meldung nur einmal zeigen
+        cds_log(2,sprintf(['[fitness] Es gab %d Ergebnisse mit parasitärer ', ...
+          'Bewegung und keins ohne. PKM nicht geeignet. Abbruch der Optimierung.'], sum(I_para(:))));
+      end
+      abort_fitnesscalc = true;
+    end
+  end
+end
 %% Ende
 % Anfangs-Gelenkwinkel in Roboter-Klasse speichern (zur Reproduktion der
 % Ergebnisse)
