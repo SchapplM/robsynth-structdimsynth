@@ -510,6 +510,12 @@ for iIKC = 1:size(Q0,1)
     physval_IKC(iIKC,strcmp(Set.optimization.objective, 'footprint')) = physval_footprint;
     fval_debugtext = [fval_debugtext, ' ', fval_debugtext_footprint]; %#ok<AGROW>
   end
+  if any(strcmp(Set.optimization.objective, 'colldist'))
+    [fval_colldist, fval_debugtext_colldist, ~, physval_colldist] = cds_obj_colldist(R, Set, Structure, Traj_0, Q, JP);
+    fval_IKC(iIKC,strcmp(Set.optimization.objective, 'colldist')) = fval_colldist;
+    physval_IKC(iIKC,strcmp(Set.optimization.objective, 'colldist')) = physval_colldist;
+    fval_debugtext = [fval_debugtext, ' ', fval_debugtext_colldist]; %#ok<AGROW>
+  end
   if any(strcmp(Set.optimization.objective, 'energy'))
     [fval_en,fval_debugtext_en, debug_info, physval_en] = cds_obj_energy(R, Set, Structure, Traj_0, TAU, QD);
     fval_IKC(iIKC,strcmp(Set.optimization.objective, 'energy')) = fval_en;
