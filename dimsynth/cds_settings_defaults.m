@@ -148,6 +148,8 @@ optimization = struct( ...
   'max_velocity_active_prismatic', 5, ... % [m/s] Maximale Geschw. (zur Singularitätsvermeidung)
   'max_acceleration_prismatic', 50, ... % ca. 5g Beschleunigung ist technisch kaum zu realisieren
   'max_acceleration_revolute', 100, ... % Maximale Geschw. (20) wäre in 0.2s erreicht. Sehr hoher Wert für frühe Erkennung schlechter Konditionierung
+  'max_velocity_ee_rotation', 2*pi, ... % [rad/s]; im Fall von Aufgabenredundanz maximale Drehgeschwindigkeit des Endeffektors
+  'max_acceleration_ee_rotation', 2*pi/0.200, ... % rad/s²; Aufbau der max. Geschwindigkeit in 200ms (sehr dynamisch)
   'check_jointrange_points', true, ... % Prüfung der Gelenkwinkelspannweite bereits bei den Eckpunkten (Möglichkeit für falsch-positive Ausschlüsse)
   'desopt_vars', {{}}, ... % Variablen für eigene Optimierung der Entwurfsparameter. Möglich: "linkstrength", "joint_stiffness_qref"
   'safety_link_yieldstrength', 1, ... % Sicherheitsfaktor für Streckgrenze der Segmente als Nebenbedingung. Berechnung gesteuert über constraint_obj(6)

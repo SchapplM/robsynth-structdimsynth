@@ -273,7 +273,12 @@ for i = 1:NLEG
   R_init.qDlim =  0.99*R_init.qDlim;
   R_init.qDDlim = 0.98*R_init.qDDlim;
 end
-
+% Trage Grenzen für die Endeffektor-Bewegung ein. Das ist nur wirksam,
+% falls Aufgabenredundanz vorliegt.
+if Set.task.pointing_task
+  R.xDlim = [NaN(5,2); [-1,1]*Set.optimization.max_velocity_ee_rotation];
+  R.xDDlim = [NaN(5,2); [-1,1]*Set.optimization.max_acceleration_ee_rotation];
+end
 
 % Merke die ursprünglich aus der Datenbank geladene EE-Rotation. Die in der
 % Optimierung ergänzte Rotation ist zusätzlich dazu. (Bei 2T1R-Robotern
