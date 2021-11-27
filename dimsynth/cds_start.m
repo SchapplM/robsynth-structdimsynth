@@ -356,6 +356,10 @@ if Set.general.computing_cluster
     % Matlab-Skript auf Cluster starten.
     addpath(cluster_repo_path);
     ppn = min(length(I1_kk:I2_kk),Set.general.computing_cluster_cores);
+    dependstruct = struct('');
+    if ~isempty(Set.general.cluster_dependjobs)
+      dependstruct = struct('afterok', Set.general.cluster_dependjobs);
+    end
     jobIDs(1,kk) = jobStart(struct( ...
       'name', computation_name, ...
       ... % Nur so viele Kerne beantragen, wie auch benötigt werden ("ppn")
@@ -363,7 +367,8 @@ if Set.general.computing_cluster
       'mem', 32+2*ppn, ... % mit 30GB kam es öfter mal zu Speicherfehlern
       'matFileName', [computation_name, '.m'], ...
       'locUploadFolder', jobdir, ...
-      'time',comptime_est/3600)); % Angabe in h
+      'time',comptime_est/3600), ... % Angabe in h
+      dependstruct); % Mögliche Abhängigkeiten (optional)
     % Zusätzlich direkt das Aufräum-Skript starten. Es ist davon auszugehen, 
     % dass der Job vorzeitig abgebrochen wird, da die Rechenzeit unterschätzt
     % wird.
