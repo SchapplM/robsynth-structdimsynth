@@ -175,8 +175,10 @@ end
 if i_ar == 2 && (any(fval_ar > 3e3 & fval_ar < 4e3) || ... % Ausgabewert für Kollision
     ... % Wenn Kollisionen grundsätzlich geprüft werden sollen, immer als NB setzen,
     ... % wenn vorher auch die Bauraumprüfung fehlgeschlagen ist. Beide im Zielkonflikt
-    Set.optimization.constraint_collisions && any(fval_ar > 2e3 & fval_ar < 3e3))
-  % Selbstkollision trat auf. Kollisionsvermeidung als Nebenbedingung
+    Set.optimization.constraint_collisions && any(fval_ar > 2e3 & fval_ar < 3e3) || ...
+    ... % Wenn Kollisionsabstände ein Zielkriterium sind, optimiere diese hier permanent
+    any(strcmp(Set.optimization.objective, 'colldist')) && any(fval_ar <= 1e3) )
+  % Kollisionsvermeidung als Nebenbedingung
   if R.Type == 0 % Seriell
     s.wn(6) = 1; % D-Anteil quadratische Grenzen (Dämpfung, gegen Schwingungen)
     s.wn(9) = 1; % P-Anteil Kollisionsvermeidung
@@ -188,8 +190,14 @@ if i_ar == 2 && (any(fval_ar > 3e3 & fval_ar < 4e3) || ... % Ausgabewert für Ko
   end
   % Aktivierungsbereich für Kollisionsvermeidung stark vergrößern, damit
   % ausreichend Vorlauf zur Vermeidung der Kollision besteht
-  s.collbodies_thresh = 5; % 400% größere Kollisionskörper für Aktivierung (statt 50%)
+  if any(strcmp(Set.optimization.objective, 'colldist')) && any(fval_ar <= 1e3)
+    % Versuche größtmöglichen Kollisionsabstand zu halten
+    s.collbodies_thresh = 9; % 10 mal größere Kollisionskörper für permanente Aktivierung
+  else
+    s.collbodies_thresh = 5; % 400% größere Kollisionskörper für Aktivierung (statt 50%)
+  end
 end
+
 if i_ar == 2 && ~isempty(Set.task.installspace.type) && ...
     (any(fval_ar > 2e3 & fval_ar < 3e3) || ... % Ausgabewert für Bauraumverletzung
     ... % auch vorsorglich aktivieren, wenn Bauraum geprüft wird. Sehr wahrscheinlich,
