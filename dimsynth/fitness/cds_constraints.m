@@ -447,6 +447,11 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           s4.wn(6) = 1;
         end
         s4.installspace_thresh = 0.1500; % Etwas höherer Abstand zur Aktivierung der Funktion
+      elseif i_ar == 2 && fval_jic(jic) == 1e3 % Vorher erfolgreich
+        if any(strcmp(Set.optimization.objective, 'colldist'))
+          s4.wn(5) = 1;
+          s4.collbodies_thresh = 9; % 10 mal größere Kollisionskörper im Warnbereich für permanente Aktivierung
+        end
       end
       if i == 1
         % nur für ersten Traj.-Punkt die Kondition verbessern
