@@ -287,11 +287,17 @@ if strcmp(SelStr(Selection), 'Redundanzkarte')
     end
     n_iOmat = n_iOmat + 1;
     % Lade Trajektorien-Dateien
+    [tokens_genind,~] = regexp(matcand(i).name,'^Gen(\d+)_Ind(\d+)_','tokens','match');
+    k_gen2 = str2double(tokens_genind{1}{1});
+    k_ind2 = str2double(tokens_genind{1}{2});
+    if ~isempty(PSO_Detail_Data)
+      assert(k_gen2==k_gen&&k_indk_ind2==k_ind, 'Geladene Gen.-/Ind.-Nummer falsch');
+    end
     [tokens_mat,~] = regexp(matcand(i).name,sprintf(['Gen%02d_Ind%02d_', ...
-      'Konfig(\\d+)_TaskRedPerfMap_Data'],k_gen,k_ind),'tokens','match');
+      'Konfig(\\d+)_TaskRedPerfMap_Data'],k_gen2,k_ind2),'tokens','match');
     k_conf = str2double(tokens_mat{1}{1});
     matcand2 = dir(fullfile(tmpdir, sprintf( ...
-      'Gen%02d_Ind%02d_Konfig%d_TaskRed_Traj*.mat', k_gen, k_ind, k_conf)));
+      'Gen%02d_Ind%02d_Konfig%d_TaskRed_Traj*.mat', k_gen2, k_ind2, k_conf)));
     for i2 = 1:length(matcand2)
       d2 = load(fullfile(tmpdir, matcand2(i2).name), 'q', 'fval');
       dlist(i,2) = d2.fval;
