@@ -42,7 +42,7 @@ fval = 1e3;
 
 %% Kollisionsabstände berechnen
 % Benutze Kollisionsprüfungen aus der Roboterklasse
-[~, colldist] = check_collisionset_simplegeom_mex(R.collbodies, R.collchecks, ...
+[~, colldist, ~, p_coll] = check_collisionset_simplegeom_mex(R.collbodies, R.collchecks, ...
   JP, struct('collsearch', false));
 % Prüfe, welche Kollisionsabstände sich nie ändern. Wird eigentlich bereits
 % in cds_dimsynth_robot geprüft. Dort kann aber noch nicht die PKM mit
@@ -50,22 +50,10 @@ fval = 1e3;
 colldist_range = diff(minmax2(colldist')');
 I_norange = abs(colldist_range) < 1e-10;
 
-% Debug: Variable `names_collbodies` manuell aus cds_dimsynth_robot holen
-% fprintf('%d/%d Kollisionsprüfungen ohne Änderung der Abstände:\n', sum(I_norange), length(I_norange));
-% for i = find(I_norange)
-%   fprintf('%d: [%d %d], %s - %s\n', i, R.collchecks(i,1), R.collchecks(i,2), ...
-%     names_collbodies{R.collchecks(i,1)}, names_collbodies{R.collchecks(i,2)});
-% end
-% fprintf('%d/%d Kollisionsprüfungen mit Änderung der Abstände:\n', sum(~I_norange), length(I_norange));
-% for i = find(~I_norange)
-%   fprintf('%d: [%d %d], %s - %s\n', i, R.collchecks(i,1), R.collchecks(i,2), ...
-%     names_collbodies{R.collchecks(i,1)}, names_collbodies{R.collchecks(i,2)});
-% end
-
 % Bestimme minimale Kollisionsabstände für alle Zeitschritte.
 % Berücksichtige nur Kollisionen, die sich auch ändern.
-[mincolldist, ~] = min(colldist(:,~I_norange),[],2); % kleinster jeweils alle Zeitschritte
-[min2colldist, IImin] = min(mincolldist); % Zeitschritt für kleinsten Abstand von allen
+[mincolldist, IIcmin] = min(colldist(:,~I_norange),[],2); % kleinster jeweils alle Zeitschritte
+[min2colldist, IItmin] = min(mincolldist); % Zeitschritt für kleinsten Abstand von allen
 
 % Kennzahl berechnen
 f_colldist = min2colldist;
@@ -74,6 +62,20 @@ fval = 1e3*f_colldist_norm; % Normiert auf 0 bis 1e3
 fval_debugtext = sprintf('Kollisionsabstand %1.1fmm.', 1e3*min2colldist);
 
 %% Debug
+% Hierfür Variable `names_collbodies` manuell aus cds_dimsynth_robot holen
+% for kk = 1:2
+%   if kk == 1
+%     I = I_norange; str = 'ohne';
+%   else
+%     I = ~I_norange; str = 'mit';
+%   end
+%   fprintf('%d/%d Kollisionsprüfungen %s Änderung der Abstände:\n', sum(I), length(I), str);
+%   for i = find(I)
+%     fprintf('%d. dist %1.1f...%4.1fmm. Bei t=%d: %1.1fmm: [%d %d], %s - %s\n', i, ...
+%       1e3*min(colldist(:,i)), 1e3*max(colldist(:,i)), IItmin, 1e3*colldist(IItmin, i), R.collchecks(i,1), R.collchecks(i,2), ...
+%       names_collbodies{R.collchecks(i,1)}, names_collbodies{R.collchecks(i,2)});
+%   end
+% end
 % Zum Testen auch Nachrechnen mit Prüfungen aus der Maßsynthese
 % if Set.general.debug_calc
 %   [~, colldist_dbg] = check_collisionset_simplegeom_mex(Structure.collbodies_robot,...
@@ -101,15 +103,37 @@ xlabel('x in m'); ylabel('y in m'); zlabel('z in m');
 
 plotmode = 5; % Kollisionskörper
 if R.Type == 0 % Seriell
-  s_plot = struct( 'ks', 1:R.NJ+2, 'straight', 1, 'mode', plotmode);
-  R.plot( Q(IImin,:)', s_plot);
+  s_plot = struct( 'ks', [], 'straight', 1, 'mode', plotmode, 'nojoints', 1);
+  R.plot( Q(IItmin,:)', s_plot);
 else % PKM
-  s_plot = struct( 'ks_legs', [R.I1L_LEG; R.I2L_LEG], 'ks_platform', 1:6, ...
-    'straight', 1, 'mode', plotmode);
-  R.plot( Q(IImin,:)', Traj_0.X(IImin,:)', s_plot);
+  s_plot = struct( 'ks_legs', [], 'ks_platform', [], ...
+    'straight', 1, 'mode', plotmode, 'nojoints', 1);
+  R.plot( Q(IItmin,:)', Traj_0.X(IItmin,:)', s_plot);
+end
+% Plotte Kollisionsverbindungen
+p_coll_min = p_coll(:,:,IItmin);
+II_norange = find(I_norange);
+II_range = find(~I_norange);
+for i = 1:size(p_coll_min,1)
+  % Kollisionspunkte ins Welt-KS transformieren. Prüfung im Basis-KS.
+  p1 = R.T_W_0 * [p_coll_min(i,1:3)';1];
+  p2 = R.T_W_0 * [p_coll_min(i,4:6)';1];
+  % Fall der Kollisionsprüfung unterscheiden
+  if any(i == II_norange) % Betrifft eine Prüfung, deren Wert sich nicht ändert
+    s = 'g-'; lw = 5;
+  elseif IIcmin(IItmin) == find(II_range == i) % Kleinster Abstand
+    % Variable IIcmin ist bezogen auf reduzierte Menge der Prüfungen aus
+    % II_range. Variable i bezogen auf vollständige Menge.
+    s = 'r-'; lw = 5;
+    plot3(mean([p1(1);p1(1)]), mean([p1(2);p1(2)]), mean([p1(3);p1(3)]), 'rx', 'markersize', 30);
+  else % Alle anderen Prüfungen
+    s = 'k--'; lw = 0.5; %#ok<NASGU>
+    continue
+  end
+  plot3([p1(1);p2(1)], [p1(2);p2(2)], [p1(3);p2(3)], s, 'linewidth', lw)
 end
 title(sprintf(['Kollisionsabstände schlechtester Fall. ', ...
-  'Dist=%1.1fmm, I=%d/%d'], 1e3*min2colldist, IImin, size(Q,1)));
+  'Dist=%1.1fmm, I=%d/%d'], 1e3*min2colldist, IItmin, size(Q,1)));
 drawnow();
 [currgen,currind,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'ObjInstallspace');
 for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
