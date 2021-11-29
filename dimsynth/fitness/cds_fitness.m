@@ -230,6 +230,8 @@ for iIKC = 1:size(Q0,1)
   end
   %% Trajektorie berechnen
   if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
+    Structure.config_index = iIKC;
+    Structure.config_number = size(Q0,1);
     [fval_trajconstr,Q,QD,QDD,Jinv_ges,JP,constrvioltext_IKC{iIKC}] = cds_constraints_traj( ...
       R, Traj_0, Q0(iIKC,:)', Set, Structure);
     % NB-Verletzung in Traj.-IK wird in Ausgabe mit Werten von 1e3 aufwärts

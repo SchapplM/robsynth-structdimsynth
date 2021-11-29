@@ -470,8 +470,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       % numerischen Gründen diese teilweise nicht erreicht werden kann
       ik_res_ikar = all(abs(Phi) < 1e-6);
       if Set.general.debug_calc && all(abs(q-q0_arik) < 1e-9)
-        cds_log(-1, sprintf(['[constraints] Konfig %d, Eckpunkt %d, Iter. %d: IK-Berechnung mit Aufgabenredundanz ', ...
-          'hat gleiches Ergebnis wie ohne (max delta q = %1.1e).'], jic, i, i_ar, max(abs(q-q0_arik))));
+        cds_log(-1, sprintf(['[constraints] Konfig %d/%d, Eckpunkt %d, Iter. %d: IK-Berechnung mit Aufgabenredundanz ', ...
+          'hat gleiches Ergebnis wie ohne (max delta q = %1.1e).'], jic, n_jic, i, i_ar, max(abs(q-q0_arik))));
         % TODO: Eventuell liegt hier noch ein Implementierungsfehler vor.
         % Alternativ kann ein Fehler im Matlab Coder vorliegen.
 %         R.fill_fcn_handles(false);
@@ -487,9 +487,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         if s4.scale_lim == 0 && ... % Bei scale_lim kann der Algorithmus feststecken
             ~Stats.coll && ... % Wenn Kollisionsvermeidung aktiv wurde, kann das zum Scheitern führen
             any(Stats.condJ([1,1+Stats.iter]) < 1e3) % Bei singulären Beinketten ist das Scheitern erwartbar
-          cds_log(3, sprintf(['[constraints] Konfig %d, Eckpunkt %d: IK-Berechnung ', ...
+          cds_log(3, sprintf(['[constraints] Konfig %d/%d, Eckpunkt %d: IK-Berechnung ', ...
             'mit Aufgabenredundanz fehlerhaft, obwohl es ohne AR funktioniert ', ...
-            'hat. wn=[%s]. max(Phi)=%1.1e. Iter %d/%d'], jic, i, disp_array(s4.wn','%1.1g'), ...
+            'hat. wn=[%s]. max(Phi)=%1.1e. Iter %d/%d'], jic, n_jic, i, disp_array(s4.wn','%1.1g'), ...
             max(abs(Phi)), Stats.iter, size(Stats.Q,1)-1));
         else
           % Falls neue Grenzen gesetzt wurden, ist die IK eventuell nicht
@@ -514,9 +514,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           Stats.condJ(1) < 1e3 % Wenn die PKM am vorher singulär ist, dann ist die Verschlechterung der Nebenopt. kein Ausschlussgrund für die neue Lösung
         if abs(Stats.h(1+Stats.iter,1)-h_opt_post) < 1e-3 && ... % es lag nicht am geänderten `wn` in der Funktion
             h_opt_post < 1e8 % Es ist kein numerisch großer und ungenauer Wert
-          cds_log(3, sprintf(['[constraints] Konfig %d, Eckpunkt %d: IK-Berechnung ', ...
+          cds_log(3, sprintf(['[constraints] Konfig %d/%d, Eckpunkt %d: IK-Berechnung ', ...
             'mit Aufgabenredundanz hat Nebenoptimierung verschlechtert: ', ...
-            '%1.4e -> %1.4e. wn=[%s]'], jic, i, h_opt_pre, h_opt_post, disp_array(s4.wn','%1.1g')));
+            '%1.4e -> %1.4e. wn=[%s]'], jic, n_jic, i, h_opt_pre, h_opt_post, disp_array(s4.wn','%1.1g')));
         end
         continue % Verwerfe das neue Ergebnis (nehme dadurch das vorherige)
         % Zum Debuggen
@@ -794,12 +794,12 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         sum(any(coll_self,2)), size(coll_self,1));
       if fval_jic_old(jic) > 3e5 && fval_jic_old(jic) < 4e5 && fval_coll > fval_jic_old(jic)+1e-4
         cds_log(3, sprintf(['[constraints] Die Schwere der Kollisionen hat ', ...
-          'sich trotz Optimierung vergrößert (Konfig %d)'], jic)); % Gewertet wird die Eindringtiefe, nicht die Anzahl
+          'sich trotz Optimierung vergrößert (Konfig %d/%d)'], jic, n_jic)); % Gewertet wird die Eindringtiefe, nicht die Anzahl
       end
       calctimes_jic(i_ar,jic) = toc(t1);
       continue;
     elseif i_ar == 2 && fval_jic_old(jic) > 3e5 && fval_jic_old(jic) < 4e5
-%       cds_log(3, sprintf('[constraints] Nach Optimierung keine Kollision mehr (Konfig %d).', jic));
+%       cds_log(3, sprintf('[constraints] Nach Optimierung keine Kollision mehr (Konfig %d/%d).', jic, n_jic));
     end
   end
   %% Bauraumprüfung für Einzelpunkte
