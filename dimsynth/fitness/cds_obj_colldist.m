@@ -44,8 +44,28 @@ fval = 1e3;
 % Benutze Kollisionsprüfungen aus der Roboterklasse
 [~, colldist] = check_collisionset_simplegeom_mex(R.collbodies, R.collchecks, ...
   JP, struct('collsearch', false));
-[mincolldist, ~] = min(colldist,[],2);
-[min2colldist, IImin] = min(mincolldist);
+% Prüfe, welche Kollisionsabstände sich nie ändern. Wird eigentlich bereits
+% in cds_dimsynth_robot geprüft. Dort kann aber noch nicht die PKM mit
+% geschlossenen kinematischen Ketten geprüft werden (IK noch nicht gelöst).
+colldist_range = diff(minmax2(colldist')');
+I_norange = abs(colldist_range) < 1e-10;
+
+% Debug: Variable `names_collbodies` manuell aus cds_dimsynth_robot holen
+% fprintf('%d/%d Kollisionsprüfungen ohne Änderung der Abstände:\n', sum(I_norange), length(I_norange));
+% for i = find(I_norange)
+%   fprintf('%d: [%d %d], %s - %s\n', i, R.collchecks(i,1), R.collchecks(i,2), ...
+%     names_collbodies{R.collchecks(i,1)}, names_collbodies{R.collchecks(i,2)});
+% end
+% fprintf('%d/%d Kollisionsprüfungen mit Änderung der Abstände:\n', sum(~I_norange), length(I_norange));
+% for i = find(~I_norange)
+%   fprintf('%d: [%d %d], %s - %s\n', i, R.collchecks(i,1), R.collchecks(i,2), ...
+%     names_collbodies{R.collchecks(i,1)}, names_collbodies{R.collchecks(i,2)});
+% end
+
+% Bestimme minimale Kollisionsabstände für alle Zeitschritte.
+% Berücksichtige nur Kollisionen, die sich auch ändern.
+[mincolldist, ~] = min(colldist(:,~I_norange),[],2); % kleinster jeweils alle Zeitschritte
+[min2colldist, IImin] = min(mincolldist); % Zeitschritt für kleinsten Abstand von allen
 
 % Kennzahl berechnen
 f_colldist = min2colldist;
