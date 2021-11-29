@@ -85,6 +85,7 @@ end
 %% Debug vorherige Iteration: Karte der Leistungsmerkmale für Aufgabenredundanz zeichnen
 if i_ar > 1 && task_red && Set.general.debug_task_redundancy
   nt_red = size(Traj_0.X,1); % Zum Debuggen: Reduktion der Stützstellen
+  [currgen,currind,~,resdir] = cds_get_new_figure_filenumber(Set, Structure, '');
   if i_ar == 2 % Nur einmal die Rasterung generieren
     t1 = tic();
     cds_log(2, sprintf(['[constraints_traj] Beginne Aufgabenredundanz-', ...
@@ -101,14 +102,7 @@ if i_ar > 1 && task_red && Set.general.debug_task_redundancy
       length(phiz_range), toc(t1)));
     % Speichere die Redundanzkarte (da die Berechnung recht lange dauert)
     suffix = 'TaskRedPerfMap_Data';
-    [currgen,currind,~,resdir] = cds_get_new_figure_filenumber(Set, Structure, '');
-    matfiles = dir(fullfile(resdir, sprintf('Gen%02d_Ind%02d_Konfig*_%s*',currgen,currind,suffix)));
-    if isempty(matfiles), currmat = 1;
-    else
-      [tokens_mat,~] = regexp(matfiles(end).name,sprintf('Gen%02d_Ind%02d_Konfig(\\d+)_%s',currgen,currind,suffix),'tokens','match');
-      currmat = str2double(tokens_mat{1}{1})+1;
-    end
-    name_prefix_ardbg = sprintf('Gen%02d_Ind%02d_Konfig%d', currgen, currind, currmat);
+    name_prefix_ardbg = sprintf('Gen%02d_Ind%02d_Konfig%d', currgen, currind, Structure.config_index);
     save(fullfile(resdir,sprintf('%s_%s.mat', name_prefix_ardbg, suffix)), ...
       'Structure', 'H_all', 's_ref', 's_tref', 'phiz_range', 'i_ar', 'q', ...
       'nt_red');

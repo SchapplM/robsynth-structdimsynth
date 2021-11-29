@@ -76,12 +76,12 @@ if ~exist(setfile, 'file')
   warning('Einstellungs-Datei %s existiert nicht.', setfile);
   return
 end
-d1 = load(resfile1, 'RobotOptRes');
-RobotOptRes = d1.RobotOptRes;
+dres1 = load(resfile1, 'RobotOptRes');
+RobotOptRes = dres1.RobotOptRes;
 if exist(resfile2, 'file')
-  d2 = load(resfile2, 'RobotOptDetails', 'PSO_Detail_Data');
-  RobotOptDetails = d2.RobotOptDetails;
-  PSO_Detail_Data = d2.PSO_Detail_Data;
+  dres2 = load(resfile2, 'RobotOptDetails', 'PSO_Detail_Data');
+  RobotOptDetails = dres2.RobotOptDetails;
+  PSO_Detail_Data = dres2.PSO_Detail_Data;
 else
   RobotOptDetails = [];
   PSO_Detail_Data = [];
@@ -112,7 +112,7 @@ Set.general.debug_task_redundancy = false;
 % Wenn mehrere Punkte übereinander liegen, wird der erste genommen. Ist
 % egal, da sie ja ein identisches Ergebnis haben.
 PNr = find(I_point, 1, 'first');
-fval = d1.RobotOptRes.fval_pareto(PNr,:)';
+fval = dres1.RobotOptRes.fval_pareto(PNr,:)';
 if isempty(PNr)
   error('Kein Punkt in Pareto-Daten gefunden');
 end
@@ -310,6 +310,11 @@ if strcmp(SelStr(Selection), 'Redundanzkarte')
       end
     end
   end
+  % Trajektorie neu berechnen
+  Traj_0 = cds_transform_traj(R, Traj);
+  [X2, XD2] = R.fkineEE2_traj(Q, QD); nt_red = size(Traj.X,1);
+  X2(:,6) = denormalize_angle_traj(X2(:,6), XD2(:,6), Traj_0.t);
+  
   if n_iOmat > 0
     fprintf(['Gespeicherter Wert für Redundanzkarte in Datei %s und %s ', ...
       'mit Gelenkwinkel-Abstand %1.2e (aus %d Kandidaten)\n'], ...
@@ -319,14 +324,24 @@ if strcmp(SelStr(Selection), 'Redundanzkarte')
     d2 = load(fullfile(tmpdir, bestf_filename));
     wn = d2.s.wn;
     h1 = d2.Stats.h(:,1);
+    % Plausibilisierung der geladenen Daten
+    test_X2 = [d2.X2(:,1:3)-X2(:,1:3), angleDiff(d2.X2(:,4:6), X2(:,4:6))];
+    if any(abs(test_X2(:)) > 1e-10)
+      warning(['EE-Trajektorie nicht reproduzierbar, trotz gleichem ', ...
+        'Anfangswert. Fehler: %1.2e'], max(abs(test_X2(:))));
+    end
+    test_Q = d2.Q - Q;
+    if any(abs(test_Q(:)) > 1e-10)
+      warning(['Gelenk-Trajektorie nicht reproduzierbar, trotz gleichem ', ...
+        'Anfangswert. Fehler: %1.2e'], max(abs(test_Q(:))));
+    end
   end
   if n_iOmat == 0
     fprintf(['Keine vorab generierten Daten zur Redundanzkarte in %d mat-', ...
       'Dateien gefunden. Nächster Wert für Gelenkwinkel mit Abstand %1.2e. ', ...
       'Neuberechnung der Karte.\n'], bestqdist, length(matcand));
     % Bild neu generieren
-    Traj_0 = cds_transform_traj(R, Traj);
-    d.X2 = R.fkineEE2_traj(Q); nt_red = size(Traj.X,1);
+    d2 = struct('X2', X2);
     [d.H_all, ~, d.s_ref, d.s_tref, d.phiz_range] = R.perfmap_taskred_ik( ...
       Traj_0.X(1:nt_red,:), Traj_0.IE, struct( ...
       'q0', Q(1,:)', 'I_EE_red', Set.task.DoF, 'map_phistart', d.X2(1,end), ...
