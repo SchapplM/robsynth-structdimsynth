@@ -179,12 +179,12 @@ if i_ar == 2 && (any(fval_ar > 3e3 & fval_ar < 4e3) || ... % Ausgabewert für Ko
     ... % Wenn Kollisionsabstände ein Zielkriterium sind, optimiere diese hier permanent
     any(strcmp(Set.optimization.objective, 'colldist')) && any(fval_ar <= 1e3) )
   % Kollisionsvermeidung als Nebenbedingung
+  s.wn(3) = 0.5; % Dämpfung der Geschwindigkeit, gegen Schwingungen
   if R.Type == 0 % Seriell
     s.wn(6) = 1; % D-Anteil quadratische Grenzen (Dämpfung, gegen Schwingungen)
     s.wn(9) = 1; % P-Anteil Kollisionsvermeidung
     s.wn(10) = 0.1; % D-Anteil Kollisionsvermeidung
   else % PKM
-    s.wn(7) = 1; % D-Anteil quadratische Grenzen (Dämpfung, gegen Schwingungen)
     s.wn(11) = 0.1; % P-Anteil Kollisionsvermeidung
     s.wn(12) = 0.01; % D-Anteil Kollisionsvermeidung
   end
@@ -204,12 +204,11 @@ if i_ar == 2 && ~isempty(Set.task.installspace.type) && ...
     ... % dass nach der Kollision direkt der Bauraum fehlschlägt.
     any(fval_ar > 3e3 & fval_ar < 4e3)) % Ausgabewert für Kollision
   % Bauraumverletzung trat auf. Bauraum als Nebenbedingung
+  s.wn(3) = 0.5; % Dämpfung der Geschwindigkeit, gegen Schwingungen
   if R.Type == 0 % Seriell
-    s.wn(6) = 1; % D-Anteil quadratische Grenzen (Dämpfung, gegen Schwingungen)
     s.wn(11) = 1e-5; % P-Anteil Bauraumeinhaltung
     s.wn(12) = 4e-6; % D-Anteil Bauraumeinhaltung
   else % PKM
-    s.wn(7) = 1; % D-Anteil quadratische Grenzen (Dämpfung, gegen Schwingungen)
     s.wn(13) = 1e-4; % P-Anteil Bauraumeinhaltung
     s.wn(14) = 1e-5; % D-Anteil Bauraumeinhaltung
   end
@@ -250,7 +249,8 @@ if R.Type == 0 % Seriell
 else % PKM
   I_wn_coll = 5;
 end
-if i_ar == 2 && Set.optimization.constraint_collisions && s.wn(I_wn_coll)==0
+if i_ar == 2 && Set.optimization.constraint_collisions && s.wn(I_wn_coll)==0 && ...
+    ~any(strcmp(Set.optimization.objective, 'colldist'))
   % Kollisionsprüfung ist allgemein aktiv, wird aber in der
   % Nullraumoptimierung nicht bedacht. Zusätzliche Aktivierung mit sehr
   % kleinem Schwellwert zur Aktivierung (nur für Notfälle)
