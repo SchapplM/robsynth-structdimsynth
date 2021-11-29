@@ -972,7 +972,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         for cb_k = unique([R.Leg(k).collbodies.link(:,1)',R.Leg(k).NL-1])
           for cb_i = unique([R.Leg(i).collbodies.link(:,1)',R.Leg(i).NL-1])
             % Mögliche Ausnahmen hier definieren per `continue`:
-            % [Deaktiviert] Bei paarweiser Anordnung der Beinketten
+            % [Deaktiviert] Bei paarweiser Anordnung der Beinketten (zur Plattform)
             % wird das letzte Segment der Beinketten-Paare nicht geprüft.
             % Dadurch können konstruktive Anpassungen berücksichtigt werden
             if any(R.DesPar.platform_method == [4 5 6]) && ...% paarweise Anordnung
@@ -980,6 +980,15 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
                 cb_k == R.Leg(k).collbodies.link(end,1) && cb_i == R.Leg(i).collbodies.link(end,1) % letztes Segment
               % Ausnahme deaktiviert, erzeugt zu viele sichtbare Kollisionen
               % continue % Nicht prüfen
+            end
+            % Bei paarweiser Anordnung des Gestells sind die Drehachsen
+            % der Beinketten-Paare immer parallel. Daher kann sich der
+            % Kollisionsabstand der ersten Segmente nicht ändern
+            if any(R.DesPar.base_method == [4 5 6]) && ...% paarweise Anordnung
+                R.Leg(k).MDH.sigma(1) == 0 && R.Leg(i).MDH.sigma(1) == 0 && ... % Beides Drehachsen
+                any(all(repmat(sort([k,i]),3,1)==[1 2; 3 4; 5 6],2)) && ... % betrifft Paar-Kombination
+                cb_k == R.Leg(k).collbodies.link(1,1) && cb_i == R.Leg(i).collbodies.link(1,1) % erstes Segment
+              continue
             end
             % Eintragen
             selfcollchecks_bodies = [selfcollchecks_bodies; ...
@@ -1236,6 +1245,54 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   % Eintragen in Roboter-Klasse
   R.collchecks = Structure.selfcollchecks_collbodies;
   if ~isempty(Structure.selfcollchecks_collbodies)
+    % Jetzt werden die Kollisionen nochmal darauf geprüft, ob einige Ab-
+    % stände sich nie ändern. Diese müssen dann nicht mehr geprüft werden.
+    % (Die Prüfungen werden aber trotzdem nicht entfernt, sondern nur gewarnt)
+    % Siehe z.B. cds_obj_footprint.m, cds_obj_colldist.m
+    % Mit bereits oben gesetzten Zufallswerten für Kinematikparameter und
+    % Gelenkwinkel werden Kollisionsabstände bestimmt.
+    % Nutze den vollständigen Winkelbereich. Sonst falsch-positiv.
+    Q_test = -pi+2*pi*rand(100,R.NJ); JP_test = [];
+    for jj = 1:size(Q_test,1)
+      if Structure.Type == 0  % Seriell
+        Tc_jj = R.fkine(Q_test(jj,:)');
+        JP_jj = squeeze(Tc_jj (1:3,4,1:end));
+      else % PKM-Beinkette
+        Tc_jj = R.fkine_coll2(Q_test(jj,:)');
+        JP_jj = reshape(Tc_jj(:,4),3,size(Tc_jj,1)/3);
+      end
+      JP_test = [JP_test; JP_jj(:)']; %#ok<AGROW>
+    end
+    [~, colldist_test] = check_collisionset_simplegeom_mex(R.collbodies, ...
+      R.collchecks, JP_test, struct('collsearch', false));
+    % Prüfe, welche Abstände sich bei diesen Zufallswerten nicht ändern.
+    colldist_range = diff(minmax2(colldist_test')');
+    I_norange = abs(colldist_range) < 1e-10;
+    if false % Debug:
+      fprintf('%d/%d Kollisionsprüfungen ohne Änderung der Abstände:\n', ...
+        sum(I_norange), length(I_norange)); %#ok<UNRCH>
+      for i = find(I_norange)
+        fprintf('%d (dist range. %1.1e): [%d %d], "%s" vs "%s"\n', i, colldist_range(i), R.collchecks(i,1), R.collchecks(i,2), ...
+          names_collbodies{R.collchecks(i,1)}, names_collbodies{R.collchecks(i,2)});
+      end
+      fprintf('%d/%d Kollisionsprüfungen mit Änderung der Abstände:\n', ...
+        sum(~I_norange), length(I_norange));
+      for i = find(~I_norange)
+        fprintf('%d (dist range. %1.1e): [%d %d], "%s" vs "%s"\n', i, colldist_range(i), R.collchecks(i,1), R.collchecks(i,2), ...
+          names_collbodies{R.collchecks(i,1)}, names_collbodies{R.collchecks(i,2)});
+      end
+    end
+    if any(I_norange)
+      cds_log(-1, sprintf(['[dimsynth] Die Kollisionsabstände für %d ', ...
+        'Prüfungen sind immer gleich.'], sum(I_norange)));
+    end
+    % Untersuche, welche Kollisionskörper gar nicht geprüft werden
+    for i = 1:length(R.collbodies)
+      if ~any(R.collchecks(:) == i)
+        cds_log(-1, sprintf('[dimsynth] Kollisionskörper %d wird nie geprüft.', i));
+      end
+    end
+    
     assert(max(R.collchecks(:))<=size(R.collbodies.link,1), ['Matlab-Klasse ', ...
       'muss gleiche Anzahl in collchecks und collbodies haben']);
     % Prüfe, ob die Typen der zu prüfenden Körper übereinstimmen. Wenn die
