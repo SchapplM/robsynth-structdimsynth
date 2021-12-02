@@ -64,7 +64,8 @@ general = struct( ...
   'cluster_dependjobs', [], ... % Liste von Job-IDs, die zuerst fertig werden sollen (mit i.O.-Ergebnis)
   ... % Optionen zur Benutzung kompilierter Funktionen
   'compile_missing_functions', true, ... % Bei Start alle mex-Funktionen kompilieren
-  'create_template_functions', false, ... % Erzeuge Funktionen neu aus Vorlagen-Dateien
+  'create_template_functions', false, ... % Erzeuge Funktionen neu aus Vorlagen-Dateien (immer)
+  'update_template_functions', true, ... % Prüfe die Vorlagen-Dateien (Aktualisierung, falls veraltet)
   'use_mex', true);
 
 %% Einstellungen zur Auswahl der verwendeten Strukturen

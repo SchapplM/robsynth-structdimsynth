@@ -569,6 +569,17 @@ if ~Set.general.regenerate_summary_only
         continue
       end
     end
+    if Set.general.update_template_functions
+      if type == 0
+        serroblib_writelock('lock', 'template', 0, 5*60, false);
+        serroblib_update_template_functions(Names,Set.general.verbosity>2)
+        serroblib_writelock('free', 'template', 0, 5*60, false);
+      else
+        parroblib_writelock('lock', 'template', Structures_I{1}.DoF, 5*60, false);
+        parroblib_update_template_functions(Names,Set.general.verbosity>2)
+        parroblib_writelock('free', 'template', Structures_I{1}.DoF, 5*60, false);
+      end
+    end
     if Set.general.use_mex && Set.general.compile_missing_functions
       % Benötigte Funktionen kompilieren (serielle statt parallele Ausführung)
       % (es wird automatisch der codegen-Ordner gelöscht. Kann bei paralleler
