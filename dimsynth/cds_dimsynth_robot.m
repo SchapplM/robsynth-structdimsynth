@@ -2053,7 +2053,8 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   % übereinstimmen)
   test_Jcond_abs = PSO_Detail_Data.constraint_obj_val(dd_optind, 4, dd_optgen) - physval_cond;
   test_Jcond_rel = test_Jcond_abs / physval_cond;
-  if abs(test_Jcond_abs) > 1e-6 && test_Jcond_rel > 1e-3
+  if abs(test_Jcond_abs) > 1e-6 && test_Jcond_rel > 1e-3 && ...
+      physval_cond < 1e6 % Abweichung nicht in Singularität bestimmbar
     save(fullfile(resdir, 'condreprowarning.mat'));
     cds_log(-1, sprintf(['[dimsynth] Während Optimierung gespeicherte ', ...
       'Konditionszahl (%1.5e) stimmt nicht mit erneuter Berechnung (%1.5e) ', ...
@@ -2132,6 +2133,9 @@ end
 for i = 1:length(Set.optimization.objective)
   if I_fval_obj_all(i) == 0, continue; end % keine Prüfung möglich.
   if fval(i) > 1e3, continue; end % Leistungsmerkmal steht nicht in Zielfunktion (NB-Verletzung)
+  if strcmp(Set.optimization.objective{i}, 'condition') && physval_cond > 1e6 
+    continue % Abweichung in Singularität numerisch unsicher
+  end
   test_fval_i = fval(i) - fval_obj_all(I_fval_obj_all(i));
   if abs(test_fval_i) > 1e-5
     save(fullfile(resdir, 'fvalreprowarning.mat'));
