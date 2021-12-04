@@ -263,7 +263,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         nPhi_t = sum(R.I_EE_Task(1:3));
         ik_res_ik2 = all(abs(Phi(1:nPhi_t))<s.Phit_tol) && ...
                      all(abs(Phi(nPhi_t+1:end))<s.Phir_tol);
-        condJik(i) = Stats.condJ(1+Stats.iter);
+        condJik(i) = Stats.condJ(1+Stats.iter,1);
       else % PKM
         Q0_mod = Q0;
         Q0_mod(R.I1J_LEG(2):end,end) = NaN; % Für Beinkette 2 Ergebnis von BK 1 nehmen (dabei letzten Anfangswert für BK 2 und folgende verwerfen)
@@ -298,7 +298,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           q(isnan(q)) = Q0(isnan(q),1);
           Q0_v2 = [q,Q0];
           [q, Phi, Tc_stack, Stats] = R.invkin4(Traj_0.XE(i,:)', Q0_v2, s);
-          condJik(i,:) = Stats.condJ(1+Stats.iter);
+          condJik(i,:) = Stats.condJ(1+Stats.iter,1);
 %           if all(abs(Phi)<s.Phit_tol)
 %             cds_log(3, sprintf(['[constraints] jic=%d, i=%d. IK-Berechnung mit invkin2 ', ...
 %               'fehlgeschlagen für eine Beinkette, mit invkin4 erfolgreich.'], jic, i));
@@ -524,9 +524,10 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         else,           I_constr_red = R.I_constr_red; end
         figure(2345);clf;
         subplot(3,3,1);
-        plot(Stats.condJ(1:Stats.iter));
+        plot(Stats.condJ(1:Stats.iter,:));
         xlabel('Iterationen'); grid on;
         ylabel('cond(J)');
+        if R.Type == 2, legend({'IK-Jacobi', 'PKM-Jacobi'}); end
         subplot(3,3,2);
         plot([diff(Stats.Q(1:Stats.iter,:));NaN(1,R.NJ)]);
         xlabel('Iterationen'); grid on;
@@ -588,8 +589,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       if Stats.instspc_mindst(1+Stats.iter,:) > 0
         break;
       end
-      % Neue Werte aus der IK wurden nicht verworfen. Schreiben Konditionszahl
-      condJik(i,:) = Stats.condJ(1+Stats.iter,:);
+      % Neue Werte aus der IK wurden nicht verworfen. Schreibe Konditionszahl
+      % (erster Eintrag ist IK-Jacobi für Gesamt-PKM)
+      condJik(i,:) = Stats.condJ(1+Stats.iter,1);
     end
     % Normalisiere den Winkel. Bei manchen Robotern springt das IK-Ergebnis
     % sehr stark. Dadurch wird die Gelenkspannweite sonst immer verletzt.
