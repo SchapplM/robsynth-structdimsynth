@@ -39,7 +39,10 @@ debug_info = '';
 fval_debugtext = '';
 f_colldist = NaN;
 fval = 1e3;
-
+if isempty(R.collchecks)
+  % Es gibt keine Kollisionsprüfungen. Kennzahl ergibt keinen Sinn.
+  return
+end
 %% Kollisionsabstände berechnen
 % Benutze Kollisionsprüfungen aus der Roboterklasse
 [~, colldist, ~, p_coll] = check_collisionset_simplegeom_mex(R.collbodies, R.collchecks, ...
