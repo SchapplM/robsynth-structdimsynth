@@ -83,8 +83,8 @@ if ~init_only && ~Set.general.only_finish_aborted
     fprintf(fid, '%s: Branch %s, Rev. %s (%s)\n', repo_deps{i}{1}, branch(1:end-1), rev(1:8), revdatum);
   end
   fclose(fid);
-  if ~ispc() % lspcu funktioniert nur unter Linux
-    system(sprintf('echo "Eigenschaften des Rechners (lspcu):" >> %s', fpfile));
+  if ~ispc() % lscpu funktioniert nur unter Linux
+    system(sprintf('echo "Eigenschaften des Rechners (lscpu):" >> %s', fpfile));
     system(sprintf('lscpu >> %s', fpfile));
   end
   cd(olddir);
