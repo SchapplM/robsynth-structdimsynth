@@ -134,11 +134,38 @@ s = struct( ...
   'enforce_qlim', false, ...
   'Phit_tol', 1e-10, 'Phir_tol', 1e-10); % feine Toleranz
 if R.Type == 0 % Seriell
-  s.wn = zeros(12,1);
+  s.wn = zeros(19,1);
 else % PKM
-  s.wn = zeros(14,1);
+  s.wn = zeros(21,1);
   s.debug = Set.general.debug_calc;
 end
+% Benutze eine Singularitätsvermeidung, die nur in der Nähe von
+% Singularitäten aktiv ist. Schwellwert Kondition >500. Wenn die Kondition
+% wesentlich schlechter wird, wird der Roboter am Ende sowieso verworfen. Also
+% nicht so schlimm, falls diese Parameter zu Instabilität führen
+cond_thresh_jac = 250;
+cond_thresh_ikjac = 500;
+if Set.optimization.constraint_obj(4) ~= 0 % Grenze für Jacobi-Matrix für Abbruch
+  if R.Type == 0 % Seriell: IK-Jacobi ungefähr wie analytische Jacobi
+    cond_thresh_ikjac = Set.optimization.constraint_obj(4);
+  else % PKM: Gemeint ist die Jacobi bzgl. Antriebe (nicht: IK-Jacobi)
+    cond_thresh_jac = Set.optimization.constraint_obj(4);
+  end
+end
+if R.Type == 2 % PKM
+  s.cond_thresh_ikjac = cond_thresh_ikjac;
+end
+s.cond_thresh_jac = cond_thresh_jac; % Für Seriell und PKM
+if R.Type == 0 % Seriell
+  s.wn(5) = 1; % P-Anteil Konditionszahl (Aufgaben-Jacobi)
+  s.wn(8) = 0.2; % D-Anteil Konditionszahl (Aufgaben-Jacobi)
+else % PKM
+  s.wn(5) = 1; % P-Anteil Konditionszahl (IK-Jacobi)
+  s.wn(9) = 0.1; % D-Anteil Konditionszahl (IK-Jacobi)
+  s.wn(6) = 1; % P-Anteil Konditionszahl (PKM-Jacobi)
+  s.wn(10) = 0.1; % D-Anteil Konditionszahl (PKM-Jacobi)
+end
+  
 % Zusätzliche Optimierung für Aufgabenredundanz.
 % TODO: Die Reglereinstellungen sind noch nicht systematisch ermittelt.
 if i_ar == 1 % erster Durchlauf ohne zusätzliche Optimierung (nimmt minimale Geschwindigkeit)
@@ -182,20 +209,19 @@ if i_ar == 2 && (any(fval_ar > 3e3 & fval_ar < 4e3) || ... % Ausgabewert für Ko
   s.wn(3) = 0.5; % Dämpfung der Geschwindigkeit, gegen Schwingungen
   if R.Type == 0 % Seriell
     s.wn(6) = 1; % D-Anteil quadratische Grenzen (Dämpfung, gegen Schwingungen)
-    s.wn(9) = 1; % P-Anteil Kollisionsvermeidung
-    s.wn(10) = 0.1; % D-Anteil Kollisionsvermeidung
+    s.wn(9) = 1; % P-Anteil Kollisionsvermeidung (hyperbolisch)
+    s.wn(10) = 0.1; % D-Anteil Kollisionsvermeidung (hyperbolisch)
+    s.wn(18) = 0.1; % P-Anteil Kollisionsvermeidung (quadratisch)
+    s.wn(19) = 0.01; % D-Anteil Kollisionsvermeidung (quadratisch)
   else % PKM
-    s.wn(11) = 0.1; % P-Anteil Kollisionsvermeidung
-    s.wn(12) = 0.01; % D-Anteil Kollisionsvermeidung
+    s.wn(11) = 0.1; % P-Anteil Kollisionsvermeidung (hyperbolisch)
+    s.wn(12) = 0.01; % D-Anteil Kollisionsvermeidung (hyperbolisch)
+    s.wn(20) = 0.1; % P-Anteil Kollisionsvermeidung (quadratisch)
+    s.wn(21) = 0.01; % D-Anteil Kollisionsvermeidung (quadratisch)
   end
   % Aktivierungsbereich für Kollisionsvermeidung stark vergrößern, damit
   % ausreichend Vorlauf zur Vermeidung der Kollision besteht
-  if any(strcmp(Set.optimization.objective, 'colldist')) && any(fval_ar <= 1e3)
-    % Versuche größtmöglichen Kollisionsabstand zu halten
-    s.collbodies_thresh = 9; % 10 mal größere Kollisionskörper für permanente Aktivierung
-  else
-    s.collbodies_thresh = 5; % 400% größere Kollisionskörper für Aktivierung (statt 50%)
-  end
+  s.collbodies_thresh = 5; % 400% größere Kollisionskörper für Aktivierung (statt 50%)
 end
 
 if i_ar == 2 && ~isempty(Set.task.installspace.type) && ...
@@ -215,16 +241,6 @@ if i_ar == 2 && ~isempty(Set.task.installspace.type) && ...
   % Aktivierung der Bauraum-Nebenbedingung bereits mit größerem Abstand.
   % TODO: Bezug auf charakteristische Länge des Bauraums
   s.installspace_thresh = 0.2; % 200mm Abstand von Bauraumgrenze von innen
-end
-if i_ar == 2 && ~any(s.wn) % es wurde noch keine Optimierung gesetzt (alles vorher erfolgreich)
-  % Verbessere die Konditionszahl und die Geschwindigkeit
-  if R.Type == 0 % Seriell
-    s.wn(5) = 1; % P-Anteil Konditionszahl (Aufgaben-Jacobi)
-    s.wn(8) = 0.2; % D-Anteil Konditionszahl (Aufgaben-Jacobi)
-  else % PKM
-    s.wn(6) = 1; % P-Anteil Konditionszahl (PKM-Jacobi)
-    s.wn(10) = 0.1; % D-Anteil Konditionszahl (PKM-Jacobi)
-  end
 end
 if R.Type == 0 % Seriell
   I_wn_instspc = 5;
@@ -255,15 +271,27 @@ if i_ar == 2 && Set.optimization.constraint_collisions && s.wn(I_wn_coll)==0 && 
   % Nullraumoptimierung nicht bedacht. Zusätzliche Aktivierung mit sehr
   % kleinem Schwellwert zur Aktivierung (nur für Notfälle)
   if R.Type == 0 % Seriell
-    s.wn(9) = 1; % P-Anteil Kollisionsvermeidung
-    s.wn(10) = 0.1; % D-Anteil Kollisionsvermeidung
+    s.wn(9) = 1; % P-Anteil Kollisionsvermeidung (hyperbolisch)
+    s.wn(10) = 0.1; % D-Anteil Kollisionsvermeidung (hyperbolisch)
   else % PKM
-    s.wn(11) = 0.1; % P-Anteil Kollisionsvermeidung
-    s.wn(12) = 0.01; % D-Anteil Kollisionsvermeidung
+    s.wn(11) = 0.1; % P-Anteil Kollisionsvermeidung (hyperbolisch)
+    s.wn(12) = 0.01; % D-Anteil Kollisionsvermeidung (hyperbolisch)
   end
   % Aktivierungsbereich für Kollisionsvermeidung verkleinern (nur für
   % Ausnahmefälle stark an Grenze)
   s.collbodies_thresh = 1.25; % 25% größere Kollisionskörper für Aktivierung (statt 50%)
+end
+if any(strcmp(Set.optimization.objective, 'condition')) && any(fval_ar <= 1e3)
+  % Die Jacobi-Matrix soll optimiert werden. Setze den Schwellwert zur
+  % Aktivierung dieser Kennzahl auf "immer".
+  s.cond_thresh_jac = 1;
+  if R.Type == 0 % Seriell
+    s.wn(5) = 1; % P-Anteil Konditionszahl (Aufgaben-Jacobi)
+    s.wn(8) = 0.2; % D-Anteil Konditionszahl (Aufgaben-Jacobi)
+  else % PKM
+    s.wn(6) = 1; % P-Anteil Konditionszahl (PKM-Jacobi)
+    s.wn(10) = 0.1; % D-Anteil Konditionszahl (PKM-Jacobi)
+  end
 end
 if i_ar == 3
   Q_change = Q - Q_alt;
@@ -349,12 +377,16 @@ if i_ar == 3
       sgtitle('Gelenkbeschleunigungen (vor/nach AR)');
       legend({'ohne AR opt.' 'mit Opt.'});
       change_current_figure(3012);clf;
-      for i = 1:6
-        subplot(2,3,i); hold on; grid on;
+      for i = 1:size(Stats.h,2)-1
+        subplot(4,4,i); hold on; grid on;
         plot(Traj_0.t, Stats_alt.h(:,1+i), '-');
         plot(Traj_0.t, Stats.h(:,1+i), '-');
+        ylabel(sprintf('h %d', i));
       end
       linkxaxes
+      subplot(4,4,16); grid on;
+      plot(Traj_0.t, Stats.condJ, '-');
+      ylabel('Konditionszahl');
       sgtitle('Zielkriterien (vor/nach AR)');
       legend({'ohne AR opt.' 'mit Opt.'});
     end
