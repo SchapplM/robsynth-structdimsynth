@@ -27,7 +27,7 @@ Set.task.Tv = 1e-1;
 Traj = cds_gen_traj(DoF, Traj_no, Set.task);
 
 if dbg_perfmap
-  Set.general.debug_task_redundancy = true; % Redundanzkarten erstellen
+  Set.general.debug_taskred_perfmap = true; % Redundanzkarten erstellen
 end
 Set.optimization.objective = {'condition', 'chainlength'};
 Set.optimization.constraint_obj(4) = 1000; % max. Wert für Konditionszahl

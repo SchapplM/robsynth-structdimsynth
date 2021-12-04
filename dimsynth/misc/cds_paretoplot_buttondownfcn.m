@@ -105,7 +105,7 @@ Set.optimization.resdir = resdir_tmp;
 % Fehlende Felder in den Einstellungen ergänzen, sonst Fehler in Funktionen
 Set = cds_settings_update(Set, 1);
 % Debug-Plots teilweise deaktivieren, da hier nicht gewünscht.
-Set.general.debug_task_redundancy = false;
+Set.general.debug_taskred_perfmap = false;
 %% Bestimme die Nummer des Pareto-Partikels
 % Nummer istschon in I_point richtig sein, da xData und yData identisch
 % mit den Werten aus fval_pareto (bzw. physval) sind.
