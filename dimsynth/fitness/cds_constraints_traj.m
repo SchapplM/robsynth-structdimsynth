@@ -70,6 +70,7 @@ mininstspcdist_all = NaN(3,1);
 % Speicherung der Trajektorie mit aktualisierter EE-Drehung bei Aufg.-Red.
 X2 = NaN(size(Traj_0.X)); XD2 = NaN(size(Traj_0.X)); XDD2 = NaN(size(Traj_0.X));
 constrvioltext_alt = '';
+[currgen,currind,~,resdir] = cds_get_new_figure_filenumber(Set, Structure, '');
 % Schleife über mehrere mögliche Nebenbedingungen der inversen Kinematik
 fval_ar = NaN(1,2);
 task_red = R.Type == 0 && sum(R.I_EE_Task) < R.NJ || ... % Seriell: Redundant wenn mehr Gelenke als Aufgaben-FG
@@ -86,9 +87,8 @@ if i_ar > 1
 end
 
 %% Debug vorherige Iteration: Karte der Leistungsmerkmale für Aufgabenredundanz zeichnen
-if i_ar > 1 && task_red && Set.general.debug_task_redundancy
+if i_ar > 1 && task_red && Set.general.debug_taskred_perfmap
   nt_red = size(Traj_0.X,1); % Zum Debuggen: Reduktion der Stützstellen
-  [currgen,currind,~,resdir] = cds_get_new_figure_filenumber(Set, Structure, '');
   if i_ar == 2 % Nur einmal die Rasterung generieren
     t1 = tic();
     cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: Beginne Aufgabenredundanz-', ...
@@ -314,8 +314,8 @@ if i_ar == 3
     % eines vorher nicht betrachteten Kriteriums kann eine Verschlechterung
     % erst erzeugen (z.B. Scheitern bei Ausweichbewegung)
     % Debug: Vergleiche vorher-nachher.
-    if false
-      RP = ['R', 'P']; %#ok<UNRCH>
+    if Set.general.debug_taskred_fig
+      RP = ['R', 'P'];
       change_current_figure(3009);clf;
       set(3009,'Name','AR_TrajDbg_q', 'NumberTitle', 'off');
       for i = 1:R.NJ
@@ -418,6 +418,20 @@ if i_ar == 3
       linkxaxes
       sgtitle('Redundante Koordinate (vor/nach AR)');
       legend({'ohne AR opt.' 'mit Opt.'})
+      % Debug-Bilder speichern
+      name_prefix_ardbg = sprintf('Gen%02d_Ind%02d_Konfig%d', currgen, ...
+        currind, Structure.config_index);
+      for fignr = 3009:3013
+        for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
+          if strcmp(fileext{1}, 'fig')
+            saveas(fignr, fullfile(resdir, sprintf('%s_TaskRed_%s.fig', ...
+              name_prefix_ardbg, get(fignr, 'name'))));
+          else
+            export_fig(fignr, fullfile(resdir, sprintf('%s_TaskRed_%s.%s', ...
+              name_prefix_ardbg, get(fignr, 'name'), fileext{1})));
+          end
+        end
+      end
     end
     Q = Q_alt;
     QD = QD_alt;

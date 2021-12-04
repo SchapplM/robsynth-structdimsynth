@@ -1857,7 +1857,7 @@ end
 % nicht so einfach möglich.
 % Bei erneutem Aufruf keine Debug-Bilder. Dauert sonst bei Abschluss von
 % Berechnung zu lange.
-Set.general.debug_task_redundancy = false;
+Set.general.debug_taskred_perfmap = false;
 Set.general.plot_details_in_fitness = 0;
 Set.general.plot_robot_in_fitness = 0;
 for i = 1:max_retry 
