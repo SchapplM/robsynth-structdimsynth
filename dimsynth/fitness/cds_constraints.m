@@ -189,6 +189,17 @@ if task_red
 else
   ar_loop = 1; % Keine Aufgabenredundanz. Nichts zu berechnen.
 end
+% Schwellwert für Jacobi-Matrix in Nullraumbewegung (falls nur als
+% Nebenbedingung und nicht als Optimierungsziel)
+cond_thresh_jac = 250;
+cond_thresh_ikjac = 500;
+if Set.optimization.constraint_obj(4) ~= 0 % Grenze für Jacobi-Matrix für Abbruch
+  if R.Type == 0 % Seriell: IK-Jacobi ungefähr wie analytische Jacobi
+    cond_thresh_ikjac = Set.optimization.constraint_obj(4);
+  else % PKM: Gemeint ist die Jacobi bzgl. Antriebe (nicht: IK-Jacobi)
+    cond_thresh_jac = Set.optimization.constraint_obj(4);
+  end
+end
 % Bestimme zufällige Anfangswerte für Gelenkkonfigurationen.
 % Benutze Gleichverteilung und kein Latin Hypercube (dauert zu lange).
 Q0_lhs = repmat(qlim_norm(:,1), 1, n_jic) + ...
@@ -447,13 +458,26 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         s4.installspace_thresh = 0.1500; % Etwas höherer Abstand zur Aktivierung der Funktion
       elseif i_ar == 2 && fval_jic(jic) == 1e3 % Vorher erfolgreich
         if any(strcmp(Set.optimization.objective, 'colldist'))
-          s4.wn(5) = 1;
-          s4.collbodies_thresh = 9; % 10 mal größere Kollisionskörper im Warnbereich für permanente Aktivierung
+          % Vermeide Singularitäten. Abseits davon keine Betrachtung.
+          s4.cond_thresh_ikjac = cond_thresh_ikjac;
+          % Benutze quadratische Abstandsfunktion der Kollisionen (ohne
+          % Begrenzung). Dadurch maximaler Abstand gesucht
+          if R.Type == 0 % Seriell
+            s4.wn(3) = 1; % IK-Jacobi
+            s4.wn(8) = 1; % Kollision
+          else % PKM
+            s4.wn(3) = 1; % IK-Jacobi
+            s4.wn(9) = 1; % Kollision
+            % Zusätzlich Singularitäten der PKM-Jacobi vermeiden
+            s4.wn(4) = 1;
+            s4.cond_thresh_jac = cond_thresh_jac;
+          end
         end
       end
       if i == 1
         % nur für ersten Traj.-Punkt die Kondition verbessern
-        % TODO: Mehrere Zielfunktionen neigen zum oszillieren.
+        % TODO: Mehrere Zielfunktionen neigen zum oszillieren. Tritt hier
+        % auf, wenn oben weitere Bedingungen gesetzt wurden.
         if R.Type == 0 % Seriell
           s4.wn(3) = 0.5;
         else % PKM
@@ -560,7 +584,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
    
         xlabel('Iterationen'); grid on;
         ylabel('h');
-        if any(Stats.maxcolldepth>0) % es sollte eine Kollision gegeben haben
+        if any(Stats.maxcolldepth>0) || ... % es sollte eine Kollision gegeben haben
+            (R.Type==0 && s4.wn(8) || R.Type==2 && s4.wn(9)) % Kollisionsabstand war quadr. Zielfunktion
           % Die Ausgabe maxcolldepth wird nur geschrieben, wenn Kollisionen
           % geprüft werden sollten
           subplot(3,3,9);
