@@ -73,16 +73,22 @@ for i = 1:n_cb_robot
   % alle Zeitschritte gilt (all-Prüfung), dann ist Objekt i immer im
   % Bauraum und damit keine Verletzung der Nebenbedingung
   ininstallspace_all(i) = all(any(collstate_i,2));
-  if ininstallspace_all(i)
-    continue % keine Prüfung der Distanz zum Bauraum notwendig
-  end
-  % Indizes aller Zeitschritte, bei denen Roboter-Objekt i außerhalb des
-  % Bauraums liegt
-  I_i_out = ~any(coll(:,I),2); % Binär-Indizes
-  II_i_out = find(I_i_out); % Zähl-Indizes zum besseren abspeichern
+
+  % Optional überspringen (dann keine Ausgabe f_constr verfügbar):
+%   if ininstallspace_all(i)
+%     continue % keine Prüfung der Distanz zum Bauraum notwendig
+%   end
   % Da es mehrere Bauraumobjekte geben kann, zählt immer das am nächsten
-  % gelegene für die Prüfung
-  mindist_i = min(absdist(I_i_out,I),[],2);
+  % gelegene für die Prüfung. Bestimme das Minimum über die Spalten.
+  % Der kleinste Wert ist die geringste Verletzung (negativ = enthalten)
+  mindist_i = min(absdist(:,I),[],2);
+
+  % Alternativ: Prüfe nur die Zeitschritte I_i_out, bei denen Roboter-Objekt 
+  % i außerhalb des Bauraums liegt. Dann weniger Aufwand für max-Funktion.
+%   I_i_out = ~any(coll(:,I),2); % Binär-Indizes
+%   II_i_out = find(I_i_out); % Zähl-Indizes zum besseren abspeichern
+%   mindist_i = min(absdist(I_i_out,I),[],2);
+
   % Bestimme den Zeitschritt, an dem das Roboter-Objekt i am weitesten
   % vom Bauraum entfernt ist. Das entspricht dem maximalen Minimalabstand
   % zu allen Bauraum-Geometrien
@@ -90,18 +96,20 @@ for i = 1:n_cb_robot
   % finde den Index des oben gefundenen Objektes in der Variable I_i_out.
   % Das wird dann auf die Zeitindizes der Eingabevariablen (JP,...) um-
   % gerechnet.
-  idx_timestep_worst(i) = II_i_out(idx_tmp);
+  idx_timestep_worst(i) = idx_tmp;
+  % Alternative (s.o.):
+%   idx_timestep_worst(i) = II_i_out(idx_tmp);
 end
+
+% Nehme den schlechtesten Fall. Also den Zeitpunkt an dem ein Körper den
+% maximal möglichen Abstand (von außen) zum Bauraum hat (beziehungsweise
+% am nächsten von innen an der Grenze dran ist)
+[f_constr, idx_body_worst] = max(mindist_all);
 
 % Strafterm für Bauraumprüfung:
 if all(ininstallspace_all)
   fval = 0; % Alle Punkte im Bauraum. Alles i.O.
-  f_constr = NaN; % Nicht zutreffend
-  idx_body_worst = 1; % Dummy-Wert zum Zeichnen weiter unten
 else
-  % Nehme den schlechtesten Fall. Also den Zeitpunkt an dem ein Körper den
-  % maximal möglichen Abstand zum Bauraum hat.
-  [f_constr, idx_body_worst] = max(mindist_all);
   % Normierung der Ausgabe. Wert von f_constr (in m) ist größer 0 aber
   % voraussichtlich nicht >> 1.
   % * 1m schlechtester Abstand entspricht Wert 0.5

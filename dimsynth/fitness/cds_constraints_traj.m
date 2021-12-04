@@ -58,12 +58,15 @@ function [fval,Q,QD,QDD,Jinv_ges,JP,constrvioltext] = cds_constraints_traj(R, Tr
 % Initialisierung
 fval = NaN;
 constrvioltext = 'Undefiniert';
+X2phizTraj_alt = [];
 Q_alt = [];
 QD_alt = [];
 QDD_alt = [];
 Jinv_ges_alt = [];
 JP_alt = [];
-wn_alt = [];
+wn_all = [];
+mincolldist_all = NaN(3,1);
+mininstspcdist_all = NaN(3,1);
 % Speicherung der Trajektorie mit aktualisierter EE-Drehung bei Aufg.-Red.
 X2 = NaN(size(Traj_0.X)); XD2 = NaN(size(Traj_0.X)); XDD2 = NaN(size(Traj_0.X));
 constrvioltext_alt = '';
@@ -314,6 +317,7 @@ if i_ar == 3
     if false
       RP = ['R', 'P']; %#ok<UNRCH>
       change_current_figure(3009);clf;
+      set(3009,'Name','AR_TrajDbg_q', 'NumberTitle', 'off');
       for i = 1:R.NJ
         if R.Type ~= 0
           legnum = find(i>=R.I1J_LEG, 1, 'last');
@@ -335,6 +339,7 @@ if i_ar == 3
       sgtitle('Gelenkpositionen (vor/nach AR)');
       legend({'ohne AR opt.' 'mit Opt.'});
       change_current_figure(3010);clf;
+      set(3010,'Name','AR_TrajDbg_qD', 'NumberTitle', 'off');
       for i = 1:R.NJ
         if R.Type ~= 0
           legnum = find(i>=R.I1J_LEG, 1, 'last');
@@ -356,6 +361,7 @@ if i_ar == 3
       sgtitle('Gelenkgeschwindigkeiten (vor/nach AR)');
       legend({'ohne AR opt.' 'mit Opt.'});
       change_current_figure(3011);clf;
+      set(3011,'Name','AR_TrajDbg_qDD', 'NumberTitle', 'off');
       for i = 1:R.NJ
         if R.Type ~= 0
           legnum = find(i>=R.I1J_LEG, 1, 'last');
@@ -377,18 +383,41 @@ if i_ar == 3
       sgtitle('Gelenkbeschleunigungen (vor/nach AR)');
       legend({'ohne AR opt.' 'mit Opt.'});
       change_current_figure(3012);clf;
+      set(3012,'Name','AR_TrajDbg_h', 'NumberTitle', 'off');
       for i = 1:size(Stats.h,2)-1
-        subplot(4,4,i); hold on; grid on;
+        subplot(4,4,i); hold on;
         plot(Traj_0.t, Stats_alt.h(:,1+i), '-');
         plot(Traj_0.t, Stats.h(:,1+i), '-');
-        ylabel(sprintf('h %d', i));
+        ylabel(sprintf('h %d', i)); grid on;
+      end
+      subplot(4,4,15); hold on;
+      plot(Traj_0.t, Stats_alt.condJ(:,1), '-');
+      plot(Traj_0.t, Stats.condJ(:,1), '-');
+      ylabel('Jacobi-Konditionszahl'); grid on;
+      if R.Type == 2
+        subplot(4,4,16); hold on;
+        plot(Traj_0.t, Stats_alt.condJ(:,2), '-');
+        plot(Traj_0.t, Stats.condJ(:,2), '-');
+        ylabel('IK-Jacobi-Konditionszahl'); grid on;
       end
       linkxaxes
-      subplot(4,4,16); grid on;
-      plot(Traj_0.t, Stats.condJ, '-');
-      ylabel('Konditionszahl');
       sgtitle('Zielkriterien (vor/nach AR)');
       legend({'ohne AR opt.' 'mit Opt.'});
+      change_current_figure(3013);clf;
+      set(3013,'Name','AR_TrajDbg_x6', 'NumberTitle', 'off');
+      for i = 1:3
+        subplot(1,3,i); hold on; grid on;
+        plot(Traj_0.t, X2phizTraj_alt(:,i), '-');
+        switch i
+          case 1, plot(Traj_0.t, X2(:,6), '-');   Dstr = '';
+          case 2, plot(Traj_0.t, XD2(:,6), '-');  Dstr = 'D';
+          case 3, plot(Traj_0.t, XDD2(:,6), '-'); Dstr = 'DD';
+        end
+        ylabel(sprintf('phiz %s', Dstr));
+      end
+      linkxaxes
+      sgtitle('Redundante Koordinate (vor/nach AR)');
+      legend({'ohne AR opt.' 'mit Opt.'})
     end
     Q = Q_alt;
     QD = QD_alt;
@@ -397,12 +426,46 @@ if i_ar == 3
     JP = JP_alt;
     fval = fval_ar(1);
     constrvioltext = [constrvioltext_alt, ' Erneute IK-Berechnung ohne Verbesserung'];
-  elseif fval_ar(1) == fval_ar(2)
-    % Ergebnisse identisch. Wurden die identischen Einstellungen benutzt.
-    % Dann noch Logik-Fehler.
+  elseif fval_ar(1) == fval_ar(2) && fval_ar(1) ~= 1e3
+    % Ergebnisse identisch, obwohl es n.i.O. ist. Deutet auf Logik-Fehler
+    % oder unverstandene Einstellungen
+    cds_log(3, sprintf(['[constraints_traj] Konfig %d/%d: Ergebnis der ', ...
+      'Traj.-IK nach Nullraumbewegung gleich: fval=%1.3e ("%s"). s.wn=[%s]'], ...
+      Structure.config_index, Structure.config_number, fval_ar(1), constrvioltext, ...
+      disp_array(wn_alt', '%1.1g')));
     constrvioltext = [constrvioltext, sprintf(' Identisches Ergebnis mehrfach berechnet')]; %#ok<AGROW>
+  elseif fval_ar(1) == fval_ar(2) && fval_ar(1) == 1e3
+    % Bestmöglicher Fall. Vorher und nachher in Ordnung. Versuche anhand
+    % zusätzlicher Kennzahlen zu prüfen, ob sich das Ergebnis auch
+    % verbessert hat. Wobei Verbesserung hier eigentlich kein Kriterium
+    % ist, da primär Nebenbedingungen ("constraints") geprüft werden.
+    debug_str = sprintf('max(phiDDz): %1.1f -> %1.1f', ...
+      max(abs(X2phizTraj_alt(:,3))), max(abs(XDD2(:,6))));
+    debug_str = [debug_str, sprintf('; maxcondJ: %1.1f -> %1.1f', ...
+      max(Stats_alt.condJ(:,1)), max(Stats.condJ(:,1)))]; %#ok<AGROW>
+    if R.Type == 2
+      debug_str = [debug_str, sprintf('; maxcondPhiq: %1.1f -> %1.1f', ...
+        max(Stats_alt.condJ(:,2)), max(Stats.condJ(:,2)))]; %#ok<AGROW>
+    end
+    if any(~isnan(mincolldist_all))
+      debug_str = [debug_str, sprintf('; mincolldist [mm]: %1.1f -> %1.1f', ...
+        1e3*mincolldist_all(1), 1e3*mincolldist_all(2))]; %#ok<AGROW>
+    end
+    if any(~isnan(mininstspcdist_all))
+      debug_str = [debug_str, sprintf('; instspcdist [mm]: %1.1f -> %1.1f', ...
+        1e3*mininstspcdist_all(1), 1e3*mininstspcdist_all(2))]; %#ok<AGROW>
+    end
+    cds_log(3, sprintf(['[constraints_traj] Konfig %d/%d: Ergebnis der ', ...
+      'Traj.-IK vor und nach Nullraumbewegung i.O.: %s; \n\twn: [%s] -> [%s]'], ...
+      Structure.config_index, Structure.config_number, debug_str, disp_array(wn_all(1,:), '%1.1g'), ...
+      disp_array(wn_all(2,:), '%1.1g')));
   else
     % Zweiter Durchlauf der Optimierung brachte Verbesserung. Jetzt ist es genug.
+    cds_log(3, sprintf(['[constraints_traj] Konfig %d/%d: Ergebnis der ', ...
+      'Traj.-IK hat sich nach Nullraumbewegung verbessert: %1.3e -> ', ...
+      '%1.3e ("%s" -> "%s"), delta: %1.3e'], Structure.config_index, ...
+      Structure.config_number, fval_ar(1), fval_ar(2), constrvioltext_alt, ...
+      constrvioltext, fval_ar(2)-fval_ar(1)));
     constrvioltext = [constrvioltext, sprintf([' Verbesserung durch ', ...
       'erneute IK-Berechnung (%1.3e->%1.3e, delta: %1.3e). Vorher: %s'], ...
       fval_ar(1), fval_ar(2), fval_ar(2)-fval_ar(1), constrvioltext_alt)]; %#ok<AGROW>
@@ -413,11 +476,13 @@ if i_ar == 2
   Q_alt = Q;
   QD_alt = QD;
   QDD_alt = QDD;
+  X2phizTraj_alt = [X2(:,6),XD2(:,6),XDD2(:,6)];
   wn_alt = s.wn;
   Stats_alt = Stats; %#ok<NASGU>
   Jinv_ges_alt = Jinv_ges;
   JP_alt = JP;
 end
+wn_all(i_ar,:) = s.wn(:)'; %#ok<AGROW>
 if R.Type == 0 % Seriell
   qlim = R.qlim;
   [Q, QD, QDD, PHI, JP, Stats] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
@@ -1086,8 +1151,9 @@ end
 %% Selbstkollisionserkennung für Trajektorie
 if Set.optimization.constraint_collisions && ...
       (isnan(fval_coll_tmp) || fval_coll_tmp > 0)
-  [fval_coll_traj, coll_traj] = cds_constr_collisions_self(R, Traj_0.X, ...
+  [fval_coll_traj, coll_traj, colldepth_abs] = cds_constr_collisions_self(R, Traj_0.X, ...
     Set, Structure, JP, Q, [3e3; 4e3]);
+  mincolldist_all(i_ar) = min(colldepth_abs(:));
   if fval_coll_traj > 0
     fval = fval_coll_traj; % Normierung auf 3e3 bis 4e3 -> bereits in Funktion
     constrvioltext = sprintf('Kollision in %d/%d Traj.-Punkten.', ...
@@ -1101,6 +1167,7 @@ if ~isempty(Set.task.installspace.type) && ...
       (isnan(fval_instspc_tmp) || fval_instspc_tmp > 0)
   [fval_instspc_traj, f_constrinstspc_traj] = cds_constr_installspace( ...
     R, Traj_0.X, Set, Structure, JP, Q, [2e3;3e3]);
+  mininstspcdist_all(i_ar) = f_constrinstspc_traj;
   if fval_instspc_traj > 0
     fval = fval_instspc_traj; % Normierung auf 2e3 bis 3e3 -> bereits in Funktion
     constrvioltext = sprintf(['Verletzung des zulässigen Bauraums in Traj.', ...
