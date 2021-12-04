@@ -535,12 +535,13 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         arikstats_jic(i, jic) = inf; % steht für "Fehlerhafte IK". Annahme, dass es nachher nicht auf "inf" geht.
       end
       if ik_res_ikar && h_opt_post > h_opt_pre + 1e-3 && ...% Toleranz gegen Numerik-Fehler
-          Stats.condJ(1) < 1e3 % Wenn die PKM am vorher singulär ist, dann ist die Verschlechterung der Nebenopt. kein Ausschlussgrund für die neue Lösung
+          Stats.condJ(1) < 1e3 % Wenn die PKM am Anfang singulär ist, dann ist die Verschlechterung der Nebenopt. kein Ausschlussgrund für die neue Lösung
         if abs(Stats.h(1+Stats.iter,1)-h_opt_post) < 1e-3 && ... % es lag nicht am geänderten `wn` in der Funktion
             h_opt_post < 1e8 % Es ist kein numerisch großer und ungenauer Wert
           cds_log(3, sprintf(['[constraints] Konfig %d/%d, Eckpunkt %d: IK-Berechnung ', ...
             'mit Aufgabenredundanz hat Nebenoptimierung verschlechtert: ', ...
-            '%1.4e -> %1.4e. wn=[%s]'], jic, n_jic, i, h_opt_pre, h_opt_post, disp_array(s4.wn','%1.1g')));
+            '%1.4e -> %1.4e. wn=[%s]. max(condJ)=%1.2f (IK-Jacobi).'], jic, n_jic, i, ...
+            h_opt_pre, h_opt_post, disp_array(s4.wn','%1.1g'), max(Stats.condJ(1:1+Stats.iter,1))));
         end
         continue % Verwerfe das neue Ergebnis (nehme dadurch das vorherige)
         % Zum Debuggen
@@ -856,6 +857,13 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   fval_jic(jic) = 1e3; % Bis hier hin gekommen. Also erfolgreich.
   calctimes_jic(i_ar,jic) = toc(t1);
   end % Schleife über IK ohne/mit zusätzlicher Optimierung
+  if fval_jic(jic) == 1e3 && ...% Nur die erste Konfiguration belassen. Geht schneller.
+      all(abs(Q_jic(1,:,jic)' - Structure.q0_traj) < 1e-6) % Nur, falls Anfangswert schon gegeben
+    % Bei der nachträglichen Auswertung soll es schneller gehen und die
+    % alternativen Konfigurationen werden voraussichtlich sowieso nicht
+    % besser sein.
+    break;
+  end
 end % Schleife über IK-Konfigurationen
 
 % Debuggen der IK-Optimierung (zum Nachvollziehen, ob die Nutzung von
