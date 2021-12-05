@@ -192,6 +192,9 @@ if i_ar == 2 && fval > 7e3 && fval < 9e3
   end
   s.enforce_qlim = true; % Bei Verletzung maximal entgegenwirken
 end
+if i_ar == 2
+  s.wn(3) = 0.5; % Dämpfung der Geschwindigkeit, gegen Schwingungen
+end
 if i_ar == 2 && fval > 6e3 && fval < 7e3
   % Geschwindigkeit wurde verletzt. Wird in NB eigentlich schon automatisch
   % berücksichtigt. Eine weitere Reduktion ist nicht möglich.
@@ -202,28 +205,23 @@ if i_ar == 2 && fval > 6e3 && fval < 7e3
     s.wn(7) = 1; % D-Anteil quadratische Grenzen (Dämpfung)
   end
 end
-if i_ar == 2 && (any(fval_ar > 3e3 & fval_ar < 4e3) || ... % Ausgabewert für Kollision
-    ... % Wenn Kollisionen grundsätzlich geprüft werden sollen, immer als NB setzen,
-    ... % wenn vorher auch die Bauraumprüfung fehlgeschlagen ist. Beide im Zielkonflikt
-    Set.optimization.constraint_collisions && any(fval_ar > 2e3 & fval_ar < 3e3) || ...
-    ... % Wenn Kollisionsabstände ein Zielkriterium sind, optimiere diese hier permanent
-    any(strcmp(Set.optimization.objective, 'colldist')) && any(fval_ar <= 1e3) )
-  % Kollisionsvermeidung als Nebenbedingung
-  s.wn(3) = 0.5; % Dämpfung der Geschwindigkeit, gegen Schwingungen
+if i_ar == 2 && any(strcmp(Set.optimization.objective, 'colldist')) && any(fval_ar <= 1e3)
+  % Wenn Kollisionsabstände ein Zielkriterium sind, optimiere diese hier permanent
   if R.Type == 0 % Seriell
     s.wn(6) = 1; % D-Anteil quadratische Grenzen (Dämpfung, gegen Schwingungen)
-    s.wn(9) = 1; % P-Anteil Kollisionsvermeidung (hyperbolisch)
-    s.wn(10) = 0.1; % D-Anteil Kollisionsvermeidung (hyperbolisch)
     s.wn(18) = 0.1; % P-Anteil Kollisionsvermeidung (quadratisch)
     s.wn(19) = 0.01; % D-Anteil Kollisionsvermeidung (quadratisch)
   else % PKM
-    s.wn(11) = 0.1; % P-Anteil Kollisionsvermeidung (hyperbolisch)
-    s.wn(12) = 0.01; % D-Anteil Kollisionsvermeidung (hyperbolisch)
     s.wn(20) = 0.1; % P-Anteil Kollisionsvermeidung (quadratisch)
     s.wn(21) = 0.01; % D-Anteil Kollisionsvermeidung (quadratisch)
   end
-  % Aktivierungsbereich für Kollisionsvermeidung stark vergrößern, damit
-  % ausreichend Vorlauf zur Vermeidung der Kollision besteht
+end
+
+if i_ar == 2 && (any(fval_ar > 3e3 & fval_ar < 4e3) || ... % Ausgabewert für Kollision
+    ... % Wenn Kollisionen grundsätzlich geprüft werden sollen, immer als NB setzen,
+    ... % wenn vorher auch die Bauraumprüfung fehlgeschlagen ist. Beide im Zielkonflikt
+    Set.optimization.constraint_collisions && any(fval_ar > 2e3 & fval_ar < 3e3) )
+  % Das Kriterium ist sowieso immer aktiv (s.u.)
   s.collbodies_thresh = 5; % 400% größere Kollisionskörper für Aktivierung (statt 50%)
 end
 
@@ -232,23 +230,16 @@ if i_ar == 2 && ~isempty(Set.task.installspace.type) && ...
     ... % auch vorsorglich aktivieren, wenn Bauraum geprüft wird. Sehr wahrscheinlich,
     ... % dass nach der Kollision direkt der Bauraum fehlschlägt.
     any(fval_ar > 3e3 & fval_ar < 4e3)) % Ausgabewert für Kollision
-  % Bauraumverletzung trat auf. Bauraum als Nebenbedingung
-  s.wn(3) = 0.5; % Dämpfung der Geschwindigkeit, gegen Schwingungen
-  if R.Type == 0 % Seriell
-    s.wn(11) = 1e-5; % P-Anteil Bauraumeinhaltung
-    s.wn(12) = 4e-6; % D-Anteil Bauraumeinhaltung
-  else % PKM
-    s.wn(13) = 1e-4; % P-Anteil Bauraumeinhaltung
-    s.wn(14) = 1e-5; % D-Anteil Bauraumeinhaltung
-  end
+  % Bauraumverletzung trat auf. Bauraum als Nebenbedingung sowieso immer
+  % aktiv.
   % Aktivierung der Bauraum-Nebenbedingung bereits mit größerem Abstand.
   % TODO: Bezug auf charakteristische Länge des Bauraums
   s.installspace_thresh = 0.2; % 200mm Abstand von Bauraumgrenze von innen
 end
 if R.Type == 0 % Seriell
-  I_wn_instspc = 5;
+  I_wn_instspc = 11; % TODO: Auslagern
 else % PKM
-  I_wn_instspc = 6;
+  I_wn_instspc = 12;
 end
 if i_ar == 2 && ~isempty(Set.task.installspace.type) && s.wn(I_wn_instspc)==0
   % Bauraumprüfung ist allgemein aktiv, wird aber in der
@@ -264,9 +255,9 @@ if i_ar == 2 && ~isempty(Set.task.installspace.type) && s.wn(I_wn_instspc)==0
   s.installspace_thresh = 0.050; % 50mm Abstand von Bauraumgrenze von innen
 end
 if R.Type == 0 % Seriell
-  I_wn_coll = 4;
+  I_wn_coll = 9; % TODO: Auslagern
 else % PKM
-  I_wn_coll = 5;
+  I_wn_coll = 11;
 end
 if i_ar == 2 && Set.optimization.constraint_collisions && s.wn(I_wn_coll)==0 && ...
     ~any(strcmp(Set.optimization.objective, 'colldist'))
@@ -287,14 +278,8 @@ end
 if any(strcmp(Set.optimization.objective, 'condition')) && any(fval_ar <= 1e3)
   % Die Jacobi-Matrix soll optimiert werden. Setze den Schwellwert zur
   % Aktivierung dieser Kennzahl auf "immer".
+  % Das Kriterium ist anhand der Gewichtungsfaktoren sowieso aktiv. (s.o.)
   s.cond_thresh_jac = 1;
-  if R.Type == 0 % Seriell
-    s.wn(5) = 1; % P-Anteil Konditionszahl (Aufgaben-Jacobi)
-    s.wn(8) = 0.2; % D-Anteil Konditionszahl (Aufgaben-Jacobi)
-  else % PKM
-    s.wn(6) = 1; % P-Anteil Konditionszahl (PKM-Jacobi)
-    s.wn(10) = 0.1; % D-Anteil Konditionszahl (PKM-Jacobi)
-  end
 end
 if i_ar == 3
   Q_change = Q - Q_alt;
@@ -303,12 +288,30 @@ if i_ar == 3
       'trotz erneuter Durchführung mit anderer Gewichtung. Vorher: [%s], ', ...
       'nachher: [%s]'], Structure.config_index, Structure.config_number, disp_array(wn_alt', '%1.1f'), disp_array(s.wn', '%1.1f')));
   end
+  % Bestimme zusätzliche Kennzahlen zur Bewertung des Erfolgs der
+  % mehrfachen Wiederholung der Bewegung aufgrund der Redundanz
+  debug_str = sprintf('max(phiDDz): %1.1f -> %1.1f', ...
+    max(abs(X2phizTraj_alt(:,3))), max(abs(XDD2(:,6))));
+  debug_str = [debug_str, sprintf('; maxcondJ: %1.1f -> %1.1f', ...
+    max(Stats_alt.condJ(:,1)), max(Stats.condJ(:,1)))]; %#ok<AGROW>
+  if R.Type == 2
+    debug_str = [debug_str, sprintf('; maxcondPhiq: %1.1f -> %1.1f', ...
+      max(Stats_alt.condJ(:,2)), max(Stats.condJ(:,2)))]; %#ok<AGROW>
+  end
+  if any(~isnan(mincolldist_all))
+    debug_str = [debug_str, sprintf('; mincolldist [mm]: %1.1f -> %1.1f', ...
+      1e3*mincolldist_all(1), 1e3*mincolldist_all(2))]; %#ok<AGROW>
+  end
+  if any(~isnan(mininstspcdist_all))
+    debug_str = [debug_str, sprintf('; instspcdist [mm]: %1.1f -> %1.1f', ...
+      1e3*mininstspcdist_all(1), 1e3*mininstspcdist_all(2))]; %#ok<AGROW>
+  end
   if fval_ar(1) < fval_ar(2)
     cds_log(3, sprintf(['[constraints_traj] Konfig %d/%d: Ergebnis der ', ...
       'Traj.-IK hat sich nach Nullraumbewegung verschlechtert: %1.3e -> ', ...
-      '%1.3e ("%s" -> "%s"), delta: %1.3e'], Structure.config_index, ...
+      '%1.3e ("%s" -> "%s"), delta: %1.3e. %s'], Structure.config_index, ...
       Structure.config_number, fval_ar(1), fval_ar(2), constrvioltext_alt, ...
-      constrvioltext, fval_ar(2)-fval_ar(1)));
+      constrvioltext, fval_ar(2)-fval_ar(1), debug_str));
     % Anmerkung: Das muss nicht unbedingt ein Fehler sein. Das Verletzen
     % der Geschwindigkeitsgrenzen kann eine Konsequenz sein. Die Hinzunahme
     % eines vorher nicht betrachteten Kriteriums kann eine Verschlechterung
@@ -449,37 +452,21 @@ if i_ar == 3
       disp_array(wn_alt', '%1.1g')));
     constrvioltext = [constrvioltext, sprintf(' Identisches Ergebnis mehrfach berechnet')]; %#ok<AGROW>
   elseif fval_ar(1) == fval_ar(2) && fval_ar(1) == 1e3
-    % Bestmöglicher Fall. Vorher und nachher in Ordnung. Versuche anhand
-    % zusätzlicher Kennzahlen zu prüfen, ob sich das Ergebnis auch
+    % Bestmöglicher Fall. Vorher und nachher in Ordnung. 
+    % Nehme zusätzliche Kennzahlen um zu prüfen, ob sich das Ergebnis auch
     % verbessert hat. Wobei Verbesserung hier eigentlich kein Kriterium
     % ist, da primär Nebenbedingungen ("constraints") geprüft werden.
-    debug_str = sprintf('max(phiDDz): %1.1f -> %1.1f', ...
-      max(abs(X2phizTraj_alt(:,3))), max(abs(XDD2(:,6))));
-    debug_str = [debug_str, sprintf('; maxcondJ: %1.1f -> %1.1f', ...
-      max(Stats_alt.condJ(:,1)), max(Stats.condJ(:,1)))]; %#ok<AGROW>
-    if R.Type == 2
-      debug_str = [debug_str, sprintf('; maxcondPhiq: %1.1f -> %1.1f', ...
-        max(Stats_alt.condJ(:,2)), max(Stats.condJ(:,2)))]; %#ok<AGROW>
-    end
-    if any(~isnan(mincolldist_all))
-      debug_str = [debug_str, sprintf('; mincolldist [mm]: %1.1f -> %1.1f', ...
-        1e3*mincolldist_all(1), 1e3*mincolldist_all(2))]; %#ok<AGROW>
-    end
-    if any(~isnan(mininstspcdist_all))
-      debug_str = [debug_str, sprintf('; instspcdist [mm]: %1.1f -> %1.1f', ...
-        1e3*mininstspcdist_all(1), 1e3*mininstspcdist_all(2))]; %#ok<AGROW>
-    end
     cds_log(3, sprintf(['[constraints_traj] Konfig %d/%d: Ergebnis der ', ...
       'Traj.-IK vor und nach Nullraumbewegung i.O.: %s; \n\twn: [%s] -> [%s]'], ...
-      Structure.config_index, Structure.config_number, debug_str, disp_array(wn_all(1,:), '%1.1g'), ...
-      disp_array(wn_all(2,:), '%1.1g')));
+      Structure.config_index, Structure.config_number, debug_str, ...
+      disp_array(wn_all(1,:), '%1.1g'), disp_array(wn_all(2,:), '%1.1g')));
   else
     % Zweiter Durchlauf der Optimierung brachte Verbesserung. Jetzt ist es genug.
     cds_log(3, sprintf(['[constraints_traj] Konfig %d/%d: Ergebnis der ', ...
       'Traj.-IK hat sich nach Nullraumbewegung verbessert: %1.3e -> ', ...
-      '%1.3e ("%s" -> "%s"), delta: %1.3e'], Structure.config_index, ...
+      '%1.3e ("%s" -> "%s"), delta: %1.3e. %s'], Structure.config_index, ...
       Structure.config_number, fval_ar(1), fval_ar(2), constrvioltext_alt, ...
-      constrvioltext, fval_ar(2)-fval_ar(1)));
+      constrvioltext, fval_ar(2)-fval_ar(1), debug_str));
     constrvioltext = [constrvioltext, sprintf([' Verbesserung durch ', ...
       'erneute IK-Berechnung (%1.3e->%1.3e, delta: %1.3e). Vorher: %s'], ...
       fval_ar(1), fval_ar(2), fval_ar(2)-fval_ar(1), constrvioltext_alt)]; %#ok<AGROW>
