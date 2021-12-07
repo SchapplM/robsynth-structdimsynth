@@ -316,126 +316,6 @@ if i_ar == 3
     % der Geschwindigkeitsgrenzen kann eine Konsequenz sein. Die Hinzunahme
     % eines vorher nicht betrachteten Kriteriums kann eine Verschlechterung
     % erst erzeugen (z.B. Scheitern bei Ausweichbewegung)
-    % Debug: Vergleiche vorher-nachher.
-    if Set.general.debug_taskred_fig
-      RP = ['R', 'P'];
-      change_current_figure(3009);clf;
-      set(3009,'Name','AR_TrajDbg_q', 'NumberTitle', 'off');
-      for i = 1:R.NJ
-        if R.Type ~= 0
-          legnum = find(i>=R.I1J_LEG, 1, 'last');
-          legjointnum = i-(R.I1J_LEG(legnum)-1);
-        end
-        subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
-        hold on; grid on;
-        plot(Traj_0.t, Q_alt(:,i), '-');
-        plot(Traj_0.t, Q(:,i), '-');
-        plot(Traj_0.t([1,end]), repmat(Structure.qlim(i,:),2,1), 'r-');
-        ylim(minmax2([Q(:,i);Q(:,i);Q_alt(:,i);Q_alt(:,i)]'));
-        if R.Type == 0
-          title(sprintf('q %d (%s)', i, RP(R.MDH.sigma(i)+1)));
-        else
-          title(sprintf('q %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
-        end
-      end
-      linkxaxes
-      sgtitle('Gelenkpositionen (vor/nach AR)');
-      legend({'ohne AR opt.' 'mit Opt.'});
-      change_current_figure(3010);clf;
-      set(3010,'Name','AR_TrajDbg_qD', 'NumberTitle', 'off');
-      for i = 1:R.NJ
-        if R.Type ~= 0
-          legnum = find(i>=R.I1J_LEG, 1, 'last');
-          legjointnum = i-(R.I1J_LEG(legnum)-1);
-        end
-        subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
-        hold on; grid on;
-        plot(Traj_0.t, QD_alt(:,i), '-');
-        plot(Traj_0.t, QD(:,i), '-');
-        plot(Traj_0.t([1,end]), repmat(Structure.qDlim(i,:),2,1), 'r-');
-        ylim(minmax2([QD(:,i);QD(:,i);QD_alt(:,i);QD_alt(:,i)]'));
-        if R.Type == 0
-          title(sprintf('qD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
-        else
-          title(sprintf('qD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
-        end
-      end
-      linkxaxes
-      sgtitle('Gelenkgeschwindigkeiten (vor/nach AR)');
-      legend({'ohne AR opt.' 'mit Opt.'});
-      change_current_figure(3011);clf;
-      set(3011,'Name','AR_TrajDbg_qDD', 'NumberTitle', 'off');
-      for i = 1:R.NJ
-        if R.Type ~= 0
-          legnum = find(i>=R.I1J_LEG, 1, 'last');
-          legjointnum = i-(R.I1J_LEG(legnum)-1);
-        end
-        subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
-        hold on; grid on;
-        plot(Traj_0.t, QDD_alt(:,i), '-');
-        plot(Traj_0.t, QDD(:,i), '-');
-        plot(Traj_0.t([1,end]), repmat(Structure.qDDlim(i,:),2,1), 'r-');
-        ylim(minmax2([QDD(:,i);QDD(:,i);QDD_alt(:,i);QDD_alt(:,i)]'));
-        if R.Type == 0
-          title(sprintf('qDD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
-        else
-          title(sprintf('qDD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
-        end
-      end
-      linkxaxes
-      sgtitle('Gelenkbeschleunigungen (vor/nach AR)');
-      legend({'ohne AR opt.' 'mit Opt.'});
-      change_current_figure(3012);clf;
-      set(3012,'Name','AR_TrajDbg_h', 'NumberTitle', 'off');
-      for i = 1:size(Stats.h,2)-1
-        subplot(4,4,i); hold on;
-        plot(Traj_0.t, Stats_alt.h(:,1+i), '-');
-        plot(Traj_0.t, Stats.h(:,1+i), '-');
-        ylabel(sprintf('h %d', i)); grid on;
-      end
-      subplot(4,4,15); hold on;
-      plot(Traj_0.t, Stats_alt.condJ(:,1), '-');
-      plot(Traj_0.t, Stats.condJ(:,1), '-');
-      ylabel('Jacobi-Konditionszahl'); grid on;
-      if R.Type == 2
-        subplot(4,4,16); hold on;
-        plot(Traj_0.t, Stats_alt.condJ(:,2), '-');
-        plot(Traj_0.t, Stats.condJ(:,2), '-');
-        ylabel('IK-Jacobi-Konditionszahl'); grid on;
-      end
-      linkxaxes
-      sgtitle('Zielkriterien (vor/nach AR)');
-      legend({'ohne AR opt.' 'mit Opt.'});
-      change_current_figure(3013);clf;
-      set(3013,'Name','AR_TrajDbg_x6', 'NumberTitle', 'off');
-      for i = 1:3
-        subplot(1,3,i); hold on; grid on;
-        plot(Traj_0.t, X2phizTraj_alt(:,i), '-');
-        switch i
-          case 1, plot(Traj_0.t, X2(:,6), '-');   Dstr = '';
-          case 2, plot(Traj_0.t, XD2(:,6), '-');  Dstr = 'D';
-          case 3, plot(Traj_0.t, XDD2(:,6), '-'); Dstr = 'DD';
-        end
-        ylabel(sprintf('phiz %s', Dstr));
-      end
-      linkxaxes
-      sgtitle('Redundante Koordinate (vor/nach AR)');
-      legend({'ohne AR opt.' 'mit Opt.'})
-      % Debug-Bilder speichern
-      name_prefix_ardbg = sprintf('Gen%02d_Ind%02d_Konfig%d', currgen, ...
-        currind, Structure.config_index);
-      for fignr = 3009:3013
-        for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
-          if strcmp(fileext{1}, 'fig')
-            saveas(fignr, fullfile(resdir, sprintf('%s_TaskRed_%s.fig', ...
-              name_prefix_ardbg, get(fignr, 'name'))));
-          else
-            export_fig(fignr, fullfile(resdir, sprintf('%s_TaskRed_%s.%s', ...
-              name_prefix_ardbg, get(fignr, 'name'), fileext{1})));
-          end
-        end
-      end
-    end
     Q = Q_alt;
     QD = QD_alt;
     QDD = QDD_alt;
@@ -470,6 +350,141 @@ if i_ar == 3
     constrvioltext = [constrvioltext, sprintf([' Verbesserung durch ', ...
       'erneute IK-Berechnung (%1.3e->%1.3e, delta: %1.3e). Vorher: %s'], ...
       fval_ar(1), fval_ar(2), fval_ar(2)-fval_ar(1), constrvioltext_alt)]; %#ok<AGROW>
+  end
+  % Debug: Vergleiche vorher-nachher.
+  if Set.general.debug_taskred_fig
+    RP = ['R', 'P'];
+    change_current_figure(3009);clf;
+    set(3009,'Name','AR_TrajDbg_q', 'NumberTitle', 'off');
+    if ~strcmp(get(3009, 'windowstyle'), 'docked')
+      set(3009,'units','normalized','outerposition',[0 0 1 1]);
+    end
+    for i = 1:R.NJ
+      if R.Type ~= 0
+        legnum = find(i>=R.I1J_LEG, 1, 'last');
+        legjointnum = i-(R.I1J_LEG(legnum)-1);
+      end
+      subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
+      hold on; grid on;
+      plot(Traj_0.t, Q_alt(:,i), '-');
+      plot(Traj_0.t, Q(:,i), '-');
+      plot(Traj_0.t([1,end]), repmat(Structure.qlim(i,:),2,1), 'r-');
+      ylim(minmax2([Q(:,i);Q(:,i);Q_alt(:,i);Q_alt(:,i)]'));
+      if R.Type == 0
+        title(sprintf('q %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+      else
+        title(sprintf('q %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+      end
+    end
+    linkxaxes
+    sgtitle('Gelenkpositionen (vor/nach AR)');
+    legend({'ohne AR opt.' 'mit Opt.'});
+    change_current_figure(3010);clf;
+    set(3010,'Name','AR_TrajDbg_qD', 'NumberTitle', 'off');
+    if ~strcmp(get(3010, 'windowstyle'), 'docked')
+      set(3010,'units','normalized','outerposition',[0 0 1 1]);
+    end
+    for i = 1:R.NJ
+      if R.Type ~= 0
+        legnum = find(i>=R.I1J_LEG, 1, 'last');
+        legjointnum = i-(R.I1J_LEG(legnum)-1);
+      end
+      subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
+      hold on; grid on;
+      plot(Traj_0.t, QD_alt(:,i), '-');
+      plot(Traj_0.t, QD(:,i), '-');
+      plot(Traj_0.t([1,end]), repmat(Structure.qDlim(i,:),2,1), 'r-');
+      ylim(minmax2([QD(:,i);QD(:,i);QD_alt(:,i);QD_alt(:,i)]'));
+      if R.Type == 0
+        title(sprintf('qD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+      else
+        title(sprintf('qD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+      end
+    end
+    linkxaxes
+    sgtitle('Gelenkgeschwindigkeiten (vor/nach AR)');
+    legend({'ohne AR opt.' 'mit Opt.'});
+    change_current_figure(3011);clf;
+    set(3011,'Name','AR_TrajDbg_qDD', 'NumberTitle', 'off');
+    if ~strcmp(get(3011, 'windowstyle'), 'docked')
+      set(3011,'units','normalized','outerposition',[0 0 1 1]);
+    end
+    for i = 1:R.NJ
+      if R.Type ~= 0
+        legnum = find(i>=R.I1J_LEG, 1, 'last');
+        legjointnum = i-(R.I1J_LEG(legnum)-1);
+      end
+      subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
+      hold on; grid on;
+      plot(Traj_0.t, QDD_alt(:,i), '-');
+      plot(Traj_0.t, QDD(:,i), '-');
+      plot(Traj_0.t([1,end]), repmat(Structure.qDDlim(i,:),2,1), 'r-');
+      ylim(minmax2([QDD(:,i);QDD(:,i);QDD_alt(:,i);QDD_alt(:,i)]'));
+      if R.Type == 0
+        title(sprintf('qDD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+      else
+        title(sprintf('qDD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+      end
+    end
+    linkxaxes
+    sgtitle('Gelenkbeschleunigungen (vor/nach AR)');
+    legend({'ohne AR opt.' 'mit Opt.'});
+    change_current_figure(3012);clf;
+    set(3012,'Name','AR_TrajDbg_h', 'NumberTitle', 'off');
+    if ~strcmp(get(3012, 'windowstyle'), 'docked')
+      set(3012,'units','normalized','outerposition',[0 0 1 1]);
+    end
+    for i = 1:size(Stats.h,2)-1
+      subplot(4,4,i); hold on;
+      plot(Traj_0.t, Stats_alt.h(:,1+i), '-');
+      plot(Traj_0.t, Stats.h(:,1+i), '-');
+      ylabel(sprintf('h %d', i)); grid on;
+    end
+    subplot(4,4,15); hold on;
+    plot(Traj_0.t, Stats_alt.condJ(:,1), '-');
+    plot(Traj_0.t, Stats.condJ(:,1), '-');
+    ylabel('Jacobi-Konditionszahl'); grid on;
+    if R.Type == 2
+      subplot(4,4,16); hold on;
+      plot(Traj_0.t, Stats_alt.condJ(:,2), '-');
+      plot(Traj_0.t, Stats.condJ(:,2), '-');
+      ylabel('IK-Jacobi-Konditionszahl'); grid on;
+    end
+    linkxaxes
+    sgtitle('Zielkriterien (vor/nach AR)');
+    legend({'ohne AR opt.' 'mit Opt.'});
+    change_current_figure(3013);clf;
+    set(3013,'Name','AR_TrajDbg_x6', 'NumberTitle', 'off');
+    if ~strcmp(get(3013, 'windowstyle'), 'docked')
+      set(3013,'units','normalized','outerposition',[0 0 1 1]);
+    end
+    for i = 1:3
+      subplot(1,3,i); hold on; grid on;
+      plot(Traj_0.t, X2phizTraj_alt(:,i), '-');
+      switch i
+        case 1, plot(Traj_0.t, X2(:,6), '-');   Dstr = '';
+        case 2, plot(Traj_0.t, XD2(:,6), '-');  Dstr = 'D';
+        case 3, plot(Traj_0.t, XDD2(:,6), '-'); Dstr = 'DD';
+      end
+      ylabel(sprintf('phiz %s', Dstr));
+    end
+    linkxaxes
+    sgtitle('Redundante Koordinate (vor/nach AR)');
+    legend({'ohne AR opt.' 'mit Opt.'})
+    % Debug-Bilder speichern
+    name_prefix_ardbg = sprintf('Gen%02d_Ind%02d_Konfig%d', currgen, ...
+      currind, Structure.config_index);
+    for fignr = 3009:3013
+      for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
+        if strcmp(fileext{1}, 'fig')
+          saveas(fignr, fullfile(resdir, sprintf('%s_TaskRed_%s.fig', ...
+            name_prefix_ardbg, get(fignr, 'name'))));
+        else
+          export_fig(fignr, fullfile(resdir, sprintf('%s_TaskRed_%s.%s', ...
+            name_prefix_ardbg, get(fignr, 'name'), fileext{1})));
+        end
+      end
+    end
   end
   return
 end
