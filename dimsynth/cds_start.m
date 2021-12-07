@@ -533,12 +533,15 @@ if ~Set.general.regenerate_summary_only
     % Entferne doppelte PKM-Namen, die sich nur durch die Gestell-/Platt-
     % formausrichtung unterscheiden. Die Dateien sind gleich.
     if type == 2
-      Names_Legs = cell(size(Names));
+      PNames_Legs = cell(size(Names)); % PKM-Namen bezogen auf Beinketten-Kinematik (ohne G-/P-Nummer)
+      SNames_Legs = cell(size(Names)); % Namen der Beinketten
       for i = 1:length(Names) % Bestimme Namen der PKM ohne P-/G-Nummer
-        [~,~,~,~,~,~,~,~,Names_Legs{i}] = parroblib_load_robot(Names{i}, 0);
+        [~,Leg_Names_i,~,~,~,~,~,~,PNames_Legs{i}] = parroblib_load_robot(Names{i}, 0);
+        SNames_Legs{i} = Leg_Names_i{1}; % Annahme: symmetrische PKM
       end
-      [~,I] = unique(Names_Legs);
+      [~,I] = unique(PNames_Legs);
       Names = Names(I);
+      SNames_Legs = unique(SNames_Legs);
       Structures_I = Structures_Type(I);
     end
     % Vorlagen-Funktionen neu generieren (falls dort Änderungen gemacht
@@ -553,6 +556,12 @@ if ~Set.general.regenerate_summary_only
         if type == 0 % Serieller Roboter
           serroblib_create_template_functions(Names(i), false, false);
         else % PKM
+          % Zuerst Funktionen für serielle Beinketten neu generieren.
+          % Eine PKM-Funktion (Beinketten-IK) ist davon abhängig.
+          [~, LEG_Names] = parroblib_load_robot(Names{i}, 0);
+          serroblib_writelock('lock', 'template', 0, 5*60, false);
+          serroblib_create_template_functions(LEG_Names(1), false, false);
+          serroblib_writelock('free', 'template', 0, 5*60, false);
           % Sperrschutz für PKM-Bibliothek (hauptsächlich für Struktursynthese)
           parroblib_writelock('check', 'csv', Structure_i.DoF, 5*60, false);
           % Die Vorlagen-Funktionen können nicht in Parallelinstanzen
@@ -560,11 +569,6 @@ if ~Set.general.regenerate_summary_only
           parroblib_writelock('lock', 'template', Structure_i.DoF, 5*60, false);
           parroblib_create_template_functions(Names(i), false, false);
           parroblib_writelock('free', 'template', Structure_i.DoF, 5*60, false);
-          % Auch Funktionen für serielle Beinketten neu generieren
-          [~, LEG_Names] = parroblib_load_robot(Names{i});
-          serroblib_writelock('lock', 'template', 0, 5*60, false);
-          serroblib_create_template_functions(LEG_Names(1), false, false);
-          serroblib_writelock('free', 'template', 0, 5*60, false);
         end
         continue
       end
@@ -575,6 +579,11 @@ if ~Set.general.regenerate_summary_only
         serroblib_update_template_functions(Names,Set.general.verbosity>2)
         serroblib_writelock('free', 'template', 0, 5*60, false);
       else
+        % Zuerst die Vorlagen-Funktionen für die seriellen Beinketten
+        serroblib_writelock('lock', 'template', 0, 5*60, false);
+        serroblib_update_template_functions(SNames_Legs,Set.general.verbosity>2)
+        serroblib_writelock('free', 'template', 0, 5*60, false);
+        % Danach die Funktionen für die PKM
         parroblib_writelock('lock', 'template', Structures_I{1}.DoF, 5*60, false);
         parroblib_update_template_functions(Names,Set.general.verbosity>2)
         parroblib_writelock('free', 'template', Structures_I{1}.DoF, 5*60, false);
