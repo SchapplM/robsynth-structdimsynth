@@ -259,11 +259,10 @@ if R.Type == 0 % Seriell
 else % PKM
   I_wn_coll = 11;
 end
-if i_ar == 2 && Set.optimization.constraint_collisions && s.wn(I_wn_coll)==0 && ...
-    ~any(strcmp(Set.optimization.objective, 'colldist'))
+if i_ar == 2 && Set.optimization.constraint_collisions && s.wn(I_wn_coll)==0
   % Kollisionsprüfung ist allgemein aktiv, wird aber in der
   % Nullraumoptimierung nicht bedacht. Zusätzliche Aktivierung mit sehr
-  % kleinem Schwellwert zur Aktivierung (nur für Notfälle)
+  % kleinem Schwellwert zur Aktivierung (nur für Notfälle, als Nebenbedingung)
   if R.Type == 0 % Seriell
     s.wn(9) = 1; % P-Anteil Kollisionsvermeidung (hyperbolisch)
     s.wn(10) = 0.1; % D-Anteil Kollisionsvermeidung (hyperbolisch)
