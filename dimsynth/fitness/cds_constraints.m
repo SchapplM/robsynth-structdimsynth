@@ -526,7 +526,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       if ~ik_res_ikar % Keine Lösung gefunden. Sollte eigentlich nicht passieren.
         if s4.scale_lim == 0 && ... % Bei scale_lim kann der Algorithmus feststecken
             ~Stats.coll && ... % Wenn Kollisionsvermeidung aktiv wurde, kann das zum Scheitern führen
-            any(Stats.condJ([1,1+Stats.iter]) < 1e3) % Bei singulären Beinketten ist das Scheitern erwartbar
+            any(Stats.condJ([1,1+Stats.iter],1) < 1e3) % Bei singulären Beinketten ist das Scheitern erwartbar
           cds_log(3, sprintf(['[constraints] Konfig %d/%d, Eckpunkt %d: IK-Berechnung ', ...
             'mit Aufgabenredundanz fehlerhaft, obwohl es ohne AR funktioniert ', ...
             'hat. wn=[%s]. max(Phi)=%1.1e. Iter %d/%d'], jic, n_jic, i, disp_array(s4.wn','%1.1g'), ...
@@ -551,26 +551,39 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         arikstats_jic(i, jic) = inf; % steht für "Fehlerhafte IK". Annahme, dass es nachher nicht auf "inf" geht.
       end
       if ik_res_ikar && h_opt_post > h_opt_pre + 1e-3 && ...% Toleranz gegen Numerik-Fehler
-          Stats.condJ(1) < 1e3 % Wenn die PKM am Anfang singulär ist, dann ist die Verschlechterung der Nebenopt. kein Ausschlussgrund für die neue Lösung
+          Stats.condJ(1,1) < 1e3 % Wenn die PKM am Anfang singulär ist, dann ist die Verschlechterung der Nebenopt. kein Ausschlussgrund für die neue Lösung
         if abs(Stats.h(1+Stats.iter,1)-h_opt_post) < 1e-3 && ... % es lag nicht am geänderten `wn` in der Funktion
              (h_opt_post < 1e8 || ... % Es ist kein numerisch großer und ungenauer Wert
              h_opt_post > 1e8 && h_opt_pre < 1e8) % Wenn sich der Wert auf unendlich verschlechtert
+          debug_str = sprintf('condPhiq: %1.1f -> %1.1f', ...
+            Stats.condJ(1,1), Stats.condJ(1+Stats.iter,1));
+          if R.Type == 2
+            debug_str = [debug_str, sprintf('; condJ: %1.1f -> %1.1f', ...
+              Stats.condJ(1,2), Stats.condJ(1+Stats.iter,2))]; %#ok<AGROW>
+          end
+          if any(~isnan(Stats.maxcolldepth))
+            debug_str = [debug_str, sprintf('; maxcolldepth [mm]: %1.1f -> %1.1f', ...
+              1e3*Stats.maxcolldepth(1), 1e3*Stats.maxcolldepth(1+Stats.iter))]; %#ok<AGROW>
+          end
           cds_log(3, sprintf(['[constraints] Konfig %d/%d, Eckpunkt %d: IK-Berechnung ', ...
             'mit Aufgabenredundanz hat Nebenoptimierung verschlechtert: ', ...
-            '%1.4e -> %1.4e. wn=[%s]. max(condJ)=%1.2f (IK-Jacobi). coll=%d'], ...
+            '%1.4e -> %1.4e. wn=[%s]. max(condJ)=%1.2f (IK-Jacobi). coll=%d. %s'], ...
             jic, n_jic, i, h_opt_pre, h_opt_post, disp_array(s4.wn','%1.1g'), ...
-            max(Stats.condJ(1:1+Stats.iter,1)), Stats.coll));
+            max(Stats.condJ(1:1+Stats.iter,1)), Stats.coll, debug_str));
         end
-        continue % Verwerfe das neue Ergebnis (nehme dadurch das vorherige)
-        % Zum Debuggen
-        if R.Type == 0, I_constr_red = [1 2 3 5 6]; %#ok<UNRCH>
+        if Set.general.debug_taskred_fig % Zum Debuggen
+        if R.Type == 0, I_constr_red = [1 2 3 5 6];
         else,           I_constr_red = R.I_constr_red; end
         figure(2345);clf;
+        set(2345,'Name','AR_PTPDbg', 'NumberTitle', 'off');
+        if ~strcmp(get(2345, 'windowstyle'), 'docked')
+          set(2345,'units','normalized','outerposition',[0 0 1 1]);
+        end
         subplot(3,3,1);
         plot(Stats.condJ(1:Stats.iter,:));
         xlabel('Iterationen'); grid on;
         ylabel('cond(J)');
-        if R.Type == 2, legend({'IK-Jacobi', 'PKM-Jacobi'}); end
+        legend({'IK-Jacobi', 'Jacobi'});
         subplot(3,3,2);
         plot([diff(Stats.Q(1:Stats.iter,:));NaN(1,R.NJ)]);
         xlabel('Iterationen'); grid on;
@@ -639,6 +652,20 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           ylabel('Abstand zum Bauraum (>0 draußen)');
         end
         linkxaxes
+        [currgen,currind,~,resdir] = cds_get_new_figure_filenumber(Set, Structure, '');
+        name_prefix_ardbg = sprintf('Gen%02d_Ind%02d_Konfig%d_Pt%d', currgen, ...
+          currind, jic, i);
+        for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
+          if strcmp(fileext{1}, 'fig')
+            saveas(2345, fullfile(resdir, sprintf('%s_TaskRed_%s.fig', ...
+              name_prefix_ardbg, get(2345, 'name'))));
+          else
+            export_fig(2345, fullfile(resdir, sprintf('%s_TaskRed_%s.%s', ...
+              name_prefix_ardbg, get(2345, 'name'), fileext{1})));
+          end
+        end
+        end
+        continue % Verwerfe das neue Ergebnis (nehme dadurch das vorherige)
       end
       % Prüfe, ob IK-Ergebnis eine Kollision hat. Wenn ja, müssen keine
       % weiteren Punkte geprüft werden (schnellere Rechnung). Auswertung der
@@ -994,6 +1021,9 @@ else % Gebe alle gültigen Lösungen aus
   % Debug: Zeige die verschiedenen Lösungen an
   if 1e4*fval < Set.general.plot_details_in_fitness
     change_current_figure(2000);clf;
+    if ~strcmp(get(2000, 'windowstyle'), 'docked')
+      set(2000,'units','normalized','outerposition',[0 0 1 1]);
+    end
     for k = 1:length(I_iO)
       subplot(floor(ceil(length(I_iO))), ceil(sqrt(length(I_iO))), k);
       view(3); axis auto; hold on; grid on;
