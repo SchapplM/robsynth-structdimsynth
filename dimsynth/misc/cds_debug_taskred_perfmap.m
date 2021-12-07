@@ -50,8 +50,8 @@ s = struct( ...
   ... % high condition numers all get the same dark (or magenta) color to
   ... be able to better distinguish the good values.
   'colorlimit', 1e4, ...
-  ... % Saturate all values above 100 to have more colors in the range of low
-  ... % condition numbers. Saturate by decadic logarithm.
+  ... % Saturate all values above e.g. 100 to have more colors in the range
+  ... % of low condition numbers. Saturate by decadic logarithm.
   'condsat_limit', 100, ...
   'name_prefix_ardbg', '', ... % Für Dateinamen der zu speichernden Bilder
   'fval', NaN, ... % Für Titelbeschriftung
@@ -101,26 +101,36 @@ for i = 1:length(wn_plot)
 end
 %% Farbskala berechnen
 % Stelle die Grenze für den Farbbereich aus den Konditionszahlen her.
-if Structure.Type == 0 % Seriell
-  Hcond = H_all(:,:,3);
-else % Parallel (PKM)
-  Hcond = H_all(:,:,4);
+plot_cond = false;
+if all(CC_ext(:)==0) % Keine der Gütekriterien hat zu einem Wert>0 geführt.
+  if Structure.Type == 0 % Seriell
+    Hcond = H_all(:,:,3);
+  else % Parallel (PKM)
+    Hcond = H_all(:,:,4);
+  end
+  CC_ext = Hcond';
+  plot_cond = true;
 end
 if isnan(condsat_limit)
-  condsat_limit = max(100,min(Hcond(:)));
+  condsat_limit = 100;
 end
+% Begrenze den Farbraum. Bezieht sich auf Werte oberhalb der Sättigung.
+% Diese werden unten logarithmisch behandelt.
+condsat_limit_rel = min(CC_ext(:)) + condsat_limit;
 if isnan(colorlimit)
-  colorlimit = condsat_limit + 40;
+  condsat_limit_rel = condsat_limit + 1e4;
 end
 assert(colorlimit > condsat_limit, 'colorlimit muss größer als condsat_limit sein');
+colorlimit_rel = min(CC_ext(:)) + colorlimit;
+assert(colorlimit_rel > condsat_limit_rel, 'colorlimit_rel muss größer als condsat_limit_rel sein');
 CC_ext_orig = CC_ext;
 % Begrenze die Farbwerte (siehe oben, Beschreibung von colorlimit)
-I_colorlim = CC_ext>colorlimit;
-CC_ext(I_colorlim) = colorlimit;
+I_colorlim = CC_ext>=colorlimit_rel;
+CC_ext(I_colorlim) = colorlimit_rel;
 % Sättige Werte oberhalb des Schwellwertes. Dadurch mehr Farben in Skala
 % für unteren Bereich mit guten Konditionszahlen
-I_exc = CC_ext > condsat_limit;
-CC_ext(I_exc) = condsat_limit+10*log10(CC_ext(I_exc)/condsat_limit); % last term gives 0...30 for condsat_limit=1e3
+I_exc = CC_ext >= condsat_limit_rel;
+CC_ext(I_exc) = condsat_limit_rel+10*log10(CC_ext(I_exc)/condsat_limit_rel);
 
 %% Bild erstellen
 % Create color plot
@@ -141,10 +151,11 @@ end
 colormap(colors_map); % Farbskalierung mit Magenta als Farbe aktualisieren
 % Titel eintragen
 if Structure.Type == 0 % Seriell
-  critnames = {'quadlim', 'hyplim', 'cond', 'coll', 'installspace'};
+  critnames = {'qlim_quad', 'qlim_hyp', 'cond', 'coll_hyp', 'installspace', 'coll_quad'};
 else % Parallel
-  critnames = {'quadlim', 'hyplim', 'cond_ik', 'cond_pkm', 'coll', 'installspace'};
+  critnames = {'qlim_quad', 'qlim_hyp', 'cond_ik', 'cond_pkm', 'coll_hyp', 'installspace', 'coll_quad'};
 end
+assert(length(critnames)==length(s.wn), 'Anzahl der Kriterien unerwartet');
 wnstr = '';
 for i = 1:length(s.wn)
   if s.wn(i)
@@ -155,18 +166,21 @@ end
 if isempty(wnstr)
   wnstr = 'wn=0. Plot: cond(J)';
 end
+if plot_cond
+  wnstr = 'h=0. Plot: cond(J)';
+end
 titlestr = sprintf('It. %d, fval=%1.1e; %s; %s', s.i_ar, s.fval, wnstr, s.constrvioltext);
 sgtitle(titlestr, 'interpreter', 'none');
 % Legende für Farben eintragen.
 cb = colorbar();
 cbtext = 'h(s,phiz)';
 if any(I_exc(:))
-  cbtext = [cbtext, sprintf('; logscale for h>%1.0f (%1.0f%%)', ...
-    condsat_limit, 100*sum(I_exc(:))/numel(I_exc))];
+  cbtext = [cbtext, sprintf('; logscale for h>=%1.0f (%1.0f%%)', ...
+    condsat_limit_rel, 100*sum(I_exc(:))/numel(I_exc))];
 end
 if any(I_colorlim(:))
-  cbtext = [cbtext, sprintf('; h>%1.1e marked magenta (%1.1f%%)', ...
-    colorlimit, 100*sum(I_colorlim(:))/numel(I_colorlim))];
+  cbtext = [cbtext, sprintf('; h>=%1.1e marked magenta (%1.1f%%)', ...
+    colorlimit_rel, 100*sum(I_colorlim(:))/numel(I_colorlim))];
 end
 ylabel(cb, cbtext, 'Rotation', 90, 'interpreter', 'tex');
 
@@ -181,7 +195,8 @@ else % Parallel (PKM)
   idxshift = 1;
 end
 formats = {'cx', 'r*', 'co', 'cv'};
-legtxt = {'Traj', 'Joint Lim', 'Singularity', 'Collision', 'Install. Space'};
+legtxt = {'Traj', ... % Legendeneintrag für die T. in hdl(1)
+  'Joint Lim', 'Singularity', 'Collision', 'Install. Space'};
 for i = 1:4
   % Nur einzeichnen, falls in Farbskala integriert
   % Bestimme Indizes für bestimmte Sonderfälle, wie Gelenküberschreitung,
