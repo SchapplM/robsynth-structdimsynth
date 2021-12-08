@@ -57,6 +57,8 @@ s = struct( ...
   'fval', NaN, ... % Für Titelbeschriftung
   'constrvioltext', '', ... % Für Titelbeschriftung
   'i_ar', 0, ... % Iteration der Aufgabenredundanz-Schleife
+  'i_fig', 0, ... % Index von möglichen Bildern für Trajektorie
+  'deactivate_time_figure', false, ...
   'wn', NaN); % Standard-Werte
 if nargin == 9
   for f = fields(s_in)'
@@ -69,12 +71,8 @@ if nargin == 9
 end
 wn_plot = s.wn;
 % Standard-Einstellung für Darstellung der Kriterien im Plot setzen
-if all(isnan(s.wn)) || all(s.wn==0)
-  if Structure.Type == 0
-    wn_plot = [0;0;1;0;0]; % Jacobi-Kondition
-  else
-    wn_plot = [0;0;0;1;0;0]; % PKM-Jacobi-Kondition
-  end
+if all(isnan(s.wn))
+  wn_plot(:) = 0;
 end
 condsat_limit = s.condsat_limit;
 colorlimit = s.colorlimit;
@@ -87,8 +85,8 @@ if any(~I_valid)
 end
 %% Bild vorbereiten
 phiz_range_ext = phiz_range;
-fighdl = change_current_figure(2400+s.i_ar);clf;hold on;
-set(fighdl, 'Name', sprintf('PerfMap_Iter%d', s.i_ar), 'NumberTitle', 'off');
+fighdl = change_current_figure(2400+10*s.i_ar+s.i_fig);clf;hold on;
+set(fighdl, 'Name', sprintf('PerfMap_Iter%d_Fig%d', s.i_ar, s.i_fig), 'NumberTitle', 'off');
 [X_ext,Y_ext] = meshgrid(s_ref,180/pi*phiz_range_ext);
 Z_ext = zeros(size(X_ext));
 % Create color code (CC) from performance criteria (i.e. condition number)
@@ -103,12 +101,9 @@ end
 % Stelle die Grenze für den Farbbereich aus den Konditionszahlen her.
 plot_cond = false;
 if all(CC_ext(:)==0) % Keine der Gütekriterien hat zu einem Wert>0 geführt.
-  if Structure.Type == 0 % Seriell
-    Hcond = H_all(:,:,3);
-  else % Parallel (PKM)
-    Hcond = H_all(:,:,4);
-  end
-  CC_ext = Hcond';
+  % Der letzte Wert in H_all ist die Konditionszahl (direkt, nicht als
+  % Kriterium mit Aktivierungsschwelle)
+  CC_ext = H_all(:,:,end)';
   plot_cond = true;
 end
 if isnan(condsat_limit)
@@ -120,8 +115,14 @@ condsat_limit_rel = min(CC_ext(:)) + condsat_limit;
 if isnan(colorlimit)
   condsat_limit_rel = condsat_limit + 1e4;
 end
+if isinf(condsat_limit_rel)
+  condsat_limit_rel = condsat_limit;
+end
 assert(colorlimit > condsat_limit, 'colorlimit muss größer als condsat_limit sein');
 colorlimit_rel = min(CC_ext(:)) + colorlimit;
+if isinf(colorlimit_rel)
+  colorlimit_rel = colorlimit;
+end
 assert(colorlimit_rel > condsat_limit_rel, 'colorlimit_rel muss größer als condsat_limit_rel sein');
 CC_ext_orig = CC_ext;
 % Begrenze die Farbwerte (siehe oben, Beschreibung von colorlimit)
@@ -155,7 +156,8 @@ if Structure.Type == 0 % Seriell
 else % Parallel
   critnames = {'qlim_quad', 'qlim_hyp', 'cond_ik', 'cond_pkm', 'coll_hyp', 'installspace', 'coll_quad'};
 end
-assert(length(critnames)==length(s.wn), 'Anzahl der Kriterien unerwartet');
+assert(length(critnames)==length(s.wn), sprintf(['Anzahl der Kriterien ', ...
+  'unerwartet (ist %d, soll %d)'], length(s.wn), length(critnames)));
 wnstr = '';
 for i = 1:length(s.wn)
   if s.wn(i)
@@ -167,7 +169,8 @@ if isempty(wnstr)
   wnstr = 'wn=0. Plot: cond(J)';
 end
 if plot_cond
-  wnstr = 'h=0. Plot: cond(J)';
+  if ~isempty(wnstr), wnstr=[wnstr,'; ']; end
+  wnstr = [wnstr, 'h=0. Plot: cond(J)'];
 end
 titlestr = sprintf('It. %d, fval=%1.1e; %s; %s', s.i_ar, s.fval, wnstr, s.constrvioltext);
 sgtitle(titlestr, 'interpreter', 'none');
@@ -194,35 +197,32 @@ if Structure.Type == 0 % Seriell
 else % Parallel (PKM)
   idxshift = 1;
 end
-formats = {'cx', 'r*', 'co', 'cv'};
+formats = {'kx', 'r*', 'co', 'gv'};
 legtxt = {'Traj', ... % Legendeneintrag für die T. in hdl(1)
   'Joint Lim', 'Singularity', 'Collision', 'Install. Space'};
 for i = 1:4
-  % Nur einzeichnen, falls in Farbskala integriert
   % Bestimme Indizes für bestimmte Sonderfälle, wie Gelenküberschreitung,
   % Singularität, Kollision, Bauraumverletzung.
   % Mit den Farben sind diese Bereiche nicht eindeutig zu kennzeichnen, da
   % immer die summierte Zielfunktion gezeichnet wird
+  % Zeichne auch ein, wenn die Nebenbedingungen in der Farbskala gar nicht
+  % vorkommen. Sonst schlechter vorhersehbar, warum Traj. im nächsten Schritt fehlschlägt.
   switch i
     case 1
       I = isinf(H_all(:,:,2)'); % Gelenkgrenzen
-      if ~wn_plot(2), continue; end
     case 2
       I = H_all(:,:,3+idxshift)' > 1e3; % Kondition
-      if ~wn_plot(3+idxshift), continue; end
     case 3
       I = isinf(H_all(:,:,4+idxshift)'); % Kollision
-      if ~wn_plot(4+idxshift), continue; end
     case 4
       I = isinf(H_all(:,:,5+idxshift)'); % Bauraum
-      if ~wn_plot(5+idxshift), continue; end
   end
   if ~any(I(:))
     continue
   end
   x_i = X_ext(I);
   y_i = Y_ext(I);
-  hdl(1+i) = plot(x_i(:), y_i(:), formats{i}, 'MarkerSize', 4);
+  hdl(1+i) = plot(x_i(:), y_i(:), formats{i}, 'MarkerSize', 3);
 end
 I_hdl = ~isnan(hdl);
 
@@ -264,16 +264,16 @@ drawnow();
 [~,~,~,resdir] = cds_get_new_figure_filenumber(Set, Structure, '');
 for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
   if strcmp(fileext{1}, 'fig')
-    saveas(fighdl, fullfile(resdir, sprintf('%s_TaskRed_Traj%d_PerfMap.fig', ...
-      s.name_prefix_ardbg, s.i_ar)));
+    saveas(fighdl, fullfile(resdir, sprintf('%s_TaskRed_Traj%d_Fig%d_PerfMap.fig', ...
+      s.name_prefix_ardbg, s.i_ar, s.i_fig)));
   else
-    export_fig(fighdl, fullfile(resdir, sprintf('%s_TaskRed_Traj%d_PerfMap.%s', ...
-      s.name_prefix_ardbg, s.i_ar, fileext{1})));
+    export_fig(fighdl, fullfile(resdir, sprintf('%s_TaskRed_Traj%d_Fig%d_PerfMap.%s', ...
+      s.name_prefix_ardbg, s.i_ar, s.i_fig, fileext{1})));
   end
 end
 
 %% Bild mit Verlauf der Kriterien über die Trajektorie
-if all(isnan(phiz_traj))
+if all(isnan(phiz_traj)) || s.deactivate_time_figure
   return; % Nichts zu zeichnen
 end
 % Dient zum Abgleich der Redundanz-Karte mit der IK
@@ -281,8 +281,8 @@ end
 % von Fehlerhaften Daten für die Interp-Funktion
 [~,I] = unique(s_ref);
 h_interp = interp2(s_ref(I),180/pi*phiz_range_ext,CC_ext_orig(:,I),s_tref,phiz_traj);
-fighdl2 = change_current_figure(2410+s.i_ar);clf;hold on;
-set(fighdl2, 'Name', sprintf('PerfValues_Iter%d', s.i_ar), 'NumberTitle', 'off');
+fighdl2 = change_current_figure(2500+10*s.i_ar+s.i_fig);clf;hold on;
+set(fighdl2, 'Name', sprintf('PerfValues_Iter%d_Fig%d', s.i_ar, s.i_fig), 'NumberTitle', 'off');
 plot(s_tref, h_traj);
 plot(s_tref, h_interp);
 xlabel('Normalized trajectory progress s (per point of support)', 'interpreter', 'none');
@@ -295,11 +295,11 @@ sgtitle(titlestr, 'interpreter', 'none');
 % Zweites Bild speichern
 for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
   if strcmp(fileext{1}, 'fig')
-    saveas(fighdl2, fullfile(resdir, sprintf('%s_TaskRed_Traj%d_PerfValues.fig', ...
-      s.name_prefix_ardbg, s.i_ar)));
+    saveas(fighdl2, fullfile(resdir, sprintf('%s_TaskRed_Traj%d_Fig%d_PerfValues.fig', ...
+      s.name_prefix_ardbg, s.i_ar, s.i_fig)));
   else
-    export_fig(fighdl2, fullfile(resdir, sprintf('%s_TaskRed_Traj%d_PerfValues.%s', ...
-      s.name_prefix_ardbg, s.i_ar, fileext{1})));
+    export_fig(fighdl2, fullfile(resdir, sprintf('%s_TaskRed_Traj%d_Fig%d_PerfValues.%s', ...
+      s.name_prefix_ardbg, s.i_ar, s.i_fig, fileext{1})));
   end
 end
 

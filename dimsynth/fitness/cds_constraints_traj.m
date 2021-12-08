@@ -109,6 +109,18 @@ if i_ar > 1 && task_red && Set.general.debug_taskred_perfmap
     save(fullfile(resdir,sprintf('%s_%s.mat', name_prefix_ardbg, suffix)), ...
       'Structure', 'H_all', 's_ref', 's_tref', 'phiz_range', 'i_ar', 'q', ...
       'nt_red');
+    % Redundanzkarte für jedes Zielkriterium zeichnen (zur Einschätzung)
+    wn_test = zeros(6+double(R.Type==2),1);
+    for ll = 1:length(wn_test)+1 % letzter Durchlauf nur Konditionszahl zeichnen
+      wn_test(:) = 0;
+      if ll <= length(wn_test)
+        wn_test(ll) = 1;
+      end
+      cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref(1:nt_red), ...
+        phiz_range, X2(1:nt_red,6), Stats.h(1:nt_red,1), struct('wn', wn_test, ...
+        'i_ar', i_ar-1, 'i_fig', ll, 'name_prefix_ardbg', name_prefix_ardbg, 'fval', fval, ...
+        'constrvioltext', constrvioltext, 'deactivate_time_figure', true));
+    end
   end
   if R.Type == 0
     % Reihenfolge: quadratischer Grenzabstand, hyperbolischer Grenzabstand,
