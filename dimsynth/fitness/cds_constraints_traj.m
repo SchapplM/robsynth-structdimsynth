@@ -110,7 +110,7 @@ if i_ar > 1 && task_red && Set.general.debug_taskred_perfmap
       'Structure', 'H_all', 's_ref', 's_tref', 'phiz_range', 'i_ar', 'q', ...
       'nt_red');
     % Redundanzkarte für jedes Zielkriterium zeichnen (zur Einschätzung)
-    wn_test = zeros(6+double(R.Type==2),1);
+    wn_test = zeros(8+double(R.Type==2),1);
     for ll = 1:length(wn_test)+1 % letzter Durchlauf nur Konditionszahl zeichnen
       wn_test(:) = 0;
       if ll <= length(wn_test)
@@ -119,15 +119,16 @@ if i_ar > 1 && task_red && Set.general.debug_taskred_perfmap
       cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref(1:nt_red), ...
         phiz_range, X2(1:nt_red,6), Stats.h(1:nt_red,1), struct('wn', wn_test, ...
         'i_ar', i_ar-1, 'i_fig', ll, 'name_prefix_ardbg', name_prefix_ardbg, 'fval', fval, ...
-        'constrvioltext', constrvioltext, 'deactivate_time_figure', true));
+        'constrvioltext', constrvioltext, 'deactivate_time_figure', true, ...
+        'ignore_h0', true));
     end
   end
   if R.Type == 0
     % Reihenfolge: quadratischer Grenzabstand, hyperbolischer Grenzabstand,
     % Konditionszahl Jacobi, Kollision (hyp.), Bauraum, Kollision (quadr.)
-    I_wn_traj = [1 2 5 9 11, 18];
+    I_wn_traj = [1 2 5 9 11, 13, 15, 18];
   else
-    I_wn_traj = [1 2 5 6 11 13, 20];
+    I_wn_traj = [1 2 5 6 11 13, 15, 17, 20];
   end
   save(fullfile(resdir,sprintf('%s_TaskRed_Traj%d.mat', name_prefix_ardbg, i_ar-1)), ...
     'X2', 'Q', 'i_ar', 'q', 'Stats', 'fval', 's');
