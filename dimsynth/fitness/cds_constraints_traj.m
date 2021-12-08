@@ -156,16 +156,19 @@ else % PKM
   s.debug = Set.general.debug_calc;
 end
 % Benutze eine Singularitätsvermeidung, die nur in der Nähe von
-% Singularitäten aktiv ist. Schwellwert Kondition >500. Wenn die Kondition
-% wesentlich schlechter wird, wird der Roboter am Ende sowieso verworfen. Also
-% nicht so schlimm, falls diese Parameter zu Instabilität führen
-cond_thresh_jac = 250;
-cond_thresh_ikjac = 500;
+% Singularitäten aktiv ist. Wenn die Kondition wesentlich schlechter wird,
+% wird der Roboter am Ende sowieso verworfen. Also nicht so schlimm, falls
+% diese Parameter zu Instabilität führen.
+% Die Nullraumbewegung fängt sehr langsam bei Überschreiten der Schwelle
+% an. Daher Schwellwert niedriger setzen als die Grenze zur Singularität.
+% Daher auch kleinere Schwellwerte als in cds_constraints.
+cond_thresh_jac = 100;
+cond_thresh_ikjac = 250;
 if Set.optimization.constraint_obj(4) ~= 0 % Grenze für Jacobi-Matrix für Abbruch
   if R.Type == 0 % Seriell: IK-Jacobi ungefähr wie analytische Jacobi
-    cond_thresh_ikjac = Set.optimization.constraint_obj(4);
+    cond_thresh_ikjac = Set.optimization.constraint_obj(4)/4;
   else % PKM: Gemeint ist die Jacobi bzgl. Antriebe (nicht: IK-Jacobi)
-    cond_thresh_jac = Set.optimization.constraint_obj(4);
+    cond_thresh_jac = Set.optimization.constraint_obj(4)/4;
   end
 end
 if R.Type == 2 % PKM
