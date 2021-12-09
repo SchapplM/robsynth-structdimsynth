@@ -59,6 +59,7 @@ s = struct( ...
   'i_ar', 0, ... % Iteration der Aufgabenredundanz-Schleife
   'i_fig', 0, ... % Index von möglichen Bildern für Trajektorie
   'deactivate_time_figure', false, ... % Deaktiviere das zweite Bild
+  'logscale', false, ...
   'ignore_h0', true, ... % Breche ab, wenn gesuchte Kriterien alle Null sind
   'wn', NaN); % Standard-Werte
 if nargin == 9
@@ -96,7 +97,7 @@ for i = 1:length(wn_plot)
   if wn_plot(i) == 0, continue; end
   CC_ext = CC_ext + wn_plot(i) * H_all(:,:,i)';
 end
-if s.ignore_h0 && all(CC_ext(:)==0 | isnan(CC_ext(:)))
+if s.ignore_h0 && all(CC_ext(:)==0 | isnan(CC_ext(:)) | CC_ext(:)==CC_ext(1))
   % Das zu zeichnende Bild enthält keine Informationen
   return
 end
@@ -131,14 +132,23 @@ CC_ext_orig = CC_ext;
 % Begrenze die Farbwerte (siehe oben, Beschreibung von colorlimit)
 I_colorlim = CC_ext>=colorlimit_rel;
 CC_ext(I_colorlim) = colorlimit_rel;
+
 % Sättige Werte oberhalb des Schwellwertes. Dadurch mehr Farben in Skala
 % für unteren Bereich mit guten Konditionszahlen
-I_exc = CC_ext >= condsat_limit_rel;
-CC_ext(I_exc) = condsat_limit_rel+10*log10(CC_ext(I_exc)/condsat_limit_rel);
-
+if ~s.logscale
+  I_exc = CC_ext >= condsat_limit_rel;
+  CC_ext(I_exc) = condsat_limit_rel+10*log10(CC_ext(I_exc)/condsat_limit_rel);
+else
+  I_exc = false(size(CC_ext));
+end
 %% Bild erstellen
-fighdl = change_current_figure(2400+10*s.i_ar+s.i_fig);clf;hold on;
-set(fighdl, 'Name', sprintf('PerfMap_Iter%d_Fig%d', s.i_ar, s.i_fig), 'NumberTitle', 'off');
+if s.logscale
+  logscalesuffix = '_log';
+else
+  logscalesuffix = '';
+end
+fighdl = change_current_figure(2400+3*s.i_ar+s.i_fig+1e3*double(s.logscale));clf;hold on;
+set(fighdl, 'Name', sprintf('PerfMap_Iter%d_Fig%d%s', s.i_ar, s.i_fig, logscalesuffix), 'NumberTitle', 'off');
 % Create color plot
 surf(X_ext,Y_ext,Z_ext,CC_ext, 'EdgeColor', 'none');
 xlabel('Normalized trajectory progress s (per point of support)', 'interpreter', 'none');
@@ -158,6 +168,9 @@ if any(I_colorlim(:))
   colors_map = [colors_map; repmat([255 0 255]/255, numcolors_sat,1)];
 end
 colormap(colors_map); % Farbskalierung mit Magenta als Farbe aktualisieren
+if s.logscale
+  set(gca,'ColorScale','log')
+end
 % Titel eintragen
 critnames = {'qlim_quad', 'qlim_hyp'};
 if Structure.Type == 0 % Seriell
@@ -165,7 +178,8 @@ if Structure.Type == 0 % Seriell
 else % Parallel
   critnames = [critnames(:)', {'cond_ik', 'cond_pkm'}];
 end
-critnames = [critnames(:)', {'coll_hyp', 'installspace', 'xlim_quad', 'xlim_hyp', 'coll_quad'}];
+critnames = [critnames(:)', {'coll_hyp', 'installspace', 'xlim_quad', ...
+  'xlim_hyp', 'coll_quad', 'coll_phys', 'instspc_phys', 'cond_ik_phys', 'cond_phys'}];
 assert(length(critnames)==length(s.wn), sprintf(['Anzahl der Kriterien ', ...
   'unerwartet (ist %d, soll %d)'], length(s.wn), length(critnames)));
 wnstr = '';
@@ -282,11 +296,11 @@ drawnow();
 [~,~,~,resdir] = cds_get_new_figure_filenumber(Set, Structure, '');
 for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
   if strcmp(fileext{1}, 'fig')
-    saveas(fighdl, fullfile(resdir, sprintf('%s_TaskRed_Traj%d_Fig%d_PerfMap.fig', ...
-      s.name_prefix_ardbg, s.i_ar, s.i_fig)));
+    saveas(fighdl, fullfile(resdir, sprintf('%s_TaskRed_Traj%d_Fig%d%s_PerfMap.fig', ...
+      s.name_prefix_ardbg, s.i_ar, s.i_fig, logscalesuffix)));
   else
-    export_fig(fighdl, fullfile(resdir, sprintf('%s_TaskRed_Traj%d_Fig%d_PerfMap.%s', ...
-      s.name_prefix_ardbg, s.i_ar, s.i_fig, fileext{1})));
+    export_fig(fighdl, fullfile(resdir, sprintf('%s_TaskRed_Traj%d_Fig%d%s_PerfMap.%s', ...
+      s.name_prefix_ardbg, s.i_ar, s.i_fig, logscalesuffix, fileext{1})));
   end
 end
 
@@ -299,8 +313,8 @@ end
 % von Fehlerhaften Daten für die Interp-Funktion
 [~,I] = unique(s_ref);
 h_interp = interp2(s_ref(I),180/pi*phiz_range_ext,CC_ext_orig(:,I),s_tref,phiz_traj);
-fighdl2 = change_current_figure(2500+10*s.i_ar+s.i_fig);clf;hold on;
-set(fighdl2, 'Name', sprintf('PerfValues_Iter%d_Fig%d', s.i_ar, s.i_fig), 'NumberTitle', 'off');
+fighdl2 = change_current_figure(2500+30*s.i_ar+s.i_fig+1e3*double(s.logscale));clf;hold on;
+set(fighdl2, 'Name', sprintf('PerfValues_Iter%d_Fig%d%s', s.i_ar, s.i_fig, logscalesuffix), 'NumberTitle', 'off');
 plot(s_tref, h_traj);
 plot(s_tref, h_interp);
 xlabel('Normalized trajectory progress s (per point of support)', 'interpreter', 'none');
@@ -313,11 +327,11 @@ sgtitle(titlestr, 'interpreter', 'none');
 % Zweites Bild speichern
 for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
   if strcmp(fileext{1}, 'fig')
-    saveas(fighdl2, fullfile(resdir, sprintf('%s_TaskRed_Traj%d_Fig%d_PerfValues.fig', ...
-      s.name_prefix_ardbg, s.i_ar, s.i_fig)));
+    saveas(fighdl2, fullfile(resdir, sprintf('%s_TaskRed_Traj%d_Fig%d%s_PerfValues.fig', ...
+      s.name_prefix_ardbg, s.i_ar, s.i_fig, logscalesuffix)));
   else
-    export_fig(fighdl2, fullfile(resdir, sprintf('%s_TaskRed_Traj%d_Fig%d_PerfValues.%s', ...
-      s.name_prefix_ardbg, s.i_ar, s.i_fig, fileext{1})));
+    export_fig(fighdl2, fullfile(resdir, sprintf('%s_TaskRed_Traj%d_Fig%d%s_PerfValues.%s', ...
+      s.name_prefix_ardbg, s.i_ar, s.i_fig, logscalesuffix, fileext{1})));
   end
 end
 

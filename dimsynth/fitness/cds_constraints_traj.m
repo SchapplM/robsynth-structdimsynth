@@ -111,23 +111,38 @@ if i_ar > 1 && task_red && Set.general.debug_taskred_perfmap
       'nt_red');
     % Redundanzkarte für jedes Zielkriterium zeichnen (zur Einschätzung)
     wn_test = zeros(8+double(R.Type==2),1);
-    for ll = 1:length(wn_test)+1 % letzter Durchlauf nur Konditionszahl zeichnen
-      wn_test(:) = 0;
+    wn_phys = zeros(4,1);
+    for ll = 1:length(wn_test)+4 % letzter Durchlauf nur Konditionszahl zeichnen
+      wn_test(:) = 0; wn_phys(:) = 0;
       if ll <= length(wn_test)
         wn_test(ll) = 1;
+      else
+        wn_phys(ll-length(wn_test)) = 1;
       end
-      cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref(1:nt_red), ...
-        phiz_range, X2(1:nt_red,6), Stats.h(1:nt_red,1), struct('wn', wn_test, ...
-        'i_ar', i_ar-1, 'i_fig', ll, 'name_prefix_ardbg', name_prefix_ardbg, 'fval', fval, ...
-        'constrvioltext', constrvioltext, 'deactivate_time_figure', true, ...
-        'ignore_h0', true));
+      for ls = [false, true] % Skalierung des Bildes: Linear und Logarithmisch
+        % Wähle Kriterien, die als Nebenbedigung gegen unendlich gehen.
+        if R.Type == 0 % hyp. qlim, Jacobi, Koll., Bauraum, hyp. xlim
+          I_nbkrit = [2 3 4 5 7];
+        else % hyp. qlim, IK-Jacobi, PKM-Jacobi, Koll., Bauraum, hyp. xlim
+          I_nbkrit = [2 3 4 5 6 8];
+        end
+        if ls && ~any(wn_test(I_nbkrit))
+          continue % kein hyperbolisches Kriterium. Log-Skalierung nicht sinnvoll.
+        end
+        cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref(1:nt_red), ...
+          phiz_range, X2(1:nt_red,6), Stats.h(1:nt_red,1), struct('wn', [wn_test;wn_phys], ...
+          'i_ar', i_ar-1, 'i_fig', ll, 'name_prefix_ardbg', name_prefix_ardbg, 'fval', fval, ...
+          'constrvioltext', constrvioltext, 'deactivate_time_figure', true, ...
+          'ignore_h0', true, 'logscale', ls));
+      end
     end
   end
   if R.Type == 0
     % Reihenfolge: quadratischer Grenzabstand, hyperbolischer Grenzabstand,
-    % Konditionszahl Jacobi, Kollision (hyp.), Bauraum, Kollision (quadr.)
+    % Konditionszahl Jacobi, Kollision (hyp.), Bauraum, xlim (quadr.), xlim
+    % (hyp.), Kollision (quadr.)
     I_wn_traj = [1 2 5 9 11, 13, 15, 18];
-  else
+  else % gleiche Reihenfolge, mit IK-Jacobi (5) vor Jacobi (6)
     I_wn_traj = [1 2 5 6 11 13, 15, 17, 20];
   end
   save(fullfile(resdir,sprintf('%s_TaskRed_Traj%d.mat', name_prefix_ardbg, i_ar-1)), ...
