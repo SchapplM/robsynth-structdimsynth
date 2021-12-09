@@ -1,7 +1,17 @@
 % Der Inhalt dieser Datei wird vorne an Matlab-Skripte angehängt, die für das Rechen-Cluster
 % erzeugt werden. Diese Datei muss ohne die Endung .template am selben Ort liegen.
-run('/bigwork/nhkbscha/REPO/scripts/startup_cluster.m'); % TODO: Pfad-Initialisierung an tatsächlichen Namen anpassen
+% Vor Benutzung:
+% * Pfad-Initialisierung an tatsächlichen Namen anpassen (Pfad /bigwork/nhkbscha)
+
+% Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-07
+% (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
+
+run('/bigwork/nhkbscha/REPO/scripts/startup_cluster.m');
 
 % Beim Start von Matlab ist der RNG immer auf denselben Wert initialisiert.
 % Zufällige Neu-Initialisierung, damit Zufallszahlen in Parallel-Instanzen nicht identisch sind.
 rng('shuffle');
+
+% Warnungen bei Speicherung von PNG-Bildern unterdrücken. Siehe
+% https://github.com/altmany/export_fig/issues/75
+warning('off','MATLAB:prnRenderer:opengl');

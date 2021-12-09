@@ -1,7 +1,13 @@
 % Der Inhalt dieser Datei wird vorne an Matlab-Skripte angehängt, die für das Rechen-Cluster
 % erzeugt werden. Diese Datei muss ohne die Endung .template am selben Ort liegen.
-% TODO: Pfade an tatsächliche Namen anpassen
+% Vor Benutzung:
+% * Pfad-Initialisierung an tatsächlichen Namen anpassen (Pfad /bigwork/nhkbscha)
+
+% Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-07
+% (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
+
 run('/bigwork/nhkbscha/REPO/scripts/startup_cluster.m');
+
 % Kopiere die PKM-Datenbank in den TMP-Ordner. Dadurch wird in der Struktur-
 % synthese Schreibkonflikten vorgebeugt. Die Ergebnisse müssen dann nach-
 % träglich im Offline-Modus lokal in die PKM-Datenbank eingefügt werden.
@@ -19,10 +25,16 @@ tmpdirpath=tmpdirpath(1:end-1); % Zeilenumbruch entfernen
 run(fullfile(tmpdirpath, 'parrob_mdlbib', 'parroblib_path_init.m'));
 % Struktursynthese-Hauptordner hinzufügen
 addpath(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'struktsynth_par'));
+
 % ParPool starten (mit Synchronisation gegen Schreibkonflikte)
 parpool_writelock('lock', 180, true);
 parpool();
 parpool_writelock('free', 0, true);
+
 % Beim Start von Matlab ist der RNG immer auf denselben Wert initialisiert.
 % Zufällige Neu-Initialisierung, damit Zufallszahlen in Parallel-Instanzen nicht identisch sind.
 rng('shuffle');
+
+% Warnungen bei Speicherung von PNG-Bildern unterdrücken. Siehe
+% https://github.com/altmany/export_fig/issues/75
+warning('off','MATLAB:prnRenderer:opengl');
