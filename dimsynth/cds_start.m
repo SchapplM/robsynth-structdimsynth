@@ -149,6 +149,9 @@ if Set.general.save_evolution_video
     Set.general.plot_robot_in_fitness = 1e3;
   end
 end
+if isnan(Set.general.cluster_maxrobotspernode)
+  Set.general.cluster_maxrobotspernode = Set.general.computing_cluster_cores;
+end
 %% Menge der Roboter laden
 if ~(Set.general.only_finish_aborted && Set.general.isoncluster) && ... % Abschluss auf Cluster
     ~Set.general.regenerate_summary_only || ... % Nur Bilder (ohne Abschluss)
