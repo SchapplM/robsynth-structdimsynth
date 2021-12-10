@@ -61,7 +61,12 @@ general = struct( ...
   'computing_cluster_cores', 16, ... % Anzahl der benutzten Kerne  pro Node auf dem Cluster (16 ist vergleichsweise flexibel)
   'computing_cluster_max_time', NaN, ... % maximale Rechenzeit pro Roboter (in Sekunden). Bedingt voll-parallele Berechnung
   'isoncluster', false, ... % Merker, ob gerade auf dem Cluster gerechnet wird. Dann sind einige Bilder und Debug-Auswertungen unnötig.
-  'cluster_maxrobotspernode', inf, ... % Unbegrenzte Anzahl von Robotern auf jeder Cluster-Node. Niedrigere Zahl dient zur stärkeren Parallelisierung. Bei "inf" nur eine Cluster-Node.
+  ... % Unbegrenzte Anzahl von Robotern auf jeder Cluster-Node. Niedrigere 
+  ... % Zahl dient zur stärkeren Parallelisierung. Bei "inf" nur eine 
+  ... % Cluster-Node. Bei NaN wird der Wert aus computing_cluster_cores 
+  ... % benutzt. Das ist die sinnvollste Einstellung, wenn das Ergebnis 
+  ... % schnellstmöglich fertig werden soll.
+  'cluster_maxrobotspernode', NaN, ... 
   'cluster_dependjobs', [], ... % Liste von Job-IDs, die zuerst fertig werden sollen (mit i.O.-Ergebnis)
   ... % Optionen zur Benutzung kompilierter Funktionen
   'compile_missing_functions', true, ... % Bei Start alle mex-Funktionen kompilieren

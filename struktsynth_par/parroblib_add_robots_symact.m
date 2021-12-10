@@ -514,6 +514,10 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     else % Lokal immer volle Ausgabe, da meistens zum Debugging benutzt
       Set.general.verbosity = 3;
     end
+    % Auf dem Cluster alle Roboter in einem Job (auf einer Node)
+    % simulieren. Die Ergebnisse werden teilweise schnell fertig. Ein
+    % Roboter pro Node wäre unwirtschaftlich.
+    Set.general.cluster_maxrobotspernode = inf;
     % Erhöhe Grenzen für maximale Geschwindigkeiten. Für Erfolg der Struktur-
     % synthese zählt eher die Plausibilität (Sprünge, Singularitäten) als
     % die technische Umsetzbarkeit für die Beispiel-Trajektorie
