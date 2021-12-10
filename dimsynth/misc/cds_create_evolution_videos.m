@@ -14,11 +14,21 @@ if ~Set.general.save_evolution_video
 end
 
 resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
+length_Structures_parfor = length(Structures);
+if Set.general.parcomp_plot && length_Structures_parfor > 0
+  % Gehe davon aus, dass der parfor-Pool bereits läuft.
+  Pool = gcp();
+  parfor_numworkers = Pool.NumWorkers;
+  % Warnungen auch in ParPool-Workern unterdrücken: https://github.com/altmany/export_fig/issues/75
+  parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:prnRenderer:opengl');
+else
+  parfor_numworkers = 0;
+end
 
-for j = 1:length(Structures)
-  if Set.general.matfile_verbosity > 1
-    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_create_evolution_videos2.mat'));
-  end
+parfor (j = 1:length_Structures_parfor, parfor_numworkers)
+%   if Set.general.matfile_verbosity > 1
+%     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_create_evolution_videos2.mat'));
+%   end
   %% Initialisierung der Ergebnisse dieser Struktur
   % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_create_evolution_videos2.mat'));
   Structure = Structures{j};
@@ -67,9 +77,9 @@ for j = 1:length(Structures)
       res_1 = size(f.cdata);
     else
       if any(size(f.cdata)~=res_1)
-        if Set.general.matfile_verbosity > 1
-          save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_create_evolution_videos3.mat'));
-        end
+%         if Set.general.matfile_verbosity > 1
+%           save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_create_evolution_videos3.mat'));
+%         end
         warning('Auflösung des aktuellen Bildes (%d x %d) stimmt nicht mit der des ersten Bildes (%d x %d)', ...
           size(f.cdata,1), size(f.cdata,2), res_1(1), res_1(2));
         % Prüfe, ob das Video noch zu retten ist. Wenn nicht. Video bis
@@ -84,7 +94,7 @@ for j = 1:length(Structures)
     end
     % Einzelbild so oft wiederholt ins Video hineinschreiben, dass die
     % gewünschte Anzeigedauer entsteht. Annahme: Video hat 30fps
-    for k = 1:ceil(Set.general.evolution_video_frametime/(1/30))
+    for k = 1:ceil(Set.general.evolution_video_frametime/(1/30)) %#ok<PFBNS>
       writeVideo(v,f);
     end
     close(gcf);
