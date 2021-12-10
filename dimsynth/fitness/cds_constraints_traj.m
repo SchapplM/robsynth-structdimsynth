@@ -13,6 +13,8 @@
 %   Einstellungen des Optimierungsalgorithmus (aus cds_settings_defaults.m)
 % Structure
 %   Eigenschaften der Roboterstruktur (aus cds_gen_robot_list.m)
+% Stats_constraints
+%   Zusätzliche Eigenschaften der Anfangswerte aus cds_constraints.
 % 
 % Ausgabe:
 % fval
@@ -50,7 +52,8 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function [fval,Q,QD,QDD,Jinv_ges,JP,constrvioltext] = cds_constraints_traj(R, Traj_0, q, Set, Structure)
+function [fval,Q,QD,QDD,Jinv_ges,JP,constrvioltext] = cds_constraints_traj( ...
+  R, Traj_0, q, Set, Structure, Stats_constraints)
 % Debug
 % save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_0.mat'));
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_0.mat'));
@@ -198,6 +201,20 @@ else % PKM
   s.wn(9) = 0.1; % D-Anteil Konditionszahl (IK-Jacobi)
   s.wn(6) = 1; % P-Anteil Konditionszahl (PKM-Jacobi)
   s.wn(10) = 0.1; % D-Anteil Konditionszahl (PKM-Jacobi)
+end
+
+% Stelle Schwellwerte zur Aktivierung der Kollisions- und Bauraumeinhaltung
+% fest. Benutze die Werte, die in der Eckpunkt-IK gefunden wurden
+if nargin >= 6
+  % Die Kriterien werden aktiviert, wenn der beste Wert um 30%
+  % verschlechtert wird. Dann ist das Kriterium im besten Fall nicht aktiv
+  % und führt zu Schwingungen der IK.
+  s.installspace_thresh = 0.7*min(Stats_constraints.bestinstspcdist(:));
+  % Ausgegebene Kollisionsabstände sind negativ, wenn es keine Koll. gibt.
+  s.collision_thresh = -0.7*min(Stats_constraints.bestcolldist(:));
+  if s.collision_thresh <= 0
+    s.collision_thresh = NaN;
+  end
 end
   
 % Zusätzliche Optimierung für Aufgabenredundanz.

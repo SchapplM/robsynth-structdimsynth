@@ -112,7 +112,7 @@ cds_update_robot_parameters(R, Set, Structure, p);
 Traj_0 = cds_transform_traj(R, Traj_W);
 
 %% Nebenbedingungen prüfen (für Eckpunkte)
-[fval_constr,QE_iIKC, Q0, constrvioltext] = cds_constraints(R, Traj_0, Set, Structure);
+[fval_constr,QE_iIKC, Q0, constrvioltext, Stats_constraints] = cds_constraints(R, Traj_0, Set, Structure);
 % Füge weitere Anfangswerte für die Trajektorien-IK hinzu. Diese werden
 % zusätzlich vorgegeben (bspw. aus vorherigem Ergebnis, das reproduziert
 % werden muss). Wird genutzt, falls aus numerischen Gründen die Einzelpunkt-
@@ -233,7 +233,7 @@ for iIKC = 1:size(Q0,1)
     Structure.config_index = iIKC;
     Structure.config_number = size(Q0,1);
     [fval_trajconstr,Q,QD,QDD,Jinv_ges,JP,constrvioltext_IKC{iIKC}] = cds_constraints_traj( ...
-      R, Traj_0, Q0(iIKC,:)', Set, Structure);
+      R, Traj_0, Q0(iIKC,:)', Set, Structure, Stats_constraints);
     % NB-Verletzung in Traj.-IK wird in Ausgabe mit Werten von 1e3 aufwärts
     % angegeben. Umwandlung in Werte von 1e7 aufwärts.
     % Ursache: Nachträgliches Einfügen von weiteren Nebenbedingungen.

@@ -37,11 +37,15 @@
 % constrvioltext [char]
 %   Text mit Zusatzinformationen, die beim Aufruf der Fitness-Funktion
 %   ausgegeben werden
+% Stats (struct)
+%   Zusätzliche Informationen zu den einzelnen Werten aus Q0. Felder:
+%   .bestcolldist: Bestmöglicher Kollisionsabstand
+%   .bestinstspcdist: Bestmöglicher Abstand zum Bauraum
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function [fval,QE_all,Q0,constrvioltext] = cds_constraints(R, Traj_0, Set, Structure)
+function [fval,QE_all,Q0,constrvioltext,Stats] = cds_constraints(R, Traj_0, Set, Structure)
 Q0 = NaN(1,R.NJ);
 QE_all = Q0;
 %% Geometrie auf Plausibilität prüfen (1)
@@ -164,6 +168,8 @@ n_jic = 30;
 fval_jic = NaN(1,n_jic);
 calctimes_jic = NaN(2,n_jic);
 constrvioltext_jic = cell(n_jic,1);
+bestcolldist_jic = NaN(1,n_jic);
+bestinstspcdist_jic = NaN(1,n_jic);
 % IK-Statistik (für Aufgabenredundanz). Absolute Verbesserung von
 % Zielkriterien gegenüber der nicht-redundanten Kinematik
 arikstats_jic = NaN(size(Traj_0.XE,1),n_jic);
@@ -506,6 +512,11 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       else
         [q, Phi, Tc_stack, Stats] = R.invkin4(Traj_0.XE(i,:)', q0_arik, s4);
       end
+      % Trage die Kollisionsabstände für den Startwert ein (entspricht
+      % Ergebnis der normalen IK von oben. Dort werden die Kennzahlen nicht
+      % berechnet). Annahme: Die IK in der ersten Iteration ist i.O.
+      bestcolldist_jic(jic) = min([bestcolldist_jic(jic);Stats.maxcolldepth(1)]);
+      bestinstspcdist_jic(jic) = min([bestinstspcdist_jic(jic);Stats.instspc_mindst(1)]);
       % Benutze nicht die sehr strenge Grenze von Phit_tol von oben, da aus
       % numerischen Gründen diese teilweise nicht erreicht werden kann
       ik_res_ikar = all(abs(Phi) < 1e-6);
@@ -684,6 +695,13 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       % Neue Werte aus der IK wurden nicht verworfen. Schreibe Konditionszahl
       % (erster Eintrag ist IK-Jacobi für Gesamt-PKM)
       condJik(i,:) = Stats.condJ(1+Stats.iter,1);
+      % Merke besten Kollisions- und Bauraumabstand. Damit Bestimmung von
+      % Schwellwerten für die Trajektorien-Nebenbedingungen.
+      if R.Type == 0, I_constr_red = [1 2 3 5 6];
+      else,           I_constr_red = R.I_constr_red; end
+      I_iO = all(abs(Stats.PHI(:,I_constr_red)) < 1e-6, 2);
+      bestcolldist_jic(jic) = min([bestcolldist_jic(jic);Stats.maxcolldepth(I_iO)]);
+      bestinstspcdist_jic(jic) = min([bestinstspcdist_jic(jic);Stats.instspc_mindst(I_iO)]);
     end
     % Normalisiere den Winkel. Bei manchen Robotern springt das IK-Ergebnis
     % sehr stark. Dadurch wird die Gelenkspannweite sonst immer verletzt.
@@ -993,6 +1011,8 @@ I_iO = find(fval_jic == 1e3);
 if ~any(I_iO) % keine gültige Lösung für Eckpunkte
   Q0 = Q_jic(1,:,jic_best); % Gebe nur eine einzige Konfiguration aus
   QE_all = Q_jic(:,:,jic_best);
+  bestcolldist_jic = bestcolldist_jic(jic_best);
+  bestinstspcdist_jic = bestinstspcdist_jic(jic_best);
   % Wenn die IK nicht für alle Punkte erfolgreich war, wurde abgebrochen.
   % Dann stehen nur Nullen im Ergebnis. Schlecht zum Debuggen.
   if all(Q0==0)
@@ -1004,18 +1024,20 @@ if ~any(I_iO) % keine gültige Lösung für Eckpunkte
   end
 else % Gebe alle gültigen Lösungen aus
   Q0 = reshape(squeeze(Q_jic(1,:,I_iO)),R.NJ,length(I_iO))';
-  [Q0_unique] = unique(round(Q0,2), 'rows');
+  Q0_unique = unique(round(Q0,2), 'rows');
   if size(Q0_unique,1) ~= size(Q0,1)
     cds_log(-1, sprintf('[constraints] Doppelte Konfigurationen als Ergebnis. Darf nicht sein'));
   end
-
   % Prüfe, welche der IK-Konfigurationen andere Gelenk-Positionen zur Folge haben. Nur diese werden genommen.
   [~,I,~] = unique(round(JP_jic(I_iO,:),5), 'rows', 'first');
   % Reduziere die Ergebnisse. Damit werden IK-Konfigurationen verworfen,
   % die nur rechnerisch eine andere Koordinate haben, aber kein Umklappen
   % darstellen
   Q0 = Q0(I,:);
-  I_iO = I_iO(I);  
+  I_iO = I_iO(I);
+  bestcolldist_jic = bestcolldist_jic(I);
+  bestinstspcdist_jic = bestinstspcdist_jic(I);
+  
   % Ausgabe der IK-Werte für alle Eckpunkte. Im weiteren Verlauf der
   % Optimierung benötigt, falls keine Trajektorie berechnet wird.
   QE_all = Q_jic(:,:,I_iO);
@@ -1041,3 +1063,4 @@ else % Gebe alle gültigen Lösungen aus
     end
   end
 end
+Stats = struct('bestcolldist', bestcolldist_jic, 'bestinstspcdist', bestinstspcdist_jic);
