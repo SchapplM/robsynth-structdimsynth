@@ -23,17 +23,17 @@ for j = 1:length(Structures)
   % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_create_evolution_videos2.mat'));
   Structure = Structures{j};
   Name = Structures{j}.Name;
-  resdir_pso = fullfile(resmaindir, ...
-    'tmp', sprintf('%d_%s', Structure.Number, Structure.Name));
-  videofile_avi = fullfile(resmaindir, sprintf('Rob%d_%s_Evolution_Video.avi', ...
-    Structure.Number, Structure.Name));
+  resdir_pso = fullfile(resmaindir, 'tmp', sprintf('%d_%s', Structure.Number, Name));
+  RobPrefix = sprintf('Rob%d_%s', Structure.Number, Name);
+  videofile_avi = fullfile(resmaindir, RobPrefix, ...
+    sprintf('%s_Evolution_Video.avi', RobPrefix));
   
   fprintf('Erstelle Evolutions-Video für %s\n', Name);
   
   % Ergebnis-Bild für Video initialisieren
   figure(1);clf;
 
-  filedat_detailimg = dir(fullfile(resdir_pso, 'PSO_Gen*_FitEval*_Details.fig'));
+  filedat_detailimg = dir(fullfile(resdir_pso, 'Gen*_Ind*_Eval1_Details.fig'));
   if length(filedat_detailimg) < 10
     warning('Es liegen nur %d Detailbilder im fig-Format im Ordner %s. Video nicht sinnvoll', ...
       length(filedat_detailimg), resdir_pso);
@@ -50,6 +50,8 @@ for j = 1:length(Structures)
       i, length(filedat_detailimg), 100*i/length(filedat_detailimg), ...
       filedat_detailimg(i).name, toc(t1), toc(t1)/i*(length(filedat_detailimg)-i))
     uiopen(fullfile(filedat_detailimg(i).folder, filedat_detailimg(i).name),1)
+    [tokens_img,~] = regexp(filedat_detailimg(i).name,'Gen(\d+)_Ind(\d+)_Eval(\d+)','tokens','match');
+    title(sprintf('Gen %s, Ind %s', tokens_img{1}{1}, tokens_img{1}{2}));
     set(gcf, 'windowstyle', 'normal')
     set(gcf,'units','normalized','outerposition',[0 0 1 1]);
     set(gcf,'color','w');

@@ -140,6 +140,15 @@ if ~isempty(Traj.X) && any(abs(Traj.X(1,:)-Traj.XE(1,:))>1e-6)
     'Traj.X sein: [%s] vs [%s]'], disp_array(Traj.X(1,:), '%1.1f'), ...
     disp_array(Traj.XE(1,:), '%1.1f'));
 end
+if Set.general.save_evolution_video
+  % Für dieses Bild müssen Bilder des Roboters im Verlauf der Optimierung
+  % gespeichert werden
+  Set.general.save_robot_details_plot_fitness_file_extensions = unique( ...
+    [Set.general.save_robot_details_plot_fitness_file_extensions(:)', {'fig'}]);
+  if Set.general.plot_robot_in_fitness < 1e3
+    Set.general.plot_robot_in_fitness = 1e3;
+  end
+end
 %% Menge der Roboter laden
 if ~(Set.general.only_finish_aborted && Set.general.isoncluster) && ... % Abschluss auf Cluster
     ~Set.general.regenerate_summary_only || ... % Nur Bilder (ohne Abschluss)
@@ -437,9 +446,6 @@ end
 if Set.general.parcomp_struct && ... % Parallele Rechnung ist ausgewählt
     ~Set.general.regenerate_summary_only && ... % für Bildgenerierung ParComp nicht benötigt
     length(Structures) > 1 % für Optimierung eines Roboters keine parallele Rechnung
-  % Keine Bilder zeichnen
-  Set.general.plot_details_in_fitness = 0;
-  Set.general.plot_robot_in_fitness = 0;
   Set.general.noprogressfigure = true;
   % Keine (allgemeinen) mat-Dateien speichern
   Set.general.matfile_verbosity = 0;
