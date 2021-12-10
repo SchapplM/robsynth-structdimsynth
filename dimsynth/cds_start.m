@@ -549,28 +549,30 @@ if ~Set.general.regenerate_summary_only
     % funktioniert nicht aufgrund von Dateikonflikten, autom. Ordnerlöschung.
     if Set.general.create_template_functions
       fprintf('Erstelle kompilierbare Funktionsdateien aus Vorlagen für %d Roboter\n', length(Names));
-      III = 1:length(Names); % Zufällige Reihenfolge, damit besser parallelisierbar (Cluster)
-      III = III(randperm(length(III)));
-      for i = III
-        Structure_i = Structures_I{i};
-        if type == 0 % Serieller Roboter
-          serroblib_create_template_functions(Names(i), false, false);
-        else % PKM
-          % Zuerst Funktionen für serielle Beinketten neu generieren.
-          % Eine PKM-Funktion (Beinketten-IK) ist davon abhängig.
-          [~, LEG_Names] = parroblib_load_robot(Names{i}, 0);
-          serroblib_writelock('lock', 'template', 0, 5*60, false);
-          serroblib_create_template_functions(LEG_Names(1), false, false);
-          serroblib_writelock('free', 'template', 0, 5*60, false);
-          % Sperrschutz für PKM-Bibliothek (hauptsächlich für Struktursynthese)
-          parroblib_writelock('check', 'csv', Structure_i.DoF, 5*60, false);
-          % Die Vorlagen-Funktionen können nicht in Parallelinstanzen
-          % gleichzeitig erzeugt werden.
-          parroblib_writelock('lock', 'template', Structure_i.DoF, 5*60, false);
-          parroblib_create_template_functions(Names(i), false, false);
-          parroblib_writelock('free', 'template', Structure_i.DoF, 5*60, false);
-        end
-        continue
+      tplmode = false; % Erzeuge alle Dateien neu (auch wenn schon vorhanden)
+    else
+      tplmode = true; % Erzeuge nur fehlende Dateien neu (sonst später Fehler)
+    end
+    III = 1:length(Names); % Zufällige Reihenfolge, damit besser parallelisierbar (Cluster)
+    III = III(randperm(length(III)));
+    for i = III
+      Structure_i = Structures_I{i};
+      if type == 0 % Serieller Roboter
+        serroblib_create_template_functions(Names(i), tplmode, false);
+      else % PKM
+        % Zuerst Funktionen für serielle Beinketten neu generieren.
+        % Eine PKM-Funktion (Beinketten-IK) ist davon abhängig.
+        [~, LEG_Names] = parroblib_load_robot(Names{i}, 0);
+        serroblib_writelock('lock', 'template', 0, 5*60, false);
+        serroblib_create_template_functions(LEG_Names(1), tplmode, false);
+        serroblib_writelock('free', 'template', 0, 5*60, false);
+        % Sperrschutz für PKM-Bibliothek (hauptsächlich für Struktursynthese)
+        parroblib_writelock('check', 'csv', Structure_i.DoF, 5*60, false);
+        % Die Vorlagen-Funktionen können nicht in Parallelinstanzen
+        % gleichzeitig erzeugt werden.
+        parroblib_writelock('lock', 'template', Structure_i.DoF, 5*60, false);
+        parroblib_create_template_functions(Names(i), tplmode, false);
+        parroblib_writelock('free', 'template', Structure_i.DoF, 5*60, false);
       end
     end
     if Set.general.update_template_functions
