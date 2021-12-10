@@ -83,8 +83,11 @@ for j = 1:length(Structures)
         f.cdata = f.cdata(1:res_1(1), 1:res_1(2), :);
       end
     end
-    % Abschluss
-    writeVideo(v,f);
+    % Einzelbild so oft wiederholt ins Video hineinschreiben, dass die
+    % gewünschte Anzeigedauer entsteht. Annahme: Video hat 30fps
+    for k = 1:ceil(Set.general.evolution_video_frametime/(1/30))
+      writeVideo(v,f);
+    end
     close(gcf);
   end
   close(v);
