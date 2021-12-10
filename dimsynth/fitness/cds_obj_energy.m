@@ -72,9 +72,6 @@ if isnan(fval), fval = 1000-eps(1000); end
 if fval < Set.general.plot_details_in_fitness
   E_Netz = cumtrapz(Traj_0.t, P_Netz);
   change_current_figure(202); clf;
-  if ~strcmp(get(202, 'windowstyle'), 'docked')
-    % set(202,'units','normalized','outerposition',[0 0 1 1]);
-  end
   if Set.optimization.ElectricCoupling, sgtitle('Energieverteilung (mit Zwischenkreis)');
   else,                                 sgtitle('Energieverteilung (ohne Zwischenkreis'); end
   subplot(2,2,1);

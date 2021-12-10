@@ -38,9 +38,6 @@ tt = '';
 for i = 1:length(debug_info), tt = [tt, newline(), debug_info{i}]; end %#ok<AGROW>
 
 change_current_figure(200); clf; hold all;
-if ~strcmp(get(200, 'windowstyle'), 'docked')
-  % set(200,'units','normalized','outerposition',[0 0 1 1]);
-end
 view(3);
 axis auto
 hold on;grid on;

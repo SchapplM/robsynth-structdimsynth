@@ -35,6 +35,10 @@ parpool_writelock('free', 0, true);
 % Zufällige Neu-Initialisierung, damit Zufallszahlen in Parallel-Instanzen nicht identisch sind.
 rng('shuffle');
 
+% Bilder immer in Vollbild erstellen (die eingestellte Grenze in Pixeln ist
+% wirksam; die Auflösung des virtuellen Displays ist nicht begrenzt).
+set(0, 'defaultfigureposition', [0 0 1920 1080]);
+
 % Warnungen bei Speicherung von PNG-Bildern unterdrücken. Siehe
 % https://github.com/altmany/export_fig/issues/75
 warning('off','MATLAB:prnRenderer:opengl');

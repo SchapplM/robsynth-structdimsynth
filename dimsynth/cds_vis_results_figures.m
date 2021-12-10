@@ -73,9 +73,6 @@ for kk = 1:length(Set.general.animation_styles)
   anim_mode = Set.general.animation_styles{kk}; % Strichzeichnung, 3D-Modell, Kollisionskörper
   fhdl = figure();clf;hold all;
   set(fhdl, 'Name', sprintf('Rob%d_P%d_anim_%s', RNr, PNr, anim_mode), 'NumberTitle', 'off', 'color','w');
-  if ~strcmp(get(fhdl, 'windowstyle'), 'docked')
-    set(fhdl,'units','normalized','outerposition',[0 0 1 1]);
-  end
   title(sprintf('Rob.%d, P.%d %s%s: fval=%s (%s)', RNr, PNr, Name, ...
     RobShortName_str, fval_str, fval_text));
   view(3);
@@ -174,9 +171,6 @@ end
 if strcmp(figname, 'jointtraj') && any(fval < 1e9)
   fhdl = figure();clf;hold all;
   set(fhdl, 'Name', sprintf('Rob%d_P%d_KinematikZeit', RNr, PNr), 'NumberTitle', 'off', 'color','w');
-  if ~strcmp(get(fhdl, 'windowstyle'), 'docked')
-    set(fhdl,'units','normalized','outerposition',[0 0 1 1]);
-  end
   sgtitle(sprintf('Rob.%d, P.%d: fval=%s', RNr, PNr, fval_str));
   if RobData.Type == 0
     x_row = 2; nrows = 2;
@@ -250,9 +244,6 @@ if strcmp(figname, 'pareto')
     fhdl = figure();clf;hold all;
     set(fhdl, 'Name', sprintf('Rob%d_Pareto', RNr), ...
       'NumberTitle', 'off', 'color','w');
-    if ~strcmp(get(fhdl, 'windowstyle'), 'docked')
-      set(fhdl,'units','normalized','outerposition',[0 0 1 1]);
-    end
     sprows = floor(sqrt(size(objcomb,1)));
     spcols = ceil(size(objcomb,1)/sprows);
     for kk = 1:size(objcomb,1)
@@ -326,9 +317,6 @@ if strcmp(figname, 'pareto')
     fhdl = figure();clf;hold all;
     set(fhdl, 'Name', sprintf('Rob%d_Pareto3D', RNr), ...
       'NumberTitle', 'off', 'color','w');
-    if ~strcmp(get(fhdl, 'windowstyle'), 'docked')
-      set(fhdl,'units','normalized','outerposition',[0 0 1 1]);
-    end
     sprows = floor(sqrt(size(objcomb,1)));
     spcols = ceil(size(objcomb,1)/sprows);
     for kk = 1:size(objcomb,1)
@@ -424,9 +412,6 @@ if strcmp(figname, 'dynamics')
   fhdl = figure(); clf; hold all;
   set(fhdl, 'Name', sprintf('Rob%d_P%d_Dynamik', RNr, PNr), ...
     'NumberTitle', 'off', 'color','w');
-  if ~strcmp(get(fhdl, 'windowstyle'), 'docked')
-    set(fhdl,'units','normalized','outerposition',[0 0 1 1]);
-  end
   sgtitle(sprintf('Rob.%d, P.%d: fval=%s', RNr, PNr, fval_str));
   ntau = size(Dyn_Tau, 2);
   if RobData.Type == 0
@@ -459,9 +444,6 @@ if strcmp(figname, 'dynamics') && RobData.Type ~= 0
   fhdl = figure(); clf; hold all;
   set(fhdl, 'Name', sprintf('Rob%d_P%d_PlfDynamik', RNr, PNr), ...
     'NumberTitle', 'off', 'color','w');
-  if ~strcmp(get(fhdl, 'windowstyle'), 'docked')
-    set(fhdl,'units','normalized','outerposition',[0 0 1 1]);
-  end
   sgtitle(sprintf('Rob.%d, P.%d: fval=%s', RNr, PNr, fval_str));
   ntau = size(Dyn_Plf_Tau, 2);
   tauplf_names = {'fx', 'fy', 'fz', 'mx', 'my', 'mz'};
@@ -489,9 +471,6 @@ end
 if strcmp(figname, 'dynparvisu')
   fhdl = figure();clf;hold all;
   set(fhdl, 'Name', sprintf('Rob%d_P%d_DynParVisu', RNr, PNr), 'NumberTitle', 'off', 'color','w');
-  if ~strcmp(get(fhdl, 'windowstyle'), 'docked')
-    set(fhdl,'units','normalized','outerposition',[0 0 1 1]);
-  end
   sgtitle(sprintf('Rob.%d, P.%d: fval=%s', RNr, PNr, fval_str));
   plotmode = [1 3 4 5];
   plotmodenames = {'Strichmodell', 'Trägheitsellipsen', 'Entwurfsparameter (3D)', 'Kollisionsobjekte'};
@@ -516,9 +495,6 @@ end
 if strcmp(figname, 'optpar')
   fhdl = figure();clf;hold all;
   set(fhdl, 'Name', sprintf('Rob%d_OptPar', RNr), 'NumberTitle', 'off', 'color','w');
-  if ~strcmp(get(fhdl, 'windowstyle'), 'docked')
-    set(fhdl,'units','normalized','outerposition',[0 0 1 1]);
-  end
   % Konvertiere die normierten Optimierungsparameter nach physikalischen
   % Parametern
   p_val_pareto_phys = NaN(size(RobotOptRes.p_val_pareto));
@@ -572,9 +548,6 @@ if strcmp(figname, 'springrestpos')
   fhdl = figure();clf;hold all;
   set(fhdl, 'Name', sprintf('Rob%d_P%d_federruhelage', RNr, PNr), ...
     'NumberTitle', 'off', 'color','w');
-  if ~strcmp(get(fhdl, 'windowstyle'), 'docked')
-    set(fhdl,'units','normalized','outerposition',[0 0 1 1]);
-  end
   title(sprintf('Rob.%d, P.%d %s Gelenkelastizität', RNr, PNr, Name));
   view(3); axis auto; hold on; grid on;
   xlabel('x in m');ylabel('y in m');zlabel('z in m');

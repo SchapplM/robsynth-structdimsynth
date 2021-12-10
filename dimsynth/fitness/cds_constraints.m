@@ -587,9 +587,6 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         else,           I_constr_red = R.I_constr_red; end
         figure(2345);clf;
         set(2345,'Name','AR_PTPDbg', 'NumberTitle', 'off');
-        if ~strcmp(get(2345, 'windowstyle'), 'docked')
-          set(2345,'units','normalized','outerposition',[0 0 1 1]);
-        end
         subplot(3,3,1);
         plot(Stats.condJ(1:Stats.iter,:));
         xlabel('Iterationen'); grid on;
@@ -1044,9 +1041,6 @@ else % Gebe alle gültigen Lösungen aus
   % Debug: Zeige die verschiedenen Lösungen an
   if 1e4*fval < Set.general.plot_details_in_fitness
     change_current_figure(2000);clf;
-    if ~strcmp(get(2000, 'windowstyle'), 'docked')
-      set(2000,'units','normalized','outerposition',[0 0 1 1]);
-    end
     for k = 1:length(I_iO)
       subplot(floor(ceil(length(I_iO))), ceil(sqrt(length(I_iO))), k);
       view(3); axis auto; hold on; grid on;
