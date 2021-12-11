@@ -638,6 +638,12 @@ if ~Set.general.regenerate_summary_only
   end
   t1 = tic();
   parfor (i = 1:length(Structures), parfor_numworkers)
+    % Auflösung für Debug-Bilder setzen (wird auf ParPool auf Cluster nicht
+    % vererbt aus globalen Einstellungen)
+    if parfor_numworkers > 0
+      set(0, 'defaultfigureposition', [1 1 1920 1080]);
+      set(0, 'defaultfigureunits', 'pixels');
+    end
     % Maßsynthese für diesen Roboter starten
     if ~Set.general.only_finish_aborted, mode = 'Maßsynthese'; %#ok<PFBNS>
     else,                                mode = 'Abschluss'; end

@@ -26,6 +26,12 @@ else
 end
 
 parfor (j = 1:length_Structures_parfor, parfor_numworkers)
+  % Auflösung für Debug-Bilder setzen (wird auf ParPool auf Cluster nicht
+  % vererbt aus globalen Einstellungen)
+  if parfor_numworkers > 0
+    set(0, 'defaultfigureposition', [1 1 1920 1080]);
+    set(0, 'defaultfigureunits', 'pixels');
+  end
 %   if Set.general.matfile_verbosity > 1
 %     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_create_evolution_videos2.mat'));
 %   end

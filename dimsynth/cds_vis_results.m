@@ -100,6 +100,12 @@ end
 %% Ergebnisse für jeden Roboter plotten
 
 parfor (i = 1:length_Structures_parfor, parfor_numworkers)
+  % Auflösung für Debug-Bilder setzen (wird auf ParPool auf Cluster nicht
+  % vererbt aus globalen Einstellungen)
+  if parfor_numworkers > 0
+    set(0, 'defaultfigureposition', [1 1 1920 1080]);
+    set(0, 'defaultfigureunits', 'pixels');
+  end
   t_start_i = tic();
   %% Initialisierung der Ergebnisse dieser Struktur
   % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_vis_results2.mat'));
