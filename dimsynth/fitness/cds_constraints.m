@@ -271,7 +271,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         % Rechne kinematische Zwangsbedingungen nach. Ist für Struktur-
         % synthese sinnvoll, falls die Modellierung unsicher ist.
         if any(strcmp(Set.optimization.objective, 'valid_act')) || Set.general.debug_calc
-          [~,Phi_test] = R.constr1(q, Traj_0.XE(i,:)');
+          x2 = R.fkineEE2_traj(q')'; % Bei 3T2R muss die EE-Drehung aktualisiert werden
+          x2(1:5) = Traj_0.XE(i,1:5);
+          [~,Phi_test] = R.constr1(q, x2);
           if all(abs(Phi) < 1e-6) && any(abs(Phi_test) > 1e-3)
             if Set.general.matfile_verbosity > 0
               save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
