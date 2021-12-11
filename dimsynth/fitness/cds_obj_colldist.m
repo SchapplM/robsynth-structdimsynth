@@ -52,11 +52,16 @@ end
 % geschlossenen kinematischen Ketten geprüft werden (IK noch nicht gelöst).
 colldist_range = diff(minmax2(colldist')');
 I_norange = abs(colldist_range) < 1e-10;
-
-% Bestimme minimale Kollisionsabstände für alle Zeitschritte.
-% Berücksichtige nur Kollisionen, die sich auch ändern.
-[mincolldist, IIcmin] = min(colldist(:,~I_norange),[],2); % kleinster jeweils alle Zeitschritte
-[min2colldist, IItmin] = min(mincolldist); % Zeitschritt für kleinsten Abstand von allen
+if all(I_norange)
+  % Alle Kollisionsprüfungen haben immer den gleichen Abstand. Nehme den.
+  min2colldist = colldist(1);
+  IIcmin = 1; IItmin = 1; % Dummy-Werte
+else
+  % Bestimme minimale Kollisionsabstände für alle Zeitschritte.
+  % Berücksichtige nur Kollisionen, die sich auch ändern.
+  [mincolldist, IIcmin] = min(colldist(:,~I_norange),[],2); % kleinster jeweils alle Zeitschritte
+  [min2colldist, IItmin] = min(mincolldist); % Zeitschritt für kleinsten Abstand von allen
+end
 
 % Kennzahl berechnen
 f_colldist = min2colldist;
