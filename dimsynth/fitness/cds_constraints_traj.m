@@ -241,7 +241,14 @@ if i_ar == 2 && fval > 7e3 && fval < 9e3
   s.enforce_qlim = true; % Bei Verletzung maximal entgegenwirken
 end
 if i_ar == 2
-  s.wn(3) = 0.5; % Dämpfung der Geschwindigkeit, gegen Schwingungen
+  % Dämpfung der Geschwindigkeit, gegen Schwingungen
+  s.wn(3) = 0.7;
+  % Auch Dämpfung bezüglich der redundanten Koordinate
+  if R.Type == 0 % Seriell
+    s.wn(17) = 0.7;
+  else
+    s.wn(19) = 0.7;
+  end
 end
 if i_ar == 2 && fval > 6e3 && fval < 7e3
   % Geschwindigkeit wurde verletzt. Wird in NB eigentlich schon automatisch
@@ -544,6 +551,14 @@ if i_ar == 2
   Stats_alt = Stats; %#ok<NASGU>
   Jinv_ges_alt = Jinv_ges;
   JP_alt = JP;
+end
+% Entfernen des dritten Euler-Winkels aus der Trajektorie (wird sonst
+% als Referenz benutzt und dann Kopplung zwischen Iterationen der Traj.-IK)
+% Wird nach IK-Berechnung wieder eingetragen
+if task_red % Nur bei Redundanz relevant (Nebenbedingungen)
+  Traj_0.X(:,6) = 0; % wird ignoriert (xlim ist nicht aktiv als Kriterium)
+  Traj_0.XD(:,6) = 0; % Wird für Dämpfung benötigt
+  Traj_0.XDD(:,6) = 0; % wird ignoriert
 end
 wn_all(i_ar,:) = s.wn(:)'; %#ok<AGROW>
 if R.Type == 0 % Seriell
