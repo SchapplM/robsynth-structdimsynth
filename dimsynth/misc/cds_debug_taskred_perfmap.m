@@ -254,7 +254,7 @@ for i = 1:6
   end
   x_i = X_ext(I);
   y_i = Y_ext(I);
-  hdl(1+i) = plot(x_i(:), y_i(:), formats{i}, 'MarkerSize', 3);
+  hdl(1+i) = plot(x_i(:), y_i(:), formats{i}, 'MarkerSize', 4);
 end
 I_hdl = ~isnan(hdl);
 

@@ -48,6 +48,7 @@
 function [fval,QE_all,Q0,constrvioltext,Stats] = cds_constraints(R, Traj_0, Set, Structure)
 Q0 = NaN(1,R.NJ);
 QE_all = Q0;
+Stats = struct('bestcolldist', [], 'bestinstspcdist', []);
 %% Geometrie auf Plausibilität prüfen (1)
 if R.Type == 0 % Seriell
   % Prüfe, ob alle Eckpunkte der Trajektorie im Arbeitsraum des Roboters liegen
