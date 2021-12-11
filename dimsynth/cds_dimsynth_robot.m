@@ -2049,6 +2049,13 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
     physval_ms; physval_cond; physval_mani; physval_msv; physval_pe; ...
     physval_jrange; physval_actvelo; physval_chainlength; physval_instspc; ...
     physval_footprint; physval_colldist; physval_stiff];
+  if length(fval_obj_all)~=15 || length(physval_obj_all)~=15
+    % Dimension ist falsch, wenn eine Zielfunktion nicht skalar ist (z.B. leer)
+    save(fullfile(resdir, 'fvaldimensionerror.mat'));
+    cds_log(-1, sprintf(['[dimsynth] Dimension der Zielfunktionen falsch ', ...
+      'berechnet. dim(fval_obj_all)=%d, dim(physval_obj_all)=%d'], ...
+      length(fval_obj_all), length(physval_obj_all)));
+  end
   % Vergleiche neu berechnete Werte mit den zuvor abgespeicherten (müssen
   % übereinstimmen)
   test_Jcond_abs = PSO_Detail_Data.constraint_obj_val(dd_optind, 4, dd_optgen) - physval_cond;
