@@ -98,11 +98,14 @@ else
   parfor_numworkers = 0;
 end
 %% Ergebnisse für jeden Roboter plotten
-
+if parfor_numworkers > 0
+  close all % Speicher freigeben
+end
 parfor (i = 1:length_Structures_parfor, parfor_numworkers)
   % Auflösung für Debug-Bilder setzen (wird auf ParPool auf Cluster nicht
   % vererbt aus globalen Einstellungen)
   if parfor_numworkers > 0
+    close all % Speicher freigeben (evtl. Bilder auf Worker offen)
     set(0, 'defaultfigureposition', [1 1 1920 1080]);
     set(0, 'defaultfigureunits', 'pixels');
   end
@@ -111,7 +114,7 @@ parfor (i = 1:length_Structures_parfor, parfor_numworkers)
   % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_vis_results2.mat'));
   Structure = Structures{i};
   Name = Structures{i}.Name;
-  fprintf('Visualisiere Ergebnisse für Rob %d (%s)\n', i, Name);
+  fprintf('%d/%d: Visualisiere Ergebnisse für (%s)\n', i, length_Structures, Name);
   resfile1 = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', i, Name));
   resfile2 = fullfile(resmaindir, sprintf('Rob%d_%s_Details.mat', i, Name));
   if ~exist(resfile1, 'file') || ~exist(resfile2, 'file')
@@ -121,6 +124,7 @@ parfor (i = 1:length_Structures_parfor, parfor_numworkers)
   end
   tmp1 = load(resfile1, 'RobotOptRes');
   tmp2 = load(resfile2, 'RobotOptDetails', 'PSO_Detail_Data');
+  fprintf('%d/%d: Dateien für %s geladen.\n', i, length_Structures, Name);
   resrobdir = fullfile(resmaindir, sprintf('Rob%d_%s', i, Name));
   mkdirs(resrobdir); % Speicherort für Bilder dieses Roboters
   RobotOptRes = tmp1.RobotOptRes;
@@ -289,6 +293,7 @@ parfor (i = 1:length_Structures_parfor, parfor_numworkers)
   %% Animation des besten Roboters für die Trajektorie
   if ~isempty(Set.general.animation_styles)
     t1 = tic();
+    fprintf('%d/%d: Beginne Animation für %s\n', i, length_Structures, Name);
     cds_vis_results_figures('animation', Set, Traj, RobData, ...
       ResTab, RobotOptRes, RobotOptDetails);
     fprintf('%d/%d: Animation für %s gespeichert nach %s. Dauer: %1.1fs\n', ...

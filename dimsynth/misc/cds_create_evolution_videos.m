@@ -24,11 +24,14 @@ if Set.general.parcomp_plot && length_Structures_parfor > 0
 else
   parfor_numworkers = 0;
 end
-
+if parfor_numworkers > 0
+  close all % Speicher freigeben
+end
 parfor (j = 1:length_Structures_parfor, parfor_numworkers)
   % Auflösung für Debug-Bilder setzen (wird auf ParPool auf Cluster nicht
   % vererbt aus globalen Einstellungen)
   if parfor_numworkers > 0
+    close all % Speicher freigeben (evtl. Bilder auf Worker offen)
     set(0, 'defaultfigureposition', [1 1 1920 1080]);
     set(0, 'defaultfigureunits', 'pixels');
   end
@@ -60,7 +63,7 @@ parfor (j = 1:length_Structures_parfor, parfor_numworkers)
   open(v);
   fprintf('Schreibe Video-Datei %s\n', videofile_avi);
   t1=tic();
-
+  res_1 = []; % Initialisierung gegen parfor-Warnung
   for i = 1:length(filedat_detailimg)
     fprintf('%d/%d (%1.1f%%): %s; %1.0fs nach Start. Verbleibend ca. %1.0fs\n', ...
       i, length(filedat_detailimg), 100*i/length(filedat_detailimg), ...
