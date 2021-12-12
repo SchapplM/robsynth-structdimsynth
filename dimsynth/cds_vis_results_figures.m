@@ -118,6 +118,12 @@ for kk = 1:length(Set.general.animation_styles)
     s_anim.(sprintf('%s_name', file_ext)) = fullfile(resrobdir, ...
       sprintf('Rob%d_%s_P%d_Animation_%s.%s', RNr, Name, PNr, anim_mode, file_ext));
   end
+  if Set.general.isoncluster
+    % Auf Cluster bleiben manchmal halb fertige AVI-Dateien auf Laufwerk
+    % bigwork liegen. Ist problematisch. Besser tmp-Laufwerk der Worker
+    % benutzen (/scratch/jobid.batch.css.lan/Matlab/....)
+    s_anim.tmpdir = tmpDirFcn();
+  end
   if Set.task.profile == 0 || all(fval > 1e9)
     % Keine Trajektorie mit Zeitverlauf gefordert oder Fehler dabei
     I_anim = 1:size(RobotOptDetails.Traj_Q,1); % Zeichne jeden Zeitschritt

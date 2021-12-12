@@ -27,9 +27,15 @@ end
 if parfor_numworkers > 0
   close all % Speicher freigeben
 end
+if Set.general.isoncluster
+  use_tmpdir = true;
+else
+  use_tmpdir = false;
+end
 parfor (j = 1:length_Structures_parfor, parfor_numworkers)
   % Auflösung für Debug-Bilder setzen (wird auf ParPool auf Cluster nicht
   % vererbt aus globalen Einstellungen)
+  pause(2*(j-1)); % Damit nicht alle parfor-Worker gleichzeitig starten (unklar ob notwendig)
   if parfor_numworkers > 0
     close all % Speicher freigeben (evtl. Bilder auf Worker offen)
     set(0, 'defaultfigureposition', [1 1 1920 1080]);
@@ -44,9 +50,13 @@ parfor (j = 1:length_Structures_parfor, parfor_numworkers)
   Name = Structures{j}.Name;
   resdir_pso = fullfile(resmaindir, 'tmp', sprintf('%d_%s', Structure.Number, Name));
   RobPrefix = sprintf('Rob%d_%s', Structure.Number, Name);
-  videofile_avi = fullfile(resmaindir, RobPrefix, ...
-    sprintf('%s_Evolution_Video.avi', RobPrefix));
-  
+  if use_tmpdir
+    videofile_avi = fullfile(tmpDirFcn(), ...
+      sprintf('%s_Evolution_Video.avi', RobPrefix));
+  else
+    videofile_avi = fullfile(resmaindir, RobPrefix, ...
+      sprintf('%s_Evolution_Video.avi', RobPrefix));
+  end
   fprintf('Erstelle Evolutions-Video für %s\n', Name);
   
   % Ergebnis-Bild für Video initialisieren
@@ -112,4 +122,10 @@ parfor (j = 1:length_Structures_parfor, parfor_numworkers)
   
   %% Video komprimieren
   compress_video_file(videofile_avi);
+  % Komprimiertes Video an Zielort verschieben
+  if use_tmpdir
+    [d,f] = fileparts(videofile_avi);
+    movefile(fullfile(d, [f, '.mp4']), ...
+             fullfile(resmaindir, RobPrefix, [f, '.mp4']));
+  end
 end

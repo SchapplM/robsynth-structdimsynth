@@ -104,6 +104,7 @@ end
 parfor (i = 1:length_Structures_parfor, parfor_numworkers)
   % Auflösung für Debug-Bilder setzen (wird auf ParPool auf Cluster nicht
   % vererbt aus globalen Einstellungen)
+  pause(2*(i-1)); % Damit nicht alle parfor-Worker gleichzeitig starten (unklar ob notwendig)
   if parfor_numworkers > 0
     close all % Speicher freigeben (evtl. Bilder auf Worker offen)
     set(0, 'defaultfigureposition', [1 1 1920 1080]);
