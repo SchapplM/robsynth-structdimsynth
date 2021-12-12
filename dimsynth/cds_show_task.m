@@ -20,7 +20,7 @@ for i = 1:length(phiK_ges)
   % Kippwinkel aus 
   phiK_ges(i) = acos(R(:,3)' * [0;0;1]);
 end
-figure(1);clf;
+change_current_figure(1);clf;
 subplot(2,2,1);view(3);
 plot3(1e3*X_ges(:,1), 1e3*X_ges(:,2), 1e3*X_ges(:,3));
 xlabel('x in mm');ylabel('y in mm');zlabel('z in mm');
@@ -44,7 +44,7 @@ ylabel('Schwenk-Winkel in Grad');
 grid on;
 sgtitle('Position und Orientierung der Trajektorie');
 
-figure(2);clf;
+change_current_figure(2);clf;
 subplot(3,1,1);
 plot(T_ges, 1e3*X_ges(:,1:3));
 ylabel('Pos. in mm'); grid on;
@@ -59,7 +59,7 @@ xlabel(sprintf('Zeit in s (%d Samples)', length(T_ges)));
 linkxaxes
 sgtitle('Zeitverlauf der Trajektorie');
 %% Objekte und 3D-Aufgabe
-figure(3);clf; hold all
+change_current_figure(3);clf; hold all
 view(3); axis equal; grid on;
 xlabel('x in m');ylabel('y in m');zlabel('z in m');
 
