@@ -378,9 +378,11 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       end
       % Nebenbedingung: Optimiere die Konditionszahl (ist fast immer gut)
       if R.Type == 0 % Seriell
-        s4.wn = [0;0;1;0;0];
+        s4.wn = zeros(8,1);
+        s4.wn(3) = 1;
       else % PKM
-        s4.wn = [0;0;0;1;0;0]; % PKM-Jacobi, nicht IK-Jacobi
+        s4.wn = zeros(9,1);
+        s4.wn(4) = 1; % PKM-Jacobi, nicht IK-Jacobi
       end
       % Setze die Einstellungen und Nebenbedingungen so, dass sich das
       % Ergebnis bestmöglich verändert.
@@ -401,11 +403,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           % Ersten Punkt immer optimieren
           continue
         end
-        if R.Type == 0 % Seriell
-          s4.wn = zeros(5,1);
-        else % PKM
-          s4.wn = zeros(6,1);
-        end
+        s4.wn(:) = 0;
         s4.wn(1) = 1; % quadratische Funktion für Gelenkgrenzen (Startwinkel bereits außerhalb der Grenzen)
         % Setze die Gelenkwinkel-Grenzen neu. Annahme: Die absoluten Werte
         % der Winkel sind nicht wichtig. Es kommt auf die Spannweite an.
@@ -437,11 +435,10 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         if i~=1 && ~any(coll_self(i,:)) % Die Kollision bezog sich nicht auf diesen Eckpunkt
           continue
         end
+        s4.wn(:) = 0;
         if R.Type == 0 % Seriell
-          s4.wn = zeros(5,1);
           s4.wn(4) = 1;
         else % PKM
-          s4.wn = zeros(6,1);
           s4.wn(5) = 1;
         end
         if ~isempty(Set.task.installspace.type)
@@ -457,11 +454,10 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         end
       elseif fval_jic(jic) > 2e5 && fval_jic(jic) < 3e5
         % Der vorherige Ausschlussgrund war eine Bauraumverletzung.
+        s4.wn(:) = 0;
         if R.Type == 0 % Seriell
-          s4.wn = zeros(5,1);
           s4.wn(5) = 1;
         else % PKM
-          s4.wn = zeros(6,1);
           s4.wn(6) = 1;
         end
         s4.installspace_thresh = 0.1500; % Etwas höherer Abstand zur Aktivierung der Funktion
