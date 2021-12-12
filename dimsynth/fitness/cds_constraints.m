@@ -37,7 +37,7 @@
 % constrvioltext [char]
 %   Text mit Zusatzinformationen, die beim Aufruf der Fitness-Funktion
 %   ausgegeben werden
-% Stats (struct)
+% Stats_constraints (struct)
 %   Zusätzliche Informationen zu den einzelnen Werten aus Q0. Felder:
 %   .bestcolldist: Bestmöglicher Kollisionsabstand
 %   .bestinstspcdist: Bestmöglicher Abstand zum Bauraum
@@ -45,10 +45,10 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function [fval,QE_all,Q0,constrvioltext,Stats] = cds_constraints(R, Traj_0, Set, Structure)
+function [fval,QE_all,Q0,constrvioltext,Stats_constraints] = cds_constraints(R, Traj_0, Set, Structure)
 Q0 = NaN(1,R.NJ);
 QE_all = Q0;
-Stats = struct('bestcolldist', [], 'bestinstspcdist', []);
+Stats_constraints = struct('bestcolldist', [], 'bestinstspcdist', []);
 %% Geometrie auf Plausibilität prüfen (1)
 if R.Type == 0 % Seriell
   % Prüfe, ob alle Eckpunkte der Trajektorie im Arbeitsraum des Roboters liegen
@@ -1054,4 +1054,4 @@ else % Gebe alle gültigen Lösungen aus
     end
   end
 end
-Stats = struct('bestcolldist', bestcolldist_jic, 'bestinstspcdist', bestinstspcdist_jic);
+Stats_constraints = struct('bestcolldist', bestcolldist_jic, 'bestinstspcdist', bestinstspcdist_jic);
