@@ -512,8 +512,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       % Trage die Kollisionsabstände für den Startwert ein (entspricht
       % Ergebnis der normalen IK von oben. Dort werden die Kennzahlen nicht
       % berechnet). Annahme: Die IK in der ersten Iteration ist i.O.
-      bestcolldist_jic(jic) = min([bestcolldist_jic(jic);Stats.maxcolldepth(1)]);
-      bestinstspcdist_jic(jic) = min([bestinstspcdist_jic(jic);Stats.instspc_mindst(1)]);
+      bestcolldist_jic(jic) = min([bestcolldist_jic(jic);Stats.maxcolldepth(1,1)]);
+      bestinstspcdist_jic(jic) = min([bestinstspcdist_jic(jic);Stats.instspc_mindst(1,1)]);
       % Benutze nicht die sehr strenge Grenze von Phit_tol von oben, da aus
       % numerischen Gründen diese teilweise nicht erreicht werden kann
       ik_res_ikar = all(abs(Phi) < 1e-6);
@@ -569,9 +569,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
             debug_str = [debug_str, sprintf('; condJ: %1.1f -> %1.1f', ...
               Stats.condJ(1,2), Stats.condJ(1+Stats.iter,2))]; %#ok<AGROW>
           end
-          if any(~isnan(Stats.maxcolldepth))
+          if any(~isnan(Stats.maxcolldepth(:)))
             debug_str = [debug_str, sprintf('; maxcolldepth [mm]: %1.1f -> %1.1f', ...
-              1e3*Stats.maxcolldepth(1), 1e3*Stats.maxcolldepth(1+Stats.iter))]; %#ok<AGROW>
+              1e3*Stats.maxcolldepth(1,1), 1e3*Stats.maxcolldepth(1+Stats.iter,1))]; %#ok<AGROW>
           end
           cds_log(3, sprintf(['[constraints] Konfig %d/%d, Eckpunkt %d: IK-Berechnung ', ...
             'mit Aufgabenredundanz hat Nebenoptimierung verschlechtert: ', ...
@@ -583,26 +583,26 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         if R.Type == 0, I_constr_red = [1 2 3 5 6];
         else,           I_constr_red = R.I_constr_red; end
         figure(2345);clf;
+        Iter = 1:1+Stats.iter;
         set(2345,'Name','AR_PTPDbg', 'NumberTitle', 'off');
         subplot(3,3,1);
-        plot(Stats.condJ(1:Stats.iter,:));
+        plot(Stats.condJ(Iter,:));
         xlabel('Iterationen'); grid on;
         ylabel('cond(J)');
         legend({'IK-Jacobi', 'Jacobi'});
         subplot(3,3,2);
-        plot([diff(Stats.Q(1:Stats.iter,:));NaN(1,R.NJ)]);
+        plot([diff(Stats.Q(Iter,:),1,1);NaN(1,R.NJ)]);
         xlabel('Iterationen'); grid on;
         ylabel('diff q');
         subplot(3,3,3); hold on;
 %         plot([Stats.Q(1:Stats.iter,:);NaN(1,R.NJ)]);
 %         xlabel('Iterationen'); grid on;
 %         ylabel('q');
-        Iter = 1:1+Stats.iter;
-        Stats_X = R.fkineEE2_traj(Stats.Q(1:1+Stats.iter,:));
+        Stats_X = R.fkineEE2_traj(Stats.Q(Iter,:));
         Stats_X(:,6) = denormalize_angle_traj(Stats_X(:,6), [0; angleDiff(...
           Stats_X(1:end-1,6),Stats_X(2:end,6))], 0:1e-3:1e-3*(size(Stats_X,1)-1));
-        I_Phi_iO = all(abs(Stats.PHI(1:Stats.iter,I_constr_red))<1e-6,2);
-        I_Phi_med = all(abs(Stats.PHI(1:Stats.iter,I_constr_red))<1e-3,2)&~I_Phi_iO;
+        I_Phi_iO = all(abs(Stats.PHI(Iter,I_constr_red))<1e-6,2);
+        I_Phi_med = all(abs(Stats.PHI(Iter,I_constr_red))<1e-3,2)&~I_Phi_iO;
         I_Phi_niO = ~I_Phi_iO & ~I_Phi_med;
         legdhl = NaN(3,1);
         if any(I_Phi_iO)
@@ -619,42 +619,44 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         legend(legdhl(~isnan(legdhl)), legstr(~isnan(legdhl)));
         xlabel('Iterationen'); grid on;
         ylabel('phi_z in deg');
-        Stats_Q_norm = (Stats.Q(1:Stats.iter,:)-repmat(qlim(:,1)',Stats.iter,1))./ ...
-                        repmat(qlim_range',Stats.iter,1);
+        Stats_Q_norm = (Stats.Q(Iter,:)-repmat(qlim(:,1)',1+Stats.iter,1))./ ...
+                        repmat(qlim_range',1+Stats.iter,1);
         subplot(3,3,4);
-        plot([Stats_Q_norm(1:Stats.iter,:);NaN(1,R.NJ)]);
+        plot([Stats_Q_norm(Iter,:);NaN(1,R.NJ)]);
         xlabel('Iterationen'); grid on;
         ylabel('q norm');
         subplot(3,3,5);
-        plot([diff(Stats.PHI(1:Stats.iter,I_constr_red));NaN(1,length(I_constr_red))]);
+        plot([diff(Stats.PHI(Iter,I_constr_red));NaN(1,length(I_constr_red))]);
         xlabel('Iterationen'); grid on;
         ylabel('diff Phi');
         subplot(3,3,6);
-        plot(Stats.PHI(1:Stats.iter,I_constr_red));
+        plot(Stats.PHI(Iter,I_constr_red));
         xlabel('Iterationen'); grid on;
         ylabel('Phi');
         subplot(3,3,7);
-        plot(diff(Stats.h(1:Stats.iter,[true,s4.wn'~=0])));
+        plot(diff(Stats.h(Iter,[true,s4.wn'~=0])));
         xlabel('Iterationen'); grid on;
         ylabel('diff h');
         subplot(3,3,8);
-        plot(Stats.h(1:Stats.iter,[true,s4.wn'~=0]));
+        plot(Stats.h(Iter,[true,s4.wn'~=0]));
         legend(['w.sum',cellfun(@(s)sprintf('h%d',s),num2cell(find(s4.wn'~=0)),'UniformOutput',false)]);
         xlabel('Iterationen'); grid on;
         ylabel('h');
-        if any(Stats.maxcolldepth>0) || ... % es sollte eine Kollision gegeben haben
+        if any(Stats.maxcolldepth(:)>0) || ... % es sollte eine Kollision gegeben haben
             (R.Type==0 && s4.wn(8) || R.Type==2 && s4.wn(9)) % Kollisionsabstand war quadr. Zielfunktion
           % Die Ausgabe maxcolldepth wird nur geschrieben, wenn Kollisionen
           % geprüft werden sollten
           subplot(3,3,9);
-          plot(Stats.maxcolldepth(1:Stats.iter,:));
+          plot(Stats.maxcolldepth(Iter,:));
           xlabel('Iterationen'); grid on;
           ylabel('Kollisionstiefe (>0 Koll.)');
+          legend({'alle', 'beeinflussbar'});
         elseif R.Type == 0 && s4.wn(5) || R.Type ~= 0 && s4.wn(6)
           subplot(3,3,9);
-          plot(Stats.instspc_mindst(1:Stats.iter,:));
+          plot(Stats.instspc_mindst(Iter,:));
           xlabel('Iterationen'); grid on;
-          ylabel('Abstand zum Bauraum (>0 draußen)');
+          ylabel('Außerhalb Bauraum (>0 raus)');
+          legend({'alle', 'beeinflussbar'});
         end
         linkxaxes
         [currgen,currind,~,resdir] = cds_get_new_figure_filenumber(Set, Structure, '');
