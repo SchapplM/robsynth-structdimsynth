@@ -13,6 +13,8 @@
 %   Einstellungen des Optimierungsalgorithmus (aus cds_settings_defaults.m)
 % Structure
 %   Eigenschaften der Roboterstruktur (aus cds_gen_robot_list.m)
+% Stats_constraints
+%   Zusätzliche Eigenschaften der Anfangswerte aus cds_constraints.
 % 
 % Ausgabe:
 % fval
@@ -50,7 +52,8 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function [fval,Q,QD,QDD,Jinv_ges,JP,constrvioltext] = cds_constraints_traj(R, Traj_0, q, Set, Structure)
+function [fval,Q,QD,QDD,Jinv_ges,JP,constrvioltext] = cds_constraints_traj( ...
+  R, Traj_0, q, Set, Structure, Stats_constraints)
 % Debug
 % save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_0.mat'));
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_0.mat'));
@@ -58,15 +61,19 @@ function [fval,Q,QD,QDD,Jinv_ges,JP,constrvioltext] = cds_constraints_traj(R, Tr
 % Initialisierung
 fval = NaN;
 constrvioltext = 'Undefiniert';
+X2phizTraj_alt = [];
 Q_alt = [];
 QD_alt = [];
 QDD_alt = [];
 Jinv_ges_alt = [];
 JP_alt = [];
-wn_alt = [];
+wn_all = [];
+mincolldist_all = NaN(3,1);
+mininstspcdist_all = NaN(3,1);
 % Speicherung der Trajektorie mit aktualisierter EE-Drehung bei Aufg.-Red.
 X2 = NaN(size(Traj_0.X)); XD2 = NaN(size(Traj_0.X)); XDD2 = NaN(size(Traj_0.X));
 constrvioltext_alt = '';
+[currgen,currind,~,resdir] = cds_get_new_figure_filenumber(Set, Structure, '');
 % Schleife über mehrere mögliche Nebenbedingungen der inversen Kinematik
 fval_ar = NaN(1,2);
 task_red = R.Type == 0 && sum(R.I_EE_Task) < R.NJ || ... % Seriell: Redundant wenn mehr Gelenke als Aufgaben-FG
@@ -83,22 +90,21 @@ if i_ar > 1
 end
 
 %% Debug vorherige Iteration: Karte der Leistungsmerkmale für Aufgabenredundanz zeichnen
-if i_ar > 1 && task_red && Set.general.debug_task_redundancy
+if i_ar > 1 && task_red && Set.general.debug_taskred_perfmap
   nt_red = size(Traj_0.X,1); % Zum Debuggen: Reduktion der Stützstellen
-  [currgen,currind,~,resdir] = cds_get_new_figure_filenumber(Set, Structure, '');
   if i_ar == 2 % Nur einmal die Rasterung generieren
     t1 = tic();
-    cds_log(2, sprintf(['[constraints_traj] Beginne Aufgabenredundanz-', ...
-      'Diagnosebild für Trajektorie mit %d Zeit-Stützstellen'], nt_red));
+    cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: Beginne Aufgabenredundanz-', ...
+      'Diagnosebild für Trajektorie mit %d Zeit-Stützstellen'], Structure.config_index, Structure.config_number, nt_red));
     [H_all, ~, s_ref, s_tref, phiz_range] = R.perfmap_taskred_ik( ...
-      Traj_0.X(1:nt_red,:), Traj_0.IE, struct( ...
+      Traj_0.X(1:nt_red,:), Traj_0.IE, struct('settings_ik', s, ...
       'q0', q, 'I_EE_red', Set.task.DoF, 'map_phistart', X2(1,end), ...
       ... % nur grobe Diskretisierung für die Karte (geht schneller)
       'mapres_thresh_eepos', 10e-3, 'mapres_thresh_eerot', 5*pi/180, ...
       'mapres_thresh_pathcoordres', 0.2, 'mapres_redcoord_dist_deg', 5, ...
       'maplim_phi', [-1, +1]*210*pi/180)); % 210° statt 180° als Grenze
-    cds_log(2, sprintf(['[constraints_traj] Daten für Diagnose-Bild der Aufgabenredundanz ', ...
-      'erstellt. Auflösung: %dx%d. Dauer: %1.0fs'], length(s_ref), ...
+    cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: Daten für Diagnose-Bild der Aufgabenredundanz ', ...
+      'erstellt. Auflösung: %dx%d. Dauer: %1.0fs'], Structure.config_index, Structure.config_number, length(s_ref), ...
       length(phiz_range), toc(t1)));
     % Speichere die Redundanzkarte (da die Berechnung recht lange dauert)
     suffix = 'TaskRedPerfMap_Data';
@@ -106,18 +112,46 @@ if i_ar > 1 && task_red && Set.general.debug_task_redundancy
     save(fullfile(resdir,sprintf('%s_%s.mat', name_prefix_ardbg, suffix)), ...
       'Structure', 'H_all', 's_ref', 's_tref', 'phiz_range', 'i_ar', 'q', ...
       'nt_red');
+    % Redundanzkarte für jedes Zielkriterium zeichnen (zur Einschätzung)
+    wn_test = zeros(8+double(R.Type==2),1);
+    wn_phys = zeros(4,1);
+    for ll = 1:length(wn_test)+4 % letzter Durchlauf nur Konditionszahl zeichnen
+      wn_test(:) = 0; wn_phys(:) = 0;
+      if ll <= length(wn_test)
+        wn_test(ll) = 1;
+      else
+        wn_phys(ll-length(wn_test)) = 1;
+      end
+      for ls = [false, true] % Skalierung des Bildes: Linear und Logarithmisch
+        % Wähle Kriterien, die als Nebenbedigung gegen unendlich gehen.
+        if R.Type == 0 % hyp. qlim, Jacobi, Koll., Bauraum, hyp. xlim
+          I_nbkrit = [2 3 4 5 7];
+        else % hyp. qlim, IK-Jacobi, PKM-Jacobi, Koll., Bauraum, hyp. xlim
+          I_nbkrit = [2 3 4 5 6 8];
+        end
+        if ls && ~any(wn_test(I_nbkrit))
+          continue % kein hyperbolisches Kriterium. Log-Skalierung nicht sinnvoll.
+        end
+        cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref(1:nt_red), ...
+          phiz_range, X2(1:nt_red,6), Stats.h(1:nt_red,1), struct('wn', [wn_test;wn_phys], ...
+          'i_ar', i_ar-1, 'i_fig', ll, 'name_prefix_ardbg', name_prefix_ardbg, 'fval', fval, ...
+          'constrvioltext', constrvioltext, 'deactivate_time_figure', true, ...
+          'ignore_h0', true, 'logscale', ls));
+      end
+    end
   end
   if R.Type == 0
     % Reihenfolge: quadratischer Grenzabstand, hyperbolischer Grenzabstand,
-    % Konditionszahl Jacobi
-    I_wn_traj = [1 2 5 9 11];
-  else
-    I_wn_traj = [1 2 5 6 11 13];
+    % Konditionszahl Jacobi, Kollision (hyp.), Bauraum, xlim (quadr.), xlim
+    % (hyp.), Kollision (quadr.)
+    I_wn_traj = [1 2 5 9 11, 13, 15, 18];
+  else % gleiche Reihenfolge, mit IK-Jacobi (5) vor Jacobi (6)
+    I_wn_traj = [1 2 5 6 11 13, 15, 17, 20];
   end
   save(fullfile(resdir,sprintf('%s_TaskRed_Traj%d.mat', name_prefix_ardbg, i_ar-1)), ...
     'X2', 'Q', 'i_ar', 'q', 'Stats', 'fval', 's');
   cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref(1:nt_red), ...
-    phiz_range, X2(1:nt_red,6), Stats.h(:,1), struct('wn', s.wn(I_wn_traj), ...
+    phiz_range, X2(1:nt_red,6), Stats.h(1:nt_red,1), struct('wn', [s.wn(I_wn_traj); zeros(4,1)], ...
     'i_ar', i_ar-1, 'name_prefix_ardbg', name_prefix_ardbg, 'fval', fval, ...
     'constrvioltext', constrvioltext));
   % Falls beim Debuggen die Aufgaben-Indizes zurückgesetzt wurden
@@ -134,11 +168,55 @@ s = struct( ...
   'enforce_qlim', false, ...
   'Phit_tol', 1e-10, 'Phir_tol', 1e-10); % feine Toleranz
 if R.Type == 0 % Seriell
-  s.wn = zeros(12,1);
+  s.wn = zeros(19,1);
 else % PKM
-  s.wn = zeros(14,1);
+  s.wn = zeros(21,1);
   s.debug = Set.general.debug_calc;
 end
+% Benutze eine Singularitätsvermeidung, die nur in der Nähe von
+% Singularitäten aktiv ist. Wenn die Kondition wesentlich schlechter wird,
+% wird der Roboter am Ende sowieso verworfen. Also nicht so schlimm, falls
+% diese Parameter zu Instabilität führen.
+% Die Nullraumbewegung fängt sehr langsam bei Überschreiten der Schwelle
+% an. Daher Schwellwert niedriger setzen als die Grenze zur Singularität.
+% Daher auch kleinere Schwellwerte als in cds_constraints.
+cond_thresh_jac = 100;
+cond_thresh_ikjac = 250;
+if Set.optimization.constraint_obj(4) ~= 0 % Grenze für Jacobi-Matrix für Abbruch
+  if R.Type == 0 % Seriell: IK-Jacobi ungefähr wie analytische Jacobi
+    cond_thresh_ikjac = Set.optimization.constraint_obj(4)/4;
+  else % PKM: Gemeint ist die Jacobi bzgl. Antriebe (nicht: IK-Jacobi)
+    cond_thresh_jac = Set.optimization.constraint_obj(4)/4;
+  end
+end
+if R.Type == 2 % PKM
+  s.cond_thresh_ikjac = cond_thresh_ikjac;
+end
+s.cond_thresh_jac = cond_thresh_jac; % Für Seriell und PKM
+if R.Type == 0 % Seriell
+  s.wn(5) = 1; % P-Anteil Konditionszahl (Aufgaben-Jacobi)
+  s.wn(8) = 0.2; % D-Anteil Konditionszahl (Aufgaben-Jacobi)
+else % PKM
+  s.wn(5) = 1; % P-Anteil Konditionszahl (IK-Jacobi)
+  s.wn(9) = 0.1; % D-Anteil Konditionszahl (IK-Jacobi)
+  s.wn(6) = 1; % P-Anteil Konditionszahl (PKM-Jacobi)
+  s.wn(10) = 0.1; % D-Anteil Konditionszahl (PKM-Jacobi)
+end
+
+% Stelle Schwellwerte zur Aktivierung der Kollisions- und Bauraumeinhaltung
+% fest. Benutze die Werte, die in der Eckpunkt-IK gefunden wurden
+if nargin >= 6
+  % Die Kriterien werden aktiviert, wenn der beste Wert um 30%
+  % verschlechtert wird. Dann ist das Kriterium im besten Fall nicht aktiv
+  % und führt zu Schwingungen der IK.
+  s.installspace_thresh = 0.7*min(Stats_constraints.bestinstspcdist(:));
+  % Ausgegebene Kollisionsabstände sind negativ, wenn es keine Koll. gibt.
+  s.collision_thresh = -0.7*min(Stats_constraints.bestcolldist(:));
+  if s.collision_thresh <= 0
+    s.collision_thresh = NaN;
+  end
+end
+  
 % Zusätzliche Optimierung für Aufgabenredundanz.
 % TODO: Die Reglereinstellungen sind noch nicht systematisch ermittelt.
 if i_ar == 1 % erster Durchlauf ohne zusätzliche Optimierung (nimmt minimale Geschwindigkeit)
@@ -162,6 +240,16 @@ if i_ar == 2 && fval > 7e3 && fval < 9e3
   end
   s.enforce_qlim = true; % Bei Verletzung maximal entgegenwirken
 end
+if i_ar == 2
+  % Dämpfung der Geschwindigkeit, gegen Schwingungen
+  s.wn(3) = 0.7;
+  % Auch Dämpfung bezüglich der redundanten Koordinate
+  if R.Type == 0 % Seriell
+    s.wn(17) = 0.7;
+  else
+    s.wn(19) = 0.7;
+  end
+end
 if i_ar == 2 && fval > 6e3 && fval < 7e3
   % Geschwindigkeit wurde verletzt. Wird in NB eigentlich schon automatisch
   % berücksichtigt. Eine weitere Reduktion ist nicht möglich.
@@ -172,57 +260,41 @@ if i_ar == 2 && fval > 6e3 && fval < 7e3
     s.wn(7) = 1; % D-Anteil quadratische Grenzen (Dämpfung)
   end
 end
+if i_ar == 2 && any(strcmp(Set.optimization.objective, 'colldist')) && any(fval_ar <= 1e3)
+  % Wenn Kollisionsabstände ein Zielkriterium sind, optimiere diese hier permanent
+  if R.Type == 0 % Seriell
+    s.wn(6) = 1; % D-Anteil quadratische Grenzen (Dämpfung, gegen Schwingungen)
+    s.wn(18) = 0.1; % P-Anteil Kollisionsvermeidung (quadratisch)
+    s.wn(19) = 0.01; % D-Anteil Kollisionsvermeidung (quadratisch)
+  else % PKM
+    s.wn(20) = 0.1; % P-Anteil Kollisionsvermeidung (quadratisch)
+    s.wn(21) = 0.01; % D-Anteil Kollisionsvermeidung (quadratisch)
+  end
+end
+
 if i_ar == 2 && (any(fval_ar > 3e3 & fval_ar < 4e3) || ... % Ausgabewert für Kollision
     ... % Wenn Kollisionen grundsätzlich geprüft werden sollen, immer als NB setzen,
     ... % wenn vorher auch die Bauraumprüfung fehlgeschlagen ist. Beide im Zielkonflikt
-    Set.optimization.constraint_collisions && any(fval_ar > 2e3 & fval_ar < 3e3))
-  % Selbstkollision trat auf. Kollisionsvermeidung als Nebenbedingung
-  if R.Type == 0 % Seriell
-    s.wn(6) = 1; % D-Anteil quadratische Grenzen (Dämpfung, gegen Schwingungen)
-    s.wn(9) = 1; % P-Anteil Kollisionsvermeidung
-    s.wn(10) = 0.1; % D-Anteil Kollisionsvermeidung
-  else % PKM
-    s.wn(7) = 1; % D-Anteil quadratische Grenzen (Dämpfung, gegen Schwingungen)
-    s.wn(11) = 0.1; % P-Anteil Kollisionsvermeidung
-    s.wn(12) = 0.01; % D-Anteil Kollisionsvermeidung
-  end
-  % Aktivierungsbereich für Kollisionsvermeidung stark vergrößern, damit
-  % ausreichend Vorlauf zur Vermeidung der Kollision besteht
+    Set.optimization.constraint_collisions && any(fval_ar > 2e3 & fval_ar < 3e3) )
+  % Das Kriterium ist sowieso immer aktiv (s.u.)
   s.collbodies_thresh = 5; % 400% größere Kollisionskörper für Aktivierung (statt 50%)
 end
+
 if i_ar == 2 && ~isempty(Set.task.installspace.type) && ...
     (any(fval_ar > 2e3 & fval_ar < 3e3) || ... % Ausgabewert für Bauraumverletzung
     ... % auch vorsorglich aktivieren, wenn Bauraum geprüft wird. Sehr wahrscheinlich,
     ... % dass nach der Kollision direkt der Bauraum fehlschlägt.
     any(fval_ar > 3e3 & fval_ar < 4e3)) % Ausgabewert für Kollision
-  % Bauraumverletzung trat auf. Bauraum als Nebenbedingung
-  if R.Type == 0 % Seriell
-    s.wn(6) = 1; % D-Anteil quadratische Grenzen (Dämpfung, gegen Schwingungen)
-    s.wn(11) = 1e-5; % P-Anteil Bauraumeinhaltung
-    s.wn(12) = 4e-6; % D-Anteil Bauraumeinhaltung
-  else % PKM
-    s.wn(7) = 1; % D-Anteil quadratische Grenzen (Dämpfung, gegen Schwingungen)
-    s.wn(13) = 1e-4; % P-Anteil Bauraumeinhaltung
-    s.wn(14) = 1e-5; % D-Anteil Bauraumeinhaltung
-  end
+  % Bauraumverletzung trat auf. Bauraum als Nebenbedingung sowieso immer
+  % aktiv.
   % Aktivierung der Bauraum-Nebenbedingung bereits mit größerem Abstand.
   % TODO: Bezug auf charakteristische Länge des Bauraums
   s.installspace_thresh = 0.2; % 200mm Abstand von Bauraumgrenze von innen
 end
-if i_ar == 2 && ~any(s.wn) % es wurde noch keine Optimierung gesetzt (alles vorher erfolgreich)
-  % Verbessere die Konditionszahl und die Geschwindigkeit
-  if R.Type == 0 % Seriell
-    s.wn(5) = 1; % P-Anteil Konditionszahl (Aufgaben-Jacobi)
-    s.wn(8) = 0.2; % D-Anteil Konditionszahl (Aufgaben-Jacobi)
-  else % PKM
-    s.wn(6) = 1; % P-Anteil Konditionszahl (PKM-Jacobi)
-    s.wn(10) = 0.1; % D-Anteil Konditionszahl (PKM-Jacobi)
-  end
-end
 if R.Type == 0 % Seriell
-  I_wn_instspc = 5;
+  I_wn_instspc = 11; % TODO: Auslagern
 else % PKM
-  I_wn_instspc = 6;
+  I_wn_instspc = 12;
 end
 if i_ar == 2 && ~isempty(Set.task.installspace.type) && s.wn(I_wn_instspc)==0
   % Bauraumprüfung ist allgemein aktiv, wird aber in der
@@ -238,116 +310,66 @@ if i_ar == 2 && ~isempty(Set.task.installspace.type) && s.wn(I_wn_instspc)==0
   s.installspace_thresh = 0.050; % 50mm Abstand von Bauraumgrenze von innen
 end
 if R.Type == 0 % Seriell
-  I_wn_coll = 4;
+  I_wn_coll = 9; % TODO: Auslagern
 else % PKM
-  I_wn_coll = 5;
+  I_wn_coll = 11;
 end
 if i_ar == 2 && Set.optimization.constraint_collisions && s.wn(I_wn_coll)==0
   % Kollisionsprüfung ist allgemein aktiv, wird aber in der
   % Nullraumoptimierung nicht bedacht. Zusätzliche Aktivierung mit sehr
-  % kleinem Schwellwert zur Aktivierung (nur für Notfälle)
+  % kleinem Schwellwert zur Aktivierung (nur für Notfälle, als Nebenbedingung)
   if R.Type == 0 % Seriell
-    s.wn(9) = 1; % P-Anteil Kollisionsvermeidung
-    s.wn(10) = 0.1; % D-Anteil Kollisionsvermeidung
+    s.wn(9) = 1; % P-Anteil Kollisionsvermeidung (hyperbolisch)
+    s.wn(10) = 0.1; % D-Anteil Kollisionsvermeidung (hyperbolisch)
   else % PKM
-    s.wn(11) = 0.1; % P-Anteil Kollisionsvermeidung
-    s.wn(12) = 0.01; % D-Anteil Kollisionsvermeidung
+    s.wn(11) = 0.1; % P-Anteil Kollisionsvermeidung (hyperbolisch)
+    s.wn(12) = 0.01; % D-Anteil Kollisionsvermeidung (hyperbolisch)
   end
   % Aktivierungsbereich für Kollisionsvermeidung verkleinern (nur für
   % Ausnahmefälle stark an Grenze)
   s.collbodies_thresh = 1.25; % 25% größere Kollisionskörper für Aktivierung (statt 50%)
 end
+if any(strcmp(Set.optimization.objective, 'condition')) && any(fval_ar <= 1e3)
+  % Die Jacobi-Matrix soll optimiert werden. Setze den Schwellwert zur
+  % Aktivierung dieser Kennzahl auf "immer".
+  % Das Kriterium ist anhand der Gewichtungsfaktoren sowieso aktiv. (s.o.)
+  s.cond_thresh_jac = 1;
+end
 if i_ar == 3
   Q_change = Q - Q_alt;
   if all(abs(Q_change(:)) < 1e-6)
-    cds_log(-1, sprintf(['[constraints_traj] Ergebnis der IK unverändert, ', ...
+    cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d Ergebnis der IK unverändert, ', ...
       'trotz erneuter Durchführung mit anderer Gewichtung. Vorher: [%s], ', ...
-      'nachher: [%s]'], disp_array(wn_alt', '%1.1f'), disp_array(s.wn', '%1.1f')));
+      'nachher: [%s]'], Structure.config_index, Structure.config_number, disp_array(wn_alt', '%1.1f'), disp_array(s.wn', '%1.1f')));
+  end
+  % Bestimme zusätzliche Kennzahlen zur Bewertung des Erfolgs der
+  % mehrfachen Wiederholung der Bewegung aufgrund der Redundanz
+  debug_str = sprintf('max(phiDDz): %1.1f -> %1.1f', ...
+    max(abs(X2phizTraj_alt(:,3))), max(abs(XDD2(:,6))));
+  debug_str = [debug_str, sprintf('; maxcondJ: %1.1f -> %1.1f', ...
+    max(Stats_alt.condJ(:,1)), max(Stats.condJ(:,1)))]; %#ok<AGROW>
+  if R.Type == 2
+    debug_str = [debug_str, sprintf('; maxcondPhiq: %1.1f -> %1.1f', ...
+      max(Stats_alt.condJ(:,2)), max(Stats.condJ(:,2)))]; %#ok<AGROW>
+  end
+  if any(~isnan(mincolldist_all))
+    debug_str = [debug_str, sprintf('; mincolldist [mm]: %1.1f -> %1.1f', ...
+      1e3*mincolldist_all(1), 1e3*mincolldist_all(2))]; %#ok<AGROW>
+  end
+  if any(~isnan(mininstspcdist_all))
+    debug_str = [debug_str, sprintf('; instspcdist [mm]: %1.1f -> %1.1f', ...
+      1e3*mininstspcdist_all(1), 1e3*mininstspcdist_all(2))]; %#ok<AGROW>
   end
   if fval_ar(1) < fval_ar(2)
-    cds_log(3, sprintf(['[constraints_traj] Ergebnis der Traj.-IK hat sich nach Nullraum', ...
-      'bewegung verschlechtert: %1.3e -> %1.3e ("%s" -> "%s"), delta: %1.3e'], fval_ar(1), ...
-      fval_ar(2), constrvioltext_alt, constrvioltext, fval_ar(2)-fval_ar(1)));
+    cds_log(3, sprintf(['[constraints_traj] Konfig %d/%d: Ergebnis der ', ...
+      'Traj.-IK hat sich nach Nullraumbewegung verschlechtert: %1.3e -> ', ...
+      '%1.3e ("%s" -> "%s"), delta: %1.3e. %s'], Structure.config_index, ...
+      Structure.config_number, fval_ar(1), fval_ar(2), constrvioltext_alt, ...
+      constrvioltext, fval_ar(2)-fval_ar(1), debug_str));
     % Anmerkung: Das muss nicht unbedingt ein Fehler sein. Das Verletzen
     % der Geschwindigkeitsgrenzen kann eine Konsequenz sein. Die Hinzunahme
     % eines vorher nicht betrachteten Kriteriums kann eine Verschlechterung
     % erst erzeugen (z.B. Scheitern bei Ausweichbewegung)
-    % Debug: Vergleiche vorher-nachher.
-    if false
-      RP = ['R', 'P']; %#ok<UNRCH>
-      change_current_figure(3009);clf;
-      for i = 1:R.NJ
-        if R.Type ~= 0
-          legnum = find(i>=R.I1J_LEG, 1, 'last');
-          legjointnum = i-(R.I1J_LEG(legnum)-1);
-        end
-        subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
-        hold on; grid on;
-        plot(Traj_0.t, Q_alt(:,i), '-');
-        plot(Traj_0.t, Q(:,i), '-');
-        plot(Traj_0.t([1,end]), repmat(Structure.qlim(i,:),2,1), 'r-');
-        ylim(minmax2([Q(:,i);Q(:,i);Q_alt(:,i);Q_alt(:,i)]'));
-        if R.Type == 0
-          title(sprintf('q %d (%s)', i, RP(R.MDH.sigma(i)+1)));
-        else
-          title(sprintf('q %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
-        end
-      end
-      linkxaxes
-      sgtitle('Gelenkpositionen (vor/nach AR)');
-      legend({'ohne AR opt.' 'mit Opt.'});
-      change_current_figure(3010);clf;
-      for i = 1:R.NJ
-        if R.Type ~= 0
-          legnum = find(i>=R.I1J_LEG, 1, 'last');
-          legjointnum = i-(R.I1J_LEG(legnum)-1);
-        end
-        subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
-        hold on; grid on;
-        plot(Traj_0.t, QD_alt(:,i), '-');
-        plot(Traj_0.t, QD(:,i), '-');
-        plot(Traj_0.t([1,end]), repmat(Structure.qDlim(i,:),2,1), 'r-');
-        ylim(minmax2([QD(:,i);QD(:,i);QD_alt(:,i);QD_alt(:,i)]'));
-        if R.Type == 0
-          title(sprintf('qD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
-        else
-          title(sprintf('qD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
-        end
-      end
-      linkxaxes
-      sgtitle('Gelenkgeschwindigkeiten (vor/nach AR)');
-      legend({'ohne AR opt.' 'mit Opt.'});
-      change_current_figure(3011);clf;
-      for i = 1:R.NJ
-        if R.Type ~= 0
-          legnum = find(i>=R.I1J_LEG, 1, 'last');
-          legjointnum = i-(R.I1J_LEG(legnum)-1);
-        end
-        subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
-        hold on; grid on;
-        plot(Traj_0.t, QDD_alt(:,i), '-');
-        plot(Traj_0.t, QDD(:,i), '-');
-        plot(Traj_0.t([1,end]), repmat(Structure.qDDlim(i,:),2,1), 'r-');
-        ylim(minmax2([QDD(:,i);QDD(:,i);QDD_alt(:,i);QDD_alt(:,i)]'));
-        if R.Type == 0
-          title(sprintf('qDD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
-        else
-          title(sprintf('qDD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
-        end
-      end
-      linkxaxes
-      sgtitle('Gelenkbeschleunigungen (vor/nach AR)');
-      legend({'ohne AR opt.' 'mit Opt.'});
-      change_current_figure(3012);clf;
-      for i = 1:6
-        subplot(2,3,i); hold on; grid on;
-        plot(Traj_0.t, Stats_alt.h(:,1+i), '-');
-        plot(Traj_0.t, Stats.h(:,1+i), '-');
-      end
-      linkxaxes
-      sgtitle('Zielkriterien (vor/nach AR)');
-      legend({'ohne AR opt.' 'mit Opt.'});
-    end
     Q = Q_alt;
     QD = QD_alt;
     QDD = QDD_alt;
@@ -355,15 +377,168 @@ if i_ar == 3
     JP = JP_alt;
     fval = fval_ar(1);
     constrvioltext = [constrvioltext_alt, ' Erneute IK-Berechnung ohne Verbesserung'];
-  elseif fval_ar(1) == fval_ar(2)
-    % Ergebnisse identisch. Wurden die identischen Einstellungen benutzt.
-    % Dann noch Logik-Fehler.
+  elseif fval_ar(1) == fval_ar(2) && fval_ar(1) ~= 1e3
+    % Ergebnisse identisch, obwohl es n.i.O. ist. Deutet auf Logik-Fehler
+    % oder unverstandene Einstellungen
+    cds_log(3, sprintf(['[constraints_traj] Konfig %d/%d: Ergebnis der ', ...
+      'Traj.-IK nach Nullraumbewegung gleich: fval=%1.3e ("%s"). s.wn=[%s]'], ...
+      Structure.config_index, Structure.config_number, fval_ar(1), constrvioltext, ...
+      disp_array(wn_alt', '%1.1g')));
     constrvioltext = [constrvioltext, sprintf(' Identisches Ergebnis mehrfach berechnet')]; %#ok<AGROW>
+  elseif fval_ar(1) == fval_ar(2) && fval_ar(1) == 1e3
+    % Bestmöglicher Fall. Vorher und nachher in Ordnung. 
+    % Nehme zusätzliche Kennzahlen um zu prüfen, ob sich das Ergebnis auch
+    % verbessert hat. Wobei Verbesserung hier eigentlich kein Kriterium
+    % ist, da primär Nebenbedingungen ("constraints") geprüft werden.
+    cds_log(3, sprintf(['[constraints_traj] Konfig %d/%d: Ergebnis der ', ...
+      'Traj.-IK vor und nach Nullraumbewegung i.O.: %s; \n\twn: [%s] -> [%s]'], ...
+      Structure.config_index, Structure.config_number, debug_str, ...
+      disp_array(wn_all(1,:), '%1.1g'), disp_array(wn_all(2,:), '%1.1g')));
   else
     % Zweiter Durchlauf der Optimierung brachte Verbesserung. Jetzt ist es genug.
+    cds_log(3, sprintf(['[constraints_traj] Konfig %d/%d: Ergebnis der ', ...
+      'Traj.-IK hat sich nach Nullraumbewegung verbessert: %1.3e -> ', ...
+      '%1.3e ("%s" -> "%s"), delta: %1.3e. %s'], Structure.config_index, ...
+      Structure.config_number, fval_ar(1), fval_ar(2), constrvioltext_alt, ...
+      constrvioltext, fval_ar(2)-fval_ar(1), debug_str));
     constrvioltext = [constrvioltext, sprintf([' Verbesserung durch ', ...
       'erneute IK-Berechnung (%1.3e->%1.3e, delta: %1.3e). Vorher: %s'], ...
       fval_ar(1), fval_ar(2), fval_ar(2)-fval_ar(1), constrvioltext_alt)]; %#ok<AGROW>
+  end
+  % Debug: Vergleiche vorher-nachher.
+  if Set.general.debug_taskred_fig
+    RP = ['R', 'P'];
+    change_current_figure(3009);clf;
+    set(3009,'Name','AR_TrajDbg_q', 'NumberTitle', 'off');
+    if ~strcmp(get(3009, 'windowstyle'), 'docked')
+      set(3009,'units','normalized','outerposition',[0 0 1 1]);
+    end
+    for i = 1:R.NJ
+      if R.Type ~= 0
+        legnum = find(i>=R.I1J_LEG, 1, 'last');
+        legjointnum = i-(R.I1J_LEG(legnum)-1);
+      end
+      subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
+      hold on; grid on;
+      plot(Traj_0.t, Q_alt(:,i), '-');
+      plot(Traj_0.t, Q(:,i), '-');
+      plot(Traj_0.t([1,end]), repmat(Structure.qlim(i,:),2,1), 'r-');
+      ylim(minmax2([Q(:,i);Q(:,i);Q_alt(:,i);Q_alt(:,i)]'));
+      if R.Type == 0
+        title(sprintf('q %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+      else
+        title(sprintf('q %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+      end
+    end
+    linkxaxes
+    sgtitle('Gelenkpositionen (vor/nach AR)');
+    legend({'ohne AR opt.' 'mit Opt.'});
+    change_current_figure(3010);clf;
+    set(3010,'Name','AR_TrajDbg_qD', 'NumberTitle', 'off');
+    if ~strcmp(get(3010, 'windowstyle'), 'docked')
+      set(3010,'units','normalized','outerposition',[0 0 1 1]);
+    end
+    for i = 1:R.NJ
+      if R.Type ~= 0
+        legnum = find(i>=R.I1J_LEG, 1, 'last');
+        legjointnum = i-(R.I1J_LEG(legnum)-1);
+      end
+      subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
+      hold on; grid on;
+      plot(Traj_0.t, QD_alt(:,i), '-');
+      plot(Traj_0.t, QD(:,i), '-');
+      plot(Traj_0.t([1,end]), repmat(Structure.qDlim(i,:),2,1), 'r-');
+      ylim(minmax2([QD(:,i);QD(:,i);QD_alt(:,i);QD_alt(:,i)]'));
+      if R.Type == 0
+        title(sprintf('qD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+      else
+        title(sprintf('qD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+      end
+    end
+    linkxaxes
+    sgtitle('Gelenkgeschwindigkeiten (vor/nach AR)');
+    legend({'ohne AR opt.' 'mit Opt.'});
+    change_current_figure(3011);clf;
+    set(3011,'Name','AR_TrajDbg_qDD', 'NumberTitle', 'off');
+    if ~strcmp(get(3011, 'windowstyle'), 'docked')
+      set(3011,'units','normalized','outerposition',[0 0 1 1]);
+    end
+    for i = 1:R.NJ
+      if R.Type ~= 0
+        legnum = find(i>=R.I1J_LEG, 1, 'last');
+        legjointnum = i-(R.I1J_LEG(legnum)-1);
+      end
+      subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
+      hold on; grid on;
+      plot(Traj_0.t, QDD_alt(:,i), '-');
+      plot(Traj_0.t, QDD(:,i), '-');
+      plot(Traj_0.t([1,end]), repmat(Structure.qDDlim(i,:),2,1), 'r-');
+      ylim(minmax2([QDD(:,i);QDD(:,i);QDD_alt(:,i);QDD_alt(:,i)]'));
+      if R.Type == 0
+        title(sprintf('qDD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+      else
+        title(sprintf('qDD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+      end
+    end
+    linkxaxes
+    sgtitle('Gelenkbeschleunigungen (vor/nach AR)');
+    legend({'ohne AR opt.' 'mit Opt.'});
+    change_current_figure(3012);clf;
+    set(3012,'Name','AR_TrajDbg_h', 'NumberTitle', 'off');
+    if ~strcmp(get(3012, 'windowstyle'), 'docked')
+      set(3012,'units','normalized','outerposition',[0 0 1 1]);
+    end
+    for i = 1:size(Stats.h,2)-1
+      subplot(4,4,i); hold on;
+      plot(Traj_0.t, Stats_alt.h(:,1+i), '-');
+      plot(Traj_0.t, Stats.h(:,1+i), '-');
+      ylabel(sprintf('h %d', i)); grid on;
+    end
+    subplot(4,4,15); hold on;
+    plot(Traj_0.t, Stats_alt.condJ(:,1), '-');
+    plot(Traj_0.t, Stats.condJ(:,1), '-');
+    ylabel('Jacobi-Konditionszahl'); grid on;
+    if R.Type == 2
+      subplot(4,4,16); hold on;
+      plot(Traj_0.t, Stats_alt.condJ(:,2), '-');
+      plot(Traj_0.t, Stats.condJ(:,2), '-');
+      ylabel('IK-Jacobi-Konditionszahl'); grid on;
+    end
+    linkxaxes
+    sgtitle('Zielkriterien (vor/nach AR)');
+    legend({'ohne AR opt.' 'mit Opt.'});
+    change_current_figure(3013);clf;
+    set(3013,'Name','AR_TrajDbg_x6', 'NumberTitle', 'off');
+    if ~strcmp(get(3013, 'windowstyle'), 'docked')
+      set(3013,'units','normalized','outerposition',[0 0 1 1]);
+    end
+    for i = 1:3
+      subplot(1,3,i); hold on; grid on;
+      plot(Traj_0.t, X2phizTraj_alt(:,i), '-');
+      switch i
+        case 1, plot(Traj_0.t, X2(:,6), '-');   Dstr = '';
+        case 2, plot(Traj_0.t, XD2(:,6), '-');  Dstr = 'D';
+        case 3, plot(Traj_0.t, XDD2(:,6), '-'); Dstr = 'DD';
+      end
+      ylabel(sprintf('phiz %s', Dstr));
+    end
+    linkxaxes
+    sgtitle('Redundante Koordinate (vor/nach AR)');
+    legend({'ohne AR opt.' 'mit Opt.'})
+    % Debug-Bilder speichern
+    name_prefix_ardbg = sprintf('Gen%02d_Ind%02d_Konfig%d', currgen, ...
+      currind, Structure.config_index);
+    for fignr = 3009:3013
+      for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
+        if strcmp(fileext{1}, 'fig')
+          saveas(fignr, fullfile(resdir, sprintf('%s_TaskRed_%s.fig', ...
+            name_prefix_ardbg, get(fignr, 'name'))));
+        else
+          export_fig(fignr, fullfile(resdir, sprintf('%s_TaskRed_%s.%s', ...
+            name_prefix_ardbg, get(fignr, 'name'), fileext{1})));
+        end
+      end
+    end
   end
   return
 end
@@ -371,11 +546,21 @@ if i_ar == 2
   Q_alt = Q;
   QD_alt = QD;
   QDD_alt = QDD;
+  X2phizTraj_alt = [X2(:,6),XD2(:,6),XDD2(:,6)];
   wn_alt = s.wn;
   Stats_alt = Stats; %#ok<NASGU>
   Jinv_ges_alt = Jinv_ges;
   JP_alt = JP;
 end
+% Entfernen des dritten Euler-Winkels aus der Trajektorie (wird sonst
+% als Referenz benutzt und dann Kopplung zwischen Iterationen der Traj.-IK)
+% Wird nach IK-Berechnung wieder eingetragen
+if task_red % Nur bei Redundanz relevant (Nebenbedingungen)
+  Traj_0.X(:,6) = 0; % wird ignoriert (xlim ist nicht aktiv als Kriterium)
+  Traj_0.XD(:,6) = 0; % Wird für Dämpfung benötigt
+  Traj_0.XDD(:,6) = 0; % wird ignoriert
+end
+wn_all(i_ar,:) = s.wn(:)'; %#ok<AGROW>
 if R.Type == 0 % Seriell
   qlim = R.qlim;
   [Q, QD, QDD, PHI, JP, Stats] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
@@ -567,8 +752,9 @@ if R.Type == 2 && Set.general.debug_calc % PKM; Rechne nochmal mit Klassenmethod
     % Hier keine Warnung wie oben. Traj.-IK darf nicht von Zufall abhängen.
     % TODO: Wirklich Fehlermeldung einsetzen. Erstmal so lassen, da
     % nicht kritisch.
-    cds_log(-1, sprintf(['[constraints_traj] Traj.-IK-Berechnung mit Funktionsdatei hat anderen ', ...
-      'Status (%d) als Klassenmethode (%d).'], ik_res_ik2, ik_res_iks));
+    cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Traj.-IK-Berechnung ', ...
+      'mit Funktionsdatei hat anderen Status (%d) als Klassenmethode (%d).'], ...
+      Structure.config_index, Structure.config_number, ik_res_ik2, ik_res_iks));
   end
   % Prüfe, ob die ausgegebenen Gelenk-Positionen auch stimmen
   for i = 1:size(Q,1)
@@ -928,9 +1114,9 @@ corrQD(all(abs(QD_num-QD)<1e-3)) = 1;
 corrQ(all(abs(QD)<1e-10)) = 1; % qD=0 und q schwankt numerisch (als Nullraumbewegung) wegen IK-Positionskorrektur
 if task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
   % TODO: Inkonsistenz ist Fehler in Traj.-IK. Dort korrigieren.
-  cds_log(-1, sprintf(['[constraints_traj] Nullraumbewegung führt zu nicht ', ...
+  cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Nullraumbewegung führt zu nicht ', ...
     'konsistenten Gelenkverläufen. Korrelation Geschw. min. %1.2f, ', ...
-    'Position %1.2f'], min(corrQD), min(corrQ)'));
+    'Position %1.2f'], Structure.config_index, Structure.config_number, min(corrQD), min(corrQ)'));
 end
 if ~task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
   % Wenn eine Gelenkgröße konstant ist (ohne Rundungsfehler), wird die
@@ -1031,8 +1217,8 @@ if Structure.desopt_prismaticoffset
     Traj_0.X, Set, Structure, JP, Q);
   if R.Type == 0, new_offset=R.DesPar.joint_offset(R.MDH.sigma==1);
   else, new_offset=R.Leg(1).DesPar.joint_offset(R.Leg(1).MDH.sigma==1); end
-  cds_log(4, sprintf(['[constraints_traj] Schubgelenk-Offset wurde ', ...
-    'optimiert. Ergebnis: %1.1fmm'], 1e3*new_offset));
+  cds_log(4, sprintf(['[constraints_traj] Konfig %d/%d: Schubgelenk-Offset wurde ', ...
+    'optimiert. Ergebnis: %1.1fmm'], Structure.config_index, Structure.config_number, 1e3*new_offset));
   % Kollisionskörper müssen nochmal aktualisiert werden (wegen Offset)
   [Structure.collbodies_robot, Structure.installspace_collbodies] = ...
     cds_update_collbodies(R, Set, Structure, Q);
@@ -1043,8 +1229,9 @@ end
 %% Selbstkollisionserkennung für Trajektorie
 if Set.optimization.constraint_collisions && ...
       (isnan(fval_coll_tmp) || fval_coll_tmp > 0)
-  [fval_coll_traj, coll_traj] = cds_constr_collisions_self(R, Traj_0.X, ...
+  [fval_coll_traj, coll_traj, colldepth_abs] = cds_constr_collisions_self(R, Traj_0.X, ...
     Set, Structure, JP, Q, [3e3; 4e3]);
+  mincolldist_all(i_ar) = min(colldepth_abs(:));
   if fval_coll_traj > 0
     fval = fval_coll_traj; % Normierung auf 3e3 bis 4e3 -> bereits in Funktion
     constrvioltext = sprintf('Kollision in %d/%d Traj.-Punkten.', ...
@@ -1058,6 +1245,7 @@ if ~isempty(Set.task.installspace.type) && ...
       (isnan(fval_instspc_tmp) || fval_instspc_tmp > 0)
   [fval_instspc_traj, f_constrinstspc_traj] = cds_constr_installspace( ...
     R, Traj_0.X, Set, Structure, JP, Q, [2e3;3e3]);
+  mininstspcdist_all(i_ar) = f_constrinstspc_traj;
   if fval_instspc_traj > 0
     fval = fval_instspc_traj; % Normierung auf 2e3 bis 3e3 -> bereits in Funktion
     constrvioltext = sprintf(['Verletzung des zulässigen Bauraums in Traj.', ...

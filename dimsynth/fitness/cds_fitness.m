@@ -112,7 +112,7 @@ cds_update_robot_parameters(R, Set, Structure, p);
 Traj_0 = cds_transform_traj(R, Traj_W);
 
 %% Nebenbedingungen prüfen (für Eckpunkte)
-[fval_constr,QE_iIKC, Q0, constrvioltext] = cds_constraints(R, Traj_0, Set, Structure);
+[fval_constr,QE_iIKC, Q0, constrvioltext, Stats_constraints] = cds_constraints(R, Traj_0, Set, Structure);
 % Füge weitere Anfangswerte für die Trajektorien-IK hinzu. Diese werden
 % zusätzlich vorgegeben (bspw. aus vorherigem Ergebnis, das reproduziert
 % werden muss). Wird genutzt, falls aus numerischen Gründen die Einzelpunkt-
@@ -230,8 +230,10 @@ for iIKC = 1:size(Q0,1)
   end
   %% Trajektorie berechnen
   if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
+    Structure.config_index = iIKC;
+    Structure.config_number = size(Q0,1);
     [fval_trajconstr,Q,QD,QDD,Jinv_ges,JP,constrvioltext_IKC{iIKC}] = cds_constraints_traj( ...
-      R, Traj_0, Q0(iIKC,:)', Set, Structure);
+      R, Traj_0, Q0(iIKC,:)', Set, Structure, Stats_constraints);
     % NB-Verletzung in Traj.-IK wird in Ausgabe mit Werten von 1e3 aufwärts
     % angegeben. Umwandlung in Werte von 1e7 aufwärts.
     % Ursache: Nachträgliches Einfügen von weiteren Nebenbedingungen.
@@ -509,6 +511,12 @@ for iIKC = 1:size(Q0,1)
     fval_IKC(iIKC,strcmp(Set.optimization.objective, 'footprint')) = fval_footprint;
     physval_IKC(iIKC,strcmp(Set.optimization.objective, 'footprint')) = physval_footprint;
     fval_debugtext = [fval_debugtext, ' ', fval_debugtext_footprint]; %#ok<AGROW>
+  end
+  if any(strcmp(Set.optimization.objective, 'colldist'))
+    [fval_colldist, fval_debugtext_colldist, ~, physval_colldist] = cds_obj_colldist(R, Set, Structure, Traj_0, Q, JP);
+    fval_IKC(iIKC,strcmp(Set.optimization.objective, 'colldist')) = fval_colldist;
+    physval_IKC(iIKC,strcmp(Set.optimization.objective, 'colldist')) = physval_colldist;
+    fval_debugtext = [fval_debugtext, ' ', fval_debugtext_colldist]; %#ok<AGROW>
   end
   if any(strcmp(Set.optimization.objective, 'energy'))
     [fval_en,fval_debugtext_en, debug_info, physval_en] = cds_obj_energy(R, Set, Structure, Traj_0, TAU, QD);

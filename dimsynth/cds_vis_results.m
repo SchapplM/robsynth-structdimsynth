@@ -139,9 +139,6 @@ parfor (i = 1:length_Structures_parfor, parfor_numworkers)
   % Histogramm erstellen
   figure(100*i+1);clf;hold all;
   set(100*i+1, 'Name', sprintf('Rob%d_Hist', i), 'NumberTitle', 'off', 'color','w');
-  if ~strcmp(get(100*i+1, 'windowstyle'), 'docked')
-    set(100*i+1,'units','normalized','outerposition',[0 0 1 1]);
-  end
   sgtitle(sprintf('Erg.-Vert. für %s: %d Parametersätze in %d Gen.', Name, length(I_zul), size(Erg_All_Gen,1)));
   subplot(2,2,sprc2no(2,2,1,1)); % Histogramm über zulässige Lösungen
   h_zul = histogram(Erg_All_Gen(I_zul));
@@ -339,9 +336,6 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   change_current_figure(10+pffig); clf; hold on; grid on;
   set(10+pffig, 'name', sprintf('Pareto_Gesamt_%s',name_suffix), ...
     'NumberTitle', 'off', 'color','w');
-  if ~strcmp(get(10+pffig, 'windowstyle'), 'docked')
-    set(10+pffig,'units','normalized','outerposition',[0 0 1 1]);
-  end
   leghdl = []; legstr = {}; % Für Erstellung der Legende am Ende
   countmarker = 0; % Stelle Marker für jeden Roboter zusammen
   markerlist = {'x', 's', 'v', '^', '*', 'o', 'd', 'v', '<', '>', 'p', 'h'};

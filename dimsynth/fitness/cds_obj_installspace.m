@@ -111,9 +111,6 @@ else
   return
 end
 change_current_figure(700); clf; hold all;
-if ~strcmp(get(700, 'windowstyle'), 'docked')
-  % set(200,'units','normalized','outerposition',[0 0 1 1]);
-end
 view(3); axis auto; hold on; grid on;
 xlabel('x in m'); ylabel('y in m'); zlabel('z in m');
 % Gelenkpunkte zeichnen

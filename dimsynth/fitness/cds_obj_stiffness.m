@@ -118,9 +118,6 @@ debug_info = {sprintf('min. Steifigkeit: %1.3f N/mm', 1/f_com)};
 %% Debug-Zeichnung erstellen
 if fval < Set.general.plot_details_in_fitness
   change_current_figure(205); clf; hold all;
-  if ~strcmp(get(205, 'windowstyle'), 'docked')
-    % set(202,'units','normalized','outerposition',[0 0 1 1]);
-  end
   hdleig=plot(Keigges);
   hdl=plot([0; size(Q,1)], 1/Set.optimization.constraint_obj(5)*[1;1], 'r--');
   hdlworst=plot(I_sti_min, f_sti_min, 'ko');

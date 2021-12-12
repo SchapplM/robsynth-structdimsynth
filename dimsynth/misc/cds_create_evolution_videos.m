@@ -53,7 +53,6 @@ for j = 1:length(Structures)
     [tokens_img,~] = regexp(filedat_detailimg(i).name,'Gen(\d+)_Ind(\d+)_Eval(\d+)','tokens','match');
     title(sprintf('Gen %s, Ind %s', tokens_img{1}{1}, tokens_img{1}{2}));
     set(gcf, 'windowstyle', 'normal')
-    set(gcf,'units','normalized','outerposition',[0 0 1 1]);
     set(gcf,'color','w');
     f=getframe(gcf);
     % Zuschneiden auf Mod32 für anschließende Kompression

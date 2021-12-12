@@ -36,7 +36,9 @@ general = struct( ...
   'plot_robot_in_fitness', 0, ... % Schwellwert der Gütefunktion zum Zeichnen von Details.
   'plot_details_in_fitness', 0, ... % Positiv: nur bei besseren; negativ: nur bei schlechteren als ...
   'plot_details_in_desopt' , 0, ... % Wie vorheriges Argument, aber für die Gütefunktion der Entwurfsoptimierung
-  'debug_task_redundancy', false, ... % Debug-Rechnungen und -Plots für Aufgabenredundanz
+  ... % Debug-Einstellungen um gezielt einige Bilder und Untersuchungen zu aktivieren
+  'debug_taskred_perfmap', false, ...% Redundanzkarte (Rasterung des redundanten FG über Trajektorie)
+  'debug_taskred_fig', false, ... % Diverse weitere Plots zur Aufgabenredundanz
   'save_robot_details_plot_fitness_file_extensions', {''}, ... % Speichern des durch vorherige Einstellung erstellten Bildes
   'save_animation_file_extensions', {{'gif', 'mp4'}}, ... % Format, in denen die Animationen gespeichert werden
   'animation_styles', {{'stick'}}, ... % Visualisierungsarten im Video: stick,3D,collision; bei mehr als einem: Syntax {{'1.','2.'}}
@@ -112,7 +114,7 @@ optimization = struct( ...
   'objective', {'energy'}, ... % Zielfunktion. Möglich: mass, energy, condition, 
    ... % valid_kin, valid_act, actforce, materialstress, stiffness, jointrange,
    ... % manipulability, minjacsingval, positionerror, actvelo, chainlength,
-   ... % installspace, footprint. Auch mehrere gleichzeitig möglich.
+   ... % installspace, footprint, colldist. Auch mehrere gleichzeitig möglich.
   'obj_jointrange', ... % Zusatzeinstellungen für die Zielfunktion "jointrange"
     struct( 'only_revolute', true, ... % Minimiere nur Wertebereich von Drehgelenken
             'only_passive', true), ... % Minimiere nur Wertebereich passiver Gelenke

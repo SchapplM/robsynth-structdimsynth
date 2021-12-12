@@ -9,10 +9,10 @@
 %   Einstellungen des Optimierungsalgorithmus (aus cds_settings_defaults.m)
 % Structure
 %   Eigenschaften der Roboterstruktur (aus cds_gen_robot_list.m)
-% JP
+% JP [NT x ...]
 %   Gelenkpositionen aller Gelenke des Roboters
 %   (Zeilen: Zeitschritte der Trajektorie)
-% Q
+% Q [NT x NJ]
 %   Gelenkpositionen(für PKM auch passive Gelenke)
 % scale [2x1]
 %   Skalierung der Ausgabe fval in bestimmten Wertebereich:
@@ -22,9 +22,12 @@
 % fval
 %   Strafterm für Kollisionen. 0 falls keine Kollision. Sonst im Bereich
 %   vorgegeben durch Eingabegröße scale
-% coll
+% coll [NT x NC]
 %   Binärmatrix mit Kollision ja/nein für alle Zeitschritte aus Q und
 %   Kollisionspaare aus Structure
+% colldepth_abs [NT x NC]
+%   Kollisionsabstände für alle Zeitschritte NT und alle Prüfungen NC.
+%   Negative Abstände sind Kollisionen. Positive Abstände sind i.O.
 % 
 % Erzeugt Bild:
 % Visualisierung der Kollisionen am Roboter (schlimmster Fall)
@@ -37,7 +40,7 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-05
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function [fval, coll] = cds_constr_collisions_self(R, X, Set, Structure, JP, Q, scale)
+function [fval, coll, colldepth_abs] = cds_constr_collisions_self(R, X, Set, Structure, JP, Q, scale)
 
 if Set.general.matfile_verbosity > 1
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constr_collisions_self_0.mat'));
@@ -49,16 +52,20 @@ collbodies = Structure.collbodies_robot;
 collchecks = Structure.selfcollchecks_collbodies;
 %% Kollisionen und Strafterm berechnen
 CollSet = struct('collsearch', true);
-[coll, ~, colldepth] = check_collisionset_simplegeom_mex( ...
+% Im Debug-Modus auch die vollständigen Kollisionsabstände berechnen.
+% Benötigt ca. 20% mehr Rechenzeit für Kollisionsprüfung.
+if Set.general.verbosity >= 3, CollSet.collsearch = false; end
+[coll, colldepth_abs, colldepth_rel] = check_collisionset_simplegeom_mex( ...
   collbodies, collchecks, JP, CollSet);
+% Folgende Debug-Prüfung ist nur sinnvoll, wenn collsearch auf true ist.
+% if any(abs(colldepth_rel(:))>1) || any(abs(colldepth_rel(:))<0)
+%   error('Relative Eindringtiefe ist außerhalb des erwarteten Bereichs');
+% end
 
-if any(abs(colldepth(:))>1) || any(abs(colldepth(:))<0)
-  error('Relative Eindringtiefe ist außerhalb des erwarteten Bereichs');
-end
 % Strafterm aus Kollisionserkennung: Wert ist automatisch zwischen 0 und 1.
 % Allerdings voraussichtlich <<1, da 1 nur erreicht wird, wenn alle Körper
 % komplett ineinanderliegen
-f_constr = sum( colldepth(coll(:)==true) ) / length(coll(:));
+f_constr = sum( colldepth_rel(coll(:)==true) ) / length(coll(:));
 % Größere Ausnutzung des Bereichs von 0 bis 1 -> 0.01 wird 0.5
 f_constr_norm = 2/pi*atan(100*f_constr);
 if f_constr_norm > 0
@@ -74,8 +81,8 @@ if fval == 0 || 1e4*fval >= Set.general.plot_details_in_fitness
   return
 end
 % Suche Datenpunkt mit größter Kollision
-colldepth(isnan(colldepth)) = 0;
-colldepth_t = sum(colldepth,2);
+colldepth_rel(isnan(colldepth_rel)) = 0;
+colldepth_t = sum(colldepth_rel,2);
 [~,j] = max(colldepth_t); % Index für Zeitschritt in Daten
 % Debug: Detaillierte Informationen
 % fprintf('%d Kollisionen für Zeitschritt %d/%d berechnet:\n', sum(coll(j,:)), j, size(coll,1));

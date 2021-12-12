@@ -38,14 +38,13 @@ tt = '';
 for i = 1:length(debug_info), tt = [tt, newline(), debug_info{i}]; end %#ok<AGROW>
 
 change_current_figure(200); clf; hold all;
-if ~strcmp(get(200, 'windowstyle'), 'docked')
-  % set(200,'units','normalized','outerposition',[0 0 1 1]);
-end
 view(3);
 axis auto
 hold on;grid on;
 xlabel('x in m');ylabel('y in m');zlabel('z in m');
-plot3(Traj_W.X(:,1), Traj_W.X(:,2),Traj_W.X(:,3), 'k-');
+if ~isempty(Traj_W)
+  plot3(Traj_W.X(:,1), Traj_W.X(:,2),Traj_W.X(:,3), 'k-');
+end
 plotmode = 1; % Strichzeichnung
 if R.Type == 0 % Seriell
   s_plot = struct( 'ks', 1:R.NJ+2, 'straight', 1, 'mode', plotmode);
@@ -55,7 +54,9 @@ else % PKM
     'straight', 1, 'mode', plotmode);
   R.plot( q, Traj_0.X(1,:)', s_plot);
 end
-title(sprintf('fval=%1.2e; p=[%s]; %s', fval,disp_array(p','%1.3f'), tt));
+if ~isempty(p)
+  title(sprintf('fval=%1.2e; p=[%s]; %s', fval,disp_array(p','%1.3f'), tt));
+end
 axis auto
 [currgen,currind,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'Details');
 if ~isempty(Set.general.save_robot_details_plot_fitness_file_extensions)

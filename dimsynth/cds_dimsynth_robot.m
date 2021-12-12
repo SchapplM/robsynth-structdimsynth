@@ -83,8 +83,8 @@ if ~init_only && ~Set.general.only_finish_aborted
     fprintf(fid, '%s: Branch %s, Rev. %s (%s)\n', repo_deps{i}{1}, branch(1:end-1), rev(1:8), revdatum);
   end
   fclose(fid);
-  if ~ispc() % lspcu funktioniert nur unter Linux
-    system(sprintf('echo "Eigenschaften des Rechners (lspcu):" >> %s', fpfile));
+  if ~ispc() % lscpu funktioniert nur unter Linux
+    system(sprintf('echo "Eigenschaften des Rechners (lscpu):" >> %s', fpfile));
     system(sprintf('lscpu >> %s', fpfile));
   end
   cd(olddir);
@@ -972,7 +972,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         for cb_k = unique([R.Leg(k).collbodies.link(:,1)',R.Leg(k).NL-1])
           for cb_i = unique([R.Leg(i).collbodies.link(:,1)',R.Leg(i).NL-1])
             % Mögliche Ausnahmen hier definieren per `continue`:
-            % [Deaktiviert] Bei paarweiser Anordnung der Beinketten
+            % [Deaktiviert] Bei paarweiser Anordnung der Beinketten (zur Plattform)
             % wird das letzte Segment der Beinketten-Paare nicht geprüft.
             % Dadurch können konstruktive Anpassungen berücksichtigt werden
             if any(R.DesPar.platform_method == [4 5 6]) && ...% paarweise Anordnung
@@ -980,6 +980,15 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
                 cb_k == R.Leg(k).collbodies.link(end,1) && cb_i == R.Leg(i).collbodies.link(end,1) % letztes Segment
               % Ausnahme deaktiviert, erzeugt zu viele sichtbare Kollisionen
               % continue % Nicht prüfen
+            end
+            % Bei paarweiser Anordnung des Gestells sind die Drehachsen
+            % der Beinketten-Paare immer parallel. Daher kann sich der
+            % Kollisionsabstand der ersten Segmente nicht ändern
+            if any(R.DesPar.base_method == [4 5 6]) && ...% paarweise Anordnung
+                R.Leg(k).MDH.sigma(1) == 0 && R.Leg(i).MDH.sigma(1) == 0 && ... % Beides Drehachsen
+                any(all(repmat(sort([k,i]),3,1)==[1 2; 3 4; 5 6],2)) && ... % betrifft Paar-Kombination
+                cb_k == R.Leg(k).collbodies.link(1,1) && cb_i == R.Leg(i).collbodies.link(1,1) % erstes Segment
+              continue
             end
             % Eintragen
             selfcollchecks_bodies = [selfcollchecks_bodies; ...
@@ -1236,6 +1245,54 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   % Eintragen in Roboter-Klasse
   R.collchecks = Structure.selfcollchecks_collbodies;
   if ~isempty(Structure.selfcollchecks_collbodies)
+    % Jetzt werden die Kollisionen nochmal darauf geprüft, ob einige Ab-
+    % stände sich nie ändern. Diese müssen dann nicht mehr geprüft werden.
+    % (Die Prüfungen werden aber trotzdem nicht entfernt, sondern nur gewarnt)
+    % Siehe z.B. cds_obj_footprint.m, cds_obj_colldist.m
+    % Mit bereits oben gesetzten Zufallswerten für Kinematikparameter und
+    % Gelenkwinkel werden Kollisionsabstände bestimmt.
+    % Nutze den vollständigen Winkelbereich. Sonst falsch-positiv.
+    Q_test = -pi+2*pi*rand(100,R.NJ); JP_test = [];
+    for jj = 1:size(Q_test,1)
+      if Structure.Type == 0  % Seriell
+        Tc_jj = R.fkine(Q_test(jj,:)');
+        JP_jj = squeeze(Tc_jj (1:3,4,1:end));
+      else % PKM-Beinkette
+        Tc_jj = R.fkine_coll2(Q_test(jj,:)');
+        JP_jj = reshape(Tc_jj(:,4),3,size(Tc_jj,1)/3);
+      end
+      JP_test = [JP_test; JP_jj(:)']; %#ok<AGROW>
+    end
+    [~, colldist_test] = check_collisionset_simplegeom_mex(R.collbodies, ...
+      R.collchecks, JP_test, struct('collsearch', false));
+    % Prüfe, welche Abstände sich bei diesen Zufallswerten nicht ändern.
+    colldist_range = diff(minmax2(colldist_test')');
+    I_norange = abs(colldist_range) < 1e-10;
+    if false % Debug:
+      fprintf('%d/%d Kollisionsprüfungen ohne Änderung der Abstände:\n', ...
+        sum(I_norange), length(I_norange)); %#ok<UNRCH>
+      for i = find(I_norange)
+        fprintf('%d (dist range. %1.1e): [%d %d], "%s" vs "%s"\n', i, colldist_range(i), R.collchecks(i,1), R.collchecks(i,2), ...
+          names_collbodies{R.collchecks(i,1)}, names_collbodies{R.collchecks(i,2)});
+      end
+      fprintf('%d/%d Kollisionsprüfungen mit Änderung der Abstände:\n', ...
+        sum(~I_norange), length(I_norange));
+      for i = find(~I_norange)
+        fprintf('%d (dist range. %1.1e): [%d %d], "%s" vs "%s"\n', i, colldist_range(i), R.collchecks(i,1), R.collchecks(i,2), ...
+          names_collbodies{R.collchecks(i,1)}, names_collbodies{R.collchecks(i,2)});
+      end
+    end
+    if any(I_norange)
+      cds_log(-1, sprintf(['[dimsynth] Die Kollisionsabstände für %d ', ...
+        'Prüfungen sind immer gleich.'], sum(I_norange)));
+    end
+    % Untersuche, welche Kollisionskörper gar nicht geprüft werden
+    for i = 1:length(R.collbodies)
+      if ~any(R.collchecks(:) == i)
+        cds_log(-1, sprintf('[dimsynth] Kollisionskörper %d wird nie geprüft.', i));
+      end
+    end
+    
     assert(max(R.collchecks(:))<=size(R.collbodies.link,1), ['Matlab-Klasse ', ...
       'muss gleiche Anzahl in collchecks und collbodies haben']);
     % Prüfe, ob die Typen der zu prüfenden Körper übereinstimmen. Wenn die
@@ -1800,7 +1857,7 @@ end
 % nicht so einfach möglich.
 % Bei erneutem Aufruf keine Debug-Bilder. Dauert sonst bei Abschluss von
 % Berechnung zu lange.
-Set.general.debug_task_redundancy = false;
+Set.general.debug_taskred_perfmap = false;
 Set.general.plot_details_in_fitness = 0;
 Set.general.plot_robot_in_fitness = 0;
 for i = 1:max_retry 
@@ -1954,7 +2011,7 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   % Dynamikparameter nicht in der Fitness-Funktion belegt
   only_kinematic_objective = length(intersect(Set.optimization.objective, ...
     {'condition','jointrange','manipulability','minjacsingval','positionerror', ...
-    'actvelo','chainlength','installspace','footprint'})) == length(Set.optimization.objective);
+    'actvelo','chainlength','installspace','footprint','colldist'})) == length(Set.optimization.objective);
   if any(fval > 1e3) ...% irgendeine Nebenbedingung wurde immer verletzt. ...
       || only_kinematic_objective % ... oder nur kinematische Zielfunktion ...
     cds_dimsynth_design(R, Q, Set, Structure); % ...  Daher nie bis zu diesem Funktionsaufruf gekommen.
@@ -1974,6 +2031,7 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   [fval_chainlength,~, ~, physval_chainlength] = cds_obj_chainlength(R);
   [fval_instspc,~, ~, physval_instspc] = cds_obj_installspace(R, Set, Structure, Traj_0, Q, JP);
   [fval_footprint,~, ~, physval_footprint] = cds_obj_footprint(R, Set, Structure, Traj_0, Q, JP);
+  [fval_colldist,~, ~, physval_colldist] = cds_obj_colldist(R, Set, Structure, Traj_0, Q, JP);
   if Set.optimization.nolinkmass
     % Die Formel für die Berechnung der Steifigkeit benutzt als Hilfsgröße
     % die Masse der Beinketten. TODO: Ansatz überarbeiten.
@@ -1986,16 +2044,24 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   % Reihenfolge siehe Variable Set.optimization.constraint_obj aus cds_settings_defaults
   fval_obj_all = [fval_mass; fval_energy; fval_actforce; fval_ms; fval_cond; ...
     fval_mani; fval_msv; fval_pe; fval_jrange; fval_actvelo; fval_chainlength; ...
-    fval_instspc; fval_footprint; fval_stiff];
+    fval_instspc; fval_footprint; fval_colldist; fval_stiff];
   physval_obj_all = [physval_mass; physval_energy; physval_actforce; ...
     physval_ms; physval_cond; physval_mani; physval_msv; physval_pe; ...
     physval_jrange; physval_actvelo; physval_chainlength; physval_instspc; ...
-    physval_footprint; physval_stiff];
+    physval_footprint; physval_colldist; physval_stiff];
+  if length(fval_obj_all)~=15 || length(physval_obj_all)~=15
+    % Dimension ist falsch, wenn eine Zielfunktion nicht skalar ist (z.B. leer)
+    save(fullfile(resdir, 'fvaldimensionerror.mat'));
+    cds_log(-1, sprintf(['[dimsynth] Dimension der Zielfunktionen falsch ', ...
+      'berechnet. dim(fval_obj_all)=%d, dim(physval_obj_all)=%d'], ...
+      length(fval_obj_all), length(physval_obj_all)));
+  end
   % Vergleiche neu berechnete Werte mit den zuvor abgespeicherten (müssen
   % übereinstimmen)
   test_Jcond_abs = PSO_Detail_Data.constraint_obj_val(dd_optind, 4, dd_optgen) - physval_cond;
   test_Jcond_rel = test_Jcond_abs / physval_cond;
-  if abs(test_Jcond_abs) > 1e-6 && test_Jcond_rel > 1e-3
+  if abs(test_Jcond_abs) > 1e-6 && test_Jcond_rel > 1e-3 && ...
+      physval_cond < 1e6 % Abweichung nicht in Singularität bestimmbar
     save(fullfile(resdir, 'condreprowarning.mat'));
     cds_log(-1, sprintf(['[dimsynth] Während Optimierung gespeicherte ', ...
       'Konditionszahl (%1.5e) stimmt nicht mit erneuter Berechnung (%1.5e) ', ...
@@ -2028,8 +2094,8 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
 else
   % Keine Berechnung der Leistungsmerkmale möglich, da keine zulässige Lösung
   % gefunden wurde.
-  fval_obj_all = NaN(14,1);
-  physval_obj_all = NaN(14,1);
+  fval_obj_all = NaN(15,1);
+  physval_obj_all = NaN(15,1);
 end
 % Prüfe auf Plausibilität, ob die Optimierungsziele erreicht wurden. Neben-
 % bedingungen nur prüfen, falls überhaupt gültige Lösung erreicht wurde.
@@ -2040,7 +2106,7 @@ objconstr_names_all = {'mass', 'energy', 'actforce', 'condition', ...
   'stiffness', 'materialstress'};
 obj_names_all = {'mass', 'energy', 'actforce', 'materialstress', 'condition', ...
   'manipulability', 'minjacsingval', 'positionerror', 'jointrange', ...
-  'actvelo','chainlength', 'installspace', 'footprint', 'stiffness'}; % konsistent zu fval_obj_all und physval_obj_all
+  'actvelo','chainlength', 'installspace', 'footprint', 'colldist', 'stiffness'}; % konsistent zu fval_obj_all und physval_obj_all
 I_constr = zeros(length(objconstr_names_all),1);
 for i = 1:length(objconstr_names_all)
   I_constr(i) = find(strcmp(objconstr_names_all{i}, obj_names_all));
@@ -2074,6 +2140,9 @@ end
 for i = 1:length(Set.optimization.objective)
   if I_fval_obj_all(i) == 0, continue; end % keine Prüfung möglich.
   if fval(i) > 1e3, continue; end % Leistungsmerkmal steht nicht in Zielfunktion (NB-Verletzung)
+  if strcmp(Set.optimization.objective{i}, 'condition') && physval_cond > 1e6 
+    continue % Abweichung in Singularität numerisch unsicher
+  end
   test_fval_i = fval(i) - fval_obj_all(I_fval_obj_all(i));
   if abs(test_fval_i) > 1e-5
     save(fullfile(resdir, 'fvalreprowarning.mat'));

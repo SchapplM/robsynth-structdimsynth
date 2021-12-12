@@ -37,13 +37,18 @@
 % constrvioltext [char]
 %   Text mit Zusatzinformationen, die beim Aufruf der Fitness-Funktion
 %   ausgegeben werden
+% Stats (struct)
+%   Zusätzliche Informationen zu den einzelnen Werten aus Q0. Felder:
+%   .bestcolldist: Bestmöglicher Kollisionsabstand
+%   .bestinstspcdist: Bestmöglicher Abstand zum Bauraum
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function [fval,QE_all,Q0,constrvioltext] = cds_constraints(R, Traj_0, Set, Structure)
+function [fval,QE_all,Q0,constrvioltext,Stats] = cds_constraints(R, Traj_0, Set, Structure)
 Q0 = NaN(1,R.NJ);
 QE_all = Q0;
+Stats = struct('bestcolldist', [], 'bestinstspcdist', []);
 %% Geometrie auf Plausibilität prüfen (1)
 if R.Type == 0 % Seriell
   % Prüfe, ob alle Eckpunkte der Trajektorie im Arbeitsraum des Roboters liegen
@@ -164,6 +169,8 @@ n_jic = 30;
 fval_jic = NaN(1,n_jic);
 calctimes_jic = NaN(2,n_jic);
 constrvioltext_jic = cell(n_jic,1);
+bestcolldist_jic = NaN(1,n_jic);
+bestinstspcdist_jic = NaN(1,n_jic);
 % IK-Statistik (für Aufgabenredundanz). Absolute Verbesserung von
 % Zielkriterien gegenüber der nicht-redundanten Kinematik
 arikstats_jic = NaN(size(Traj_0.XE,1),n_jic);
@@ -188,6 +195,17 @@ if task_red
   ar_loop = 1:2; % Aufgabenredundanz liegt vor. Zusätzliche Schleife
 else
   ar_loop = 1; % Keine Aufgabenredundanz. Nichts zu berechnen.
+end
+% Schwellwert für Jacobi-Matrix in Nullraumbewegung (falls nur als
+% Nebenbedingung und nicht als Optimierungsziel)
+cond_thresh_jac = 250;
+cond_thresh_ikjac = 500;
+if Set.optimization.constraint_obj(4) ~= 0 % Grenze für Jacobi-Matrix für Abbruch
+  if R.Type == 0 % Seriell: IK-Jacobi ungefähr wie analytische Jacobi
+    cond_thresh_ikjac = Set.optimization.constraint_obj(4);
+  else % PKM: Gemeint ist die Jacobi bzgl. Antriebe (nicht: IK-Jacobi)
+    cond_thresh_jac = Set.optimization.constraint_obj(4);
+  end
 end
 % Bestimme zufällige Anfangswerte für Gelenkkonfigurationen.
 % Benutze Gleichverteilung und kein Latin Hypercube (dauert zu lange).
@@ -263,7 +281,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         nPhi_t = sum(R.I_EE_Task(1:3));
         ik_res_ik2 = all(abs(Phi(1:nPhi_t))<s.Phit_tol) && ...
                      all(abs(Phi(nPhi_t+1:end))<s.Phir_tol);
-        condJik(i) = Stats.condJ(1+Stats.iter);
+        condJik(i) = Stats.condJ(1+Stats.iter,1);
       else % PKM
         Q0_mod = Q0;
         Q0_mod(R.I1J_LEG(2):end,end) = NaN; % Für Beinkette 2 Ergebnis von BK 1 nehmen (dabei letzten Anfangswert für BK 2 und folgende verwerfen)
@@ -300,7 +318,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           q(isnan(q)) = Q0(isnan(q),1);
           Q0_v2 = [q,Q0];
           [q, Phi, Tc_stack, Stats] = R.invkin4(Traj_0.XE(i,:)', Q0_v2, s);
-          condJik(i,:) = Stats.condJ(1+Stats.iter);
+          condJik(i,:) = Stats.condJ(1+Stats.iter,1);
 %           if all(abs(Phi)<s.Phit_tol)
 %             cds_log(3, sprintf(['[constraints] jic=%d, i=%d. IK-Berechnung mit invkin2 ', ...
 %               'fehlgeschlagen für eine Beinkette, mit invkin4 erfolgreich.'], jic, i));
@@ -341,19 +359,14 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     % Nebenbedingungen. Annahme: Optimierung in IK gut für Nebenbedingungen.
     % Auch für ersten Bahnpunkt machen (damit bestmöglicher Startwert für
     % Trajektorien-IK in cds_constraints_traj).
-    if i_ar == 2% || ... % Bei AR IK erneut mit Optimierung durchführen
-%        ... % Erster Bahnpunkt nur, wenn normale IK erfolgreich (und AR vorhanden ist). TODO: Warum nochmal genau?
-%         i_ar == 1 && i == 1 && all(~isnan(q)) && ik_res_ik2 && task_red
+    if i_ar == 2 % Bei AR IK erneut mit Optimierung durchführen
       % Aufgabenredundanz. Benutze anderen IK-Ansatz (Reziproke
       % Euler-Winkel; gemeinsame Modellierung aller Beinketten)
       % Berechne trotzdem zuerst die einfache IK für jede Beinkette
       % einzeln. Mit dessen Ergebnis dann nur noch Nullraumbewegung zum
       % Optimum der Nebenbedingungen
-      if i_ar == 2 % Startwert bei vorheriger Lösung. Dadurch reine Nullraumbewegung
-        q0_arik = QE(i,:)';
-      else
-        q0_arik = q; % Ergebnis der normalen IK direkt von oben
-      end
+      % Startwert bei vorheriger Lösung. Dadurch reine Nullraumbewegung
+      q0_arik = QE(i,:)';
       % Einstellungs-Struktur für Optimierungs-IK vorbereiten
       s4 = s;
       s4.Phit_tol = 1e-8; s4.Phir_tol = 1e-8; % feine Toleranz (für Nullraumbewegung)
@@ -371,7 +384,12 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       end
       % Setze die Einstellungen und Nebenbedingungen so, dass sich das
       % Ergebnis bestmöglich verändert.
-      if i_ar == 2 && fval_jic(jic) > 5e5 && fval_jic(jic) < 9e5
+      if fval_jic(jic) == 1e3 && i>1
+        % Wenn vorher alle Punkte in Ordnung waren, muss nur noch der erste
+        % Punkt optimiert werden. Für die hierauf folgende Trajektorie
+        % haben die anderen Punkte sowieso keine Bedeutung.
+        break;
+      elseif fval_jic(jic) > 5e5 && fval_jic(jic) < 9e5
         % Der vorherige Ausschlussgrund war eine zu große Winkelspannweite.
         % Als IK-Nebenbedingung sollte die Winkelspannweite verkleinert
         % werden
@@ -410,7 +428,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         % q0_arik(q0_arik<qlim(:,1)) = qlim(q0_arik<qlim(:,1))+0.05*qlim_range(q0_arik<qlim(:,1));
         % % Dann keine Überschreitung der neuen Grenzen mehr zulassen
         % s4.scale_lim = 0.7; % Scheint die Erfolgsquote stark zu verschlechtern.
-      elseif i_ar == 2 && fval_jic(jic) > 3e5 && fval_jic(jic) < 4e5
+      elseif fval_jic(jic) > 3e5 && fval_jic(jic) < 4e5
         % Der vorherige Ausschlussgrund war eine Kollision.
         % Kollisionsvermeidung als Optimierung
         % Prüfe vorher, ob dieser Punkt ausschlaggebend für die Kollision
@@ -437,7 +455,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           end
           s4.installspace_thresh = 0.05; % Nur bei geringem Abstand aktiv
         end
-      elseif i_ar == 2 && fval_jic(jic) > 2e5 && fval_jic(jic) < 3e5
+      elseif fval_jic(jic) > 2e5 && fval_jic(jic) < 3e5
         % Der vorherige Ausschlussgrund war eine Bauraumverletzung.
         if R.Type == 0 % Seriell
           s4.wn = zeros(5,1);
@@ -447,14 +465,46 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           s4.wn(6) = 1;
         end
         s4.installspace_thresh = 0.1500; % Etwas höherer Abstand zur Aktivierung der Funktion
+      elseif fval_jic(jic) == 1e3 % Vorher erfolgreich
+        if any(strcmp(Set.optimization.objective, 'colldist'))
+          % Vermeide Singularitäten. Abseits davon keine Betrachtung.
+          s4.cond_thresh_ikjac = cond_thresh_ikjac;
+          % Benutze quadratische Abstandsfunktion der Kollisionen (ohne
+          % Begrenzung). Dadurch maximaler Abstand gesucht
+          if R.Type == 0 % Seriell
+            s4.wn(3) = 1; % IK-Jacobi
+            s4.wn(8) = 1; % Kollision
+          else % PKM
+            s4.wn(3) = 1; % IK-Jacobi
+            s4.wn(9) = 1; % Kollision
+            % Zusätzlich Singularitäten der PKM-Jacobi vermeiden
+            s4.wn(4) = 1;
+            s4.cond_thresh_jac = cond_thresh_jac;
+          end
+        end
       end
       if i == 1
-        % nur für ersten Traj.-Punkt die Kondition verbessern
-        % TODO: Mehrere Zielfunktionen neigen zum oszillieren.
+        % Für den ersten Punkt sollten die Optimierungskriterien konsistent
+        % zu cds_constraints_traj sein. Sonst komme es zu Beginn der Traj-
+        % ektorie zu starken Nullraumbewegungen
+        % Nur für ersten Traj.-Punkt die Kondition verbessern
+        % TODO: Mehrere Zielfunktionen neigen zum oszillieren. Tritt hier
+        % auf, wenn oben weitere Bedingungen gesetzt wurden.
         if R.Type == 0 % Seriell
-          s4.wn(3) = 0.5;
+          s4.wn(3) = 1;
         else % PKM
-          s4.wn(4) = 0.5; % PKM-Jacobi, nicht IK-Jacobi
+          s4.wn(4) = 1; % PKM-Jacobi, nicht IK-Jacobi
+        end
+        if Set.optimization.constraint_collisions
+          % Aktiviere hyperbolisches Kollisions-Kriterium
+          if R.Type == 0
+            s4.wn(4) = 1;
+          else % PKM
+            s4.wn(5) = 1;
+          end
+          % 25% größere Kollisionskörper für Aktivierung. Wird dann zum
+          % Mindestabstand
+          s4.collbodies_thresh = 1.25;
         end
       end
       % IK für Nullraumbewegung durchführen
@@ -463,12 +513,17 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       else
         [q, Phi, Tc_stack, Stats] = R.invkin4(Traj_0.XE(i,:)', q0_arik, s4);
       end
+      % Trage die Kollisionsabstände für den Startwert ein (entspricht
+      % Ergebnis der normalen IK von oben. Dort werden die Kennzahlen nicht
+      % berechnet). Annahme: Die IK in der ersten Iteration ist i.O.
+      bestcolldist_jic(jic) = min([bestcolldist_jic(jic);Stats.maxcolldepth(1)]);
+      bestinstspcdist_jic(jic) = min([bestinstspcdist_jic(jic);Stats.instspc_mindst(1)]);
       % Benutze nicht die sehr strenge Grenze von Phit_tol von oben, da aus
       % numerischen Gründen diese teilweise nicht erreicht werden kann
       ik_res_ikar = all(abs(Phi) < 1e-6);
       if Set.general.debug_calc && all(abs(q-q0_arik) < 1e-9)
-        cds_log(-1, sprintf(['[constraints] Konfig %d, Eckpunkt %d, Iter. %d: IK-Berechnung mit Aufgabenredundanz ', ...
-          'hat gleiches Ergebnis wie ohne (max delta q = %1.1e).'], jic, i, i_ar, max(abs(q-q0_arik))));
+        cds_log(-1, sprintf(['[constraints] Konfig %d/%d, Eckpunkt %d, Iter. %d: IK-Berechnung mit Aufgabenredundanz ', ...
+          'hat gleiches Ergebnis wie ohne (max delta q = %1.1e).'], jic, n_jic, i, i_ar, max(abs(q-q0_arik))));
         % TODO: Eventuell liegt hier noch ein Implementierungsfehler vor.
         % Alternativ kann ein Fehler im Matlab Coder vorliegen.
 %         R.fill_fcn_handles(false);
@@ -483,10 +538,10 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       if ~ik_res_ikar % Keine Lösung gefunden. Sollte eigentlich nicht passieren.
         if s4.scale_lim == 0 && ... % Bei scale_lim kann der Algorithmus feststecken
             ~Stats.coll && ... % Wenn Kollisionsvermeidung aktiv wurde, kann das zum Scheitern führen
-            any(Stats.condJ([1,1+Stats.iter]) < 1e3) % Bei singulären Beinketten ist das Scheitern erwartbar
-          cds_log(3, sprintf(['[constraints] Konfig %d, Eckpunkt %d: IK-Berechnung ', ...
+            any(Stats.condJ([1,1+Stats.iter],1) < 1e3) % Bei singulären Beinketten ist das Scheitern erwartbar
+          cds_log(3, sprintf(['[constraints] Konfig %d/%d, Eckpunkt %d: IK-Berechnung ', ...
             'mit Aufgabenredundanz fehlerhaft, obwohl es ohne AR funktioniert ', ...
-            'hat. wn=[%s]. max(Phi)=%1.1e. Iter %d/%d'], jic, i, disp_array(s4.wn','%1.1g'), ...
+            'hat. wn=[%s]. max(Phi)=%1.1e. Iter %d/%d'], jic, n_jic, i, disp_array(s4.wn','%1.1g'), ...
             max(abs(Phi)), Stats.iter, size(Stats.Q,1)-1));
         else
           % Falls neue Grenzen gesetzt wurden, ist die IK eventuell nicht
@@ -508,30 +563,66 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         arikstats_jic(i, jic) = inf; % steht für "Fehlerhafte IK". Annahme, dass es nachher nicht auf "inf" geht.
       end
       if ik_res_ikar && h_opt_post > h_opt_pre + 1e-3 && ...% Toleranz gegen Numerik-Fehler
-          Stats.condJ(1) < 1e3 % Wenn die PKM am vorher singulär ist, dann ist die Verschlechterung der Nebenopt. kein Ausschlussgrund für die neue Lösung
+          Stats.condJ(1,1) < 1e3 % Wenn die PKM am Anfang singulär ist, dann ist die Verschlechterung der Nebenopt. kein Ausschlussgrund für die neue Lösung
         if abs(Stats.h(1+Stats.iter,1)-h_opt_post) < 1e-3 && ... % es lag nicht am geänderten `wn` in der Funktion
-            h_opt_post < 1e8 % Es ist kein numerisch großer und ungenauer Wert
-          cds_log(3, sprintf(['[constraints] Konfig %d, Eckpunkt %d: IK-Berechnung ', ...
+             (h_opt_post < 1e8 || ... % Es ist kein numerisch großer und ungenauer Wert
+             h_opt_post > 1e8 && h_opt_pre < 1e8) % Wenn sich der Wert auf unendlich verschlechtert
+          debug_str = sprintf('condPhiq: %1.1f -> %1.1f', ...
+            Stats.condJ(1,1), Stats.condJ(1+Stats.iter,1));
+          if R.Type == 2
+            debug_str = [debug_str, sprintf('; condJ: %1.1f -> %1.1f', ...
+              Stats.condJ(1,2), Stats.condJ(1+Stats.iter,2))]; %#ok<AGROW>
+          end
+          if any(~isnan(Stats.maxcolldepth))
+            debug_str = [debug_str, sprintf('; maxcolldepth [mm]: %1.1f -> %1.1f', ...
+              1e3*Stats.maxcolldepth(1), 1e3*Stats.maxcolldepth(1+Stats.iter))]; %#ok<AGROW>
+          end
+          cds_log(3, sprintf(['[constraints] Konfig %d/%d, Eckpunkt %d: IK-Berechnung ', ...
             'mit Aufgabenredundanz hat Nebenoptimierung verschlechtert: ', ...
-            '%1.4e -> %1.4e. wn=[%s]'], jic, i, h_opt_pre, h_opt_post, disp_array(s4.wn','%1.1g')));
+            '%1.4e -> %1.4e. wn=[%s]. max(condJ)=%1.2f (IK-Jacobi). coll=%d. %s'], ...
+            jic, n_jic, i, h_opt_pre, h_opt_post, disp_array(s4.wn','%1.1g'), ...
+            max(Stats.condJ(1:1+Stats.iter,1)), Stats.coll, debug_str));
         end
-        continue % Verwerfe das neue Ergebnis (nehme dadurch das vorherige)
-        % Zum Debuggen
-        if R.Type == 0, I_constr_red = [1 2 3 5 6]; %#ok<UNRCH>
+        if Set.general.debug_taskred_fig % Zum Debuggen
+        if R.Type == 0, I_constr_red = [1 2 3 5 6];
         else,           I_constr_red = R.I_constr_red; end
         figure(2345);clf;
+        set(2345,'Name','AR_PTPDbg', 'NumberTitle', 'off');
         subplot(3,3,1);
-        plot(Stats.condJ(1:Stats.iter));
+        plot(Stats.condJ(1:Stats.iter,:));
         xlabel('Iterationen'); grid on;
         ylabel('cond(J)');
+        legend({'IK-Jacobi', 'Jacobi'});
         subplot(3,3,2);
         plot([diff(Stats.Q(1:Stats.iter,:));NaN(1,R.NJ)]);
         xlabel('Iterationen'); grid on;
         ylabel('diff q');
-        subplot(3,3,3);
-        plot([Stats.Q(1:Stats.iter,:);NaN(1,R.NJ)]);
+        subplot(3,3,3); hold on;
+%         plot([Stats.Q(1:Stats.iter,:);NaN(1,R.NJ)]);
+%         xlabel('Iterationen'); grid on;
+%         ylabel('q');
+        Iter = 1:1+Stats.iter;
+        Stats_X = R.fkineEE2_traj(Stats.Q(1:1+Stats.iter,:));
+        Stats_X(:,6) = denormalize_angle_traj(Stats_X(:,6), [0; angleDiff(...
+          Stats_X(1:end-1,6),Stats_X(2:end,6))], 0:1e-3:1e-3*(size(Stats_X,1)-1));
+        I_Phi_iO = all(abs(Stats.PHI(1:Stats.iter,I_constr_red))<1e-6,2);
+        I_Phi_med = all(abs(Stats.PHI(1:Stats.iter,I_constr_red))<1e-3,2)&~I_Phi_iO;
+        I_Phi_niO = ~I_Phi_iO & ~I_Phi_med;
+        legdhl = NaN(3,1);
+        if any(I_Phi_iO)
+          legdhl(1)=plot(Iter(I_Phi_iO), 180/pi*Stats_X(I_Phi_iO,6), 'gv');
+        end
+        if any(I_Phi_med)
+          legdhl(2)=plot(Iter(I_Phi_med), 180/pi*Stats_X(I_Phi_med,6), 'mo');
+        end
+        if any(I_Phi_niO)
+          legdhl(3)=plot(Iter(I_Phi_niO), 180/pi*Stats_X(I_Phi_niO,6), 'rx');
+        end
+        plot(Iter, 180/pi*Stats_X(:,6), 'k-');
+        legstr = {'Phi<1e-6', 'Phi<1e-3', 'Phi>1e-3'};
+        legend(legdhl(~isnan(legdhl)), legstr(~isnan(legdhl)));
         xlabel('Iterationen'); grid on;
-        ylabel('q');
+        ylabel('phi_z in deg');
         Stats_Q_norm = (Stats.Q(1:Stats.iter,:)-repmat(qlim(:,1)',Stats.iter,1))./ ...
                         repmat(qlim_range',Stats.iter,1);
         subplot(3,3,4);
@@ -553,10 +644,10 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         subplot(3,3,8);
         plot(Stats.h(1:Stats.iter,[true,s4.wn'~=0]));
         legend(['w.sum',cellfun(@(s)sprintf('h%d',s),num2cell(find(s4.wn'~=0)),'UniformOutput',false)]);
-   
         xlabel('Iterationen'); grid on;
         ylabel('h');
-        if any(Stats.maxcolldepth>0) % es sollte eine Kollision gegeben haben
+        if any(Stats.maxcolldepth>0) || ... % es sollte eine Kollision gegeben haben
+            (R.Type==0 && s4.wn(8) || R.Type==2 && s4.wn(9)) % Kollisionsabstand war quadr. Zielfunktion
           % Die Ausgabe maxcolldepth wird nur geschrieben, wenn Kollisionen
           % geprüft werden sollten
           subplot(3,3,9);
@@ -570,6 +661,20 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           ylabel('Abstand zum Bauraum (>0 draußen)');
         end
         linkxaxes
+        [currgen,currind,~,resdir] = cds_get_new_figure_filenumber(Set, Structure, '');
+        name_prefix_ardbg = sprintf('Gen%02d_Ind%02d_Konfig%d_Pt%d', currgen, ...
+          currind, jic, i);
+        for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
+          if strcmp(fileext{1}, 'fig')
+            saveas(2345, fullfile(resdir, sprintf('%s_TaskRed_%s.fig', ...
+              name_prefix_ardbg, get(2345, 'name'))));
+          else
+            export_fig(2345, fullfile(resdir, sprintf('%s_TaskRed_%s.%s', ...
+              name_prefix_ardbg, get(2345, 'name'), fileext{1})));
+          end
+        end
+        end
+        continue % Verwerfe das neue Ergebnis (nehme dadurch das vorherige)
       end
       % Prüfe, ob IK-Ergebnis eine Kollision hat. Wenn ja, müssen keine
       % weiteren Punkte geprüft werden (schnellere Rechnung). Auswertung der
@@ -585,8 +690,16 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       if Stats.instspc_mindst(1+Stats.iter,:) > 0
         break;
       end
-      % Neue Werte aus der IK wurden nicht verworfen. Schreiben Konditionszahl
-      condJik(i,:) = Stats.condJ(1+Stats.iter,:);
+      % Neue Werte aus der IK wurden nicht verworfen. Schreibe Konditionszahl
+      % (erster Eintrag ist IK-Jacobi für Gesamt-PKM)
+      condJik(i,:) = Stats.condJ(1+Stats.iter,1);
+      % Merke besten Kollisions- und Bauraumabstand. Damit Bestimmung von
+      % Schwellwerten für die Trajektorien-Nebenbedingungen.
+      if R.Type == 0, I_constr_red = [1 2 3 5 6];
+      else,           I_constr_red = R.I_constr_red; end
+      I_iO = all(abs(Stats.PHI(:,I_constr_red)) < 1e-6, 2);
+      bestcolldist_jic(jic) = min([bestcolldist_jic(jic);Stats.maxcolldepth(I_iO)]);
+      bestinstspcdist_jic(jic) = min([bestinstspcdist_jic(jic);Stats.instspc_mindst(I_iO)]);
     end
     % Normalisiere den Winkel. Bei manchen Robotern springt das IK-Ergebnis
     % sehr stark. Dadurch wird die Gelenkspannweite sonst immer verletzt.
@@ -791,12 +904,12 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         sum(any(coll_self,2)), size(coll_self,1));
       if fval_jic_old(jic) > 3e5 && fval_jic_old(jic) < 4e5 && fval_coll > fval_jic_old(jic)+1e-4
         cds_log(3, sprintf(['[constraints] Die Schwere der Kollisionen hat ', ...
-          'sich trotz Optimierung vergrößert (Konfig %d)'], jic)); % Gewertet wird die Eindringtiefe, nicht die Anzahl
+          'sich trotz Optimierung vergrößert (Konfig %d/%d)'], jic, n_jic)); % Gewertet wird die Eindringtiefe, nicht die Anzahl
       end
       calctimes_jic(i_ar,jic) = toc(t1);
       continue;
     elseif i_ar == 2 && fval_jic_old(jic) > 3e5 && fval_jic_old(jic) < 4e5
-%       cds_log(3, sprintf('[constraints] Nach Optimierung keine Kollision mehr (Konfig %d).', jic));
+%       cds_log(3, sprintf('[constraints] Nach Optimierung keine Kollision mehr (Konfig %d/%d).', jic, n_jic));
     end
   end
   %% Bauraumprüfung für Einzelpunkte
@@ -826,6 +939,13 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   fval_jic(jic) = 1e3; % Bis hier hin gekommen. Also erfolgreich.
   calctimes_jic(i_ar,jic) = toc(t1);
   end % Schleife über IK ohne/mit zusätzlicher Optimierung
+  if fval_jic(jic) == 1e3 && ...% Nur die erste Konfiguration belassen. Geht schneller.
+      all(abs(Q_jic(1,:,jic)' - Structure.q0_traj) < 1e-6) % Nur, falls Anfangswert schon gegeben
+    % Bei der nachträglichen Auswertung soll es schneller gehen und die
+    % alternativen Konfigurationen werden voraussichtlich sowieso nicht
+    % besser sein.
+    break;
+  end
 end % Schleife über IK-Konfigurationen
 
 % Debuggen der IK-Optimierung (zum Nachvollziehen, ob die Nutzung von
@@ -838,11 +958,12 @@ if task_red
     sum(calctimes_jic(2,:),'omitnan'), mean(calctimes_jic(2,:),'omitnan'), ...
     sum(~isnan(calctimes_jic(2,:)))));
   if any(~isnan(arikstats_jic(:)))
-    cds_log(3, sprintf(['[constraints] Insgesamt für %d Punkte (von max. %dx%d=%d) die IK nochmal ', ...
+    cds_log(3, sprintf(['[constraints] Insgesamt für %d Versuche (von max. %dx%d=%d) die IK nochmal ', ...
       'neu gerechnet. Dabei %d mal mit Verbesserung, %d mal mit Verschlechterung ', ...
-      'der Zusatzoptimierung. %d Mal Kein Erfolg der AR-IK. '], sum(~isnan(arikstats_jic(:))), ...
+      'der Zusatzoptimierung. %d Mal Kein Erfolg der AR-IK.'], sum(~isnan(arikstats_jic(:))), ...
       size(arikstats_jic,1), size(arikstats_jic,2), length(arikstats_jic(:)), ...
-      sum(arikstats_jic(:)<0), sum(arikstats_jic(:)>0), sum(isinf(arikstats_jic(:)))));
+      sum(arikstats_jic(:)<0), sum((arikstats_jic(:)>0)&(arikstats_jic(:)~=inf)), ...
+      sum(arikstats_jic(:)==inf) ) );
   end
 end
 if Set.general.debug_calc && task_red
@@ -888,6 +1009,8 @@ I_iO = find(fval_jic == 1e3);
 if ~any(I_iO) % keine gültige Lösung für Eckpunkte
   Q0 = Q_jic(1,:,jic_best); % Gebe nur eine einzige Konfiguration aus
   QE_all = Q_jic(:,:,jic_best);
+  bestcolldist_jic = bestcolldist_jic(jic_best);
+  bestinstspcdist_jic = bestinstspcdist_jic(jic_best);
   % Wenn die IK nicht für alle Punkte erfolgreich war, wurde abgebrochen.
   % Dann stehen nur Nullen im Ergebnis. Schlecht zum Debuggen.
   if all(Q0==0)
@@ -899,18 +1022,20 @@ if ~any(I_iO) % keine gültige Lösung für Eckpunkte
   end
 else % Gebe alle gültigen Lösungen aus
   Q0 = reshape(squeeze(Q_jic(1,:,I_iO)),R.NJ,length(I_iO))';
-  [Q0_unique] = unique(round(Q0,2), 'rows');
+  Q0_unique = unique(round(Q0,2), 'rows');
   if size(Q0_unique,1) ~= size(Q0,1)
     cds_log(-1, sprintf('[constraints] Doppelte Konfigurationen als Ergebnis. Darf nicht sein'));
   end
-
   % Prüfe, welche der IK-Konfigurationen andere Gelenk-Positionen zur Folge haben. Nur diese werden genommen.
   [~,I,~] = unique(round(JP_jic(I_iO,:),5), 'rows', 'first');
   % Reduziere die Ergebnisse. Damit werden IK-Konfigurationen verworfen,
   % die nur rechnerisch eine andere Koordinate haben, aber kein Umklappen
   % darstellen
   Q0 = Q0(I,:);
-  I_iO = I_iO(I);  
+  I_iO = I_iO(I);
+  bestcolldist_jic = bestcolldist_jic(I);
+  bestinstspcdist_jic = bestinstspcdist_jic(I);
+  
   % Ausgabe der IK-Werte für alle Eckpunkte. Im weiteren Verlauf der
   % Optimierung benötigt, falls keine Trajektorie berechnet wird.
   QE_all = Q_jic(:,:,I_iO);
@@ -933,3 +1058,4 @@ else % Gebe alle gültigen Lösungen aus
     end
   end
 end
+Stats = struct('bestcolldist', bestcolldist_jic, 'bestinstspcdist', bestinstspcdist_jic);
