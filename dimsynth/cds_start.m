@@ -482,6 +482,8 @@ if Set.general.parcomp_struct && ... % Parallele Rechnung ist ausgewählt
   parfevalOnAll(gcp(), @warning, 0, 'off', 'Coder:MATLAB:rankDeficientMatrix');
   parfevalOnAll(gcp(), @warning, 0, 'off', 'Coder:MATLAB:nearlySingularMatrix');
   parfevalOnAll(gcp(), @warning, 0, 'off', 'Coder:MATLAB:illConditionedMatrix');
+  % Siehe https://github.com/altmany/export_fig/issues/75
+  parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:prnRenderer:opengl');
 else
   parfor_numworkers = 0;
 end
