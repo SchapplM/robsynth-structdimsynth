@@ -22,8 +22,10 @@
 %   2e5...3e5: Bauraumverletzung in Einzelpunkten
 %   3e5...4e5: Selbstkollision in Einzelpunkten
 %   4e5...5e5: Gestell ist wegen Schubgelenken zu groß (nach IK erkannt)
-%   5e5...9e5: Gelenkwinkelgrenzen in Einzelpunkten
-%   9e5...1e6  Singularität in Eckpunkten (trotz lösbarer IK)
+%   5e5...7e5: Gelenkwinkelgrenzen in Einzelpunkten
+%   7e5...8e5  Jacobi-Grenzverletzung in Eckpunkten (trotz lösbarer IK)
+%   8e5...9e5  Jacobi-Singularität in Eckpunkten (trotz lösbarer IK)
+%   9e5...1e6  IK-Singularität in Eckpunkten (trotz lösbarer IK)
 %   1e6...1e7: IK in Einzelpunkten nicht lösbar
 %   1e7...1e8: Geometrie nicht plausibel lösbar (2: Reichweite PKM-Koppelpunkte)
 %   1e8...1e9: Geometrie nicht plausibel lösbar (1: Schließen PKM-Ketten)
@@ -145,11 +147,12 @@ else % Nur Eckpunkte
   s.retry_limit = 50;
   s.n_max = 5000;
 end
+condJ = NaN(size(Traj_0.XE,1), 1); % Gesamt-Jacobi (Antriebe-EE)
 if R.Type == 0 % Seriell
   qlim = R.qlim;
   qref = R.qref;
   Phi_E = NaN(size(Traj_0.XE,1), sum(Set.task.DoF));
-  condJik = NaN(size(Traj_0.XE,1), 1);
+  condJik = NaN(size(Traj_0.XE,1), 1); % IK-Jacobi
   QE = NaN(size(Traj_0.XE,1), R.NQJ);
   % Variable zum Speichern der Gelenkpositionen (für Kollisionserkennung)
   JPE = NaN(size(Traj_0.XE,1), R.NL*3);
@@ -158,7 +161,7 @@ else % PKM
   qref = cat(1,R.Leg(:).qref);
   nPhi = R.I2constr_red(end);
   Phi_E = NaN(size(Traj_0.XE,1), nPhi);
-  condJik = NaN(size(Traj_0.XE,1), R.NLEG);
+  condJik = NaN(size(Traj_0.XE,1), R.NLEG); % Spalten: IK-Jacobi (jede Beinkette einzeln)
   QE = NaN(size(Traj_0.XE,1), R.NJ);
   % Abbruch der IK-Berechnung, wenn eine Beinkette nicht erfolgreich war.
   % Dadurch wesentlich schnellerer Durchlauf der PKM-IK
@@ -281,7 +284,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         nPhi_t = sum(R.I_EE_Task(1:3));
         ik_res_ik2 = all(abs(Phi(1:nPhi_t))<s.Phit_tol) && ...
                      all(abs(Phi(nPhi_t+1:end))<s.Phir_tol);
-        condJik(i) = Stats.condJ(1+Stats.iter,1);
+        condJik(i,1) = Stats.condJ(1+Stats.iter,1);
+        condJ(i,1) = Stats.condJ(1+Stats.iter,2);
       else % PKM
         Q0_mod = Q0;
         Q0_mod(R.I1J_LEG(2):end,end) = NaN; % Für Beinkette 2 Ergebnis von BK 1 nehmen (dabei letzten Anfangswert für BK 2 und folgende verwerfen)
@@ -319,6 +323,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           Q0_v2 = [q,Q0];
           [q, Phi, Tc_stack, Stats] = R.invkin4(Traj_0.XE(i,:)', Q0_v2, s);
           condJik(i,:) = Stats.condJ(1+Stats.iter,1);
+          condJ(i,1) = Stats.condJ(1+Stats.iter,2);
 %           if all(abs(Phi)<s.Phit_tol)
 %             cds_log(3, sprintf(['[constraints] jic=%d, i=%d. IK-Berechnung mit invkin2 ', ...
 %               'fehlgeschlagen für eine Beinkette, mit invkin4 erfolgreich.'], jic, i));
@@ -391,7 +396,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         % Punkt optimiert werden. Für die hierauf folgende Trajektorie
         % haben die anderen Punkte sowieso keine Bedeutung.
         break;
-      elseif fval_jic(jic) > 5e5 && fval_jic(jic) < 9e5
+      elseif fval_jic(jic) > 5e5 && fval_jic(jic) < 7e5
         % Der vorherige Ausschlussgrund war eine zu große Winkelspannweite.
         % Als IK-Nebenbedingung sollte die Winkelspannweite verkleinert
         % werden
@@ -691,6 +696,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       % Neue Werte aus der IK wurden nicht verworfen. Schreibe Konditionszahl
       % (erster Eintrag ist IK-Jacobi für Gesamt-PKM)
       condJik(i,:) = Stats.condJ(1+Stats.iter,1);
+      condJ(i,1) = Stats.condJ(1+Stats.iter,2);
       % Merke besten Kollisions- und Bauraumabstand. Damit Bestimmung von
       % Schwellwerten für die Trajektorien-Nebenbedingungen.
       if R.Type == 0, I_constr_red = [1 2 3 5 6];
@@ -782,11 +788,32 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     fval = 1e5*(9+n_condexc/size(condJik,1)); % Normierung auf 9e5 bis 1e6
     fval_jic(jic) = fval;
     constrvioltext_jic{jic} = sprintf(['Konditionszahl in IK für %d/%d ', ...
-      'Eckpunkte zu groß. max(cond(J))=%1.1e.'], n_condexc, size(condJik,1), max(condJik(:)));
+      'Eckpunkte zu groß. max(cond(J_IK))=%1.1e.'], n_condexc, size(condJik,1), max(condJik(:)));
     calctimes_jic(i_ar,jic) = toc(t1);
     continue;
   end
+  %% Prüfe die Konditionszahl der Jacobi-Matrix (bezogen auf Antriebe)
+  % Wenn die Kondition im Anfangswert oder einem Zwischenpunkt schlecht ist,
+  % braucht anschließend keine Trajektorie mehr gerechnet werden
+  n_condexc = sum(any(condJ > Set.optimization.constraint_obj(4)));
+  n_condexc2 = sum(any(condJ > Set.optimization.condition_limit_sing));
+  if n_condexc > 0
+    if n_condexc2 > 0
+      % Konditionszahl ist so hoch, dass es eine komplette Singularität ist
+      fval = 1e5*(8+n_condexc2/size(condJ,1)); % Normierung auf 8e5 bis 9e5
+      constrvioltext_jic{jic} = sprintf(['Jacobi-Konditionszahl für %d/%d ', ...
+        'Eckpunkte singulär. max(cond(J))=%1.1e.'], n_condexc2, size(condJ,1), max(condJ(:)));
+    else
+      % Konditionszahl ist hoch, aber nur "schlechter-Wert-hoch"
+      fval = 1e5*(7+n_condexc/size(condJ,1)); % Normierung auf 7e5 bis 8e5
+      constrvioltext_jic{jic} = sprintf(['Jacobi-Konditionszahl für %d/%d ', ...
+        'Eckpunkte zu groß. max(cond(J))=%1.1e.'], n_condexc, size(condJ,1), max(condJ(:)));
+    end
+    fval_jic(jic) = fval;
 
+    calctimes_jic(i_ar,jic) = toc(t1);
+    continue;
+  end
   %% Bestimme die Spannweite der Gelenkkoordinaten (getrennt Dreh/Schub)
   q_range_E = NaN(1, R.NJ);
   q_range_E(R.MDH.sigma==1) = diff(minmax2(QE(:,R.MDH.sigma==1)')');
@@ -802,7 +829,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     [fval_qlimv_E, I_worst] = min(qlimviol_E(I_qlimviol_E)./(qlim(I_qlimviol_E,2)-qlim(I_qlimviol_E,1))');
     II_qlimviol_E = find(I_qlimviol_E); IIw = II_qlimviol_E(I_worst);
     fval_qlimv_E_norm = 2/pi*atan((-fval_qlimv_E)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
-    fval = 1e5*(5+4*fval_qlimv_E_norm); % Normierung auf 5e5 bis 9e5
+    fval = 1e5*(5+3*fval_qlimv_E_norm); % Normierung auf 5e5 bis 7e5
     fval_jic(jic) = fval;
     % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Weitere Rechnungen machen keinen Sinn.
     if R.Type ~= 0

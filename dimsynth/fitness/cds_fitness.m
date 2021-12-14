@@ -153,6 +153,28 @@ if any(strcmp(Set.optimization.objective, 'valid_act')) && fval_constr==1e7
   % Der Abbruch erfolgt innerhalb der nächsten Prüfung
 end
 
+
+%% Abbruchbedingung aus Eckpunkt-Nebenbedingungen prüfen
+if all(fval_constr > 9e5) && all(fval_constr < 1e6) || ... % Grenzen für IK-Jacobi-Singularität
+    all(fval_constr > 8e5) && all(fval_constr < 9e5) % Grenzen für Jacobi-Singularität
+  % Prüfe, wie oft schon dieses Ergebnis vorlag
+  PSO_Detail_Data = cds_save_particle_details([], [], 0, 0, NaN, NaN, NaN, NaN, 'output');
+  if ~isempty(PSO_Detail_Data)
+    % Bei mehrkriterieller Optimierung bei NB-Verletzung gleiche Einträge 
+    fval_hist = PSO_Detail_Data.fval(:,1,:);
+    I_sing = fval_hist > 1e4*8e5 & fval_hist < 1e4*1e6;
+    I_nonsing = fval_hist < 1e4*8e5;
+    if sum(I_sing(:)) > 4 && sum(I_nonsing(:)) == 0
+      if ~abort_fitnesscalc % Meldung nur einmal zeigen
+        cds_log(2,sprintf(['[fitness] Es gab %d singuläre Ergebnisse und kein ', ...
+          'nicht-singuläres. Roboter nicht geeignet. Abbruch der Optimierung.'], sum(I_sing(:))));
+      end
+      abort_fitnesscalc = true;
+    end
+  end
+end
+
+
 % NB-Verletzung in Eckpunkt-IK wird in Ausgabe mit Werten von 1e5 aufwärts
 % angegeben. Umwandlung in Werte von 1e9 aufwärts.
 % Ursache: Nachträgliches Einfügen von weiteren Nebenbedingungen.
@@ -724,9 +746,9 @@ if ~isinf(Set.optimization.condition_limit_sing) && R.Type == 2 && ...
   PSO_Detail_Data = cds_save_particle_details([], [], 0, 0, NaN, NaN, NaN, NaN, 'output');
   if ~isempty(PSO_Detail_Data)
     % Bei mehrkriterieller Optimierung bei NB-Verletzung gleiche Einträge 
-    fval_constr = PSO_Detail_Data.fval(:,1,:);
-    I_sing = fval_constr > 1e4*5e4 & fval_constr < 1e4*6e4;
-    I_nonsing = fval_constr < 1e4*5e4;
+    fval_hist = PSO_Detail_Data.fval(:,1,:);
+    I_sing = fval_hist > 1e4*5e4 & fval_hist < 1e4*6e4;
+    I_nonsing = fval_hist < 1e4*5e4;
     if sum(I_sing(:)) > 4 && sum(I_nonsing(:)) == 0
       if ~abort_fitnesscalc % Meldung nur einmal zeigen
         cds_log(2,sprintf(['[fitness] Es gab %d singuläre Ergebnisse und kein ', ...
@@ -746,9 +768,9 @@ if any(strcmp(Set.optimization.objective, 'valid_act')) && R.Type == 2 && ...
   PSO_Detail_Data = cds_save_particle_details([], [], 0, 0, NaN, NaN, NaN, NaN, 'output');
   if ~isempty(PSO_Detail_Data)
     % Bei mehrkriterieller Optimierung bei NB-Verletzung gleiche Einträge 
-    fval_constr = PSO_Detail_Data.fval(:,1,:);
-    I_para = fval_constr > 1e4*9e3 & fval_constr < 1e4*1e4;
-    I_nonpara = fval_constr < 1e4*9e3; % erfolgreicherere Berechnung (besser)
+    fval_hist = PSO_Detail_Data.fval(:,1,:);
+    I_para = fval_hist > 1e4*9e3 & fval_hist < 1e4*1e4;
+    I_nonpara = fval_hist < 1e4*9e3; % erfolgreicherere Berechnung (besser)
     if sum(I_para(:)) > 4 && sum(I_nonpara(:)) == 0
       if ~abort_fitnesscalc % Meldung nur einmal zeigen
         cds_log(2,sprintf(['[fitness] Es gab %d Ergebnisse mit parasitärer ', ...
