@@ -240,6 +240,7 @@ for kkk = 1:size(EE_FG_allowed,1)
     DistalJointActive = false;
     FilterMatch = true;
     NumTechJointsDontMatch = false;
+    SphericalJointInChain = false;
     WrongLegChainOrigin = false;
     
     for k = 1 % Betrachte erste der symmetrischen Beinketten (für den Fall asymmetrischer PKM auch alle möglich)
@@ -284,6 +285,11 @@ for kkk = 1:size(EE_FG_allowed,1)
         {'1','2','3','4','5'}, {'R','P','C','U','S'}));
       if ~any(length(SName_TechJoint) == structset.num_tech_joints)
         NumTechJointsDontMatch = true;
+      end
+      % Ignoriere PKM-Beinketten, die in der Mitte ein Kugelgelenk haben
+      % (ist nicht sinnvoll konstruierbar)
+      if any(SName_TechJoint(2:end-1) == 'S')
+        SphericalJointInChain = true;
       end
       % Prüfe, ob die Beinkette nur manuell in die Seriellkinematik-Daten-
       % bank eingetragen wurde und das nicht erwünscht ist
@@ -370,6 +376,14 @@ for kkk = 1:size(EE_FG_allowed,1)
       end
       SkipRobot = true;
     end
+    if ~SkipRobot && SphericalJointInChain
+      if verblevel >= 3 || IsInWhiteList
+        fprintf('%s hat ein Kugelgelenk in der Mitte der Beinkette (%s)', ...
+          PNames_Akt{j}, SName_TechJoint);
+      end
+      SkipRobot = true;
+    end
+    
     if ~SkipRobot && WrongLegChainOrigin
       if verblevel >= 3 || IsInWhiteList
         fprintf('%s hat keine Beinkette aus %s-PKM-Synthese (%s).', ...
