@@ -55,6 +55,7 @@ s = struct( ...
   'condsat_limit', 100, ...
   'name_prefix_ardbg', '', ... % Für Dateinamen der zu speichernden Bilder
   'fval', NaN, ... % Für Titelbeschriftung
+  'critnames', {{}}, ... % Für Beschriftungen
   'constrvioltext', '', ... % Für Titelbeschriftung
   'i_ar', 0, ... % Iteration der Aufgabenredundanz-Schleife
   'i_fig', 0, ... % Index von möglichen Bildern für Trajektorie
@@ -142,13 +143,21 @@ else
   I_exc = false(size(CC_ext));
 end
 %% Bild erstellen
+critnames = s.critnames;
+assert(length(critnames)==length(s.wn), sprintf(['Anzahl der Kriterien ', ...
+  'unerwartet (ist %d, soll %d)'], length(s.wn), length(critnames)));
+if sum(s.wn~=0)==1 % Nur ein Kriterium aktiv. Im Dateinamen anmerken
+  wnsavestr = ['_', critnames{s.wn~=0}];
+else
+  wnsavestr = '';
+end
 if s.logscale
   logscalesuffix = '_log';
 else
   logscalesuffix = '';
 end
 fighdl = change_current_figure(2400+3*s.i_ar+s.i_fig+1e3*double(s.logscale));clf;hold on;
-set(fighdl, 'Name', sprintf('PerfMap_Iter%d_Fig%d%s', s.i_ar, s.i_fig, logscalesuffix), 'NumberTitle', 'off');
+set(fighdl, 'Name', sprintf('PerfMap_Iter%d_Fig%d%s%s', s.i_ar, s.i_fig, wnsavestr, logscalesuffix), 'NumberTitle', 'off');
 % Create color plot
 surf(X_ext,Y_ext,Z_ext,CC_ext, 'EdgeColor', 'none');
 xlabel('Normalized trajectory progress s (per point of support)', 'interpreter', 'none');
@@ -172,16 +181,6 @@ if s.logscale
   set(gca,'ColorScale','log')
 end
 % Titel eintragen
-critnames = {'qlim_quad', 'qlim_hyp'};
-if Structure.Type == 0 % Seriell
-  critnames = [critnames(:)', {'cond'}];
-else % Parallel
-  critnames = [critnames(:)', {'cond_ik', 'cond_pkm'}];
-end
-critnames = [critnames(:)', {'coll_hyp', 'installspace', 'xlim_quad', ...
-  'xlim_hyp', 'coll_quad', 'coll_phys', 'instspc_phys', 'cond_ik_phys', 'cond_phys'}];
-assert(length(critnames)==length(s.wn), sprintf(['Anzahl der Kriterien ', ...
-  'unerwartet (ist %d, soll %d)'], length(s.wn), length(critnames)));
 wnstr = '';
 for i = 1:length(s.wn)
   if s.wn(i)
@@ -296,11 +295,11 @@ drawnow();
 [~,~,~,resdir] = cds_get_new_figure_filenumber(Set, Structure, '');
 for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
   if strcmp(fileext{1}, 'fig')
-    saveas(fighdl, fullfile(resdir, sprintf('%s_TaskRed_Traj%d_Fig%d%s_PerfMap.fig', ...
-      s.name_prefix_ardbg, s.i_ar, s.i_fig, logscalesuffix)));
+    saveas(fighdl, fullfile(resdir, sprintf('%s_TaskRed_Traj%d_Fig%d%s%s_PerfMap.fig', ...
+      s.name_prefix_ardbg, s.i_ar, s.i_fig, wnsavestr, logscalesuffix)));
   else
-    export_fig(fighdl, fullfile(resdir, sprintf('%s_TaskRed_Traj%d_Fig%d%s_PerfMap.%s', ...
-      s.name_prefix_ardbg, s.i_ar, s.i_fig, logscalesuffix, fileext{1})));
+    export_fig(fighdl, fullfile(resdir, sprintf('%s_TaskRed_Traj%d_Fig%d%s%s_PerfMap.%s', ...
+      s.name_prefix_ardbg, s.i_ar, s.i_fig, wnsavestr, logscalesuffix, fileext{1})));
   end
 end
 
@@ -327,11 +326,11 @@ sgtitle(titlestr, 'interpreter', 'none');
 % Zweites Bild speichern
 for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
   if strcmp(fileext{1}, 'fig')
-    saveas(fighdl2, fullfile(resdir, sprintf('%s_TaskRed_Traj%d_Fig%d%s_PerfValues.fig', ...
-      s.name_prefix_ardbg, s.i_ar, s.i_fig, logscalesuffix)));
+    saveas(fighdl2, fullfile(resdir, sprintf('%s_TaskRed_Traj%d_Fig%d%s%s_PerfValues.fig', ...
+      s.name_prefix_ardbg, s.i_ar, s.i_fig, wnsavestr, logscalesuffix)));
   else
-    export_fig(fighdl2, fullfile(resdir, sprintf('%s_TaskRed_Traj%d_Fig%d%s_PerfValues.%s', ...
-      s.name_prefix_ardbg, s.i_ar, s.i_fig, logscalesuffix, fileext{1})));
+    export_fig(fighdl2, fullfile(resdir, sprintf('%s_TaskRed_Traj%d_Fig%d%s%s_PerfValues.%s', ...
+      s.name_prefix_ardbg, s.i_ar, s.i_fig, wnsavestr, logscalesuffix, fileext{1})));
   end
 end
 

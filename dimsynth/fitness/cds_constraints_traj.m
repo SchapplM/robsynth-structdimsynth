@@ -56,7 +56,7 @@ function [fval,Q,QD,QDD,Jinv_ges,JP,constrvioltext] = cds_constraints_traj( ...
   R, Traj_0, q, Set, Structure, Stats_constraints)
 % Debug
 % save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_0.mat'));
-% load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_0.mat'));
+% load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_0.mat')); nargin=6
 
 % Initialisierung
 fval = NaN;
@@ -113,7 +113,7 @@ if i_ar > 1 && task_red && Set.general.debug_taskred_perfmap
       'Structure', 'H_all', 's_ref', 's_tref', 'phiz_range', 'i_ar', 'q', ...
       'nt_red');
     % Redundanzkarte für jedes Zielkriterium zeichnen (zur Einschätzung)
-    wn_test = zeros(8+double(R.Type==2),1);
+    wn_test = zeros(R.idx_ik_length.wnpos,1);
     wn_phys = zeros(4,1);
     for ll = 1:length(wn_test)+4 % letzter Durchlauf nur Konditionszahl zeichnen
       wn_test(:) = 0; wn_phys(:) = 0;
@@ -125,18 +125,20 @@ if i_ar > 1 && task_red && Set.general.debug_taskred_perfmap
       for ls = [false, true] % Skalierung des Bildes: Linear und Logarithmisch
         % Wähle Kriterien, die als Nebenbedigung gegen unendlich gehen.
         if R.Type == 0 % hyp. qlim, Jacobi, Koll., Bauraum, hyp. xlim
-          I_nbkrit = [2 3 4 5 7];
+          I_nbkrit = [2 3 4 5 7]; % TODO: Namens-Indizes, sobald ikjac für SerRob implementiert
         else % hyp. qlim, IK-Jacobi, PKM-Jacobi, Koll., Bauraum, hyp. xlim
           I_nbkrit = [2 3 4 5 6 8];
         end
         if ls && ~any(wn_test(I_nbkrit))
           continue % kein hyperbolisches Kriterium. Log-Skalierung nicht sinnvoll.
         end
+        critnames = fields(R.idx_ikpos_wn)';
+        critnames = [critnames(:)', {'coll_phys', 'instspc_phys', 'cond_ik_phys', 'cond_phys'}]; %#ok<NASGU>
         cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref(1:nt_red), ...
           phiz_range, X2(1:nt_red,6), Stats.h(1:nt_red,1), struct('wn', [wn_test;wn_phys], ...
           'i_ar', i_ar-1, 'i_fig', ll, 'name_prefix_ardbg', name_prefix_ardbg, 'fval', fval, ...
           'constrvioltext', constrvioltext, 'deactivate_time_figure', true, ...
-          'ignore_h0', true, 'logscale', ls));
+          'critnames', {critnames}, 'ignore_h0', true, 'logscale', ls));
       end
     end
   end
@@ -144,7 +146,7 @@ if i_ar > 1 && task_red && Set.general.debug_taskred_perfmap
     % Reihenfolge: quadratischer Grenzabstand, hyperbolischer Grenzabstand,
     % Konditionszahl Jacobi, Kollision (hyp.), Bauraum, xlim (quadr.), xlim
     % (hyp.), Kollision (quadr.)
-    I_wn_traj = [1 2 5 9 11, 13, 15, 18];
+    I_wn_traj = [1 2 5 9 11, 13, 15, 18]; % TODO: Namens-Indizes, sobald ikjac für SerRob implementiert
   else % gleiche Reihenfolge, mit IK-Jacobi (5) vor Jacobi (6)
     I_wn_traj = [1 2 5 6 11 13, 15, 17, 20];
   end
@@ -153,7 +155,7 @@ if i_ar > 1 && task_red && Set.general.debug_taskred_perfmap
   cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref(1:nt_red), ...
     phiz_range, X2(1:nt_red,6), Stats.h(1:nt_red,1), struct('wn', [s.wn(I_wn_traj); zeros(4,1)], ...
     'i_ar', i_ar-1, 'name_prefix_ardbg', name_prefix_ardbg, 'fval', fval, ...
-    'constrvioltext', constrvioltext));
+    'critnames', {critnames}, 'constrvioltext', constrvioltext));
   % Falls beim Debuggen die Aufgaben-Indizes zurückgesetzt wurden
   R.update_EE_FG(R.I_EE, Set.task.DoF);
 end
@@ -167,10 +169,8 @@ s = struct( ...
   ... % Einhaltung der Gelenkwinkelgrenzen nicht über NR-Bewegung erzwingen
   'enforce_qlim', false, ...
   'Phit_tol', 1e-10, 'Phir_tol', 1e-10); % feine Toleranz
-if R.Type == 0 % Seriell
-  s.wn = zeros(19,1);
-else % PKM
-  s.wn = zeros(21,1);
+s.wn = zeros(R.idx_ik_length.wntraj,1);
+if R.Type == 2 % PKM
   s.debug = Set.general.debug_calc;
 end
 % Benutze eine Singularitätsvermeidung, die nur in der Nähe von
@@ -193,15 +193,13 @@ if R.Type == 2 % PKM
   s.cond_thresh_ikjac = cond_thresh_ikjac;
 end
 s.cond_thresh_jac = cond_thresh_jac; % Für Seriell und PKM
-if R.Type == 0 % Seriell
-  s.wn(5) = 1; % P-Anteil Konditionszahl (Aufgaben-Jacobi)
-  s.wn(8) = 0.2; % D-Anteil Konditionszahl (Aufgaben-Jacobi)
-else % PKM
-  s.wn(5) = 1; % P-Anteil Konditionszahl (IK-Jacobi)
-  s.wn(9) = 0.1; % D-Anteil Konditionszahl (IK-Jacobi)
-  s.wn(6) = 1; % P-Anteil Konditionszahl (PKM-Jacobi)
-  s.wn(10) = 0.1; % D-Anteil Konditionszahl (PKM-Jacobi)
+if R.Type == 2 % PKM. TODO: Angleichen, sobald ikjac für SerRob implementiert
+  s.wn(R.idx_iktraj_wnP.ikjac_cond) = 1; % P-Anteil Konditionszahl (IK-Jacobi)
+  s.wn(R.idx_iktraj_wnD.ikjac_cond) = 0.1; % D-Anteil Konditionszahl (IK-Jacobi)
 end
+% Aufgaben-Jacobi bei Seriell, PKM-Jacobi bei PKM. TODO: Angleichen sobald ikjac für SerRob implementiert
+s.wn(R.idx_iktraj_wnP.jac_cond) = 1; % P-Anteil Konditionszahl (Jacobi)
+s.wn(R.idx_iktraj_wnD.jac_cond) = 0.1; % D-Anteil Konditionszahl (Jacobi)
 
 % Stelle Schwellwerte zur Aktivierung der Kollisions- und Bauraumeinhaltung
 % fest. Benutze die Werte, die in der Eckpunkt-IK gefunden wurden
@@ -229,47 +227,26 @@ end
 if i_ar == 2 && fval > 7e3 && fval < 9e3
   % Positionsgrenzen wurden verletzt. Besonders in Nebenbedingungen
   % berücksichtigen
-  if R.Type == 0 % Seriell
-    s.wn(1) = 0.99; % P-Anteil quadratische Grenzen
-    s.wn(2) = 0.01; % P-Anteil hyperbolische Grenzen
-    s.wn(6) = 0.1; % D-Anteil quadratische Grenzen (Dämpfung)
-  else % PKM
-    s.wn(1) = 0.99; % P-Anteil quadratische Grenzen
-    s.wn(2) = 0.01; % P-Anteil hyperbolische Grenzen
-    s.wn(7) = 0.1; % D-Anteil quadratische Grenzen (Dämpfung)
-  end
+  s.wn(R.idx_iktraj_wnP.qlim_par) = 0.99; % P-Anteil quadratische Grenzen
+  s.wn(R.idx_iktraj_wnP.qlim_hyp) = 0.01; % P-Anteil hyperbolische Grenzen
+  s.wn(R.idx_iktraj_wnD.qlim_par) = 0.1; % D-Anteil quadratische Grenzen (Dämpfung)
+  s.wn(R.idx_iktraj_wnD.qlim_hyp) = 0.001; % D-Anteil hyperbolische Grenzen (Dämpfung)
   s.enforce_qlim = true; % Bei Verletzung maximal entgegenwirken
 end
 if i_ar == 2
   % Dämpfung der Geschwindigkeit, gegen Schwingungen
-  s.wn(3) = 0.7;
+  s.wn(R.idx_iktraj_wnP.qDlim_par) = 0.7;
   % Auch Dämpfung bezüglich der redundanten Koordinate
-  if R.Type == 0 % Seriell
-    s.wn(17) = 0.7;
-  else
-    s.wn(19) = 0.7;
-  end
+  s.wn(R.idx_iktraj_wnP.xDlim_par) = 0.7;
 end
 if i_ar == 2 && fval > 6e3 && fval < 7e3
   % Geschwindigkeit wurde verletzt. Wird in NB eigentlich schon automatisch
   % berücksichtigt. Eine weitere Reduktion ist nicht möglich.
-  return
-  if R.Type == 0 %#ok<UNRCH> % Seriell
-    s.wn(6) = 1; % D-Anteil quadratische Grenzen (Dämpfung)
-  else% PKM
-    s.wn(7) = 1; % D-Anteil quadratische Grenzen (Dämpfung)
-  end
 end
 if i_ar == 2 && any(strcmp(Set.optimization.objective, 'colldist')) && any(fval_ar <= 1e3)
   % Wenn Kollisionsabstände ein Zielkriterium sind, optimiere diese hier permanent
-  if R.Type == 0 % Seriell
-    s.wn(6) = 1; % D-Anteil quadratische Grenzen (Dämpfung, gegen Schwingungen)
-    s.wn(18) = 0.1; % P-Anteil Kollisionsvermeidung (quadratisch)
-    s.wn(19) = 0.01; % D-Anteil Kollisionsvermeidung (quadratisch)
-  else % PKM
-    s.wn(20) = 0.1; % P-Anteil Kollisionsvermeidung (quadratisch)
-    s.wn(21) = 0.01; % D-Anteil Kollisionsvermeidung (quadratisch)
-  end
+  s.wn(R.idx_iktraj_wnP.coll_par) = 0.1; % P-Anteil Kollisionsvermeidung (quadratisch)
+  s.wn(R.idx_iktraj_wnD.coll_par) = 0.01; % D-Anteil Kollisionsvermeidung (quadratisch)
 end
 
 if i_ar == 2 && (any(fval_ar > 3e3 & fval_ar < 4e3) || ... % Ausgabewert für Kollision
@@ -291,40 +268,20 @@ if i_ar == 2 && ~isempty(Set.task.installspace.type) && ...
   % TODO: Bezug auf charakteristische Länge des Bauraums
   s.installspace_thresh = 0.2; % 200mm Abstand von Bauraumgrenze von innen
 end
-if R.Type == 0 % Seriell
-  I_wn_instspc = 11; % TODO: Auslagern
-else % PKM
-  I_wn_instspc = 12;
-end
-if i_ar == 2 && ~isempty(Set.task.installspace.type) && s.wn(I_wn_instspc)==0
+if i_ar == 2 && ~isempty(Set.task.installspace.type) && s.wn(R.idx_iktraj_wnP.instspc_hyp)==0
   % Bauraumprüfung ist allgemein aktiv, wird aber in der
   % Nullraumoptimierung nicht bedacht. Zusätzliche Aktivierung mit sehr
   % kleinem Schwellwert zur Aktivierung (nur für Notfälle)
-  if R.Type == 0 % Seriell
-    s.wn(11) = 1e-5; % P-Anteil Bauraumeinhaltung
-    s.wn(12) = 4e-6; % D-Anteil Bauraumeinhaltung
-  else % PKM
-    s.wn(13) = 1e-4; % P-Anteil Bauraumeinhaltung
-    s.wn(14) = 1e-5; % D-Anteil Bauraumeinhaltung
-  end
+  s.wn(R.idx_iktraj_wnP.instspc_hyp) = 1e-4; % P-Anteil Bauraumeinhaltung
+  s.wn(R.idx_iktraj_wnD.instspc_hyp) = 1e-5; % D-Anteil Bauraumeinhaltung
   s.installspace_thresh = 0.050; % 50mm Abstand von Bauraumgrenze von innen
 end
-if R.Type == 0 % Seriell
-  I_wn_coll = 9; % TODO: Auslagern
-else % PKM
-  I_wn_coll = 11;
-end
-if i_ar == 2 && Set.optimization.constraint_collisions && s.wn(I_wn_coll)==0
+if i_ar == 2 && Set.optimization.constraint_collisions && s.wn(R.idx_iktraj_wnP.coll_hyp)==0
   % Kollisionsprüfung ist allgemein aktiv, wird aber in der
   % Nullraumoptimierung nicht bedacht. Zusätzliche Aktivierung mit sehr
   % kleinem Schwellwert zur Aktivierung (nur für Notfälle, als Nebenbedingung)
-  if R.Type == 0 % Seriell
-    s.wn(9) = 1; % P-Anteil Kollisionsvermeidung (hyperbolisch)
-    s.wn(10) = 0.1; % D-Anteil Kollisionsvermeidung (hyperbolisch)
-  else % PKM
-    s.wn(11) = 0.1; % P-Anteil Kollisionsvermeidung (hyperbolisch)
-    s.wn(12) = 0.01; % D-Anteil Kollisionsvermeidung (hyperbolisch)
-  end
+  s.wn(R.idx_iktraj_wnP.coll_hyp) = 1; % P-Anteil Kollisionsvermeidung (hyperbolisch)
+  s.wn(R.idx_iktraj_wnD.coll_hyp) = 0.1; % D-Anteil Kollisionsvermeidung (hyperbolisch)
   % Aktivierungsbereich für Kollisionsvermeidung verkleinern (nur für
   % Ausnahmefälle stark an Grenze)
   s.collbodies_thresh = 1.25; % 25% größere Kollisionskörper für Aktivierung (statt 50%)

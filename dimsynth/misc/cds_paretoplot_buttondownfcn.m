@@ -353,7 +353,7 @@ if strcmp(SelStr(Selection), 'Redundanzkarte')
     wn = zeros(20,1); % Platzhalter-Variable
     h1 = NaN(size(d2.X2,1),1);
   end
-  if R.Type == 0, I_wn_traj = [1 2 5 9];
+  if R.Type == 0, I_wn_traj = [1 2 5 9]; % TODO: Wort-Indizes sobald SerRob-Jacobi implementiert ist.
   else,           I_wn_traj = [1 2 5 6 11]; end
   % Bild zeichnen
   cds_debug_taskred_perfmap(Set, Structure, d.H_all, d.s_ref, d.s_tref(:), ...
