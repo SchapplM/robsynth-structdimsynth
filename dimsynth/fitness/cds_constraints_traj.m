@@ -193,6 +193,12 @@ s.wn(R.idx_iktraj_wnD.ikjac_cond) = 0.1; % D-Anteil Konditionszahl (IK-Jacobi)
 % Jacobi (analytischbei PKM, geometrisch bei seriell).
 s.wn(R.idx_iktraj_wnP.jac_cond) = 1; % P-Anteil Konditionszahl (Jacobi)
 s.wn(R.idx_iktraj_wnD.jac_cond) = 0.1; % D-Anteil Konditionszahl (Jacobi)
+% Versuche die Gelenkwinkelgrenzen einzuhalten, wenn explizit gefordert
+if Set.optimization.fix_joint_limits
+  s.wn(R.idx_iktraj_wnP.qlim_hyp) = 1;
+  s.wn(R.idx_iktraj_wnD.qlim_hyp) = 0.2;
+  s.optimcrit_limits_hyp_deact = 0.95; % Nur am Rand der Grenzen aktiv werden
+end
 
 % Stelle Schwellwerte zur Aktivierung der Kollisions- und Bauraumeinhaltung
 % fest. Benutze die Werte, die in der Eckpunkt-IK gefunden wurden

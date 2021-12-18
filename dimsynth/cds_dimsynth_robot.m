@@ -261,6 +261,10 @@ for i = 1:NLEG
   R_init.DesPar.seg_par(:,1) = 50e-3;
   R_init.DesPar.seg_par(:,2) = 5e-3;
 end
+if Set.optimization.fix_joint_limits
+  cds_log(-1, sprintf(['[dimsynth] Gelenkwinkelgrenzen sind fixiert. ', ...
+    'Modus noch nicht fertig implementiert und daher nicht sinnvoll.']));
+end
 % Reduziere die Grenzen in der Klassenvariable. Diese Grenzen werden für
 % die inverse (Trajektorien-)Kinematik benutzt. Aufgrund von numerischen
 % Ungenauigkeiten können die Grenzen dort teilweise überschritten werden
@@ -1929,16 +1933,18 @@ end
 % Trajektorie nicht eingehalten werden. Nicht für Schubgelenke machen, da
 % dies die Masse beeinflusst (wegen Führungsschiene)
 qlim_neu = qlim_pso; % aus PSO gespeicherte Grenzen (dort aus Gelenk-Traj.)
-qlim_mitte = mean(qlim_pso,2); % Mittelwert als Ausgangspunkt für neue Grenzen
-q_range = diff(Structure.qlim')'; % ursprüngliche max. Spannweite aus Einstellungen
-qlim_neu(R.MDH.sigma==0,:) = repmat(qlim_mitte(R.MDH.sigma==0),1,2) + ...
-  [-q_range(R.MDH.sigma==0)/2, q_range(R.MDH.sigma==0)/2];
-if R.Type == 0 % Seriell
-  R.qlim(R.MDH.sigma==0,:) = qlim_neu(R.MDH.sigma==0,:);
-else % PKM
-  for i = 1:R.NLEG
-    qlim_neu_i = qlim_neu(R.I1J_LEG(i):R.I2J_LEG(i),:);
-    R.Leg(i).qlim(R.Leg(i).MDH.sigma==0,:) = qlim_neu_i(R.Leg(i).MDH.sigma==0,:);
+if ~Set.optimization.fix_joint_limits
+  qlim_mitte = mean(qlim_pso,2); % Mittelwert als Ausgangspunkt für neue Grenzen
+  q_range = diff(Structure.qlim')'; % ursprüngliche max. Spannweite aus Einstellungen
+  qlim_neu(R.MDH.sigma==0,:) = repmat(qlim_mitte(R.MDH.sigma==0),1,2) + ...
+    [-q_range(R.MDH.sigma==0)/2, q_range(R.MDH.sigma==0)/2];
+  if R.Type == 0 % Seriell
+    R.qlim(R.MDH.sigma==0,:) = qlim_neu(R.MDH.sigma==0,:);
+  else % PKM
+    for i = 1:R.NLEG
+      qlim_neu_i = qlim_neu(R.I1J_LEG(i):R.I2J_LEG(i),:);
+      R.Leg(i).qlim(R.Leg(i).MDH.sigma==0,:) = qlim_neu_i(R.Leg(i).MDH.sigma==0,:);
+    end
   end
 end
 

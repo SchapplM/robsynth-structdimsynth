@@ -135,6 +135,9 @@ optimization = struct( ...
   'base_morphology', false, ... % Aussehen des Gestells (z.B. Schrägheit, Gelenkpaarabstand)
   'platform_morphology', false, ... % Aussehen der Plattform (z.B. Gelenkpaarabstand)
   'rotate_base', true, ... % Orientierung der Roboter-Basis (nur um die z-Achse). Hilft bei PKM.
+  ... % Fixiere die Gelenkwinkel-Grenzen auf den beim Start gesetzten Wert.
+  ... % Ist nur sinnvoll, wenn ein bereits gegebenes Robotermodell genutzt wird.
+  'fix_joint_limits', false, ...
   ... % Begrenzung des Verfahrweges von Schubgelenken. Mit NaN deaktiviert 
   ... % (wird dann aus Größe des Roboters plausibel abgeleitet).
   'max_range_prismatic', NaN, ...
