@@ -204,11 +204,10 @@ end
 cond_thresh_jac = 250;
 cond_thresh_ikjac = 500;
 if Set.optimization.constraint_obj(4) ~= 0 % Grenze für Jacobi-Matrix für Abbruch
-  if R.Type == 0 % Seriell: IK-Jacobi ungefähr wie analytische Jacobi
-    cond_thresh_ikjac = Set.optimization.constraint_obj(4);
-  else % PKM: Gemeint ist die Jacobi bzgl. Antriebe (nicht: IK-Jacobi)
-    cond_thresh_jac = Set.optimization.constraint_obj(4);
-  end
+  % Zu invertierende IK-Jacobi (bezogen auf Euler-Winkel-Residuum)
+  cond_thresh_ikjac = min(cond_thresh_ikjac,Set.optimization.constraint_obj(4));
+  % Jacobi-Matrix des Roboters (bezogen auf Antriebe und Arbeitsraum-FG)
+  cond_thresh_jac = Set.optimization.constraint_obj(4);
 end
 % Bestimme zufällige Anfangswerte für Gelenkkonfigurationen.
 % Benutze Gleichverteilung und kein Latin Hypercube (dauert zu lange).
@@ -382,13 +381,11 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         s4.n_max = 1500; %erlaube mehr Versuch zur finalen Kollisionsvermeidung
       end
       % Nebenbedingung: Optimiere die Konditionszahl (ist fast immer gut)
-      if R.Type == 0 % Seriell
-        s4.wn = zeros(8,1);
-        s4.wn(3) = 1;
-      else % PKM
-        s4.wn = zeros(9,1);
-        s4.wn(4) = 1; % PKM-Jacobi, nicht IK-Jacobi
-      end
+      % Die Jacobi (bzgl. Antriebe), und die IK-Jacobi nehmen.
+      % Die IK-Jacobi kann schlecht sein, bei guter Antriebs-Jacobi.
+      s4.wn = zeros(R.idx_ik_length.wnpos,1);
+      s4.wn(R.idx_ikpos_wn.ikjac_cond) = 1;
+      s4.wn(R.idx_ikpos_wn.jac_cond) = 1;
       % Setze die Einstellungen und Nebenbedingungen so, dass sich das
       % Ergebnis bestmöglich verändert.
       if fval_jic(jic) == 1e3 && i>1
@@ -409,7 +406,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           continue
         end
         s4.wn(:) = 0;
-        s4.wn(1) = 1; % quadratische Funktion für Gelenkgrenzen (Startwinkel bereits außerhalb der Grenzen)
+        s4.wn(R.idx_ikpos_wn.qlim_par) = 1; % quadratische Funktion für Gelenkgrenzen (Startwinkel bereits außerhalb der Grenzen)
         % Setze die Gelenkwinkel-Grenzen neu. Annahme: Die absoluten Werte
         % der Winkel sind nicht wichtig. Es kommt auf die Spannweite an.
         % Lasse Schubgelenke so, wie sie sind. Annahme: Werden schon so
@@ -441,47 +438,30 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           continue
         end
         s4.wn(:) = 0;
-        if R.Type == 0 % Seriell
-          s4.wn(4) = 1;
-        else % PKM
-          s4.wn(5) = 1;
-        end
+        s4.wn(R.idx_ikpos_wn.coll_hyp) = 1;
         if ~isempty(Set.task.installspace.type)
           % Vorsorglich auch Optimierung nach Bauraumgrenzen aktivieren.
           % Bei Kollisionsvermeidung größtmöglicher Abstand von Segmenten
           % zueinander führt tendenziell zu Bauraumüberschreitung.
-          if R.Type == 0 % Seriell
-            s4.wn(5) = 1;
-          else % PKM
-            s4.wn(6) = 1;
-          end
+          s4.wn(R.idx_ikpos_wn.instspc_hyp) = 1;
           s4.installspace_thresh = 0.05; % Nur bei geringem Abstand aktiv
         end
       elseif fval_jic(jic) > 2e5 && fval_jic(jic) < 3e5
         % Der vorherige Ausschlussgrund war eine Bauraumverletzung.
         s4.wn(:) = 0;
-        if R.Type == 0 % Seriell
-          s4.wn(5) = 1;
-        else % PKM
-          s4.wn(6) = 1;
-        end
+        s4.wn(R.idx_ikpos_wn.instspc_hyp) = 1;
         s4.installspace_thresh = 0.1500; % Etwas höherer Abstand zur Aktivierung der Funktion
       elseif fval_jic(jic) == 1e3 % Vorher erfolgreich
         if any(strcmp(Set.optimization.objective, 'colldist'))
           % Vermeide Singularitäten. Abseits davon keine Betrachtung.
           s4.cond_thresh_ikjac = cond_thresh_ikjac;
+          s4.wn(R.idx_ikpos_wn.ikjac_cond) = 1;
           % Benutze quadratische Abstandsfunktion der Kollisionen (ohne
           % Begrenzung). Dadurch maximaler Abstand gesucht
-          if R.Type == 0 % Seriell
-            s4.wn(3) = 1; % IK-Jacobi
-            s4.wn(8) = 1; % Kollision
-          else % PKM
-            s4.wn(3) = 1; % IK-Jacobi
-            s4.wn(9) = 1; % Kollision
-            % Zusätzlich Singularitäten der PKM-Jacobi vermeiden
-            s4.wn(4) = 1;
-            s4.cond_thresh_jac = cond_thresh_jac;
-          end
+          s4.wn(R.idx_ikpos_wn.coll_par) = 1; % Kollision
+          % Geometrische Jacobi (SerRob) bzw. PKM-Jacobi (ParRob)
+          s4.wn(R.idx_ikpos_wn.jac_cond) = 1; % IK-Jacobi
+          s4.cond_thresh_jac = cond_thresh_jac;
         end
       end
       if i == 1
@@ -491,18 +471,10 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         % Nur für ersten Traj.-Punkt die Kondition verbessern
         % TODO: Mehrere Zielfunktionen neigen zum oszillieren. Tritt hier
         % auf, wenn oben weitere Bedingungen gesetzt wurden.
-        if R.Type == 0 % Seriell
-          s4.wn(3) = 1;
-        else % PKM
-          s4.wn(4) = 1; % PKM-Jacobi, nicht IK-Jacobi
-        end
+        s4.wn(R.idx_ikpos_wn.jac_cond) = 1;
         if Set.optimization.constraint_collisions
           % Aktiviere hyperbolisches Kollisions-Kriterium
-          if R.Type == 0
-            s4.wn(4) = 1;
-          else % PKM
-            s4.wn(5) = 1;
-          end
+          s4.wn(R.idx_ikpos_wn.coll_hyp) = 1;
           % 25% größere Kollisionskörper für Aktivierung. Wird dann zum
           % Mindestabstand
           s4.collbodies_thresh = 1.25;
@@ -552,8 +524,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       end
       % Ergebnis der Nullraumoptimierung auswerten und vergleichen.
       % Benutzung der Summe aus Ausgabe nicht möglich (wn verändert sich).
-      h_opt_pre  = sum(s4.wn' .* Stats.h(1,2:(1+length(s4.wn))) );
-      h_opt_post = sum(s4.wn' .* Stats.h(1+Stats.iter,2:(1+length(s4.wn))) );
+      h_opt_pre  = sum(s4.wn' .* Stats.h(1,2:(1+R.idx_ik_length.hnpos)) );
+      h_opt_post = sum(s4.wn' .* Stats.h(1+Stats.iter,2:(1+R.idx_ik_length.hnpos)) );
       % Die Nebenbedingungen müssen sich verbessern, wenn schon bei einer
       % gültigen Startpose gestartet wurde. Wurde nur mit einer groben
       % Näherung (1e-3) gestartet, kann man die Nebenbedingungen nicht ver-
@@ -570,17 +542,15 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
              h_opt_post > 1e8 && h_opt_pre < 1e8) % Wenn sich der Wert auf unendlich verschlechtert
           debug_str = sprintf('condPhiq: %1.1f -> %1.1f', ...
             Stats.condJ(1,1), Stats.condJ(1+Stats.iter,1));
-          if R.Type == 2
-            debug_str = [debug_str, sprintf('; condJ: %1.1f -> %1.1f', ...
-              Stats.condJ(1,2), Stats.condJ(1+Stats.iter,2))]; %#ok<AGROW>
-          end
+          debug_str = [debug_str, sprintf('; condJ: %1.1f -> %1.1f', ...
+            Stats.condJ(1,2), Stats.condJ(1+Stats.iter,2))]; %#ok<AGROW>
           if any(~isnan(Stats.maxcolldepth(:)))
             debug_str = [debug_str, sprintf('; maxcolldepth [mm]: %1.1f -> %1.1f', ...
               1e3*Stats.maxcolldepth(1,1), 1e3*Stats.maxcolldepth(1+Stats.iter,1))]; %#ok<AGROW>
           end
           cds_log(3, sprintf(['[constraints] Konfig %d/%d, Eckpunkt %d: IK-Berechnung ', ...
             'mit Aufgabenredundanz hat Nebenoptimierung verschlechtert: ', ...
-            '%1.4e -> %1.4e. wn=[%s]. max(condJ)=%1.2f (IK-Jacobi). coll=%d. %s'], ...
+            '%1.4e -> %1.4e. wn=[%s]. max(condJik)=%1.2f. coll=%d. %s'], ...
             jic, n_jic, i, h_opt_pre, h_opt_post, disp_array(s4.wn','%1.1g'), ...
             max(Stats.condJ(1:1+Stats.iter,1)), Stats.coll, debug_str));
         end
@@ -644,11 +614,12 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         ylabel('diff h');
         subplot(3,3,8);
         plot(Stats.h(Iter,[true,s4.wn'~=0]));
-        legend(['w.sum',cellfun(@(s)sprintf('h%d',s),num2cell(find(s4.wn'~=0)),'UniformOutput',false)]);
+        critnames = fields(R.idx_ikpos_wn)';
+        legend(['w.sum',critnames(s4.wn'~=0)], 'interpreter', 'none');
         xlabel('Iterationen'); grid on;
         ylabel('h');
         if any(Stats.maxcolldepth(:)>0) || ... % es sollte eine Kollision gegeben haben
-            (R.Type==0 && s4.wn(8) || R.Type==2 && s4.wn(9)) % Kollisionsabstand war quadr. Zielfunktion
+            s4.wn(R.idx_ikpos_wn.coll_par) % Kollisionsabstand war quadr. Zielfunktion
           % Die Ausgabe maxcolldepth wird nur geschrieben, wenn Kollisionen
           % geprüft werden sollten
           subplot(3,3,9);
@@ -656,7 +627,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           xlabel('Iterationen'); grid on;
           ylabel('Kollisionstiefe (>0 Koll.)');
           legend({'alle', 'beeinflussbar'});
-        elseif R.Type == 0 && s4.wn(5) || R.Type ~= 0 && s4.wn(6)
+        elseif s4.wn(R.idx_ikpos_wn.instspc_hyp)
           subplot(3,3,9);
           plot(Stats.instspc_mindst(Iter,:));
           xlabel('Iterationen'); grid on;

@@ -353,11 +353,15 @@ if strcmp(SelStr(Selection), 'Redundanzkarte')
     wn = zeros(20,1); % Platzhalter-Variable
     h1 = NaN(size(d2.X2,1),1);
   end
-  if R.Type == 0, I_wn_traj = [1 2 5 9];
-  else,           I_wn_traj = [1 2 5 6 11]; end
+  % Rechne die IK-Kriterien von Traj.- zu Pos.-IK um. Siehe cds_constraints_traj
+  i=0; I_wn_traj = zeros(R.idx_ik_length.wnpos,1);
+  for f = fields(RS.idx_ikpos_wn)'
+    i=i+1; I_wn_traj(i) = R.idx_iktraj_wnP.(f{1});
+  end
   % Bild zeichnen
   cds_debug_taskred_perfmap(Set, Structure, d.H_all, d.s_ref, d.s_tref(:), ...
-    d.phiz_range, d2.X2(:,6), h1, struct('wn', wn(I_wn_traj), 'i_ar', 0));
+    d.phiz_range, d2.X2(:,6), h1, struct('wn', wn(I_wn_traj), 'i_ar', 0, ...
+    'critnames', {fields(R.idx_ikpos_wn)'}));
 end
 fprintf('Bilder gezeichnet. Dauer: %1.1fs zur Vorbereitung, %1.1fs zum Zeichnen.\n', ...
   toc(t1)-toc(t2), toc(t2));
