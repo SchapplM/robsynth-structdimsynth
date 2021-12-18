@@ -766,9 +766,13 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   %% Prüfe die Konditionszahl der Jacobi-Matrix (bezogen auf Antriebe)
   % Wenn die Kondition im Anfangswert oder einem Zwischenpunkt schlecht ist,
   % braucht anschließend keine Trajektorie mehr gerechnet werden
-  n_condexc = sum(any(condJ > Set.optimization.constraint_obj(4)));
-  n_condexc2 = sum(any(condJ > Set.optimization.condition_limit_sing));
-  if n_condexc > 0
+  if Set.optimization.constraint_obj(4) == 0
+    n_condexc = 0; % Nebenbedingung für Jacobi ist nicht aktiv
+  else
+    n_condexc = sum(condJ(:) > Set.optimization.constraint_obj(4));
+  end
+  n_condexc2 = sum(condJ(:) > Set.optimization.condition_limit_sing);
+  if n_condexc > 0 || n_condexc2 > 0
     if n_condexc2 > 0
       % Konditionszahl ist so hoch, dass es eine komplette Singularität ist
       fval = 1e5*(8+n_condexc2/size(condJ,1)); % Normierung auf 8e5 bis 9e5
