@@ -204,11 +204,10 @@ end
 cond_thresh_jac = 250;
 cond_thresh_ikjac = 500;
 if Set.optimization.constraint_obj(4) ~= 0 % Grenze für Jacobi-Matrix für Abbruch
-  if R.Type == 0 % Seriell: IK-Jacobi ungefähr wie analytische Jacobi
-    cond_thresh_ikjac = Set.optimization.constraint_obj(4);
-  else % PKM: Gemeint ist die Jacobi bzgl. Antriebe (nicht: IK-Jacobi)
-    cond_thresh_jac = Set.optimization.constraint_obj(4);
-  end
+  % Zu invertierende IK-Jacobi (bezogen auf Euler-Winkel-Residuum)
+  cond_thresh_ikjac = Set.optimization.constraint_obj(4);
+  % Jacobi-Matrix des Roboters (bezogen auf Antriebe und Arbeitsraum-FG)
+  cond_thresh_jac = Set.optimization.constraint_obj(4);
 end
 % Bestimme zufällige Anfangswerte für Gelenkkonfigurationen.
 % Benutze Gleichverteilung und kein Latin Hypercube (dauert zu lange).
@@ -382,7 +381,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         s4.n_max = 1500; %erlaube mehr Versuch zur finalen Kollisionsvermeidung
       end
       % Nebenbedingung: Optimiere die Konditionszahl (ist fast immer gut)
-      % Bei PKM die PKM-Jacobi (bzgl. Antriebe), nicht IK-Jacobi nehmen.
+      % Die Jacobi (bzgl. Antriebe), nicht die IK-Jacobi nehmen.
+      % Da die IK-Jacobi daraus abgeleitet ist, wird sie auch nicht
+      % singulär sein (aber nicht unbedingt immer verbessert)
       s4.wn = zeros(R.idx_ik_length.wnpos,1);
       s4.wn(R.idx_ikpos_wn.jac_cond) = 1;
       % Setze die Einstellungen und Nebenbedingungen so, dass sich das
@@ -454,16 +455,13 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         if any(strcmp(Set.optimization.objective, 'colldist'))
           % Vermeide Singularitäten. Abseits davon keine Betrachtung.
           s4.cond_thresh_ikjac = cond_thresh_ikjac;
+          s4.wn(R.idx_ikpos_wn.ikjac_cond) = 1;
           % Benutze quadratische Abstandsfunktion der Kollisionen (ohne
           % Begrenzung). Dadurch maximaler Abstand gesucht
           s4.wn(R.idx_ikpos_wn.coll_par) = 1; % Kollision
-          % Aufgaben-Jacobi (SerRob) bzw. PKM-Jacobi (ParRob)
-          % (TODO: Sobald implementiert Bezeichnung ändern)
-          s4.wn(R.idx_ikpos_wn.jac_cond) = 1;
-          if R.Type == 2 % PKM
-            s4.wn(R.idx_ikpos_wn.ikjac_cond) = 1; % IK-Jacobi
-            s4.cond_thresh_jac = cond_thresh_jac;
-          end
+          % Geometrische Jacobi (SerRob) bzw. PKM-Jacobi (ParRob)
+          s4.wn(R.idx_ikpos_wn.jac_cond) = 1; % IK-Jacobi
+          s4.cond_thresh_jac = cond_thresh_jac;
         end
       end
       if i == 1
@@ -544,17 +542,15 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
              h_opt_post > 1e8 && h_opt_pre < 1e8) % Wenn sich der Wert auf unendlich verschlechtert
           debug_str = sprintf('condPhiq: %1.1f -> %1.1f', ...
             Stats.condJ(1,1), Stats.condJ(1+Stats.iter,1));
-          if R.Type == 2
-            debug_str = [debug_str, sprintf('; condJ: %1.1f -> %1.1f', ...
-              Stats.condJ(1,2), Stats.condJ(1+Stats.iter,2))]; %#ok<AGROW>
-          end
+          debug_str = [debug_str, sprintf('; condJ: %1.1f -> %1.1f', ...
+            Stats.condJ(1,2), Stats.condJ(1+Stats.iter,2))]; %#ok<AGROW>
           if any(~isnan(Stats.maxcolldepth(:)))
             debug_str = [debug_str, sprintf('; maxcolldepth [mm]: %1.1f -> %1.1f', ...
               1e3*Stats.maxcolldepth(1,1), 1e3*Stats.maxcolldepth(1+Stats.iter,1))]; %#ok<AGROW>
           end
           cds_log(3, sprintf(['[constraints] Konfig %d/%d, Eckpunkt %d: IK-Berechnung ', ...
             'mit Aufgabenredundanz hat Nebenoptimierung verschlechtert: ', ...
-            '%1.4e -> %1.4e. wn=[%s]. max(condJ)=%1.2f (IK-Jacobi). coll=%d. %s'], ...
+            '%1.4e -> %1.4e. wn=[%s]. max(condJik)=%1.2f. coll=%d. %s'], ...
             jic, n_jic, i, h_opt_pre, h_opt_post, disp_array(s4.wn','%1.1g'), ...
             max(Stats.condJ(1:1+Stats.iter,1)), Stats.coll, debug_str));
         end

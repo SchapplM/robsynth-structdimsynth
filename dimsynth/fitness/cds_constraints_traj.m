@@ -124,11 +124,9 @@ if i_ar > 1 && task_red && Set.general.debug_taskred_perfmap
       end
       for ls = [false, true] % Skalierung des Bildes: Linear und Logarithmisch
         % Wähle Kriterien, die als Nebenbedigung gegen unendlich gehen.
-        if R.Type == 0 % hyp. qlim, Jacobi, Koll., Bauraum, hyp. xlim
-          I_nbkrit = [2 3 4 5 7]; % TODO: Namens-Indizes, sobald ikjac für SerRob implementiert
-        else % hyp. qlim, IK-Jacobi, PKM-Jacobi, Koll., Bauraum, hyp. xlim
-          I_nbkrit = [2 3 4 5 6 8];
-        end
+        I_nbkrit = [R.idx_ikpos_wn.qlim_hyp, R.idx_ikpos_wn.ikjac_cond, ...
+                    R.idx_ikpos_wn.jac_cond, R.idx_ikpos_wn.coll_hyp, ...
+                    R.idx_ikpos_wn.instspc_hyp, R.idx_ikpos_wn.xlim_hyp];
         if ls && ~any(wn_test(I_nbkrit))
           continue % kein hyperbolisches Kriterium. Log-Skalierung nicht sinnvoll.
         end
@@ -142,13 +140,11 @@ if i_ar > 1 && task_red && Set.general.debug_taskred_perfmap
       end
     end
   end
-  if R.Type == 0
-    % Reihenfolge: quadratischer Grenzabstand, hyperbolischer Grenzabstand,
-    % Konditionszahl Jacobi, Kollision (hyp.), Bauraum, xlim (quadr.), xlim
-    % (hyp.), Kollision (quadr.)
-    I_wn_traj = [1 2 5 9 11, 13, 15, 18]; % TODO: Namens-Indizes, sobald ikjac für SerRob implementiert
-  else % gleiche Reihenfolge, mit IK-Jacobi (5) vor Jacobi (6)
-    I_wn_traj = [1 2 5 6 11 13, 15, 17, 20];
+  % Rechne die IK-Kriterien von Traj.- zu Pos.-IK um.
+  % Reihenfolge: Siehe IK-Funktionen oder ik_optimcrit_index.m
+  i=0; I_wn_traj = zeros(R.idx_ik_length.wnpos,1);
+  for f = fields(RS.idx_ikpos_wn)'
+    i=i+1; I_wn_traj(i) = R.idx_iktraj_wnP.(f{1});
   end
   save(fullfile(resdir,sprintf('%s_TaskRed_Traj%d.mat', name_prefix_ardbg, i_ar-1)), ...
     'X2', 'Q', 'i_ar', 'q', 'Stats', 'fval', 's');
@@ -183,21 +179,18 @@ end
 cond_thresh_jac = 100;
 cond_thresh_ikjac = 250;
 if Set.optimization.constraint_obj(4) ~= 0 % Grenze für Jacobi-Matrix für Abbruch
-  if R.Type == 0 % Seriell: IK-Jacobi ungefähr wie analytische Jacobi
-    cond_thresh_ikjac = Set.optimization.constraint_obj(4)/4;
-  else % PKM: Gemeint ist die Jacobi bzgl. Antriebe (nicht: IK-Jacobi)
-    cond_thresh_jac = Set.optimization.constraint_obj(4)/4;
-  end
+  % IK-Jacobi (Aufgaben-Koordinaten) wichtig für Gelenkgeschwindigkeit in
+  % redundanter Traj.-IK.
+  cond_thresh_ikjac = Set.optimization.constraint_obj(4)/2;
+  % Jacobi bzgl. Antriebe/Gesamtkoordinaten maßgeblich für Systemeigenschaft
+  cond_thresh_jac = Set.optimization.constraint_obj(4)/4;
 end
-if R.Type == 2 % PKM
-  s.cond_thresh_ikjac = cond_thresh_ikjac;
-end
+s.cond_thresh_ikjac = cond_thresh_ikjac;
 s.cond_thresh_jac = cond_thresh_jac; % Für Seriell und PKM
-if R.Type == 2 % PKM. TODO: Angleichen, sobald ikjac für SerRob implementiert
-  s.wn(R.idx_iktraj_wnP.ikjac_cond) = 1; % P-Anteil Konditionszahl (IK-Jacobi)
-  s.wn(R.idx_iktraj_wnD.ikjac_cond) = 0.1; % D-Anteil Konditionszahl (IK-Jacobi)
-end
-% Aufgaben-Jacobi bei Seriell, PKM-Jacobi bei PKM. TODO: Angleichen sobald ikjac für SerRob implementiert
+% IK-Jacobi (Aufgaben-FG)
+s.wn(R.idx_iktraj_wnP.ikjac_cond) = 1; % P-Anteil Konditionszahl (IK-Jacobi)
+s.wn(R.idx_iktraj_wnD.ikjac_cond) = 0.1; % D-Anteil Konditionszahl (IK-Jacobi)
+% Jacobi (analytischbei PKM, geometrisch bei seriell).
 s.wn(R.idx_iktraj_wnP.jac_cond) = 1; % P-Anteil Konditionszahl (Jacobi)
 s.wn(R.idx_iktraj_wnD.jac_cond) = 0.1; % D-Anteil Konditionszahl (Jacobi)
 
@@ -305,10 +298,8 @@ if i_ar == 3
     max(abs(X2phizTraj_alt(:,3))), max(abs(XDD2(:,6))));
   debug_str = [debug_str, sprintf('; maxcondJ: %1.1f -> %1.1f', ...
     max(Stats_alt.condJ(:,1)), max(Stats.condJ(:,1)))]; %#ok<AGROW>
-  if R.Type == 2
-    debug_str = [debug_str, sprintf('; maxcondPhiq: %1.1f -> %1.1f', ...
-      max(Stats_alt.condJ(:,2)), max(Stats.condJ(:,2)))]; %#ok<AGROW>
-  end
+  debug_str = [debug_str, sprintf('; maxcondPhiq: %1.1f -> %1.1f', ...
+    max(Stats_alt.condJ(:,2)), max(Stats.condJ(:,2)))]; %#ok<AGROW>
   if any(~isnan(mincolldist_all))
     debug_str = [debug_str, sprintf('; mincolldist [mm]: %1.1f -> %1.1f', ...
       1e3*mincolldist_all(1), 1e3*mincolldist_all(2))]; %#ok<AGROW>
