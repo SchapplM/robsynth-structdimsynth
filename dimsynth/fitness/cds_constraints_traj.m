@@ -143,7 +143,7 @@ if i_ar > 1 && task_red && Set.general.debug_taskred_perfmap
   % Rechne die IK-Kriterien von Traj.- zu Pos.-IK um.
   % Reihenfolge: Siehe IK-Funktionen oder ik_optimcrit_index.m
   i=0; I_wn_traj = zeros(R.idx_ik_length.wnpos,1);
-  for f = fields(RS.idx_ikpos_wn)'
+  for f = fields(R.idx_ikpos_wn)'
     i=i+1; I_wn_traj(i) = R.idx_iktraj_wnP.(f{1});
   end
   save(fullfile(resdir,sprintf('%s_TaskRed_Traj%d.mat', name_prefix_ardbg, i_ar-1)), ...
@@ -396,7 +396,9 @@ if i_ar == 3
       plot(Traj_0.t, QD_alt(:,i), '-');
       plot(Traj_0.t, QD(:,i), '-');
       plot(Traj_0.t([1,end]), repmat(Structure.qDlim(i,:),2,1), 'r-');
-      ylim(minmax2([QD(:,i);QD(:,i);QD_alt(:,i);QD_alt(:,i)]'));
+      if ~all(isnan(QD(:)))
+        ylim(minmax2([QD(:,i);QD(:,i);QD_alt(:,i);QD_alt(:,i)]'));
+      end
       if R.Type == 0
         title(sprintf('qD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
       else
@@ -421,7 +423,9 @@ if i_ar == 3
       plot(Traj_0.t, QDD_alt(:,i), '-');
       plot(Traj_0.t, QDD(:,i), '-');
       plot(Traj_0.t([1,end]), repmat(Structure.qDDlim(i,:),2,1), 'r-');
-      ylim(minmax2([QDD(:,i);QDD(:,i);QDD_alt(:,i);QDD_alt(:,i)]'));
+      if ~all(isnan(QDD(:)))
+        ylim(minmax2([QDD(:,i);QDD(:,i);QDD_alt(:,i);QDD_alt(:,i)]'));
+      end
       if R.Type == 0
         title(sprintf('qDD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
       else
