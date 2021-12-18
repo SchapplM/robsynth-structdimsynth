@@ -205,7 +205,7 @@ cond_thresh_jac = 250;
 cond_thresh_ikjac = 500;
 if Set.optimization.constraint_obj(4) ~= 0 % Grenze für Jacobi-Matrix für Abbruch
   % Zu invertierende IK-Jacobi (bezogen auf Euler-Winkel-Residuum)
-  cond_thresh_ikjac = Set.optimization.constraint_obj(4);
+  cond_thresh_ikjac = min(cond_thresh_ikjac,Set.optimization.constraint_obj(4));
   % Jacobi-Matrix des Roboters (bezogen auf Antriebe und Arbeitsraum-FG)
   cond_thresh_jac = Set.optimization.constraint_obj(4);
 end
@@ -381,10 +381,10 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         s4.n_max = 1500; %erlaube mehr Versuch zur finalen Kollisionsvermeidung
       end
       % Nebenbedingung: Optimiere die Konditionszahl (ist fast immer gut)
-      % Die Jacobi (bzgl. Antriebe), nicht die IK-Jacobi nehmen.
-      % Da die IK-Jacobi daraus abgeleitet ist, wird sie auch nicht
-      % singulär sein (aber nicht unbedingt immer verbessert)
+      % Die Jacobi (bzgl. Antriebe), und die IK-Jacobi nehmen.
+      % Die IK-Jacobi kann schlecht sein, bei guter Antriebs-Jacobi.
       s4.wn = zeros(R.idx_ik_length.wnpos,1);
+      s4.wn(R.idx_ikpos_wn.ikjac_cond) = 1;
       s4.wn(R.idx_ikpos_wn.jac_cond) = 1;
       % Setze die Einstellungen und Nebenbedingungen so, dass sich das
       % Ergebnis bestmöglich verändert.
@@ -614,7 +614,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         ylabel('diff h');
         subplot(3,3,8);
         plot(Stats.h(Iter,[true,s4.wn'~=0]));
-        legend(['w.sum',cellfun(@(s)sprintf('h%d',s),num2cell(find(s4.wn'~=0)),'UniformOutput',false)]);
+        critnames = fields(R.idx_ikpos_wn)';
+        legend(['w.sum',critnames(s4.wn'~=0)], 'interpreter', 'none');
         xlabel('Iterationen'); grid on;
         ylabel('h');
         if any(Stats.maxcolldepth(:)>0) || ... % es sollte eine Kollision gegeben haben
