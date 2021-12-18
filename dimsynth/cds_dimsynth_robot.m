@@ -124,8 +124,12 @@ if any(~isnan(Set.optimization.basepos_limits(:)))
 end
 Structure.Lref = Lref;
 %% Roboter-Klasse initialisieren
+if ~isempty(Structure.RobName) && ~Set.optimization.fix_joint_limits
+  cds_log(-1, sprintf(['[dimsynth] Gelenkwinkelgrenzen nicht fixiert ', ...
+    'aber konkreter Roboter gegeben. Nicht sinnvoll.']));
+end
 if Structure.Type == 0 % Seriell
-  R = serroblib_create_robot_class(Structure.Name);
+  R = serroblib_create_robot_class(Structure.Name, Structure.RobName);
   NLEG = 1;
 elseif Structure.Type == 2 % Parallel
   % Parameter für Basis-Kopplung einstellen
@@ -178,7 +182,10 @@ for i = 1:NLEG
   else
     R_init = R.Leg(i);
   end
-  R_init.gen_testsettings(false, true); % Setze Kinematik-Parameter auf Zufallswerte
+  if isempty(Structure.RobName) % nur machen, wenn Kinematikparameter frei wählbar
+    R_init.gen_testsettings(false, true); % Setze Kinematik-Parameter auf Zufallswerte
+  end
+  if ~Set.optimization.fix_joint_limits
   % Gelenkgrenzen setzen: Schubgelenke (Verfahrlänge nicht mehr als "fünf
   % mal schräg durch Arbeitsraum" (char. Länge))
   % Muss so hoch gesetzt sein, damit UPS-Kette (ohne sonstige
@@ -196,7 +203,6 @@ for i = 1:NLEG
     % Grenzen für Drehgelenke: Alle sind aktiv
     R_init.qlim(R.MDH.sigma==0,:) = repmat([-0.5, 0.5]*... % Drehgelenk
       Set.optimization.max_range_active_revolute, sum(R.MDH.sigma==0),1);
-    Structure.qlim = R_init.qlim;
   else % Paralleler Roboter
     % Grenzen für passive Drehgelenke (aktive erstmal mit setzen)
     R_init.qlim(R_init.MDH.sigma==0,:) = repmat([-0.5, 0.5]*... % Drehgelenk
@@ -218,6 +224,12 @@ for i = 1:NLEG
     % Grenzen für aktives Drehgelenk setzen
     I_actrevol = R_init.MDH.mu == 2 & R_init.MDH.sigma==0;
     R_init.qlim(I_actrevol,:) = repmat([-0.5, 0.5]*Set.optimization.max_range_active_revolute, sum(I_actrevol),1);
+  end
+  end
+  % Eintragen in Strukturvariable
+  if Structure.Type == 0 % Serieller Roboter
+    Structure.qlim = R_init.qlim;
+  else % Paralleler Roboter
     if i == NLEG % Grenzen aller Gelenke aller Beinketten eintragen
       Structure.qlim = cat(1, R.Leg.qlim);
     end
@@ -260,10 +272,6 @@ for i = 1:NLEG
   % Platzhalter-Werte für Segment-Parameter setzen (nur für Plotten)
   R_init.DesPar.seg_par(:,1) = 50e-3;
   R_init.DesPar.seg_par(:,2) = 5e-3;
-end
-if Set.optimization.fix_joint_limits
-  cds_log(-1, sprintf(['[dimsynth] Gelenkwinkelgrenzen sind fixiert. ', ...
-    'Modus noch nicht fertig implementiert und daher nicht sinnvoll.']));
 end
 % Reduziere die Grenzen in der Klassenvariable. Diese Grenzen werden für
 % die inverse (Trajektorien-)Kinematik benutzt. Aufgrund von numerischen
@@ -423,7 +431,15 @@ vartypes = [vartypes; 0];
 varlim = [varlim; [1e-3*Lref, 3*Lref]];
 varnames = {'scale'};
 % Strukturparameter der Kinematik
-if Structure.Type == 0 || Structure.Type == 2
+if ~isempty(Structure.RobName)
+  % Nichts machen. Es ist ein Roboter, kein allgemeines Modell zur
+  % Optimierung vorgegeben. Die DH-Parameter sind also fix.
+  if Structure.Type == 0 % Seriell
+    Ipkinrel = false(size(R.pkin));
+  else  % Parallel
+    Ipkinrel = false(size(R.Leg(1).pkin));
+  end
+elseif Structure.Type == 0 || Structure.Type == 2
   if Structure.Type == 0 % Seriell
     R_pkin = R;
   else  % Parallel
@@ -876,6 +892,12 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     
     % Erzeuge Ersatzkörper für die kinematische Kette (aus Gelenk-Trafo)
     for i = 1:R_cc.NJ
+      if ~isempty(Structure.RobName) && norm([R_cc.MDH.a(i);R_cc.MDH.d(i)]) < 20e-3
+        % Sonderfall: Roboter mit festen Parametern wird optimiert und
+        % Abstand zwischen Segmenten ist kleiner als Kollisionskörper.
+        % Dann Körper weglassen (für Denso-Roboter)
+        continue
+      end
       if R_cc.MDH.a(i) ~= 0 || R_cc.MDH.d(i) ~= 0 || R_cc.MDH.sigma(i) == 1
         % Es gibt eine Verschiebung in der Koordinatentransformation i
         % Definiere einen Ersatzkörper dafür

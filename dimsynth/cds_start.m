@@ -657,7 +657,9 @@ if ~Set.general.regenerate_summary_only
     % Maßsynthese für diesen Roboter starten
     if ~Set.general.only_finish_aborted, mode = 'Maßsynthese'; %#ok<PFBNS>
     else,                                mode = 'Abschluss'; end
-    fprintf('Starte %s für Roboter %d (%s)\n', mode, i, Structures{i}.Name);
+    if isempty(Structures{i}.RobName), RobNameStr = '';
+    else, RobNameStr = sprintf('; %s', Structures{i}.RobName); end
+    fprintf('Starte %s für Roboter %d (%s%s)\n', mode, i, Structures{i}.Name, RobNameStr);
     cds_dimsynth_robot(Set, Traj, Structures{i});
   end
   fprintf('Optimierung von %d Robotern abgeschlossen. Dauer: %1.1fs\n', length(Structures), toc(t1));

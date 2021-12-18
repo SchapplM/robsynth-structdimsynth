@@ -89,8 +89,28 @@ for N_JointDoF = N_JointDoF_allowed
   II = find(I);
   for j = II'
     SName = l.Names_Ndof{j};
+    RName = '';
     IsInWhiteList = any(strcmp(structset.whitelist, SName));
-    if ~isempty(structset.whitelist) && ~IsInWhiteList
+    Idx_Rob = contains(structset.whitelist, [SName,'_']);
+    IsRobInWhiteList = any(Idx_Rob);
+    if ~isempty(structset.whitelist) && IsRobInWhiteList
+      % Der gesuchte Begriff ist ein Roboter in der Datenbank (mit
+      % Parametern, nicht nur ein Modell)
+      % Trenne den Namen auf
+      if sum(Idx_Rob) > 1
+        error('Mehr als ein Robotermodell eingegeben. Noch nicht implementiert');
+      end
+      [tokens_rob, ~] = regexp(structset.whitelist{Idx_Rob},[SName,'_(.*)'],'tokens','match');
+      if isempty(tokens_rob)
+        warning('Unerwartete Eingabe in Positiv-Liste');
+      end
+      % Erwarte den Roboternamen als "Modellname", Unterstrich, Endung
+      % Siehe SerRobLib
+      suffix = tokens_rob{1}{1};
+      RName = [SName, '_', suffix];
+      % Damit die folgenden Abfragen funktionieren
+      IsInWhiteList = IsRobInWhiteList;
+    elseif ~isempty(structset.whitelist) && ~IsInWhiteList
       % Es gibt eine Liste von Robotern, dieser ist nicht dabei.
       continue
     end
@@ -140,6 +160,7 @@ for N_JointDoF = N_JointDoF_allowed
     ii = ii + 1;
     if verblevel >= 2, fprintf('%d: %s\n', ii, SName); end
     Structures{ii} = struct('Name', SName, 'Type', 0, 'Number', ii, ...
+      'RobName', RName, ... % Falls ein konkreter Roboter mit Parametern gewählt ist
       ... % Platzhalter, Angleichung an PKM (Erkennung altes Dateiformat)
       'angles_values', []); %#ok<AGROW> 
   end
@@ -461,7 +482,8 @@ for kkk = 1:size(EE_FG_allowed,1)
       end
       if verblevel >= 2, fprintf('%d: %s; %s\n', ii, PNames_Akt{j}, theta_logstr); end
       Structures{ii} = struct('Name', PNames_Akt{j}, 'Type', 2, 'Number', ii, ...
-        'Coupling', Coupling, 'angles_values', av, 'DoF', EE_FG_allowed(kkk,:)); %#ok<AGROW>
+        'Coupling', Coupling, 'angles_values', av, 'DoF', EE_FG_allowed(kkk,:), ...
+        'RobName', ''); % Zur Angleichung an SerRob. %#ok<AGROW>
     end
   end
 end
