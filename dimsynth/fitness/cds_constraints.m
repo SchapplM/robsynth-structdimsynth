@@ -486,6 +486,10 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       else
         [q, Phi, Tc_stack, Stats] = R.invkin4(Traj_0.XE(i,:)', q0_arik, s4);
       end
+      if Stats.iter == 2
+        cds_log(-1, sprintf(['[constraints] Konfig %d/%d, Eckpunkt %d, Iter. %d: ', ...
+          'Nur eine Iteration bei AR-IK. Parametrierung schlecht oder Start in Optimum.'], jic, n_jic, i, i_ar));
+      end
       % Trage die Kollisionsabstände für den Startwert ein (entspricht
       % Ergebnis der normalen IK von oben. Dort werden die Kennzahlen nicht
       % berechnet). Annahme: Die IK in der ersten Iteration ist i.O.
@@ -511,7 +515,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       if ~ik_res_ikar % Keine Lösung gefunden. Sollte eigentlich nicht passieren.
         if s4.scale_lim == 0 && ... % Bei scale_lim kann der Algorithmus feststecken
             ~Stats.coll && ... % Wenn Kollisionsvermeidung aktiv wurde, kann das zum Scheitern führen
-            any(Stats.condJ([1,1+Stats.iter],1) < 1e3) % Bei singulären Beinketten ist das Scheitern erwartbar
+            ~any(Stats.condJ([1,1+Stats.iter],1) < 1e3) % Bei singulären Beinketten ist das Scheitern erwartbar
           cds_log(3, sprintf(['[constraints] Konfig %d/%d, Eckpunkt %d: IK-Berechnung ', ...
             'mit Aufgabenredundanz fehlerhaft, obwohl es ohne AR funktioniert ', ...
             'hat. wn=[%s]. max(Phi)=%1.1e. Iter %d/%d'], jic, n_jic, i, disp_array(s4.wn','%1.1g'), ...
