@@ -80,7 +80,15 @@ end
 if size(Set.optimization.obj_limit,2) > 1
   error('obj_limit muss %d x 1 Vektor sein', length(Set.optimization.objective));
 end
-
+if ~all(size(Set.optimization.base_size_limits)==[1 2])
+  error('base_size_limits muss 1x2 sein min/max Radius');
+end
+if ~all(size(Set.optimization.platform_size_limits)==[1 2])
+  error('platform_size_limits muss 1x2 sein min/max Radius');
+end
+if ~all(size(Set.optimization.basepos_limits)==[3 2])
+  error('basepos_limits muss 3x2 sein (xyz Koordinate, min/max)');
+end
 if size(Set.task.installspace.params,1) ~= length(Set.task.installspace.type)
   error('Set.task.installspace: Länge von Feldern "params" und "type" stimmt nicht überein');
 end
