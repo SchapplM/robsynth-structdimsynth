@@ -449,11 +449,12 @@ if i_ar == 3
     if ~strcmp(get(3012, 'windowstyle'), 'docked')
       set(3012,'units','normalized','outerposition',[0 0 1 1]);
     end
+    critnames_traj = fields(R.idx_iktraj_hn)';
     for i = 1:size(Stats.h,2)-1
       subplot(4,4,i); hold on;
       plot(Traj_0.t, Stats_alt.h(:,1+i), '-');
       plot(Traj_0.t, Stats.h(:,1+i), '-');
-      ylabel(sprintf('h %d', i)); grid on;
+      ylabel(sprintf('h%d (%s)', i, critnames_traj{i}), 'interpreter', 'none'); grid on;
     end
     subplot(4,4,15); hold on;
     plot(Traj_0.t, Stats_alt.condJ(:,1), '-');
@@ -530,6 +531,9 @@ else % PKM
   qlim = cat(1,R.Leg(:).qlim);
   [Q, QD, QDD, PHI, Jinv_ges, ~, JP, Stats] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
 end
+% Zurücksetzen später berechneter Größen (sonst verwirrende Redundanzkarte
+% bei frühzeitigem Abbruch)
+X2(:) = NaN; XD2(:) = NaN; XDD2(:) = NaN;
 
 constrvioltext_alt = constrvioltext;
 % Anfangswerte nochmal neu speichern, damit der Anfangswert exakt der
@@ -584,6 +588,11 @@ end
 if any(I_ZBviol)
   % Bestimme die erste Verletzung der ZB (je später, desto besser)
   IdxFirst = find(I_ZBviol, 1 );
+  if IdxFirst == 1
+    cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Bereits bei erster ', ...
+      'Traj.-Iteration Abbruch, obwohl Einzelpunkt-IK erfolgreich war. ', ...
+      'Vermutlich Logik-Fehler.'], Structure.config_index, Structure.config_number));
+  end
   % Umrechnung in Prozent der Traj.
   Failratio = 1-IdxFirst/length(Traj_0.t); % Wert zwischen 0 und 1
   fval = 1e4*(6+4*Failratio); % Wert zwischen 6e4 und 1e5.

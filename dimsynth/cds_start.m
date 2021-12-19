@@ -18,6 +18,8 @@ warning('off', 'Coder:MATLAB:singularMatrix');
 warning('off', 'Coder:MATLAB:nearlySingularMatrix');
 warning('off', 'Coder:MATLAB:illConditionedMatrix');
 warning('off', 'Coder:MATLAB:rankDeficientMatrix');
+% Falls Figure manuell angedockt wurde und gespeichert werden soll
+warning('off', 'MATLAB:Figure:SetPosition');
 
 %% Eingabe prüfen
 if ~Set.general.only_finish_aborted
