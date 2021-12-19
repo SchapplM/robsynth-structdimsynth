@@ -721,7 +721,9 @@ end
 % Gestell-Rotation: Besonders für PKM relevant. Für Serielle Roboter mit
 % erstem Drehgelenk in z-Richtung irrelevant.
 if Set.optimization.rotate_base && ...
-    ~(Structure.Type == 0 && R.MDH.sigma(1)==0 && R.MDH.alpha(1)==0)
+    ~(Structure.Type == 0 && R.MDH.sigma(1)==0 && R.MDH.alpha(1)==0 && ...
+    ... % Wenn Gelenkgrenzen fix sind, auch Drehung des Roboters ...
+      ~Set.optimization.fix_joint_limits) % statt erstem Gelenk sinnvoll
   nvars = nvars + 1;
   vartypes = [vartypes; 5];
   varlim = [varlim; repmat([-pi, pi], 1, 1)];
