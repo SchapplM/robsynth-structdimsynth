@@ -805,6 +805,10 @@ if Structure.Type == 2 && Set.optimization.platform_morphology
   end
 end
 % Variablen-Typen speichern
+if nvars == 1 && strcmp(varnames{1}, 'scale')
+  cds_log(1, sprintf(['[dimsynth] Es gibt nur einen einzigen Optimierungs', ...
+    'parameter %s. Voraussichtlich keine Optimierung sinnvoll.'], varnames{1}));
+end
 Structure.vartypes = vartypes;
 Structure.varnames = varnames;
 Structure.varlim = varlim;
@@ -1636,7 +1640,15 @@ end
 if Set.general.matfile_verbosity > 0
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat'));
 end
-if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
+if Set.optimization.NumIndividuals == 1 && Set.optimization.MaxIter == 0
+  % Nur ein Dummy-Aufruf durchführen
+  p_val = InitPop(1,:)';
+  fval = fitnessfcn(p_val);
+  exitflag = 0;
+  p_val_pareto = [];
+  fval_pareto = [];
+  options = [];
+elseif length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
   if strcmp(Set.optimization.algorithm, 'mopso')
     % Durchführung mit MOPSO; Einstellungen siehe [SierraCoe2005]
     % Und Beispiele aus Matlab File Exchange
