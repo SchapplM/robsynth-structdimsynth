@@ -28,8 +28,9 @@
 %   4e3...5e3: Konfiguration springt
 %   5e3...6e3: Beschleunigungsgrenzen
 %   6e3...7e3: Geschwindigkeitsgrenzen
-%   7e3...8e3: Gelenkwinkelgrenzen in Trajektorie (alle Beinkette zusammen)
-%   8e3...9e3: Gelenkwinkelgrenzen in Trajektorie (jede Beinkette)
+%   7e3...7.5e3: Gelenkwinkelgrenzen (Absolut) in Trajektorie
+%   7.5e3...8e3: Gelenkwinkelgrenzen (Spannweite) in Trajektorie (alle Beinkette zusammen)
+%   8e3...9e3: Gelenkwinkelgrenzen (Spannweite) in Trajektorie (jede Beinkette)
 %   9e3...1e4: Parasitäre Bewegung (Roboter strukturell unpassend)
 %   1e4...4e4: Inkonsistente Pos./Geschw./Beschl. in Traj.-IK. für Beink. 1 (Sonderfall 3T2R)
 %   4e4...5e4: Singularität in Beinkette (obige Betrachtung daher sinnlos)
@@ -233,6 +234,8 @@ if i_ar == 2 && fval > 7e3 && fval < 9e3
   s.wn(R.idx_iktraj_wnP.qlim_hyp) = 0.01; % P-Anteil hyperbolische Grenzen
   s.wn(R.idx_iktraj_wnD.qlim_par) = 0.1; % D-Anteil quadratische Grenzen (Dämpfung)
   s.wn(R.idx_iktraj_wnD.qlim_hyp) = 0.001; % D-Anteil hyperbolische Grenzen (Dämpfung)
+  % Hyperbolisches Kriterium in größerem Maße aktiv
+  s.optimcrit_limits_hyp_deact = 0.6;
   s.enforce_qlim = true; % Bei Verletzung maximal entgegenwirken
 end
 if i_ar == 2
@@ -459,13 +462,11 @@ if i_ar == 3
     subplot(4,4,15); hold on;
     plot(Traj_0.t, Stats_alt.condJ(:,1), '-');
     plot(Traj_0.t, Stats.condJ(:,1), '-');
+    ylabel('IK-Jacobi-Konditionszahl'); grid on;
+    subplot(4,4,16); hold on;
+    plot(Traj_0.t, Stats_alt.condJ(:,2), '-');
+    plot(Traj_0.t, Stats.condJ(:,2), '-');
     ylabel('Jacobi-Konditionszahl'); grid on;
-    if R.Type == 2
-      subplot(4,4,16); hold on;
-      plot(Traj_0.t, Stats_alt.condJ(:,2), '-');
-      plot(Traj_0.t, Stats.condJ(:,2), '-');
-      ylabel('IK-Jacobi-Konditionszahl'); grid on;
-    end
     linkxaxes
     sgtitle('Zielkriterien (vor/nach AR)');
     legend({'ohne AR opt.' 'mit Opt.'});
@@ -902,7 +903,8 @@ if R.Type ~= 0 && Set.general.debug_calc
     end
   end
 end
-%% Prüfe, ob die Gelenkwinkelgrenzen verletzt werden
+
+%% Prüfe, ob die Gelenkwinkelgrenzen (als Spannweite) verletzt werden
 % Andere Prüfung als in cds_constraints.m. Gehe davon aus, dass die
 % Trajektorie stetig und sprungfrei ist. Ist eine Winkelspannweite von mehr
 % als 360° erlaubt, ist die Prüfung auf Winkelspannweite mit angle_range
@@ -947,7 +949,7 @@ if any(I_qlimviol_T)
   continue
 end
 
-%% Prüfe die Gelenkwinkelgrenzen für eine symmetrische PKM-Konfiguration
+%% Prüfe die Gelenkwinkelgrenzen (als Spannweite) für eine symmetrische PKM-Konfiguration
 % Bei Annahme einer symmetrischen PKM müssen die Gelenkkoordinaten aller
 % Beinketten auch gemeinsam die Bedingung der Winkelspannweite erfüllen. 
 % Dadurch wird eine Optimierung der Gelenkfeder-Ruhelagen ermöglicht. Sonst 
@@ -971,7 +973,7 @@ if R.Type == 2 && Set.optimization.joint_stiffness_passive_revolute
     [fval_qlimv_T, I_worst] = min(qlimviol_T(I_qlimviol_T)./(q_range_max(I_qlimviol_T))');
     II_qlimviol_T = find(I_qlimviol_T); IIw = II_qlimviol_T(I_worst);
     fval_qlimv_T_norm = 2/pi*atan((-fval_qlimv_T)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
-    fval = 1e3*(7+1*fval_qlimv_T_norm); % Wert zwischen 7e3 und 8e3
+    fval = 1e3*(7.5+0.5*fval_qlimv_T_norm); % Wert zwischen 7.5e3 und 8e3
     % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Dadurch werden die
     % Bedingungen für Gelenkfedern später nicht mehr erfüllt.
     legnum = find(IIw>=R.I1J_LEG, 1, 'last');
@@ -984,6 +986,23 @@ if R.Type == 2 && Set.optimization.joint_stiffness_passive_revolute
   end
 end
 
+%% Prüfe, ob die Gelenkwinkelgrenzen (als absoluter Wert) verletzt werden
+% Falls nicht gesetzt, haben die absoluten Grenzen in der Maßsynthese
+% keine Bedeutung, sondern es kommt nur auf die Spannweite an (s.o.). Falls
+% sie gesetzt sind, ist die Spannweite noch wichtiger (daher vorher).
+if Set.optimization.fix_joint_limits
+  Q_norm = (Q - repmat(qlim(:,1)', size(Q,1), 1)) ./ ...
+            repmat(qlim(:,2)'-qlim(:,1)', size(Q,1), 1);
+  I_ul = Q_norm > 1; I_ll = Q_norm < 0;
+  if any(I_ul(:) | I_ll(:))
+    delta_lv_maxrel = max([max(Q_norm(I_ul,:)-1); max(-Q_norm(I_ll))]);
+    fval_qlimva_norm = 2/pi*atan((delta_lv_maxrel)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
+    fval = 1e3*(7+0.5*fval_qlimva_norm); % Normierung auf 7e3 bis 7.5e3
+    constrvioltext = sprintf(['Gelenkgrenzverletzung in Trajektorie. ', ...
+      'Größte relative Überschreitung: %1.1f%%'], 100*(fval_qlimva_norm));
+    continue;
+  end
+end
 %% Prüfe, ob die Geschwindigkeitsgrenzen verletzt werden
 % Diese Prüfung erfolgt zusätzlich zu einer Antriebsauslegung.
 % Gedanke: Wenn die Gelenkgeschwindigkeit zu schnell ist, ist sowieso kein

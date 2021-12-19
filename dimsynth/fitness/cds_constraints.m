@@ -860,7 +860,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     QE_norm = (QE-repmat(qlim(:,1)',size(QE,1),1))./...
                 repmat(qlim_range', size(QE,1),1);
     I_ul = QE_norm > 1; I_ll = QE_norm < 0;
-    if any(I_ul | I_ll)
+    if any(I_ul(:) | I_ll(:))
       delta_lv_maxrel = max([max(QE_norm(I_ul)-1); max(-QE_norm(I_ll))]);
       fval_qlimva_E_norm = 2/pi*atan((delta_lv_maxrel)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
       fval = 1e5*(5+1*fval_qlimva_E_norm); % Normierung auf 5e5 bis 6e5
