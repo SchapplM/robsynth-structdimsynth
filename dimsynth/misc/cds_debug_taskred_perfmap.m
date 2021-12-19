@@ -195,8 +195,10 @@ if plot_cond
   if ~isempty(wnstr), wnstr=[wnstr,'; ']; end
   wnstr = [wnstr, 'h=0. Plot: cond(J)'];
 end
-titlestr = sprintf('It. %d, fval=%1.1e; %s; %s', s.i_ar, s.fval, wnstr, s.constrvioltext);
+titlestr = sprintf('It. %d, fval=%1.1e; %s', s.i_ar, s.fval, s.constrvioltext);
 sgtitle(titlestr, 'interpreter', 'none');
+hdl2=title(wnstr, 'interpreter', 'none', 'unit', 'normalized');
+set(hdl2, 'position', [0.5 0.97 0]) % zweite Titelzeile darunter
 % Legende für Farben eintragen.
 cb = colorbar();
 cbtext = 'h(s,phiz)';
@@ -215,11 +217,6 @@ change_current_figure(fighdl);
 hdl = NaN(6,1);
 hdl(1) = plot(s_tref, 180/pi*phiz_traj, 'b+-', 'linewidth', 2);
 
-if Structure.Type == 0 % Seriell
-  idxshift = 0;
-else % Parallel (PKM)
-  idxshift = 1;
-end
 formats = {'bx', 'g*', 'g^', 'co', 'gv', 'm+'};
 legtxt = {'Traj', ... % Legendeneintrag für die T. in hdl(1)
   'Joint Lim', 'Act. Sing.', 'IK Sing.', 'Collision', 'Install. Space', 'Out of Range'};
@@ -232,19 +229,15 @@ for i = 1:6
   % vorkommen. Sonst schlechter vorhersehbar, warum Traj. im nächsten Schritt fehlschlägt.
   switch i % Index passend zu Einträgen in legtxt
     case 1
-      I = isinf(H_all(:,:,2)'); % Gelenkgrenzen
+      I = isinf(H_all(:,:,strcmp(s.critnames, 'qlim_hyp'))'); % Gelenkgrenzen
     case 2
       I = H_all(:,:,end)' > 1e3; % Kondition Jacobi (Antriebe)
     case 3
-      if Structure.Type == 2
-        I = H_all(:,:,end-1)' > 1e3; % Kondition IK-Jacobi (Beinketten)
-      else
-        continue; % Keine Singularitäten der IK
-      end
+      I = H_all(:,:,end-1)' > 1e3; % Kondition IK-Jacobi (Beinketten)
     case 4
-      I = isinf(H_all(:,:,4+idxshift)'); % Kollision
+      I = isinf(H_all(:,:,strcmp(s.critnames, 'coll_hyp'))'); % Kollision
     case 5
-      I = isinf(H_all(:,:,5+idxshift)'); % Bauraum
+      I = isinf(H_all(:,:,strcmp(s.critnames, 'instspc_hyp'))'); % Bauraum
     case 6 % ist immer vor weißem Hintergrund (siehe colormap). Daher passt magenta gut.
       I = isnan(H_all(:,:,1)'); % IK ungültig / nicht lösbar (Reichweite)
   end
@@ -287,7 +280,7 @@ for ysign = [-1, +1]
 end
 % Legende erst hier einzeichnen. Sonst werden spätere Objekte auch
 % eingetragen.
-legend(hdl(I_hdl), legtxt(I_hdl), 'Location', 'NorthOutside', 'Orientation', 'horizontal');
+legend(hdl(I_hdl), legtxt(I_hdl), 'Location', 'South', 'Orientation', 'horizontal');
 set(fighdl, 'color','w'); grid on;
 drawnow();
 
