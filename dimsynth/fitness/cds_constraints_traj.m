@@ -991,15 +991,19 @@ end
 % keine Bedeutung, sondern es kommt nur auf die Spannweite an (s.o.). Falls
 % sie gesetzt sind, ist die Spannweite noch wichtiger (daher vorher).
 if Set.optimization.fix_joint_limits
+  % Normalisiere Gelenkwinkel auf 0...1
   Q_norm = (Q - repmat(qlim(:,1)', size(Q,1), 1)) ./ ...
             repmat(qlim(:,2)'-qlim(:,1)', size(Q,1), 1);
-  I_ul = Q_norm > 1; I_ll = Q_norm < 0;
-  if any(I_ul(:) | I_ll(:))
-    delta_lv_maxrel = max([max(Q_norm(I_ul,:)-1); max(-Q_norm(I_ll))]);
+  % Normalisiere auf -0.5...+0.5. Dadurch Erkennung der Verletzung einfacher
+  Q_limviolA = abs(Q_norm-0.5); % 0 entspricht jetzt der Mitte.
+  if any(Q_limviolA(:) > 0.5)
+    [lvmax,Imax] = max(Q_limviolA,[],1);
+    [delta_lv_maxrel,Imax2] = max(lvmax-0.5);
     fval_qlimva_norm = 2/pi*atan((delta_lv_maxrel)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
     fval = 1e3*(7+0.5*fval_qlimva_norm); % Normierung auf 7e3 bis 7.5e3
     constrvioltext = sprintf(['Gelenkgrenzverletzung in Trajektorie. ', ...
-      'Größte relative Überschreitung: %1.1f%%'], 100*(fval_qlimva_norm));
+      'Größte relative Überschreitung: %1.1f%% (Gelenk %d, Zeitschritt %d/%d)'], ...
+      100*delta_lv_maxrel, Imax2, Imax(Imax2), size(Q,1));
     continue;
   end
 end

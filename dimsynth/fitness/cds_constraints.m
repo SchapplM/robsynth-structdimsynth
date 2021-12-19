@@ -857,17 +857,20 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   % keine Bedeutung, sondern es kommt nur auf die Spannweite an. Falls sie
   % gesetzt sind, ist die Spannweite noch wichtiger (daher vorher).
   if Set.optimization.fix_joint_limits
+    % Normalisiere Gelenkwinkel auf 0...1
     QE_norm = (QE-repmat(qlim(:,1)',size(QE,1),1))./...
                 repmat(qlim_range', size(QE,1),1);
-    I_ul = QE_norm > 1; I_ll = QE_norm < 0;
-    if any(I_ul(:) | I_ll(:))
-      delta_lv_maxrel = max([max(QE_norm(I_ul)-1); max(-QE_norm(I_ll))]);
+    % Normalisiere auf -0.5...+0.5. Dadurch Erkennung der Verletzung einfacher
+    Q_limviolA = abs(QE_norm-0.5); % 0 entspricht jetzt der Mitte.
+    if any(Q_limviolA(:) > 0.5)
+      [lvmax,Imax] = max(Q_limviolA,[],1);
+      [delta_lv_maxrel,Imax2] = max(lvmax-0.5);
       fval_qlimva_E_norm = 2/pi*atan((delta_lv_maxrel)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
       fval = 1e5*(5+1*fval_qlimva_E_norm); % Normierung auf 5e5 bis 6e5
       fval_jic(jic) = fval;
       constrvioltext_jic{jic} = sprintf(['Gelenkgrenzverletzung in AR-Eckwerten. ', ...
-        'Größte relative Überschreitung: %1.1f%%'], 100*(fval_qlimva_E_norm));
-      calctimes_jic(i_ar,jic) = toc(t1);
+        'Größte relative Überschreitung: %1.1f%% (Gelenk %d, Eckpunkt %d/%d)'], ...
+        100*delta_lv_maxrel, Imax2, Imax(Imax2), size(QE,1));
       continue;
     end
   end
