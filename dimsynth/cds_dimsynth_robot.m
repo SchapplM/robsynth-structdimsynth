@@ -680,7 +680,10 @@ else
 end
 R.update_base(r_W_0);
 % EE-Verschiebung
-if Set.optimization.ee_translation && ...
+if all(~isnan(Set.optimization.ee_translation_fixed))
+  % EE-Verschiebung wird in Einstellung vorgegeben. Nicht optimieren
+  R.update_EE(Set.optimization.ee_translation_fixed(:));
+elseif Set.optimization.ee_translation && ...
     (Structure.Type == 0 || Structure.Type == 2 && ~Set.optimization.ee_translation_only_serial)
   % (bei PKM keine EE-Verschiebung durchführen. Dort soll das EE-KS bei
   % gesetzter Option immer in der Mitte sein)
@@ -693,7 +696,10 @@ if Set.optimization.ee_translation && ...
 end
 
 % EE-Rotation
-if Set.optimization.ee_rotation
+if all(~isnan(Set.optimization.ee_rotation_fixed))
+  % EE-Rotation wird in Einstellung vorgegeben. Nicht optimieren
+  R.update_EE([], Set.optimization.ee_rotation_fixed(:));
+elseif Set.optimization.ee_rotation
   if sum(Set.task.DoF(4:6)) == 1
     neerot = 1;
   elseif sum(Set.task.DoF(4:6)) == 0

@@ -89,6 +89,12 @@ end
 if ~all(size(Set.optimization.basepos_limits)==[3 2])
   error('basepos_limits muss 3x2 sein (xyz Koordinate, min/max)');
 end
+if ~all(size(Set.optimization.ee_translation_fixed)==[1 3])
+  error('ee_translation_fixed muss 1x3 sein (xyz Koordinate)');
+end
+if ~all(size(Set.optimization.ee_rotation_fixed)==[1 3])
+  error('ee_rotation_fixed muss 1x3 sein (xyz Koordinate, Winkel)');
+end
 if size(Set.task.installspace.params,1) ~= length(Set.task.installspace.type)
   error('Set.task.installspace: Länge von Feldern "params" und "type" stimmt nicht überein');
 end
