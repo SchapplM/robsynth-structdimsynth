@@ -54,7 +54,7 @@ end
 %% Animation
 if strcmp(figname, 'robvisu')
   % Die Roboter-Visualisierung ist größtenteils identisch zur Animation.
-  % Nur dass nicht animiert wird, sondern dass erste Standbild genommen
+  % Nur dass nicht animiert wird, sondern dass das erste Standbild genommen
   % wird.
   Set.general.animation_styles = {'3D'};
 elseif ~strcmp(figname, 'animation')
@@ -150,6 +150,16 @@ for kk = 1:length(Set.general.animation_styles)
   end
   if strcmp(anim_mode, 'stick')
     s_plot.mode = 1;
+  elseif strcmp(anim_mode, 'CAD')
+    s_plot.mode = 2;
+    % Prüfe, ob auch ein CAD-Modell hinterlegt ist
+    if RobData.Type == 0 && isempty(R.CADstruct.link) % Seriell
+      warning('Serieller Roboter ohne CAD-Modell. Nur 3D-Plot möglich');
+      s_plot.mode = 4;
+    elseif RobData.Type == 2
+      warning('PKM mit CAD-Modell noch nicht implementiert. Nur 3D-Plot möglich');
+      s_plot.mode = 4;
+    end
   elseif strcmp(anim_mode, '3D')
     s_plot.mode = 4;
   elseif strcmp(anim_mode, 'collision')
