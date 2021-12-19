@@ -92,6 +92,7 @@ end
 %% Debug vorherige Iteration: Karte der Leistungsmerkmale für Aufgabenredundanz zeichnen
 if i_ar > 1 && task_red && Set.general.debug_taskred_perfmap
   nt_red = size(Traj_0.X,1); % Zum Debuggen: Reduktion der Stützstellen
+  critnames = fields(R.idx_ikpos_wn)';
   if i_ar == 2 % Nur einmal die Rasterung generieren
     t1 = tic();
     cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: Beginne Aufgabenredundanz-', ...
@@ -115,6 +116,7 @@ if i_ar > 1 && task_red && Set.general.debug_taskred_perfmap
     % Redundanzkarte für jedes Zielkriterium zeichnen (zur Einschätzung)
     wn_test = zeros(R.idx_ik_length.wnpos,1);
     wn_phys = zeros(4,1);
+    if Set.general.debug_taskred_perfmap == 2 % Hohes Verbose-Level
     for ll = 1:length(wn_test)+4 % letzter Durchlauf nur Konditionszahl zeichnen
       wn_test(:) = 0; wn_phys(:) = 0;
       if ll <= length(wn_test)
@@ -130,14 +132,15 @@ if i_ar > 1 && task_red && Set.general.debug_taskred_perfmap
         if ls && ~any(wn_test(I_nbkrit))
           continue % kein hyperbolisches Kriterium. Log-Skalierung nicht sinnvoll.
         end
-        critnames = fields(R.idx_ikpos_wn)';
-        critnames = [critnames(:)', {'coll_phys', 'instspc_phys', 'cond_ik_phys', 'cond_phys'}]; %#ok<NASGU>
+        critnames_withphys = [critnames(:)', ...
+          {'coll_phys', 'instspc_phys', 'cond_ik_phys', 'cond_phys'}];
         cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref(1:nt_red), ...
           phiz_range, X2(1:nt_red,6), Stats.h(1:nt_red,1), struct('wn', [wn_test;wn_phys], ...
           'i_ar', i_ar-1, 'i_fig', ll, 'name_prefix_ardbg', name_prefix_ardbg, 'fval', fval, ...
           'constrvioltext', constrvioltext, 'deactivate_time_figure', true, ...
-          'critnames', {critnames}, 'ignore_h0', true, 'logscale', ls));
+          'critnames', {critnames_withphys}, 'ignore_h0', true, 'logscale', ls));
       end
+    end
     end
   end
   % Rechne die IK-Kriterien von Traj.- zu Pos.-IK um.
@@ -149,7 +152,7 @@ if i_ar > 1 && task_red && Set.general.debug_taskred_perfmap
   save(fullfile(resdir,sprintf('%s_TaskRed_Traj%d.mat', name_prefix_ardbg, i_ar-1)), ...
     'X2', 'Q', 'i_ar', 'q', 'Stats', 'fval', 's');
   cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref(1:nt_red), ...
-    phiz_range, X2(1:nt_red,6), Stats.h(1:nt_red,1), struct('wn', [s.wn(I_wn_traj); zeros(4,1)], ...
+    phiz_range, X2(1:nt_red,6), Stats.h(1:nt_red,1), struct('wn', s.wn(I_wn_traj), ...
     'i_ar', i_ar-1, 'name_prefix_ardbg', name_prefix_ardbg, 'fval', fval, ...
     'critnames', {critnames}, 'constrvioltext', constrvioltext));
   % Falls beim Debuggen die Aufgaben-Indizes zurückgesetzt wurden
