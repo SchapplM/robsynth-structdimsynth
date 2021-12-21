@@ -22,7 +22,8 @@
 %   2e5...3e5: Bauraumverletzung in Einzelpunkten
 %   3e5...4e5: Selbstkollision in Einzelpunkten
 %   4e5...5e5: Gestell ist wegen Schubgelenken zu groß (nach IK erkannt)
-%   5e5...7e5: Gelenkwinkelgrenzen in Einzelpunkten
+%   5e5...6e5: Gelenkwinkelgrenzen (Absolut) in Einzelpunkten
+%   6e5...7e5: Gelenkwinkelgrenzen (Spannweite) in Einzelpunkten
 %   7e5...8e5  Jacobi-Grenzverletzung in Eckpunkten (trotz lösbarer IK)
 %   8e5...9e5  Jacobi-Singularität in Eckpunkten (trotz lösbarer IK)
 %   9e5...1e6  IK-Singularität in Eckpunkten (trotz lösbarer IK)
@@ -386,6 +387,11 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       s4.wn = zeros(R.idx_ik_length.wnpos,1);
       s4.wn(R.idx_ikpos_wn.ikjac_cond) = 1;
       s4.wn(R.idx_ikpos_wn.jac_cond) = 1;
+      % Versuche die Gelenkwinkelgrenzen einzuhalten, wenn explizit gefordert
+      if Set.optimization.fix_joint_limits
+        s4.wn(R.idx_ikpos_wn.qlim_hyp) = 1;
+        s4.optimcrit_limits_hyp_deact = 0.95; % Nur am Rand der Grenzen aktiv werden
+      end
       % Setze die Einstellungen und Nebenbedingungen so, dass sich das
       % Ergebnis bestmöglich verändert.
       if fval_jic(jic) == 1e3 && i>1
@@ -411,16 +417,18 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         % der Winkel sind nicht wichtig. Es kommt auf die Spannweite an.
         % Lasse Schubgelenke so, wie sie sind. Annahme: Werden schon so
         % kurz wie möglich gewählt (wegen Einfluss auf Masse/Dynamik)
-        qlim_neu = qlim;
-        qlim_neu(R.MDH.sigma==0,:) = repmat(mean(QE(1:i,R.MDH.sigma==0),1)',1,2)+...
-          [-qlim_range(R.MDH.sigma==0), qlim_range(R.MDH.sigma==0)]/2;
-        % qlim_neu(R.MDH.sigma==1,:) = qlim(R.MDH.sigma==1,:); % Schubgelenke zurücksetzen
-        if R.Type == 0 % Seriell
-          R.qlim = qlim_neu;
-        else % PKM
-          for kk = 1:R.NLEG, R.Leg(kk).qlim = qlim_neu(R.I1J_LEG(kk):R.I2J_LEG(kk),:); end
+        if ~Set.optimization.fix_joint_limits
+          qlim_neu = qlim;
+          qlim_neu(R.MDH.sigma==0,:) = repmat(mean(QE(1:i,R.MDH.sigma==0),1)',1,2)+...
+            [-qlim_range(R.MDH.sigma==0), qlim_range(R.MDH.sigma==0)]/2;
+          % qlim_neu(R.MDH.sigma==1,:) = qlim(R.MDH.sigma==1,:); % Schubgelenke zurücksetzen
+          if R.Type == 0 % Seriell
+            R.qlim = qlim_neu;
+          else % PKM
+            for kk = 1:R.NLEG, R.Leg(kk).qlim = qlim_neu(R.I1J_LEG(kk):R.I2J_LEG(kk),:); end
+          end
+          qlim = qlim_neu;
         end
-        qlim = qlim_neu;
         % Zwinge den Startwert in die neuen Grenzen (auf 5% innerhalb).
         % Hat oft zur Folge, dass die IK gar nicht mehr konvergiert. Daher
         % doch nicht machen. Entscheidung
@@ -452,23 +460,36 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         s4.wn(R.idx_ikpos_wn.instspc_hyp) = 1;
         s4.installspace_thresh = 0.1500; % Etwas höherer Abstand zur Aktivierung der Funktion
       elseif fval_jic(jic) == 1e3 % Vorher erfolgreich
+        % Vermeide Singularitäten. Abseits davon keine Betrachtung.
+        s4.cond_thresh_ikjac = cond_thresh_ikjac; % IK-Jacobi
+        s4.wn(R.idx_ikpos_wn.ikjac_cond) = 1;
+        % Geometrische Jacobi (SerRob) bzw. PKM-Jacobi (ParRob)
+        s4.wn(R.idx_ikpos_wn.jac_cond) = 1;
+        s4.cond_thresh_jac = cond_thresh_jac;
         if any(strcmp(Set.optimization.objective, 'colldist'))
-          % Vermeide Singularitäten. Abseits davon keine Betrachtung.
-          s4.cond_thresh_ikjac = cond_thresh_ikjac;
-          s4.wn(R.idx_ikpos_wn.ikjac_cond) = 1;
           % Benutze quadratische Abstandsfunktion der Kollisionen (ohne
           % Begrenzung). Dadurch maximaler Abstand gesucht
           s4.wn(R.idx_ikpos_wn.coll_par) = 1; % Kollision
-          % Geometrische Jacobi (SerRob) bzw. PKM-Jacobi (ParRob)
-          s4.wn(R.idx_ikpos_wn.jac_cond) = 1; % IK-Jacobi
-          s4.cond_thresh_jac = cond_thresh_jac;
+        end
+        if any(strcmp(Set.optimization.objective, 'jointrange'))
+          % Versuche die Gelenkwinkel so gut wie möglich in die Mitte der
+          % Grenzen zu ziehen. Es zählt die Spannweite und nicht die
+          % konkreten Grenzen
+          s4.wn(R.idx_ikpos_wn.qlim_par) = 1; % quadratische Grenzen
+        end
+        if any(strcmp(Set.optimization.objective, 'jointlimit'))
+          % Versuche die Gelenkwinkel vorrangig von den Grenzen weg zu
+          % bewegen. Hier ist das hyperbolische Kriterium stärker
+          s4.wn(R.idx_ikpos_wn.qlim_hyp) = 1; % hyperbolische Grenzen
+          s4.optimcrit_limits_hyp_deact = 0.4; % fast immer aktiv (bis zu 30% zu den Grenzen hin)
         end
       end
       if i == 1
         % Für den ersten Punkt sollten die Optimierungskriterien konsistent
         % zu cds_constraints_traj sein. Sonst komme es zu Beginn der Traj-
         % ektorie zu starken Nullraumbewegungen
-        % Nur für ersten Traj.-Punkt die Kondition verbessern
+        % Nur für ersten Traj.-Punkt die Kondition verbessern (falls
+        % schlechter als Schwellwert)
         % TODO: Mehrere Zielfunktionen neigen zum oszillieren. Tritt hier
         % auf, wenn oben weitere Bedingungen gesetzt wurden.
         s4.wn(R.idx_ikpos_wn.jac_cond) = 1;
@@ -561,7 +582,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         if Set.general.debug_taskred_fig % Zum Debuggen
         if R.Type == 0, I_constr_red = [1 2 3 5 6];
         else,           I_constr_red = R.I_constr_red; end
-        figure(2345);clf;
+        change_current_figure(2345);clf;
         Iter = 1:1+Stats.iter;
         set(2345,'Name','AR_PTPDbg', 'NumberTitle', 'off');
         subplot(3,3,1);
@@ -808,7 +829,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     [fval_qlimv_E, I_worst] = min(qlimviol_E(I_qlimviol_E)./(qlim(I_qlimviol_E,2)-qlim(I_qlimviol_E,1))');
     II_qlimviol_E = find(I_qlimviol_E); IIw = II_qlimviol_E(I_worst);
     fval_qlimv_E_norm = 2/pi*atan((-fval_qlimv_E)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
-    fval = 1e5*(5+3*fval_qlimv_E_norm); % Normierung auf 5e5 bis 7e5
+    fval = 1e5*(6+1*fval_qlimv_E_norm); % Normierung auf 6e5 bis 7e5
     fval_jic(jic) = fval;
     % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Weitere Rechnungen machen keinen Sinn.
     if R.Type ~= 0
@@ -844,6 +865,28 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   % Debug:
   % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_2.mat'));
 
+  %% Prüfe die Verletzung von absoluten Grenzen der Winkel (falls vorhanden)
+  % Falls nicht gesetzt, haben die absoluten Grenzen in der Maßsynthese
+  % keine Bedeutung, sondern es kommt nur auf die Spannweite an. Falls sie
+  % gesetzt sind, ist die Spannweite noch wichtiger (daher vorher).
+  if Set.optimization.fix_joint_limits
+    % Normalisiere Gelenkwinkel auf 0...1
+    QE_norm = (QE-repmat(qlim(:,1)',size(QE,1),1))./...
+                repmat(qlim_range', size(QE,1),1);
+    % Normalisiere auf -0.5...+0.5. Dadurch Erkennung der Verletzung einfacher
+    Q_limviolA = abs(QE_norm-0.5); % 0 entspricht jetzt der Mitte.
+    if any(Q_limviolA(:) > 0.5)
+      [lvmax,Imax] = max(Q_limviolA,[],1);
+      [delta_lv_maxrel,Imax2] = max(lvmax-0.5);
+      fval_qlimva_E_norm = 2/pi*atan((delta_lv_maxrel)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
+      fval = 1e5*(5+1*fval_qlimva_E_norm); % Normierung auf 5e5 bis 6e5
+      fval_jic(jic) = fval;
+      constrvioltext_jic{jic} = sprintf(['Gelenkgrenzverletzung in AR-Eckwerten. ', ...
+        'Größte relative Überschreitung: %1.1f%% (Gelenk %d, Eckpunkt %d/%d)'], ...
+        100*delta_lv_maxrel, Imax2, Imax(Imax2), size(QE,1));
+      continue;
+    end
+  end
   %% Aktualisiere Roboter für Kollisionsprüfung (geänderte Winkelgrenzen aus IK)
   if Set.optimization.constraint_collisions || ... % Kollisionsprüfung
       ~isempty(Set.task.installspace.type) || ... % Bauraum-Grenzen definiert

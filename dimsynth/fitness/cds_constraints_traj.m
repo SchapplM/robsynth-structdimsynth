@@ -28,8 +28,9 @@
 %   4e3...5e3: Konfiguration springt
 %   5e3...6e3: Beschleunigungsgrenzen
 %   6e3...7e3: Geschwindigkeitsgrenzen
-%   7e3...8e3: Gelenkwinkelgrenzen in Trajektorie (alle Beinkette zusammen)
-%   8e3...9e3: Gelenkwinkelgrenzen in Trajektorie (jede Beinkette)
+%   7e3...7.5e3: Gelenkwinkelgrenzen (Absolut) in Trajektorie
+%   7.5e3...8e3: Gelenkwinkelgrenzen (Spannweite) in Trajektorie (alle Beinkette zusammen)
+%   8e3...9e3: Gelenkwinkelgrenzen (Spannweite) in Trajektorie (jede Beinkette)
 %   9e3...1e4: Parasitäre Bewegung (Roboter strukturell unpassend)
 %   1e4...4e4: Inkonsistente Pos./Geschw./Beschl. in Traj.-IK. für Beink. 1 (Sonderfall 3T2R)
 %   4e4...5e4: Singularität in Beinkette (obige Betrachtung daher sinnlos)
@@ -92,8 +93,15 @@ end
 %% Debug vorherige Iteration: Karte der Leistungsmerkmale für Aufgabenredundanz zeichnen
 if i_ar > 1 && task_red && Set.general.debug_taskred_perfmap
   nt_red = size(Traj_0.X,1); % Zum Debuggen: Reduktion der Stützstellen
+  critnames = fields(R.idx_ikpos_wn)';
   if i_ar == 2 % Nur einmal die Rasterung generieren
     t1 = tic();
+    % Bereich der Redundanzkarte: -210°...210° oder bis maximal +/-360°,
+    % falls Trajektorie in eine oder beide Richtungen weiter geht
+    perfmap_range_phiz = minmax2([[-1, +1]*210*pi/180,...
+      minmax2(X2(:,6)')+[-20,+20]*pi/180]); % etwas über die Trajektorie hinaus
+    perfmap_range_phiz(perfmap_range_phiz<-2*pi)=-2*pi;
+    perfmap_range_phiz(perfmap_range_phiz> 2*pi)= 2*pi;
     cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: Beginne Aufgabenredundanz-', ...
       'Diagnosebild für Trajektorie mit %d Zeit-Stützstellen'], Structure.config_index, Structure.config_number, nt_red));
     [H_all, ~, s_ref, s_tref, phiz_range] = R.perfmap_taskred_ik( ...
@@ -102,7 +110,7 @@ if i_ar > 1 && task_red && Set.general.debug_taskred_perfmap
       ... % nur grobe Diskretisierung für die Karte (geht schneller)
       'mapres_thresh_eepos', 10e-3, 'mapres_thresh_eerot', 5*pi/180, ...
       'mapres_thresh_pathcoordres', 0.2, 'mapres_redcoord_dist_deg', 5, ...
-      'maplim_phi', [-1, +1]*210*pi/180)); % 210° statt 180° als Grenze
+      'maplim_phi', perfmap_range_phiz));
     cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: Daten für Diagnose-Bild der Aufgabenredundanz ', ...
       'erstellt. Auflösung: %dx%d. Dauer: %1.0fs'], Structure.config_index, Structure.config_number, length(s_ref), ...
       length(phiz_range), toc(t1)));
@@ -115,6 +123,7 @@ if i_ar > 1 && task_red && Set.general.debug_taskred_perfmap
     % Redundanzkarte für jedes Zielkriterium zeichnen (zur Einschätzung)
     wn_test = zeros(R.idx_ik_length.wnpos,1);
     wn_phys = zeros(4,1);
+    if Set.general.debug_taskred_perfmap == 2 % Hohes Verbose-Level
     for ll = 1:length(wn_test)+4 % letzter Durchlauf nur Konditionszahl zeichnen
       wn_test(:) = 0; wn_phys(:) = 0;
       if ll <= length(wn_test)
@@ -130,14 +139,15 @@ if i_ar > 1 && task_red && Set.general.debug_taskred_perfmap
         if ls && ~any(wn_test(I_nbkrit))
           continue % kein hyperbolisches Kriterium. Log-Skalierung nicht sinnvoll.
         end
-        critnames = fields(R.idx_ikpos_wn)';
-        critnames = [critnames(:)', {'coll_phys', 'instspc_phys', 'cond_ik_phys', 'cond_phys'}]; %#ok<NASGU>
+        critnames_withphys = [critnames(:)', ...
+          {'coll_phys', 'instspc_phys', 'cond_ik_phys', 'cond_phys'}];
         cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref(1:nt_red), ...
           phiz_range, X2(1:nt_red,6), Stats.h(1:nt_red,1), struct('wn', [wn_test;wn_phys], ...
           'i_ar', i_ar-1, 'i_fig', ll, 'name_prefix_ardbg', name_prefix_ardbg, 'fval', fval, ...
           'constrvioltext', constrvioltext, 'deactivate_time_figure', true, ...
-          'critnames', {critnames}, 'ignore_h0', true, 'logscale', ls));
+          'critnames', {critnames_withphys}, 'ignore_h0', true, 'logscale', ls));
       end
+    end
     end
   end
   % Rechne die IK-Kriterien von Traj.- zu Pos.-IK um.
@@ -149,7 +159,7 @@ if i_ar > 1 && task_red && Set.general.debug_taskred_perfmap
   save(fullfile(resdir,sprintf('%s_TaskRed_Traj%d.mat', name_prefix_ardbg, i_ar-1)), ...
     'X2', 'Q', 'i_ar', 'q', 'Stats', 'fval', 's');
   cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref(1:nt_red), ...
-    phiz_range, X2(1:nt_red,6), Stats.h(1:nt_red,1), struct('wn', [s.wn(I_wn_traj); zeros(4,1)], ...
+    phiz_range, X2(1:nt_red,6), Stats.h(1:nt_red,1), struct('wn', s.wn(I_wn_traj), ...
     'i_ar', i_ar-1, 'name_prefix_ardbg', name_prefix_ardbg, 'fval', fval, ...
     'critnames', {critnames}, 'constrvioltext', constrvioltext));
   % Falls beim Debuggen die Aufgaben-Indizes zurückgesetzt wurden
@@ -193,6 +203,12 @@ s.wn(R.idx_iktraj_wnD.ikjac_cond) = 0.1; % D-Anteil Konditionszahl (IK-Jacobi)
 % Jacobi (analytischbei PKM, geometrisch bei seriell).
 s.wn(R.idx_iktraj_wnP.jac_cond) = 1; % P-Anteil Konditionszahl (Jacobi)
 s.wn(R.idx_iktraj_wnD.jac_cond) = 0.1; % D-Anteil Konditionszahl (Jacobi)
+% Versuche die Gelenkwinkelgrenzen einzuhalten, wenn explizit gefordert
+if Set.optimization.fix_joint_limits
+  s.wn(R.idx_iktraj_wnP.qlim_hyp) = 1;
+  s.wn(R.idx_iktraj_wnD.qlim_hyp) = 0.2;
+  s.optimcrit_limits_hyp_deact = 0.95; % Nur am Rand der Grenzen aktiv werden
+end
 
 % Stelle Schwellwerte zur Aktivierung der Kollisions- und Bauraumeinhaltung
 % fest. Benutze die Werte, die in der Eckpunkt-IK gefunden wurden
@@ -224,6 +240,8 @@ if i_ar == 2 && fval > 7e3 && fval < 9e3
   s.wn(R.idx_iktraj_wnP.qlim_hyp) = 0.01; % P-Anteil hyperbolische Grenzen
   s.wn(R.idx_iktraj_wnD.qlim_par) = 0.1; % D-Anteil quadratische Grenzen (Dämpfung)
   s.wn(R.idx_iktraj_wnD.qlim_hyp) = 0.001; % D-Anteil hyperbolische Grenzen (Dämpfung)
+  % Hyperbolisches Kriterium in größerem Maße aktiv
+  s.optimcrit_limits_hyp_deact = 0.6;
   s.enforce_qlim = true; % Bei Verletzung maximal entgegenwirken
 end
 if i_ar == 2
@@ -236,12 +254,25 @@ if i_ar == 2 && fval > 6e3 && fval < 7e3
   % Geschwindigkeit wurde verletzt. Wird in NB eigentlich schon automatisch
   % berücksichtigt. Eine weitere Reduktion ist nicht möglich.
 end
-if i_ar == 2 && any(strcmp(Set.optimization.objective, 'colldist')) && any(fval_ar <= 1e3)
-  % Wenn Kollisionsabstände ein Zielkriterium sind, optimiere diese hier permanent
-  s.wn(R.idx_iktraj_wnP.coll_par) = 0.1; % P-Anteil Kollisionsvermeidung (quadratisch)
-  s.wn(R.idx_iktraj_wnD.coll_par) = 0.01; % D-Anteil Kollisionsvermeidung (quadratisch)
+if i_ar == 2 && any(fval_ar <= 1e3)
+  if any(strcmp(Set.optimization.objective, 'colldist'))
+    % Wenn Kollisionsabstände ein Zielkriterium sind, optimiere diese hier permanent
+    s.wn(R.idx_iktraj_wnP.coll_par) = 0.1; % P-Anteil Kollisionsvermeidung (quadratisch)
+    s.wn(R.idx_iktraj_wnD.coll_par) = 0.01; % D-Anteil Kollisionsvermeidung (quadratisch)
+  end
+  if any(strcmp(Set.optimization.objective, 'jointrange'))
+    % Wenn Gelenkwinkelgrenzen ein Zielkriterium sind, optimiere diese hier permanent
+    s.wn(R.idx_iktraj_wnP.qlim_par) = 1; % P-Anteil Grenzvermeidung (quadratisch)
+    s.wn(R.idx_iktraj_wnD.qlim_par) = 0.2; % D-Anteil Grenzvermeidung (quadratisch)
+    s.optimcrit_limits_hyp_deact = 0.4; % letztere fast immer aktiv (bis zu 30% zu den Grenzen hin)
+  end
+  if any(strcmp(Set.optimization.objective, 'jointlimit'))
+    % Wenn Gelenkwinkelgrenzen ein Zielkriterium sind, optimiere diese hier permanent
+    s.wn(R.idx_iktraj_wnP.qlim_hyp) = 1; % P-Anteil Grenzvermeidung (hyperbolisch)
+    s.wn(R.idx_iktraj_wnD.qlim_hyp) = 0.2; % D-Anteil Grenzvermeidung (hyperbolisch)
+    s.optimcrit_limits_hyp_deact = 0.4; % fast immer aktiv (bis zu 30% zu den Grenzen hin)
+  end
 end
-
 if i_ar == 2 && (any(fval_ar > 3e3 & fval_ar < 4e3) || ... % Ausgabewert für Kollision
     ... % Wenn Kollisionen grundsätzlich geprüft werden sollen, immer als NB setzen,
     ... % wenn vorher auch die Bauraumprüfung fehlgeschlagen ist. Beide im Zielkonflikt
@@ -440,22 +471,21 @@ if i_ar == 3
     if ~strcmp(get(3012, 'windowstyle'), 'docked')
       set(3012,'units','normalized','outerposition',[0 0 1 1]);
     end
+    critnames_traj = fields(R.idx_iktraj_hn)';
     for i = 1:size(Stats.h,2)-1
       subplot(4,4,i); hold on;
       plot(Traj_0.t, Stats_alt.h(:,1+i), '-');
       plot(Traj_0.t, Stats.h(:,1+i), '-');
-      ylabel(sprintf('h %d', i)); grid on;
+      ylabel(sprintf('h%d (%s)', i, critnames_traj{i}), 'interpreter', 'none'); grid on;
     end
     subplot(4,4,15); hold on;
     plot(Traj_0.t, Stats_alt.condJ(:,1), '-');
     plot(Traj_0.t, Stats.condJ(:,1), '-');
+    ylabel('IK-Jacobi-Konditionszahl'); grid on;
+    subplot(4,4,16); hold on;
+    plot(Traj_0.t, Stats_alt.condJ(:,2), '-');
+    plot(Traj_0.t, Stats.condJ(:,2), '-');
     ylabel('Jacobi-Konditionszahl'); grid on;
-    if R.Type == 2
-      subplot(4,4,16); hold on;
-      plot(Traj_0.t, Stats_alt.condJ(:,2), '-');
-      plot(Traj_0.t, Stats.condJ(:,2), '-');
-      ylabel('IK-Jacobi-Konditionszahl'); grid on;
-    end
     linkxaxes
     sgtitle('Zielkriterien (vor/nach AR)');
     legend({'ohne AR opt.' 'mit Opt.'});
@@ -521,6 +551,9 @@ else % PKM
   qlim = cat(1,R.Leg(:).qlim);
   [Q, QD, QDD, PHI, Jinv_ges, ~, JP, Stats] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
 end
+% Zurücksetzen später berechneter Größen (sonst verwirrende Redundanzkarte
+% bei frühzeitigem Abbruch)
+X2(:) = NaN; XD2(:) = NaN; XDD2(:) = NaN;
 
 constrvioltext_alt = constrvioltext;
 % Anfangswerte nochmal neu speichern, damit der Anfangswert exakt der
@@ -575,6 +608,11 @@ end
 if any(I_ZBviol)
   % Bestimme die erste Verletzung der ZB (je später, desto besser)
   IdxFirst = find(I_ZBviol, 1 );
+  if IdxFirst == 1
+    cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Bereits bei erster ', ...
+      'Traj.-Iteration Abbruch, obwohl Einzelpunkt-IK erfolgreich war. ', ...
+      'Vermutlich Logik-Fehler.'], Structure.config_index, Structure.config_number));
+  end
   % Umrechnung in Prozent der Traj.
   Failratio = 1-IdxFirst/length(Traj_0.t); % Wert zwischen 0 und 1
   fval = 1e4*(6+4*Failratio); % Wert zwischen 6e4 und 1e5.
@@ -884,7 +922,8 @@ if R.Type ~= 0 && Set.general.debug_calc
     end
   end
 end
-%% Prüfe, ob die Gelenkwinkelgrenzen verletzt werden
+
+%% Prüfe, ob die Gelenkwinkelgrenzen (als Spannweite) verletzt werden
 % Andere Prüfung als in cds_constraints.m. Gehe davon aus, dass die
 % Trajektorie stetig und sprungfrei ist. Ist eine Winkelspannweite von mehr
 % als 360° erlaubt, ist die Prüfung auf Winkelspannweite mit angle_range
@@ -929,7 +968,7 @@ if any(I_qlimviol_T)
   continue
 end
 
-%% Prüfe die Gelenkwinkelgrenzen für eine symmetrische PKM-Konfiguration
+%% Prüfe die Gelenkwinkelgrenzen (als Spannweite) für eine symmetrische PKM-Konfiguration
 % Bei Annahme einer symmetrischen PKM müssen die Gelenkkoordinaten aller
 % Beinketten auch gemeinsam die Bedingung der Winkelspannweite erfüllen. 
 % Dadurch wird eine Optimierung der Gelenkfeder-Ruhelagen ermöglicht. Sonst 
@@ -953,7 +992,7 @@ if R.Type == 2 && Set.optimization.joint_stiffness_passive_revolute
     [fval_qlimv_T, I_worst] = min(qlimviol_T(I_qlimviol_T)./(q_range_max(I_qlimviol_T))');
     II_qlimviol_T = find(I_qlimviol_T); IIw = II_qlimviol_T(I_worst);
     fval_qlimv_T_norm = 2/pi*atan((-fval_qlimv_T)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
-    fval = 1e3*(7+1*fval_qlimv_T_norm); % Wert zwischen 7e3 und 8e3
+    fval = 1e3*(7.5+0.5*fval_qlimv_T_norm); % Wert zwischen 7.5e3 und 8e3
     % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Dadurch werden die
     % Bedingungen für Gelenkfedern später nicht mehr erfüllt.
     legnum = find(IIw>=R.I1J_LEG, 1, 'last');
@@ -966,6 +1005,27 @@ if R.Type == 2 && Set.optimization.joint_stiffness_passive_revolute
   end
 end
 
+%% Prüfe, ob die Gelenkwinkelgrenzen (als absoluter Wert) verletzt werden
+% Falls nicht gesetzt, haben die absoluten Grenzen in der Maßsynthese
+% keine Bedeutung, sondern es kommt nur auf die Spannweite an (s.o.). Falls
+% sie gesetzt sind, ist die Spannweite noch wichtiger (daher vorher).
+if Set.optimization.fix_joint_limits
+  % Normalisiere Gelenkwinkel auf 0...1
+  Q_norm = (Q - repmat(qlim(:,1)', size(Q,1), 1)) ./ ...
+            repmat(qlim(:,2)'-qlim(:,1)', size(Q,1), 1);
+  % Normalisiere auf -0.5...+0.5. Dadurch Erkennung der Verletzung einfacher
+  Q_limviolA = abs(Q_norm-0.5); % 0 entspricht jetzt der Mitte.
+  if any(Q_limviolA(:) > 0.5)
+    [lvmax,Imax] = max(Q_limviolA,[],1);
+    [delta_lv_maxrel,Imax2] = max(lvmax-0.5);
+    fval_qlimva_norm = 2/pi*atan((delta_lv_maxrel)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
+    fval = 1e3*(7+0.5*fval_qlimva_norm); % Normierung auf 7e3 bis 7.5e3
+    constrvioltext = sprintf(['Gelenkgrenzverletzung in Trajektorie. ', ...
+      'Größte relative Überschreitung: %1.1f%% (Gelenk %d, Zeitschritt %d/%d)'], ...
+      100*delta_lv_maxrel, Imax2, Imax(Imax2), size(Q,1));
+    continue;
+  end
+end
 %% Prüfe, ob die Geschwindigkeitsgrenzen verletzt werden
 % Diese Prüfung erfolgt zusätzlich zu einer Antriebsauslegung.
 % Gedanke: Wenn die Gelenkgeschwindigkeit zu schnell ist, ist sowieso kein

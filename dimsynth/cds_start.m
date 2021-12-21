@@ -18,6 +18,8 @@ warning('off', 'Coder:MATLAB:singularMatrix');
 warning('off', 'Coder:MATLAB:nearlySingularMatrix');
 warning('off', 'Coder:MATLAB:illConditionedMatrix');
 warning('off', 'Coder:MATLAB:rankDeficientMatrix');
+% Falls Figure manuell angedockt wurde und gespeichert werden soll
+warning('off', 'MATLAB:Figure:SetPosition');
 
 %% Eingabe prüfen
 if ~Set.general.only_finish_aborted
@@ -88,6 +90,12 @@ if ~all(size(Set.optimization.platform_size_limits)==[1 2])
 end
 if ~all(size(Set.optimization.basepos_limits)==[3 2])
   error('basepos_limits muss 3x2 sein (xyz Koordinate, min/max)');
+end
+if ~all(size(Set.optimization.ee_translation_fixed)==[1 3])
+  error('ee_translation_fixed muss 1x3 sein (xyz Koordinate)');
+end
+if ~all(size(Set.optimization.ee_rotation_fixed)==[1 3])
+  error('ee_rotation_fixed muss 1x3 sein (xyz Koordinate, Winkel)');
 end
 if size(Set.task.installspace.params,1) ~= length(Set.task.installspace.type)
   error('Set.task.installspace: Länge von Feldern "params" und "type" stimmt nicht überein');
@@ -657,7 +665,9 @@ if ~Set.general.regenerate_summary_only
     % Maßsynthese für diesen Roboter starten
     if ~Set.general.only_finish_aborted, mode = 'Maßsynthese'; %#ok<PFBNS>
     else,                                mode = 'Abschluss'; end
-    fprintf('Starte %s für Roboter %d (%s)\n', mode, i, Structures{i}.Name);
+    if isempty(Structures{i}.RobName), RobNameStr = '';
+    else, RobNameStr = sprintf('; %s', Structures{i}.RobName); end
+    fprintf('Starte %s für Roboter %d (%s%s)\n', mode, i, Structures{i}.Name, RobNameStr);
     cds_dimsynth_robot(Set, Traj, Structures{i});
   end
   fprintf('Optimierung von %d Robotern abgeschlossen. Dauer: %1.1fs\n', length(Structures), toc(t1));

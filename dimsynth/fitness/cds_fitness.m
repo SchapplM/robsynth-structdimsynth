@@ -191,14 +191,16 @@ if fval_constr > 1000 % Nebenbedingungen verletzt.
   % noch das Bild gezeichnet werden (zur Fehlersuche)
   Q_out = QE_iIKC;
   
-  % Speichere Gelenk-Grenzen. Damit sieht eine hieraus erstellte 3D-Bilder
+  % Speichere Gelenk-Grenzen. Damit sehen eine hieraus erstellte 3D-Bilder
   % besser aus, weil die Schubgelenk-Führungsschienen ungefähr stimmen.
-  if R.Type == 0 % Seriell
-    R.qlim(R.MDH.sigma==1,:) = minmax2(QE_iIKC(:,R.MDH.sigma==1,1)');
-  else % PKM
-    for i = 1:R.NLEG
-      Q_i = QE_iIKC(:,R.I1J_LEG(i):R.I2J_LEG(i),1);
-      R.Leg(i).qlim(R.Leg(i).MDH.sigma==1,:) = minmax2(Q_i(:,R.Leg(i).MDH.sigma==1)');
+  if ~Set.optimization.fix_joint_limits
+    if R.Type == 0 % Seriell
+      R.qlim(R.MDH.sigma==1,:) = minmax2(QE_iIKC(:,R.MDH.sigma==1,1)');
+    else % PKM
+      for i = 1:R.NLEG
+        Q_i = QE_iIKC(:,R.I1J_LEG(i):R.I2J_LEG(i),1);
+        R.Leg(i).qlim(R.Leg(i).MDH.sigma==1,:) = minmax2(Q_i(:,R.Leg(i).MDH.sigma==1)');
+      end
     end
   end
   [~, i_gen, i_ind] = cds_save_particle_details([],[],0,0,NaN,NaN,NaN,NaN,'output');
@@ -236,19 +238,21 @@ for iIKC = 1:size(Q0,1)
   %% Gelenkwinkel-Grenzen aktualisieren
   % Als Spannweite vorgegebene Gelenkgrenzen neu zentrieren. Benutze dafür
   % alle Eckpunkte aus der Einzelpunkt-IK
-  qlim_range = qlim(:,2)-qlim(:,1);
-  qlim_neu = qlim; % Für Dreh- und Schubgelenke separat. Berücksichtige 2pi-Periodizität
-  qlim_neu(R.MDH.sigma==1,:) = repmat(mean(QE_iIKC(:,R.MDH.sigma==1,iIKC),1)',1,2)+...
-    [-qlim_range(R.MDH.sigma==1), qlim_range(R.MDH.sigma==1)]/2;
-  qlim_neu(R.MDH.sigma==0,:) = repmat(meanangle(QE_iIKC(:,R.MDH.sigma==0,iIKC),1)',1,2)+...
-    [-qlim_range(R.MDH.sigma==0), qlim_range(R.MDH.sigma==0)]/2;
-  qlim_neu(R.MDH.sigma==1) = qlim(R.MDH.sigma==1); % Schubgelenke zurücksetzen
-  % Gelenkgrenzen von oben wieder erneut einsetzen. Notwendig, da Grenzen
-  % in Traj.-IK berücksichtigt werden. Unten wird der Wert aktualisiert
-  if R.Type == 0 % Seriell
-    R.qlim = qlim_neu;
-  else % PKM
-    for i = 1:R.NLEG, R.Leg(i).qlim = qlim_neu(R.I1J_LEG(i):R.I2J_LEG(i),:); end
+  if ~Set.optimization.fix_joint_limits
+    qlim_range = qlim(:,2)-qlim(:,1);
+    qlim_neu = qlim; % Für Dreh- und Schubgelenke separat. Berücksichtige 2pi-Periodizität
+    qlim_neu(R.MDH.sigma==1,:) = repmat(mean(QE_iIKC(:,R.MDH.sigma==1,iIKC),1)',1,2)+...
+      [-qlim_range(R.MDH.sigma==1), qlim_range(R.MDH.sigma==1)]/2;
+    qlim_neu(R.MDH.sigma==0,:) = repmat(meanangle(QE_iIKC(:,R.MDH.sigma==0,iIKC),1)',1,2)+...
+      [-qlim_range(R.MDH.sigma==0), qlim_range(R.MDH.sigma==0)]/2;
+    qlim_neu(R.MDH.sigma==1) = qlim(R.MDH.sigma==1); % Schubgelenke zurücksetzen
+    % Gelenkgrenzen von oben wieder erneut einsetzen. Notwendig, da Grenzen
+    % in Traj.-IK berücksichtigt werden. Unten wird der Wert aktualisiert
+    if R.Type == 0 % Seriell
+      R.qlim = qlim_neu;
+    else % PKM
+      for i = 1:R.NLEG, R.Leg(i).qlim = qlim_neu(R.I1J_LEG(i):R.I2J_LEG(i),:); end
+    end
   end
   %% Trajektorie berechnen
   if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
@@ -360,12 +364,14 @@ for iIKC = 1:size(Q0,1)
   % Nutzen: Berechnung der Masse von Führungsschienen und Hubzylindern,
   % Anpassung der Kollisionskörper (für nachgelagerte Prüfung und Plots)
   % Bereits hier, damit Ergebnis-Visualisierung konsistent ist.
-  if R.Type == 0 % Seriell
-    R.qlim(R.MDH.sigma==1,:) = minmax2(Q(:,R.MDH.sigma==1)');
-  else % PKM
-    for i = 1:R.NLEG
-      Q_i = Q(:,R.I1J_LEG(i):R.I2J_LEG(i));
-      R.Leg(i).qlim(R.Leg(i).MDH.sigma==1,:) = minmax2(Q_i(:,R.Leg(i).MDH.sigma==1)');
+  if ~Set.optimization.fix_joint_limits
+    if R.Type == 0 % Seriell
+      R.qlim(R.MDH.sigma==1,:) = minmax2(Q(:,R.MDH.sigma==1)');
+    else % PKM
+      for i = 1:R.NLEG
+        Q_i = Q(:,R.I1J_LEG(i):R.I2J_LEG(i));
+        R.Leg(i).qlim(R.Leg(i).MDH.sigma==1,:) = minmax2(Q_i(:,R.Leg(i).MDH.sigma==1)');
+      end
     end
   end
   massparam_set = false; % Marker, ob Masseparameter gesetzt wurden
@@ -598,6 +604,12 @@ for iIKC = 1:size(Q0,1)
     physval_IKC(iIKC,strcmp(Set.optimization.objective, 'jointrange')) = physval_jr;
     fval_debugtext = [fval_debugtext, ' ', fval_debugtext_jr]; %#ok<AGROW>
   end
+  if any(strcmp(Set.optimization.objective, 'jointlimit'))
+    [fval_jl,fval_debugtext_jl, debug_info, physval_jl] = cds_obj_jointrange(R, Set, Structure, Q);
+    fval_IKC(iIKC,strcmp(Set.optimization.objective, 'jointlimit')) = fval_jl;
+    physval_IKC(iIKC,strcmp(Set.optimization.objective, 'jointlimit')) = physval_jl;
+    fval_debugtext = [fval_debugtext, ' ', fval_debugtext_jl]; %#ok<AGROW>
+  end
   if any(strcmp(Set.optimization.objective, 'stiffness'))
     [fval_st,fval_debugtext_st, debug_info, physval_st] = cds_obj_stiffness(R, Set, Q);
     fval_IKC(iIKC,strcmp(Set.optimization.objective, 'stiffness')) = fval_st;
@@ -792,12 +804,14 @@ end
 % Grenzen numerisch etwas erweitern. Dadurch kein Fehlschlag, falls
 % rundungsbedingte Abweichungen auftreten. Ansonsten dadurch Verletzung
 % der Grenzen möglich.
-if R.Type == 0 % Seriell
-  R.qlim = minmax2(Q_IKC(:,:, iIKCbest)') + 1e-6*repmat([-1, 1], R.NJ,1);
-else % PKM
-  for i = 1:R.NLEG
-    Q_i = Q_IKC(:,R.I1J_LEG(i):R.I2J_LEG(i), iIKCbest);
-    R.Leg(i).qlim = minmax2(Q_i') + 1e-6*repmat([-1, 1], R.Leg(i).NJ,1);
+if ~Set.optimization.fix_joint_limits
+  if R.Type == 0 % Seriell
+    R.qlim = minmax2(Q_IKC(:,:, iIKCbest)') + 1e-6*repmat([-1, 1], R.NJ,1);
+  else % PKM
+    for i = 1:R.NLEG
+      Q_i = Q_IKC(:,R.I1J_LEG(i):R.I2J_LEG(i), iIKCbest);
+      R.Leg(i).qlim = minmax2(Q_i') + 1e-6*repmat([-1, 1], R.Leg(i).NJ,1);
+    end
   end
 end
 % Trage Parameter der Entwurfsoptimierung neu in Klasse ein. Falls der

@@ -124,8 +124,16 @@ if any(~isnan(Set.optimization.basepos_limits(:)))
 end
 Structure.Lref = Lref;
 %% Roboter-Klasse initialisieren
+if ~isempty(Structure.RobName) && ~Set.optimization.fix_joint_limits
+  cds_log(-1, sprintf(['[dimsynth] Gelenkwinkelgrenzen nicht fixiert ', ...
+    'aber konkreter Roboter gegeben. Nicht sinnvoll.']));
+end
+if ~Set.optimization.fix_joint_limits && any(strcmp(Set.optimization.objective, 'jointlimit'))
+  cds_log(-1, ['Optimierung mit Ziel Gelenkwinkelgrenzen bei nicht-festen ', ...
+    'Grenzen nicht sinnvoll']);
+end
 if Structure.Type == 0 % Seriell
-  R = serroblib_create_robot_class(Structure.Name);
+  R = serroblib_create_robot_class(Structure.Name, Structure.RobName);
   NLEG = 1;
 elseif Structure.Type == 2 % Parallel
   % Parameter für Basis-Kopplung einstellen
@@ -178,7 +186,10 @@ for i = 1:NLEG
   else
     R_init = R.Leg(i);
   end
-  R_init.gen_testsettings(false, true); % Setze Kinematik-Parameter auf Zufallswerte
+  if isempty(Structure.RobName) % nur machen, wenn Kinematikparameter frei wählbar
+    R_init.gen_testsettings(false, true); % Setze Kinematik-Parameter auf Zufallswerte
+  end
+  if ~Set.optimization.fix_joint_limits
   % Gelenkgrenzen setzen: Schubgelenke (Verfahrlänge nicht mehr als "fünf
   % mal schräg durch Arbeitsraum" (char. Länge))
   % Muss so hoch gesetzt sein, damit UPS-Kette (ohne sonstige
@@ -196,7 +207,6 @@ for i = 1:NLEG
     % Grenzen für Drehgelenke: Alle sind aktiv
     R_init.qlim(R.MDH.sigma==0,:) = repmat([-0.5, 0.5]*... % Drehgelenk
       Set.optimization.max_range_active_revolute, sum(R.MDH.sigma==0),1);
-    Structure.qlim = R_init.qlim;
   else % Paralleler Roboter
     % Grenzen für passive Drehgelenke (aktive erstmal mit setzen)
     R_init.qlim(R_init.MDH.sigma==0,:) = repmat([-0.5, 0.5]*... % Drehgelenk
@@ -218,6 +228,12 @@ for i = 1:NLEG
     % Grenzen für aktives Drehgelenk setzen
     I_actrevol = R_init.MDH.mu == 2 & R_init.MDH.sigma==0;
     R_init.qlim(I_actrevol,:) = repmat([-0.5, 0.5]*Set.optimization.max_range_active_revolute, sum(I_actrevol),1);
+  end
+  end
+  % Eintragen in Strukturvariable
+  if Structure.Type == 0 % Serieller Roboter
+    Structure.qlim = R_init.qlim;
+  else % Paralleler Roboter
     if i == NLEG % Grenzen aller Gelenke aller Beinketten eintragen
       Structure.qlim = cat(1, R.Leg.qlim);
     end
@@ -419,7 +435,15 @@ vartypes = [vartypes; 0];
 varlim = [varlim; [1e-3*Lref, 3*Lref]];
 varnames = {'scale'};
 % Strukturparameter der Kinematik
-if Structure.Type == 0 || Structure.Type == 2
+if ~isempty(Structure.RobName)
+  % Nichts machen. Es ist ein Roboter, kein allgemeines Modell zur
+  % Optimierung vorgegeben. Die DH-Parameter sind also fix.
+  if Structure.Type == 0 % Seriell
+    Ipkinrel = false(size(R.pkin));
+  else  % Parallel
+    Ipkinrel = false(size(R.Leg(1).pkin));
+  end
+elseif Structure.Type == 0 || Structure.Type == 2
   if Structure.Type == 0 % Seriell
     R_pkin = R;
   else  % Parallel
@@ -660,7 +684,10 @@ else
 end
 R.update_base(r_W_0);
 % EE-Verschiebung
-if Set.optimization.ee_translation && ...
+if all(~isnan(Set.optimization.ee_translation_fixed))
+  % EE-Verschiebung wird in Einstellung vorgegeben. Nicht optimieren
+  R.update_EE(Set.optimization.ee_translation_fixed(:));
+elseif Set.optimization.ee_translation && ...
     (Structure.Type == 0 || Structure.Type == 2 && ~Set.optimization.ee_translation_only_serial)
   % (bei PKM keine EE-Verschiebung durchführen. Dort soll das EE-KS bei
   % gesetzter Option immer in der Mitte sein)
@@ -673,7 +700,10 @@ if Set.optimization.ee_translation && ...
 end
 
 % EE-Rotation
-if Set.optimization.ee_rotation
+if all(~isnan(Set.optimization.ee_rotation_fixed))
+  % EE-Rotation wird in Einstellung vorgegeben. Nicht optimieren
+  R.update_EE([], Set.optimization.ee_rotation_fixed(:));
+elseif Set.optimization.ee_rotation
   if sum(Set.task.DoF(4:6)) == 1
     neerot = 1;
   elseif sum(Set.task.DoF(4:6)) == 0
@@ -695,7 +725,9 @@ end
 % Gestell-Rotation: Besonders für PKM relevant. Für Serielle Roboter mit
 % erstem Drehgelenk in z-Richtung irrelevant.
 if Set.optimization.rotate_base && ...
-    ~(Structure.Type == 0 && R.MDH.sigma(1)==0 && R.MDH.alpha(1)==0)
+    ~(Structure.Type == 0 && R.MDH.sigma(1)==0 && R.MDH.alpha(1)==0 && ...
+    ... % Wenn Gelenkgrenzen fix sind, auch Drehung des Roboters ...
+      ~Set.optimization.fix_joint_limits) % statt erstem Gelenk sinnvoll
   nvars = nvars + 1;
   vartypes = [vartypes; 5];
   varlim = [varlim; repmat([-pi, pi], 1, 1)];
@@ -779,6 +811,10 @@ if Structure.Type == 2 && Set.optimization.platform_morphology
   end
 end
 % Variablen-Typen speichern
+if nvars == 1 && strcmp(varnames{1}, 'scale')
+  cds_log(1, sprintf(['[dimsynth] Es gibt nur einen einzigen Optimierungs', ...
+    'parameter %s. Voraussichtlich keine Optimierung sinnvoll.'], varnames{1}));
+end
 Structure.vartypes = vartypes;
 Structure.varnames = varnames;
 Structure.varlim = varlim;
@@ -872,6 +908,12 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     
     % Erzeuge Ersatzkörper für die kinematische Kette (aus Gelenk-Trafo)
     for i = 1:R_cc.NJ
+      if ~isempty(Structure.RobName) && norm([R_cc.MDH.a(i);R_cc.MDH.d(i)]) < 20e-3
+        % Sonderfall: Roboter mit festen Parametern wird optimiert und
+        % Abstand zwischen Segmenten ist kleiner als Kollisionskörper.
+        % Dann Körper weglassen (für Denso-Roboter)
+        continue
+      end
       if R_cc.MDH.a(i) ~= 0 || R_cc.MDH.d(i) ~= 0 || R_cc.MDH.sigma(i) == 1
         % Es gibt eine Verschiebung in der Koordinatentransformation i
         % Definiere einen Ersatzkörper dafür
@@ -1604,7 +1646,15 @@ end
 if Set.general.matfile_verbosity > 0
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat'));
 end
-if length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
+if Set.optimization.NumIndividuals == 1 && Set.optimization.MaxIter == 0
+  % Nur ein Dummy-Aufruf durchführen
+  p_val = InitPop(1,:)';
+  fval = fitnessfcn(p_val);
+  exitflag = 0;
+  p_val_pareto = [];
+  fval_pareto = [];
+  options = [];
+elseif length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
   if strcmp(Set.optimization.algorithm, 'mopso')
     % Durchführung mit MOPSO; Einstellungen siehe [SierraCoe2005]
     % Und Beispiele aus Matlab File Exchange
@@ -1929,16 +1979,18 @@ end
 % Trajektorie nicht eingehalten werden. Nicht für Schubgelenke machen, da
 % dies die Masse beeinflusst (wegen Führungsschiene)
 qlim_neu = qlim_pso; % aus PSO gespeicherte Grenzen (dort aus Gelenk-Traj.)
-qlim_mitte = mean(qlim_pso,2); % Mittelwert als Ausgangspunkt für neue Grenzen
-q_range = diff(Structure.qlim')'; % ursprüngliche max. Spannweite aus Einstellungen
-qlim_neu(R.MDH.sigma==0,:) = repmat(qlim_mitte(R.MDH.sigma==0),1,2) + ...
-  [-q_range(R.MDH.sigma==0)/2, q_range(R.MDH.sigma==0)/2];
-if R.Type == 0 % Seriell
-  R.qlim(R.MDH.sigma==0,:) = qlim_neu(R.MDH.sigma==0,:);
-else % PKM
-  for i = 1:R.NLEG
-    qlim_neu_i = qlim_neu(R.I1J_LEG(i):R.I2J_LEG(i),:);
-    R.Leg(i).qlim(R.Leg(i).MDH.sigma==0,:) = qlim_neu_i(R.Leg(i).MDH.sigma==0,:);
+if ~Set.optimization.fix_joint_limits
+  qlim_mitte = mean(qlim_pso,2); % Mittelwert als Ausgangspunkt für neue Grenzen
+  q_range = diff(Structure.qlim')'; % ursprüngliche max. Spannweite aus Einstellungen
+  qlim_neu(R.MDH.sigma==0,:) = repmat(qlim_mitte(R.MDH.sigma==0),1,2) + ...
+    [-q_range(R.MDH.sigma==0)/2, q_range(R.MDH.sigma==0)/2];
+  if R.Type == 0 % Seriell
+    R.qlim(R.MDH.sigma==0,:) = qlim_neu(R.MDH.sigma==0,:);
+  else % PKM
+    for i = 1:R.NLEG
+      qlim_neu_i = qlim_neu(R.I1J_LEG(i):R.I2J_LEG(i),:);
+      R.Leg(i).qlim(R.Leg(i).MDH.sigma==0,:) = qlim_neu_i(R.Leg(i).MDH.sigma==0,:);
+    end
   end
 end
 
@@ -2010,7 +2062,7 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   % Stelle fest, ob die Zielfunktion rein kinematisch ist; dann werden die
   % Dynamikparameter nicht in der Fitness-Funktion belegt
   only_kinematic_objective = length(intersect(Set.optimization.objective, ...
-    {'condition','jointrange','manipulability','minjacsingval','positionerror', ...
+    {'condition','jointrange','jointlimit','manipulability','minjacsingval','positionerror', ...
     'actvelo','chainlength','installspace','footprint','colldist'})) == length(Set.optimization.objective);
   if any(fval > 1e3) ...% irgendeine Nebenbedingung wurde immer verletzt. ...
       || only_kinematic_objective % ... oder nur kinematische Zielfunktion ...
@@ -2027,6 +2079,7 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   [fval_msv,~, ~, physval_msv] = cds_obj_minjacsingval(R, Set, Jinv_ges, Traj_0, Q);
   [fval_pe,~, ~, physval_pe] = cds_obj_positionerror(R, Set, Jinv_ges, Traj_0, Q);
   [fval_jrange,~, ~, physval_jrange] = cds_obj_jointrange(R, Set, Structure, Q);
+  [fval_jlimit,~, ~, physval_jlimit] = cds_obj_jointlimit(R, Set, Structure, Q);
   [fval_actvelo,~, ~, physval_actvelo] = cds_obj_actvelo(R, QD);
   [fval_chainlength,~, ~, physval_chainlength] = cds_obj_chainlength(R);
   [fval_instspc,~, ~, physval_instspc] = cds_obj_installspace(R, Set, Structure, Traj_0, Q, JP);
@@ -2043,13 +2096,13 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   end
   % Reihenfolge siehe Variable Set.optimization.constraint_obj aus cds_settings_defaults
   fval_obj_all = [fval_mass; fval_energy; fval_actforce; fval_ms; fval_cond; ...
-    fval_mani; fval_msv; fval_pe; fval_jrange; fval_actvelo; fval_chainlength; ...
+    fval_mani; fval_msv; fval_pe; fval_jrange; fval_jlimit; fval_actvelo; fval_chainlength; ...
     fval_instspc; fval_footprint; fval_colldist; fval_stiff];
   physval_obj_all = [physval_mass; physval_energy; physval_actforce; ...
     physval_ms; physval_cond; physval_mani; physval_msv; physval_pe; ...
-    physval_jrange; physval_actvelo; physval_chainlength; physval_instspc; ...
-    physval_footprint; physval_colldist; physval_stiff];
-  if length(fval_obj_all)~=15 || length(physval_obj_all)~=15
+    physval_jrange; physval_jlimit; physval_actvelo; physval_chainlength; ...
+    physval_instspc; physval_footprint; physval_colldist; physval_stiff];
+  if length(fval_obj_all)~=16 || length(physval_obj_all)~=16
     % Dimension ist falsch, wenn eine Zielfunktion nicht skalar ist (z.B. leer)
     save(fullfile(resdir, 'fvaldimensionerror.mat'));
     cds_log(-1, sprintf(['[dimsynth] Dimension der Zielfunktionen falsch ', ...
@@ -2094,8 +2147,8 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
 else
   % Keine Berechnung der Leistungsmerkmale möglich, da keine zulässige Lösung
   % gefunden wurde.
-  fval_obj_all = NaN(15,1);
-  physval_obj_all = NaN(15,1);
+  fval_obj_all = NaN(16,1);
+  physval_obj_all = NaN(16,1);
 end
 % Prüfe auf Plausibilität, ob die Optimierungsziele erreicht wurden. Neben-
 % bedingungen nur prüfen, falls überhaupt gültige Lösung erreicht wurde.
@@ -2105,7 +2158,7 @@ I_fobj_set = Set.optimization.constraint_obj ~= 0;
 objconstr_names_all = {'mass', 'energy', 'actforce', 'condition', ...
   'stiffness', 'materialstress'};
 obj_names_all = {'mass', 'energy', 'actforce', 'materialstress', 'condition', ...
-  'manipulability', 'minjacsingval', 'positionerror', 'jointrange', ...
+  'manipulability', 'minjacsingval', 'positionerror', 'jointrange', 'jointlimit', ...
   'actvelo','chainlength', 'installspace', 'footprint', 'colldist', 'stiffness'}; % konsistent zu fval_obj_all und physval_obj_all
 I_constr = zeros(length(objconstr_names_all),1);
 for i = 1:length(objconstr_names_all)

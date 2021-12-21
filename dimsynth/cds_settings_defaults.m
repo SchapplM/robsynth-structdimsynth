@@ -37,7 +37,7 @@ general = struct( ...
   'plot_details_in_fitness', 0, ... % Positiv: nur bei besseren; negativ: nur bei schlechteren als ...
   'plot_details_in_desopt' , 0, ... % Wie vorheriges Argument, aber für die Gütefunktion der Entwurfsoptimierung
   ... % Debug-Einstellungen um gezielt einige Bilder und Untersuchungen zu aktivieren
-  'debug_taskred_perfmap', false, ...% Redundanzkarte (Rasterung des redundanten FG über Trajektorie)
+  'debug_taskred_perfmap', 0, ...% Redundanzkarte (Rasterung des redundanten FG über Trajektorie). 0=aus, 1=nur Summe, 2=Details (eine Karte für jedes Leistungsmerkmal getrennt)
   'debug_taskred_fig', false, ... % Diverse weitere Plots zur Aufgabenredundanz
   'save_robot_details_plot_fitness_file_extensions', {''}, ... % Speichern des durch vorherige Einstellung erstellten Bildes
   'save_animation_file_extensions', {{'gif', 'mp4'}}, ... % Format, in denen die Animationen gespeichert werden
@@ -112,7 +112,7 @@ structures = struct( ...
 % Optimierungsvariablen und Annahmen über die Roboter, die getroffen werden
 optimization = struct( ...
   'objective', {{'energy'}}, ... % Zielfunktion. Möglich: mass, energy, condition, 
-   ... % valid_kin, valid_act, actforce, materialstress, stiffness, jointrange,
+   ... % valid_kin, valid_act, actforce, materialstress, stiffness, jointrange, jointlimit
    ... % manipulability, minjacsingval, positionerror, actvelo, chainlength,
    ... % installspace, footprint, colldist. Auch mehrere gleichzeitig möglich.
   'obj_jointrange', ... % Zusatzeinstellungen für die Zielfunktion "jointrange"
@@ -125,8 +125,10 @@ optimization = struct( ...
   'movebase', true, ... % Position der Roboter-Basis
   'basepos_limits', NaN(3,2), ... % Grenzen für Basis-Position (Absolut, im Welt-KS)
   'ee_translation', true, ... % Freie Verschiebung des EE
+  'ee_translation_fixed', NaN(1,3), ... % vorgegebene EE-Transformation (bspw. bereits konstruierter Endeffektor). Entspricht r_N_E (SerRob) bzw. r_P_E (ParRob)
   'ee_translation_only_serial', true, ... % ... nur bei seriellen Robotern
   'ee_rotation', true, ... % Freie Rotation des EE
+  'ee_rotation_fixed', NaN(1,3), ... % vorgegebene EE-Transformation (bspw. bereits konstruierter Endeffektor). Entspricht phi_N_E (SerRob) bzw. phi_P_E (ParRob); XYZ-Euler-Winkel
   'base_size', true, ... % Größe des Gestells
   'base_size_limits', [NaN, NaN], ... % Grenzen für Gestell-Größe (Radius; Absolut)
   'base_tolerance_prismatic_guidance', 1.0, ... % Erhöhte Toleranz für das Überstehen von Schubgelenk-Führungsschienen
@@ -135,6 +137,9 @@ optimization = struct( ...
   'base_morphology', false, ... % Aussehen des Gestells (z.B. Schrägheit, Gelenkpaarabstand)
   'platform_morphology', false, ... % Aussehen der Plattform (z.B. Gelenkpaarabstand)
   'rotate_base', true, ... % Orientierung der Roboter-Basis (nur um die z-Achse). Hilft bei PKM.
+  ... % Fixiere die Gelenkwinkel-Grenzen auf den beim Start gesetzten Wert.
+  ... % Ist nur sinnvoll, wenn ein bereits gegebenes Robotermodell genutzt wird.
+  'fix_joint_limits', false, ...
   ... % Begrenzung des Verfahrweges von Schubgelenken. Mit NaN deaktiviert 
   ... % (wird dann aus Größe des Roboters plausibel abgeleitet).
   'max_range_prismatic', NaN, ...
