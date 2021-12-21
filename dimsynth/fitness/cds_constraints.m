@@ -460,23 +460,36 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         s4.wn(R.idx_ikpos_wn.instspc_hyp) = 1;
         s4.installspace_thresh = 0.1500; % Etwas höherer Abstand zur Aktivierung der Funktion
       elseif fval_jic(jic) == 1e3 % Vorher erfolgreich
+        % Vermeide Singularitäten. Abseits davon keine Betrachtung.
+        s4.cond_thresh_ikjac = cond_thresh_ikjac; % IK-Jacobi
+        s4.wn(R.idx_ikpos_wn.ikjac_cond) = 1;
+        % Geometrische Jacobi (SerRob) bzw. PKM-Jacobi (ParRob)
+        s4.wn(R.idx_ikpos_wn.jac_cond) = 1;
+        s4.cond_thresh_jac = cond_thresh_jac;
         if any(strcmp(Set.optimization.objective, 'colldist'))
-          % Vermeide Singularitäten. Abseits davon keine Betrachtung.
-          s4.cond_thresh_ikjac = cond_thresh_ikjac;
-          s4.wn(R.idx_ikpos_wn.ikjac_cond) = 1;
           % Benutze quadratische Abstandsfunktion der Kollisionen (ohne
           % Begrenzung). Dadurch maximaler Abstand gesucht
           s4.wn(R.idx_ikpos_wn.coll_par) = 1; % Kollision
-          % Geometrische Jacobi (SerRob) bzw. PKM-Jacobi (ParRob)
-          s4.wn(R.idx_ikpos_wn.jac_cond) = 1; % IK-Jacobi
-          s4.cond_thresh_jac = cond_thresh_jac;
+        end
+        if any(strcmp(Set.optimization.objective, 'jointrange'))
+          % Versuche die Gelenkwinkel so gut wie möglich in die Mitte der
+          % Grenzen zu ziehen. Es zählt die Spannweite und nicht die
+          % konkreten Grenzen
+          s4.wn(R.idx_ikpos_wn.qlim_par) = 1; % quadratische Grenzen
+        end
+        if any(strcmp(Set.optimization.objective, 'jointlimit'))
+          % Versuche die Gelenkwinkel vorrangig von den Grenzen weg zu
+          % bewegen. Hier ist das hyperbolische Kriterium stärker
+          s4.wn(R.idx_ikpos_wn.qlim_hyp) = 1; % hyperbolische Grenzen
+          s4.optimcrit_limits_hyp_deact = 0.4; % fast immer aktiv (bis zu 30% zu den Grenzen hin)
         end
       end
       if i == 1
         % Für den ersten Punkt sollten die Optimierungskriterien konsistent
         % zu cds_constraints_traj sein. Sonst komme es zu Beginn der Traj-
         % ektorie zu starken Nullraumbewegungen
-        % Nur für ersten Traj.-Punkt die Kondition verbessern
+        % Nur für ersten Traj.-Punkt die Kondition verbessern (falls
+        % schlechter als Schwellwert)
         % TODO: Mehrere Zielfunktionen neigen zum oszillieren. Tritt hier
         % auf, wenn oben weitere Bedingungen gesetzt wurden.
         s4.wn(R.idx_ikpos_wn.jac_cond) = 1;
@@ -569,7 +582,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         if Set.general.debug_taskred_fig % Zum Debuggen
         if R.Type == 0, I_constr_red = [1 2 3 5 6];
         else,           I_constr_red = R.I_constr_red; end
-        figure(2345);clf;
+        change_current_figure(2345);clf;
         Iter = 1:1+Stats.iter;
         set(2345,'Name','AR_PTPDbg', 'NumberTitle', 'off');
         subplot(3,3,1);

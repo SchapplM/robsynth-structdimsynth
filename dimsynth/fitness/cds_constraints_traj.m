@@ -254,12 +254,25 @@ if i_ar == 2 && fval > 6e3 && fval < 7e3
   % Geschwindigkeit wurde verletzt. Wird in NB eigentlich schon automatisch
   % berücksichtigt. Eine weitere Reduktion ist nicht möglich.
 end
-if i_ar == 2 && any(strcmp(Set.optimization.objective, 'colldist')) && any(fval_ar <= 1e3)
-  % Wenn Kollisionsabstände ein Zielkriterium sind, optimiere diese hier permanent
-  s.wn(R.idx_iktraj_wnP.coll_par) = 0.1; % P-Anteil Kollisionsvermeidung (quadratisch)
-  s.wn(R.idx_iktraj_wnD.coll_par) = 0.01; % D-Anteil Kollisionsvermeidung (quadratisch)
+if i_ar == 2 && any(fval_ar <= 1e3)
+  if any(strcmp(Set.optimization.objective, 'colldist'))
+    % Wenn Kollisionsabstände ein Zielkriterium sind, optimiere diese hier permanent
+    s.wn(R.idx_iktraj_wnP.coll_par) = 0.1; % P-Anteil Kollisionsvermeidung (quadratisch)
+    s.wn(R.idx_iktraj_wnD.coll_par) = 0.01; % D-Anteil Kollisionsvermeidung (quadratisch)
+  end
+  if any(strcmp(Set.optimization.objective, 'jointrange'))
+    % Wenn Gelenkwinkelgrenzen ein Zielkriterium sind, optimiere diese hier permanent
+    s.wn(R.idx_iktraj_wnP.qlim_par) = 1; % P-Anteil Grenzvermeidung (quadratisch)
+    s.wn(R.idx_iktraj_wnD.qlim_par) = 0.2; % D-Anteil Grenzvermeidung (quadratisch)
+    s.optimcrit_limits_hyp_deact = 0.4; % letztere fast immer aktiv (bis zu 30% zu den Grenzen hin)
+  end
+  if any(strcmp(Set.optimization.objective, 'jointlimit'))
+    % Wenn Gelenkwinkelgrenzen ein Zielkriterium sind, optimiere diese hier permanent
+    s.wn(R.idx_iktraj_wnP.qlim_hyp) = 1; % P-Anteil Grenzvermeidung (hyperbolisch)
+    s.wn(R.idx_iktraj_wnD.qlim_hyp) = 0.2; % D-Anteil Grenzvermeidung (hyperbolisch)
+    s.optimcrit_limits_hyp_deact = 0.4; % fast immer aktiv (bis zu 30% zu den Grenzen hin)
+  end
 end
-
 if i_ar == 2 && (any(fval_ar > 3e3 & fval_ar < 4e3) || ... % Ausgabewert für Kollision
     ... % Wenn Kollisionen grundsätzlich geprüft werden sollen, immer als NB setzen,
     ... % wenn vorher auch die Bauraumprüfung fehlgeschlagen ist. Beide im Zielkonflikt

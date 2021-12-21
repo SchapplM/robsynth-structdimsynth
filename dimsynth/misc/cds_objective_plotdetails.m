@@ -41,6 +41,8 @@ for jj = 1:length(Set.optimization.objective)
     else
       obj_units{jj} = 'rad or m'; % Einheit nicht bestimmbar und evtl gemischt
     end
+  elseif strcmp(Set.optimization.objective{jj}, 'jointlimit')
+    obj_units{jj} = 'rad or m'; % Einheit hier nicht bestimmbar und evtl gemischt
   elseif strcmp(Set.optimization.objective{jj}, 'manipulability')
     obj_units{jj} = 'units of cond(J)';
   elseif strcmp(Set.optimization.objective{jj}, 'minjacsingval')

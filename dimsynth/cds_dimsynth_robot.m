@@ -128,6 +128,10 @@ if ~isempty(Structure.RobName) && ~Set.optimization.fix_joint_limits
   cds_log(-1, sprintf(['[dimsynth] Gelenkwinkelgrenzen nicht fixiert ', ...
     'aber konkreter Roboter gegeben. Nicht sinnvoll.']));
 end
+if ~Set.optimization.fix_joint_limits && any(strcmp(Set.optimization.objective, 'jointlimit'))
+  cds_log(-1, ['Optimierung mit Ziel Gelenkwinkelgrenzen bei nicht-festen ', ...
+    'Grenzen nicht sinnvoll']);
+end
 if Structure.Type == 0 % Seriell
   R = serroblib_create_robot_class(Structure.Name, Structure.RobName);
   NLEG = 1;
@@ -2058,7 +2062,7 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   % Stelle fest, ob die Zielfunktion rein kinematisch ist; dann werden die
   % Dynamikparameter nicht in der Fitness-Funktion belegt
   only_kinematic_objective = length(intersect(Set.optimization.objective, ...
-    {'condition','jointrange','manipulability','minjacsingval','positionerror', ...
+    {'condition','jointrange','jointlimit','manipulability','minjacsingval','positionerror', ...
     'actvelo','chainlength','installspace','footprint','colldist'})) == length(Set.optimization.objective);
   if any(fval > 1e3) ...% irgendeine Nebenbedingung wurde immer verletzt. ...
       || only_kinematic_objective % ... oder nur kinematische Zielfunktion ...
@@ -2075,6 +2079,7 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   [fval_msv,~, ~, physval_msv] = cds_obj_minjacsingval(R, Set, Jinv_ges, Traj_0, Q);
   [fval_pe,~, ~, physval_pe] = cds_obj_positionerror(R, Set, Jinv_ges, Traj_0, Q);
   [fval_jrange,~, ~, physval_jrange] = cds_obj_jointrange(R, Set, Structure, Q);
+  [fval_jlimit,~, ~, physval_jlimit] = cds_obj_jointlimit(R, Set, Structure, Q);
   [fval_actvelo,~, ~, physval_actvelo] = cds_obj_actvelo(R, QD);
   [fval_chainlength,~, ~, physval_chainlength] = cds_obj_chainlength(R);
   [fval_instspc,~, ~, physval_instspc] = cds_obj_installspace(R, Set, Structure, Traj_0, Q, JP);
@@ -2091,13 +2096,13 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   end
   % Reihenfolge siehe Variable Set.optimization.constraint_obj aus cds_settings_defaults
   fval_obj_all = [fval_mass; fval_energy; fval_actforce; fval_ms; fval_cond; ...
-    fval_mani; fval_msv; fval_pe; fval_jrange; fval_actvelo; fval_chainlength; ...
+    fval_mani; fval_msv; fval_pe; fval_jrange; fval_jlimit; fval_actvelo; fval_chainlength; ...
     fval_instspc; fval_footprint; fval_colldist; fval_stiff];
   physval_obj_all = [physval_mass; physval_energy; physval_actforce; ...
     physval_ms; physval_cond; physval_mani; physval_msv; physval_pe; ...
-    physval_jrange; physval_actvelo; physval_chainlength; physval_instspc; ...
-    physval_footprint; physval_colldist; physval_stiff];
-  if length(fval_obj_all)~=15 || length(physval_obj_all)~=15
+    physval_jrange; physval_jlimit; physval_actvelo; physval_chainlength; ...
+    physval_instspc; physval_footprint; physval_colldist; physval_stiff];
+  if length(fval_obj_all)~=16 || length(physval_obj_all)~=16
     % Dimension ist falsch, wenn eine Zielfunktion nicht skalar ist (z.B. leer)
     save(fullfile(resdir, 'fvaldimensionerror.mat'));
     cds_log(-1, sprintf(['[dimsynth] Dimension der Zielfunktionen falsch ', ...
@@ -2142,8 +2147,8 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
 else
   % Keine Berechnung der Leistungsmerkmale möglich, da keine zulässige Lösung
   % gefunden wurde.
-  fval_obj_all = NaN(15,1);
-  physval_obj_all = NaN(15,1);
+  fval_obj_all = NaN(16,1);
+  physval_obj_all = NaN(16,1);
 end
 % Prüfe auf Plausibilität, ob die Optimierungsziele erreicht wurden. Neben-
 % bedingungen nur prüfen, falls überhaupt gültige Lösung erreicht wurde.
@@ -2153,7 +2158,7 @@ I_fobj_set = Set.optimization.constraint_obj ~= 0;
 objconstr_names_all = {'mass', 'energy', 'actforce', 'condition', ...
   'stiffness', 'materialstress'};
 obj_names_all = {'mass', 'energy', 'actforce', 'materialstress', 'condition', ...
-  'manipulability', 'minjacsingval', 'positionerror', 'jointrange', ...
+  'manipulability', 'minjacsingval', 'positionerror', 'jointrange', 'jointlimit', ...
   'actvelo','chainlength', 'installspace', 'footprint', 'colldist', 'stiffness'}; % konsistent zu fval_obj_all und physval_obj_all
 I_constr = zeros(length(objconstr_names_all),1);
 for i = 1:length(objconstr_names_all)

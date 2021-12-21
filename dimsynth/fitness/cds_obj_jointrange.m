@@ -1,6 +1,6 @@
 % Zielfunktion ("joint range") für Optimierung in der Maßsynthese
 % basierend auf Wertebereich der Gelenke des Roboters.
-% Die Konditionszahl wird in einen normierten Zielfunktionswert übersetzt
+% Das Kriterium wird in einen normierten Zielfunktionswert übersetzt
 % 
 % Eingabe:
 % R
@@ -19,6 +19,8 @@
 %   Zeile mit Hinweistext, der bei PSO nach Fitness-Berechnung ausgegeben wird
 % debug_info [cell]
 %   Zusatz-Informationen, die im Debug-Bild des Roboters angezeigt werden
+% f_jrange [1x1]
+%   Zielfunktionswert: Nicht normierter Wert für die Spannweite
 % 
 % Siehe auch: cds_constraints.m
 % 
