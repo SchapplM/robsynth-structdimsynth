@@ -313,7 +313,7 @@ if strcmp(SelStr(Selection), 'Redundanzkarte')
   % Trajektorie neu berechnen
   Traj_0 = cds_transform_traj(R, Traj);
   [X2, XD2] = R.fkineEE2_traj(Q, QD); nt_red = size(Traj.X,1);
-  X2(:,6) = denormalize_angle_traj(X2(:,6), XD2(:,6), Traj_0.t);
+  X2(:,6) = denormalize_angle_traj(X2(:,6));
   
   if n_iOmat > 0
     fprintf(['Gespeicherter Wert für Redundanzkarte in Datei %s und %s ', ...

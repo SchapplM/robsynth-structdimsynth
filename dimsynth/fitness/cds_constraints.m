@@ -599,8 +599,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
 %         xlabel('Iterationen'); grid on;
 %         ylabel('q');
         Stats_X = R.fkineEE2_traj(Stats.Q(Iter,:));
-        Stats_X(:,6) = denormalize_angle_traj(Stats_X(:,6), [0; angleDiff(...
-          Stats_X(1:end-1,6),Stats_X(2:end,6))], 0:1e-3:1e-3*(size(Stats_X,1)-1));
+        Stats_X(:,6) = denormalize_angle_traj(Stats_X(:,6));
         I_Phi_iO = all(abs(Stats.PHI(Iter,I_constr_red))<1e-6,2);
         I_Phi_med = all(abs(Stats.PHI(Iter,I_constr_red))<1e-3,2)&~I_Phi_iO;
         I_Phi_niO = ~I_Phi_iO & ~I_Phi_med;

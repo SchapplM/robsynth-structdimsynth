@@ -583,7 +583,7 @@ if task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
   [X2(1:LastTrajIdx,:), XD2(1:LastTrajIdx,:), XDD2(1:LastTrajIdx,:)] = ...
     R.fkineEE2_traj(Q(1:LastTrajIdx,:), QD(1:LastTrajIdx,:), QDD(1:LastTrajIdx,:));
   % Erlaube auch EE-Drehungen größer als 180°
-  X2(:,6) = denormalize_angle_traj(X2(:,6), XD2(:,6), Traj_0.t);
+  X2(1:LastTrajIdx,6) = denormalize_angle_traj(X2(1:LastTrajIdx,6));
   % Debug: EE-Trajektorie zeichnen
   if false
     figure(4002);clf; %#ok<UNRCH>
