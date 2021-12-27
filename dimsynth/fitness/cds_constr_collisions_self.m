@@ -81,7 +81,7 @@ if fval == 0 || 1e4*fval >= Set.general.plot_details_in_fitness
   return
 end
 % Suche Datenpunkt mit größter Kollision
-colldepth_rel(isnan(colldepth_rel)) = 0;
+colldepth_rel(coll==0) = 0;
 colldepth_t = sum(colldepth_rel,2);
 [~,j] = max(colldepth_t); % Index für Zeitschritt in Daten
 % Debug: Detaillierte Informationen

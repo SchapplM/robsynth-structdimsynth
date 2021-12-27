@@ -165,6 +165,14 @@ if Set.general.save_evolution_video
     Set.general.plot_robot_in_fitness = 1e3;
   end
 end
+if isempty(Set.general.save_animation_file_extensions) && ~isempty(Set.general.animation_styles)
+  warning('Eingabefeld save_animation_file_extensions ist leer. Keine Animation');
+  Set.general.animation_styles = {};
+end
+if ~isempty(Set.general.save_animation_file_extensions) && isempty(Set.general.animation_styles)
+  warning('Eingabefeld animation_styles ist leer. Keine Animation');
+  Set.general.save_animation_file_extensions = {};
+end
 if isnan(Set.general.cluster_maxrobotspernode)
   Set.general.cluster_maxrobotspernode = Set.general.computing_cluster_cores;
 end
