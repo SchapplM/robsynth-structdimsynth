@@ -176,6 +176,21 @@ end
 if isnan(Set.general.cluster_maxrobotspernode)
   Set.general.cluster_maxrobotspernode = Set.general.computing_cluster_cores;
 end
+if ~isempty(Traj.X) % Trajektorie prüfen
+  % De-Normalisiere die Trajektorie. Dadurch springen die Euler-Winkel nicht
+  % (Auswirkung hauptsächlich optisch in Auswertungen). Winkel größer pi.
+  Traj.X(:,4:6) = denormalize_angle_traj(Traj.X(:,4:6));
+  % Prüfe Konsistenz des Positionsverlaufs
+  X_numint = repmat(Traj.X(1,:),size(Traj.X,1),1)+cumtrapz(Traj.t, Traj.XD);
+  corrX = diag(corr(X_numint, Traj.X));
+  corrX(all(abs(X_numint-Traj.X)<1e-6)) = 1;
+  assert(all(corrX>0.98), 'eingegebene Trajektorie ist nicht konsistent (X-XD)');
+  XD_numint = repmat(Traj.XD(1,:),size(Traj.XD,1),1)+cumtrapz(Traj.t, Traj.XDD);
+  corrXD = diag(corr(XD_numint, Traj.XD));
+  corrXD(all(abs(Traj.XD)<1e-3)) = 1;
+  assert(all(corrXD>0.98), 'eingegebene Trajektorie ist nicht konsistent (XD-XDD)');
+end
+
 %% Menge der Roboter laden
 if ~(Set.general.only_finish_aborted && Set.general.isoncluster) && ... % Abschluss auf Cluster
     ~Set.general.regenerate_summary_only || ... % Nur Bilder (ohne Abschluss)
