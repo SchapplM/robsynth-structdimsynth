@@ -508,6 +508,26 @@ elseif Structure.Type == 0 || Structure.Type == 2
     I_d2 = R_pkin.pkin_jointnumber==2 & R_pkin.pkin_types == 6;
     Ipkinrel = Ipkinrel & ~I_d2; % Nehme die "1" bei d2 weg.
   end
+  % Setze den a-Parameter für Schubylinder zu Null. Ist technisch
+  % sinnvoller. Sonst wäre der Schubzylinder mit einem Hebel zum vorherigen
+  % oder nächsten Gelenk angebracht. Widerspricht dem Konzept der Stabkinematik
+  % Hierdurch wird die Vielfalt möglicher Roboter zugunsten einer besseren
+  % Plausibilität der Ergebnisse eingeschränkt. TODO: Zurücknehmen, sobald
+  % Kollisionskörper für Führungsschiene/Zylinder besser implementiert sind
+  I_cyl = find(R_pkin.MDH.sigma == 1 & R_init.DesPar.joint_type == 5);
+  for ii_cyl = I_cyl' % Alle Gelenke mit Schubzylinder durchgehen (falls mehrere)
+    % Setze den a-Parameter vor einem Schubylinder zu Null. Dadurch drückt
+    % der Zylinder direkt auf das vorhergehende Gelenk
+    I_aprecyl = R_pkin.pkin_jointnumber==ii_cyl & R_pkin.pkin_types == 4;
+    Ipkinrel = Ipkinrel & ~I_aprecyl; % Nehme die "1" bei dem a-Parameter weg
+    % Setze den d- und a-Parameter nach einem Schubylinder zu Null. Ist technisch
+    % sinnvoller. Dadurch drückt der Zylinder direkt auf das folgende Gelenk
+    I_apostcyl = R_pkin.pkin_jointnumber==(ii_cyl+1) & R_pkin.pkin_types == 4;
+    Ipkinrel = Ipkinrel & ~I_apostcyl; % Nehme die "1" bei dem a-Parameter weg
+    I_dpostcyl = R_pkin.pkin_jointnumber==(ii_cyl+1) & R_pkin.pkin_types == 6;
+    Ipkinrel = Ipkinrel & ~I_dpostcyl; % Nehme die "1" bei dem d-Parameter weg
+  end
+  
   % Setze den letzten d-Parameter für PKM-Beinketten auf Null. Dieser ist
   % redundant zur Plattform-Größe
   if Structure.Type == 2 % PKM
@@ -818,6 +838,8 @@ end
 Structure.vartypes = vartypes;
 Structure.varnames = varnames;
 Structure.varlim = varlim;
+cds_log(3, sprintf('[dimsynth] Starte Optimierung mit %d Parametern: %s', ...
+  length(varnames), disp_array(varnames, '%s')));
 assert(length(vartypes)==size(varlim,1), 'Anzahl der Variablen muss konsistent zur Anzahl der gesetzten Grenzen sein');
 assert(length(vartypes)==length(varnames), 'Abgespeicherte Variablennamen stimmen scheinbar nicht');
 assert(all(varlim(:,1)~=varlim(:,2)), 'Obere und untere Parametergrenze identisch. Optimierung nicht sinnvoll.')
@@ -894,12 +916,19 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         collbodies.type = [collbodies.type; uint8(3)];
         % Umrechnung der Parameter ins Welt-KS: Notwendig. Aber hier
         % ignoriert.
-      else
-        cds_log(-1, sprintf(['[dimsynth] Die Kollisionsprüfung für die Führungsschiene des P-Gelenks ', ...
-          'an Stelle %d ist nicht definiert. Wird vorerst ignoriert.'], i));
+      elseif i < R_cc.NJ
+        if ~(R_cc.MDH.a(i+1)==0 && R_cc.MDH.d(i+1)==0 && R_cc.DesPar.joint_type(i)==5)
+          % Bei Schubzylinder ohne a-/d-Versatz passen die Kollisionskörper
+          cds_log(-1, sprintf(['[dimsynth] Die Kollisionsprüfung für die ', ...
+            'Führungsschiene des P-Gelenks an Stelle %d ist nicht definiert. ', ...
+            'Wird vorerst ignoriert.'], i));
+        end
         continue
         % Kapsel, zwei Punkte (im mitbewegten Körper-KS)
         collbodies.type = [collbodies.type; uint8(3)]; %#ok<UNRCH>
+      else
+        cds_log(-1, sprintf(['[dimsynth] Kollisionsprüfung für Schubgelenk ', ...
+          'als letztes Gelenk der Kette noch nicht implementiert']));
       end
       collbodies.params = [collbodies.params; cbi_par, NaN(1,3)];
       % Führungsschiene/Führungszylinder ist vorherigem Segment zugeordnet
@@ -1423,7 +1452,14 @@ if ~isempty(Set.task.installspace.type)
     % gelenken (z.B. Linearachsen). Siehe: SerRob/plot
     for i = find(R_cc.MDH.sigma'==1)
       if i > 1
-        warning('Führungsschiene für nicht gestellfeste Linearantriebe nicht implementiert');
+        if i == R_cc.NJ
+          warning(['Kollisionsprüfung (für Bauraum) für Schubgelenk als ', ...
+            'letztes Gelenk der Kette noch nicht implementiert']);
+        elseif ~(R_cc.MDH.a(i+1)==0 && R_cc.MDH.d(i+1)==0 && R_cc.DesPar.joint_type(i)==5)
+          % Bei Schubzylinder ohne a-/d-Versatz passen die Kollisionskörper
+          warning(['Kollisionsprüfung für Führungsschiene/-Zylinder für ', ...
+            'nicht gestellfeste Linearantriebe nicht implementiert (bzgl. Bauraum)']);
+        end
         continue
       end
       % Hänge zwei Punkte für Anfang und Ende jeder Linearführung an
