@@ -41,7 +41,7 @@ settings_default = struct( ...
   'parcomp_mexcompile', 1, ... % parfor-Mex-Kompilierung (schneller, aber Dateikonflikt möglich)
   'use_mex', 1, ... % Die nutzung kompilierter Funktionen kann deaktiviert werden. Dann sehr langsam. Aber Start geht schneller, da keine Kompiliertung zu Beginn.
   'max_actuation_idx', 4, ... % Aktuierung bis zum vierten Gelenk-FG zulassen
-  'base_couplings', 1:9, ... % siehe ParRob/align_base_coupling
+  'base_couplings', 1:10, ... % siehe ParRob/align_base_coupling
   'plf_couplings', [1:6 8] ... % siehe ParRob/align_platform_coupling
   );
 
@@ -536,6 +536,8 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.structures.whitelist = Whitelist_PKM; % nur diese PKM untersuchen
     Set.structures.use_serial = false; % nur PKM (keine seriellen)
     Set.structures.use_parallel_rankdef = 6*settings.check_rankdef_existing;
+    Set.structures.parrob_basejointfilter = settings.base_couplings;
+    Set.structures.parrob_platformjointfilter = settings.plf_couplings;
     Set.general.save_animation_file_extensions = {'gif'};
     Set.general.parcomp_struct = settings.parcomp_structsynth;
     Set.general.use_mex = settings.use_mex;

@@ -223,7 +223,7 @@ for kkk = 1:size(EE_FG_allowed,1)
     end
     StructuralDHParam = ActTab.Values_Angle_Parameters(Ij);
     % Prüfe Koppelpunkt-Eigenschaften
-    if ~any(Coupling(1) == 1:9) || ~any(Coupling(2) == [1:6, 8])
+    if ~any(Coupling(1) == 1:10) || ~any(Coupling(2) == [1:6, 8])
       if verblevel >= 3 || IsInWhiteList
         fprintf('%s hat eine nicht implementierte Koppelpunkt-Variante\n', PNames_Akt{j});
       end

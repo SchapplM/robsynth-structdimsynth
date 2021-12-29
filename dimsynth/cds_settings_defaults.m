@@ -97,7 +97,7 @@ structures = struct( ...
   'max_kin_redundancy', 0, ... % Zulässiger Grad der kinematischen Redundanz
   'joint_filter', '******', ... % Vorgabe von Gelenktypen ("R", "P", "*").
   'num_tech_joints', 1:6, ... Mögliche Anzahl technischer Gelenke (in PKM-Beinketten). Wert 3 ermöglicht bspw. Ketten UPS, PUS, RUS, ...
-  'parrob_basejointfilter', 1:9, ... % Vorgabe zum Gestell-Koppelgelenktyp einer PKM
+  'parrob_basejointfilter', 1:10, ... % Vorgabe zum Gestell-Koppelgelenktyp einer PKM
   'parrob_platformjointfilter', 1:8, ... % Vorgabe zum Gestell-Koppelgelenktyp einer PKM
   'nopassiveprismatic', true, ... % Schubgelenke dürfen nicht passiv sein
   'activenotlastjoint', true, ... % Verhindert ein aktives Plattform-Koppelgelenk
