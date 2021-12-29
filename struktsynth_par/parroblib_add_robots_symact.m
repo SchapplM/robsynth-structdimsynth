@@ -298,6 +298,11 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           continue
         end
       end
+      if SName(2+1) == 'R' && Coupling(1) == 10
+        % Methode 10 ist identisch zu Methode 1, wenn das Gestellgelenk ein Dreh-
+        % gelenk ist. Dann spielt die Ausrichtung um die z-Achse keine Rolle.
+        continue
+      end
       
       N_LegDoF = str2double(SName(2));% Beinkette FHG
       PName = sprintf('P%d%s', N_Legs, SName(3:end));
