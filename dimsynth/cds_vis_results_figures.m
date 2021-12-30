@@ -260,6 +260,7 @@ if strcmp(figname, 'pareto')
     fhdl = figure();clf;hold all;
     set(fhdl, 'Name', sprintf('Rob%d_Pareto', RNr), ...
       'NumberTitle', 'off', 'color','w');
+    axhdl = get(fhdl, 'children');
     sprows = floor(sqrt(size(objcomb,1)));
     spcols = ceil(size(objcomb,1)/sprows);
     for kk = 1:size(objcomb,1)
@@ -311,6 +312,16 @@ if strcmp(figname, 'pareto')
         legend(leghdl(~isnan(leghdl)), legtext(~isnan(leghdl)), 'interpreter', 'latex');
       end
       grid on;
+    end
+    % Prüfe ob ein Wertebereich sehr stark unausgeglichen ist (z.B. wenn die
+    % Konditionszahl als Kriterium bis unendlich geht). Dann logarithmisch.
+    if length(axhdl) == 1
+      for kk = 1:3
+        axlim = get(axhdl, [char(119+kk), 'lim']); % xlim, ylim, zlim
+        if axlim(2) / axlim(1) > 1e3 && all(axlim>=0)
+          set(axhdl, [char(119+kk), 'scale'], 'log');
+        end
+      end
     end
     if pffig == 1 
       sgtitle(sprintf('Rob. %d: Pareto-Fronten für mehrkrit. Opt. (Physikalische Werte)', RNr));
