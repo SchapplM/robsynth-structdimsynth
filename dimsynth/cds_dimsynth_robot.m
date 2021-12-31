@@ -91,7 +91,8 @@ if ~init_only && ~Set.general.only_finish_aborted
 end
 % Zurücksetzen der Detail-Speicherfunktion
 clear cds_save_particle_details;
-
+% Anpassung der eingegebenen Struktur-Variable an Aktualisierungen
+if ~isfield(Structure, 'RobName'), Structure.RobName = ''; end  
 %% Referenzlänge ermitteln
 % Mittelpunkt der Aufgabe
 Structure.xT_mean = mean(minmax2(Traj.X(:,1:3)'), 2);
