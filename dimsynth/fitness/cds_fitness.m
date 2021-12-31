@@ -30,13 +30,17 @@
 %   1e9...1e13: Siehe cds_constraints. Werte von dort mit Faktor 1e4 multipliziert
 % physval
 %   Physikalische Werte, die den Werten aus fval entsprechen
-% Q, QD, QDD
+% Q_out, QD_out, QDD_out
 %   Gelenkwinkel-Trajektorie für Ergebnis
+% TAU_out, JP_out, Jinv_out, X6Traj_out
+%   Dem Fitness-Wert zugrunde liegende Antriebsmomente, Punktkoordinaten
+%   der Gelenke und (inverse) Jacobi-Matrizen, EE-Drehungen
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function [fval, physval, Q_out, QD_out, QDD_out, TAU_out, JP_out] = cds_fitness(R, Set, Traj_W, Structure, p, desopt_pval)
+function [fval, physval, Q_out, QD_out, QDD_out, TAU_out, JP_out, Jinv_out, X6Traj_out] = ...
+  cds_fitness(R, Set, Traj_W, Structure, p, desopt_pval)
 repopath = fileparts(which('structgeomsynth_path_init.m'));
 rng(0); % Für Wiederholbarkeit der Versuche: Zufallszahlen-Initialisierung
 
@@ -47,7 +51,8 @@ end
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_fitness_1.mat'),  '-regexp', '^(?!abort_fitnesscalc$).');
 
 t1=tic();
-Q_out = []; QD_out = []; QDD_out = []; TAU_out = []; JP_out = [];
+Q_out = []; QD_out = []; QDD_out = []; TAU_out = []; JP_out = []; Jinv_out = [];
+X6Traj_out = [];
 debug_info = {};
 % Alle möglichen physikalischen Werte von Nebenbedingungen (für spätere Auswertung)
 constraint_obj_val = NaN(length(Set.optimization.constraint_obj),1);
@@ -229,6 +234,8 @@ if R.Type == 0
 else
   JP_IKC = NaN(size(Traj_0.X,1), 3*(1+R.NJ+R.NLEG), size(Q0,1));
 end
+Jinv_IKC = NaN(size(Traj_0.X,1), sum(R.I_EE)*R.NJ, size(Q0,1));
+X6Traj_IKC = NaN(size(Traj_0.X,1), 3, size(Q0,1));
 desopt_pval_IKC = repmat(desopt_pval(:)', size(Q0,1), 1); % NaN-initialisiert oder aus Eingabe-Argument.
 if R.Type == 0, n_actjoint = R.NJ;
 else,           n_actjoint = sum(R.I_qa); end
@@ -258,7 +265,7 @@ for iIKC = 1:size(Q0,1)
   if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
     Structure.config_index = iIKC;
     Structure.config_number = size(Q0,1);
-    [fval_trajconstr,Q,QD,QDD,Jinv_ges,JP,constrvioltext_IKC{iIKC}] = cds_constraints_traj( ...
+    [fval_trajconstr,Q,QD,QDD,Jinv_ges,JP,constrvioltext_IKC{iIKC}, Traj_0_corr] = cds_constraints_traj( ...
       R, Traj_0, Q0(iIKC,:)', Set, Structure, Stats_constraints);
     % NB-Verletzung in Traj.-IK wird in Ausgabe mit Werten von 1e3 aufwärts
     % angegeben. Umwandlung in Werte von 1e7 aufwärts.
@@ -271,6 +278,9 @@ for iIKC = 1:size(Q0,1)
       end
       desopt_pval_IKC(iIKC,Structure.desopt_ptypes==1) = p_prismaticoffset;
     end
+    % Übernehme die korrigierte Trajektorie (für den Fall von 3T2R). Sonst
+    % sind die folgenden Berechnungen nicht konsistent
+    Traj_0 = Traj_0_corr;
   else
     Q = QE_iIKC(:,:,iIKC);
     QD = 0*Q; QDD = QD;
@@ -282,6 +292,12 @@ for iIKC = 1:size(Q0,1)
     else % Parallel
       Jinv_ges = NaN(size(Q,1), sum(R.I_EE)*size(Q,2));
       for i = 1:size(Q,1)
+        % Berechne die korrigierten Werte für die Euler-Winkel nach
+        if Structure.task_red || all(R.I_EE_Task == [1 1 1 1 1 0])
+          x_i = R.fkineEE2_traj(q')';
+          x_i(1:5) = Traj_0.X(i,1:5);
+          Traj_0.X(i,:) = x_i;
+        end
         [~,J_x_inv] = R.jacobi_qa_x(Q(i,:)', Traj_0.X(i,:)');
         if any(isnan(J_x_inv(:))) || any(isinf(J_x_inv(:)))
           % Durch numerische Fehler können Inf- oder NaN-Einträge in der
@@ -311,6 +327,8 @@ for iIKC = 1:size(Q0,1)
   QD_IKC(:,:,iIKC) = QD;
   QDD_IKC(:,:,iIKC) = QDD;
   JP_IKC(:,:,iIKC) = JP;
+  Jinv_IKC(:,:,iIKC) = Jinv_ges;
+  X6Traj_IKC(:,:,iIKC) = [Traj_0.X(:,6),Traj_0.XD(:,6),Traj_0.XDD(:,6)];
   % Kein Normalisieren der Winkel (wenn dann erst hier durchführen, da
   % einige Prüfungen oben davon beeinflusst werden).
   % Falls Gelenksteifigkeiten vorgesehen sind springt das Federmoment.
@@ -750,7 +768,8 @@ QD_out = QD_IKC(:,:,iIKCbest);
 QDD_out = QDD_IKC(:,:,iIKCbest);
 TAU_out = TAU_IKC(:,:,iIKCbest);
 JP_out = JP_IKC(:,:,iIKCbest);
-
+Jinv_out = Jinv_IKC(:,:,iIKCbest);
+X6Traj_out = X6Traj_IKC(:,:,iIKCbest);
 %% Abbruchbedingung aufgrund von Singularität prüfen
 if ~isinf(Set.optimization.condition_limit_sing) && R.Type == 2 && ...
     all(fval > 1e4*5e4) && all(fval < 1e4*6e4) % Grenzen für PKM-Singularität

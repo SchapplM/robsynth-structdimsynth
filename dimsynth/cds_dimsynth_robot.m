@@ -179,6 +179,11 @@ end
 if all(Set.task.DoF == [1 1 1 1 1 0])
   Set.task.pointing_task = true;
 end
+% Speichere die Eigenschaft der Aufgabenredundanz
+Structure.task_red = ...
+  R.Type == 0 && sum(R.I_EE_Task) < R.NJ || ... % Seriell: Redundant wenn mehr Gelenke als Aufgaben-FG
+  R.Type == 2 && sum(R.I_EE_Task) < sum(R.I_EE); % Parallel: Redundant wenn mehr Plattform-FG als Aufgaben-FG
+
 % Platzhalter für Vorgabe der Traj-IK-Anfangswerte
 Structure.q0_traj = NaN(R.NJ, 1);
 for i = 1:NLEG
@@ -1972,7 +1977,7 @@ for i = 1:max_retry
   clear cds_fitness % persistente Variable in fitnessfcn löschen (falls Grenzwert erreicht wurde wird sonst inf zurückgegeben)
   % Aufruf nicht über anonmye Funktion, sondern vollständig, damit Param.
   % der Entwurfsoptimierung übergeben werden können.
-  [fval_test, ~, Q, QD, QDD, ~, JP] = cds_fitness(R, Set, Traj, Structure_tmp, p_val, desopt_pval);
+  [fval_test, ~, Q, QD, QDD, ~, JP, ~, X6Traj] = cds_fitness(R, Set, Traj, Structure_tmp, p_val, desopt_pval);
   if any(abs(fval_test-fval)>1e-8)
     if all(fval_test < fval)
       t = sprintf('Der neue Wert (%s) ist um [%s] besser als der alte (%s).', ...
@@ -2059,17 +2064,23 @@ if ~any(strcmp(Set.optimization.objective, 'valid_act')) && ...
   result_invalid = true;
 end
 
+% Transformation der Trajektorie ins Basis-KS. Beachte geänderten dritten
+% Euler-Winkel bei Aufgabenredundanz oder 3T2R-PKM
+Traj_0 = cds_transform_traj(R, Traj);
+if ~isempty(X6Traj) && (Structure.task_red || all(R.I_EE_Task == [1 1 1 1 1 0]))
+  Traj_0.X(:,6) = X6Traj(:,1);
+  Traj_0.XD(:,6) = X6Traj(:,2);
+  Traj_0.XDD(:,6) = X6Traj(:,3);
+end
 % Berechne die Jacobi-Matrix für PKM neu. Keine Neuberechnung der inversen
 % Kinematik (wird bereits in erneutem Aufruf der Fitness-Funktion gemacht)
-Traj_0 = cds_transform_traj(R, Traj);
 Jinv_ges = []; % Platzhalter
 if R.Type ~= 0 && ~result_invalid && ~isempty(QD) % nur machen, wenn Traj.-IK erfolgreich
   Jinv_ges = NaN(size(Q,1), sum(R.I_EE)*R.NJ);
   test_xD_fromJ_max = 0; % Fehler dabei prüfen
   i_maxerr = 0;
   for i = 1:size(Q,1)
-    X_i = R.fkineEE2_traj(Q(i,:))'; % Für 3T2R Neuberechnung von X notwendig
-    [~,Jinv_x] = R.jacobi_qa_x(Q(i,:)', X_i); % Jacobi-Matrix
+    [~,Jinv_x] = R.jacobi_qa_x(Q(i,:)', Traj_0.X(i,:)'); % Jacobi-Matrix
     Jinv_ges(i,:) = Jinv_x(:);
     % Prüfe, ob differentieller Zusammenhang mit Jacobi-Matrix korrekt ist.
     % Berücksichtigung von 2T1R vs 3T3R Plattform-Koordinaten

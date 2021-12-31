@@ -194,9 +194,7 @@ qlim_norm(R.MDH.sigma==0,:) = repmat([-pi, +pi], sum(R.MDH.sigma==0),1);
 qlim_range = qlim(:,2)-qlim(:,1);
 qlim_range_norm = qlim_range;
 qlim_range_norm(isinf(qlim_range)) = 2*pi;
-task_red = R.Type == 0 && sum(R.I_EE_Task) < R.NJ || ... % Seriell: Redundant wenn mehr Gelenke als Aufgaben-FG
-           R.Type == 2 && sum(R.I_EE_Task) < sum(R.I_EE); % Parallel: Redundant wenn mehr Plattform-FG als Aufgaben-FG
-if task_red
+if Structure.task_red
   ar_loop = 1:2; % Aufgabenredundanz liegt vor. Zusätzliche Schleife
 else
   ar_loop = 1; % Keine Aufgabenredundanz. Nichts zu berechnen.
@@ -313,7 +311,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
             all(abs(Phi(R.I_constr_r_red))<s.Phir_tol));% IK-Status Funktionsdatei
         for ll=1:R.NLEG, condJik(i,ll) = Stats.condJ(1+Stats.iter(ll),ll); end
         Phi_Leg1 = Phi(1:sum(R.I_EE_Task)); % Zwangsbed. für erste Beinkette (aufgabenredundant)
-        if ~ik_res_ik2 && task_red && all(abs(Phi_Leg1)<s.Phit_tol) % Vereinfachung: Toleranz transl/rot identisch.
+        if ~ik_res_ik2 && Structure.task_red && all(abs(Phi_Leg1)<s.Phit_tol) % Vereinfachung: Toleranz transl/rot identisch.
           % Die Einzelbeinketten-IK für die erste Beinkette war erfolgreich, 
           % aber nicht für die weiteren Beinketten. Mögliche Ursache
           % ist die freie Drehung der Plattform durch die erste Beinkette.
@@ -1027,7 +1025,7 @@ end % Schleife über IK-Konfigurationen
 
 % Debuggen der IK-Optimierung (zum Nachvollziehen, ob die Nutzung von
 % Redundanz an dieser Stelle überhaupt etwas bringt)
-if task_red
+if Structure.task_red
   cds_log(3, sprintf(['[constraints] Eckpunkte mit %d Konfigurationen berechnet. Dauer ', ...
     'AR=0 %1.1fs (mean %1.2fs; n=%d): AR=1 %1.1fs (mean %1.2fs; n=%d)'], ...
     size(calctimes_jic,2), sum(calctimes_jic(1,:),'omitnan'), ...
@@ -1043,7 +1041,7 @@ if task_red
       sum(arikstats_jic(:)==inf) ) );
   end
 end
-if Set.general.debug_calc && task_red
+if Set.general.debug_calc && Structure.task_red
   % Prüfe, für wie viele Konfigurationen eine Verbesserung eintritt.
   I_besser = fval_jic < fval_jic_old;
   if any(I_besser)

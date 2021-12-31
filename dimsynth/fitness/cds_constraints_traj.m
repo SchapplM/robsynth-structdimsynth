@@ -5,7 +5,7 @@
 % Eingabe:
 % R
 %   Matlab-Klasse für zu optimierenden Roboter (SerRob/ParRob)
-% Traj_0
+% Traj_0_in [struct]
 %   Endeffektor-Trajektorie (bezogen auf Basis-KS)
 % q
 %   Anfangs-Gelenkwinkel für die Trajektorien-IK (gradientenbasiert)
@@ -49,12 +49,15 @@
 % constrvioltext [char]
 %   Text mit Zusatzinformationen, die beim Aufruf der Fitness-Funktion
 %   ausgegeben werden
+% Traj_0 [struct]
+%   Wie Eingabe Traj_0_in; korrigiert um letzten Euler-Winkel, der sich
+%   bei Aufgabenredundanz ändern kann.
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function [fval,Q,QD,QDD,Jinv_ges,JP,constrvioltext] = cds_constraints_traj( ...
-  R, Traj_0, q, Set, Structure, Stats_constraints)
+function [fval,Q,QD,QDD,Jinv_ges,JP,constrvioltext, Traj_0] = cds_constraints_traj( ...
+  R, Traj_0_in, q, Set, Structure, Stats_constraints)
 % Debug
 % save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_0.mat'));
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_0.mat')); nargin=6
@@ -72,14 +75,13 @@ wn_all = [];
 mincolldist_all = NaN(3,1);
 mininstspcdist_all = NaN(3,1);
 % Speicherung der Trajektorie mit aktualisierter EE-Drehung bei Aufg.-Red.
+Traj_0 = Traj_0_in;
 X2 = NaN(size(Traj_0.X)); XD2 = NaN(size(Traj_0.X)); XDD2 = NaN(size(Traj_0.X));
 constrvioltext_alt = '';
 [currgen,currind,~,resdir] = cds_get_new_figure_filenumber(Set, Structure, '');
 % Schleife über mehrere mögliche Nebenbedingungen der inversen Kinematik
 fval_ar = NaN(1,2);
-task_red = R.Type == 0 && sum(R.I_EE_Task) < R.NJ || ... % Seriell: Redundant wenn mehr Gelenke als Aufgaben-FG
-           R.Type == 2 && sum(R.I_EE_Task) < sum(R.I_EE); % Parallel: Redundant wenn mehr Plattform-FG als Aufgaben-FG
-if task_red
+if Structure.task_red
   ar_loop = 1:3; % Aufgabenredundanz liegt vor. Zusätzliche Schleife. Dritte Schleife ist nur zur Prüfung.
 else
   ar_loop = 1; % Keine Aufgabenredundanz. Nichts zu berechnen.
@@ -91,7 +93,7 @@ if i_ar > 1
 end
 
 %% Debug vorherige Iteration: Karte der Leistungsmerkmale für Aufgabenredundanz zeichnen
-if i_ar > 1 && task_red && Set.general.debug_taskred_perfmap
+if i_ar > 1 && Structure.task_red && Set.general.debug_taskred_perfmap
   nt_red = size(Traj_0.X,1); % Zum Debuggen: Reduktion der Stützstellen
   critnames = fields(R.idx_ikpos_wn)';
   if i_ar == 2 % Nur einmal die Rasterung generieren
@@ -537,7 +539,7 @@ end
 % Entfernen des dritten Euler-Winkels aus der Trajektorie (wird sonst
 % als Referenz benutzt und dann Kopplung zwischen Iterationen der Traj.-IK)
 % Wird nach IK-Berechnung wieder eingetragen
-if task_red % Nur bei Redundanz relevant (Nebenbedingungen)
+if Structure.task_red % Nur bei Redundanz relevant (Nebenbedingungen)
   Traj_0.X(:,6) = 0; % wird ignoriert (xlim ist nicht aktiv als Kriterium)
   Traj_0.XD(:,6) = 0; % Wird für Dämpfung benötigt
   Traj_0.XDD(:,6) = 0; % wird ignoriert
@@ -578,7 +580,7 @@ I_ZBviol = any(abs(PHI) > 1e-6,2) | any(isnan(Q),2) | ...
 % Muss schon berechnet werden, bevor der Abbruch der Trajektorie geprüft
 % wird (Variable X2 wird für Redundanzkarte benötigt).
 % Gilt für 3T2R-PKM und für 3T3R-PKM in 3T2R-Aufgaben
-if task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
+if Structure.task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
   LastTrajIdx = find(~I_ZBviol, 1, 'last' ); % berechne nur für i.O.-Punkte dir Kin.
   [X2(1:LastTrajIdx,:), XD2(1:LastTrajIdx,:), XDD2(1:LastTrajIdx,:)] = ...
     R.fkineEE2_traj(Q(1:LastTrajIdx,:), QD(1:LastTrajIdx,:), QDD(1:LastTrajIdx,:));
@@ -728,7 +730,8 @@ end
 % Dieser Test wird nach der Prüfung der Jacobi-Matrix der Beinkette
 % durchgeführt. Annahme: Ist diese schlecht konditioniert, können bei den
 % beiden IK-Implementierungen verschiedene Ergebnisse herauskommen.
-if R.Type == 2 && Set.general.debug_calc % PKM; Rechne nochmal mit Klassenmethode nach
+if R.Type == 2 && Set.general.debug_calc && ...% PKM; Rechne nochmal mit Klassenmethode nach
+    ~Structure.task_red % Durch Nullraumbewegung Wegdriften der beiden Berechnungen möglich. Vergleich dann nicht sinnvoll.
   [Q_debug, QD_debug, QDD_debug, PHI_debug, ~, ~, JP_debug] = R.invkin_traj( ...
     Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
   ik_res_ik2 = (all(max(abs(PHI(:,R.I_constr_t_red)))<s.Phit_tol) && ...
@@ -813,7 +816,7 @@ end
 
 %% Prüfe neue Endeffektor-Bewegung für 3T2R-Roboter
 % Die Neuberechnung erfolgt bereits weiter oben (3T2R-PKM/3T2R-Aufgabe)
-if task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
+if Structure.task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
   % Teste nur die ersten fünf Einträge (sind vorgegeben). Der sechste
   % Wert wird an dieser Stelle erst berechnet und kann nicht verglichen werden.
   % Hier wird nur eine Hin- und Rückrechnung (InvKin/DirKin) gemacht. 
@@ -856,7 +859,7 @@ if task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
     continue
   end
   % Eintragen des dritten Euler-Winkels, damit spätere Vergleiche funktionieren.
-  if task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) % 3T2R-Aufgabe oder 3T2R-PKM
+  if Structure.task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) % 3T2R-Aufgabe oder 3T2R-PKM
     Traj_0.X(:,6) = X2(:,6);
     Traj_0.XD(:,6) = XD2(:,6);
     Traj_0.XDD(:,6) = XDD2(:,6);
@@ -1124,13 +1127,13 @@ corrQ = diag(corr(Q_num, Q));
 corrQ(all(abs(Q_num-Q)<1e-6)) = 1;
 corrQD(all(abs(QD_num-QD)<1e-3)) = 1;
 corrQ(all(abs(QD)<1e-10)) = 1; % qD=0 und q schwankt numerisch (als Nullraumbewegung) wegen IK-Positionskorrektur
-if task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
+if Structure.task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
   % TODO: Inkonsistenz ist Fehler in Traj.-IK. Dort korrigieren.
   cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Nullraumbewegung führt zu nicht ', ...
     'konsistenten Gelenkverläufen. Korrelation Geschw. min. %1.2f, ', ...
     'Position %1.2f'], Structure.config_index, Structure.config_number, min(corrQD), min(corrQ)'));
 end
-if ~task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
+if ~Structure.task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
   % Wenn eine Gelenkgröße konstant ist (ohne Rundungsfehler), wird die
   % Korrelation NaN (Teilen durch 0). Werte NaN als Korrelation 1.
   % Damit werden zwei unterschiedliche, konstante Werte auch als Korr.=1
