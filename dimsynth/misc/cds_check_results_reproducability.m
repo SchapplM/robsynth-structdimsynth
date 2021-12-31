@@ -13,6 +13,9 @@
 % s_in (optional)
 %   Einstellungen zur Durchführung der Reproduzierbarkeitsstudie.
 %   Felder: Siehe Quelltext
+% 
+% Schreibt Tabelle: reproducability_stats.csv
+% (In Gesamt-Ergebnis-Ordner und in Unterordner für jeden Roboter)
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-12
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
@@ -76,8 +79,11 @@ ReproStatsTab = ReproStatsTab_empty;
 for i = 1:length(RobNames)
   ReproStatsTab_Rob = ReproStatsTab_empty;
   RobName = RobNames{i};
-  RobNr = find(strcmp(RobName,Structures_Names),1,'first');
   fprintf('Untersuche Reproduzierbarkeit für Rob %d/%d: %s\n', i, length(RobNames), RobName);
+  % Finde die Roboter-Nummern zu diesem Namen. Es können mehrere parallele
+  % Durchläufe mit dem gleichen Roboter gemacht worden sein. Dann nehme alle.
+  RobNr_all = find(strcmp(RobName,Structures_Names));
+  for RobNr = RobNr_all(:)'
   Structure = Structures{RobNr};
   resfile1 = fullfile(resdir_opt, sprintf('Rob%d_%s_Endergebnis.mat', ...
     RobNr, RobName));
@@ -156,7 +162,8 @@ for i = 1:length(RobNames)
     else
       q0 = [];
     end
-    fprintf('Reproduktion Partikel Nr. %d (Gen. %d, Ind. %d):\n', jj, k_gen, k_ind);
+    fprintf('Reproduktion Rob. %d Partikel Nr. %d (Gen. %d, Ind. %d):\n', ...
+      RobNr, jj, k_gen, k_ind);
     f2_jj = cds_fitness(R,Set,Traj,Structure_jj,p_jj,p_desopt_jj);
     test_f2_abs = f_jj - f2_jj;
     test_f2_rel = test_f2_abs ./ f_jj;
@@ -213,5 +220,6 @@ for i = 1:length(RobNames)
     % Schreibzugriffe auf die Datei, aber auch bei Abbruch gefüllt.
     ReproStatsTab = [ReproStatsTab; ReproStatsTab_Rob]; %#ok<AGROW>
     writetable(ReproStatsTab, fullfile(resdir_opt, 'reproducability_stats.csv'), 'Delimiter', ';');
+  end
   end
 end
