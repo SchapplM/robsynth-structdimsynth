@@ -101,6 +101,13 @@ else % PKM
           max(abs(abs(test_Jinv(:)))), Cges(i));
       end
       det_ges(i,:) = det(Jinv_IK(R.I_qa,:));
+      % Debug: Vergleich der Geschwindigkeiten
+      test_qaD = QD(i,R.I_qa)' - Jinv_IK(R.I_qa,:)*Traj_0.XD(i,R.I_EE)';
+      test_qD = QD(i,:)' - Jinv_IK(:,:)*Traj_0.XD(i,R.I_EE)';
+      test_xD = Jinv_IK(R.I_qa,:) \ QD(i,R.I_qa)' - Traj_0.XD(i,R.I_EE)';
+      assert(all(abs(test_qaD) < 1e-10), 'Umrechnung xD->qaD falsch');
+      assert(all(abs(test_qD) < 1e-10), 'Umrechnung xD->qD falsch');
+      assert(all(abs(test_xD) < 1e-10), 'Umrechnung qD->xD falsch');
     end
   end
   change_current_figure(201); clf;

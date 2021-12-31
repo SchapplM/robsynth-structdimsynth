@@ -21,7 +21,8 @@
 %   1e5...2e5: Arbeitsraum-Hindernis-Kollision in Einzelpunkten
 %   2e5...3e5: Bauraumverletzung in Einzelpunkten
 %   3e5...4e5: Selbstkollision in Einzelpunkten
-%   4e5...5e5: Gestell ist wegen Schubgelenken zu groß (nach IK erkannt)
+%   4e5...4.5e5: Gestell ist wegen Schubgelenken zu groß (nach IK erkannt)
+%   4.5e5...5e5: Schubzylinder geht zu weit nach hinten weg (nach IK erkannt)
 %   5e5...6e5: Gelenkwinkelgrenzen (Absolut) in Einzelpunkten
 %   6e5...7e5: Gelenkwinkelgrenzen (Spannweite) in Einzelpunkten
 %   7e5...8e5  Jacobi-Grenzverletzung in Eckpunkten (trotz lösbarer IK)
@@ -914,10 +915,40 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         'achsen-Führungsschienen um %1.0f%% zu groß (%1.1fmm>%1.1fmm).'], ...
         100*fval_rbase, 1e3*r_base_eff, 1e3*1/((fval_rbase+1)/r_base_eff));
       fval_rbase_norm = 2/pi*atan(fval_rbase*3); % Normierung auf 0 bis 1; 100% zu groß ist 0.8
-      fval = 1e5*(4+1*fval_rbase_norm); % Normierung auf 4e5 bis 5e5
+      fval = 1e5*(4+0.5*fval_rbase_norm); % Normierung auf 4e5 bis 4.5e5
       fval_jic(jic) = fval;
       calctimes_jic(i_ar,jic) = toc(t1);
       continue;
+    end
+  end
+  %% Prüfe die Länge von Schubzylindern
+  % Ist mit der Gelenkwinkel-Spannweite verbunden. Für die Schubzylinder-
+  % Spannweite muss ein entsprechender Platz in einem Außenzylinder gegeben
+  % sein. Der Außenzylinder sollte nicht durch das vorherige Gelenk gehen.
+  if ~Set.optimization.prismatic_cylinder_allow_overlength && any(Structure.I_straightcylinder)
+    % Berechne die Länge, die der Zylinder nach hinten geht
+    qmin_cyl = min(abs(QE(:,Structure.I_straightcylinder)), [], 1);
+    qmax_cyl = max(abs(QE(:,Structure.I_straightcylinder)), [], 1);
+    length_cyl = qmax_cyl - qmin_cyl;
+    [fval_cyllen, Iworst] = max(length_cyl./qmin_cyl);
+    if fval_cyllen > 1
+      constrvioltext_jic{jic} = sprintf(['Länge eines Schubzylinders steht ', ...
+        'nach hinten über. Min. Abstand %1.1fmm, Innenzylinder Länge %1.1fmm ', ...
+        '(Gelenk %d)'], 1e3*qmin_cyl(Iworst), 1e3*length_cyl(Iworst), Iworst);
+      fval_cyllen_norm = 2/pi*atan((fval_cyllen-1)*3); % Normierung auf 0 bis 1; 100% zu lang ist 0.8
+      fval = 1e5*(4.5+0.5*fval_cyllen_norm); % Normierung auf 4.5e5 bis 5e5
+      fval_jic(jic) = fval;
+      calctimes_jic(i_ar,jic) = toc(t1);
+      continue;
+      % Debug: Zeichnen des Roboters in der Konfiguration
+      if R.Type == 0 %#ok<UNRCH>
+        R.Leg.qlim(:,:) = minmax2(QE');
+      else
+        for kkk = 1:R.NLEG
+          R.Leg(kkk).qlim(:,:) = minmax2(QE(:,R.I1J_LEG(kkk):R.I2J_LEG(kkk))');
+        end
+      end
+      cds_fitness_debug_plot_robot(R, QE(1,:)', Traj_0, Traj_0, Set, Structure, [], mean(fval), {});
     end
   end
   %% Anpassung des Offsets für Schubgelenke

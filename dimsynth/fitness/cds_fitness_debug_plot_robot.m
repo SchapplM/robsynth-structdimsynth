@@ -45,7 +45,8 @@ xlabel('x in m');ylabel('y in m');zlabel('z in m');
 if ~isempty(Traj_W)
   plot3(Traj_W.X(:,1), Traj_W.X(:,2),Traj_W.X(:,3), 'k-');
 end
-plotmode = 1; % Strichzeichnung
+% plotmode = 1; % Strichzeichnung
+plotmode = 4; % Entwurfsparameter
 if R.Type == 0 % Seriell
   s_plot = struct( 'ks', 1:R.NJ+2, 'straight', 1, 'mode', plotmode);
   R.plot( q, s_plot);

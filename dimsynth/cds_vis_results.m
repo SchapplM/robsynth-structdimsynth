@@ -445,7 +445,18 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
         Set.optimization.objective{2}, Set.optimization.objective{3}), 'interpreter', 'none');
     end
   end
+  axhdl = get(10+pffig, 'children');
   legend(leghdl, legstr);
+  % Prüfe ob ein Wertebereich sehr stark unausgeglichen ist (z.B. wenn die
+  % Konditionszahl als Kriterium bis unendlich geht). Dann logarithmisch.
+  if length(axhdl) == 1
+    for kk = 1:3
+      axlim = get(axhdl, [char(119+kk), 'lim']); % xlim, ylim, zlim
+      if axlim(2) / axlim(1) > 1e3 && all(axlim>=0)
+        set(axhdl, [char(119+kk), 'scale'], 'log');
+      end
+    end
+  end
   % PNG-Export bereits hier, da Probleme mit uicontrol.
   export_fig(10+pffig, fullfile(resmaindir, sprintf('Pareto_Gesamt_%s.png',name_suffix)));
   % Auswahlmenü für eine nachträglich zu plottende Auswertung. Wird in der

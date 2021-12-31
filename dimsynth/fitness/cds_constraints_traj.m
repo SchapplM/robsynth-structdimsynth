@@ -1214,6 +1214,8 @@ if ~task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
     linkxaxes
     sgtitle('Verlauf Gelenkbeschleunigungen');
   end
+%   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+%     'cds_constraints_traj_config_flip.mat'));
   continue
 end
 %% Aktualisiere Roboter für Kollisionsprüfung (geänderte Grenzen aus Traj.-IK)

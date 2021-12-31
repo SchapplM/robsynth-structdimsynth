@@ -97,11 +97,13 @@ structures = struct( ...
   'max_kin_redundancy', 0, ... % Zulässiger Grad der kinematischen Redundanz
   'joint_filter', '******', ... % Vorgabe von Gelenktypen ("R", "P", "*").
   'num_tech_joints', 1:6, ... Mögliche Anzahl technischer Gelenke (in PKM-Beinketten). Wert 3 ermöglicht bspw. Ketten UPS, PUS, RUS, ...
-  'parrob_basejointfilter', 1:9, ... % Vorgabe zum Gestell-Koppelgelenktyp einer PKM
+  'parrob_basejointfilter', 1:10, ... % Vorgabe zum Gestell-Koppelgelenktyp einer PKM
   'parrob_platformjointfilter', 1:8, ... % Vorgabe zum Gestell-Koppelgelenktyp einer PKM
   'nopassiveprismatic', true, ... % Schubgelenke dürfen nicht passiv sein
   'activenotlastjoint', true, ... % Verhindert ein aktives Plattform-Koppelgelenk
-  'max_index_active', 6, ... % Setzt den maximalen Index aktuierter Gelenke fest (nachrrangig gegen vorherige Option)
+  'max_index_active', 6, ... % Setzt den maximalen Index aktuierter Gelenke fest (nachrrangig gegen vorherige Option); für PKM
+  'max_index_active_revolute', 6, ... % wie vorherige, nur bezogen auf Drehgelenke; für PKM
+  'max_index_active_prismatic', 6, ... % wie vorherige, nur bezogen auf Schuzbgelenke; für PKM
   'mounting_serial', {'floor'}, ... % Montageort für serielle Roboter: floor, ceiling, wall
   'mounting_parallel', {mounting_parallel_default}, ... % ... für PKM (wird entsprechend zur Aufgabe ausgerichtet; Schubgelenke haben Vorzugsrichtung)
   'repeatlist', {{}}, ... % Liste für mehrfache Durchführung eines Roboters. Einträge: {'Name', Anzahl}. Sinnvoll, wenn parallele Berechnung möglich.
@@ -166,6 +168,7 @@ optimization = struct( ...
   'max_velocity_ee_rotation', 2*pi, ... % [rad/s]; im Fall von Aufgabenredundanz maximale Drehgeschwindigkeit des Endeffektors
   'max_acceleration_ee_rotation', 2*pi/0.200, ... % rad/s²; Aufbau der max. Geschwindigkeit in 200ms (sehr dynamisch)
   'check_jointrange_points', true, ... % Prüfung der Gelenkwinkelspannweite bereits bei den Eckpunkten (Möglichkeit für falsch-positive Ausschlüsse)
+  'prismatic_cylinder_allow_overlength', false, ... % Bei Schubzylindern darf der Zylinder nicht durch das vorherige Gelenk gehen. Ist konstruktiv ungünstig.
   'desopt_vars', {{}}, ... % Variablen für eigene Optimierung der Entwurfsparameter. Möglich: "linkstrength", "joint_stiffness_qref"
   'safety_link_yieldstrength', 1, ... % Sicherheitsfaktor für Streckgrenze der Segmente als Nebenbedingung. Berechnung gesteuert über constraint_obj(6)
   'constraint_collisions', false, ... Schalter für Kollisionsprüfung
