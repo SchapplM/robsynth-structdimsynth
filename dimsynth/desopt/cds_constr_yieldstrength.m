@@ -170,6 +170,7 @@ if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_detail
       for j = 1:R.NL
         if fm == 0, fmnorm_ges_jk = sqrt(sum(data_dyn.Wges(:,3*(j-1)+(1:3)).^2,2)); % s.o.
         else, fmnorm_ges_jk = sqrt(sum(data_dyn.Wges(:,R.NL*3+3*(j-1)+(1:3)).^2,2)); end
+        fmnorm_ges_jk(abs(fmnorm_ges_jk)<1e-12) = 0; % numerisches Rauschen ignorieren
         sphdl(j)=subplot(3, 3, j); hold on;
         plot(Traj_0.t, fmnorm_ges_jk);
         % Formatierung
@@ -185,6 +186,7 @@ if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_detail
           % Kräfte und Momente in den Gesamtdaten extrahieren
           if fm == 0, fmnorm_ges_jk = sqrt(sum(W_k(:,3*(j-1)+(1:3)).^2,2)); % s.o.
           else, fmnorm_ges_jk = sqrt(sum(W_k(:,R.Leg(1).NL*3+3*(j-1)+(1:3)).^2,2)); end
+          fmnorm_ges_jk(abs(fmnorm_ges_jk)<1e-12) = 0; % numerisches Rauschen ignorieren
           % Plotten
           sphdl(j,k)=subplot(size(sphdl,1),size(sphdl,2),sprc2no(size(sphdl,1),size(sphdl,2),j,k)); hold on;
           plot(Traj_0.t, fmnorm_ges_jk);

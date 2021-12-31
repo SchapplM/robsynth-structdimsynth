@@ -13,15 +13,37 @@
 % s_in (optional)
 %   Einstellungen zur Durchführung der Reproduzierbarkeitsstudie.
 %   Felder: Siehe Quelltext
+% 
+% Schreibt Tabelle: reproducability_stats.csv
+% (In Gesamt-Ergebnis-Ordner und in Unterordner für jeden Roboter)
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-12
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
 function cds_check_results_reproducability(OptName, RobName, s_in)
 
+%% Eingabe prüfen
+s = struct( ...
+  'results_dir', [], ... % Alternatives Verzeichnis zum Laden der Ergebnisse
+  'only_from_pareto_front', true); % bei false werden alle Partikel geprüft, bei true nur die besten
+if nargin < 3
+  s_in = s;
+end
+for f = fields(s_in)'
+  if isfield(s, f{1})
+    s.(f{1}) = s_in.(f{1});
+  else
+    error('Feld "%s" aus s_in kann nicht übergeben werden', f{1});
+  end
+end
+if isempty(s.results_dir)
+  resdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), 'results');
+  resdir_opt = fullfile(resdir, OptName);
+else
+  resdir_opt = s.results_dir;
+end
+
 %% Optimierung laden
-resdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), 'results');
-resdir_opt = fullfile(resdir, OptName);
 if ~exist(resdir_opt, 'file')
   warning('Ergebnis-Ordner %s existiert nicht.', resdir_opt);
   return
@@ -40,24 +62,12 @@ Structures_Names = cell(1,length(Structures));
 for i = 1:length(Structures)
   Structures_Names{i} = Structures{i}.Name;
 end
-if nargin < 2
+if nargin < 2 || isempty(RobName)
   RobNames = Structures_Names;
 elseif isa(RobName, 'cell')
   RobNames = RobName;
 else
   RobNames = {RobName};
-end
-s = struct( ...
-  'only_from_pareto_front', true); % bei false werden alle Partikel geprüft, bei true nur die besten
-if nargin < 3
-  s_in = s;
-end
-for f = fields(s_in)'
-  if isfield(s, f{1})
-    s.(f{1}) = s_in.(f{1});
-  else
-    error('Feld "%s" aus s_in kann nicht übergeben werden', f{1});
-  end
 end
   
 RobNames = unique(RobNames);
@@ -69,8 +79,11 @@ ReproStatsTab = ReproStatsTab_empty;
 for i = 1:length(RobNames)
   ReproStatsTab_Rob = ReproStatsTab_empty;
   RobName = RobNames{i};
-  RobNr = find(strcmp(RobName,Structures_Names),1,'first');
   fprintf('Untersuche Reproduzierbarkeit für Rob %d/%d: %s\n', i, length(RobNames), RobName);
+  % Finde die Roboter-Nummern zu diesem Namen. Es können mehrere parallele
+  % Durchläufe mit dem gleichen Roboter gemacht worden sein. Dann nehme alle.
+  RobNr_all = find(strcmp(RobName,Structures_Names));
+  for RobNr = RobNr_all(:)'
   Structure = Structures{RobNr};
   resfile1 = fullfile(resdir_opt, sprintf('Rob%d_%s_Endergebnis.mat', ...
     RobNr, RobName));
@@ -149,7 +162,8 @@ for i = 1:length(RobNames)
     else
       q0 = [];
     end
-    fprintf('Reproduktion Partikel Nr. %d (Gen. %d, Ind. %d):\n', jj, k_gen, k_ind);
+    fprintf('Reproduktion Rob. %d Partikel Nr. %d (Gen. %d, Ind. %d):\n', ...
+      RobNr, jj, k_gen, k_ind);
     f2_jj = cds_fitness(R,Set,Traj,Structure_jj,p_jj,p_desopt_jj);
     test_f2_abs = f_jj - f2_jj;
     test_f2_rel = test_f2_abs ./ f_jj;
@@ -206,5 +220,6 @@ for i = 1:length(RobNames)
     % Schreibzugriffe auf die Datei, aber auch bei Abbruch gefüllt.
     ReproStatsTab = [ReproStatsTab; ReproStatsTab_Rob]; %#ok<AGROW>
     writetable(ReproStatsTab, fullfile(resdir_opt, 'reproducability_stats.csv'), 'Delimiter', ';');
+  end
   end
 end
