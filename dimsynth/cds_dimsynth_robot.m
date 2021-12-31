@@ -858,6 +858,22 @@ end
 Structure.I_firstprismatic = I_firstprismatic;
 % Offsetparameter für Schubgelenke (Verschiebung der Führungsschiene)
 Structure.desopt_prismaticoffset = false;
+% Index für Schubzylinder die direkt durch das vorhergehende Gelenk gehen.
+% Kann benutzt werden, um die Länge der Zylinder zu begrenzen.
+I_cylinder = false(R.NJ,1); % Indizes der Zylinder-Gelenke (Schubgelenk)
+I_adzero = false(R.NJ,1); % Index für a/d Null. Dann Zylinder durch vorheriges Gelenk
+if R.Type == 0 % Seriell
+  I_adzero = (R.MDH.a==0 & R.MDH.d==0);
+  I_cylinder = (R.DesPar.joint_type==5);
+else % Parallel
+  for i = 1:R.NLEG
+    I_adzero(R.I1J_LEG(i):R.I2J_LEG(i)) = ...
+      (R.Leg(i).MDH.a==0 & R.Leg(i).MDH.d==0);
+    I_cylinder(R.I1J_LEG(i):R.I2J_LEG(i)) = ...
+      (R.Leg(i).DesPar.joint_type==5);
+  end
+end
+Structure.I_straightcylinder = I_cylinder & I_adzero;
 %% Initialisierung der Kollisionsprüfung
 if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) || ...
     ~isempty(Set.task.installspace.type) || ...

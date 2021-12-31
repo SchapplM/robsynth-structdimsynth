@@ -112,7 +112,8 @@ for i = 1:length(Structures)
   elseif f <= 1e4*2e5, fval_text = 'AR-Hindernis Eckpkt.'; % ab hier aus cds_constraints.m
   elseif f <= 1e4*3e5, fval_text = 'Bauraum-verl. Eckpkt.';
   elseif f <= 1e4*4e5, fval_text = 'Selbstkoll. Eckpkt.';
-  elseif f <= 1e4*5e5, fval_text = 'Gestelldurchmesser Eckpkt.';
+  elseif f <= 1e4*4.5e5, fval_text = 'Gestelldurchmesser Eckpkt.';
+  elseif f <= 1e4*5e5, fval_text = 'Schubzylinder Länge Eckpkt.';
   elseif f <= 1e4*6e5, fval_text = 'Gel.-Pos.-Grenze Eckpkt.';
   elseif f <= 1e4*7e5, fval_text = 'Gel.-Pos.-Spannweite Eckpkt.';
   elseif f <= 1e4*8e5, fval_text = 'Jacobi-Schwellwert Eckpkt.';
