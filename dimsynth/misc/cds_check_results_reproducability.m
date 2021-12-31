@@ -19,9 +19,28 @@
 
 function cds_check_results_reproducability(OptName, RobName, s_in)
 
+%% Eingabe prüfen
+s = struct( ...
+  'results_dir', [], ... % Alternatives Verzeichnis zum Laden der Ergebnisse
+  'only_from_pareto_front', true); % bei false werden alle Partikel geprüft, bei true nur die besten
+if nargin < 3
+  s_in = s;
+end
+for f = fields(s_in)'
+  if isfield(s, f{1})
+    s.(f{1}) = s_in.(f{1});
+  else
+    error('Feld "%s" aus s_in kann nicht übergeben werden', f{1});
+  end
+end
+if isempty(s.results_dir)
+  resdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), 'results');
+  resdir_opt = fullfile(resdir, OptName);
+else
+  resdir_opt = s.results_dir;
+end
+
 %% Optimierung laden
-resdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), 'results');
-resdir_opt = fullfile(resdir, OptName);
 if ~exist(resdir_opt, 'file')
   warning('Ergebnis-Ordner %s existiert nicht.', resdir_opt);
   return
@@ -40,24 +59,12 @@ Structures_Names = cell(1,length(Structures));
 for i = 1:length(Structures)
   Structures_Names{i} = Structures{i}.Name;
 end
-if nargin < 2
+if nargin < 2 || isempty(RobName)
   RobNames = Structures_Names;
 elseif isa(RobName, 'cell')
   RobNames = RobName;
 else
   RobNames = {RobName};
-end
-s = struct( ...
-  'only_from_pareto_front', true); % bei false werden alle Partikel geprüft, bei true nur die besten
-if nargin < 3
-  s_in = s;
-end
-for f = fields(s_in)'
-  if isfield(s, f{1})
-    s.(f{1}) = s_in.(f{1});
-  else
-    error('Feld "%s" aus s_in kann nicht übergeben werden', f{1});
-  end
 end
   
 RobNames = unique(RobNames);
