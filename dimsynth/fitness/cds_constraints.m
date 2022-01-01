@@ -470,6 +470,14 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           % Begrenzung). Dadurch maximaler Abstand gesucht
           s4.wn(R.idx_ikpos_wn.coll_par) = 1; % Kollision
         end
+        if any(strcmp(Set.optimization.objective, 'footprint')) || ...
+           any(strcmp(Set.optimization.objective, 'installspace'))
+          % Benutze quadratische Abstandsfunktion für Bauraum (ohne
+          % Begrenzung). Dadurch maximaler Abstand zum Grenze gesucht
+          % Das hilft möglicherweise bei der Einhaltung einer kleinen
+          % Grundfläche
+          s4.wn(R.idx_ikpos_wn.instspc_par) = 1; % Bauraumeinhaltung
+        end
         if any(strcmp(Set.optimization.objective, 'jointrange'))
           % Versuche die Gelenkwinkel so gut wie möglich in die Mitte der
           % Grenzen zu ziehen. Es zählt die Spannweite und nicht die
@@ -650,7 +658,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           xlabel('Iterationen'); grid on;
           ylabel('Kollisionstiefe (>0 Koll.)');
           legend({'alle', 'beeinflussbar'});
-        elseif s4.wn(R.idx_ikpos_wn.instspc_hyp)
+        elseif s4.wn(R.idx_ikpos_wn.instspc_hyp) || s4.wn(R.idx_ikpos_wn.instspc_par)
           subplot(3,3,9);
           plot(Stats.instspc_mindst(Iter,:));
           xlabel('Iterationen'); grid on;

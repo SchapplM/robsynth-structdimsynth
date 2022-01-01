@@ -262,6 +262,13 @@ if i_ar == 2 && any(fval_ar <= 1e3)
     s.wn(R.idx_iktraj_wnP.coll_par) = 0.1; % P-Anteil Kollisionsvermeidung (quadratisch)
     s.wn(R.idx_iktraj_wnD.coll_par) = 0.01; % D-Anteil Kollisionsvermeidung (quadratisch)
   end
+  if any(strcmp(Set.optimization.objective, 'footprint')) || ...
+     any(strcmp(Set.optimization.objective, 'installspace'))
+    % Wenn der Bauraum ein Zielkriterium ist, optimiere den Abstand zu den
+    % Bauraumgrenzen permanent.
+    s.wn(R.idx_iktraj_wnP.instspc_par) = 0.1; % P-Anteil Bauraumeinhaltung (quadratisch)
+    s.wn(R.idx_iktraj_wnD.instspc_par) = 0.01; % D-Anteil Bauraumeinhaltung (quadratisch)
+  end
   if any(strcmp(Set.optimization.objective, 'jointrange'))
     % Wenn Gelenkwinkelgrenzen ein Zielkriterium sind, optimiere diese hier permanent
     s.wn(R.idx_iktraj_wnP.qlim_par) = 1; % P-Anteil Grenzvermeidung (quadratisch)
