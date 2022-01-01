@@ -85,7 +85,17 @@ ReproStatsTab_empty = cell2table(cell(0,9), 'VariableNames', ...
   'ErrMax_Rel_q0set', 'WithDetails', 'Status'});
 ReproStatsTab = ReproStatsTab_empty;
 %% Roboter auswerten und Nachrechnen der Fitness-Funktion
-for i = 1:length(RobNames)
+Pool = gcp('nocreate');
+if isempty(Pool)
+  parfor_numworkers = 0;
+else
+  parfor_numworkers = Pool.NumWorkers;
+end
+parfor (i = 1:length(RobNames), parfor_numworkers)
+  if parfor_numworkers > 0
+    set(0, 'defaultfigureposition', [1 1 1920 1080]);
+    set(0, 'defaultfigureunits', 'pixels');
+  end
   ReproStatsTab_Rob = ReproStatsTab_empty;
   RobName = RobNames{i};
   fprintf('Untersuche Reproduzierbarkeit für Rob %d/%d: %s\n', i, length(RobNames), RobName);
@@ -238,10 +248,10 @@ for i = 1:length(RobNames)
         'R', R, 'Dyn_Tau', TAU);
       restabfile = fullfile(resdir_opt, sprintf('%s_results_table.csv', OptName));
       ResTab = readtable(restabfile, 'Delimiter', ';');
-
-      Set.optimization.resdir = resdir; % Verzeichnis des Clusters überschreiben
+      Set_tmp = Set;
+      Set_tmp.optimization.resdir = resdir; % Verzeichnis des Clusters überschreiben
       for figname = s.eval_plots
-        cds_vis_results_figures(figname, Set, Traj, RobData, ResTab, ...
+        cds_vis_results_figures(figname, Set_tmp, Traj, RobData, ResTab, ...
           RobotOptRes, RobotOptDetails, [], struct('figure_invisible', true, ...
           'delete_figure', true));
       end
@@ -252,10 +262,11 @@ for i = 1:length(RobNames)
       max(abs(test_f2_rel)), max(abs(test_f3_rel)), details_available, rescode}]; %#ok<AGROW>
     writetable(ReproStatsTab_Rob, fullfile(resdir_opt, sprintf('Rob%d_%s', RobNr, RobName), ...
       sprintf('Rob%d_%s_reproducability_stats.csv', RobNr, RobName)), 'Delimiter', ';');
-    % In Gesamt-Tabelle anhängen und diese auch schreiben. Dadurch viele
-    % Schreibzugriffe auf die Datei, aber auch bei Abbruch gefüllt.
-    ReproStatsTab = [ReproStatsTab; ReproStatsTab_Rob]; %#ok<AGROW>
-    writetable(ReproStatsTab, fullfile(resdir_opt, 'reproducability_stats.csv'), 'Delimiter', ';');
+%     % In Gesamt-Tabelle anhängen und diese auch schreiben. Dadurch viele
+%     % Schreibzugriffe auf die Datei, aber auch bei Abbruch gefüllt.
+%     % Das funktioniert nicht in der parfor-Schleife
+%     ReproStatsTab = [ReproStatsTab; ReproStatsTab_Rob]; %#ok<AGROW>
+%     writetable(ReproStatsTab, fullfile(resdir_opt, 'reproducability_stats.csv'), 'Delimiter', ';');
   end
   end
 end
