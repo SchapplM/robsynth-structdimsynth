@@ -497,6 +497,7 @@ if Set.general.parcomp_struct && ... % Parallele Rechnung ist ausgewählt
   Pool = gcp('nocreate');
   if isempty(Pool)
     try
+      fprintf('Starte ParPool mit Ziel parfor_numworkers=%d\n', Set.general.parcomp_maxworkers);
       Pool=parpool([1,Set.general.parcomp_maxworkers]);
       parfor_numworkers = Pool.NumWorkers;
     catch err
@@ -678,6 +679,8 @@ if ~Set.general.regenerate_summary_only
     end
   end
   t1 = tic();
+  fprintf('Starte Schleife über %d Roboter. parfor_numworkers=%d\n', ...
+    length(Structures), parfor_numworkers);
   parfor (i = 1:length(Structures), parfor_numworkers)
     % Auflösung für Debug-Bilder setzen (wird auf ParPool auf Cluster nicht
     % vererbt aus globalen Einstellungen)
