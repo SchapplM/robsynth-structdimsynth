@@ -26,6 +26,7 @@ function cds_check_results_reproducability(OptName, RobName, s_in)
 
 %% Eingabe prüfen
 s = struct( ...
+  'update_template_functions', false, ... % Aktualisieren die Matlab-Funktionen
   'eval_plots', {{}}, ... % Liste von Plots, die für jedes Partikel erstellt werden. Siehe Eingabe figname in cds_vis_results_figures.
   'results_dir', [], ... % Alternatives Verzeichnis zum Laden der Ergebnisse
   'only_from_pareto_front', true); % bei false werden alle Partikel geprüft, bei true nur die besten
@@ -85,6 +86,11 @@ ReproStatsTab_empty = cell2table(cell(0,9), 'VariableNames', ...
   'ErrMax_Rel_q0set', 'WithDetails', 'Status'});
 ReproStatsTab = ReproStatsTab_empty;
 %% Roboter auswerten und Nachrechnen der Fitness-Funktion
+if s.update_template_functions
+  for i = 1:length(RobNames)
+    parroblib_update_template_functions(RobNames(i));
+  end
+end
 Pool = gcp('nocreate');
 if isempty(Pool)
   parfor_numworkers = 0;
