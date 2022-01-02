@@ -844,8 +844,6 @@ end
 Structure.vartypes = vartypes;
 Structure.varnames = varnames;
 Structure.varlim = varlim;
-cds_log(3, sprintf('[dimsynth] Starte Optimierung mit %d Parametern: %s', ...
-  length(varnames), disp_array(varnames, '%s')));
 assert(length(vartypes)==size(varlim,1), 'Anzahl der Variablen muss konsistent zur Anzahl der gesetzten Grenzen sein');
 assert(length(vartypes)==length(varnames), 'Abgespeicherte Variablennamen stimmen scheinbar nicht');
 assert(all(varlim(:,1)~=varlim(:,2)), 'Obere und untere Parametergrenze identisch. Optimierung nicht sinnvoll.')
@@ -1701,6 +1699,8 @@ if false % Debug: Fitness-Funktion testweise ausführen
   clear cds_fitness
 end
 %% PSO-Aufruf starten
+cds_log(3, sprintf('[dimsynth] Starte Optimierung mit %d Parametern: %s', ...
+  length(varnames), disp_array(varnames, '%s')));
 if Set.general.matfile_verbosity > 0
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot2.mat'));
 end

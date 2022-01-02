@@ -3,6 +3,15 @@
 % Eingabe:
 % figname
 %   Name des zu erstellenden Bildes. Entspricht Set.general.eval_figures
+%   * robvisu - Visualisierung des Roboters (erster Schritt der Trajektorie)
+%   * robvisuanim - letztes Bild der Animation (geht nur mit 'animation')
+%   * animation - Animation des Roboters
+%   * jointtraj - Gelenkwinkel-Trajektorie über die Zeit
+%   * pareto - Pareto-Diagramm für alle Individuen dieses Roboters
+%   * dynamics - Antriebskräfte (und Plattform-Kräfte bei PKM)
+%   * dynparvisu - Visualisierung der Dynamikparameter
+%   * optpar - Optimierungsparameter über die Pareto-Front
+%   * springrestpos - Ruhelage der Gelenkwinkel-Federn (als Animation)
 % Set
 %   Einstellungen des Optimierungsalgorithmus. Siehe cds_settings_defaults.
 % Traj
@@ -16,6 +25,10 @@
 %   Zusammengefasste Ergebnisse der Maßsynthese. Siehe cds_dimsynth_robot.
 % RobotOptDetails
 %   Detaillierte Ergebnisse der Maßsynthese. Siehe cds_dimsynth_robot.
+% settings
+%   Einstellungen zum Verhalten der Funktion. Felder:
+%   .figure_invisible: Erzeuge alle Bilder unsichtbar, ohne Fokus-Klau.
+%   .delete_figure: Lösche das Bild direkt nach dem Speichern wieder.
 % 
 % Siehe auch: cds_vis_results.m
 
@@ -23,8 +36,19 @@
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
 function fhdl = cds_vis_results_figures(figname, Set, Traj, RobData, ...
-  ResTab, RobotOptRes, RobotOptDetails, PSO_Detail_Data)
+  ResTab, RobotOptRes, RobotOptDetails, PSO_Detail_Data, settings)
 %% Initialisierung
+settings_defaults = struct(...
+  'figure_invisible', false, ...
+  'delete_figure', false);
+if nargin < 9
+  settings = settings_defaults;
+end
+for f = fields(settings_defaults)'
+  if ~isfield(settings, f{1})
+    settings.(f{1}) = settings_defaults.(f{1});
+  end
+end
 RNr = RobData.Number;
 PNr = RobData.ParetoNumber;
 R = RobotOptDetails.R;
@@ -71,7 +95,9 @@ else
 end
 for kk = 1:length(Set.general.animation_styles)
   anim_mode = Set.general.animation_styles{kk}; % Strichzeichnung, 3D-Modell, Kollisionskörper
-  fhdl = figure();clf;hold all;
+  if settings.figure_invisible, fhdl = figure_invisible();
+  else,                         fhdl = figure(); end
+  clf; hold all;
   set(fhdl, 'Name', sprintf('Rob%d_P%d_anim_%s', RNr, PNr, anim_mode), 'NumberTitle', 'off', 'color','w');
   title(sprintf('Rob.%d, P.%d %s%s: fval=%s (%s)', RNr, PNr, Name, ...
     RobShortName_str, fval_str, fval_text));
@@ -176,16 +202,21 @@ for kk = 1:length(Set.general.animation_styles)
       R.plot( RobotOptDetails.Traj_Q(1,:)', Traj_X(1,:)', s_plot);
     end
   end
-  if any(strcmp(Set.general.eval_figures, 'robvisuanim')) % nur speichern, wenn gewünscht.
-  fname = sprintf('Rob%d_%s_P%d_Skizze_%s', RNr, Name, PNr, anim_mode);
-  saveas(fhdl,     fullfile(resrobdir, [fname, '.fig']));
-  export_fig(fhdl, fullfile(resrobdir, [fname, '.png']));
-  fprintf('Bild %s gespeichert: %s\n', fname, resrobdir);
+  if any(strcmp(figname, 'robvisu')) || ... % nur speichern, wenn gewünscht
+      any(strcmp(Set.general.eval_figures, 'robvisuanim')) && ...
+      any(strcmp(figname, 'animation'))
+    fname = sprintf('Rob%d_%s_P%d_Skizze_%s', RNr, Name, PNr, anim_mode);
+    saveas(fhdl,     fullfile(resrobdir, [fname, '.fig']));
+    export_fig(fhdl, fullfile(resrobdir, [fname, '.png']));
+    fprintf('Bild %s gespeichert: %s\n', fname, resrobdir);
   end
+  if settings.delete_figure, delete(fhdl); end
 end
 %% Kinematik-Bild
 if strcmp(figname, 'jointtraj') && any(fval < 1e9)
-  fhdl = figure();clf;hold all;
+  if settings.figure_invisible, fhdl = figure_invisible();
+  else,                         fhdl = figure(); end
+  clf;hold all;
   set(fhdl, 'Name', sprintf('Rob%d_P%d_KinematikZeit', RNr, PNr), 'NumberTitle', 'off', 'color','w');
   sgtitle(sprintf('Rob.%d, P.%d: fval=%s', RNr, PNr, fval_str));
   if RobData.Type == 0
@@ -240,6 +271,7 @@ if strcmp(figname, 'jointtraj') && any(fval < 1e9)
   saveas(fhdl,     fullfile(resrobdir, [fname, '.fig']));
   export_fig(fhdl, fullfile(resrobdir, [fname, '.png']));
   fprintf('Bild %s gespeichert: %s\n', fname, resrobdir);
+  if settings.delete_figure, delete(fhdl); end
 end
 
 %% Pareto-Fronten für die Zielkriterien
@@ -257,7 +289,9 @@ if strcmp(figname, 'pareto')
     objcomb(objcomb(:,1)==objcomb(:,2),:) = [];
     objcomb(objcomb(:,1)>objcomb(:,2),:) = [];
     for pffig = 1 % Zwei Bilder: Physikalische Werte (1) und normierte Werte (2; deaktiviert)
-    fhdl = figure();clf;hold all;
+    if settings.figure_invisible, fhdl = figure_invisible();
+    else,                         fhdl = figure(); end
+    clf;hold all;
     set(fhdl, 'Name', sprintf('Rob%d_Pareto', RNr), ...
       'NumberTitle', 'off', 'color','w');
     axhdl = get(fhdl, 'children');
@@ -332,6 +366,7 @@ if strcmp(figname, 'pareto')
     end
     saveas(fhdl,     fullfile(resrobdir, sprintf('Rob%d_%s_Pareto2D_%s.fig', RNr, Name, name_suffix)));
     export_fig(fhdl, fullfile(resrobdir, sprintf('Rob%d_%s_Pareto2D_%s.png', RNr, Name, name_suffix)));
+    if settings.delete_figure, delete(fhdl); end
     end
   end
   %% (3D)-Pareto-Fronten für die Zielkriterien
@@ -341,7 +376,9 @@ if strcmp(figname, 'pareto')
     objcomb(objcomb(:,1)==objcomb(:,2) | objcomb(:,2)==objcomb(:,3),:) = [];
     objcomb(objcomb(:,1)>objcomb(:,2),:) = [];
     objcomb(objcomb(:,2)>objcomb(:,3),:) = [];
-    fhdl = figure();clf;hold all;
+    if settings.figure_invisible, fhdl = figure_invisible();
+    else,                         fhdl = figure(); end
+    clf;hold all;
     set(fhdl, 'Name', sprintf('Rob%d_Pareto3D', RNr), ...
       'NumberTitle', 'off', 'color','w');
     sprows = floor(sqrt(size(objcomb,1)));
@@ -360,6 +397,7 @@ if strcmp(figname, 'pareto')
     sgtitle(sprintf('Rob. %d: Pareto-Fronten (3D) für mehrkrit. Opt.', RNr));
     saveas(fhdl,     fullfile(resrobdir, sprintf('Rob%d_%s_Pareto3D.fig', RNr, Name)));
     export_fig(fhdl, fullfile(resrobdir, sprintf('Rob%d_%s_Pareto3D.png', RNr, Name)));
+    if settings.delete_figure, delete(fhdl); end
   end
 
 end
@@ -436,7 +474,9 @@ end
 
 %% Dynamik-Bild (Antriebskräfte)
 if strcmp(figname, 'dynamics')
-  fhdl = figure(); clf; hold all;
+  if settings.figure_invisible, fhdl = figure_invisible();
+  else,                         fhdl = figure(); end
+  clf; hold all;
   set(fhdl, 'Name', sprintf('Rob%d_P%d_Dynamik', RNr, PNr), ...
     'NumberTitle', 'off', 'color','w');
   sgtitle(sprintf('Rob.%d, P.%d: fval=%s', RNr, PNr, fval_str));
@@ -464,11 +504,14 @@ if strcmp(figname, 'dynamics')
   saveas(fhdl,     fullfile(resrobdir, [fname, '.fig']));
   export_fig(fhdl, fullfile(resrobdir, [fname, '.png']));
   fprintf('Bild %s gespeichert: %s\n', fname, resrobdir);
+  if settings.delete_figure, delete(fhdl); end
 end
 
 %% Dynamik-Bild (Plattform-Kräfte, für PKM)
 if strcmp(figname, 'dynamics') && RobData.Type ~= 0
-  fhdl = figure(); clf; hold all;
+  if settings.figure_invisible, fhdl = figure_invisible();
+  else,                         fhdl = figure(); end
+  clf; hold all;
   set(fhdl, 'Name', sprintf('Rob%d_P%d_PlfDynamik', RNr, PNr), ...
     'NumberTitle', 'off', 'color','w');
   sgtitle(sprintf('Rob.%d, P.%d: fval=%s', RNr, PNr, fval_str));
@@ -492,11 +535,14 @@ if strcmp(figname, 'dynamics') && RobData.Type ~= 0
   saveas(fhdl,     fullfile(resrobdir, [fname, '.fig']));
   export_fig(fhdl, fullfile(resrobdir, [fname, '.png']));
   fprintf('Bild %s gespeichert: %s\n', fname, resrobdir);
+  if settings.delete_figure, delete(fhdl); end
 end
 
 %% Zeichnung der Roboters mit Trägheitsellipsen und Ersatzdarstellung
 if strcmp(figname, 'dynparvisu')
-  fhdl = figure();clf;hold all;
+  if settings.figure_invisible, fhdl = figure_invisible();
+  else,                         fhdl = figure(); end
+  clf;hold all;
   set(fhdl, 'Name', sprintf('Rob%d_P%d_DynParVisu', RNr, PNr), 'NumberTitle', 'off', 'color','w');
   sgtitle(sprintf('Rob.%d, P.%d: fval=%s', RNr, PNr, fval_str));
   plotmode = [1 3 4 5];
@@ -517,10 +563,13 @@ if strcmp(figname, 'dynparvisu')
   saveas(fhdl,     fullfile(resrobdir, [fname, '.fig']));
   export_fig(fhdl, fullfile(resrobdir, [fname, '.png']));
   fprintf('Bild %s gespeichert: %s\n', fname, resrobdir);
+  if settings.delete_figure, delete(fhdl); end
 end
 %% Optimierungsparameter (über die Pareto-Front)
 if strcmp(figname, 'optpar')
-  fhdl = figure();clf;hold all;
+  if settings.figure_invisible, fhdl = figure_invisible();
+  else,                         fhdl = figure(); end
+  clf;hold all;
   set(fhdl, 'Name', sprintf('Rob%d_OptPar', RNr), 'NumberTitle', 'off', 'color','w');
   % Konvertiere die normierten Optimierungsparameter nach physikalischen
   % Parametern
@@ -563,6 +612,7 @@ if strcmp(figname, 'optpar')
   saveas(fhdl,     fullfile(resrobdir, [fname, '.fig']));
   export_fig(fhdl, fullfile(resrobdir, [fname, '.png']));
   fprintf('Bild %s gespeichert: %s\n', fname, resrobdir);
+  if settings.delete_figure, delete(fhdl); end
 end
 
 %% Animation der Gelenkfeder (Ruhelage bis Einbaulage)
@@ -572,7 +622,9 @@ if strcmp(figname, 'springrestpos')
   end
   % Erstelle eine Animation für das Einbauen der Feder. Beginnend in
   % Ruhelage, endend in Startpose der Trajektorie
-  fhdl = figure();clf;hold all;
+  if settings.figure_invisible, fhdl = figure_invisible();
+  else,                         fhdl = figure(); end
+  clf;hold all;
   set(fhdl, 'Name', sprintf('Rob%d_P%d_federruhelage', RNr, PNr), ...
     'NumberTitle', 'off', 'color','w');
   title(sprintf('Rob.%d, P.%d %s Gelenkelastizität', RNr, PNr, Name));

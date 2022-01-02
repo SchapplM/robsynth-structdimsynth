@@ -48,6 +48,18 @@ end
 if Set.general.nosummary
   return
 end
+vis_settings = struct(...
+  'figure_invisible', false, ...
+  'delete_figure', false);
+if Set.general.isoncluster
+  % Auf Cluster. Lösche die Bilder sofort, damit weniger Speicher benötigt
+  % wird.
+  vis_settings.delete_figure = true;
+else
+  % Auf lokalem Rechner. Erzeuge die Bilder immer zuerst unsichtbar, damit
+  % der Fokus-Klau den Rechner nicht lahmlegt
+  vis_settings.figure_invisible = true;
+end
 % Zum Debuggen
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_vis_results1.mat'));
 
@@ -148,7 +160,8 @@ parfor (i = 1:length_Structures_parfor, parfor_numworkers)
   Klassengrenzen_Alle_Log = log10(Klassengrenzen_Alle);
   Klassengrenzen_Alle_Log(1) = 0;
   % Histogramm erstellen
-  figure(100*i+1);clf;hold all;
+  change_current_figure(100*i+1, vis_settings.figure_invisible);
+  clf; hold all;
   set(100*i+1, 'Name', sprintf('Rob%d_Hist', i), 'NumberTitle', 'off', 'color','w');
   sgtitle(sprintf('Erg.-Vert. für %s: %d Parametersätze in %d Gen.', Name, length(I_zul), size(Erg_All_Gen,1)));
   subplot(2,2,sprc2no(2,2,1,1)); % Histogramm über zulässige Lösungen
@@ -246,7 +259,7 @@ parfor (i = 1:length_Structures_parfor, parfor_numworkers)
   %% Verschiedene Auswertungen
   if any(strcmp(Set.general.eval_figures, 'fitness_various'))
   t1 = tic();
-  figure(100*i+6);clf;
+  change_current_figure(100*i+6, vis_settings.figure_invisible); clf;
   sgtitle('Diverse Auswertungsbilder');
   % Verteilung der Rechenzeit über die Zielfunktionswerte
   % Streudiagramm
@@ -296,7 +309,7 @@ parfor (i = 1:length_Structures_parfor, parfor_numworkers)
     t1 = tic();
     fprintf('%d/%d: Beginne Animation für %s\n', i, length_Structures, Name);
     cds_vis_results_figures('animation', Set, Traj, RobData, ...
-      ResTab, RobotOptRes, RobotOptDetails);
+      ResTab, RobotOptRes, RobotOptDetails, [], vis_settings);
     fprintf('%d/%d: Animation für %s gespeichert nach %s. Dauer: %1.1fs\n', ...
       i, length_Structures, Name, resrobdir, toc(t1));
   end
@@ -304,23 +317,23 @@ parfor (i = 1:length_Structures_parfor, parfor_numworkers)
   %% Zeichnung der Roboters mit Trägheitsellipsen und Ersatzdarstellung
   if any(strcmp(Set.general.eval_figures, 'dynparvisu'))
     cds_vis_results_figures('dynparvisu', Set, Traj, RobData, ...
-      ResTab, RobotOptRes, RobotOptDetails);
+      ResTab, RobotOptRes, RobotOptDetails, [], vis_settings);
   end
   %% Verlauf der Gelenkgrößen für den besten Roboter
   if any(strcmp(Set.general.eval_figures, 'jointtraj'))
     cds_vis_results_figures('jointtraj', Set, Traj, RobData, ...
-      ResTab, RobotOptRes, RobotOptDetails);
+      ResTab, RobotOptRes, RobotOptDetails, [], vis_settings);
   end
   %% Dynamik
   if any(strcmp(Set.general.eval_figures, 'dynamics'))
     cds_vis_results_figures('dynamics', Set, Traj, RobData, ...
-      ResTab, RobotOptRes, RobotOptDetails);
+      ResTab, RobotOptRes, RobotOptDetails, [], vis_settings);
   end
   %% Pareto-Fronten für die Zielkriterien
   if any(strcmp(Set.general.eval_figures, 'pareto')) && ...
      length(Set.optimization.objective) > 1 % Mehrkriterielle Optimierung
     cds_vis_results_figures('pareto', Set, Traj, RobData, ...
-      ResTab, RobotOptRes, RobotOptDetails, PSO_Detail_Data);
+      ResTab, RobotOptRes, RobotOptDetails, PSO_Detail_Data, vis_settings);
   end
   fprintf('%d/%d: Restliche Bilder für %s gespeichert. Dauer: %1.1fs\n', ...
     i, length_Structures, Name, toc(t1));
@@ -345,7 +358,9 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   end
   if pffig == 1, name_suffix = 'phys';
   else,          name_suffix = 'fval'; end
-  change_current_figure(10+pffig); clf; hold on; grid on;
+  
+  change_current_figure(10+pffig, vis_settings.figure_invisible);
+  clf; hold on; grid on;
   set(10+pffig, 'name', sprintf('Pareto_Gesamt_%s',name_suffix), ...
     'NumberTitle', 'off', 'color','w');
   leghdl = []; legstr = {}; % Für Erstellung der Legende am Ende

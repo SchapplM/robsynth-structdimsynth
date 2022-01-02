@@ -16,6 +16,8 @@
 % 
 % Schreibt Tabelle: reproducability_stats.csv
 % (In Gesamt-Ergebnis-Ordner und in Unterordner für jeden Roboter)
+% 
+% Siehe auch: cds_paretoplot_buttondownfcn
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-12
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
@@ -24,6 +26,7 @@ function cds_check_results_reproducability(OptName, RobName, s_in)
 
 %% Eingabe prüfen
 s = struct( ...
+  'eval_plots', {{}}, ... % Liste von Plots, die für jedes Partikel erstellt werden. Siehe Eingabe figname in cds_vis_results_figures.
   'results_dir', [], ... % Alternatives Verzeichnis zum Laden der Ergebnisse
   'only_from_pareto_front', true); % bei false werden alle Partikel geprüft, bei true nur die besten
 if nargin < 3
@@ -41,6 +44,12 @@ if isempty(s.results_dir)
   resdir_opt = fullfile(resdir, OptName);
 else
   resdir_opt = s.results_dir;
+  [resdir, optfolder] = fileparts(resdir_opt);
+  if ~strcmp(optfolder, OptName)
+    error(['Der Ordnername der Optimierung heißt lokal anders, als in der ', ...
+      'Datei: %s vs %s. Das gibt Probleme beim Speichern der Bilder. Abbruch.'], ...
+      optfolder, OptName);
+  end
 end
 
 %% Optimierung laden
@@ -76,7 +85,17 @@ ReproStatsTab_empty = cell2table(cell(0,9), 'VariableNames', ...
   'ErrMax_Rel_q0set', 'WithDetails', 'Status'});
 ReproStatsTab = ReproStatsTab_empty;
 %% Roboter auswerten und Nachrechnen der Fitness-Funktion
-for i = 1:length(RobNames)
+Pool = gcp('nocreate');
+if isempty(Pool)
+  parfor_numworkers = 0;
+else
+  parfor_numworkers = Pool.NumWorkers;
+end
+parfor (i = 1:length(RobNames), parfor_numworkers)
+  if parfor_numworkers > 0
+    set(0, 'defaultfigureposition', [1 1 1920 1080]);
+    set(0, 'defaultfigureunits', 'pixels');
+  end
   ReproStatsTab_Rob = ReproStatsTab_empty;
   RobName = RobNames{i};
   fprintf('Untersuche Reproduzierbarkeit für Rob %d/%d: %s\n', i, length(RobNames), RobName);
@@ -160,11 +179,11 @@ for i = 1:length(RobNames)
     if ~isempty(PSO_Detail_Data) && isfield(PSO_Detail_Data, 'q0_ik')
       q0 = PSO_Detail_Data.q0_ik(k_ind,:,k_gen)';
     else
-      q0 = [];
+      q0 = RobotOptRes.q0_pareto(jj,:)';
     end
-    fprintf('Reproduktion Rob. %d Partikel Nr. %d (Gen. %d, Ind. %d):\n', ...
-      RobNr, jj, k_gen, k_ind);
-    f2_jj = cds_fitness(R,Set,Traj,Structure_jj,p_jj,p_desopt_jj);
+    fprintf('Reproduktion Rob. %d Partikel Nr. %d/%d (Gen. %d, Ind. %d):\n', ...
+      RobNr, jj, length(I), k_gen, k_ind);
+    [f2_jj, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure_jj,p_jj,p_desopt_jj);
     test_f2_abs = f_jj - f2_jj;
     test_f2_rel = test_f2_abs ./ f_jj;
     test_f3_rel = NaN(size(test_f2_rel)); % Initialisierung
@@ -178,8 +197,19 @@ for i = 1:length(RobNames)
       % Versuche erneut mit vorgegebenen Gelenkwinkeln aus den
       % Detail-Ergebnissen
       if ~isempty(q0)
+        % Trage Gelenkwinkel ein, damit Trajektorien-Prüfung erzwungen wird
         Structure_jj.q0_traj = q0;
-        f3_jj = cds_fitness(R,Set,Traj,Structure_jj,p_jj,p_desopt_jj);
+        % Zusätzlich eintragen als Referenz-Winkel, damit es in Eckpunkt-
+        % Prüfung auch genutzt wird, auch wenn es nicht von alleine
+        % gefunden wird.
+        if R.Type == 0 % Seriell
+          R.qref = q0;
+        else
+          for iii = 1:R.NLEG
+            R.Leg(iii).qref = q0(R.I1J_LEG(iii):R.I2J_LEG(iii));
+          end
+        end
+        [f3_jj, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure_jj,p_jj,p_desopt_jj);
       else
         f3_jj = NaN(size(f2_jj));
       end
@@ -210,16 +240,33 @@ for i = 1:length(RobNames)
         warning('Wert nicht genau reproduzierbar');
       end
     end
+    % Erstelle Auswertungsbilder für jeden Roboter
+    if any(rescode == [0 1 2])
+      RobData = struct('Name', RobName, 'Number', RobNr, 'ParetoNumber', jj, ...
+        'Type', RobotOptRes.Structure.Type);
+      RobotOptDetails = struct('Traj_Q', Q, 'Traj_QD', QD, 'Traj_QDD', QDD, ...
+        'R', R, 'Dyn_Tau', TAU);
+      restabfile = fullfile(resdir_opt, sprintf('%s_results_table.csv', OptName));
+      ResTab = readtable(restabfile, 'Delimiter', ';');
+      Set_tmp = Set;
+      Set_tmp.optimization.resdir = resdir; % Verzeichnis des Clusters überschreiben
+      for figname = s.eval_plots
+        cds_vis_results_figures(figname, Set_tmp, Traj, RobData, ResTab, ...
+          RobotOptRes, RobotOptDetails, [], struct('figure_invisible', true, ...
+          'delete_figure', true));
+      end
+    end
     % Auswertungs-Tabelle für den Roboter schreiben
     details_available = ~isempty(PSO_Detail_Data);
     ReproStatsTab_Rob = [ReproStatsTab_Rob; {i, RobName, jj, f_jj(1), f2_jj(1), ...
       max(abs(test_f2_rel)), max(abs(test_f3_rel)), details_available, rescode}]; %#ok<AGROW>
     writetable(ReproStatsTab_Rob, fullfile(resdir_opt, sprintf('Rob%d_%s', RobNr, RobName), ...
       sprintf('Rob%d_%s_reproducability_stats.csv', RobNr, RobName)), 'Delimiter', ';');
-    % In Gesamt-Tabelle anhängen und diese auch schreiben. Dadurch viele
-    % Schreibzugriffe auf die Datei, aber auch bei Abbruch gefüllt.
-    ReproStatsTab = [ReproStatsTab; ReproStatsTab_Rob]; %#ok<AGROW>
-    writetable(ReproStatsTab, fullfile(resdir_opt, 'reproducability_stats.csv'), 'Delimiter', ';');
+%     % In Gesamt-Tabelle anhängen und diese auch schreiben. Dadurch viele
+%     % Schreibzugriffe auf die Datei, aber auch bei Abbruch gefüllt.
+%     % Das funktioniert nicht in der parfor-Schleife
+%     ReproStatsTab = [ReproStatsTab; ReproStatsTab_Rob]; %#ok<AGROW>
+%     writetable(ReproStatsTab, fullfile(resdir_opt, 'reproducability_stats.csv'), 'Delimiter', ';');
   end
   end
 end
