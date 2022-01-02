@@ -113,6 +113,10 @@ for kk = 1:length(Set.general.animation_styles)
   for co_sets = 1:2 % einmal Bauraum-Begrenzung, einmal Störkulissen
     if co_sets == 1, color = 'c'; collobjset = Set.task.installspace;
     else,            color = 'm'; collobjset = Set.task.obstacles; end
+    if co_sets == 1 && ~Set.general.animation_installationspace || ...
+       co_sets == 2 && ~Set.general.animation_workspaceobstacles
+      continue
+    end
     for jj = 1:size(collobjset.type,1)
       switch collobjset.type(jj)
         case 1 % Quader

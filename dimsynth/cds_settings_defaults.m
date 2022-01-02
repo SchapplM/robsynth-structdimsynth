@@ -42,6 +42,8 @@ general = struct( ...
   'save_robot_details_plot_fitness_file_extensions', {''}, ... % Speichern des durch vorherige Einstellung erstellten Bildes
   'save_animation_file_extensions', {{'gif', 'mp4'}}, ... % Format, in denen die Animationen gespeichert werden
   'animation_styles', {{'stick'}}, ... % Visualisierungsarten im Video: stick,3D,collision; bei mehr als einem: Syntax {{'1.','2.'}}
+  'animation_installationspace', false, ... % Zeichne die Grenzen des Arbeitsraums in Animation mit ein
+  'animation_workspaceobstacles', false, ... % Zeichne (Kollisions-)Störobjekte in die Animation mit ein
   'maxduration_animation', 10, ... % Die Animation soll max. 10s dauern (als Videodatei)
   'save_evolution_video', false, ... % Video mit Evolution der Roboter
   'evolution_video_frametime', 0.2, ... % Anzeigedauer eines Einzelbildes im Evolutionsvideo.
