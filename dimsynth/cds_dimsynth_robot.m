@@ -1143,6 +1143,20 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         %   'Zeile [%d,%d]\n'], size(selfcollchecks_bodies,1), k, j, ...
         %   selfcollchecks_bodies(end,1), selfcollchecks_bodies(end,2));
       end
+      % Plattform-Modell zugeordnet zum Plattform-KS (Stern oder Kugel)
+    end
+    % Kollisionen mit der Plattform
+    for k = 1:NLEG
+      if k > 1, NLoffset_k = 1+R.I2L_LEG(k-1)-(k-1);
+      else,     NLoffset_k = 1; end
+      % Nehme alle Kollisionskörper der Beinketten
+      for cb_k = R.Leg(k).collbodies.link(1:end,1)'
+        selfcollchecks_bodies = [selfcollchecks_bodies; ...
+          uint8([NLoffset_k+cb_k, R.NL+R.NLEG-1])]; %#ok<AGROW>
+        % fprintf(['Kollisionsprüfung (%d): Bein %d Seg. %d vs Plattform. ', ...
+        %   'Zeile [%d,%d]\n'], size(selfcollchecks_bodies,1), k, cb_k, ...
+        %   selfcollchecks_bodies(end,1), selfcollchecks_bodies(end,2));
+      end
     end
   end
   selfcollchecks_bodies_sort = sortrows(selfcollchecks_bodies')';
@@ -1157,7 +1171,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       names_bodies{k} = sprintf('Link %d', k-1);
     end
   else % PKM
-    names_bodies = cell(R.I2L_LEG(end)-R.NLEG,1);
+    names_bodies = cell(R.I2L_LEG(end)-R.NLEG+1+1,1);
     names_bodies{1} = 'Base';
     i = 1;
     for k = 1:NLEG
@@ -1168,6 +1182,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         names_bodies{i} = sprintf('Leg %d Link %d', k, j);
       end
     end
+    names_bodies{end} = 'Platform';
   end
   names_collbodies = cell(size(Structure.collbodies_robot.link,1),1);
   for i = 1:size(Structure.collbodies_robot.link,1)
@@ -1197,7 +1212,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   if Structure.Type == 0
     Nmax = R.NL-1;
   else
-    Nmax = R.I2L_LEG(end)-(R.NLEG-1)-1;
+    Nmax = R.I2L_LEG(end)-(R.NLEG-1);
   end
   if any(Structure.collbodies_robot.link(:) > Nmax)
     error(['Ungültige Kollisionskörper. Maximaler Index %d in Structure.', ...

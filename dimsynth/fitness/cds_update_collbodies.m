@@ -232,15 +232,54 @@ if Structure.Type ~= 0 % PKM
       [T_base_stack(1:3,4:4:end)', repmat(0.05, NLEG, 1), NaN(NLEG, 6)]]; % Geringer Radius 50mm
   end
   
-  % Kollisionsobjekte für die Plattform. Kapseln für jeden virtuellen
-  % Körper der Plattform-Koppelgelenke (auf Plattform-Seite). Kapsel als
-  % Verbindung zum jeweils vorherigen Koppelgelenk. Erzeugt Ring an der
-  % Plattform
-  collbodies_robot.link = [collbodies_robot.link; ...
-    uint8([R.I2L_LEG(I1)-(I1-1)-1, R.I2L_LEG(I2)-(I2-1)-1])];
-  collbodies_robot.type = [collbodies_robot.type; repmat(uint8(6),NLEG,1)];
-  collbodies_robot.params = [collbodies_robot.params; ...
-    [repmat(10e-3, NLEG, 1), NaN(NLEG, 9)]];
+  % Kollisionsobjekte für die Plattform
+  if any(strcmp(Set.optimization.collshape_platform, 'default'))
+    if Set.task.DoF(3) ~= 0 %#ok<IFBDUP> % räumliche PKM
+      % Kugel und Stern sind größtenteils redundant. Kugel verhindert
+      % Durchdringen der Beinketten durch eine große Plattform
+      collshape_platform = {'ring', 'sphere'};
+    else % planare PKM
+      % Der Ring verhindert ein Eindringen der Beinketten von außen in die
+      % Plattform. Die Kugel verhindert, dass die Plattform außen um den
+      % Roboter rum geht und die Beinketten komplett innen liegen.
+      collshape_platform = {'ring', 'sphere'};
+    end
+  else
+    collshape_platform = Set.optimization.collshape_platform;
+  end
+  if any(strcmp(collshape_platform, 'ring'))
+    % Kapseln für jeden virtuellen Körper der Plattform-Koppelgelenke (auf
+    % Plattform-Seite). Kapsel als Verbindung zum jeweils vorherigen
+    % Koppelgelenk. Erzeugt Ring an der Plattform
+    collbodies_robot.link = [collbodies_robot.link; ...
+      uint8([R.I2L_LEG(I1)-(I1-1)-1, R.I2L_LEG(I2)-(I2-1)-1])];
+    collbodies_robot.type = [collbodies_robot.type; repmat(uint8(6),NLEG,1)];
+    collbodies_robot.params = [collbodies_robot.params; ...
+      [repmat(10e-3, NLEG, 1), NaN(NLEG, 9)]];
+  end
+  if any(strcmp(collshape_platform, 'sphere'))
+    % Kugel in der Mitte der Plattform platzieren. Damit kein Durchgriff
+    % durch den Plattform-Ring möglich.
+    % Plattform-Radius vorerst bei Ignorieren der paarweisen Anordnung. Dort
+    % sind die Gelenke noch weiter entfernt.
+    platform_radius = R.DesPar.platform_par(1);
+    if platform_radius > 30e-3 % Wenn zu klein, dann reichen die anderen Kollisionskörper aus
+      collbodies_robot.link = [collbodies_robot.link; ...
+        repmat(uint8(R.I2L_LEG(end)-I1(end)+1),1,2)];
+      collbodies_robot.type = [collbodies_robot.type; uint8(16)]; % Kugel im Körper-KS-Ursprung
+      collbodies_robot.params = [collbodies_robot.params; ...
+        [min(3/4*platform_radius,platform_radius-30e-3), NaN(1,9)]]; % nur Radius als Parameter
+    end
+  end
+  if any(strcmp(collshape_platform, 'star'))
+    % Sternförmige Kapseln für die Plattform. Verbindung zwischen
+    % Endpunkten der Beinketten und Plattform-KS
+    collbodies_robot.link = [collbodies_robot.link; ...
+      uint8([R.I2L_LEG(I1)-(I1-1)-1, repmat(R.I2L_LEG(end)-I1(end)+1, NLEG, 1)])];
+    collbodies_robot.type = [collbodies_robot.type; repmat(uint8(6),NLEG,1)];
+    collbodies_robot.params = [collbodies_robot.params; ...
+      [repmat(10e-3, NLEG, 1), NaN(NLEG, 9)]];
+  end
   cbbpidx2 = size(collbodies_robot.link,1);
   % Eintragen in Klassen-Variable
   R.collbodies_nonleg =struct( ...

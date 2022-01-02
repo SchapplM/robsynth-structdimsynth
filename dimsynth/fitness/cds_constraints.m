@@ -168,7 +168,7 @@ else % PKM
   % Abbruch der IK-Berechnung, wenn eine Beinkette nicht erfolgreich war.
   % Dadurch wesentlich schnellerer Durchlauf der PKM-IK
   s_par = struct('abort_firstlegerror', true);
-  JPE = NaN(size(Traj_0.XE,1), (R.NL-1+R.NLEG)*3);
+  JPE = NaN(size(Traj_0.XE,1), (R.NL+R.NLEG)*3);
 end
 n_jic = 30;
 fval_jic = NaN(1,n_jic);
@@ -723,9 +723,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     JPE(i,:) = Tc_stack(:,4); % Vierte Spalte ist Koordinatenursprung der Körper-KS
     if Set.general.debug_calc && R.Type == 2
       % Prüfe, ob die ausgegebenen Gelenk-Positionen auch stimmen
-      JointPos_all_i_frominvkin = reshape(JPE(i,:)',3,1+R.NLEG+R.NJ);
+      JointPos_all_i_frominvkin = reshape(JPE(i,:)',3,1+R.NLEG+R.NJ+1);
       Tc_Lges = R.fkine_legs(QE(i,:)');
-      JointPos_all_i_fromdirkin = [zeros(3,1), squeeze(Tc_Lges(1:3,4,1:end))];
+      JointPos_all_i_fromdirkin = [zeros(3,1), squeeze(Tc_Lges(1:3,4,1:end)), NaN(3,1)];
       % Vergleiche die Positionen. In fkine_legs wird zusätzlich ein
       % virtuelles EE-KS ausgegeben, nicht aber in invkin_ser.
       for kk = 1:R.NLEG

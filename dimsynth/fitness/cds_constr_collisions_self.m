@@ -105,23 +105,26 @@ end
 num_coll_plot = 0; % zum Debuggen, s.u.
 for i = 1:size(collbodies.link,1)
   % Anfangs- und Endpunkt des Ersatzkörpers bestimmen
-  if ~any(collbodies.type(i) == [6 13 15])
-    warning('Andere Methoden als Kapsel-Direktverbindung und Kapsel im Basis-KS nicht implementiert');
+  if ~any(collbodies.type(i) == [6 13 15 16])
+    warning(['Andere Methoden als Kapseln und Kugeln für Plot nicht ', ...
+      'implementiert. Nr. %d hat Methode %d'], i, collbodies.type(i));
     continue
   end
+  % Nummer der Starrkörper in mathematischer Notation: 0=Basis
+  jj2 = collbodies.link(i,1); % 0=PKM-Basis, 1=Beinkette-1-Basis, 2=Beinkette-1-Körper-1
+  jj1 = collbodies.link(i,2);
+  % Nummer in Matlab-Notation (1=Basis)
+  ii2 = jj2+1;
+  ii1 = jj1+1;
+  pts = JP(j,[3*(ii1-1)+1:3*ii1, 3*(ii2-1)+1:3*ii2]); % bezogen auf Basis-KS
   if collbodies.type(i) == 6 % Kapsel zum vorherigen KS
     r = collbodies.params(i,1)*3; % Vergrößere den Radius für den Plot
-    % Nummer der Starrkörper in mathematischer Notation: 0=Basis
-    jj2 = collbodies.link(i,1); % 0=PKM-Basis, 1=Beinkette-1-Basis, 2=Beinkette-1-Körper-1
-    jj1 = collbodies.link(i,2);
-    % Nummer in Matlab-Notation (1=Basis)
-    ii2 = jj2+1;
-    ii1 = jj1+1;
-    pts = JP(j,[3*(ii1-1)+1:3*ii1, 3*(ii2-1)+1:3*ii2]); % bezogen auf Basis-KS
     if all(pts(1:3) == pts(4:6))
       warning('Kollisionskörper %d/%d hat Länge Null. Verbindet Körper %d und %d.', ...
         i, size(collbodies.link,1), jj1, jj2);
     end
+  elseif collbodies.type(i) == 16 % Kugel im Ursprung des Körper-KS
+    r = collbodies.params(i,1); % Keine Vergrößerung für Plot
   elseif collbodies.type(i) == 13 % Kapsel mit 2 angegebenen Punkten im Basis-KS
     r = collbodies.params(i,7)*3; % Vergrößerung für Plot
     pts = collbodies.params(i,1:6);
@@ -131,6 +134,7 @@ for i = 1:size(collbodies.link,1)
   else
     error('Fall nicht implementiert');
   end
+  assert(~isnan(r), 'Geometrischer Parameter ist NaN. Fehler.');
   % Umrechnung ins Welt-KS
   pts_W = repmat(R.T_W_0(1:3,4),2,1) + rotate_wrench(pts', R.T_W_0(1:3,1:3));
   % Kollisions-Ergebnis für diesen Kollisionskörper herausfinden
