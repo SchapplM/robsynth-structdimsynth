@@ -294,7 +294,7 @@ if strcmp(figname, 'pareto')
     clf;hold all;
     set(fhdl, 'Name', sprintf('Rob%d_Pareto', RNr), ...
       'NumberTitle', 'off', 'color','w');
-    axhdl = get(fhdl, 'children');
+    axhdl = NaN(size(objcomb,1),1);
     sprows = floor(sqrt(size(objcomb,1)));
     spcols = ceil(size(objcomb,1)/sprows);
     for kk = 1:size(objcomb,1)
@@ -306,7 +306,7 @@ if strcmp(figname, 'pareto')
       P1=reshape(PSO_Detail_Data.physval(:,kk1,:), ngen, nswarm);
       P2=reshape(PSO_Detail_Data.physval(:,kk2,:), ngen, nswarm);
       leghdl = NaN(10,1);
-      subplot(sprows,spcols,kk); hold on;
+      axhdl(kk) = subplot(sprows,spcols,kk); hold on;
       % Nicht-dominierende Partikel aus dem Verlauf der Optimierung
       markers = {'rv', 'ro', 'y^', 'gv', 'go', 'c^', 'cv', 'bo', 'b^'};
       % Teile den Verlauf in 9 Teile ein und zeichne die Partikel jeder
@@ -349,11 +349,16 @@ if strcmp(figname, 'pareto')
     end
     % Prüfe ob ein Wertebereich sehr stark unausgeglichen ist (z.B. wenn die
     % Konditionszahl als Kriterium bis unendlich geht). Dann logarithmisch.
-    if length(axhdl) == 1
-      for kk = 1:3
-        axlim = get(axhdl, [char(119+kk), 'lim']); % xlim, ylim, zlim
-        if axlim(2) / axlim(1) > 1e3 && all(axlim>=0)
-          set(axhdl, [char(119+kk), 'scale'], 'log');
+    for ah = axhdl(:)'
+      linhdl = get(ah, 'children');
+      for kk = 1:3 % x,y,z
+        dataminmax = [NaN, NaN];
+        for jj = 1:length(linhdl) % xdata, ydata, zdata
+          if ~strcmp(get(linhdl(jj), 'type'), 'line'); continue; end
+          dataminmax = minmax2([dataminmax, get(linhdl(jj), [char(119+kk), 'data'])]);
+        end
+        if dataminmax(2) / dataminmax(1) > 1e3 && all(dataminmax>0)
+          set(ah, [char(119+kk), 'scale'], 'log');
         end
       end
     end

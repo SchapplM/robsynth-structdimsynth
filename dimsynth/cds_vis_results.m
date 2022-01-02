@@ -465,9 +465,14 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   % Prüfe ob ein Wertebereich sehr stark unausgeglichen ist (z.B. wenn die
   % Konditionszahl als Kriterium bis unendlich geht). Dann logarithmisch.
   if length(axhdl) == 1
-    for kk = 1:3
-      axlim = get(axhdl, [char(119+kk), 'lim']); % xlim, ylim, zlim
-      if axlim(2) / axlim(1) > 1e3 && all(axlim>=0)
+    linhdl = get(axhdl, 'children');
+    for kk = 1:3 % x,y,z
+      dataminmax = [NaN, NaN];
+      for jj = 1:length(linhdl) % xdata, ydata, zdata
+        if ~strcmp(get(linhdl(jj), 'type'), 'line'); continue; end
+        dataminmax = minmax2([dataminmax, get(linhdl(jj), [char(119+kk), 'data'])]);
+      end
+      if dataminmax(2) / dataminmax(1) > 1e3 && all(dataminmax>0)
         set(axhdl, [char(119+kk), 'scale'], 'log');
       end
     end
