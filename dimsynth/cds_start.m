@@ -106,6 +106,11 @@ end
 if ~isa(Set.task.installspace.links, 'cell')
   error('Set.task.installspace: Feld "links" muss cell Array sein');
 end
+if ~isempty(Set.task.installspace.links)
+  if ~isa(Set.task.installspace.links{1}, 'double')
+    error('Set.task.installspace: Feld "links" muss cell Array sein, das double Arrays enthält');
+  end
+end
 if size(Set.task.installspace.type,2) > 1
   error('Set.task.installspace: Feld "type" hat mehr als eine Spalte.');
 end
