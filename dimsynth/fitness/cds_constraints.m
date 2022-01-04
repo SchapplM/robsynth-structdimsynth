@@ -245,7 +245,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   % hiermit theoretisch auch mehrere Anfangswerte auf einmal vorgebbar.
   % Wird benutzt, damit die Ergebnisse vorheriger Punkte ausprobiert
   % werden können
-  Q0 = q0;
+  Q0_ik = q0;
 
   % Berechne die Inverse Kinematik. Im Fall von Aufgabenredundanz
   % IK-Aufruf und Nebenbedingung zweimal testen: Einmal mit normaler IK
@@ -279,14 +279,14 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     if i_ar == 1 % IK ohne Optimierung von Nebenbedingungen
       Stats = struct('coll', false); %#ok<NASGU> % Platzhalter-Variable
       if R.Type == 0 % Seriell
-        [q, Phi, Tc_stack, Stats] = R.invkin2(R.x2tr(Traj_0.XE(i,:)'), Q0, s);
+        [q, Phi, Tc_stack, Stats] = R.invkin2(R.x2tr(Traj_0.XE(i,:)'), Q0_ik, s);
         nPhi_t = sum(R.I_EE_Task(1:3));
         ik_res_ik2 = all(abs(Phi(1:nPhi_t))<s.Phit_tol) && ...
                      all(abs(Phi(nPhi_t+1:end))<s.Phir_tol);
         condJik(i,1) = Stats.condJ(1+Stats.iter,1);
         condJ(i,1) = Stats.condJ(1+Stats.iter,2);
       else % PKM
-        Q0_mod = Q0;
+        Q0_mod = Q0_ik;
         Q0_mod(R.I1J_LEG(2):end,end) = NaN; % Für Beinkette 2 Ergebnis von BK 1 nehmen (dabei letzten Anfangswert für BK 2 und folgende verwerfen)
         [q, Phi, Tc_stack, Stats] = R.invkin2(Traj_0.XE(i,:)', Q0_mod, s, s_par); % kompilierter Aufruf
         % Rechne kinematische Zwangsbedingungen nach. Ist für Struktur-
@@ -318,8 +318,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           % Erneuter Versuch mit der IK für alle Beinketten gemeinsam.
           % Bei genanntem Abbruch sind nicht funktionierende Beinketten
           % direkt NaN. Dafür andere Werte einsetzen.
-          q(isnan(q)) = Q0(isnan(q),1);
-          Q0_v2 = [q,Q0];
+          q(isnan(q)) = Q0_ik(isnan(q),1);
+          Q0_v2 = [q,Q0_ik];
           [q, Phi, Tc_stack, Stats] = R.invkin4(Traj_0.XE(i,:)', Q0_v2, s);
           condJik(i,:) = Stats.condJ(1+Stats.iter,1);
           condJ(i,1) = Stats.condJ(1+Stats.iter,2);
@@ -719,7 +719,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     % Probiere für den nächsten Punkt die Gelenkwinkel aller bisher
     % berechneter Punkte aus. Dadurch wird eher die gleiche Konfiguration
     % gefunden.
-    Q0 = QE(i:-1:1,:)';
+    Q0_ik = QE(i:-1:1,:)';
     JPE(i,:) = Tc_stack(:,4); % Vierte Spalte ist Koordinatenursprung der Körper-KS
     if Set.general.debug_calc && R.Type == 2
       % Prüfe, ob die ausgegebenen Gelenk-Positionen auch stimmen
