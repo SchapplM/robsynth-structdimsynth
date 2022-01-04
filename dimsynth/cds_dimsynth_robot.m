@@ -1011,7 +1011,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         % wird sichergestellt, dass es hierzu einen Koll.-körper gibt.  
         selfcollchecks_bodies = [selfcollchecks_bodies; ...
           uint8(NLoffset+[i, j])]; %#ok<AGROW>
-        % fprintf('Kollisionsprüfung (%d): Beinkette %d Seg. %d Seg. %d. Zeile [%d,%d]\n', ...
+        % fprintf('Kollisionsprüfung (%d): Beinkette %d Seg. %d vs Seg. %d. Zeile [%d,%d]\n', ...
         %   size(selfcollchecks_bodies,1), k, i, j, selfcollchecks_bodies(end,1), selfcollchecks_bodies(end,2));
       end
     end % i-loop (NJ)
@@ -1107,8 +1107,11 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         %   'Zeile [%d,%d]\n'], size(selfcollchecks_bodies,1), k, cb_k, ...
         %   selfcollchecks_bodies(end,1), selfcollchecks_bodies(end,2));
         % Prüfe Kollision mit gestellfesten Kollisionskörpern, die dem
-        % Basis-KS von anderen Beinketten zugeordnet sind.
-        for j = 1:NLEG % gehe andere Beinketten durch (auch diese selbst)
+        % Basis-KS von anderen Beinketten zugeordnet sind. Prüfe nicht die
+        % Körper dieser Beinkette selbst, da dies schon weiter oben
+        % geschehen ist. Gestell-Körper, die den Basis-KS von zwei Bein-
+        % ketten zugeordnet sind, werden weiterhin geprüft.
+        for j = [1:(k-1), (k+1):NLEG] % gehe nur andere Beinketten durch
           if j > 1, NLoffset_j = 1+R.I2L_LEG(j-1)-(j-1);
           else,     NLoffset_j = 1; end
           row_kj = uint8([NLoffset_k+cb_k, NLoffset_j+0]);
