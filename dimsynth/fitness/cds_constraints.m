@@ -311,11 +311,14 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
             all(abs(Phi(R.I_constr_r_red))<s.Phir_tol));% IK-Status Funktionsdatei
         for ll=1:R.NLEG, condJik(i,ll) = Stats.condJ(1+Stats.iter(ll),ll); end
         Phi_Leg1 = Phi(1:sum(R.I_EE_Task)); % Zwangsbed. für erste Beinkette (aufgabenredundant)
-        if ~ik_res_ik2 && Structure.task_red && all(abs(Phi_Leg1)<s.Phit_tol) % Vereinfachung: Toleranz transl/rot identisch.
+        if ~ik_res_ik2 && all(abs(Phi_Leg1)<s.Phit_tol) && ... % Vereinfachung: Toleranz transl/rot identisch.
+            (Structure.task_red || all(R.I_EE==[1 1 1 1 1 0]))
           % Die Einzelbeinketten-IK für die erste Beinkette war erfolgreich, 
           % aber nicht für die weiteren Beinketten. Mögliche Ursache
           % ist die freie Drehung der Plattform durch die erste Beinkette.
           % Erneuter Versuch mit der IK für alle Beinketten gemeinsam.
+          % Ist auch bei strukturell bedingten 3T2R relevant wegen
+          % IK-Umklappen.
           % Bei genanntem Abbruch sind nicht funktionierende Beinketten
           % direkt NaN. Dafür andere Werte einsetzen.
           q(isnan(q)) = Q0_ik(isnan(q),1);
