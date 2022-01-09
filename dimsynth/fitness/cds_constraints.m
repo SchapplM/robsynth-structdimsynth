@@ -971,8 +971,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       Traj_0.XE, Set, Structure, JPE, QE);
     if R.Type == 0, new_offset=R.DesPar.joint_offset(R.MDH.sigma==1);
     else, new_offset=R.Leg(1).DesPar.joint_offset(R.Leg(1).MDH.sigma==1); end
-    cds_log(4, sprintf(['[constraints] Schubgelenk-Offset wurde optimiert. ', ...
-      'Ergebnis: %1.1fmm (Start-Konfig. %d)'], 1e3*new_offset, jic));
+    cds_log(4, sprintf(['[constraints] Konfig %d/%d: Schubgelenk-Offset ', ...
+      'wurde optimiert. Ergebnis: %1.1fmm'], jic, n_jic, 1e3*new_offset));
     % Kollisionskörper müssen nochmal aktualisiert werden (wegen Offset)
     [Structure.collbodies_robot, Structure.installspace_collbodies] = ...
       cds_update_collbodies(R, Set, Structure, QE);
@@ -989,8 +989,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       constrvioltext_jic{jic} = sprintf('Selbstkollision in %d/%d AR-Eckwerten.', ...
         sum(any(coll_self,2)), size(coll_self,1));
       if fval_jic_old(jic) > 3e5 && fval_jic_old(jic) < 4e5 && fval_coll > fval_jic_old(jic)+1e-4
-        cds_log(3, sprintf(['[constraints] Die Schwere der Kollisionen hat ', ...
-          'sich trotz Optimierung vergrößert (Konfig %d/%d)'], jic, n_jic)); % Gewertet wird die Eindringtiefe, nicht die Anzahl
+        cds_log(3, sprintf(['[constraints] Konfig %d/%d: Die Schwere der Kollisionen hat ', ...
+          'sich trotz Optimierung vergrößert'], jic, n_jic)); % Gewertet wird die Eindringtiefe, nicht die Anzahl
       end
       calctimes_jic(i_ar,jic) = toc(t1);
       continue;
