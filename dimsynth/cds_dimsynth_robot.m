@@ -157,6 +157,8 @@ elseif Structure.Type == 2 % Parallel
   end
   if any(Structure.Coupling(2) == [4,5,6])
     p_platform(2) = 0.5*p_platform(1); % Paar-Abstand halb so groß wie Radius
+  elseif Structure.Coupling(2) == 8
+    p_platform(2) = 0; % Kein Offset-Winkel für Gelenkachsen
   end
   % Bei paralleler Rechnung der Struktursynthese auf Cluster Konflikte vermeiden
   parroblib_writelock('check', 'csv', logical(Set.task.DoF), 5*60, false);
@@ -826,12 +828,17 @@ end
 % Plattform-Morphologie-Parameter (z.B. Gelenkpaarabstand).
 % Siehe align_platform_coupling.m
 if Structure.Type == 2 && Set.optimization.platform_morphology
-  if any(R.DesPar.platform_method == [1:3, 8]) % keine Parameter bei Kreis
+  if any(R.DesPar.platform_method == 1:3) % keine Parameter bei Kreis
   elseif any(R.DesPar.platform_method == 4:6) % Parameter ist Gelenkpaarabstand (6FG-PKM)
     nvars = nvars + 1;
     vartypes = [vartypes; 9];
     varlim = [varlim; [0.2,0.8]]; % Gelenkpaarabstand. Relativ zu Plattform-Radius.
-    varnames = {varnames{:}, 'platform_morph'}; %#ok<CCAT>
+    varnames = {varnames{:}, 'platform_morph_pairdist'}; %#ok<CCAT>
+  elseif R.DesPar.platform_method == 8
+    nvars = nvars + 1;
+    vartypes = [vartypes; 9];
+    varlim = [varlim; [-pi,pi]]; % Offset für Gelenkrichtung auf Plattform
+    varnames = {varnames{:}, 'platform_morph_axoffset'}; %#ok<CCAT>
   else
     error('Parameter "platform_morphology" für Platform-Methode %d nicht implementiert', R.DesPar.platform_method);
   end
