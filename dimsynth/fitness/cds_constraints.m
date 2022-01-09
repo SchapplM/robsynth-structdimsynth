@@ -966,8 +966,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   % Prüfung auf Selbstkollision.
   if Structure.desopt_prismaticoffset
     % Bei Optimierung des Offsets wird auch bereits die Kollisionsprüfung
-    % durchgeführt und die Ergebnisse weiter unten genutzt.
-    [fval_coll_tmp, fval_instspc_tmp] = cds_desopt_prismaticoffset(R, ...
+    % durchgeführt. Die Ergebnisse können weiter unten nur für die Bauraum-
+    % prüfung genutzt werden.
+    [~, fval_instspc_tmp] = cds_desopt_prismaticoffset(R, ...
       Traj_0.XE, Set, Structure, JPE, QE);
     if R.Type == 0, new_offset=R.DesPar.joint_offset(R.MDH.sigma==1);
     else, new_offset=R.Leg(1).DesPar.joint_offset(R.Leg(1).MDH.sigma==1); end
@@ -977,12 +978,12 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     [Structure.collbodies_robot, Structure.installspace_collbodies] = ...
       cds_update_collbodies(R, Set, Structure, QE);
   else
-    fval_coll_tmp = NaN; % Keine Berechnung durchgeführt ...
-    fval_instspc_tmp = NaN; % ... Erstmalige Berechnung unten erforderlich.
+    fval_instspc_tmp = NaN; % ... Keine Berechnung durchgeführt. Erstmalige Berechnung unten erforderlich.
   end
   %% Selbst-Kollisionsprüfung für Einzelpunkte
-  if Set.optimization.constraint_collisions && ...
-      (isnan(fval_coll_tmp) || fval_coll_tmp > 0) % nutze bereits vorliegende Daten
+  if Set.optimization.constraint_collisions
+    % Keine Nutzung bereits vorliegender Daten (obige Berechnung mit
+    % weniger Kollisionskörpern)
     [fval_coll, coll_self] = cds_constr_collisions_self(R, Traj_0.XE, Set, Structure, JPE, QE, [3e5;4e5]);
     if fval_coll > 0
       fval_jic(jic) = fval_coll; % Normierung auf 3e5 bis 4e5 bereits in Funktion

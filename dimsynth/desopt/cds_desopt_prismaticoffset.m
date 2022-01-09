@@ -122,9 +122,9 @@ function [c, ceq, c1, c2] = nonlcon(x, R, X, Set, Structure, JP, Q)
   % Kollisionskörper damit aktualisieren
   [Structure.collbodies_robot, Structure.installspace_collbodies] = ...
     cds_update_collbodies(R, Set, Structure, Q);
-  % Kollisionsprüfungen weglassen, die nichts mit der Schiene zu tun haben.
-  % TODO: collcheck-Variablen in cds_dimsynth_robot definieren.
-  
+  % Kollisionsprüfungen weglassen, die nichts mit der Schiene zu tun haben
+  Structure.selfcollchecks_collbodies=Structure.selfcollchecks_collbodies(...
+    Structure.I_collcheck_baserail, :); % TODO: Prüfen ob sinnvoll: & ~Structure.I_collcheck_nochange
   % Selbstkollisionen prüfen. Ungleich Null, falls Kollision.
   if Set.optimization.constraint_collisions
     c1 = cds_constr_collisions_self(R, X, Set, Structure, JP, Q, [1 2]);

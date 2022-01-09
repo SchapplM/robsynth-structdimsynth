@@ -1237,7 +1237,7 @@ end
 %% Anpassung des Offsets für Schubgelenke
 % Siehe cds_constraints.m
 if Structure.desopt_prismaticoffset
-  [fval_coll_tmp, fval_instspc_tmp] = cds_desopt_prismaticoffset(R, ...
+  [~, fval_instspc_tmp] = cds_desopt_prismaticoffset(R, ...
     Traj_0.X, Set, Structure, JP, Q);
   if R.Type == 0, new_offset=R.DesPar.joint_offset(R.MDH.sigma==1);
   else, new_offset=R.Leg(1).DesPar.joint_offset(R.Leg(1).MDH.sigma==1); end
@@ -1247,12 +1247,17 @@ if Structure.desopt_prismaticoffset
   [Structure.collbodies_robot, Structure.installspace_collbodies] = ...
     cds_update_collbodies(R, Set, Structure, Q);
 else
-  fval_coll_tmp = NaN;
-  fval_instspc_tmp = NaN;
+  fval_instspc_tmp = NaN; % Marker für "nicht berechnet"
 end
 %% Selbstkollisionserkennung für Trajektorie
-if Set.optimization.constraint_collisions && ...
-      (isnan(fval_coll_tmp) || fval_coll_tmp > 0)
+if Set.optimization.constraint_collisions
+  % Ergebnisse aus vorherigem Aufruf nicht nutzbar, da dort nicht alle
+  % Kollisionskörper berücksichtigt werden
+  % Optional: Nur Kollisionsprüfungen, die hier beeinflussbar sind. Nicht
+  % durch Gelenkwinkel änderbare Prüfungen wurden bereits in cds_constraints
+  % geprüft. Erfordert Sicherung von Structure.selfcollchecks_collbodies
+%   Structure.selfcollchecks_collbodies=Structure.selfcollchecks_collbodies(...
+%     ~Structure.I_collcheck_nochange, :);
   [fval_coll_traj, coll_traj, colldepth_abs] = cds_constr_collisions_self(R, Traj_0.X, ...
     Set, Structure, JP, Q, [3e3; 4e3]);
   mincolldist_all(i_ar) = min(colldepth_abs(:));
