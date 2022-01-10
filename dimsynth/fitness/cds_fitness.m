@@ -623,7 +623,7 @@ for iIKC = 1:size(Q0,1)
     fval_debugtext = [fval_debugtext, ' ', fval_debugtext_jr]; %#ok<AGROW>
   end
   if any(strcmp(Set.optimization.objective, 'jointlimit'))
-    [fval_jl,fval_debugtext_jl, debug_info, physval_jl] = cds_obj_jointrange(R, Set, Structure, Q);
+    [fval_jl,fval_debugtext_jl, debug_info, physval_jl] = cds_obj_jointlimit(R, Set, Structure, Q);
     fval_IKC(iIKC,strcmp(Set.optimization.objective, 'jointlimit')) = fval_jl;
     physval_IKC(iIKC,strcmp(Set.optimization.objective, 'jointlimit')) = physval_jl;
     fval_debugtext = [fval_debugtext, ' ', fval_debugtext_jl]; %#ok<AGROW>
