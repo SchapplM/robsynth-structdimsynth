@@ -80,8 +80,8 @@ elseif R.Type == 2  % Parallel (symmetrisch)
       R.Leg(i).DesPar.seg_par = repmat([p_desopt(1), p_desopt(2)], R.Leg(i).NL, 1);
     end
   end
-  if     any(Structure.Coupling(2) == [1:3 8]), i_plfthickness = 2; %#ok<ALIGN>
-  elseif any(Structure.Coupling(2) == 4:6), i_plfthickness = 3;
+  if     any(Structure.Coupling(2) == 1:3), i_plfthickness = 2; %#ok<ALIGN>
+  elseif any(Structure.Coupling(2) == [4:6 8]), i_plfthickness = 3;
   else,  error('Plattform-Koppelgelenk-Methode %d nicht implementiert', Structure.Coupling(2)); end
   R.DesPar.platform_par(i_plfthickness) = 10e-3; % Dünne Platte als Plattform
 end
