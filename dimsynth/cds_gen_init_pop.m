@@ -187,7 +187,7 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
       setxor(Structure_i.varnames,Structure.varnames);
     % Debug:
 %     fprintf('Lokale Parameter, fehlend in Datei: {%s}\n', ...
-%       disp_array(Structure_i.varnames{missing_local_in_file},'%s'));
+%       disp_array(Structure_i.varnames(missing_local_in_file),'%s'));
 %     fprintf('Parameter in Datei, lokal fehlend: {%s}\n', ...
 %       disp_array(Structure.varnames(missing_file_in_local), '%s'));
 
@@ -207,6 +207,34 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
     if ~isempty(I_baserotz) && any(I_baserotz == missing_file_in_local)
       pval_i_const(I_baserotz) = 0;
     end
+    % Gleiches für Plattform-Morphologie (G8-Methode). Standardmäßig Null.
+    I_platform_morph_axoffset = find(strcmp(Structure.varnames, 'platform_morph_axoffset'));
+    if ~isempty(I_platform_morph_axoffset) && any(I_platform_morph_axoffset == missing_file_in_local)
+      pval_i_const(I_platform_morph_axoffset) = 0;
+    end
+    for i_xyz = 1:3
+      % Index des Basis-Positions-Parameters in allen Parametern finden
+      I_basexyz = find(strcmp(Structure.varnames, ['base ', char(119+i_xyz)]));
+      % Prüfen, ob dieser Parameter hier optimiert wird und in geladenen
+      % Werten fehlt
+      if isempty(I_basexyz) || ~any(I_basexyz == missing_file_in_local)
+        continue
+      end
+      % Falls die Grenzen auf NaN gesetzt sind, werden sie mit relativen
+      % Werten skaliert und die Parameter sind nicht übertragbar
+      if any(isnan(Set.optimization.basepos_limits(i_xyz,:)))
+        continue
+      end
+      % x-y- oder z-Komponente der Basisposition wird optimiert und der
+      % Parameter fehlt in den geladenen Parametern
+      if all(~isnan(Set_i.optimization.basepos_limits(i_xyz,:))) && ...
+        diff(Set_i.optimization.basepos_limits(i_xyz,:))==0
+        % Der Parameter wird in den geladenen Werten auf einen konstanten
+        % Wert gesetzt. Nehme diesen direkt
+        pval_i_const(I_basexyz) = Set_i.optimization.basepos_limits(i_xyz,1);
+      end
+    end
+    
     % TODO: Weitere Abfragen zu anderen Parametern
     % Aus konstanten Einstellungen gesetzte Parameter eintragen
     for jjj = 1:length(I_p_file)
