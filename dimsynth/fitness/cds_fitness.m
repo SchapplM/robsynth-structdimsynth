@@ -702,16 +702,26 @@ else
   % Pareto-Optimale Lösungen. Wähle anhand eines weiteren Kriteriums aus.
   % Die gewählte Lösung ist dann die "beste" Lösung.
   I_best_opt = 0; % Index zur Auswahl in iIKCopt
+  % Nehme die Lösung mit dem geringsten Offset von Führungsschienen. Zu
+  % lange Offsets wirken unnatürlich (falls Zielkriterium darauf abzielt)
+  if Structure.desopt_prismaticoffset && ...
+      any(strcmp(Set.optimization.objective, 'chainlength'))
+    p_prismaticoffset_IKC = desopt_pval_IKC(:,Structure.desopt_ptypes==1);
+    [~,I_best_opt] = min(abs(p_prismaticoffset_IKC));
+  end
   % Nehme die Lösung mit der besten Konditionszahl. Toleranz gegen
   % Rundungsfehler; sonst beliebige Wahl quasi identischer Lösungen.
-  Jcond_IKC = constraint_obj_val_IKC(4,:)';
-  Jcond_IKC_check = Jcond_IKC - Jcond_IKC(iIKCopt(1));
-  Jcond_IKC_check(abs(Jcond_IKC_check)<1e-10) = 0;
-  if all(~isnan(Jcond_IKC(iIKCopt))) && any(Jcond_IKC_check(iIKCopt))
-    [~,I_best_opt] = min(Jcond_IKC_check(iIKCopt));
+  if I_best_opt==0
+    Jcond_IKC = constraint_obj_val_IKC(4,:)';
+    Jcond_IKC_check = Jcond_IKC - Jcond_IKC(iIKCopt(1));
+    Jcond_IKC_check(abs(Jcond_IKC_check)<1e-10) = 0;
+    if all(~isnan(Jcond_IKC(iIKCopt))) && any(Jcond_IKC_check(iIKCopt))
+      [~,I_best_opt] = min(Jcond_IKC_check(iIKCopt));
+    end
   end
   % Nehme den Roboter mit der geringsten (bewegten) Masse. Kann unterschied-
-  % lich sein, wenn Schubgelenke verschieden lang sind.
+  % lich sein, wenn Schubgelenke verschieden lang sind. Entspricht obiger
+  % Prüfung für desopt_prismaticoffset, aber nur aktiv bei Dynamik-Kennzahl
   mges_IKC = constraint_obj_val_IKC(1,:)';
   mges_IKC_check = mges_IKC - mges_IKC(iIKCopt(1));
   mges_IKC_check(abs(mges_IKC_check)<1e-10) = 0;
@@ -734,8 +744,29 @@ else
   iIKCbest = iIKCopt(I_best_opt);
 
   if false % Debug: Prüfe, warum die eine Lösung besser als die andere ist
+    % Passe Schubgelenk-Offset für den Plot an
+    if Structure.desopt_prismaticoffset %#ok<UNRCH>
+      if Structure.Type == 0
+          R.DesPar.joint_offset(R.MDH.sigma==1) = desopt_pval_IKC(iIKCbest,Structure.desopt_ptypes==1);
+        else
+          for i = 1:R.NLEG
+            R.Leg(i).DesPar.joint_offset(R.Leg(i).MDH.sigma==1) = desopt_pval_IKC(iIKCbest,Structure.desopt_ptypes==1);
+          end
+      end
+    end
+    % Passe Schubgelenk-Grenzen für den Plot an
+    if R.Type == 0 % Seriell
+      R.qlim = minmax2(Q_IKC(:,:, iIKCbest)');
+    else % PKM
+      for i = 1:R.NLEG
+        Q_i = Q_IKC(:,R.I1J_LEG(i):R.I2J_LEG(i), iIKCbest);
+        R.Leg(i).qlim = minmax2(Q_i');
+      end
+    end
+    % Zeige den Roboter für die gewählte Konfiguration
     cds_fitness_debug_plot_robot(R, Q_IKC(1,:,iIKCbest)', Traj_0, ...
-      Traj_W, Set, Structure, p, mean(fval_IKC(iIKCbest,:)), debug_info); %#ok<UNRCH>
+      Traj_W, Set, Structure, p, mean(fval_IKC(iIKCbest,:)), debug_info);
+    % Weitere Debug-Plots
     figure(333);clf;
     for i = 1:size(TAU_IKC,2)
       for k = 1:length(I_IKC_iO)

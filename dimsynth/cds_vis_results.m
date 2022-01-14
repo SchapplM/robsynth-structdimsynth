@@ -160,9 +160,9 @@ parfor (i = 1:length_Structures_parfor, parfor_numworkers)
   Klassengrenzen_Alle_Log = log10(Klassengrenzen_Alle);
   Klassengrenzen_Alle_Log(1) = 0;
   % Histogramm erstellen
-  change_current_figure(100*i+1, vis_settings.figure_invisible);
+  f = change_current_figure(100*i+1, vis_settings.figure_invisible);
   clf; hold all;
-  set(100*i+1, 'Name', sprintf('Rob%d_Hist', i), 'NumberTitle', 'off', 'color','w');
+  set(f, 'Name', sprintf('Rob%d_Hist', i), 'NumberTitle', 'off', 'color','w');
   sgtitle(sprintf('Erg.-Vert. für %s: %d Parametersätze in %d Gen.', Name, length(I_zul), size(Erg_All_Gen,1)));
   subplot(2,2,sprc2no(2,2,1,1)); % Histogramm über zulässige Lösungen
   h_zul = histogram(Erg_All_Gen(I_zul));
@@ -251,15 +251,15 @@ parfor (i = 1:length_Structures_parfor, parfor_numworkers)
   ylabel('Häufigkeit (abs)');
   title('Vert. alle Lsg. (nach Gen.)');
 
-  saveas(100*i+1,     fullfile(resrobdir, sprintf('Rob%d_%s_Histogramm.fig', i, Name)));
-  export_fig(100*i+1, fullfile(resrobdir, sprintf('Rob%d_%s_Histogramm.png', i, Name)));
+  saveas(f,     fullfile(resrobdir, sprintf('Rob%d_%s_Histogramm.fig', i, Name)));
+  export_fig(f, fullfile(resrobdir, sprintf('Rob%d_%s_Histogramm.png', i, Name)));
   fprintf('%d/%d: Histogramm für %s gespeichert. Dauer: %1.1fs\n', ...
     i, length_Structures, Name, toc(t1));
   end
   %% Verschiedene Auswertungen
   if any(strcmp(Set.general.eval_figures, 'fitness_various'))
   t1 = tic();
-  change_current_figure(100*i+6, vis_settings.figure_invisible); clf;
+  f = change_current_figure(100*i+6, vis_settings.figure_invisible); clf;
   sgtitle('Diverse Auswertungsbilder');
   % Verteilung der Rechenzeit über die Zielfunktionswerte
   % Streudiagramm
@@ -299,8 +299,8 @@ parfor (i = 1:length_Structures_parfor, parfor_numworkers)
   title('Materialbelastung vs Kondition');
   grid on;  
   
-  saveas(100*i+6,     fullfile(resrobdir, sprintf('Rob%d_%s_Population_Fitness.fig', i, Name)));
-  export_fig(100*i+6, fullfile(resrobdir, sprintf('Rob%d_%s_Population_Fitness.png', i, Name)));
+  saveas(f,     fullfile(resrobdir, sprintf('Rob%d_%s_Population_Fitness.fig', i, Name)));
+  export_fig(f, fullfile(resrobdir, sprintf('Rob%d_%s_Population_Fitness.png', i, Name)));
   fprintf('%d/%d: Weitere Auswertungsbilder für %s gespeichert. Dauer: %1.1fs\n', ...
     i, length_Structures, Name, toc(t1));
   end
@@ -359,9 +359,9 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   if pffig == 1, name_suffix = 'phys';
   else,          name_suffix = 'fval'; end
   
-  change_current_figure(10+pffig, vis_settings.figure_invisible);
+  f = change_current_figure(10+pffig, vis_settings.figure_invisible);
   clf; hold on; grid on;
-  set(10+pffig, 'name', sprintf('Pareto_Gesamt_%s',name_suffix), ...
+  set(f, 'name', sprintf('Pareto_Gesamt_%s',name_suffix), ...
     'NumberTitle', 'off', 'color','w');
   leghdl = []; legstr = {}; % Für Erstellung der Legende am Ende
   countmarker = 0; % Stelle Marker für jeden Roboter zusammen
@@ -460,7 +460,7 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
         Set.optimization.objective{2}, Set.optimization.objective{3}), 'interpreter', 'none');
     end
   end
-  axhdl = get(10+pffig, 'children');
+  axhdl = get(f, 'children');
   legend(leghdl, legstr);
   % Prüfe ob ein Wertebereich sehr stark unausgeglichen ist (z.B. wenn die
   % Konditionszahl als Kriterium bis unendlich geht). Dann logarithmisch.
@@ -478,7 +478,7 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     end
   end
   % PNG-Export bereits hier, da Probleme mit uicontrol.
-  export_fig(10+pffig, fullfile(resmaindir, sprintf('Pareto_Gesamt_%s.png',name_suffix)));
+  export_fig(f, fullfile(resmaindir, sprintf('Pareto_Gesamt_%s.png',name_suffix)));
   % Auswahlmenü für eine nachträglich zu plottende Auswertung. Wird in der
   % ButtonDownFcn (cds_paretoplot_buttondownfcn) bei Klicken auf einen
   % Pareto-Punkt ausgelesen.
@@ -507,6 +507,6 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
             'String', menuitems, ...
             'Units', 'pixels', ...
             'Position', [10, 30, 120, 24]);
-  saveas(10+pffig, fullfile(resmaindir, sprintf('Pareto_Gesamt_%s.fig',name_suffix)));
+  saveas(f, fullfile(resmaindir, sprintf('Pareto_Gesamt_%s.fig',name_suffix)));
   end
 end

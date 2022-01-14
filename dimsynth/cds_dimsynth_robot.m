@@ -157,6 +157,8 @@ elseif Structure.Type == 2 % Parallel
   end
   if any(Structure.Coupling(2) == [4,5,6])
     p_platform(2) = 0.5*p_platform(1); % Paar-Abstand halb so groß wie Radius
+  elseif Structure.Coupling(2) == 8
+    p_platform(2) = 0; % Kein Offset-Winkel für Gelenkachsen
   end
   % Bei paralleler Rechnung der Struktursynthese auf Cluster Konflikte vermeiden
   parroblib_writelock('check', 'csv', logical(Set.task.DoF), 5*60, false);
@@ -826,12 +828,17 @@ end
 % Plattform-Morphologie-Parameter (z.B. Gelenkpaarabstand).
 % Siehe align_platform_coupling.m
 if Structure.Type == 2 && Set.optimization.platform_morphology
-  if any(R.DesPar.platform_method == [1:3, 8]) % keine Parameter bei Kreis
+  if any(R.DesPar.platform_method == 1:3) % keine Parameter bei Kreis
   elseif any(R.DesPar.platform_method == 4:6) % Parameter ist Gelenkpaarabstand (6FG-PKM)
     nvars = nvars + 1;
     vartypes = [vartypes; 9];
     varlim = [varlim; [0.2,0.8]]; % Gelenkpaarabstand. Relativ zu Plattform-Radius.
-    varnames = {varnames{:}, 'platform_morph'}; %#ok<CCAT>
+    varnames = {varnames{:}, 'platform_morph_pairdist'}; %#ok<CCAT>
+  elseif R.DesPar.platform_method == 8
+    nvars = nvars + 1;
+    vartypes = [vartypes; 9];
+    varlim = [varlim; [-pi,pi]]; % Offset für Gelenkrichtung auf Plattform
+    varnames = {varnames{:}, 'platform_morph_axoffset'}; %#ok<CCAT>
   else
     error('Parameter "platform_morphology" für Platform-Methode %d nicht implementiert', R.DesPar.platform_method);
   end
@@ -1011,7 +1018,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         % wird sichergestellt, dass es hierzu einen Koll.-körper gibt.  
         selfcollchecks_bodies = [selfcollchecks_bodies; ...
           uint8(NLoffset+[i, j])]; %#ok<AGROW>
-        % fprintf('Kollisionsprüfung (%d): Beinkette %d Seg. %d Seg. %d. Zeile [%d,%d]\n', ...
+        % fprintf('Kollisionsprüfung (%d): Beinkette %d Seg. %d vs Seg. %d. Zeile [%d,%d]\n', ...
         %   size(selfcollchecks_bodies,1), k, i, j, selfcollchecks_bodies(end,1), selfcollchecks_bodies(end,2));
       end
     end % i-loop (NJ)
@@ -1107,8 +1114,11 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         %   'Zeile [%d,%d]\n'], size(selfcollchecks_bodies,1), k, cb_k, ...
         %   selfcollchecks_bodies(end,1), selfcollchecks_bodies(end,2));
         % Prüfe Kollision mit gestellfesten Kollisionskörpern, die dem
-        % Basis-KS von anderen Beinketten zugeordnet sind.
-        for j = 1:NLEG % gehe andere Beinketten durch (auch diese selbst)
+        % Basis-KS von anderen Beinketten zugeordnet sind. Prüfe nicht die
+        % Körper dieser Beinkette selbst, da dies schon weiter oben
+        % geschehen ist. Gestell-Körper, die den Basis-KS von zwei Bein-
+        % ketten zugeordnet sind, werden weiterhin geprüft.
+        for j = [1:(k-1), (k+1):NLEG] % gehe nur andere Beinketten durch
           if j > 1, NLoffset_j = 1+R.I2L_LEG(j-1)-(j-1);
           else,     NLoffset_j = 1; end
           row_kj = uint8([NLoffset_k+cb_k, NLoffset_j+0]);
@@ -1373,25 +1383,28 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       R.collchecks, JP_test, struct('collsearch', false));
     % Prüfe, welche Abstände sich bei diesen Zufallswerten nicht ändern.
     colldist_range = diff(minmax2(colldist_test')');
-    I_norange = abs(colldist_range) < 1e-10;
+    I_ccnc = abs(colldist_range(:)) < 1e-10; % "ccnc": "collcheck nochange"
     if false % Debug:
       fprintf('%d/%d Kollisionsprüfungen ohne Änderung der Abstände:\n', ...
-        sum(I_norange), length(I_norange)); %#ok<UNRCH>
-      for i = find(I_norange)
-        fprintf('%d (dist range. %1.1e): [%d %d], "%s" vs "%s"\n', i, colldist_range(i), R.collchecks(i,1), R.collchecks(i,2), ...
+        sum(I_ccnc), length(I_ccnc)); %#ok<UNRCH>
+      for i = find(I_ccnc(:))'
+        fprintf('%03d (dist range. %1.1e): [%02d %02d], "%30s" vs "%30s"\n', ...
+          i, colldist_range(i), R.collchecks(i,1), R.collchecks(i,2), ...
           names_collbodies{R.collchecks(i,1)}, names_collbodies{R.collchecks(i,2)});
       end
       fprintf('%d/%d Kollisionsprüfungen mit Änderung der Abstände:\n', ...
-        sum(~I_norange), length(I_norange));
-      for i = find(~I_norange)
-        fprintf('%d (dist range. %1.1e): [%d %d], "%s" vs "%s"\n', i, colldist_range(i), R.collchecks(i,1), R.collchecks(i,2), ...
+        sum(~I_ccnc), length(I_ccnc));
+      for i = find(~I_ccnc(:))'
+        fprintf('%03d (dist range. %1.1e): [%02d %02d], "%30s" vs "%30s"\n', ...
+          i, colldist_range(i), R.collchecks(i,1), R.collchecks(i,2), ...
           names_collbodies{R.collchecks(i,1)}, names_collbodies{R.collchecks(i,2)});
       end
     end
-    if any(I_norange)
+    if any(I_ccnc)
       cds_log(-1, sprintf(['[dimsynth] Die Kollisionsabstände für %d ', ...
-        'Prüfungen sind immer gleich.'], sum(I_norange)));
+        'Prüfungen sind immer gleich.'], sum(I_ccnc)));
     end
+    Structure.I_collcheck_nochange = I_ccnc;
     % Untersuche, welche Kollisionskörper gar nicht geprüft werden
     for i = 1:length(R.collbodies)
       if ~any(R.collchecks(:) == i)
@@ -1455,6 +1468,56 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   elseif any(Structure.selfcollchecks_collbodies(:,1)==Structure.selfcollchecks_collbodies(:,2))
     error('Prüfung eines Körpers mit sich selbst ergibt keinen Sinn');
   end
+  % Bestimme Indizes für die Kollisionsprüfungen mit bestimmten Eigen-
+  % schaften. Dadurch kann die Anzahl der Prüfungen in bestimmten Fällen
+  % reduziert werden
+  % Kollisionsprüfungen mit gestellfesten Führungsschienen.
+  % Siehe cds_desopt_prismaticoffset.m
+  % Stelle Körper-Nummern dazu fest (s.o.)
+  if R.Type == 0 % Seriell
+    Ib_baserail = 0;
+  else % Parallel
+    Ib_baserail = NaN(1,R.NLEG);
+    for j = 1:R.NLEG % gehe Beinketten durch
+      % Umrechnung von Körper an Beinketten-Basis auf PKM-KS-Indizes
+      if j > 1, NLoffset_j = 1+R.I2L_LEG(j-1)-(j-1);
+      else,     NLoffset_j = 1; end
+      Ib_baserail(j) = NLoffset_j+0;
+    end
+  end
+  % Finde Kollisionsprüfungen dazu
+  I_collcheck_baserail = false(size(Structure.selfcollchecks_collbodies,1),1);
+  for i = 1:size(Structure.selfcollchecks_collbodies,1)
+    collbodies_i = Structure.selfcollchecks_collbodies(i,:);
+    bodies1 = Structure.collbodies_robot.link(collbodies_i(1),:);
+    bodies2 = Structure.collbodies_robot.link(collbodies_i(2),:);
+    brcand1 = ~isempty(intersect(bodies1,Ib_baserail)) && bodies1(1)==bodies1(2);
+    brcand2 = ~isempty(intersect(bodies2,Ib_baserail)) && bodies2(1)==bodies2(2);
+    if ~brcand1 && ~brcand2
+      % Führungsschiene ist nur einem einzigen Körper zugeordnet
+      continue % Diese Kollisionsprüfung ist ein anderer Basis-Körper
+    end
+    if any(bodies1(1) == Ib_baserail) || any(bodies2(1) == Ib_baserail)
+      I_collcheck_baserail(i) = true;
+    end
+  end
+  if false
+    fprintf('Liste der %d Kollisionsprüfungen mit Führungsschienen:\n', sum(I_collcheck_baserail));   %#ok<UNRCH>
+    for i = find(I_collcheck_baserail)'
+      collbodies_i = Structure.selfcollchecks_collbodies(i,:);
+      bodies_i = [Structure.collbodies_robot.link(collbodies_i(1),:), ...
+        Structure.collbodies_robot.link(collbodies_i(2),:)];
+      fprintf('%03d - collbodies %02d vs %02d (links %02d vs %02d; type %02d vs %02d; "%s" vs "%s")\n', i, ...
+        Structure.selfcollchecks_collbodies(i,1), Structure.selfcollchecks_collbodies(i,2), ...
+        Structure.collbodies_robot.link(collbodies_i(1),1), ...
+        Structure.collbodies_robot.link(collbodies_i(2),1), ...
+        Structure.collbodies_robot.type(collbodies_i(1)), ...
+        Structure.collbodies_robot.type(collbodies_i(2)), ...
+        names_collbodies{collbodies_i(1)}, ...
+        names_collbodies{collbodies_i(2)});
+    end
+  end
+  Structure.I_collcheck_baserail = I_collcheck_baserail;
 end
 %% Initialisierung der Bauraumprüfung
 % Erstelle Liste der Kollisionsprüfungen für cds_constr_installspace.m
