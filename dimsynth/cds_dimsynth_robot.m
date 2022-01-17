@@ -1187,10 +1187,12 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     for k = 1:NLEG
       i = i + 1;
       names_bodies{i} = sprintf('Leg %d Base', k);
-      for j = 1:R.Leg(1).NL-1
+      for j = 1:R.Leg(1).NL-2
         i = i + 1;
         names_bodies{i} = sprintf('Leg %d Link %d', k, j);
       end
+      i = i + 1;
+      names_bodies{i} = sprintf('Leg %d Link %d (EE)', k, R.Leg(1).NL-1);
     end
     names_bodies{end} = 'Platform';
   end
@@ -1263,10 +1265,13 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         % von Gestellteilen gegen die Beinketten.
         % TODO: Weitere Differenzierung sinnvoll, aber nicht akut notwendig.
         if Structure.Type == 2
-          % Indizes der Körper, die zu Gestell (bzw. Beinketten-Basis-KS)
-          % oder Plattform (zugehörig zu letztem Beinketten-KS) gehören
+          % Indizes der Körper zum Gestell (bzw. Beinketten-Basis-KS)
           I_base = R.I1L_LEG(1:NLEG)-((1:NLEG)'-1);
+          % Indizes der Körper zur Plattform (zugehörig zu letztem
+          % Beinketten-KS)
           I_pl = R.I2L_LEG(1:NLEG)-((1:NLEG)'-1)-1;
+          % Plattform-Körper zusätzlich einfügen (zu keiner Beinkette).
+          I_pl = [I_pl; I_pl(end)+1]; %#ok<AGROW> 
           % Segment-Nummern der beteiligten Körper (jeder Kollisionskörper
           % hat zwei Roboter-Körper zugewiesen)
           ii_links = [Structure.collbodies_robot.link(ii1,:), ...
@@ -1314,12 +1319,16 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
           % (siehe cds_update_collbodies zur Definition der Plattformteile)
           c1_is_platform = false;
           if length(intersect(ii_links(1:2)', I_pl)) == 2 && ...
-              ii_links(1) ~= ii_links(2)
+              ii_links(1) ~= ii_links(2) || ... % Jeweils dem Ende der Beinketten zugeordnet
+             length(intersect(ii_links(1:2)', I_pl)) == 1 && ...
+              ii_links(1) == ii_links(2) % Plattform-Körper
             c1_is_platform = true;
           end
           c2_is_platform = false;
           if length(intersect(ii_links(3:4)', I_pl)) == 2 && ...
-              ii_links(3) ~= ii_links(4)
+              ii_links(3) ~= ii_links(4) || ...
+             length(intersect(ii_links(3:4)', I_pl)) == 1 && ...
+              ii_links(3) == ii_links(4)
             c2_is_platform = true;
           end
           if c1_is_platform && c2_is_platform
