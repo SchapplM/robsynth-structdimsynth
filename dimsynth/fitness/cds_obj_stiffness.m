@@ -116,7 +116,8 @@ fval_phys = 1e-3 * f_com; % Umrechnung in äquivalenten physikalischen Wert (mm/
 debug_info = {sprintf('min. Steifigkeit: %1.3f N/mm', 1/f_com)};
 
 %% Debug-Zeichnung erstellen
-if fval < Set.general.plot_details_in_fitness
+if Set.general.plot_details_in_fitness < 0 && fval >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
+   Set.general.plot_details_in_fitness > 0 && fval <= abs(Set.general.plot_details_in_fitness)
   change_current_figure(205); clf; hold all;
   hdleig=plot(Keigges);
   hdl=plot([0; size(Q,1)], 1/Set.optimization.constraint_obj(5)*[1;1], 'r--');

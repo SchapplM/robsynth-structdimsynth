@@ -851,7 +851,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     constrvioltext_jic{jic} = sprintf(['Gelenkgrenzverletzung in AR-Eckwerten. ', ...
       'Schlechteste Spannweite: %1.2f/%1.2f (Gelenk %d%s)'], q_range_E(IIw), ...
       qlim(IIw,2)-qlim(IIw,1), IIw, jointstr);
-    if 1e4*fval < Set.general.plot_details_in_fitness
+    if Set.general.plot_details_in_fitness < 0 && 1e4*fval >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
+       Set.general.plot_details_in_fitness > 0 && 1e4*fval <= abs(Set.general.plot_details_in_fitness)
       change_current_figure(1000); clf; hold on;
       % Gut-Einträge: Dummy-NaN-Eintrag mit plotten, damit Handle für Legende nicht leer bleibt.
       hdl_iO= plot([find(~I_qlimviol_E),NaN], [QE(:,~I_qlimviol_E)-min(QE(:,~I_qlimviol_E)),NaN(size(QE,1),1)], 'co');
@@ -1127,7 +1128,8 @@ else % Gebe alle gültigen Lösungen aus
   % Optimierung benötigt, falls keine Trajektorie berechnet wird.
   QE_all = Q_jic(:,:,I_iO);
   % Debug: Zeige die verschiedenen Lösungen an
-  if 1e4*fval < Set.general.plot_details_in_fitness
+  if Set.general.plot_details_in_fitness < 0 && 1e4*fval >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
+     Set.general.plot_details_in_fitness > 0 && 1e4*fval <= abs(Set.general.plot_details_in_fitness)
     change_current_figure(2000);clf;
     for k = 1:length(I_iO)
       subplot(floor(ceil(length(I_iO))), ceil(sqrt(length(I_iO))), k);

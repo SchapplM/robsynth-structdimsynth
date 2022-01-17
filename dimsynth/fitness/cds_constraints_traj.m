@@ -954,7 +954,8 @@ if any(I_qlimviol_T)
   % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Weitere Rechnungen machen keinen Sinn.
   constrvioltext = sprintf(['Gelenkgrenzverletzung in Traj. Schlechteste ', ...
     'Spannweite: %1.2f/%1.2f (Gelenk %d)'], q_range_T(IIw), q_range_max(IIw), IIw);
-  if 1e4*fval < Set.general.plot_details_in_fitness
+  if Set.general.plot_details_in_fitness < 0 && 1e4*fval >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
+     Set.general.plot_details_in_fitness > 0 && 1e4*fval <= abs(Set.general.plot_details_in_fitness)
     RP = ['R', 'P'];
     change_current_figure(1000); clf;
     for i = 1:R.NJ
@@ -1052,7 +1053,8 @@ if any(~isinf(Structure.qDlim(:)))
     % Singularität vorliegt
     constrvioltext = sprintf('Geschwindigkeit eines Gelenks zu hoch: max Verletzung %1.1f%% (Gelenk %d)', ...
       (f_qD_exc-1)*100, ifmax);
-    if 1e4*fval < Set.general.plot_details_in_fitness
+    if Set.general.plot_details_in_fitness < 0 && 1e4*fval >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
+       Set.general.plot_details_in_fitness > 0 && 1e4*fval <= abs(Set.general.plot_details_in_fitness)
       RP = ['R', 'P'];
       change_current_figure(1004);clf;
       for i = 1:R.NJ
@@ -1091,7 +1093,8 @@ if any(~isinf(Structure.qDDlim(:)))
     % Singularität vorliegt
     constrvioltext = sprintf(['Beschleunigung eines Gelenks zu hoch: ', ...
       'max Verletzung %1.1f%% (Gelenk %d)'], (f_qDD_exc-1)*100, ifmax);
-    if 1e4*fval < Set.general.plot_details_in_fitness
+    if Set.general.plot_details_in_fitness < 0 && 1e4*fval >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
+       Set.general.plot_details_in_fitness > 0 && 1e4*fval <= abs(Set.general.plot_details_in_fitness)
       RP = ['R', 'P'];
       change_current_figure(1005);clf;
       for i = 1:R.NJ
@@ -1153,7 +1156,8 @@ if ~Structure.task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
   fval = 1e3*(4+1*fval_jump_norm); % Wert zwischen 4e3 und 5e3
   constrvioltext = sprintf('Konfiguration scheint zu springen. Korrelation Geschw. min. %1.2f, Position %1.2f', ...
     min(corrQD), min(corrQ));
-  if 1e4*fval < Set.general.plot_details_in_fitness
+  if Set.general.plot_details_in_fitness < 0 && 1e4*fval >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
+     Set.general.plot_details_in_fitness > 0 && 1e4*fval <= abs(Set.general.plot_details_in_fitness)
     % Geschwindigkeit neu mit Trapezregel berechnen (Integration)
     QD_num2 = repmat(QD(1,:),size(QD,1),1)+cumtrapz(Traj_0.t, QDD);
     RP = ['R', 'P'];

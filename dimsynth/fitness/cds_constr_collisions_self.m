@@ -77,7 +77,11 @@ else
   fval = 0;
 end
 %% Debug: Zeichnen der Situation
-if fval == 0 || 1e4*fval >= Set.general.plot_details_in_fitness
+if fval ~= 0 && ... % Nur Zeichnen, wenn auch Kollisionen auftreten
+   (Set.general.plot_details_in_fitness < 0 && 1e4*fval >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
+    Set.general.plot_details_in_fitness > 0 && 1e4*fval <= abs(Set.general.plot_details_in_fitness))
+  % Plotten
+else
   return
 end
 % Suche Datenpunkt mit größter Kollision
