@@ -44,7 +44,7 @@ if nargin < 6 || isempty(JP_in) || Set.general.debug_calc
   if R.Type == 0
     JP = NaN(size(Q,1), 3*(1+R.NJ));
   else
-    JP = NaN(size(Q,1), 3*(1+R.NJ+R.NLEG));
+    JP = NaN(size(Q,1), 3*(1+R.NJ+R.NLEG+1));
   end
   for i = 1:size(Q,1)
     if R.Type == 0
