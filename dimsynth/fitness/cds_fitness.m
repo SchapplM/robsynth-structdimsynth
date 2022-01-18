@@ -198,16 +198,7 @@ if fval_constr > 1000 % Nebenbedingungen verletzt.
   
   % Speichere Gelenk-Grenzen. Damit sehen eine hieraus erstellte 3D-Bilder
   % besser aus, weil die Schubgelenk-Führungsschienen ungefähr stimmen.
-  if ~Set.optimization.fix_joint_limits
-    if R.Type == 0 % Seriell
-      R.qlim(R.MDH.sigma==1,:) = minmax2(QE_iIKC(:,R.MDH.sigma==1,1)');
-    else % PKM
-      for i = 1:R.NLEG
-        Q_i = QE_iIKC(:,R.I1J_LEG(i):R.I2J_LEG(i),1);
-        R.Leg(i).qlim(R.Leg(i).MDH.sigma==1,:) = minmax2(Q_i(:,R.Leg(i).MDH.sigma==1)');
-      end
-    end
-  end
+  update_joint_limits(R, Set, QE_iIKC(:,:,1), true, 0);
   [~, i_gen, i_ind] = cds_save_particle_details([],[],0,0,NaN,NaN,NaN,NaN,'output');
   cds_log(2,sprintf(['[fitness] G=%d;I=%d. Fitness-Evaluation in %1.2fs. ', ...
     'fval=%1.3e. %s'],i_gen, i_ind, toc(t1), fval(1), constrvioltext));
@@ -382,16 +373,7 @@ for iIKC = 1:size(Q0,1)
   % Nutzen: Berechnung der Masse von Führungsschienen und Hubzylindern,
   % Anpassung der Kollisionskörper (für nachgelagerte Prüfung und Plots)
   % Bereits hier, damit Ergebnis-Visualisierung konsistent ist.
-  if ~Set.optimization.fix_joint_limits
-    if R.Type == 0 % Seriell
-      R.qlim(R.MDH.sigma==1,:) = minmax2(Q(:,R.MDH.sigma==1)');
-    else % PKM
-      for i = 1:R.NLEG
-        Q_i = Q(:,R.I1J_LEG(i):R.I2J_LEG(i));
-        R.Leg(i).qlim(R.Leg(i).MDH.sigma==1,:) = minmax2(Q_i(:,R.Leg(i).MDH.sigma==1)');
-      end
-    end
-  end
+  update_joint_limits(R, Set, Q, true, 0);
   massparam_set = false; % Marker, ob Masseparameter gesetzt wurden
   if ~isempty(intersect(Set.optimization.objective, {'energy', 'mass', ...
       'actforce', 'stiffness', 'materialstress'})) || ... % Für Zielfunktion benötigt
@@ -758,14 +740,7 @@ else
       end
     end
     % Passe Schubgelenk-Grenzen für den Plot an
-    if R.Type == 0 % Seriell
-      R.qlim = minmax2(Q_IKC(:,:, iIKCbest)');
-    else % PKM
-      for i = 1:R.NLEG
-        Q_i = Q_IKC(:,R.I1J_LEG(i):R.I2J_LEG(i), iIKCbest);
-        R.Leg(i).qlim = minmax2(Q_i');
-      end
-    end
+    update_joint_limits(R, Set, Q_IKC(:,:, iIKCbest), true, 0);
     % Zeige den Roboter für die gewählte Konfiguration
     cds_fitness_debug_plot_robot(R, Q_IKC(1,:,iIKCbest)', Traj_0, ...
       Traj_W, Set, Structure, p, mean(fval_IKC(iIKCbest,:)), debug_info);
@@ -858,14 +833,7 @@ end
 % rundungsbedingte Abweichungen auftreten. Ansonsten dadurch Verletzung
 % der Grenzen möglich.
 if ~Set.optimization.fix_joint_limits
-  if R.Type == 0 % Seriell
-    R.qlim = minmax2(Q_IKC(:,:, iIKCbest)') + 1e-6*repmat([-1, 1], R.NJ,1);
-  else % PKM
-    for i = 1:R.NLEG
-      Q_i = Q_IKC(:,R.I1J_LEG(i):R.I2J_LEG(i), iIKCbest);
-      R.Leg(i).qlim = minmax2(Q_i') + 1e-6*repmat([-1, 1], R.Leg(i).NJ,1);
-    end
-  end
+  update_joint_limits(R, Set, Q_IKC(:,:, iIKCbest), false, 1e-6);
 end
 % Trage Parameter der Entwurfsoptimierung neu in Klasse ein. Falls der
 % letzte Aufruf von constraints_traj nicht der beste war, ist sonst der
@@ -896,3 +864,50 @@ else
     i_gen, i_ind, toc(t1), fval(1), constrvioltext_IKC{iIKCbest}));
 end
 rng('shuffle'); % damit Zufallszahlen in anderen Funktionen zufällig bleiben 
+end
+
+function update_joint_limits(R, Set, Q, only_pris, tol)
+% Funktion zum Aktualisieren der Gelenkgrenzen in der Matlab-Klasse.
+% Schreibt die Min-/Max-Werte der Koordinaten Q als Grenze.
+% Eingabe:
+% R: Matlab-Klasse (Zeiger, wird auch geändert)
+% Set: Einstellungen
+% Q: Gelenk-Koordinaten
+% only_pris: Falls true: Nur Schubgelenke aktualisieren
+% tol: Toleranz, um die die Grenzen zusätzlich aufgeweitet werden
+if nargin < 5
+  tol = 0;
+end
+if Set.optimization.fix_joint_limits
+  % Bei Roboter-Modellen mit vorgegebenen Gelenkgrenzen wird nichts gemacht
+  return
+end
+if R.Type == 0 % Seriell
+  if only_pris
+    I = R.MDH.sigma==1;
+  else
+    I = true(R.NQJ,1);
+  end
+  R.qlim(I,:) = minmax2(Q(:,I)') + tol*repmat([-1, 1], sum(I), 1);
+else % PKM
+  % Grenzen bei symmetrischer Wahl
+  if Set.optimization.joint_limits_symmetric_prismatic
+    qminmax_legs = reshape(minmax2(Q'),R.Leg(1).NJ,2*R.NLEG);
+    qminmax_leg = minmax2(qminmax_legs);
+  end
+  for i = 1:R.NLEG
+    if only_pris
+      I = R.Leg(i).MDH.sigma==1;
+    else
+      I = true(R.Leg(i).NQJ,1);
+    end
+    if ~Set.optimization.joint_limits_symmetric_prismatic
+      Q_i = Q(:,R.I1J_LEG(i):R.I2J_LEG(i));
+      qminmax_legI = minmax2(Q_i(:,I)');
+    else
+      qminmax_legI = qminmax_leg(I,:);
+    end
+    R.Leg(i).qlim(I,:) = qminmax_legI + tol*repmat([-1, 1], sum(I), 1);
+  end
+end
+end

@@ -984,18 +984,31 @@ end
 %% Prüfe die Gelenkwinkelgrenzen (als Spannweite) für eine symmetrische PKM-Konfiguration
 % Bei Annahme einer symmetrischen PKM müssen die Gelenkkoordinaten aller
 % Beinketten auch gemeinsam die Bedingung der Winkelspannweite erfüllen. 
-% Dadurch wird eine Optimierung der Gelenkfeder-Ruhelagen ermöglicht. Sonst 
-% kann man nicht für alle Beinketten die gleichen Parameter wählen.
-% Trifft auch zu, wenn die Feder-Ruhelagen nicht optimiert, sondern nur
-% mittig gewählt werden
-if R.Type == 2 && Set.optimization.joint_stiffness_passive_revolute
+I_symlim = false(R.NJ,1);
+if R.Type == 2
+  % Für Schubgelenke prüfen. Damit müssen alle Schubgelenke baugleich
+  % ausgeführt werden (Führungsschiene, Zylinderlänge).
+  % Aktuell sind an dieser Stelle die Grenzen für Schubgelenke nicht
+  % gesetzt.
+  if Set.optimization.joint_limits_symmetric_prismatic
+    I_symlim(R.MDH.sigma==1) = true;
+  end
+  % Dadurch wird eine Optimierung der Gelenkfeder-Ruhelagen ermöglicht. Sonst 
+  % kann man nicht für alle Beinketten die gleichen Parameter wählen.
+  % Trifft auch zu, wenn die Feder-Ruhelagen nicht optimiert, sondern nur
+  % mittig gewählt werden
+  if Set.optimization.joint_stiffness_passive_revolute
+    I_symlim(R.MDH.sigma==0&R.I_qa==0) = true;
+  end
+end
+if any(I_symlim)
   % Siehe cds_dimsynth_desopt.m (konsistent dazu).
   % Fasse die Gelenke jeder Beinkette zusammen (symmetrische Anordnung)
   qminmax_legs = reshape(minmax2(Q'),R.Leg(1).NJ,2*R.NLEG);
   qminmax_leg = minmax2(qminmax_legs);
   q_range_T_all_legs = repmat(diff(qminmax_leg'), 1, R.NLEG);
   qlimviol_T = q_range_max' - q_range_T_all_legs;
-  I_qlimviol_T = (qlimviol_T < 0);
+  I_qlimviol_T = (qlimviol_T < 0) & I_symlim;
   if any(I_qlimviol_T)
     if Set.general.matfile_verbosity > 2
       save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...

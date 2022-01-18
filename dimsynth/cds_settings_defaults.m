@@ -169,6 +169,7 @@ optimization = struct( ...
   'max_acceleration_revolute', 100, ... % Maximale Geschw. (20) wäre in 0.2s erreicht. Sehr hoher Wert für frühe Erkennung schlechter Konditionierung
   'max_velocity_ee_rotation', 2*pi, ... % [rad/s]; im Fall von Aufgabenredundanz maximale Drehgeschwindigkeit des Endeffektors
   'max_acceleration_ee_rotation', 2*pi/0.200, ... % rad/s²; Aufbau der max. Geschwindigkeit in 200ms (sehr dynamisch)
+  'joint_limits_symmetric_prismatic', true, ... % Wähle die Gelenkgrenzen bei Schubgelenken symmetrisch (für Führungsschienen)
   'check_jointrange_points', true, ... % Prüfung der Gelenkwinkelspannweite bereits bei den Eckpunkten (Möglichkeit für falsch-positive Ausschlüsse)
   'prismatic_cylinder_allow_overlength', false, ... % Bei Schubzylindern darf der Zylinder nicht durch das vorherige Gelenk gehen. Ist konstruktiv ungünstig.
   'desopt_vars', {{}}, ... % Variablen für eigene Optimierung der Entwurfsparameter. Möglich: "linkstrength", "joint_stiffness_qref"
