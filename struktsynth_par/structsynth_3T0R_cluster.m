@@ -18,5 +18,5 @@ for select_variants = [false, true]
     'selectvariants', select_variants, ... % oder nur Varianten (dadurch stärker parallelisiert)
     'max_actuation_idx', 4); % Alle möglichen Aktuierungen prüfen
   pause(1.0); % damit nicht zwei gleiche Zeitstempel entstehen.
-  parroblib_add_robots_symact
+  parroblib_add_robots_symact(settings);
 end

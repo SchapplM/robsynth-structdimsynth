@@ -27,7 +27,7 @@ settings = struct( ...
   'whitelist_SerialKin', 'S5PRRRR8V1', ...
   'max_actuation_idx', 1); 
   
-parroblib_add_robots_symact
+parroblib_add_robots_symact(settings);
 
 return
 
@@ -70,7 +70,7 @@ for select_variants = [false, true]
     'selectvariants', select_variants, ... % oder nur Varianten (dadurch stärker parallelisiert)
     'whitelist_SerialKin', {settings.whitelist_SerialKin}); % wegen clear Befehl im Skript
   pause(1.0); % damit nicht zwei gleiche Zeitstempel entstehen.
-  parroblib_add_robots_symact
+  parroblib_add_robots_symact(settings);
 end
 %% Debug: Nutze Roboter direkt in der Maßsynthese (zum Testen)
 DoF = [1 1 1 0 0 0];

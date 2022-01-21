@@ -9,9 +9,7 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-09
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-clc
-clearvars -except settings
-
+function parroblib_add_robots_symact(settings)
 %% Standardeinstellungen für Benutzereingabe
 settings_default = struct( ...
   'check_existing', false, ... % Falls true: Prüfe existierende Roboter in Datenbank nochmal
@@ -721,7 +719,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       fid = fopen(targetfile, 'a');
       fprintf(fid, 'tmp=load(''%s'');\n', [computation_name,'.mat']);
       fprintf(fid, 'settings=tmp.settings_cluster;\n');
-      fprintf(fid, 'parroblib_add_robots_symact;\n');
+      fprintf(fid, 'parroblib_add_robots_symact(settings);\n');
       % Schließen des ParPools auch in Datei hineinschreiben
       fprintf(fid, 'parpool_writelock(''lock'', 300, true);\n');
       fprintf(fid, 'delete(gcp(''nocreate''));\n');

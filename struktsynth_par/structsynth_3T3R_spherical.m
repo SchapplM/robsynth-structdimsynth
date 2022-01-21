@@ -11,4 +11,4 @@ settings = struct( ...
   'onlygeneral', false, ... % Kugelgelenk-Beinketten sind spezielle Varianten
   'dryrun', true); 
   
-parroblib_add_robots_symact
+parroblib_add_robots_symact(settings);
