@@ -34,7 +34,8 @@ settings_default = struct( ...
   'dryrun', false, ... % Falls true: Nur Anzeige, was gemacht werden würde
   'offline', false, ... % Falls true: Keine Optimierung durchführen, stattdessen letztes passendes Ergebnis laden
   ... % ... dieser Modus kann genutzt werden, wenn die Optimierung korrekt durchgeführt wurde, aber die Nachverarbeitung fehlerhaft war
-  'EE_FG_Nr', 2:3, ... % nur 3T0R, 3T1R
+  'EE_FG_Nr', NaN, ... % Kann als Index für Variable EE_FG_ges benutzt werden. 1=2T0R, 2=2T1R, 3=3T0R, ...
+  'EE_FG', [1 1 0 0 0 1], ... % Beispiel: 2T1R. Können auch mehrere gestapelt sein
   'parcomp_structsynth', 1, ... % parfor-Struktursynthese (schneller, aber mehr Speicher notwendig)
   'parcomp_mexcompile', 1, ... % parfor-Mex-Kompilierung (schneller, aber Dateikonflikt möglich)
   'use_mex', 1, ... % Die nutzung kompilierter Funktionen kann deaktiviert werden. Dann sehr langsam. Aber Start geht schneller, da keine Kompiliertung zu Beginn.
@@ -58,7 +59,7 @@ end
 settings_new = settings_default;
 for f = fields(settings)'
   if ~isfield(settings_new, f{1})
-    warning('Feld %s kann nicht übergeben werden', f{1});
+    error('Feld %s kann nicht übergeben werden', f{1});
   else
     settings_new.(f{1}) = settings.(f{1});
   end
@@ -92,18 +93,31 @@ if settings.comp_cluster
     settings.dryrun = true; % Dann kein Füllen der Datenbank notwendig
   end
 end
-%% Initialisierung
-EE_FG_ges = [1 1 0 0 0 1; ...
+% Indizes der geprüften Freiheitsgrade bestimmen
+EE_FG_ges = [ ...
+  1 1 0 0 0 0; ...
+  1 1 0 0 0 1; ...
   1 1 1 0 0 0; ...
   1 1 1 0 0 1; ...
   1 1 1 1 1 0; ...
   1 1 1 1 1 1];
+if all(~isnan(settings.EE_FG_Nr))
+  settings.EE_FG = EE_FG_ges(settings.EE_FG_Nr,:);
+end
+EE_FG_Nr = [];
+for i = 1:size(EE_FG_ges,1)
+  if any(all(repmat(EE_FG_ges(i,:),size(settings.EE_FG,1),1)==settings.EE_FG))
+    EE_FG_Nr = [EE_FG_Nr, i]; %#ok<AGROW>
+  end
+end
+%% Initialisierung
+
 EE_FG_Mask = [1 1 1 1 1 1]; % Die FG müssen genauso auch vom Roboter erfüllt werden (0 darf nicht auch 1 sein)
 serroblibpath=fileparts(which('serroblib_path_init.m'));
 parroblibpath=fileparts(which('parroblib_path_init.m'));
 %% Alle PKM generieren
 fprintf('Beginne Schleife über %d verschiedene EE-FG\n', length(settings.EE_FG_Nr));
-for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
+for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
   EE_FG = EE_FG_ges(iFG,:);
   EE_FG_Name = sprintf( '%dT%dR', sum(EE_FG(1:3)), sum(EE_FG(4:6)) );
   % Pfad mit vollständigen Ergebnissen der Struktursynthese
@@ -126,11 +140,11 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     I1del(Cpl1_grid>1) = true;
     I2del(Cpl2_grid>1) = true;
   end
-  if any(iFG==[2 3]) % 3T0R oder 3T1R: keine paarweise Anordnung
+  if all(EE_FG(1:5)==[1 1 1 0 0]) % 3T0R oder 3T1R: keine paarweise Anordnung
     I1del(Cpl1_grid>4&Cpl1_grid<9) = true; % nur Methode 1 bis 4 oder 9 ist sinnvoll
     I2del(Cpl2_grid>3&Cpl2_grid<8) = true; % nur Methode 1 bis 3 oder 8 ist sinnvoll
   end
-  if any(iFG==4) % 3T2R: keine paarweise Anordnung
+  if all(EE_FG==[1 1 1 1 1 0]) % 3T2R: keine paarweise Anordnung
     I1del(Cpl1_grid>4&Cpl1_grid<9) = true; % nur Methode 1 bis 4 oder 9 ist sinnvoll
     I2del(Cpl2_grid>3&Cpl2_grid<8) = true; % nur Methode 1 bis 3 oder 8 ist sinnvoll
   end

@@ -6,7 +6,7 @@
 clear
 
 settings = struct( ...
-  'EE_FG_Nr', 1, ... % 2T1R
+  'EE_FG', logical([1 1 0 0 0 1]), ... % 2T1R
   'onlyspherical', false, ... % Allgemeine Beinketten
   'onlygeneral', true, ...
   'dryrun', true); 

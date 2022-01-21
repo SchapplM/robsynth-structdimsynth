@@ -11,7 +11,7 @@ for select_variants = [false, true]
   settings = struct( ...
     'check_existing', true, ... % alle existierenden nochmal prüfen
     'check_missing', true, ...  % fehlende hinzufügen
-    'EE_FG_Nr', 3, ... % 3T1R
+    'EE_FG', logical([1 1 1 0 0 1]), ... % 3T1R
     'comp_cluster', true, ... % auf Cluster rechnen
     'check_resstatus', 0:8, ... % Alle testen
     'selectgeneral', ~select_variants, ... % entweder nur allgemeine Beinketten

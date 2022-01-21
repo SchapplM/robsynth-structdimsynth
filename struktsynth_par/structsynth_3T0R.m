@@ -6,7 +6,7 @@
 clear
 
 settings = struct( ...
-  'EE_FG_Nr', 2, ... % 3T0R
+  'EE_FG', logical([1 1 1 0 0 0]), ... % 3T0R
   'dryrun', false, ...
   'max_actuation_idx', 1); 
   
