@@ -271,7 +271,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       if sum(SName=='P')>1 && ~settings.allow_passive_prismatic
         % Hat mehr als ein Schubgelenk. Kommt nicht für PKM in Frage.
         % (es muss dann zwangsläufig ein Schubgelenk passiv sein)
-        parroblib_update_csv({SName}, Coupling, logical(EE_FG), 1, 0);
+        parroblib_update_csv(SName, Coupling, logical(EE_FG), 1, 0);
         continue
       end
       
@@ -279,7 +279,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         % Nur die Gestell-Konfigurationen 1 (Kreisförmig) und 5 (Paar-
         % weise) sind unterscheidbar. Siehe align_base_coupling.
         if all(Coupling(1) ~= [1 5])
-          parroblib_update_csv({SName}, Coupling, logical(EE_FG), 8, 0);
+          parroblib_update_csv(SName, Coupling, logical(EE_FG), 8, 0);
           fprintf(['Beinkette %s (%s) mit Gestell-Koppelgelenk Nr. %d wird ', ...
             'aufgrund der Kugelgelenk-Isomorphismen verworfen.\n'], ...
             SName, SName_TechJoint, Coupling(1));
@@ -291,7 +291,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         % weise) sind unterscheidbar. Alle anderen lassen sich bei Kugel-
         % gelenken darauf zurückführen. Siehe align_platform_coupling.
         if all(Coupling(2) ~= [1 4])
-          parroblib_update_csv({SName}, Coupling, logical(EE_FG), 8, 0);
+          parroblib_update_csv(SName, Coupling, logical(EE_FG), 8, 0);
           fprintf(['Beinkette %s (%s) mit Plattform-Koppelgelenk Nr. %d wird ', ...
             'aufgrund der Kugelgelenk-Isomorphismen verworfen.\n'], ...
             SName, SName_TechJoint, Coupling(2));
@@ -323,7 +323,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         if ~leg_success
           fprintf('Beinkette %s mit Koppelpunkt-Nr. %d-%d wird aufgrund geometrischer Überlegungen verworfen.\n', ...
             SName, Coupling(1), Coupling(2));
-          parroblib_update_csv({SName}, Coupling, logical(EE_FG), 2, 0);
+          parroblib_update_csv(SName, Coupling, logical(EE_FG), 2, 0);
           continue
         end
       end
@@ -395,7 +395,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
             fprintf('Der Roboter %s würde zur Datenbank hinzugefügt werden\n', PName);
             Name = '<Neuer Name>';
             % Setze Status 6 ("noch nicht geprüft").
-            parroblib_update_csv({SName}, Coupling, logical(EE_FG), 6, 0);
+            parroblib_update_csv(SName, Coupling, logical(EE_FG), 6, 0);
           end
         else
           error('Dieser Fall darf nicht eintreten. Nicht-logische Eingabe');
@@ -849,44 +849,44 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           fprintf('Rangdefizit der Jacobi für Beispiel-Punkte ist %1.0f\n', min(fval_jjj)/100);
           parroblib_change_properties(Name, 'rankloss', sprintf('%1.0f', min(fval_jjj)/100));
           parroblib_change_properties(Name, 'values_angles', structparamstr);
-          parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 0, 0);
+          parroblib_update_csv(LEG_Names_array{1}, Coupling, logical(EE_FG), 0, 0);
           num_rankloss = num_rankloss + 1;
         elseif min(fval_jjj) > 1e10
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
             'Zielfunktion (Einzelpunkt-IK) %1.2e\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
-          parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 3);
+          parroblib_update_csv(LEG_Names_array{1}, Coupling, logical(EE_FG), 3);
         elseif min(fval_jjj) > 1e9
           fprintf(['Erweiterte Prüfung (Kollision etc.) fehlgeschlagen. Sollte ', ...
             'eigentlich nicht geprüft werden! Zielfkt. %1.2e\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
-          parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 7);
+          parroblib_update_csv(LEG_Names_array{1}, Coupling, logical(EE_FG), 7);
         elseif min(fval_jjj) > 1e8
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
             'Zielfunktion (Traj.-IK) %1.2e\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
-          parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 4);
+          parroblib_update_csv(LEG_Names_array{1}, Coupling, logical(EE_FG), 4);
         elseif min(fval_jjj) >= 9e7
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
             'Zielfunktion (Parasitäre Bewegung) %1.2e\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
-          parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 5);
+          parroblib_update_csv(LEG_Names_array{1}, Coupling, logical(EE_FG), 5);
         else
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
             'Zielfunktion (Nicht behandelte Ausnahme) %1.2e\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
-          parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 7);
+          parroblib_update_csv(LEG_Names_array{1}, Coupling, logical(EE_FG), 7);
         end
       else
         fprintf('%d/%d: PKM %s hat laut Maßsynthese vollen Laufgrad\n', jjj, length(Structures_Names), Name);
         parroblib_change_properties(Name, 'rankloss', '0');
         parroblib_change_properties(Name, 'values_angles', structparamstr);
-        parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 0, 1);
+        parroblib_update_csv(LEG_Names_array{1}, Coupling, logical(EE_FG), 0, 1);
         num_fullmobility = num_fullmobility + 1;
       end
 
