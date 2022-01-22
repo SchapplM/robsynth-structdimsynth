@@ -120,6 +120,10 @@ fprintf('Beginne Schleife über %d verschiedene EE-FG\n', length(settings.EE_FG_
 for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
   EE_FG = EE_FG_ges(iFG,:);
   EE_FG_Name = sprintf( '%dT%dR', sum(EE_FG(1:3)), sum(EE_FG(4:6)) );
+  % Ergebnis-Tabelle initialisieren
+  ResTab_empty = cell2table(cell(0,7), 'VariableNames', ...
+    {'FG', 'G', 'P', 'Chain', 'ResultCode', 'NumRankSuccess', 'Remove'});
+  ResTab = ResTab_empty;
   % Pfad mit vollständigen Ergebnissen der Struktursynthese
   parroblib_writelock('check', 'csv', logical(EE_FG), 600, true); % nicht lesen, wenn gleichzeitig geschrieben.
   synthrestable = readtable( ...
@@ -415,6 +419,8 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         Whitelist_PKM = [Whitelist_PKM;{Name}]; %#ok<AGROW>
       end
     end
+    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+      sprintf('parroblib_add_robots_symact_%s_0.mat', EE_FG_Name)));
     % Aktualisiere die mat-Dateien (werden für die Maßsynthese benötigt)
     if ~settings.dryrun, parroblib_gen_bitarrays(logical(EE_FG)); end
     if ~settings.dryrun
@@ -854,6 +860,8 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           'hinzugefügt werden sollte. Fehler.\n'], jjj, length(Structures_Names), Name);
         continue
       end
+      rescode = NaN; %#ok<NASGU> 
+      rank_success = 0;
       if all(fval_jjj > 50) % Definition der Werte für fval_jjj, siehe cds_constraints_traj, cds_fitness
         fprintf(['%d/%d: Für PKM %s konnte in der Maßsynthese keine funktio', ...
           'nierende Lösung gefunden werden.\n'], jjj, length(Structures_Names), Name);
@@ -861,47 +869,50 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           fprintf('Rangdefizit der Jacobi für Beispiel-Punkte ist %1.0f\n', min(fval_jjj)/100);
           parroblib_change_properties(Name, 'rankloss', sprintf('%1.0f', min(fval_jjj)/100));
           parroblib_change_properties(Name, 'values_angles', structparamstr);
-          parroblib_update_csv(LEG_Names_array{1}, Coupling, logical(EE_FG), 0, 0);
+          rescode = 0;
           num_rankloss = num_rankloss + 1;
         elseif min(fval_jjj) > 1e10
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
             'Zielfunktion (Einzelpunkt-IK) %1.2e\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
-          parroblib_update_csv(LEG_Names_array{1}, Coupling, logical(EE_FG), 3);
+          rescode = 3;
         elseif min(fval_jjj) > 1e9
           fprintf(['Erweiterte Prüfung (Kollision etc.) fehlgeschlagen. Sollte ', ...
             'eigentlich nicht geprüft werden! Zielfkt. %1.2e\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
-          parroblib_update_csv(LEG_Names_array{1}, Coupling, logical(EE_FG), 7);
+          rescode = 7;
         elseif min(fval_jjj) > 1e8
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
             'Zielfunktion (Traj.-IK) %1.2e\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
-          parroblib_update_csv(LEG_Names_array{1}, Coupling, logical(EE_FG), 4);
+          rescode = 4;
         elseif min(fval_jjj) >= 9e7
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
             'Zielfunktion (Parasitäre Bewegung) %1.2e\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
-          parroblib_update_csv(LEG_Names_array{1}, Coupling, logical(EE_FG), 5);
+          rescode = 5;
         else
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
             'Zielfunktion (Nicht behandelte Ausnahme) %1.2e\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
-          parroblib_update_csv(LEG_Names_array{1}, Coupling, logical(EE_FG), 7);
+          rescode = 7;
         end
       else
         fprintf('%d/%d: PKM %s hat laut Maßsynthese vollen Laufgrad\n', jjj, length(Structures_Names), Name);
         parroblib_change_properties(Name, 'rankloss', '0');
         parroblib_change_properties(Name, 'values_angles', structparamstr);
-        parroblib_update_csv(LEG_Names_array{1}, Coupling, logical(EE_FG), 0, 1);
+        rescode = 0;
+        rank_success = 1;
         num_fullmobility = num_fullmobility + 1;
       end
-
+      parroblib_update_csv(LEG_Names_array{1}, Coupling, logical(EE_FG), rescode, rank_success);
+      row = {EE_FG_Name, Coupling(1), Coupling(2), Name, rescode, rank_success, remove};
+      ResTab = [ResTab; row]; %#ok<AGROW> 
       if remove && ~settings.isoncluster % Auf Cluster würde das Löschen parallele Instanzen stören.
         fprintf('Entferne PKM %s wieder aus der Datenbank (Name wird wieder frei)\n', Name);
         remsuccess = parroblib_remove_robot(Name);
@@ -919,4 +930,11 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       Coupling(1), Coupling(2), num_fullmobility, num_rankloss, num_dimsynthfail, ...
       length(Structures_Names));
   end % Koppelpunkte (Variable kk)
+  % Ergebnis-Tabelle speichern
+  structgeompath=fileparts(which('structgeomsynth_path_init.m'));
+  restabfile = fullfile(structgeompath, 'results_structsynth', ...
+    ['struct_par_', EE_FG_Name, '_', datestr(now,'yyyymmdd_HHMMSS'), '.csv']);
+  mkdirs(fileparts(restabfile));
+  writetable(ResTab, restabfile, 'Delimiter', ';');
+  fprintf('Übersicht gespeichert: %s\n', restabfile);
 end % EE-FG (Variable iFG)
