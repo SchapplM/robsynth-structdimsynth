@@ -853,11 +853,15 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         if isempty([Actuation{:}])
           fprintf(['%d/%d: Aktuierung der PKM %s wurde nicht in Datenbank gefunden, ', ...
             'obwohl sie hinzugefügt werden sollte. Fehler.\n'], jjj, length(Structures_Names), Name);
+          row = {EE_FG_Name, Coupling(1), Coupling(2), Name, 99, 0, true};
+          ResTab = [ResTab; row]; %#ok<AGROW> 
           continue
         end
       catch
         fprintf(['%d/%d: PKM %s wurde nicht in Datenbank gefunden, obwohl sie ', ...
           'hinzugefügt werden sollte. Fehler.\n'], jjj, length(Structures_Names), Name);
+        row = {EE_FG_Name, Coupling(1), Coupling(2), Name, 98, 0, true};
+        ResTab = [ResTab; row]; %#ok<AGROW> 
         continue
       end
       rescode = NaN; %#ok<NASGU> 
