@@ -176,6 +176,7 @@ optimization = struct( ...
   'constraint_collisions', false, ... Schalter für Kollisionsprüfung
   'collshape_base', {{'default'}}, ... % Form der Kollisionskörper für die PKM-Basis: default, star, ring, joint. Siehe cds_update_collbodies.m; mehrere möglich.
   'collshape_platform', {{'default'}}, ... % Form der Kollisionskörper für die PKM-Plattform default, star, ring, sphere. Siehe cds_update_collbodies.m; mehrere möglich.
+  'pos_ik_tryhard_num', 0, ... % Anzahl der Versuche für die Positions-IK erhöhen (für Reproduktion der Ergebnisse bei anderer Zufallszahlen-Grundlage)
   'obj_limit', 0, ... % Grenze des Fitness-Wertes zum Beenden der Simulation
   'obj_limit_physval', 0, ... % Grenze für den physikalischen Wert zum Beenden
   'NumIndividuals', 50, ... % Anzahl der Partikel im PSO
