@@ -706,8 +706,12 @@ else
   % lange Offsets wirken unnatürlich (falls Zielkriterium darauf abzielt)
   if Structure.desopt_prismaticoffset && ...
       any(strcmp(Set.optimization.objective, 'chainlength'))
-    p_prismaticoffset_IKC = desopt_pval_IKC(:,Structure.desopt_ptypes==1);
-    [~,I_best_opt] = min(abs(p_prismaticoffset_IKC));
+    p_prismaticoffset_IKCopt = desopt_pval_IKC(iIKCopt,Structure.desopt_ptypes==1);
+    if ~all(abs(p_prismaticoffset_IKCopt-p_prismaticoffset_IKCopt(1))<1e-6)
+      % Die optimalen Lösungen unterscheiden sich im Wert für das Kriterium
+      % (sonst wird das Kriterium nicht zur Auswahl verwendet).
+      [~,I_best_opt] = min(abs(p_prismaticoffset_IKCopt));
+    end
   end
   % Nehme die Lösung mit der besten Konditionszahl. Toleranz gegen
   % Rundungsfehler; sonst beliebige Wahl quasi identischer Lösungen.
@@ -742,7 +746,6 @@ else
     I_best_opt = 1;% Nehme das erste (beliebig);
   end
   iIKCbest = iIKCopt(I_best_opt);
-
   if false % Debug: Prüfe, warum die eine Lösung besser als die andere ist
     % Passe Schubgelenk-Offset für den Plot an
     if Structure.desopt_prismaticoffset %#ok<UNRCH>
