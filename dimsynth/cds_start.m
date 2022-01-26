@@ -448,6 +448,7 @@ if Set.general.computing_cluster
     % Skript hochladen mit dem vorherigen Job als Abhängigkeit. Wenn der
     % Job vom PBS abgebrochen wird, wird der Aufräum-Job gestartet. Bei
     % Erfolg verfällt der Aufräum-Job.
+    pause(2); % Damit Sekunden-Zeitstempel im Ordernamen unterschiedlich ist
     jobIDs(2,kk) = jobStart(struct( ...
       'name', computation_name2, ...
       'ppn', min(length(I1_kk:I2_kk),Set.general.computing_cluster_cores), ... % gleiche Anzahl wie oben
