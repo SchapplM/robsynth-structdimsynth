@@ -242,6 +242,7 @@ if Set.general.only_finish_aborted && (Set.general.isoncluster || ...
   Set.general.only_finish_aborted = true; % Überschreibe geladene Einstellung
   Set.general.parcomp_plot = Set_tmp.general.parcomp_plot;
   Set.general.parcomp_struct = Set_tmp.general.parcomp_struct;
+  Set.general.parcomp_maxworkers = Set_tmp.general.parcomp_maxworkers;
   Set.optimization.resdir = Set_tmp.optimization.resdir;
   Set.general.create_template_functions = Set_tmp.general.create_template_functions;
   fprintf('Einstellungsdatei %s für Abschluss geladen.\n', settingsfile);
@@ -492,7 +493,8 @@ end
 % Konflikte zu vermeiden
 if Set.general.parcomp_struct && ... % Parallele Rechnung ist ausgewählt
     ~Set.general.regenerate_summary_only && ... % für Bildgenerierung ParComp nicht benötigt
-    length(Structures) > 1 % für Optimierung eines Roboters keine parallele Rechnung
+    length(Structures) > 1 && ... % für Optimierung eines Roboters keine parallele Rechnung
+    Set.general.parcomp_maxworkers > 0 % Parallele Berechnung auch so deaktivierbar
   Set.general.noprogressfigure = true;
   % Keine (allgemeinen) mat-Dateien speichern
   Set.general.matfile_verbosity = 0;

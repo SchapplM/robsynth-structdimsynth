@@ -80,7 +80,8 @@ if isempty(Set.general.animation_styles) && isempty(setdiff( ...
   length_Structures_parfor = 0;
 end
 %% Parallele Durchführung der Plots vorbereiten
-if Set.general.parcomp_plot && length_Structures_parfor > 0
+if Set.general.parcomp_plot && length_Structures_parfor > 0 && ...
+    Set.general.parcomp_maxworkers > 0 % Parallele Berechnung auch so deaktivierbar
   Pool = gcp('nocreate');
   if isempty(Pool) % kein Pool aktiv
     if Set.general.isoncluster % auf Cluster möglicher Zugriffskonflikt für ParPool
