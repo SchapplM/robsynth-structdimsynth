@@ -334,9 +334,14 @@ for kkk = 1:size(EE_FG_allowed,1)
         % Prüfe nicht die Einstellungsvariable Set.task.DoF, da bei
         % Aufgabenredundanz mehrere EE-FG in Frage kommen.
         if all(EE_FG_allowed(kkk,:) == [1 1 1 0 0 0])
-          Mask_Origin = uint16(bin2dec('00100')); % Dritte Spalte für Modellherkunft
+          % Eigentlich nur dritte Spalte für Modellherkunft für 3T0R-PKM
+          % Benutze auch Beinketten für 3T1R-PKM. TODO: Seriell-Synthese
+          % passt eventuell nicht komplett
+          Mask_Origin = uint16(bin2dec('00110'));
         elseif all(EE_FG_allowed(kkk,:) == [1 1 1 0 0 1])
-          Mask_Origin = uint16(bin2dec('00010')); % Vierte Spalte (in S5RPRPR.csv o.ä.)
+          % Eigentlich nur vierte Spalte (in S5RPRPR.csv o.ä.) für 3T1R-PKM
+          % Benutze auch Beinketten für 3T0R-PKM
+          Mask_Origin = uint16(bin2dec('00110'));
         else
           % Keine Einschränkung (außer manuell eingefügte Ketten)
           Mask_Origin = uint16(bin2dec('01111'));
