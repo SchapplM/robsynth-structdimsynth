@@ -72,6 +72,9 @@ if length(Set.optimization.obj_limit) == 1 && length(Set.optimization.objective)
   Set.optimization.obj_limit = repmat(Set.optimization.obj_limit, ...
     length(Set.optimization.objective), 1);
 end
+if ~any(strcmp(Set.optimization.algorithm, {'pso', 'mopso', 'gamultiobj'}))
+  error('Unerwarteter Wert für Feld "algorithm": %s', Set.optimization.algorithm);
+end
 if length(Set.optimization.objective) ~= length(Set.optimization.obj_limit)
   error('%d Zielfunktionen gesetzt und %d Abbruchbedingungen in obj_limit. Passt nicht.', ...
     length(Set.optimization.objective), length(Set.optimization.obj_limit));

@@ -125,7 +125,7 @@ optimization = struct( ...
   'constraint_obj', zeros(6,1), ... % Nebenbedingungen, 1=Mass, 2=Energy, 3=Actforce, 4=Condition, 5=Stiffness, 6=MaterialStress; Eintrag entspricht physikalischem Wert
   'condition_limit_sing', 1e5, ... % Wenn die Konditionszahl (der IK-Jacobi) schlechter ist, wird sofort abgebrochen. Schwellwert für Singularität. Deaktivieren durch setzen auf inf.
   'condition_limit_sing_act', inf, ... % Wenn die Konditionszahl (der PKM-Jacobi) schlechter ist, wird sofort abgebrochen. Schwellwert für Singularität. Deaktivieren durch setzen auf inf.
-  'algorithm', 'mopso', ... % Optimierungsalgorithmus für mehrkriterielle Optimierung. Möglich: mopso, gamultiobj
+  'algorithm', 'mopso', ... % Optimierungsalgorithmus für mehrkriterielle Optimierung. Möglich: pso, mopso, gamultiobj
   'movebase', true, ... % Position der Roboter-Basis
   'basepos_limits', NaN(3,2), ... % Grenzen für Basis-Position (Absolut, im Welt-KS)
   'ee_translation', true, ... % Freie Verschiebung des EE
