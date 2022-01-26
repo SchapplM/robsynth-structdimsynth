@@ -277,6 +277,9 @@ elseif Set.general.regenerate_summary_only && (Set.general.isoncluster || ...
   Structures = d.Structures;
   fprintf('Einstellungsdatei %s für Bild-Generierung geladen.\n', settingsfile);
 elseif ~Set.general.computing_cluster % nicht bei Hochladen des Jobs
+  if Set.general.isoncluster && isfolder(resdir_main)
+    error('Verzeichnis %s existiert bereits. Kein Überschreiben auf Cluster', resdir_main)
+  end
   mkdirs(resdir_main); % Ergebnis-Ordner für diese Optimierung erstellen
   % Einstellungen dieser kombinierten Synthese speichern. Damit ist im
   % Nachhinein nachvollziehbar, welche Roboter eventuell fehlen. Bereits hier
