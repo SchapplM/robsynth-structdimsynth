@@ -1851,23 +1851,8 @@ elseif length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
     % Keine Durchführung der Optimierung. Lade Daten der unfertigen
     % Optimierung und speichere sie so ab, als ob die Optimierung
     % durchgeführt wurde.
-    if strcmp(Set.optimization.algorithm, 'mopso')
-      filelist_tmpres = dir(fullfile(resdir, 'MOPSO_Gen*_AllInd.mat'));
-    elseif strcmp(Set.optimization.algorithm, 'gamultiobj')
-      filelist_tmpres = dir(fullfile(resdir, 'GAMO_Gen*_AllInd.mat'));
-    else
-      error('Algorithmus %s nicht definiert', Set.optimization.algorithm);
-    end
-    if isempty(filelist_tmpres)
-      cds_log(1, sprintf(['[dimsynth] Laden des letzten abgebrochenen Durch', ...
-        'laufs wurde angefordert. Aber keine Daten in %s vorliegend. Ende.'], resdir));
-      return
-    else
-      cds_log(1, sprintf(['[dimsynth] Laden des letzten abgebrochenen Durch', ...
-        'laufs aus gespeicherten Daten erfolgreich aus %s.'], resdir));
-    end
-    [~,I_newest] = max([filelist_tmpres.datenum]);
-    d = load(fullfile(resdir, filelist_tmpres(I_newest).name));
+    d = load_checkpoint_file(Set, resdir);
+    if isempty(d), return; end
     PSO_Detail_Data = d.PSO_Detail_Data;
     if strcmp(Set.optimization.algorithm, 'mopso')
       p_val_pareto = d.REP.pos;
@@ -1882,8 +1867,6 @@ elseif length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
     else
       error('Algorithmus %s nicht definiert', Set.optimization.algorithm);
     end
-    cds_log(1, sprintf(['[dimsynth] Ergebnis des letzten abgebrochenen ', ...
-      'Durchlaufs aus %s geladen.'], filelist_tmpres(I_newest).name));
   end
   % Entferne doppelte Partikel aus der Pareto-Front (bei MOPSO beobachtet)
   [~,I_unique] = unique(p_val_pareto, 'rows'); % Ausgabe sind Zahlen-Indizes (nicht: Binär)
@@ -1944,14 +1927,8 @@ else % Einkriteriell: PSO
       output.iterations, output.funccount, output.message));
     p_val = p_val(:); % stehender Vektor
   else % Lade Ergebnis einer unfertigen Optimierung
-    filelist_tmpres = dir(fullfile(resdir, 'PSO_Gen*_AllInd.mat'));
-    if isempty(filelist_tmpres)
-      cds_log(1, sprintf(['[dimsynth] Laden des letzten abgebrochenen ', ...
-        'Durchlaufs wurde angefordert. Aber keine Daten vorliegend. Ende.']));
-      return
-    end
-    [~,I_newest] = max([filelist_tmpres.datenum]);
-    d = load(fullfile(resdir, filelist_tmpres(I_newest).name));
+    d = load_checkpoint_file(Set, resdir);
+    if isempty(d), return; end
     p_val = d.optimValues.bestx(:);
     fval = d.optimValues.bestfval;
     exitflag = -6;
@@ -2446,4 +2423,53 @@ filelist_tmpres = [dir(fullfile(resdir, '*PSO_Gen*_AllInd.mat')); ...
   dir(fullfile(resdir, '*GAMO_Gen*_AllInd.mat'));];
 for i = 1:length(filelist_tmpres)
   delete(fullfile(resdir, filelist_tmpres(i).name));
+end
+end
+
+
+function d = load_checkpoint_file(Set, resdir)
+% Lade Daten zu letzter erfolgreicher Generation der Optimierung
+% Eingabe:
+%   Set, resdir: Siehe Definition bei Aufruf der Funktion
+% Ausgabe:
+%   d: Inhalt der Sicherungs-Datei
+d = [];
+if strcmp(Set.optimization.algorithm, 'mopso')
+  filelist_tmpres = dir(fullfile(resdir, 'MOPSO_Gen*_AllInd.mat'));
+elseif strcmp(Set.optimization.algorithm, 'gamultiobj')
+  filelist_tmpres = dir(fullfile(resdir, 'GAMO_Gen*_AllInd.mat'));
+elseif strcmp(Set.optimization.algorithm, 'pso')
+  filelist_tmpres = dir(fullfile(resdir, 'PSO_Gen*_AllInd.mat'));
+else
+  error('Algorithmus %s nicht definiert', Set.optimization.algorithm);
+end
+if isempty(filelist_tmpres)
+  cds_log(1, sprintf(['[dimsynth] Laden des letzten abgebrochenen Durch', ...
+    'laufs wurde angefordert. Aber keine Daten in %s vorliegend. Ende.'], resdir));
+  return
+end
+% Bestimme die Reihenfolge der Checkpoint-Dateien. Normalerweise
+% chronologisch, aber nochmal Prüfung anhand der Gen.-Nummer.
+[tmp,~] = regexp({filelist_tmpres.name},'_Gen(\d+)_','tokens','match');
+filelist_gen = cellfun(@str2double, cellfun(@(v)v{1},tmp) );
+[~,I_genasc] = sort(filelist_gen);
+
+for ii = fliplr(I_genasc)
+  try
+    d = load(fullfile(resdir, filelist_tmpres(ii).name));
+    cds_log(1, sprintf(['[dimsynth] Laden des letzten abgebrochenen Durch', ...
+      'laufs aus gespeicherten Daten erfolgreich aus %s.'], ...
+      fullfile(resdir,filelist_tmpres(ii).name)));
+    break;
+  catch err
+    cds_log(-1, sprintf(['[dimsynth] Fehler beim Laden von Wiederauf', ...
+      'nahme-Datei: %s.'], err.message));
+    continue
+  end
+end
+if isempty(d)
+  cds_log(-1, sprintf(['[dimsynth] Keine der %d Wiederaufnahme-Dateien ', ...
+    'erfolgreich geladen.'], length(I_genasc)));
+  return
+end
 end

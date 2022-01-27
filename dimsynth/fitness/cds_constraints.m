@@ -170,7 +170,7 @@ else % PKM
   s_par = struct('abort_firstlegerror', true);
   JPE = NaN(size(Traj_0.XE,1), (R.NL+R.NLEG)*3);
 end
-n_jic = 30;
+n_jic = 30+Set.optimization.pos_ik_tryhard_num;
 fval_jic = NaN(1,n_jic);
 calctimes_jic = NaN(2,n_jic);
 constrvioltext_jic = cell(n_jic,1);

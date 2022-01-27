@@ -83,6 +83,7 @@ for i = 1:length(optdirs)
   Set_tmp.computing_cluster = false; % Abschluss muss immer lokal gemacht werden bezogen auf System, das dieses Skript hier ausführt
   Set_tmp.general.only_finish_aborted = true;
   Set_tmp.general.isoncluster = false;
+%   Set_tmp.general.parcomp_maxworkers = 0; % Bei lokaler Ausführung ohne ParPool
   % Überschreibe das Verzeichnis, das in den Einstellungen gesetzt ist.
   % Dadurch auch lokaler Abschluss, wenn vom Cluster heruntergeladen.
   % TODO: Eigentlich gibt es dafür schon eine Logik in cds_start, die

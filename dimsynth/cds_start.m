@@ -72,6 +72,9 @@ if length(Set.optimization.obj_limit) == 1 && length(Set.optimization.objective)
   Set.optimization.obj_limit = repmat(Set.optimization.obj_limit, ...
     length(Set.optimization.objective), 1);
 end
+if ~any(strcmp(Set.optimization.algorithm, {'pso', 'mopso', 'gamultiobj'}))
+  error('Unerwarteter Wert für Feld "algorithm": %s', Set.optimization.algorithm);
+end
 if length(Set.optimization.objective) ~= length(Set.optimization.obj_limit)
   error('%d Zielfunktionen gesetzt und %d Abbruchbedingungen in obj_limit. Passt nicht.', ...
     length(Set.optimization.objective), length(Set.optimization.obj_limit));
@@ -242,6 +245,7 @@ if Set.general.only_finish_aborted && (Set.general.isoncluster || ...
   Set.general.only_finish_aborted = true; % Überschreibe geladene Einstellung
   Set.general.parcomp_plot = Set_tmp.general.parcomp_plot;
   Set.general.parcomp_struct = Set_tmp.general.parcomp_struct;
+  Set.general.parcomp_maxworkers = Set_tmp.general.parcomp_maxworkers;
   Set.optimization.resdir = Set_tmp.optimization.resdir;
   Set.general.create_template_functions = Set_tmp.general.create_template_functions;
   fprintf('Einstellungsdatei %s für Abschluss geladen.\n', settingsfile);
@@ -273,6 +277,9 @@ elseif Set.general.regenerate_summary_only && (Set.general.isoncluster || ...
   Structures = d.Structures;
   fprintf('Einstellungsdatei %s für Bild-Generierung geladen.\n', settingsfile);
 elseif ~Set.general.computing_cluster % nicht bei Hochladen des Jobs
+  if Set.general.isoncluster && isfolder(resdir_main)
+    error('Verzeichnis %s existiert bereits. Kein Überschreiben auf Cluster', resdir_main)
+  end
   mkdirs(resdir_main); % Ergebnis-Ordner für diese Optimierung erstellen
   % Einstellungen dieser kombinierten Synthese speichern. Damit ist im
   % Nachhinein nachvollziehbar, welche Roboter eventuell fehlen. Bereits hier
@@ -441,6 +448,7 @@ if Set.general.computing_cluster
     % Skript hochladen mit dem vorherigen Job als Abhängigkeit. Wenn der
     % Job vom PBS abgebrochen wird, wird der Aufräum-Job gestartet. Bei
     % Erfolg verfällt der Aufräum-Job.
+    pause(2); % Damit Sekunden-Zeitstempel im Ordernamen unterschiedlich ist
     jobIDs(2,kk) = jobStart(struct( ...
       'name', computation_name2, ...
       'ppn', min(length(I1_kk:I2_kk),Set.general.computing_cluster_cores), ... % gleiche Anzahl wie oben
@@ -492,7 +500,8 @@ end
 % Konflikte zu vermeiden
 if Set.general.parcomp_struct && ... % Parallele Rechnung ist ausgewählt
     ~Set.general.regenerate_summary_only && ... % für Bildgenerierung ParComp nicht benötigt
-    length(Structures) > 1 % für Optimierung eines Roboters keine parallele Rechnung
+    length(Structures) > 1 && ... % für Optimierung eines Roboters keine parallele Rechnung
+    Set.general.parcomp_maxworkers > 0 % Parallele Berechnung auch so deaktivierbar
   Set.general.noprogressfigure = true;
   % Keine (allgemeinen) mat-Dateien speichern
   Set.general.matfile_verbosity = 0;

@@ -90,6 +90,7 @@ d3 = load(setfile, 'Traj', 'Set', 'Structures');
 Set = d3.Set;
 Traj = d3.Traj;
 Structure = d3.Structures{RobNr};
+
 % Ergebnistabelle laden
 restabfile = fullfile(resdir_opt, sprintf('%s_results_table.csv', OptName));
 ResTab = readtable(restabfile, 'Delimiter', ';');
@@ -124,13 +125,13 @@ if any(strcmp(SelStr(Selection), {'Pareto', 'Parameter'}))
   % Neuberechnung der Fitness-Funktion für diese Bilder nicht notwendig.
   fitness_recalc_necessary = false;
 end
+% Initialisiere Abhängigkeiten von cds_fitness und cds_dimsynth_robot
+if Structure.Type == 0 % Seriell
+  serroblib_update_template_functions({Structure.Name});
+else % Parallel
+  parroblib_update_template_functions({Structure.Name});
+end
 if fitness_recalc_necessary
-  % Für Ausführung der Fitness-Fcn
-  if RobData.Type == 0
-    serroblib_addtopath({RobName});
-  else
-    parroblib_addtopath({RobName});
-  end
   % Berechne die Fitness-Funktionen
   clear cds_save_particle_details cds_fitness cds_log
   p = RobotOptRes.p_val_pareto(PNr,:)';
