@@ -154,10 +154,12 @@ if i_ar > 1 && Structure.task_red && Set.general.debug_taskred_perfmap
   end
   % Rechne die IK-Kriterien von Traj.- zu Pos.-IK um.
   % Reihenfolge: Siehe IK-Funktionen oder ik_optimcrit_index.m
+  % Einige Kriterien der Pos.-IK haben keine Entsprechung in Traj.-IK
   i=0; I_wn_traj = zeros(R.idx_ik_length.wnpos,1);
-  for f = fields(R.idx_ikpos_wn)'
+  for f = intersect(fields(R.idx_ikpos_wn)',fields(R.idx_iktraj_wnP)')
     i=i+1; I_wn_traj(i) = R.idx_iktraj_wnP.(f{1});
   end
+  I_wn_traj = I_wn_traj(I_wn_traj~=0); % überzählige Einträge entfernen
   save(fullfile(resdir,sprintf('%s_TaskRed_Traj%d.mat', name_prefix_ardbg, i_ar-1)), ...
     'X2', 'Q', 'i_ar', 'q', 'Stats', 'fval', 's');
   cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref(1:nt_red), ...
