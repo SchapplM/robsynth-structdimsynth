@@ -237,7 +237,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     fprintf('G%dP%d: Beginne Schleife über %d (prinzipiell) mögliche Beinketten-Kinematiken\n', ...
       Coupling(1), Coupling(2), length(II));
     
-    Whitelist_PKM = {};
+    Whitelist_PKM = {}; Whitelist_Leg = {};
     tlm_iFKloop = tic(); % zur Speicherung des Zeitpunkts der letzten Meldung
     % Sperre csv-Dateien während des Hinzufügens. Dieser Abschnitt ist
     % kritisch für parallel arbeitende weitere Instanzen der Synthese
@@ -417,6 +417,8 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           error('Dieser Fall darf nicht eintreten. Nicht-logische Eingabe');
         end
         Whitelist_PKM = [Whitelist_PKM;{Name}]; %#ok<AGROW>
+        [~, ~, ~, ~, ~, ~, ~, ~, PName_Leg_tmp] = parroblib_load_robot(Name,0);
+        Whitelist_Leg = [Whitelist_Leg, PName_Leg_tmp];
       end
     end
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
@@ -449,6 +451,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     end
     % Duplikate entfernen (falls mehr als eine Aktuierung erzeugt wird)
     Whitelist_Kin = unique(Whitelist_Kin);
+    Whitelist_Leg = unique(Whitelist_Leg);
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
       sprintf('parroblib_add_robots_symact_%s_1.mat', EE_FG_Name)));
     if ~settings.offline && ~settings.comp_cluster
@@ -736,6 +739,19 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         error('Datei %s muss aus Vorlage erzeugt werden', chf);
       end
       copyfile(chf, targetfile);
+      % Passe Filter für das Kopieren der Datenbank an. Sonst dauert es
+      % ewig, wenn die mex-Dateien für alle PKM kopiert werden.
+      fid = fopen(fullfile(jobdir, 'parroblib_tar_include.txt'), 'w');
+      for f = dir(fullfile(parroblibpath, '*.m'))'
+        fprintf(fid, [f.name, newline()]);
+      end
+      % Listen für alle PKM kopieren. Sonst Warnungen in Skripten
+      fprintf(fid, sprintf('sym*/sym_*T*R_list*\n')); % wird rekursiv gesucht
+      fprintf(fid, sprintf('synthesis_result_lists/*\n'));
+      for ii = 1:length(Whitelist_Leg) % Ordner für gewählte PKM
+        fprintf(fid, sprintf('sym_%s/%s/*\n', EE_FG_Name, Whitelist_Leg{ii}));
+      end
+      fclose(fid);
       fid = fopen(targetfile, 'a');
       fprintf(fid, 'tmp=load(''%s'');\n', [computation_name,'.mat']);
       fprintf(fid, 'settings=tmp.settings_cluster;\n');
