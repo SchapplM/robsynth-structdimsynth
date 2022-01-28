@@ -455,7 +455,10 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
       sprintf('parroblib_add_robots_symact_%s_1.mat', EE_FG_Name)));
     if ~settings.offline && ~settings.comp_cluster
-      fprintf('Generiere Template-Funktionen für %d Roboter und kompiliere anschließend.\n', length(Whitelist_Kin));
+      kompstr = '';
+      if settings.use_mex, kompstr=' und kompiliere anschließend'; end
+      fprintf('Generiere Template-Funktionen für %d Roboter%s.\n', ...
+        length(Whitelist_Kin), kompstr);
       % Erzeuge alle Template-Dateien neu (ohne Kompilierung). Dadurch wird
       % sichergestellt, dass sie die richtige Version haben.
       for i = 1:length(Whitelist_Kin)
@@ -574,7 +577,19 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         '%d Roboter\n'], length(Whitelist_PKM));
       cds_start(Set,Traj);
       resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
-      ds = load(fullfile(resmaindir, [Set.optimization.optname, '_settings.mat']));
+      dssetfile = fullfile(resmaindir, [Set.optimization.optname, '_settings.mat']);
+      if ~exist(dssetfile, 'file')
+        % Logik-Fehler. Speichere Status zum Debuggen. Nehme an, dass auf
+        % dem Cluster auf dem Tmp-Ordner einer Node gerechnet wird. Sichere
+        % PKM-Datenbank zum Debuggen und aktuellen Status, sonst ist er weg.
+        tmpdir = fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp');
+        mkdirs(tmpdir);
+        save(fullfile(tmpdir, 'parroblib_add_robots_symact_debug_norobots.mat'));
+        zip(fullfile(tmpdir, 'parroblib.zip'), parroblibpath);
+        error(['Einstellungsdatei %s existiert nicht. Logik-Fehler. Tmp-', ...
+          'Daten in Ergebnis-Ordner gespeichert'], dssetfile)
+      end
+      ds = load(dssetfile);
       Structures = ds.Structures;
     elseif settings.offline
       % Debug: Lade Ergebnisse aus temporärem Cluster-Download-Ordner
@@ -745,7 +760,8 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       for f = dir(fullfile(parroblibpath, '*.m'))'
         fprintf(fid, [f.name, newline()]);
       end
-      % Listen für alle PKM kopieren. Sonst Warnungen in Skripten
+      % Listen für alle PKM kopieren. Sonst wird mit gen_bitarrays die mat-
+      % Datenbank dafür neu erstellt und es werden Warnungen ausgegeben.
       fprintf(fid, sprintf('sym*/sym_*T*R_list*\n')); % wird rekursiv gesucht
       fprintf(fid, sprintf('synthesis_result_lists/*\n'));
       for ii = 1:length(Whitelist_Leg) % Ordner für gewählte PKM
