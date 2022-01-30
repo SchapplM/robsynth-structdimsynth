@@ -946,7 +946,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         'nach hinten über. Min. Abstand %1.1fmm, Innenzylinder Länge %1.1fmm ', ...
         '(Gelenk %d)'], 1e3*qmin_cyl(Iworst), 1e3*length_cyl(Iworst), Iworst);
       fval_cyllen_norm = 2/pi*atan((fval_cyllen-1)*3); % Normierung auf 0 bis 1; 100% zu lang ist 0.8
-      fval = 1e5*(4.5+0.5*fval_cyllen_norm); % Normierung auf 4.5e5 bis 5e5
+      fval = 1e5*(4.5+0.25*fval_cyllen_norm); % Normierung auf 4.5e5 bis 4.75e5
       fval_jic(jic) = fval;
       calctimes_jic(i_ar,jic) = toc(t1);
       continue;
@@ -959,6 +959,28 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         end
       end
       cds_fitness_debug_plot_robot(R, QE(1,:)', Traj_0, Traj_0, Set, Structure, [], mean(fval), {});
+    end
+    % Gleiche Rechnung, nur für symmetrische Anordnung der Beinketten.
+    % Annahme: Symmetrischer Aufbau, also zählen die Bewegungen aller Beine
+    if Set.optimization.joint_limits_symmetric_prismatic
+      % Min-/Max-Werte für jede Beinkette einzeln ermitteln
+      qminmax_cyl_legs = reshape(minmax2(QE(:,Structure.I_straightcylinder)'),...
+        sum(Structure.I_straightcylinder(1:R.Leg(1).NJ)),2*R.NLEG);
+      % Gemeinsame Min-/Max-Werte für alle Beinketten gemeinsam.
+      qminmax_cyl = minmax2(qminmax_cyl_legs);
+      length_cyl = qminmax_cyl(:,1) - qminmax_cyl(:,2);
+      [fval_cyllen, Iworst] = max(length_cyl./qminmax_cyl(:,1));
+      if fval_cyllen > 1
+        constrvioltext_jic{jic} = sprintf(['Länge eines Schubzylinders steht ', ...
+          'nach hinten über. Min. Abstand %1.1fmm, Innenzylinder Länge %1.1fmm ', ...
+          '(Gelenk %d). Aufgrund symmetrischer Auslegung der Beinketten.'], ...
+          1e3*qmin_cyl(Iworst), 1e3*length_cyl(Iworst), Iworst);
+        fval_cyllen_norm = 2/pi*atan((fval_cyllen-1)*3); % Normierung auf 0 bis 1; 100% zu lang ist 0.8
+        fval = 1e5*(4.75+0.25*fval_cyllen_norm); % Normierung auf 4.75e5 bis 5e5
+        fval_jic(jic) = fval;
+        calctimes_jic(i_ar,jic) = toc(t1);
+        continue
+      end
     end
   end
   %% Anpassung des Offsets für Schubgelenke
