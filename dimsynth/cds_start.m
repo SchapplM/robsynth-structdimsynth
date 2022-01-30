@@ -549,9 +549,13 @@ if ~isempty(Set.structures.whitelist)
   Names_in_Struct = {}; % Es können bei Struktursynthese Strukturen doppelt getestet werden
   for i = 1:length(Structures), Names_in_Struct{i} = Structures{i}.Name; end %#ok<AGROW>
   if length(Set.structures.whitelist) ~= length(unique(Names_in_Struct))
-    warning('Es wurde eine Positiv-Liste übergeben, aber nicht alle dieser Strukturen wurden gewählt.');
+    warning(['Es wurde eine Positiv-Liste übergeben, aber nur %d ', ...
+      'dieser %d Strukturen wurden gewählt.'], length(unique(Names_in_Struct)), ...
+      length(Set.structures.whitelist));
     disp('Gültige Roboter:');
     disp(intersect(Set.structures.whitelist, Names_in_Struct));
+    disp('Ungültige Roboter:')
+    disp(setdiff(Set.structures.whitelist, Names_in_Struct));
   end
 end
 
