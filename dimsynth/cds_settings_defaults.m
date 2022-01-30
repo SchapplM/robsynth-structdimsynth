@@ -71,7 +71,8 @@ general = struct( ...
   ... % benutzt. Das ist die sinnvollste Einstellung, wenn das Ergebnis 
   ... % schnellstmöglich fertig werden soll.
   'cluster_maxrobotspernode', NaN, ... 
-  'cluster_dependjobs', [], ... % Liste von Job-IDs, die zuerst fertig werden sollen (mit i.O.-Ergebnis)
+  ... % Liste von Job-IDs, die zuerst fertig werden sollen (bzw. Abbruch o.ä.)
+  'cluster_dependjobs', struct('afterok', [], 'afternotok', [], 'afterany', []), ...
   ... % Optionen zur Benutzung kompilierter Funktionen
   'compile_missing_functions', true, ... % Bei Start alle mex-Funktionen kompilieren
   'create_template_functions', false, ... % Erzeuge Funktionen neu aus Vorlagen-Dateien (immer)

@@ -817,13 +817,21 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       % große Einschätzung der Rechenzeit.
       fprintf('Starte die Berechnung der Struktursynthese auf dem Rechencluster: %s\n', computation_name);
       addpath(cluster_repo_path);
-      jobStart(struct('name', computation_name, ...
+      jobid = jobStart(struct('name', computation_name, ...
         ... % Nur so viele Kerne beantragen, wie auch benötigt werden ("ppn")
         'ppn', min(length(Whitelist_PKM),12), ... % 12 Kerne ermöglicht Lauf auf fast allen Cluster-Nodes
         'matFileName', [computation_name, '.m'], ...
         'locUploadFolder', jobdir, ...
         'time', 12+length(Whitelist_PKM)*0.5/min(length(Whitelist_PKM),12))); % Zeit in h. Schätze 30min pro PKM im Durchschnitt
       rmpath_genpath(cluster_repo_path, false);
+      % Starte auch einen Abschluss-Job. Ist notwendig, falls bei Timeout
+      % vorzeitig abgebrochen wird. Siehe cds_start.m
+      Set.general.computing_cluster = true;
+      Set.general.computing_cluster_cores = min(length(Whitelist_PKM),12); % s.o.
+      Set.general.only_finish_aborted = true;
+      Set.general.cluster_dependjobs.afternotok = jobid;
+      pause(2); % Für Sekunden-Zeitstempel im Ordernamen auf Cluster
+      cds_start(Set, Traj);
       continue % Nachfolgendes muss nicht gemacht werden
     end
     
