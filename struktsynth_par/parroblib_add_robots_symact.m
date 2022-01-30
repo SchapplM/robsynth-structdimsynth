@@ -629,6 +629,21 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
               end
             end
           end
+          % Prüfe zusätzlich, ob Informationen zu den Ergebnissen in der
+          % csv-Tabelle stehen. Dann auch Aussage ohne mat-Dateien möglich
+          csvfile = fullfile(reslist(i).folder, reslist(i).name, ...
+            sprintf('%s_results_table.csv', reslist(i).name));
+          if exist(csvfile, 'file')
+            ResData_i = readtable(csvfile, 'HeaderLines', 2);
+            ResData_i_headers = readtable(csvfile, 'ReadVariableNames', true);
+            if size(ResData_i, 1) > 0 % Leere Tabelle führt zu Fehler
+              ResData_i.Properties.VariableNames = ResData_i_headers.Properties.VariableNames;
+              for k = 1:length(Whitelist_PKM_match)
+                Whitelist_PKM_match(k) = any(strcmp(ResData_i.Name, Whitelist_PKM{k}));
+              end
+              reslist_pkm_names = [reslist_pkm_names; ResData_i.Name]; %#ok<AGROW> 
+            end
+          end
           % Alter des Ordners bestimmen (aus bekanntem Namensschema)
           [datestr_match, ~] = regexp(reslist(i).name,'[A-Za-z0-9_]*_tmp_(\d+)_(\d+)', 'tokens','match');
           if isempty(datestr_match)
@@ -650,29 +665,49 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           - reslist_rationomatch*0.10); % Bestrafe nicht passende Einträge
         Set.optimization.optname = reslist(I).name;
         % Erstelle Variablen, die sonst in cds_start entstehen
-        roblist = dir(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
-          'Rob*_Endergebnis.mat')); % Die Namen aller Roboter sind in den Ergebnis-Dateien enthalten.
-        [tokens, ~] = regexp({roblist(:).name},'Rob(\d+)_([A-Za-z0-9]+)_Endergebnis\.mat','tokens','match');
-        % Nach Nummer der Roboter sortieren (für nachträgliche Erzeugung der
-        % Ergebnis-Tabelle zum korrekten Laden der mat-Dateien)
-        robnum_ges = zeros(length(tokens),1);
-        for i = 1:length(tokens)
-          robnum_ges(i) = str2double(tokens{i}{1}{1});
+        csvfile = fullfile(reslist(I).folder, reslist(I).name, ...
+          sprintf('%s_results_table.csv', reslist(I).name));
+        use_csv = true;
+        if ~exist(csvfile, 'file')
+          use_csv = false;
+        else
+          ResData_i = readtable(csvfile, 'HeaderLines', 2);
+          if size(ResData_i, 1) == 0 % Leere Tabelle führt zu Fehler
+            use_csv = false;
+          end
         end
-        [~,I_sortres] = sort(robnum_ges);
         % Erstelle Cell-Array mit allen Roboter-Strukturen (Platzhalter-Var.)
-        Structures = {}; istr = 0;
-        for i = I_sortres(:)'
-          istr = istr + 1;
-          Structures{istr} = struct('Name', tokens{i}{1}{2}, 'Type', 2); %#ok<SAGROW>
+        if use_csv
+          ResData_i_headers = readtable(csvfile, 'ReadVariableNames', true);
+          ResData_i.Properties.VariableNames = ResData_i_headers.Properties.VariableNames;
+          Structures = cell(1,size(ResData_i,1));
+          for i = 1:size(ResData_i,1)
+            Structures{ResData_i.LfdNr(i)} = struct('Name', ResData_i.Name{i}, 'Type', 2);
+          end
+        else
+          roblist = dir(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+            'Rob*_Endergebnis.mat')); % Die Namen aller Roboter sind in den Ergebnis-Dateien enthalten.
+          [tokens, ~] = regexp({roblist(:).name},'Rob(\d+)_([A-Za-z0-9]+)_Endergebnis\.mat','tokens','match');
+          % Nach Nummer der Roboter sortieren (für nachträgliche Erzeugung der
+          % Ergebnis-Tabelle zum korrekten Laden der mat-Dateien)
+          robnum_ges = zeros(length(tokens),1);
+          for i = 1:length(tokens)
+            robnum_ges(i) = str2double(tokens{i}{1}{1});
+          end
+          [~,I_sortres] = sort(robnum_ges);
+          Structures = cell(1,length(I_sortres)); istr = 0;
+          for i = I_sortres(:)'
+            istr = istr + 1;
+            Structures{istr} = struct('Name', tokens{i}{1}{2}, 'Type', 2); %#ok<SAGROW>
+          end
         end
         % Erstelle auch die csv-Tabelle aus den Ergebnissen (falls fehlend)
-        if ~exist(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
-            sprintf('%s_results_table.csv', Set.optimization.optname)), 'file')
+        if ~exist(csvfile, 'file')
           try
             cds_results_table(Set, Traj, Structures);
-          catch err
-            warning('Ergebnis-Tabelle konnte nicht erstellt werden. Vermutlich Daten mit alter Version erzeugt.');
+          catch
+            warning(['Ergebnis-Tabelle konnte nicht erstellt werden. ', ...
+              'Vermutlich Daten mit alter Version erzeugt.']);
           end
         end
         % Stelle fest, ob das Ergebnis vollständig ist
@@ -704,7 +739,6 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     % Ergebnisse der Struktursynthese (bzw. als solcher durchgeführten
     % Maßsynthese zusammenstellen)
     resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
-    Ergebnisliste = dir(fullfile(resmaindir,'*_Endergebnis.mat'));
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
       sprintf('parroblib_add_robots_symact_%s_3.mat', EE_FG_Name)));
     %% LUIS-Cluster vorbereiten
@@ -794,6 +828,22 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     end
     
     %% Nachverarbeitung der Ergebnis-Liste
+    % CSV-Tabelle laden (obiges Laden derselben Datei wird nicht bei 
+    % jeder Einstellung des Skripts gemacht)
+    csvfile = fullfile(resmaindir, [Set.optimization.optname, ...
+        '_results_table.csv']); % Muss hier existieren
+    ResData = readtable(csvfile, 'HeaderLines', 2);
+    ResData_headers = readtable(csvfile, 'ReadVariableNames', true);
+    if isempty(ResData)
+      fprintf('Keine Ergebnisse vorhanden. Entferne PKM wieder bei Abschluss\n')
+      ResData = ResData_headers; % So Übernahme der Überschriften für leere Tabelle.
+    else
+      ResData.Properties.VariableNames = ResData_headers.Properties.VariableNames;
+    end
+    settingsfile = fullfile(resmaindir, [Set.optimization.optname, ...
+        '_settings.mat']);
+    tmpset = load(settingsfile);
+
     % Stelle die Liste der Roboter zusammen. Ist nicht identisch mit Dateiliste,
     % da PKM mehrfach geprüft werden können.
     Structures_Names = cell(1,length(Structures));
@@ -805,7 +855,8 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     % nummern gelöscht werden. Andernfalls gibt es Logik-Probleme in der DB
     Structures_Names = fliplr(sort(Structures_Names)); %#ok<FLPST>
     fprintf('Verarbeite die %d Ergebnisse der Struktursynthese (%d PKM)\n', ...
-      length(Ergebnisliste), length(Structures_Names));
+      sum(~isnan(ResData.LfdNr)), length(Structures_Names));
+
     parroblib_writelock('lock', 'csv', logical(EE_FG), 30*60, true); % Sperre beim Ändern der csv
     for jjj = 1:length(Structures_Names) % Alle eindeutigen Strukturen durchgehen
       %% Ergebnisse für diese PKM laden
@@ -815,24 +866,17 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       % verschiedene Fälle für freie Winkelparameter untersucht werden.
       fval_jjj = []; % Zielfunktionswert der Ergebnisse für diese PKM in der Ergebnisliste
       angles_jjj = {}; % gespeicherte Werte für freie alpha- und theta-Parameter (wird variiert)
-      for jj = 1:length(Ergebnisliste)
-        if contains(Ergebnisliste(jj).name,Name)
-          % Ergebnisse aus Datei laden
-          resfile = fullfile(resmaindir, Ergebnisliste(jj).name);
-          tmp = load(resfile, 'RobotOptRes');
-          RobotOptRes = tmp.RobotOptRes;
-          if ~isfield(RobotOptRes.Structure, 'angles_values')
-            warning('Datei %s hat veraltetes Format', resfile);
-            continue
-          end
-          fval_jjj = [fval_jjj, RobotOptRes.fval]; %#ok<AGROW>
+      for jj = 1:size(ResData,1)
+        if strcmp(ResData.Name{jj},Name)
+          fval_jjj = [fval_jjj, ResData.Fval_Opt(jj)]; %#ok<AGROW>
+          Structure_jj = tmpset.Structures{ResData.LfdNr(jj)};
           if isempty(angles_jjj) % Syntax-Fehler vermeiden bei leerem char als erstem
-            angles_jjj = {RobotOptRes.Structure.angles_values};
+            angles_jjj = {Structure_jj.angles_values};
           else
-            angles_jjj = [angles_jjj, RobotOptRes.Structure.angles_values]; %#ok<AGROW>
+            angles_jjj = [angles_jjj, Structure_jj.angles_values]; %#ok<AGROW>
           end
-        elseif isempty(fval_jjj) && jj == length(Ergebnisliste)
-          warning('Ergebnisdatei zu %s nicht gefunden', Name);
+        elseif isempty(fval_jjj) && jj == size(ResData,1)
+          warning('Ergebnis zu %s nicht in Tabelle gefunden', Name);
           continue; % kann im Offline-Modus passieren, falls unvollständige Ergebnisse geladen werden.
         end
       end
