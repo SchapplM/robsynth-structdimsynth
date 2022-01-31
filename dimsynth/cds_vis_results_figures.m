@@ -28,7 +28,7 @@
 % settings
 %   Einstellungen zum Verhalten der Funktion. Felder:
 %   .figure_invisible: Erzeuge alle Bilder unsichtbar, ohne Fokus-Klau.
-%   .delete_figure: Lösche das Bild direkt nach dem Speichern wieder.
+%   .delete_figure: Schließe das Bild direkt nach dem Speichern wieder.
 % 
 % Siehe auch: cds_vis_results.m
 
@@ -38,6 +38,12 @@
 function fhdl = cds_vis_results_figures(figname, Set, Traj, RobData, ...
   ResTab, RobotOptRes, RobotOptDetails, PSO_Detail_Data, settings)
 %% Initialisierung
+assert(isa(figname, 'char'), 'Eingabe figname muss char sein');
+fignames_allowed = {'robvisu', 'robvisuanim', 'animation', 'jointtraj', ...
+  'pareto', 'dynamics', 'dynparvisu', 'optpar', 'springrestpos'};
+assert(any(strcmp(fignames_allowed, figname)), ['Eingabe figname (''%s'') muss ', ...
+  'eines dieser der Werte sein: %s'], figname, disp_array(fignames_allowed, '%s'));
+
 settings_defaults = struct(...
   'figure_invisible', false, ...
   'delete_figure', false);

@@ -181,6 +181,15 @@ if ~isempty(Set.general.save_animation_file_extensions) && isempty(Set.general.a
   warning('Eingabefeld animation_styles ist leer. Keine Animation');
   Set.general.save_animation_file_extensions = {};
 end
+eval_figures_allowed = {'robvisu', 'robvisuanim', 'animation', 'jointtraj', ...
+  'pareto', 'dynamics', 'dynparvisu', 'optpar', 'springrestpos', ... % cds_vis_results_figures
+  'pareto_all_phys', 'pareto_all_fval', 'histogram', 'fitness_various'}; % cds_vis_results
+if length(intersect(eval_figures_allowed, Set.general.eval_figures)) ~= ...
+    length(Set.general.eval_figures)
+  error(['Eingabefeld eval_figures enthält unerwartete Einträge. Ist: ', ...
+    '{%s}, Erlaubt: {%s}'], disp_array(Set.general.eval_figures, '%s'), ...
+    disp_array(eval_figures_allowed, '%s'));
+end
 if isnan(Set.general.cluster_maxrobotspernode)
   Set.general.cluster_maxrobotspernode = Set.general.computing_cluster_cores;
 end

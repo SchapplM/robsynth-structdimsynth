@@ -27,6 +27,7 @@ function cds_check_results_reproducability(OptName, RobName, s_in)
 %% Eingabe prüfen
 s = struct( ...
   'update_template_functions', false, ... % Aktualisieren die Matlab-Funktionen
+  'figure_invisible', true, ... % Unsichtbar erzeugen zum Speichern ohne Fokus-Klau
   'eval_plots', {{}}, ... % Liste von Plots, die für jedes Partikel erstellt werden. Siehe Eingabe figname in cds_vis_results_figures.
   'results_dir', [], ... % Alternatives Verzeichnis zum Laden der Ergebnisse
   'only_from_pareto_front', true); % bei false werden alle Partikel geprüft, bei true nur die besten
@@ -256,10 +257,10 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
       ResTab = readtable(restabfile, 'Delimiter', ';');
       Set_tmp = Set;
       Set_tmp.optimization.resdir = resdir; % Verzeichnis des Clusters überschreiben
-      for figname = s.eval_plots
-        cds_vis_results_figures(figname, Set_tmp, Traj, RobData, ResTab, ...
-          RobotOptRes, RobotOptDetails, [], struct('figure_invisible', true, ...
-          'delete_figure', true));
+      for figname_cell = s.eval_plots
+        cds_vis_results_figures(figname_cell{1}, Set_tmp, Traj, RobData, ResTab, ...
+          RobotOptRes, RobotOptDetails, [], struct('figure_invisible', ...
+          s.figure_invisible, 'delete_figure', s.figure_invisible));
       end
     end
     % Auswertungs-Tabelle für den Roboter schreiben
