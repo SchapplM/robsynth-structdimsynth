@@ -28,7 +28,9 @@
 %   4e3...5e3: Konfiguration springt
 %   5e3...6e3: Beschleunigungsgrenzen
 %   6e3...7e3: Geschwindigkeitsgrenzen
-%   7e3...7.5e3: Gelenkwinkelgrenzen (Absolut) in Trajektorie
+%   7e3...7.2e3: Schubzylinder geht zu weit nach hinten weg (symm.)
+%   7.2e3...7.4e3: Schubzylinder geht zu weit nach hinten weg
+%   7.4e3...7.5e3: Gelenkwinkelgrenzen (Absolut) in Trajektorie
 %   7.5e3...8e3: Gelenkwinkelgrenzen (Spannweite) in Trajektorie (alle Beinkette zusammen)
 %   8e3...9e3: Gelenkwinkelgrenzen (Spannweite) in Trajektorie (jede Beinkette)
 %   9e3...1e4: Parasitäre Bewegung (Roboter strukturell unpassend)
@@ -247,6 +249,12 @@ if i_ar == 2 && fval > 7e3 && fval < 9e3
   % Hyperbolisches Kriterium in größerem Maße aktiv
   s.optimcrit_limits_hyp_deact = 0.6;
   s.enforce_qlim = true; % Bei Verletzung maximal entgegenwirken
+  if fval > 7e3 && fval <7.4e3
+    % Ausschlaggebend war ein zu weit nach hinten abstehender Schubzylinder
+    % Untere Grenze der Gelenkkoordinaten besonders kritisch. Passe an.
+    % TODO: Tritt meistens bei zweiter Iteration auf. Mehr Iterationen
+    % notwendig.
+  end
 end
 if i_ar == 2
   % Dämpfung der Geschwindigkeit, gegen Schwingungen
@@ -1045,13 +1053,65 @@ if Set.optimization.fix_joint_limits
     [lvmax,Imax] = max(Q_limviolA,[],1);
     [delta_lv_maxrel,Imax2] = max(lvmax-0.5);
     fval_qlimva_norm = 2/pi*atan((delta_lv_maxrel)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
-    fval = 1e3*(7+0.5*fval_qlimva_norm); % Normierung auf 7e3 bis 7.5e3
+    fval = 1e3*(7.4+0.1*fval_qlimva_norm); % Normierung auf 7.4e3 bis 7.5e3
     constrvioltext = sprintf(['Gelenkgrenzverletzung in Trajektorie. ', ...
       'Größte relative Überschreitung: %1.1f%% (Gelenk %d, Zeitschritt %d/%d)'], ...
       100*delta_lv_maxrel, Imax2, Imax(Imax2), size(Q,1));
     continue;
   end
 end
+
+%% Prüfe die Länge von Schubzylindern
+% Ist mit der Gelenkwinkel-Spannweite verbunden. Für die Schubzylinder-
+% Spannweite muss ein entsprechender Platz in einem Außenzylinder gegeben
+% sein. Der Außenzylinder sollte nicht durch das vorherige Gelenk gehen.
+% Siehe auch cds_constraints
+if ~Set.optimization.prismatic_cylinder_allow_overlength && any(Structure.I_straightcylinder)
+  % Berechne die Länge, die der Zylinder nach hinten geht
+  qmin_cyl = min(abs(Q(:,Structure.I_straightcylinder)), [], 1);
+  qmax_cyl = max(abs(Q(:,Structure.I_straightcylinder)), [], 1);
+  length_cyl = qmax_cyl - qmin_cyl;
+  [fval_cyllen, Iworst] = max(length_cyl./qmin_cyl);
+  if fval_cyllen > 1
+    constrvioltext = sprintf(['Länge eines Schubzylinders steht ', ...
+      'nach hinten über. Min. Abstand %1.1fmm, Innenzylinder Länge %1.1fmm ', ...
+      '(Gelenk %d)'], 1e3*qmin_cyl(Iworst), 1e3*length_cyl(Iworst), Iworst);
+    fval_cyllen_norm = 2/pi*atan((fval_cyllen-1)*3); % Normierung auf 0 bis 1; 100% zu lang ist 0.8
+    fval = 1e3*(7.2+0.2*fval_cyllen_norm); % Normierung auf 7.2e3 bis 7.4e3
+    continue;
+    % Debug: Zeichnen des Roboters in der Konfiguration
+    if R.Type == 0 %#ok<UNRCH>
+      R.Leg.qlim(:,:) = minmax2(Q');
+    else
+      for kkk = 1:R.NLEG
+        R.Leg(kkk).qlim(:,:) = minmax2(Q(:,R.I1J_LEG(kkk):R.I2J_LEG(kkk))');
+      end
+    end
+    cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_0, Set, Structure, [], mean(fval), {});
+  end
+  % Gleiche Rechnung, nur für symmetrische Anordnung der Beinketten.
+  % Annahme: Symmetrischer Aufbau, also zählen die Bewegungen aller Beine
+  if Set.optimization.joint_limits_symmetric_prismatic
+    % Min-/Max-Werte für jede Beinkette einzeln ermitteln (Betrag für
+    % Zylinder-Länge; sonst Umgehung durch negative Koordinate)
+    qminmax_cyl_legs = reshape(minmax2(abs(Q(:,Structure.I_straightcylinder)')),...
+      sum(Structure.I_straightcylinder(1:R.Leg(1).NJ)),2*R.NLEG);
+    % Gemeinsame Min-/Max-Werte für alle Beinketten gemeinsam.
+    qminmax_cyl = minmax2(qminmax_cyl_legs);
+    length_cyl = qminmax_cyl(:,2) - qminmax_cyl(:,1);
+    [fval_cyllen, Iworst] = max(length_cyl./min(qminmax_cyl(:,1)));
+    if fval_cyllen > 1
+      constrvioltext = sprintf(['Länge eines Schubzylinders steht ', ...
+        'nach hinten über. Min. Abstand %1.1fmm, Innenzylinder Länge %1.1fmm ', ...
+        '(Gelenk %d). Aufgrund symmetrischer Auslegung der Beinketten.'], ...
+        1e3*qmin_cyl(Iworst), 1e3*length_cyl(Iworst), Iworst);
+      fval_cyllen_norm = 2/pi*atan((fval_cyllen-1)*3); % Normierung auf 0 bis 1; 100% zu lang ist 0.8
+      fval = 1e3*(7+0.2*fval_cyllen_norm); % Normierung auf 7e3 bis 7.2e3
+      continue
+    end
+  end
+end
+
 %% Prüfe, ob die Geschwindigkeitsgrenzen verletzt werden
 % Diese Prüfung erfolgt zusätzlich zu einer Antriebsauslegung.
 % Gedanke: Wenn die Gelenkgeschwindigkeit zu schnell ist, ist sowieso kein

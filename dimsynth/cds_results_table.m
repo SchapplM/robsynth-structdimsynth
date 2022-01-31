@@ -99,6 +99,8 @@ for i = 1:length(Structures)
   elseif f <= 1e4*5e3, fval_text = 'Konfig. springt.';
   elseif f <= 1e4*6e3, fval_text = 'Beschl.-Geschw. Grenze Traj.';
   elseif f <= 1e4*7e3, fval_text = 'Gel.-Geschw. Grenze Traj.';
+  elseif f <= 1e4*7.2e3, fval_text = 'Schubzylinder Länge (symm) Traj.';
+  elseif f <= 1e4*7.4e3, fval_text = 'Schubzylinder Länge Traj.';
   elseif f <= 1e4*7.5e3, fval_text = 'Gel.-Pos.-Grenze Traj. (symm)';
   elseif f <= 1e4*8e3, fval_text = 'Gel.-Pos.-Spannw. Traj. (symm)';
   elseif f <= 1e4*9e3, fval_text = 'Gel.-Pos.-Spannw. Traj.';
@@ -112,8 +114,9 @@ for i = 1:length(Structures)
   elseif f <= 1e4*2e5, fval_text = 'AR-Hindernis Eckpkt.'; % ab hier aus cds_constraints.m
   elseif f <= 1e4*3e5, fval_text = 'Bauraum-verl. Eckpkt.';
   elseif f <= 1e4*4e5, fval_text = 'Selbstkoll. Eckpkt.';
-  elseif f <= 1e4*4.5e5, fval_text = 'Gestelldurchmesser Eckpkt.';
-  elseif f <= 1e4*5e5, fval_text = 'Schubzylinder Länge Eckpkt.';
+  elseif f <= 1e4*4.25e5, fval_text = 'Schubzylinder Länge Eckpkt. (symm)';
+  elseif f <= 1e4*4.5e5, fval_text = 'Schubzylinder Länge Eckpkt.';
+  elseif f <= 1e4*5e5, fval_text = 'Gestelldurchmesser Eckpkt.';
   elseif f <= 1e4*6e5, fval_text = 'Gel.-Pos.-Grenze Eckpkt.';
   elseif f <= 1e4*7e5, fval_text = 'Gel.-Pos.-Spannweite Eckpkt.';
   elseif f <= 1e4*8e5, fval_text = 'Jacobi-Schwellwert Eckpkt.';

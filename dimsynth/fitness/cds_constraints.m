@@ -21,8 +21,9 @@
 %   1e5...2e5: Arbeitsraum-Hindernis-Kollision in Einzelpunkten
 %   2e5...3e5: Bauraumverletzung in Einzelpunkten
 %   3e5...4e5: Selbstkollision in Einzelpunkten
-%   4e5...4.5e5: Gestell ist wegen Schubgelenken zu groß (nach IK erkannt)
-%   4.5e5...5e5: Schubzylinder geht zu weit nach hinten weg (nach IK erkannt)
+%   4e5...4.25e5: Schubzylinder geht ... (symmetrisch für PKM)
+%   4.25e5...4.5e5: Schubzylinder geht zu weit nach hinten weg (nach IK erkannt)
+%   4.5e5...5e5: Gestell ist wegen Schubgelenken zu groß (nach IK erkannt)
 %   5e5...6e5: Gelenkwinkelgrenzen (Absolut) in Einzelpunkten
 %   6e5...7e5: Gelenkwinkelgrenzen (Spannweite) in Einzelpunkten
 %   7e5...8e5  Jacobi-Grenzverletzung in Eckpunkten (trotz lösbarer IK)
@@ -925,7 +926,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         'achsen-Führungsschienen um %1.0f%% zu groß (%1.1fmm>%1.1fmm).'], ...
         100*fval_rbase, 1e3*r_base_eff, 1e3*1/((fval_rbase+1)/r_base_eff));
       fval_rbase_norm = 2/pi*atan(fval_rbase*3); % Normierung auf 0 bis 1; 100% zu groß ist 0.8
-      fval = 1e5*(4+0.5*fval_rbase_norm); % Normierung auf 4e5 bis 4.5e5
+      fval = 1e5*(4.5+0.5*fval_rbase_norm); % Normierung auf 4.5e5 bis 5e5
       fval_jic(jic) = fval;
       calctimes_jic(i_ar,jic) = toc(t1);
       continue;
@@ -946,7 +947,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         'nach hinten über. Min. Abstand %1.1fmm, Innenzylinder Länge %1.1fmm ', ...
         '(Gelenk %d)'], 1e3*qmin_cyl(Iworst), 1e3*length_cyl(Iworst), Iworst);
       fval_cyllen_norm = 2/pi*atan((fval_cyllen-1)*3); % Normierung auf 0 bis 1; 100% zu lang ist 0.8
-      fval = 1e5*(4.5+0.5*fval_cyllen_norm); % Normierung auf 4.5e5 bis 5e5
+      fval = 1e5*(4.25+0.25*fval_cyllen_norm); % Normierung auf 4.25e5 bis 4.5e5
       fval_jic(jic) = fval;
       calctimes_jic(i_ar,jic) = toc(t1);
       continue;
@@ -959,6 +960,29 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         end
       end
       cds_fitness_debug_plot_robot(R, QE(1,:)', Traj_0, Traj_0, Set, Structure, [], mean(fval), {});
+    end
+    % Gleiche Rechnung, nur für symmetrische Anordnung der Beinketten.
+    % Annahme: Symmetrischer Aufbau, also zählen die Bewegungen aller Beine
+    if Set.optimization.joint_limits_symmetric_prismatic
+      % Min-/Max-Werte für jede Beinkette einzeln ermitteln (Betrag für
+      % Zylinder-Länge; sonst Umgehung durch negative Koordinate)
+      qminmax_cyl_legs = reshape(minmax2(abs(QE(:,Structure.I_straightcylinder)')),...
+        sum(Structure.I_straightcylinder(1:R.Leg(1).NJ)),2*R.NLEG);
+      % Gemeinsame Min-/Max-Werte für alle Beinketten gemeinsam.
+      qminmax_cyl = minmax2(qminmax_cyl_legs);
+      length_cyl = qminmax_cyl(:,2) - qminmax_cyl(:,1);
+      [fval_cyllen, Iworst] = max(length_cyl./qminmax_cyl(:,1));
+      if fval_cyllen > 1
+        constrvioltext_jic{jic} = sprintf(['Länge eines Schubzylinders steht ', ...
+          'nach hinten über. Min. Abstand %1.1fmm, Innenzylinder Länge %1.1fmm ', ...
+          '(Gelenk %d). Aufgrund symmetrischer Auslegung der Beinketten.'], ...
+          1e3*qmin_cyl(Iworst), 1e3*length_cyl(Iworst), Iworst);
+        fval_cyllen_norm = 2/pi*atan((fval_cyllen-1)*3); % Normierung auf 0 bis 1; 100% zu lang ist 0.8
+        fval = 1e5*(4+0.25*fval_cyllen_norm); % Normierung auf 4e5 bis 4.25e5
+        fval_jic(jic) = fval;
+        calctimes_jic(i_ar,jic) = toc(t1);
+        continue
+      end
     end
   end
   %% Anpassung des Offsets für Schubgelenke
