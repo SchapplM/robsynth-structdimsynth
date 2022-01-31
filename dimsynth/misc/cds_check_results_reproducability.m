@@ -190,6 +190,7 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
     end
     fprintf('Reproduktion Rob. %d Partikel Nr. %d/%d (Gen. %d, Ind. %d):\n', ...
       RobNr, jj, length(I), k_gen, k_ind);
+    % clear cds_fitness % Persistente Variablen löschen (falls nicht in parfor)
     [f2_jj, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure_jj,p_jj,p_desopt_jj);
     test_f2_abs = f_jj - f2_jj;
     test_f2_rel = test_f2_abs ./ f_jj;
@@ -202,7 +203,9 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
         disp_array(f_jj', '%1.3e'), disp_array(f2_jj', '%1.3e'), ...
         disp_array(1e2*test_f2_rel', '%1.2f'));
       % Versuche erneut mit vorgegebenen Gelenkwinkeln aus den
-      % Detail-Ergebnissen
+      % Detail-Ergebnissen und zusätzlich höherer Anzahl Versuche
+      Set_tmp = Set;
+      Set_tmp.optimization.pos_ik_tryhard_num = 100;
       if ~isempty(q0)
         % Trage Gelenkwinkel ein, damit Trajektorien-Prüfung erzwungen wird
         Structure_jj.q0_traj = q0;
@@ -216,10 +219,8 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
             R.Leg(iii).qref = q0(R.I1J_LEG(iii):R.I2J_LEG(iii));
           end
         end
-        [f3_jj, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure_jj,p_jj,p_desopt_jj);
-      else
-        f3_jj = NaN(size(f2_jj));
       end
+      [f3_jj, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set_tmp,Traj,Structure_jj,p_jj,p_desopt_jj);
       test_f3_abs = f_jj - f3_jj;
       test_f3_rel = test_f3_abs ./ f_jj;
       rescode = NaN; %#ok<NASGU> % Muss überschrieben werden
@@ -257,8 +258,8 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
       ResTab = readtable(restabfile, 'Delimiter', ';');
       Set_tmp = Set;
       Set_tmp.optimization.resdir = resdir; % Verzeichnis des Clusters überschreiben
-      for figname_cell = s.eval_plots
-        cds_vis_results_figures(figname_cell{1}, Set_tmp, Traj, RobData, ResTab, ...
+      for kk = 1:length(s.eval_plots)
+        cds_vis_results_figures(s.eval_plots{kk}, Set_tmp, Traj, RobData, ResTab, ...
           RobotOptRes, RobotOptDetails, [], struct('figure_invisible', ...
           s.figure_invisible, 'delete_figure', s.figure_invisible));
       end

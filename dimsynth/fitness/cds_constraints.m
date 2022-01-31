@@ -142,12 +142,12 @@ s = struct('Phit_tol', 1e-9, 'Phir_tol', 1e-9, ...
   'rng_seed', 0); % damit die Ergebnisse exakt reproduzierbar werden.
 if Set.task.profile ~= 0 % Normale Trajektorie mit stetigem Zeitverlauf
   % Nur Berechnung der Eckpunkte zur Prüfung.
-  s.retry_limit = 20;
+  s.retry_limit = 20+Set.optimization.pos_ik_tryhard_num;
 else % Nur Eckpunkte
   % Eckpunkte haben keinen direkten Bezug zueinander und bilden die
   % Trajektorie. Da keine Traj. berechnet wird, kann hier mehr Aufwand
   % betrieben werden (besonders bei seriellen Robotern auch notwendig).
-  s.retry_limit = 50;
+  s.retry_limit = 50+Set.optimization.pos_ik_tryhard_num;
   s.n_max = 5000;
 end
 condJ = NaN(size(Traj_0.XE,1), 1); % Gesamt-Jacobi (Antriebe-EE)
