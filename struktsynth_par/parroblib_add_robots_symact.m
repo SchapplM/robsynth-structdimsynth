@@ -796,10 +796,11 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       end
       % Listen für alle PKM kopieren. Sonst wird mit gen_bitarrays die mat-
       % Datenbank dafür neu erstellt und es werden Warnungen ausgegeben.
-      fprintf(fid, sprintf('sym*/sym_*T*R_list*\n')); % wird rekursiv gesucht
-      fprintf(fid, sprintf('synthesis_result_lists/*\n'));
+      fprintf(fid, 'sym*/sym_*T*R_list*\n'); % wird rekursiv gesucht
+      fprintf(fid, 'sym_%s/*/actuation.csv\n', EE_FG_Name); % Vermeidung von Warnungen beim Laden der DB
+      fprintf(fid, 'synthesis_result_lists/*\n');
       for ii = 1:length(Whitelist_Leg) % Ordner für gewählte PKM
-        fprintf(fid, sprintf('sym_%s/%s/*\n', EE_FG_Name, Whitelist_Leg{ii}));
+        fprintf(fid, 'sym_%s/%s/*\n', EE_FG_Name, Whitelist_Leg{ii});
       end
       fclose(fid);
       fid = fopen(targetfile, 'a');
@@ -997,6 +998,9 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         rescode = 0;
         rank_success = 1;
         num_fullmobility = num_fullmobility + 1;
+        % Mat-Datei muss hier bereits aktualisiert werden. Sonst kann die
+        % Anzahl der i.O.-Aktuierungen für csv-Tab. nicht gezählt werden.
+        parroblib_gen_bitarrays(logical(EE_FG));
       end
       parroblib_update_csv(LEG_Names_array{1}, Coupling, logical(EE_FG), rescode, rank_success);
       row = {EE_FG_Name, Coupling(1), Coupling(2), Name, rescode, rank_success, remove};
