@@ -193,6 +193,11 @@ end
 if isnan(Set.general.cluster_maxrobotspernode)
   Set.general.cluster_maxrobotspernode = Set.general.computing_cluster_cores;
 end
+assert(isa(Set.general.cluster_dependjobs, 'struct'), 'cluster_dependjobs muss Struktur sein');
+assert(isfield(Set.general.cluster_dependjobs, 'afterok'), 'cluster_dependjobs muss Feld afterok haben');
+assert(isfield(Set.general.cluster_dependjobs, 'afternotok'), 'cluster_dependjobs muss Feld afternotok haben');
+assert(isfield(Set.general.cluster_dependjobs, 'afterany'), 'cluster_dependjobs muss Feld afterany haben');
+
 if ~isempty(Traj.X) % Trajektorie prüfen
   % De-Normalisiere die Trajektorie. Dadurch springen die Euler-Winkel nicht
   % (Auswirkung hauptsächlich optisch in Auswertungen). Winkel größer pi.
@@ -428,10 +433,7 @@ if Set.general.computing_cluster
     % Matlab-Skript auf Cluster starten.
     addpath(cluster_repo_path);
     ppn = min(length(I1_kk:I2_kk),Set.general.computing_cluster_cores);
-    dependstruct = struct('');
-    if ~isempty(Set.general.cluster_dependjobs)
-      dependstruct = struct('afterok', Set.general.cluster_dependjobs);
-    end
+    dependstruct = Set.general.cluster_dependjobs;
     jobIDs(1,kk) = jobStart(struct( ...
       'name', computation_name, ...
       ... % Nur so viele Kerne beantragen, wie auch benötigt werden ("ppn")

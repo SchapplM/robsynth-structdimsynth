@@ -17,7 +17,7 @@ addpath(fullfile(structgeomsynthpath, 'struktsynth_par'));
 % Stelle alle Beinketten mit alpha und theta zusammen (zur Neu-Generierung)
 
 settings = struct( ...
-  'EE_FG_Nr', 2, ... % 3T0R
+  'EE_FG', logical([1 1 1 0 0 0]), ... % 3T0R
   'dryrun', false, ...
   'check_existing', true, ...
   'base_couplings', 2, ...
@@ -27,7 +27,7 @@ settings = struct( ...
   'whitelist_SerialKin', 'S5PRRRR8V1', ...
   'max_actuation_idx', 1); 
   
-parroblib_add_robots_symact
+parroblib_add_robots_symact(settings);
 
 return
 
@@ -56,7 +56,7 @@ settings = struct('whitelist_SerialKin', {whitelist});
 % settings.whitelist_SerialKin = {'S5RRRRR10V1'}; % Zum Debuggen
 for select_variants = [false, true]
   settings = struct( ...
-    'EE_FG_Nr', 3, ...%: 2=3T0R, 3=3T1R, 4=3T2R
+    'EE_FG', logical([1 1 1 0 0 0]), ... % 3T0R
     'dryrun', false, ...
     'check_existing', true, ...
     ... 'base_couplings', 2, ... % Zum nachträglichen Testen einzelner PKM
@@ -70,7 +70,7 @@ for select_variants = [false, true]
     'selectvariants', select_variants, ... % oder nur Varianten (dadurch stärker parallelisiert)
     'whitelist_SerialKin', {settings.whitelist_SerialKin}); % wegen clear Befehl im Skript
   pause(1.0); % damit nicht zwei gleiche Zeitstempel entstehen.
-  parroblib_add_robots_symact
+  parroblib_add_robots_symact(settings);
 end
 %% Debug: Nutze Roboter direkt in der Maßsynthese (zum Testen)
 DoF = [1 1 1 0 0 0];

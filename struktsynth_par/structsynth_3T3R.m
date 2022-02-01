@@ -6,11 +6,11 @@
 clear
 
 settings = struct( ...
-  'EE_FG_Nr', 5, ... % 3T3R
+  'EE_FG', logical([1 1 1 1 1 1]), ... % 3T3R
   'onlyspherical', false, ... % Allgemeine Beinketten
   'onlygeneral', true, ...
   'parcomp_structsynth', 0, ...
   'parcomp_mexcompile', 0, ...
   'dryrun', true); 
   
-parroblib_add_robots_symact
+parroblib_add_robots_symact(settings);

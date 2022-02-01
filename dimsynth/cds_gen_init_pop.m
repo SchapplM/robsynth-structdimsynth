@@ -30,7 +30,14 @@ counter_filesize = 0;
 InitPopLoadTmp = [];
 Q_PopTmp = [];
 ScoreLoad = [];
-RobName = Structure.Name;
+
+if any(strcmp(Set.optimization.objective,'valid_act')) && Structure.Type==2
+  % Bei Struktursynthese sind die Ergebnisse bei einer anderen Aktuierung
+  % auch verwertbar. Nehme nur den Roboternahmen ohne "A"-Suffix
+  [~,~,~,~,~,~,~,RobName] = parroblib_load_robot(Structure.Name, 0);
+else
+  RobName = Structure.Name;
+end
 if Set.optimization.InitPopRatioOldResults == 0
   % Es sollen keine alten Ergebnisse geladen werden. Kein Durchsuchen der
   % Ordner notwendig.
@@ -46,7 +53,7 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
   status = 1;
   if isunix()
     [status,dirlist] = system(sprintf(['find -L "%s" -maxdepth 2 ', ...
-      '-name "Rob*_%s_Endergebnis.mat"'], resdir, RobName));
+      '-name "Rob*_%s*_Endergebnis.mat"'], resdir, RobName));
     % Erzeuge Liste der Verzeichnisse aus der Vorauswahl
     if status == 0
       dirlist_cell = splitlines(dirlist);

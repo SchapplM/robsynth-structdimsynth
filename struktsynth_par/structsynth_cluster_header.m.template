@@ -13,10 +13,23 @@ run('/bigwork/nhkbscha/REPO/scripts/startup_cluster.m');
 % träglich im Offline-Modus lokal in die PKM-Datenbank eingefügt werden.
 t1=tic();
 fprintf('Starte Kopieren der Parallelroboter-Datenbank\n');
+% Dateiliste für Komprimierung der PKM-Datenbank erstellen.
+jobdir = pwd();
+fprintf('jobdir: %s\n', jobdir)
+% Die Liste der zu kopierenden Dateien (als Wildcard) muss in 
+% parroblib_tar_include.txt gespeichert werden (Skript ...add_robots...)
+system(['cd /bigwork/nhkbscha/REPO/parrob_mdlbib && ', ...
+        'rm -f $TMPDIR/incfile && ', ... % darf eigentlich nicht da sein
+        'for f in `cat "', jobdir, '/parroblib_tar_include.txt"`; ', ...
+          'do find $f >> $TMPDIR/incfile; ', ...
+        'done;']);
 % Kopierbefehl Variante 1
 % system('cp -rv /bigwork/nhkbscha/REPO/parrob_mdlbib $TMPDIR');
 % Kopierbefehl Variante 2 (vermutlich effizienter)
-system('mkdir $TMPDIR/parrob_mdlbib && cd /bigwork/nhkbscha/REPO/parrob_mdlbib && tar cf - . | tar xCf $TMPDIR/parrob_mdlbib -');
+system(['mkdir $TMPDIR/parrob_mdlbib && ', ...
+        'cd /bigwork/nhkbscha/REPO/parrob_mdlbib && ', ...
+        'tar cf - --files-from=$TMPDIR/incfile | ', ... % Packen (mit Filter)
+        'tar xCf $TMPDIR/parrob_mdlbib -']); % Entpacken (und dabei kopieren)
 fprintf('PKM-Datenbank kopiert. Dauer: %1.1fs\n', toc(t1));
 % PKM-Datenbank aus Pfad entfernen und neue Datenbank aus tmp-Verzeichnis aufnehmen
 rmpath_genpath('/bigwork/nhkbscha/REPO/parrob_mdlbib');

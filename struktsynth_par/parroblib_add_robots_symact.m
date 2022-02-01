@@ -9,9 +9,7 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-09
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-clc
-clearvars -except settings
-
+function parroblib_add_robots_symact(settings)
 %% Standardeinstellungen für Benutzereingabe
 settings_default = struct( ...
   'check_existing', false, ... % Falls true: Prüfe existierende Roboter in Datenbank nochmal
@@ -36,7 +34,8 @@ settings_default = struct( ...
   'dryrun', false, ... % Falls true: Nur Anzeige, was gemacht werden würde
   'offline', false, ... % Falls true: Keine Optimierung durchführen, stattdessen letztes passendes Ergebnis laden
   ... % ... dieser Modus kann genutzt werden, wenn die Optimierung korrekt durchgeführt wurde, aber die Nachverarbeitung fehlerhaft war
-  'EE_FG_Nr', 2:3, ... % nur 3T0R, 3T1R
+  'EE_FG_Nr', NaN, ... % Kann als Index für Variable EE_FG_ges benutzt werden. 1=2T0R, 2=2T1R, 3=3T0R, ...
+  'EE_FG', [1 1 0 0 0 1], ... % Beispiel: 2T1R. Können auch mehrere gestapelt sein
   'parcomp_structsynth', 1, ... % parfor-Struktursynthese (schneller, aber mehr Speicher notwendig)
   'parcomp_mexcompile', 1, ... % parfor-Mex-Kompilierung (schneller, aber Dateikonflikt möglich)
   'use_mex', 1, ... % Die nutzung kompilierter Funktionen kann deaktiviert werden. Dann sehr langsam. Aber Start geht schneller, da keine Kompiliertung zu Beginn.
@@ -60,7 +59,7 @@ end
 settings_new = settings_default;
 for f = fields(settings)'
   if ~isfield(settings_new, f{1})
-    warning('Feld %s kann nicht übergeben werden', f{1});
+    error('Feld %s kann nicht übergeben werden', f{1});
   else
     settings_new.(f{1}) = settings.(f{1});
   end
@@ -94,20 +93,37 @@ if settings.comp_cluster
     settings.dryrun = true; % Dann kein Füllen der Datenbank notwendig
   end
 end
-%% Initialisierung
-EE_FG_ges = [1 1 0 0 0 1; ...
+% Indizes der geprüften Freiheitsgrade bestimmen
+EE_FG_ges = [ ...
+  1 1 0 0 0 0; ...
+  1 1 0 0 0 1; ...
   1 1 1 0 0 0; ...
   1 1 1 0 0 1; ...
   1 1 1 1 1 0; ...
   1 1 1 1 1 1];
+if all(~isnan(settings.EE_FG_Nr))
+  settings.EE_FG = EE_FG_ges(settings.EE_FG_Nr,:);
+end
+EE_FG_Nr = [];
+for i = 1:size(EE_FG_ges,1)
+  if any(all(repmat(EE_FG_ges(i,:),size(settings.EE_FG,1),1)==settings.EE_FG))
+    EE_FG_Nr = [EE_FG_Nr, i]; %#ok<AGROW>
+  end
+end
+%% Initialisierung
+
 EE_FG_Mask = [1 1 1 1 1 1]; % Die FG müssen genauso auch vom Roboter erfüllt werden (0 darf nicht auch 1 sein)
 serroblibpath=fileparts(which('serroblib_path_init.m'));
 parroblibpath=fileparts(which('parroblib_path_init.m'));
 %% Alle PKM generieren
 fprintf('Beginne Schleife über %d verschiedene EE-FG\n', length(settings.EE_FG_Nr));
-for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
+for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
   EE_FG = EE_FG_ges(iFG,:);
   EE_FG_Name = sprintf( '%dT%dR', sum(EE_FG(1:3)), sum(EE_FG(4:6)) );
+  % Ergebnis-Tabelle initialisieren
+  ResTab_empty = cell2table(cell(0,7), 'VariableNames', ...
+    {'FG', 'G', 'P', 'Chain', 'ResultCode', 'NumRankSuccess', 'Remove'});
+  ResTab = ResTab_empty;
   % Pfad mit vollständigen Ergebnissen der Struktursynthese
   parroblib_writelock('check', 'csv', logical(EE_FG), 600, true); % nicht lesen, wenn gleichzeitig geschrieben.
   synthrestable = readtable( ...
@@ -128,11 +144,11 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     I1del(Cpl1_grid>1) = true;
     I2del(Cpl2_grid>1) = true;
   end
-  if any(iFG==[2 3]) % 3T0R oder 3T1R: keine paarweise Anordnung
+  if all(EE_FG(1:5)==[1 1 1 0 0]) % 3T0R oder 3T1R: keine paarweise Anordnung
     I1del(Cpl1_grid>4&Cpl1_grid<9) = true; % nur Methode 1 bis 4 oder 9 ist sinnvoll
     I2del(Cpl2_grid>3&Cpl2_grid<8) = true; % nur Methode 1 bis 3 oder 8 ist sinnvoll
   end
-  if any(iFG==4) % 3T2R: keine paarweise Anordnung
+  if all(EE_FG==[1 1 1 1 1 0]) % 3T2R: keine paarweise Anordnung
     I1del(Cpl1_grid>4&Cpl1_grid<9) = true; % nur Methode 1 bis 4 oder 9 ist sinnvoll
     I2del(Cpl2_grid>3&Cpl2_grid<8) = true; % nur Methode 1 bis 3 oder 8 ist sinnvoll
   end
@@ -218,10 +234,17 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     num_dimsynthfail = 0;
     num_fullmobility = 0;
     num_checked_dimsynth = 0;
+    % Prüfe ob gewünschte Liste von Beinketten in Auswahl vorhanden ist
+    whitelist_notinDB = setdiff(settings.whitelist_SerialKin,l.Names_Ndof(II));
+    if ~isempty(whitelist_notinDB)
+      warning('%d/%d Einträge aus Auswahl-Liste nicht in Datenbank: %s', ...
+        length(whitelist_notinDB), length(settings.whitelist_SerialKin), ...
+        disp_array(whitelist_notinDB, '%s'));
+    end
     fprintf('G%dP%d: Beginne Schleife über %d (prinzipiell) mögliche Beinketten-Kinematiken\n', ...
       Coupling(1), Coupling(2), length(II));
     
-    Whitelist_PKM = {};
+    Whitelist_PKM = {}; Whitelist_Leg = {};
     tlm_iFKloop = tic(); % zur Speicherung des Zeitpunkts der letzten Meldung
     % Sperre csv-Dateien während des Hinzufügens. Dieser Abschnitt ist
     % kritisch für parallel arbeitende weitere Instanzen der Synthese
@@ -271,7 +294,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       if sum(SName=='P')>1 && ~settings.allow_passive_prismatic
         % Hat mehr als ein Schubgelenk. Kommt nicht für PKM in Frage.
         % (es muss dann zwangsläufig ein Schubgelenk passiv sein)
-        parroblib_update_csv({SName}, Coupling, logical(EE_FG), 1, 0);
+        parroblib_update_csv(SName, Coupling, logical(EE_FG), 1, 0);
         continue
       end
       
@@ -279,7 +302,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         % Nur die Gestell-Konfigurationen 1 (Kreisförmig) und 5 (Paar-
         % weise) sind unterscheidbar. Siehe align_base_coupling.
         if all(Coupling(1) ~= [1 5])
-          parroblib_update_csv({SName}, Coupling, logical(EE_FG), 8, 0);
+          parroblib_update_csv(SName, Coupling, logical(EE_FG), 8, 0);
           fprintf(['Beinkette %s (%s) mit Gestell-Koppelgelenk Nr. %d wird ', ...
             'aufgrund der Kugelgelenk-Isomorphismen verworfen.\n'], ...
             SName, SName_TechJoint, Coupling(1));
@@ -291,7 +314,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         % weise) sind unterscheidbar. Alle anderen lassen sich bei Kugel-
         % gelenken darauf zurückführen. Siehe align_platform_coupling.
         if all(Coupling(2) ~= [1 4])
-          parroblib_update_csv({SName}, Coupling, logical(EE_FG), 8, 0);
+          parroblib_update_csv(SName, Coupling, logical(EE_FG), 8, 0);
           fprintf(['Beinkette %s (%s) mit Plattform-Koppelgelenk Nr. %d wird ', ...
             'aufgrund der Kugelgelenk-Isomorphismen verworfen.\n'], ...
             SName, SName_TechJoint, Coupling(2));
@@ -323,7 +346,7 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         if ~leg_success
           fprintf('Beinkette %s mit Koppelpunkt-Nr. %d-%d wird aufgrund geometrischer Überlegungen verworfen.\n', ...
             SName, Coupling(1), Coupling(2));
-          parroblib_update_csv({SName}, Coupling, logical(EE_FG), 2, 0);
+          parroblib_update_csv(SName, Coupling, logical(EE_FG), 2, 0);
           continue
         end
       end
@@ -395,14 +418,18 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
             fprintf('Der Roboter %s würde zur Datenbank hinzugefügt werden\n', PName);
             Name = '<Neuer Name>';
             % Setze Status 6 ("noch nicht geprüft").
-            parroblib_update_csv({SName}, Coupling, logical(EE_FG), 6, 0);
+            parroblib_update_csv(SName, Coupling, logical(EE_FG), 6, 0);
           end
         else
           error('Dieser Fall darf nicht eintreten. Nicht-logische Eingabe');
         end
         Whitelist_PKM = [Whitelist_PKM;{Name}]; %#ok<AGROW>
+        [~, ~, ~, ~, ~, ~, ~, ~, PName_Leg_tmp] = parroblib_load_robot(Name,0);
+        Whitelist_Leg = [Whitelist_Leg, PName_Leg_tmp];
       end
     end
+    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+      sprintf('parroblib_add_robots_symact_%s_0.mat', EE_FG_Name)));
     % Aktualisiere die mat-Dateien (werden für die Maßsynthese benötigt)
     if ~settings.dryrun, parroblib_gen_bitarrays(logical(EE_FG)); end
     if ~settings.dryrun
@@ -431,10 +458,14 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     end
     % Duplikate entfernen (falls mehr als eine Aktuierung erzeugt wird)
     Whitelist_Kin = unique(Whitelist_Kin);
+    Whitelist_Leg = unique(Whitelist_Leg);
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
       sprintf('parroblib_add_robots_symact_%s_1.mat', EE_FG_Name)));
     if ~settings.offline && ~settings.comp_cluster
-      fprintf('Generiere Template-Funktionen für %d Roboter und kompiliere anschließend.\n', length(Whitelist_Kin));
+      kompstr = '';
+      if settings.use_mex, kompstr=' und kompiliere anschließend'; end
+      fprintf('Generiere Template-Funktionen für %d Roboter%s.\n', ...
+        length(Whitelist_Kin), kompstr);
       % Erzeuge alle Template-Dateien neu (ohne Kompilierung). Dadurch wird
       % sichergestellt, dass sie die richtige Version haben.
       for i = 1:length(Whitelist_Kin)
@@ -553,7 +584,19 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         '%d Roboter\n'], length(Whitelist_PKM));
       cds_start(Set,Traj);
       resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
-      ds = load(fullfile(resmaindir, [Set.optimization.optname, '_settings.mat']));
+      dssetfile = fullfile(resmaindir, [Set.optimization.optname, '_settings.mat']);
+      if ~exist(dssetfile, 'file')
+        % Logik-Fehler. Speichere Status zum Debuggen. Nehme an, dass auf
+        % dem Cluster auf dem Tmp-Ordner einer Node gerechnet wird. Sichere
+        % PKM-Datenbank zum Debuggen und aktuellen Status, sonst ist er weg.
+        tmpdir = fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp');
+        mkdirs(tmpdir);
+        save(fullfile(tmpdir, 'parroblib_add_robots_symact_debug_norobots.mat'));
+        zip(fullfile(tmpdir, 'parroblib.zip'), parroblibpath);
+        error(['Einstellungsdatei %s existiert nicht. Logik-Fehler. Tmp-', ...
+          'Daten in Ergebnis-Ordner gespeichert'], dssetfile)
+      end
+      ds = load(dssetfile);
       Structures = ds.Structures;
     elseif settings.offline
       % Debug: Lade Ergebnisse aus temporärem Cluster-Download-Ordner
@@ -593,6 +636,21 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
               end
             end
           end
+          % Prüfe zusätzlich, ob Informationen zu den Ergebnissen in der
+          % csv-Tabelle stehen. Dann auch Aussage ohne mat-Dateien möglich
+          csvfile = fullfile(reslist(i).folder, reslist(i).name, ...
+            sprintf('%s_results_table.csv', reslist(i).name));
+          if exist(csvfile, 'file')
+            ResData_i = readtable(csvfile, 'HeaderLines', 2);
+            ResData_i_headers = readtable(csvfile, 'ReadVariableNames', true);
+            if size(ResData_i, 1) > 0 % Leere Tabelle führt zu Fehler
+              ResData_i.Properties.VariableNames = ResData_i_headers.Properties.VariableNames;
+              for k = 1:length(Whitelist_PKM_match)
+                Whitelist_PKM_match(k) = any(strcmp(ResData_i.Name, Whitelist_PKM{k}));
+              end
+              reslist_pkm_names = [reslist_pkm_names; ResData_i.Name]; %#ok<AGROW> 
+            end
+          end
           % Alter des Ordners bestimmen (aus bekanntem Namensschema)
           [datestr_match, ~] = regexp(reslist(i).name,'[A-Za-z0-9_]*_tmp_(\d+)_(\d+)', 'tokens','match');
           if isempty(datestr_match)
@@ -614,29 +672,49 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           - reslist_rationomatch*0.10); % Bestrafe nicht passende Einträge
         Set.optimization.optname = reslist(I).name;
         % Erstelle Variablen, die sonst in cds_start entstehen
-        roblist = dir(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
-          'Rob*_Endergebnis.mat')); % Die Namen aller Roboter sind in den Ergebnis-Dateien enthalten.
-        [tokens, ~] = regexp({roblist(:).name},'Rob(\d+)_([A-Za-z0-9]+)_Endergebnis\.mat','tokens','match');
-        % Nach Nummer der Roboter sortieren (für nachträgliche Erzeugung der
-        % Ergebnis-Tabelle zum korrekten Laden der mat-Dateien)
-        robnum_ges = zeros(length(tokens),1);
-        for i = 1:length(tokens)
-          robnum_ges(i) = str2double(tokens{i}{1}{1});
+        csvfile = fullfile(reslist(I).folder, reslist(I).name, ...
+          sprintf('%s_results_table.csv', reslist(I).name));
+        use_csv = true;
+        if ~exist(csvfile, 'file')
+          use_csv = false;
+        else
+          ResData_i = readtable(csvfile, 'HeaderLines', 2);
+          if size(ResData_i, 1) == 0 % Leere Tabelle führt zu Fehler
+            use_csv = false;
+          end
         end
-        [~,I_sortres] = sort(robnum_ges);
         % Erstelle Cell-Array mit allen Roboter-Strukturen (Platzhalter-Var.)
-        Structures = {}; istr = 0;
-        for i = I_sortres(:)'
-          istr = istr + 1;
-          Structures{istr} = struct('Name', tokens{i}{1}{2}, 'Type', 2); %#ok<SAGROW>
+        if use_csv
+          ResData_i_headers = readtable(csvfile, 'ReadVariableNames', true);
+          ResData_i.Properties.VariableNames = ResData_i_headers.Properties.VariableNames;
+          Structures = cell(1,size(ResData_i,1));
+          for i = 1:size(ResData_i,1)
+            Structures{ResData_i.LfdNr(i)} = struct('Name', ResData_i.Name{i}, 'Type', 2);
+          end
+        else
+          roblist = dir(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+            'Rob*_Endergebnis.mat')); % Die Namen aller Roboter sind in den Ergebnis-Dateien enthalten.
+          [tokens, ~] = regexp({roblist(:).name},'Rob(\d+)_([A-Za-z0-9]+)_Endergebnis\.mat','tokens','match');
+          % Nach Nummer der Roboter sortieren (für nachträgliche Erzeugung der
+          % Ergebnis-Tabelle zum korrekten Laden der mat-Dateien)
+          robnum_ges = zeros(length(tokens),1);
+          for i = 1:length(tokens)
+            robnum_ges(i) = str2double(tokens{i}{1}{1});
+          end
+          [~,I_sortres] = sort(robnum_ges);
+          Structures = cell(1,length(I_sortres)); istr = 0;
+          for i = I_sortres(:)'
+            istr = istr + 1;
+            Structures{istr} = struct('Name', tokens{i}{1}{2}, 'Type', 2); %#ok<SAGROW>
+          end
         end
         % Erstelle auch die csv-Tabelle aus den Ergebnissen (falls fehlend)
-        if ~exist(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
-            sprintf('%s_results_table.csv', Set.optimization.optname)), 'file')
+        if ~exist(csvfile, 'file')
           try
             cds_results_table(Set, Traj, Structures);
-          catch err
-            warning('Ergebnis-Tabelle konnte nicht erstellt werden. Vermutlich Daten mit alter Version erzeugt.');
+          catch
+            warning(['Ergebnis-Tabelle konnte nicht erstellt werden. ', ...
+              'Vermutlich Daten mit alter Version erzeugt.']);
           end
         end
         % Stelle fest, ob das Ergebnis vollständig ist
@@ -668,7 +746,6 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     % Ergebnisse der Struktursynthese (bzw. als solcher durchgeführten
     % Maßsynthese zusammenstellen)
     resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
-    Ergebnisliste = dir(fullfile(resmaindir,'*_Endergebnis.mat'));
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
       sprintf('parroblib_add_robots_symact_%s_3.mat', EE_FG_Name)));
     %% LUIS-Cluster vorbereiten
@@ -718,10 +795,25 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         error('Datei %s muss aus Vorlage erzeugt werden', chf);
       end
       copyfile(chf, targetfile);
+      % Passe Filter für das Kopieren der Datenbank an. Sonst dauert es
+      % ewig, wenn die mex-Dateien für alle PKM kopiert werden.
+      fid = fopen(fullfile(jobdir, 'parroblib_tar_include.txt'), 'w');
+      for f = dir(fullfile(parroblibpath, '*.m'))'
+        fprintf(fid, [f.name, newline()]);
+      end
+      % Listen für alle PKM kopieren. Sonst wird mit gen_bitarrays die mat-
+      % Datenbank dafür neu erstellt und es werden Warnungen ausgegeben.
+      fprintf(fid, 'sym*/sym_*T*R_list*\n'); % wird rekursiv gesucht
+      fprintf(fid, 'sym_%s/*/actuation.csv\n', EE_FG_Name); % Vermeidung von Warnungen beim Laden der DB
+      fprintf(fid, 'synthesis_result_lists/*\n');
+      for ii = 1:length(Whitelist_Leg) % Ordner für gewählte PKM
+        fprintf(fid, 'sym_%s/%s/*\n', EE_FG_Name, Whitelist_Leg{ii});
+      end
+      fclose(fid);
       fid = fopen(targetfile, 'a');
       fprintf(fid, 'tmp=load(''%s'');\n', [computation_name,'.mat']);
       fprintf(fid, 'settings=tmp.settings_cluster;\n');
-      fprintf(fid, 'parroblib_add_robots_symact;\n');
+      fprintf(fid, 'parroblib_add_robots_symact(settings);\n');
       % Schließen des ParPools auch in Datei hineinschreiben
       fprintf(fid, 'parpool_writelock(''lock'', 300, true);\n');
       fprintf(fid, 'delete(gcp(''nocreate''));\n');
@@ -733,17 +825,41 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       % große Einschätzung der Rechenzeit.
       fprintf('Starte die Berechnung der Struktursynthese auf dem Rechencluster: %s\n', computation_name);
       addpath(cluster_repo_path);
-      jobStart(struct('name', computation_name, ...
+      jobid = jobStart(struct('name', computation_name, ...
         ... % Nur so viele Kerne beantragen, wie auch benötigt werden ("ppn")
         'ppn', min(length(Whitelist_PKM),12), ... % 12 Kerne ermöglicht Lauf auf fast allen Cluster-Nodes
         'matFileName', [computation_name, '.m'], ...
         'locUploadFolder', jobdir, ...
         'time', 12+length(Whitelist_PKM)*0.5/min(length(Whitelist_PKM),12))); % Zeit in h. Schätze 30min pro PKM im Durchschnitt
       rmpath_genpath(cluster_repo_path, false);
+      % Starte auch einen Abschluss-Job. Ist notwendig, falls bei Timeout
+      % vorzeitig abgebrochen wird. Siehe cds_start.m
+      Set.general.computing_cluster = true;
+      Set.general.computing_cluster_cores = min(length(Whitelist_PKM),12); % s.o.
+      Set.general.only_finish_aborted = true;
+      Set.general.cluster_dependjobs.afternotok = jobid;
+      pause(2); % Für Sekunden-Zeitstempel im Ordernamen auf Cluster
+      cds_start(Set, Traj);
       continue % Nachfolgendes muss nicht gemacht werden
     end
     
     %% Nachverarbeitung der Ergebnis-Liste
+    % CSV-Tabelle laden (obiges Laden derselben Datei wird nicht bei 
+    % jeder Einstellung des Skripts gemacht)
+    csvfile = fullfile(resmaindir, [Set.optimization.optname, ...
+        '_results_table.csv']); % Muss hier existieren
+    ResData = readtable(csvfile, 'HeaderLines', 2);
+    ResData_headers = readtable(csvfile, 'ReadVariableNames', true);
+    if isempty(ResData)
+      fprintf('Keine Ergebnisse vorhanden. Entferne PKM wieder bei Abschluss\n')
+      ResData = ResData_headers; % So Übernahme der Überschriften für leere Tabelle.
+    else
+      ResData.Properties.VariableNames = ResData_headers.Properties.VariableNames;
+    end
+    settingsfile = fullfile(resmaindir, [Set.optimization.optname, ...
+        '_settings.mat']);
+    tmpset = load(settingsfile);
+
     % Stelle die Liste der Roboter zusammen. Ist nicht identisch mit Dateiliste,
     % da PKM mehrfach geprüft werden können.
     Structures_Names = cell(1,length(Structures));
@@ -755,7 +871,8 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
     % nummern gelöscht werden. Andernfalls gibt es Logik-Probleme in der DB
     Structures_Names = fliplr(sort(Structures_Names)); %#ok<FLPST>
     fprintf('Verarbeite die %d Ergebnisse der Struktursynthese (%d PKM)\n', ...
-      length(Ergebnisliste), length(Structures_Names));
+      sum(~isnan(ResData.LfdNr)), length(Structures_Names));
+
     parroblib_writelock('lock', 'csv', logical(EE_FG), 30*60, true); % Sperre beim Ändern der csv
     for jjj = 1:length(Structures_Names) % Alle eindeutigen Strukturen durchgehen
       %% Ergebnisse für diese PKM laden
@@ -765,24 +882,17 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       % verschiedene Fälle für freie Winkelparameter untersucht werden.
       fval_jjj = []; % Zielfunktionswert der Ergebnisse für diese PKM in der Ergebnisliste
       angles_jjj = {}; % gespeicherte Werte für freie alpha- und theta-Parameter (wird variiert)
-      for jj = 1:length(Ergebnisliste)
-        if contains(Ergebnisliste(jj).name,Name)
-          % Ergebnisse aus Datei laden
-          resfile = fullfile(resmaindir, Ergebnisliste(jj).name);
-          tmp = load(resfile, 'RobotOptRes');
-          RobotOptRes = tmp.RobotOptRes;
-          if ~isfield(RobotOptRes.Structure, 'angles_values')
-            warning('Datei %s hat veraltetes Format', resfile);
-            continue
-          end
-          fval_jjj = [fval_jjj, RobotOptRes.fval]; %#ok<AGROW>
+      for jj = 1:size(ResData,1)
+        if strcmp(ResData.Name{jj},Name)
+          fval_jjj = [fval_jjj, ResData.Fval_Opt(jj)]; %#ok<AGROW>
+          Structure_jj = tmpset.Structures{ResData.LfdNr(jj)};
           if isempty(angles_jjj) % Syntax-Fehler vermeiden bei leerem char als erstem
-            angles_jjj = {RobotOptRes.Structure.angles_values};
+            angles_jjj = {Structure_jj.angles_values};
           else
-            angles_jjj = [angles_jjj, RobotOptRes.Structure.angles_values]; %#ok<AGROW>
+            angles_jjj = [angles_jjj, Structure_jj.angles_values]; %#ok<AGROW>
           end
-        elseif isempty(fval_jjj) && jj == length(Ergebnisliste)
-          warning('Ergebnisdatei zu %s nicht gefunden', Name);
+        elseif isempty(fval_jjj) && jj == size(ResData,1)
+          warning('Ergebnis zu %s nicht in Tabelle gefunden', Name);
           continue; % kann im Offline-Modus passieren, falls unvollständige Ergebnisse geladen werden.
         end
       end
@@ -835,13 +945,19 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
         if isempty([Actuation{:}])
           fprintf(['%d/%d: Aktuierung der PKM %s wurde nicht in Datenbank gefunden, ', ...
             'obwohl sie hinzugefügt werden sollte. Fehler.\n'], jjj, length(Structures_Names), Name);
+          row = {EE_FG_Name, Coupling(1), Coupling(2), Name, 99, 0, true};
+          ResTab = [ResTab; row]; %#ok<AGROW> 
           continue
         end
       catch
         fprintf(['%d/%d: PKM %s wurde nicht in Datenbank gefunden, obwohl sie ', ...
           'hinzugefügt werden sollte. Fehler.\n'], jjj, length(Structures_Names), Name);
+        row = {EE_FG_Name, Coupling(1), Coupling(2), Name, 98, 0, true};
+        ResTab = [ResTab; row]; %#ok<AGROW> 
         continue
       end
+      rescode = NaN; %#ok<NASGU> 
+      rank_success = 0;
       if all(fval_jjj > 50) % Definition der Werte für fval_jjj, siehe cds_constraints_traj, cds_fitness
         fprintf(['%d/%d: Für PKM %s konnte in der Maßsynthese keine funktio', ...
           'nierende Lösung gefunden werden.\n'], jjj, length(Structures_Names), Name);
@@ -849,47 +965,53 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
           fprintf('Rangdefizit der Jacobi für Beispiel-Punkte ist %1.0f\n', min(fval_jjj)/100);
           parroblib_change_properties(Name, 'rankloss', sprintf('%1.0f', min(fval_jjj)/100));
           parroblib_change_properties(Name, 'values_angles', structparamstr);
-          parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 0, 0);
+          rescode = 0;
           num_rankloss = num_rankloss + 1;
         elseif min(fval_jjj) > 1e10
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
             'Zielfunktion (Einzelpunkt-IK) %1.2e\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
-          parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 3);
+          rescode = 3;
         elseif min(fval_jjj) > 1e9
           fprintf(['Erweiterte Prüfung (Kollision etc.) fehlgeschlagen. Sollte ', ...
             'eigentlich nicht geprüft werden! Zielfkt. %1.2e\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
-          parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 7);
+          rescode = 7;
         elseif min(fval_jjj) > 1e8
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
             'Zielfunktion (Traj.-IK) %1.2e\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
-          parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 4);
+          rescode = 4;
         elseif min(fval_jjj) >= 9e7
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
             'Zielfunktion (Parasitäre Bewegung) %1.2e\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
-          parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 5);
+          rescode = 5;
         else
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
             'Zielfunktion (Nicht behandelte Ausnahme) %1.2e\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
-          parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 7);
+          rescode = 7;
         end
       else
         fprintf('%d/%d: PKM %s hat laut Maßsynthese vollen Laufgrad\n', jjj, length(Structures_Names), Name);
         parroblib_change_properties(Name, 'rankloss', '0');
         parroblib_change_properties(Name, 'values_angles', structparamstr);
-        parroblib_update_csv(LEG_Names_array(1), Coupling, logical(EE_FG), 0, 1);
+        rescode = 0;
+        rank_success = 1;
         num_fullmobility = num_fullmobility + 1;
+        % Mat-Datei muss hier bereits aktualisiert werden. Sonst kann die
+        % Anzahl der i.O.-Aktuierungen für csv-Tab. nicht gezählt werden.
+        parroblib_gen_bitarrays(logical(EE_FG));
       end
-
+      parroblib_update_csv(LEG_Names_array{1}, Coupling, logical(EE_FG), rescode, rank_success);
+      row = {EE_FG_Name, Coupling(1), Coupling(2), Name, rescode, rank_success, remove};
+      ResTab = [ResTab; row]; %#ok<AGROW> 
       if remove && ~settings.isoncluster % Auf Cluster würde das Löschen parallele Instanzen stören.
         fprintf('Entferne PKM %s wieder aus der Datenbank (Name wird wieder frei)\n', Name);
         remsuccess = parroblib_remove_robot(Name);
@@ -907,4 +1029,13 @@ for iFG = settings.EE_FG_Nr % Schleife über EE-FG (der PKM)
       Coupling(1), Coupling(2), num_fullmobility, num_rankloss, num_dimsynthfail, ...
       length(Structures_Names));
   end % Koppelpunkte (Variable kk)
+  % Ergebnis-Tabelle speichern
+  if ~isempty(ResTab)
+    structgeompath=fileparts(which('structgeomsynth_path_init.m'));
+    restabfile = fullfile(structgeompath, 'results_structsynth', ...
+      ['struct_par_', EE_FG_Name, '_', datestr(now,'yyyymmdd_HHMMSS'), '.csv']);
+    mkdirs(fileparts(restabfile));
+    writetable(ResTab, restabfile, 'Delimiter', ';');
+    fprintf('Übersicht gespeichert: %s\n', restabfile);
+  end
 end % EE-FG (Variable iFG)

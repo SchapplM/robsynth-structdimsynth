@@ -6,8 +6,8 @@
 clear
 
 settings = struct( ...
-  'EE_FG_Nr', 3, ... % 3T1R
+  'EE_FG', logical([1 1 1 0 0 1]), ... % 3T1R
   'dryrun', false, ...
   'max_actuation_idx', 1); % Gestellnahes Gelenk angetrieben
   
-parroblib_add_robots_symact
+parroblib_add_robots_symact(settings);
