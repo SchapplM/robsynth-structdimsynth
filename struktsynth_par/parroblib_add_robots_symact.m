@@ -234,6 +234,13 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     num_dimsynthfail = 0;
     num_fullmobility = 0;
     num_checked_dimsynth = 0;
+    % Prüfe ob gewünschte Liste von Beinketten in Auswahl vorhanden ist
+    whitelist_notinDB = setdiff(settings.whitelist_SerialKin,l.Names_Ndof(II));
+    if ~isempty(whitelist_notinDB)
+      warning('%d/%d Einträge aus Auswahl-Liste nicht in Datenbank: %s', ...
+        length(whitelist_notinDB), length(settings.whitelist_SerialKin), ...
+        disp_array(whitelist_notinDB, '%s'));
+    end
     fprintf('G%dP%d: Beginne Schleife über %d (prinzipiell) mögliche Beinketten-Kinematiken\n', ...
       Coupling(1), Coupling(2), length(II));
     
@@ -1023,10 +1030,12 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       length(Structures_Names));
   end % Koppelpunkte (Variable kk)
   % Ergebnis-Tabelle speichern
-  structgeompath=fileparts(which('structgeomsynth_path_init.m'));
-  restabfile = fullfile(structgeompath, 'results_structsynth', ...
-    ['struct_par_', EE_FG_Name, '_', datestr(now,'yyyymmdd_HHMMSS'), '.csv']);
-  mkdirs(fileparts(restabfile));
-  writetable(ResTab, restabfile, 'Delimiter', ';');
-  fprintf('Übersicht gespeichert: %s\n', restabfile);
+  if ~isempty(ResTab)
+    structgeompath=fileparts(which('structgeomsynth_path_init.m'));
+    restabfile = fullfile(structgeompath, 'results_structsynth', ...
+      ['struct_par_', EE_FG_Name, '_', datestr(now,'yyyymmdd_HHMMSS'), '.csv']);
+    mkdirs(fileparts(restabfile));
+    writetable(ResTab, restabfile, 'Delimiter', ';');
+    fprintf('Übersicht gespeichert: %s\n', restabfile);
+  end
 end % EE-FG (Variable iFG)
