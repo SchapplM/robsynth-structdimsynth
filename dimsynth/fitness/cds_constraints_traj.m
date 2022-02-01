@@ -492,18 +492,27 @@ if i_ar == 3
     end
     critnames_traj = fields(R.idx_iktraj_hn)';
     for i = 1:size(Stats.h,2)-1
-      subplot(4,4,i); hold on;
+      sphdl = subplot(4,4,i); hold on;
       plot(Traj_0.t, Stats_alt.h(:,1+i), '-');
       plot(Traj_0.t, Stats.h(:,1+i), '-');
       ylabel(sprintf('h%d (%s)', i, critnames_traj{i}), 'interpreter', 'none'); grid on;
+      if any([Stats_alt.h(:,1+i);Stats.h(:,1+i)] > 1e6)
+        set(sphdl, 'yscale', 'log');
+      end
     end
-    subplot(4,4,15); hold on;
+    sphdl = subplot(4,4,15); hold on;
     plot(Traj_0.t, Stats_alt.condJ(:,1), '-');
     plot(Traj_0.t, Stats.condJ(:,1), '-');
+    if any([Stats_alt.condJ(:,1);Stats.condJ(:,1)] > 1e8)
+      set(sphdl, 'yscale', 'log');
+    end
     ylabel('IK-Jacobi-Konditionszahl'); grid on;
-    subplot(4,4,16); hold on;
+    sphdl = subplot(4,4,16); hold on;
     plot(Traj_0.t, Stats_alt.condJ(:,2), '-');
     plot(Traj_0.t, Stats.condJ(:,2), '-');
+    if any([Stats_alt.condJ(:,2);Stats.condJ(:,2)] > 1e8)
+      set(sphdl, 'yscale', 'log');
+    end
     ylabel('Jacobi-Konditionszahl'); grid on;
     linkxaxes
     sgtitle('Zielkriterien (vor/nach AR)');
