@@ -198,7 +198,7 @@ assert(isfield(Set.general.cluster_dependjobs, 'afterok'), 'cluster_dependjobs m
 assert(isfield(Set.general.cluster_dependjobs, 'afternotok'), 'cluster_dependjobs muss Feld afternotok haben');
 assert(isfield(Set.general.cluster_dependjobs, 'afterany'), 'cluster_dependjobs muss Feld afterany haben');
 
-if ~isempty(Traj.X) % Trajektorie prüfen
+if Set.task.profile ~= 0 % Trajektorie prüfen
   % De-Normalisiere die Trajektorie. Dadurch springen die Euler-Winkel nicht
   % (Auswirkung hauptsächlich optisch in Auswertungen). Winkel größer pi.
   Traj.X(:,4:6) = denormalize_angle_traj(Traj.X(:,4:6));
