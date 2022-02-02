@@ -961,9 +961,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       end
       cds_fitness_debug_plot_robot(R, QE(1,:)', Traj_0, Traj_0, Set, Structure, [], mean(fval), {});
     end
-    % Gleiche Rechnung, nur für symmetrische Anordnung der Beinketten.
+    % Gleiche Rechnung, nur für symmetrische Anordnung der PKM-Beinketten.
     % Annahme: Symmetrischer Aufbau, also zählen die Bewegungen aller Beine
-    if Set.optimization.joint_limits_symmetric_prismatic
+    if R.Type == 2 && Set.optimization.joint_limits_symmetric_prismatic
       % Min-/Max-Werte für jede Beinkette einzeln ermitteln (Betrag für
       % Zylinder-Länge; sonst Umgehung durch negative Koordinate)
       qminmax_cyl_legs = reshape(minmax2(abs(QE(:,Structure.I_straightcylinder)')),...

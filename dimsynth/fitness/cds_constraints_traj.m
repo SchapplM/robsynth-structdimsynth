@@ -1100,7 +1100,7 @@ if ~Set.optimization.prismatic_cylinder_allow_overlength && any(Structure.I_stra
   end
   % Gleiche Rechnung, nur für symmetrische Anordnung der Beinketten.
   % Annahme: Symmetrischer Aufbau, also zählen die Bewegungen aller Beine
-  if Set.optimization.joint_limits_symmetric_prismatic
+  if R.Type == 2 && Set.optimization.joint_limits_symmetric_prismatic
     % Min-/Max-Werte für jede Beinkette einzeln ermitteln (Betrag für
     % Zylinder-Länge; sonst Umgehung durch negative Koordinate)
     qminmax_cyl_legs = reshape(minmax2(abs(Q(:,Structure.I_straightcylinder)')),...
