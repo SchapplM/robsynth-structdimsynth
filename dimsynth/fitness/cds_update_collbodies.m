@@ -260,16 +260,18 @@ if Structure.Type ~= 0 % PKM
   if any(strcmp(collshape_platform, 'sphere'))
     % Kugel in der Mitte der Plattform platzieren. Damit kein Durchgriff
     % durch den Plattform-Ring möglich.
-    % Plattform-Radius vorerst bei Ignorieren der paarweisen Anordnung. Dort
-    % sind die Gelenke noch weiter entfernt.
+    % Bestimmung des Plattform-Radius vorerst bei Ignorieren der paarweisen
+    % Anordnung. Dort sind die Gelenke noch weiter entfernt.
+    % Bei sehr kleinen Plattform-Durchmessern wird nur ein Punkt als Kol-
+    % lisionskörper benutzt (mit gleicher Implementierung)
     platform_radius = R.DesPar.platform_par(1);
-    if platform_radius > 30e-3 % Wenn zu klein, dann reichen die anderen Kollisionskörper aus
-      collbodies_robot.link = [collbodies_robot.link; ...
-        repmat(uint8(R.I2L_LEG(end)-I1(end)+1),1,2)];
-      collbodies_robot.type = [collbodies_robot.type; uint8(16)]; % Kugel im Körper-KS-Ursprung
-      collbodies_robot.params = [collbodies_robot.params; ...
-        [min(3/4*platform_radius,platform_radius-30e-3), NaN(1,9)]]; % nur Radius als Parameter
-    end
+    collbodies_robot.link = [collbodies_robot.link; ...
+      repmat(uint8(R.I2L_LEG(end)-I1(end)+1),1,2)]; % zugeordnet (nur) zur Plattform
+    collbodies_robot.type = [collbodies_robot.type; uint8(16)]; % Kugel im Körper-KS-Ursprung
+    % Ziehe 30mm ab, damit die Enden der Beinketten nicht permanent in Kol-
+    % lision stehen und mache die Kugel etwas kleiner. Nicht negativ.
+    collbodies_robot.params = [collbodies_robot.params; ...
+      [max(min(3/4*platform_radius,platform_radius-30e-3),0), NaN(1,9)]]; % nur Radius als Parameter
   end
   if any(strcmp(collshape_platform, 'star'))
     % Sternförmige Kapseln für die Plattform. Verbindung zwischen
@@ -354,9 +356,19 @@ for k = 1:NLEG
 end
 
 % Ausgabe der aktualisierten Liste der Bauraum-Kollisionsprüfungen
-
 return
-Q(isinf(Q)) = 0; %#ok<UNRCH> % Grenzen können inf sein bei Drehgelenken
+
+% Debug: Bei Fehler bezüglich falscher Indizierung
+if isfield(Structure, 'collbodies_robot') %#ok<UNRCH> 
+  n_cb_1 = size(Structure.collbodies_robot.type,1);
+  n_cb_2 = size(collbodies_robot.type,1);
+  if n_cb_1~=n_cb_2
+    error('Anzahl der Kollisionskörper hat sich geändert');
+  end
+end
+
+% Vorbereitung für Plot
+Q(isinf(Q)) = 0;% Grenzen können inf sein bei Drehgelenken
 %% Debug: Bauraum-Ersatzpunkte zeichnen
 % Hiermit kann geprüft werden, ob die Punkt-Transformation korrekt ist.
 % Die Führungsschienen sind im Plot länger, da sie aus qlim bestimmt werden
@@ -386,7 +398,7 @@ end
 % Benutze dafür die Klassenvariable. Die Variablen dort werden für die
 % Kollisionsvermeidung mit der IK benutzt.
 if false
-  change_current_figure(2303); clf; hold all %#ok<UNRCH>
+  change_current_figure(2303); clf; hold all
   view(3); axis auto; grid on;
   xlabel('x in m');ylabel('y in m');zlabel('z in m');
   if R.Type == 0 % Seriell
