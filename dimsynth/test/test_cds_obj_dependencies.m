@@ -84,7 +84,7 @@ M(M(:,7)==false,6) = false; % calc_spring_act
 M = unique(M, 'rows');
 fprintf('Prüfe cds_obj_dependencies für %d verschiedene Fälle\n', size(M,1));
 t0 = tic();
-for i = 61:size(M,1)
+for i = 1:size(M,1)
   t1 = tic();
   % Einstellungen in Variable schreiben
   Set.general.debug_calc = M(i,1);
@@ -114,6 +114,10 @@ for i = 61:size(M,1)
     % Damit die Schnittkräfte berechnet werden können, muss die Dynamik
     % berechnet werden.
     continue
+  end
+  if Structure.Type == 0 && ... % Für serielle Roboter keine Federn
+      (Structure.calc_spring_act || Structure.calc_spring_reg)
+    continue % noch nicht implementiert
   end
   % Zu prüfende Funktionen aufrufen und Ergebnisse validieren
   data_dyn = cds_obj_dependencies(R, Traj_W, Set, Structure, Q, QD, QDD, Jinv_ges);
