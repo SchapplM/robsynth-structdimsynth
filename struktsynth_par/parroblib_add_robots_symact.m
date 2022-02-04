@@ -241,6 +241,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     num_rankloss = 0;
     num_dimsynthfail = 0;
     num_fullmobility = 0;
+    num_isomorph = 0;
     num_checked_dimsynth = 0;
     % Prüfe ob gewünschte Liste von Beinketten in Auswahl vorhanden ist
     whitelist_notinDB = setdiff(settings.whitelist_SerialKin,l.Names_Ndof(II));
@@ -948,6 +949,65 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         end
         fprintf('Freie Winkelparameter kombiniert: "%s" -> "%s"\n', structparamstr_orig, structparamstr);
       end
+      %% Prüfe auf Koppelgelenk-Isomorphismen
+      plf_isomorph_found = 0; % Nummer für Isomorphismus
+      if Coupling(2) == 7
+        % Für Methode 7 gibt es die Möglichkeit von Koppelgelenk-
+        % Isomorphismen. Die Gelenkausrichtung kann identisch mit einer
+        % bestehenden Ausrichtung sein. Falls ja, wird diese genommen.
+        Ergebnisliste = dir(fullfile(resmaindir,['Rob*_',Name,'_Endergebnis.mat']));
+        if isempty(Ergebnisliste)
+          warning('Für %s liegen keine Ergebnis-Dateien (.mat) vor. Notwendig für P7.', Name);
+          continue
+        end
+        % Suche aus den verschiedenen Dateien die, die zu den variablen
+        % Strukturparametern passt (s.o.)
+        ii_Erg = 0;
+        for ii = 1:length(Ergebnisliste)
+          res_ii = load(fullfile(resmaindir, Ergebnisliste(ii).name));
+          if ~any(structparamstr == res_ii.RobotOptRes.Structure.angles_values)
+            continue;
+          end
+          ii_Erg = ii; break;
+        end
+        if ii_Erg == 0
+          warning(['Für %s liegen keine passenden Strukturparameter in ', ...
+            '%d Ergebnissen vor. Gesucht: "%s"'], Name, length(Ergebnisliste), ...
+            structparamstr)
+          continue
+        end
+        % Initialisiere den Roboter und prüfe, ob die Plattformgelenk- 
+        % Ausrichtung identisch mit anderer Methode ist
+        tmpset.Set.use_mex = false; % Sonst dauert es zu lange.
+        [R_ii, Structure_ii] = cds_dimsynth_robot(tmpset.Set, tmpset.Traj, ...
+          tmpset.Structures{res_ii.RobotOptRes.Structure.Number}, true);
+        % Eintragen der Variable xref in die Matlab-Klasse
+        cds_update_robot_parameters(R_ii, tmpset.Set, Structure_ii, ...
+          res_ii.RobotOptRes.p_val)
+        % Verschiedene Koppelgelenk-Methoden durchgehen.
+        for kkP = [7 1:4 8 9]
+          R_ii.align_platform_coupling(kkP, R_ii.DesPar.platform_par(1))
+          phi_P_B_all_Pkk = R_ii.phi_P_B_all;
+          z_P_B_Pkk = NaN(3, R_ii.NLEG);
+          for iiL = 1:R_ii.NLEG
+            z_P_B_Pkk(:,iiL) = eulxyz2r([phi_P_B_all_Pkk(1:2,iiL);0])*[0;0;1];
+          end
+          if kkP == 7
+            z_P_B_P7 = z_P_B_Pkk;
+          else
+            % Vergleich die Richtung der z-Achse (und nicht nur die Euler-
+            % Winkel). Dadurch Finden von antiparallelen Achsen möglich.
+            % Für die Struktur ist die Antiparallelität egal (hängt von
+            % IK-Konfiguration ab).
+            I_parallel = all(abs(z_P_B_P7 - z_P_B_Pkk) < 1e-6);
+            I_antipar = all(abs(z_P_B_P7 - -z_P_B_Pkk) < 1e-6);
+            if all(I_parallel | I_antipar)
+              plf_isomorph_found = kkP;
+              break;
+            end
+          end
+        end % for kkP
+      end % if P7
       %% Ergebnis der Maßsynthese auswerten
       remove = false;
       try
@@ -968,7 +1028,14 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       end
       rescode = NaN; %#ok<NASGU> 
       rank_success = 0;
-      if all(fval_jjj > 50) % Definition der Werte für fval_jjj, siehe cds_constraints_traj, cds_fitness
+      if plf_isomorph_found > 0
+        fprintf(['%d/%d: Plattform-Koppelgelenkausrichtung von %s aus ', ...
+          'Methode P7 ist identisch zu Ausrichtung aus P%d. Überspringe ', ...
+          'Isomorphismus.\n'], jjj, length(Structures_Names), Name, plf_isomorph_found);
+        remove = true;
+        num_isomorph = num_isomorph + 1;
+        rescode = 8; % Code für Isomorphismus (nicht nur Kugelgelenk-Iso.)
+      elseif all(fval_jjj > 50) % Definition der Werte für fval_jjj, siehe cds_constraints_traj, cds_fitness
         fprintf(['%d/%d: Für PKM %s konnte in der Maßsynthese keine funktio', ...
           'nierende Lösung gefunden werden.\n'], jjj, length(Structures_Names), Name);
         if min(fval_jjj) < 1e3
@@ -1035,9 +1102,9 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     parroblib_writelock('free', 'csv', logical(EE_FG), 0, true);
     fprintf(['Fertig mit %s-PKM-Synthese für Koppelgelenk G%dP%d.\n', ...
       'Zusammenfassung: %d PKM funktionieren, %d nicht steuerbar, bei %d keine ', ...
-      'Lösung der Kinematik. Insgesamt %d PKM geprüft.\n'], EE_FG_Name, ...
-      Coupling(1), Coupling(2), num_fullmobility, num_rankloss, num_dimsynthfail, ...
-      length(Structures_Names));
+      'Lösung der Kinematik. %d Isomorphismen. Insgesamt %d PKM geprüft.\n'], ...
+      EE_FG_Name, Coupling(1), Coupling(2), num_fullmobility, num_rankloss, ...
+      num_dimsynthfail, num_isomorph, length(Structures_Names));
   end % Koppelpunkte (Variable kk)
   % Ergebnis-Tabelle speichern
   if ~isempty(ResTab)
