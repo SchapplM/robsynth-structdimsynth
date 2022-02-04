@@ -951,7 +951,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       end
       %% Prüfe auf Koppelgelenk-Isomorphismen
       plf_isomorph_found = 0; % Nummer für Isomorphismus
-      if Coupling(2) == 7
+      if Coupling(2) == 7 && any(I_valid) % nur bei erfolgreicher IK
         % Für Methode 7 gibt es die Möglichkeit von Koppelgelenk-
         % Isomorphismen. Die Gelenkausrichtung kann identisch mit einer
         % bestehenden Ausrichtung sein. Falls ja, wird diese genommen.
@@ -970,7 +970,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           end
           ii_Erg = ii; break;
         end
-        if ii_Erg == 0
+        if ii_Erg == 0 && ~isempty(structparamstr)
           warning(['Für %s liegen keine passenden Strukturparameter in ', ...
             '%d Ergebnissen vor. Gesucht: "%s"'], Name, length(Ergebnisliste), ...
             structparamstr)
@@ -978,15 +978,20 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         end
         % Initialisiere den Roboter und prüfe, ob die Plattformgelenk- 
         % Ausrichtung identisch mit anderer Methode ist
-        tmpset.Set.use_mex = false; % Sonst dauert es zu lange.
+        tmpset.Set.general.use_mex = false; % Sonst dauert es zu lange.
+        % Aktualisiere die M-Funktionen. Annahme: Synthese auf Cluster,
+        % Auswertung lokal, also Funktionen noch nicht initialisiert.
+        parroblib_update_template_functions({Name}, false, true); % ohne mex
         [R_ii, Structure_ii] = cds_dimsynth_robot(tmpset.Set, tmpset.Traj, ...
           tmpset.Structures{res_ii.RobotOptRes.Structure.Number}, true);
         % Eintragen der Variable xref in die Matlab-Klasse
         cds_update_robot_parameters(R_ii, tmpset.Set, Structure_ii, ...
-          res_ii.RobotOptRes.p_val)
+          res_ii.RobotOptRes.p_val);
         % Verschiedene Koppelgelenk-Methoden durchgehen.
-        for kkP = [7 1:4 8 9]
-          R_ii.align_platform_coupling(kkP, R_ii.DesPar.platform_par(1))
+        for kkP = [7 1:3 8] % zulässige Methoden für PKM, die P7 unterstützen
+          p_plf = R_ii.DesPar.platform_par(1);
+          if kkP==8, p_plf = [p_plf;0]; end %#ok<AGROW> 
+          R_ii.align_platform_coupling(kkP, p_plf);
           phi_P_B_all_Pkk = R_ii.phi_P_B_all;
           z_P_B_Pkk = NaN(3, R_ii.NLEG);
           for iiL = 1:R_ii.NLEG
