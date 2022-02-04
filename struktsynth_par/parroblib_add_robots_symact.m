@@ -41,7 +41,7 @@ settings_default = struct( ...
   'use_mex', 1, ... % Die nutzung kompilierter Funktionen kann deaktiviert werden. Dann sehr langsam. Aber Start geht schneller, da keine Kompiliertung zu Beginn.
   'max_actuation_idx', 4, ... % Aktuierung bis zum vierten Gelenk-FG zulassen
   'base_couplings', 1:10, ... % siehe ParRob/align_base_coupling
-  'plf_couplings', [1:6 8] ... % siehe ParRob/align_platform_coupling
+  'plf_couplings', 1:8 ... % siehe ParRob/align_platform_coupling
   );
 
 %% Benutzereingabe verwalten
@@ -145,8 +145,12 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     I2del(Cpl2_grid>1) = true;
   end
   if all(EE_FG(1:5)==[1 1 1 0 0]) % 3T0R oder 3T1R: keine paarweise Anordnung
-    I1del(Cpl1_grid>4&Cpl1_grid<9) = true; % nur Methode 1 bis 4 oder 9 ist sinnvoll
-    I2del(Cpl2_grid>3&Cpl2_grid<8) = true; % nur Methode 1 bis 3 oder 8 ist sinnvoll
+    I1del(Cpl1_grid>4&Cpl1_grid<9) = true; % Entferne G5 bis G8
+    I2del(Cpl2_grid>3&Cpl2_grid<7) = true; % Entferne P5 und P6
+  end
+  if ~all(EE_FG == [1 1 1 0 0 0])
+    % Nur für 3T0R ist die Methode 7 bisher implementiert
+    I2del(Cpl2_grid==7) = true;
   end
   if all(EE_FG==[1 1 1 1 1 0]) % 3T2R: keine paarweise Anordnung
     I1del(Cpl1_grid>4&Cpl1_grid<9) = true; % nur Methode 1 bis 4 oder 9 ist sinnvoll
@@ -569,6 +573,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.optimization.max_range_prismatic = inf;
     Set.general.matfile_verbosity = 0;
     Set.general.nosummary = true; % Keine Bilder erstellen.
+    Set.structures.mounting_parallel = 'floor'; % Sieht plausibler aus auf Bildern.
     Set.structures.whitelist = Whitelist_PKM; % nur diese PKM untersuchen
     Set.structures.use_serial = false; % nur PKM (keine seriellen)
     Set.structures.use_parallel_rankdef = 6*settings.check_rankdef_existing;
@@ -589,6 +594,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         % Logik-Fehler. Speichere Status zum Debuggen. Nehme an, dass auf
         % dem Cluster auf dem Tmp-Ordner einer Node gerechnet wird. Sichere
         % PKM-Datenbank zum Debuggen und aktuellen Status, sonst ist er weg.
+        fprintf('Beginne Komprimierung der PKM-Datenbank für Debug-Abbild\n');
         tmpdir = fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp');
         mkdirs(tmpdir);
         save(fullfile(tmpdir, 'parroblib_add_robots_symact_debug_norobots.mat'));
