@@ -303,6 +303,9 @@ if Set.task.pointing_task
   R.xDlim = [NaN(5,2); [-1,1]*Set.optimization.max_velocity_ee_rotation];
   R.xDDlim = [NaN(5,2); [-1,1]*Set.optimization.max_acceleration_ee_rotation];
 end
+% Erste Pose der Trajektorie merken (für darauf aufbauende Anpassung der
+% Plattform-Gelenke)
+Structure.xref_W = Traj.X(1,:)';
 
 % Merke die ursprünglich aus der Datenbank geladene EE-Rotation. Die in der
 % Optimierung ergänzte Rotation ist zusätzlich dazu. (Bei 2T1R-Robotern
