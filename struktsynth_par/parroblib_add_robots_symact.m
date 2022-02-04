@@ -170,6 +170,10 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       % Die Beinketten müssen mindestens so viele FG wie die PKM haben
       % Alles weitere wird weiter unten gefiltert (kinematische Eigenschaften)
       LegDoF_allowed = 5:-1:N_Legs;
+      if all(EE_FG == [1 1 1 0 0 0]) && Coupling(2) == 7
+        % Methode P7 funktioniert nur mit Beinketten mit vier Gelenken
+        LegDoF_allowed = 4;
+      end
     elseif all(EE_FG == [1 1 0 0 0 1]) || all(EE_FG == [1 1 1 1 1 1]) || all(EE_FG == [1 1 1 1 1 0])
       LegDoF_allowed = N_Legs; % Fall 2T1R und 3T3R
     elseif all(EE_FG == [1 1 0 0 0 0])
@@ -240,7 +244,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     num_checked_dimsynth = 0;
     % Prüfe ob gewünschte Liste von Beinketten in Auswahl vorhanden ist
     whitelist_notinDB = setdiff(settings.whitelist_SerialKin,l.Names_Ndof(II));
-    if ~isempty(whitelist_notinDB)
+    if ~isempty(whitelist_notinDB) && ~isempty(whitelist_notinDB{1})
       warning('%d/%d Einträge aus Auswahl-Liste nicht in Datenbank: %s', ...
         length(whitelist_notinDB), length(settings.whitelist_SerialKin), ...
         disp_array(whitelist_notinDB, '%s'));
