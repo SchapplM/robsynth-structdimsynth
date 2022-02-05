@@ -128,7 +128,8 @@ parfor (i = 1:length_Structures_parfor, parfor_numworkers)
   % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_vis_results2.mat'));
   Structure = Structures{i};
   Name = Structures{i}.Name;
-  fprintf('%d/%d: Visualisiere Ergebnisse für (%s)\n', i, length_Structures, Name);
+  fprintf('%d/%d: Visualisiere Ergebnisse für (%s): {%s}\n', i, ...
+    length_Structures, Name, disp_array(Set.general.eval_figures, '%s')); %#ok<PFBNS> 
   resfile1 = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', i, Name));
   resfile2 = fullfile(resmaindir, sprintf('Rob%d_%s_Details.mat', i, Name));
   if ~exist(resfile1, 'file') || ~exist(resfile2, 'file')
@@ -144,7 +145,6 @@ parfor (i = 1:length_Structures_parfor, parfor_numworkers)
   RobotOptRes = tmp1.RobotOptRes;
   RobotOptDetails = tmp2.RobotOptDetails;
   PSO_Detail_Data = tmp2.PSO_Detail_Data;
-  R = RobotOptDetails.R;
   if Structure.Type == 0
     serroblib_addtopath({Name});
   else
@@ -153,7 +153,7 @@ parfor (i = 1:length_Structures_parfor, parfor_numworkers)
   RobData = struct('Name', Name, 'Number', i, 'ParetoNumber', 1, ...
     'Type', RobotOptRes.Structure.Type);
   %% Statistische Verteilung der Ergebnisse aller Generationen
-  if any(strcmp(Set.general.eval_figures, 'histogram')) %#ok<PFBNS>
+  if any(strcmp(Set.general.eval_figures, 'histogram'))
   t1 = tic();
   Erg_All_Gen = PSO_Detail_Data.fval_mean;
   I_zul = Erg_All_Gen(:) < 1e3;
@@ -161,7 +161,7 @@ parfor (i = 1:length_Structures_parfor, parfor_numworkers)
   Klassengrenzen_Alle_Log = log10(Klassengrenzen_Alle);
   Klassengrenzen_Alle_Log(1) = 0;
   % Histogramm erstellen
-  f = change_current_figure(100*i+1, vis_settings.figure_invisible);
+  f = change_current_figure(100*i+1, vis_settings.figure_invisible); %#ok<PFBNS> 
   clf; hold all;
   set(f, 'Name', sprintf('Rob%d_Hist', i), 'NumberTitle', 'off', 'color','w');
   sgtitle(sprintf('Erg.-Vert. für %s: %d Parametersätze in %d Gen.', Name, length(I_zul), size(Erg_All_Gen,1)));
