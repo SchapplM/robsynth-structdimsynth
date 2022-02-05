@@ -89,6 +89,7 @@ else
 end
 
 %% Basis-Position
+changed_basepose = false;
 if Set.optimization.movebase
   % Die Parameter sind entweder relativ zur Aufgabe oder absolut definiert.
   p_basepos = p(Structure.vartypes == 2);
@@ -115,6 +116,7 @@ if Set.optimization.movebase
     p_phys(I_bp(p_idx)) = r_W_0_neu(i_xyz);
   end
   R_neu.update_base(r_W_0_neu);
+  changed_basepose = true;
 end
 
 %% EE-Verschiebung
@@ -174,8 +176,13 @@ if Set.optimization.rotate_base && any(Structure.vartypes == 5)
     end
     R.update_EE([], phi_N_E+[0;0;p_baserot]);
   end
+  changed_basepose = true;
 end
-
+if changed_basepose && R.Type == 2
+  % Aktualisiere die Referenzpose der Plattform (notwendig für
+  % Aktualisierung der Plattform-Gestellgelenke Nr. 7)
+  R.xref = R.t2x(R.T_0_W * R.x2t(Structure.xref_W));
+end
 %% Basis-Koppelpunkt Positionsparameter (z.B. Gestell-Radius)
 if R_neu.Type == 2
   p_basepar = R.DesPar.base_par;
@@ -268,6 +275,10 @@ if R_neu.Type == 2 && any(R.DesPar.platform_method == [4 5 6 8])
     % Sonst würde sich mit der Größe die Proportion ändern).
     p_plfpar(2) = 0.5*p_plfpar(1);
   end
+elseif R_neu.Type == 2 && R.DesPar.platform_method == 7 && changed_basepose
+  % Die veränderte Basis-Position des Roboters erfordert eine Aktuali-
+  % sierung der Koppelgelenk-Ausrichtung (da diese per IK bestimmt wird)
+  changed_plf = true;
 end
 if R_neu.Type == 2 && changed_plf
   R_neu.align_platform_coupling(R.DesPar.platform_method, p_plfpar);

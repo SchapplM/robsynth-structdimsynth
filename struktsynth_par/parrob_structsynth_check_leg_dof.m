@@ -23,7 +23,7 @@
 function leg_success = parrob_structsynth_check_leg_dof(SName, Coupling, EE_dof0, EE_dof_legchain)
 
 leg_success = true;
-
+NLegjoint = str2double(SName(2));
 if all(EE_dof0 == [1 1 0 0 0 1])
   return % keine Einschränkungen für 2T1R implementiert
 end
@@ -31,18 +31,24 @@ if all(EE_dof0 == [1 1 1 1 1 1])
   return % keine Einschränkungen für 3T3R
 end
 
-Basis_Coupling = Coupling(1);
-Koppel_Coupling = Coupling(2);
+Base_Coupling = Coupling(1);
+Platform_Coupling = Coupling(2);
 
 LEG_Dof = EE_dof_legchain; %RS.I_EE;
 
+if Platform_Coupling == 7 && (NLegjoint ~= 4 || ~all(EE_dof0==[1 1 1 0 0 0]))
+  % P7 bisher nur für 3T0R-PKM implementiert mit 4 Gelenken pro Beinkette
+  leg_success = false;
+  return
+end
+
 if sum(LEG_Dof(1:6)) == 6
   leg_success = true; % Beinkette haben vollständige FG
-elseif (Basis_Coupling == 4) || (Basis_Coupling ~= 1 && Koppel_Coupling == 1)
+elseif (Base_Coupling == 4) || (Base_Coupling ~= 1 && Platform_Coupling == 1)
   % G23P1 und G4P123
   % TODO: Das ist zumindest für P3PRRRR3V1G4P2A1 falsch.
   % leg_success = false;
-elseif (Basis_Coupling ~= Koppel_Coupling) && (LEG_Dof(4) == 0)
+elseif (Base_Coupling ~= Platform_Coupling) && (LEG_Dof(4) == 0)
   % G2P3 und G3P2 brauchen x-Achse Rotationsfreiheit
   leg_success = false;
 else

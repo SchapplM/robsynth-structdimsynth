@@ -41,7 +41,7 @@ settings_default = struct( ...
   'use_mex', 1, ... % Die nutzung kompilierter Funktionen kann deaktiviert werden. Dann sehr langsam. Aber Start geht schneller, da keine Kompiliertung zu Beginn.
   'max_actuation_idx', 4, ... % Aktuierung bis zum vierten Gelenk-FG zulassen
   'base_couplings', 1:10, ... % siehe ParRob/align_base_coupling
-  'plf_couplings', [1:6 8] ... % siehe ParRob/align_platform_coupling
+  'plf_couplings', 1:8 ... % siehe ParRob/align_platform_coupling
   );
 
 %% Benutzereingabe verwalten
@@ -145,8 +145,12 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     I2del(Cpl2_grid>1) = true;
   end
   if all(EE_FG(1:5)==[1 1 1 0 0]) % 3T0R oder 3T1R: keine paarweise Anordnung
-    I1del(Cpl1_grid>4&Cpl1_grid<9) = true; % nur Methode 1 bis 4 oder 9 ist sinnvoll
-    I2del(Cpl2_grid>3&Cpl2_grid<8) = true; % nur Methode 1 bis 3 oder 8 ist sinnvoll
+    I1del(Cpl1_grid>4&Cpl1_grid<9) = true; % Entferne G5 bis G8
+    I2del(Cpl2_grid>3&Cpl2_grid<7) = true; % Entferne P5 und P6
+  end
+  if ~all(EE_FG == [1 1 1 0 0 0])
+    % Nur für 3T0R ist die Methode 7 bisher implementiert
+    I2del(Cpl2_grid==7) = true;
   end
   if all(EE_FG==[1 1 1 1 1 0]) % 3T2R: keine paarweise Anordnung
     I1del(Cpl1_grid>4&Cpl1_grid<9) = true; % nur Methode 1 bis 4 oder 9 ist sinnvoll
@@ -166,6 +170,10 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       % Die Beinketten müssen mindestens so viele FG wie die PKM haben
       % Alles weitere wird weiter unten gefiltert (kinematische Eigenschaften)
       LegDoF_allowed = 5:-1:N_Legs;
+      if all(EE_FG == [1 1 1 0 0 0]) && Coupling(2) == 7
+        % Methode P7 funktioniert nur mit Beinketten mit vier Gelenken
+        LegDoF_allowed = 4;
+      end
     elseif all(EE_FG == [1 1 0 0 0 1]) || all(EE_FG == [1 1 1 1 1 1]) || all(EE_FG == [1 1 1 1 1 0])
       LegDoF_allowed = N_Legs; % Fall 2T1R und 3T3R
     elseif all(EE_FG == [1 1 0 0 0 0])
@@ -233,10 +241,11 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     num_rankloss = 0;
     num_dimsynthfail = 0;
     num_fullmobility = 0;
+    num_isomorph = 0;
     num_checked_dimsynth = 0;
     % Prüfe ob gewünschte Liste von Beinketten in Auswahl vorhanden ist
     whitelist_notinDB = setdiff(settings.whitelist_SerialKin,l.Names_Ndof(II));
-    if ~isempty(whitelist_notinDB)
+    if ~isempty(whitelist_notinDB) && ~isempty(whitelist_notinDB{1})
       warning('%d/%d Einträge aus Auswahl-Liste nicht in Datenbank: %s', ...
         length(whitelist_notinDB), length(settings.whitelist_SerialKin), ...
         disp_array(whitelist_notinDB, '%s'));
@@ -569,6 +578,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.optimization.max_range_prismatic = inf;
     Set.general.matfile_verbosity = 0;
     Set.general.nosummary = true; % Keine Bilder erstellen.
+    Set.structures.mounting_parallel = 'floor'; % Sieht plausibler aus auf Bildern.
     Set.structures.whitelist = Whitelist_PKM; % nur diese PKM untersuchen
     Set.structures.use_serial = false; % nur PKM (keine seriellen)
     Set.structures.use_parallel_rankdef = 6*settings.check_rankdef_existing;
@@ -589,6 +599,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         % Logik-Fehler. Speichere Status zum Debuggen. Nehme an, dass auf
         % dem Cluster auf dem Tmp-Ordner einer Node gerechnet wird. Sichere
         % PKM-Datenbank zum Debuggen und aktuellen Status, sonst ist er weg.
+        fprintf('Beginne Komprimierung der PKM-Datenbank für Debug-Abbild\n');
         tmpdir = fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp');
         mkdirs(tmpdir);
         save(fullfile(tmpdir, 'parroblib_add_robots_symact_debug_norobots.mat'));
@@ -938,6 +949,70 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         end
         fprintf('Freie Winkelparameter kombiniert: "%s" -> "%s"\n', structparamstr_orig, structparamstr);
       end
+      %% Prüfe auf Koppelgelenk-Isomorphismen
+      plf_isomorph_found = 0; % Nummer für Isomorphismus
+      if Coupling(2) == 7 && any(I_valid) % nur bei erfolgreicher IK
+        % Für Methode 7 gibt es die Möglichkeit von Koppelgelenk-
+        % Isomorphismen. Die Gelenkausrichtung kann identisch mit einer
+        % bestehenden Ausrichtung sein. Falls ja, wird diese genommen.
+        Ergebnisliste = dir(fullfile(resmaindir,['Rob*_',Name,'_Endergebnis.mat']));
+        if isempty(Ergebnisliste)
+          warning('Für %s liegen keine Ergebnis-Dateien (.mat) vor. Notwendig für P7.', Name);
+          continue
+        end
+        % Suche aus den verschiedenen Dateien die, die zu den variablen
+        % Strukturparametern passt (s.o.)
+        ii_Erg = 0;
+        for ii = 1:length(Ergebnisliste)
+          res_ii = load(fullfile(resmaindir, Ergebnisliste(ii).name));
+          if ~any(structparamstr == res_ii.RobotOptRes.Structure.angles_values)
+            continue;
+          end
+          ii_Erg = ii; break;
+        end
+        if ii_Erg == 0 && ~isempty(structparamstr)
+          warning(['Für %s liegen keine passenden Strukturparameter in ', ...
+            '%d Ergebnissen vor. Gesucht: "%s"'], Name, length(Ergebnisliste), ...
+            structparamstr)
+          continue
+        end
+        % Initialisiere den Roboter und prüfe, ob die Plattformgelenk- 
+        % Ausrichtung identisch mit anderer Methode ist
+        tmpset.Set.general.use_mex = false; % Sonst dauert es zu lange.
+        % Aktualisiere die M-Funktionen. Annahme: Synthese auf Cluster,
+        % Auswertung lokal, also Funktionen noch nicht initialisiert.
+        parroblib_update_template_functions({Name}, false, true); % ohne mex
+        [R_ii, Structure_ii] = cds_dimsynth_robot(tmpset.Set, tmpset.Traj, ...
+          tmpset.Structures{res_ii.RobotOptRes.Structure.Number}, true);
+        % Eintragen der Variable xref in die Matlab-Klasse
+        cds_update_robot_parameters(R_ii, tmpset.Set, Structure_ii, ...
+          res_ii.RobotOptRes.p_val);
+        % Verschiedene Koppelgelenk-Methoden durchgehen.
+        for kkP = [7 1:3 8] % zulässige Methoden für PKM, die P7 unterstützen
+          p_plf = R_ii.DesPar.platform_par(1);
+          if kkP==8, p_plf = [p_plf;0]; end %#ok<AGROW> 
+          R_ii.align_platform_coupling(kkP, p_plf);
+          phi_P_B_all_Pkk = R_ii.phi_P_B_all;
+          z_P_B_Pkk = NaN(3, R_ii.NLEG);
+          for iiL = 1:R_ii.NLEG
+            z_P_B_Pkk(:,iiL) = eulxyz2r([phi_P_B_all_Pkk(1:2,iiL);0])*[0;0;1];
+          end
+          if kkP == 7
+            z_P_B_P7 = z_P_B_Pkk;
+          else
+            % Vergleich die Richtung der z-Achse (und nicht nur die Euler-
+            % Winkel). Dadurch Finden von antiparallelen Achsen möglich.
+            % Für die Struktur ist die Antiparallelität egal (hängt von
+            % IK-Konfiguration ab).
+            I_parallel = all(abs(z_P_B_P7 - z_P_B_Pkk) < 1e-6);
+            I_antipar = all(abs(z_P_B_P7 - -z_P_B_Pkk) < 1e-6);
+            if all(I_parallel | I_antipar)
+              plf_isomorph_found = kkP;
+              break;
+            end
+          end
+        end % for kkP
+      end % if P7
       %% Ergebnis der Maßsynthese auswerten
       remove = false;
       try
@@ -958,7 +1033,14 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       end
       rescode = NaN; %#ok<NASGU> 
       rank_success = 0;
-      if all(fval_jjj > 50) % Definition der Werte für fval_jjj, siehe cds_constraints_traj, cds_fitness
+      if plf_isomorph_found > 0
+        fprintf(['%d/%d: Plattform-Koppelgelenkausrichtung von %s aus ', ...
+          'Methode P7 ist identisch zu Ausrichtung aus P%d. Überspringe ', ...
+          'Isomorphismus.\n'], jjj, length(Structures_Names), Name, plf_isomorph_found);
+        remove = true;
+        num_isomorph = num_isomorph + 1;
+        rescode = 8; % Code für Isomorphismus (nicht nur Kugelgelenk-Iso.)
+      elseif all(fval_jjj > 50) % Definition der Werte für fval_jjj, siehe cds_constraints_traj, cds_fitness
         fprintf(['%d/%d: Für PKM %s konnte in der Maßsynthese keine funktio', ...
           'nierende Lösung gefunden werden.\n'], jjj, length(Structures_Names), Name);
         if min(fval_jjj) < 1e3
@@ -1025,9 +1107,9 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     parroblib_writelock('free', 'csv', logical(EE_FG), 0, true);
     fprintf(['Fertig mit %s-PKM-Synthese für Koppelgelenk G%dP%d.\n', ...
       'Zusammenfassung: %d PKM funktionieren, %d nicht steuerbar, bei %d keine ', ...
-      'Lösung der Kinematik. Insgesamt %d PKM geprüft.\n'], EE_FG_Name, ...
-      Coupling(1), Coupling(2), num_fullmobility, num_rankloss, num_dimsynthfail, ...
-      length(Structures_Names));
+      'Lösung der Kinematik. %d Isomorphismen. Insgesamt %d PKM geprüft.\n'], ...
+      EE_FG_Name, Coupling(1), Coupling(2), num_fullmobility, num_rankloss, ...
+      num_dimsynthfail, num_isomorph, length(Structures_Names));
   end % Koppelpunkte (Variable kk)
   % Ergebnis-Tabelle speichern
   if ~isempty(ResTab)
