@@ -81,6 +81,11 @@ end
 if RobData.Type ~= 0 && strcmp(figname, 'dynamics')
   R.update_EE_FG(R.I_EE, R.I_EE);
 end
+traj_available = true; % Einige Bilder gehen nur, wenn Zeitverlauf da ist
+if Set.task.profile == 0 || all(fval > 1e9)
+  % Keine Trajektorie mit Zeitverlauf gefordert oder Fehler dabei
+  traj_available = false;
+end
 %% Animation
 if strcmp(figname, 'robvisu')
   % Die Roboter-Visualisierung ist größtenteils identisch zur Animation.
@@ -160,7 +165,7 @@ for kk = 1:length(Set.general.animation_styles)
     % benutzen (/scratch/jobid.batch.css.lan/Matlab/....)
     s_anim.tmpdir = tmpDirFcn();
   end
-  if Set.task.profile == 0 || all(fval > 1e9)
+  if ~traj_available
     % Keine Trajektorie mit Zeitverlauf gefordert oder Fehler dabei
     I_anim = 1:size(RobotOptDetails.Traj_Q,1); % Zeichne jeden Zeitschritt
     Traj_X = Traj_0.XE;
@@ -223,7 +228,7 @@ for kk = 1:length(Set.general.animation_styles)
   if settings.delete_figure, delete(fhdl); end
 end
 %% Kinematik-Bild
-if strcmp(figname, 'jointtraj') && any(fval < 1e9)
+if strcmp(figname, 'jointtraj') && traj_available
   if settings.figure_invisible, fhdl = figure_invisible();
   else,                         fhdl = figure(); end
   clf;hold all;
@@ -417,7 +422,7 @@ if strcmp(figname, 'pareto')
 
 end
 %% Rechne die Dynamik neu nach
-if strcmp(figname, 'dynamics')
+if strcmp(figname, 'dynamics') && traj_available
   Q = RobotOptDetails.Traj_Q;
   QD = RobotOptDetails.Traj_QD;
   QDD = RobotOptDetails.Traj_QDD;
@@ -488,7 +493,7 @@ if strcmp(figname, 'dynamics')
 end
 
 %% Dynamik-Bild (Antriebskräfte)
-if strcmp(figname, 'dynamics')
+if strcmp(figname, 'dynamics') && traj_available
   if settings.figure_invisible, fhdl = figure_invisible();
   else,                         fhdl = figure(); end
   clf; hold all;
@@ -523,7 +528,7 @@ if strcmp(figname, 'dynamics')
 end
 
 %% Dynamik-Bild (Plattform-Kräfte, für PKM)
-if strcmp(figname, 'dynamics') && RobData.Type ~= 0
+if strcmp(figname, 'dynamics') && traj_available && RobData.Type ~= 0
   if settings.figure_invisible, fhdl = figure_invisible();
   else,                         fhdl = figure(); end
   clf; hold all;
