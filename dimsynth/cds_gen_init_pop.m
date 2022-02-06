@@ -208,6 +208,16 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
     % Trage zusätzliche Parameter ein, die in Datei konstant sind und jetzt
     % Variabel und damit direkt umgerechnet werden können.
     
+    % Wenn in Datei Kinematik-Parameter nicht optimiert werden, nehme an,
+    % dass diese dort Null sind. Jetzt werden sie optimiert. Es können
+    % mehrere Kinematik-Parameter sein. Daher Binär-Index-Logik.
+    I_pkin = contains(Structure.varnames, 'pkin'); % Format: "pkin 1: a1"
+    I_missing_file_in_local = false(1,length(I_pkin));
+    I_missing_file_in_local(missing_file_in_local) = true; % Binär-Indizes
+    I_pkinzero = I_pkin & I_missing_file_in_local;
+    if any(I_pkinzero)
+      pval_i_const(I_pkinzero) = 0;
+    end
     % Wenn in der Datei kein rotate_base benutzt wird, und hier schon,
     % ist es egal. Dann kann der Parameter direkt Null gesetzt werden.
     I_baserotz = find(strcmp(Structure.varnames, 'baserotation z'));
@@ -282,9 +292,10 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
         % Noch nichts ableitbar. TODO: Logik weiter ausbauen, um die
         % Parameter aus unvollständigen Daten neu aufzubauen.
         cds_log(1, sprintf(['[gen_init_pop] Optimierungsparameter in Ergebnis-', ...
-          'Ordner %s unterschiedlich (%d vs %d). Keine Anfangswerte ableitbar. Unterschied: {%s}'], ...
+          'Ordner %s unterschiedlich (%d vs %d). Keine Anfangswerte ableitbar. Unterschied: {%s}. Bestimmbar: {%s}'], ...
           dirlist_cell{i}, length(Structure.vartypes), length(Structure_i.vartypes), ...
-          disp_array(setxor(Structure_i.varnames, Structure.varnames))));
+          disp_array(setxor(Structure_i.varnames, Structure.varnames)), ...
+          disp_array(Structure.varnames(~isnan(pval_i_const)), '%s')));
         continue
       end
     end

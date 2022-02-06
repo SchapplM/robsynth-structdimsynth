@@ -539,12 +539,14 @@ elseif Structure.Type == 0 || Structure.Type == 2
     Ipkinrel = Ipkinrel & ~I_dpostcyl; % Nehme die "1" bei dem d-Parameter weg
   end
   
+  % Deaktiviert:
   % Setze den letzten d-Parameter für PKM-Beinketten auf Null. Dieser ist
-  % redundant zur Plattform-Größe
-  if Structure.Type == 2 % PKM
-    I_lastdpar = ((R_pkin.pkin_jointnumber==R_pkin.NJ) & (R_pkin.pkin_types==6));
-    Ipkinrel = Ipkinrel & ~I_lastdpar; % Nehme die "1" bei d6 weg.
-  end
+  % kinematisch redundant zur Plattform-Größe. Für die Auslegung spielt der
+  % Parameter allerdings trotzdem eine Rolle (Kollision, Masse Plattform).
+%   if Structure.Type == 2 % PKM
+%     I_lastdpar = ((R_pkin.pkin_jointnumber==R_pkin.NJ) & (R_pkin.pkin_types==6));
+%     Ipkinrel = Ipkinrel & ~I_lastdpar; % Nehme die "1" bei d6 weg.
+%   end
 
   pkin_init = R_pkin.pkin;
   pkin_init(~Ipkinrel) = 0; % nicht relevante Parameter Null setzen
