@@ -67,7 +67,10 @@ end
 resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
 % Ergebnistabelle laden
 restabfile = fullfile(resmaindir, sprintf('%s_results_table.csv', Set.optimization.optname));
-ResTab = readtable(restabfile, 'Delimiter', ';');
+opts = detectImportOptions(restabfile,'NumHeaderLines',2);
+opts.VariableNamesLine = 1;
+opts.VariableDescriptionsLine = 2;
+ResTab = readtable(restabfile, opts);
 
 % Einheiten für die physikalischen Werte der Zielfunktionen vorbereiten
 [obj_units, objscale] = cds_objective_plotdetails(Set);

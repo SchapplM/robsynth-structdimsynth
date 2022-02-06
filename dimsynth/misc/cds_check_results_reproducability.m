@@ -255,7 +255,10 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
       RobotOptDetails = struct('Traj_Q', Q, 'Traj_QD', QD, 'Traj_QDD', QDD, ...
         'R', R, 'Dyn_Tau', TAU);
       restabfile = fullfile(resdir_opt, sprintf('%s_results_table.csv', OptName));
-      ResTab = readtable(restabfile, 'Delimiter', ';');
+      opts = detectImportOptions(restabfile,'NumHeaderLines',2);
+      opts.VariableNamesLine = 1;
+      opts.VariableDescriptionsLine = 2;
+      ResTab = readtable(restabfile, opts);
       Set_tmp = Set;
       Set_tmp.optimization.resdir = resdir; % Verzeichnis des Clusters überschreiben
       for kk = 1:length(s.eval_plots)

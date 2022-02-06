@@ -93,7 +93,10 @@ Structure = d3.Structures{RobNr};
 
 % Ergebnistabelle laden
 restabfile = fullfile(resdir_opt, sprintf('%s_results_table.csv', OptName));
-ResTab = readtable(restabfile, 'Delimiter', ';');
+opts = detectImportOptions(restabfile,'NumHeaderLines',2);
+opts.VariableNamesLine = 1;
+opts.VariableDescriptionsLine = 2;
+ResTab = readtable(restabfile, opts);
 % Ergebnis-Ordner lokal überschreiben (da neue Bilder gespeichert werden).
 [resdir_tmp, optfolder] = fileparts(resdir_opt);
 if ~strcmp(optfolder, OptName)

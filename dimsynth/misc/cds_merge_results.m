@@ -103,7 +103,10 @@ for i = 1:maxnum_parts
     Structures = [Structures, s.Structures]; %#ok<AGROW>
   end
   % Tabelle zusammenstellen (aus den Tabellen der Teil-Ergebnisse)
-  ResTab_i = readtable(csvtable_i, 'HeaderLines', 2);
+  opts = detectImportOptions(csvtable_i,'NumHeaderLines',2);
+  opts.VariableNamesLine = 1;
+  opts.VariableDescriptionsLine = 2;
+  ResTab_i = readtable(csvtable_i, opts);
   if isempty(ResTab_i)
     warning('Ergebnis-Tabelle %s existiert, ist aber leer.', csvtable_i);
     if create_missing_tables
@@ -111,8 +114,6 @@ for i = 1:maxnum_parts
     end
     continue % Ignoriere diesen Ordner
   end
-  ResTab_i_headers = readtable(csvtable_i, 'ReadVariableNames', true);
-  ResTab_i.Properties.VariableNames = ResTab_i_headers.Properties.VariableNames;
   if numdirs_processed == 0 % Setze als Gesamt-Tabelle. Das hier ist das erste vollständige Ergebnis mit Tabelle
     ResTab_ges = ResTab_i;
   else % Hänge Tabelle an
@@ -271,7 +272,12 @@ if numdirs_processed == 0
 end
 % Speichere die Gesamt-Tabelle ab
 csvtable_ges = fullfile(resdir_ges,[optname,'_results_table.csv']);
-writetable(ResTab_ges, csvtable_ges, 'Delimiter', ';');
+% Zeile mit Überschriften und erklärenden Kommentaren zuerst
+Tab_Descr  = cell2table(ResTab_ges.Properties.VariableDescriptions, ...
+  'VariableNames', ResTab_ges.Properties.VariableNames);
+writetable(Tab_Descr, csvtable_ges, 'Delimiter', ';');
+% Eigentlichen Tabelleninhalt schreiben (Überschriften sind nicht doppelt)
+writetable(ResTab_ges, csvtable_ges, 'Delimiter', ';', 'WriteMode', 'append');
 % Speichere die Gesamt-Einstellungsdatei ab (wird für einige Auswertungs-
 % Skripte benötigt).
 settingsfile = fullfile(resdir_ges,[optname, '_settings.mat']);
