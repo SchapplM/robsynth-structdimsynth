@@ -1394,6 +1394,8 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     [~, colldist_test] = check_collisionset_simplegeom_mex(R.collbodies, ...
       R.collchecks, JP_test, struct('collsearch', false));
     % Prüfe, welche Abstände sich bei diesen Zufallswerten nicht ändern.
+    % Mit der Information kann man hier nicht wirklich etwas anfangen.
+    % Die kinematischen Zwangsbedingungen für PKM sind nicht berücksichtigt.
     colldist_range = diff(minmax2(colldist_test')');
     I_ccnc = abs(colldist_range(:)) < 1e-10; % "ccnc": "collcheck nochange"
     if false % Debug:
@@ -1412,10 +1414,10 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
           names_collbodies{R.collchecks(i,1)}, names_collbodies{R.collchecks(i,2)});
       end
     end
-    if any(I_ccnc)
-      cds_log(-1, sprintf(['[dimsynth] Die Kollisionsabstände für %d ', ...
-        'Prüfungen sind immer gleich.'], sum(I_ccnc)));
-    end
+%     if any(I_ccnc)
+%       cds_log(3, sprintf(['[dimsynth] Die Kollisionsabstände für %d ', ...
+%         'Prüfungen sind immer gleich.'], sum(I_ccnc)));
+%     end
     Structure.I_collcheck_nochange = I_ccnc;
     % Untersuche, welche Kollisionskörper gar nicht geprüft werden
     for i = 1:length(R.collbodies)
