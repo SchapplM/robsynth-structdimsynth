@@ -138,6 +138,10 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
       end
       Set_i = d.Set; % Altes Format
     end
+    % Aktualisiere mittlerweile geänderte Einstellungen.
+    Structure_i.varnames(strcmp(Structure_i.varnames,'platform_morph')) = ...
+      {'platform_morph_pairdist'}; % Optimierungsvariable wurde umbenannt.
+    
     % Prüfe, ob die Zielfunktion die gleiche ist
     score_i = score_i + length(intersect(Set_i.optimization.objective,...
       Set.optimization.objective));
