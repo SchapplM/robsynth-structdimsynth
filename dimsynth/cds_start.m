@@ -223,6 +223,16 @@ assert(max(Traj.IE)<=size(Traj.X,1), 'Index-Vektor IE darf Bereich aus X nicht �
 test_XEfromIE = Traj.X(Traj.IE,:) - Traj.XE;
 assert(all(abs(test_XEfromIE(:))<1e-10), 'XE muss mit IE aus X indiziert werden können');
 
+% Rast-zu-Rast-Verhalten auch für Nullraumbewegung, wenn gefordert.
+% Bestimme die Zeitschritte
+if Set.task.profile == 1 && Set.task.T_dec_ns > 0
+  nullspace_maxvel_interp = nullspace_maxvel_from_tasktraj(Traj.t, ...
+    Traj.IE, Set.task.vmax/Set.task.amax, Set.task.T_dec_ns , Set.task.Ts);
+  Traj.nullspace_maxvel_interp = nullspace_maxvel_interp;
+else
+  Traj.nullspace_maxvel_interp = zeros(2,0);
+end
+
 %% Menge der Roboter laden
 if ~(Set.general.only_finish_aborted && Set.general.isoncluster) && ... % Abschluss auf Cluster
     ~Set.general.regenerate_summary_only || ... % Nur Bilder (ohne Abschluss)

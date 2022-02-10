@@ -114,6 +114,9 @@ end
 cds_update_robot_parameters(R, Set, Structure, p);
 
 %% Trajektorie anpassen
+if ~isfield(Traj_W, 'nullspace_maxvel_interp')
+  Traj_W.nullspace_maxvel_interp = zeros(2,0); % Abwärtskompatibilität
+end
 Traj_0 = cds_transform_traj(R, Traj_W);
 
 %% Nebenbedingungen prüfen (für Eckpunkte)

@@ -181,7 +181,10 @@ s = struct( ...
   ... % Einhaltung der Gelenkwinkelgrenzen nicht über NR-Bewegung erzwingen
   'enforce_qlim', false, ...
   'Phit_tol', 1e-10, 'Phir_tol', 1e-10); % feine Toleranz
-s.wn = zeros(R.idx_ik_length.wntraj,1);
+% Interpolations-Stützstellen für relative Maximalgeschwindigkeit der
+% Nullraumbewegung. Dadurch echte Rast-zu-Rast-Bewegung auch im Nullraum.
+s.nullspace_maxvel_interp = Traj_0.nullspace_maxvel_interp;
+s.wn = zeros(R.idx_ik_length.wntraj,1); % Gewichtung Nullraumoptimierung
 if R.Type == 2 % PKM
   s.debug = Set.general.debug_calc;
 end
@@ -358,51 +361,6 @@ if i_ar == 3
     debug_str = [debug_str, sprintf('; instspcdist [mm]: %1.1f -> %1.1f', ...
       1e3*mininstspcdist_all(1), 1e3*mininstspcdist_all(2))]; %#ok<AGROW>
   end
-  if fval_ar(1) < fval_ar(2)
-    cds_log(3, sprintf(['[constraints_traj] Konfig %d/%d: Ergebnis der ', ...
-      'Traj.-IK hat sich nach Nullraumbewegung verschlechtert: %1.3e -> ', ...
-      '%1.3e ("%s" -> "%s"), delta: %1.3e. %s'], Structure.config_index, ...
-      Structure.config_number, fval_ar(1), fval_ar(2), constrvioltext_alt, ...
-      constrvioltext, fval_ar(2)-fval_ar(1), debug_str));
-    % Anmerkung: Das muss nicht unbedingt ein Fehler sein. Das Verletzen
-    % der Geschwindigkeitsgrenzen kann eine Konsequenz sein. Die Hinzunahme
-    % eines vorher nicht betrachteten Kriteriums kann eine Verschlechterung
-    % erst erzeugen (z.B. Scheitern bei Ausweichbewegung)
-    Q = Q_alt;
-    QD = QD_alt;
-    QDD = QDD_alt;
-    Jinv_ges = Jinv_ges_alt;
-    JP = JP_alt;
-    fval = fval_ar(1);
-    constrvioltext = [constrvioltext_alt, ' Erneute IK-Berechnung ohne Verbesserung'];
-  elseif fval_ar(1) == fval_ar(2) && fval_ar(1) ~= 1e3
-    % Ergebnisse identisch, obwohl es n.i.O. ist. Deutet auf Logik-Fehler
-    % oder unverstandene Einstellungen
-    cds_log(3, sprintf(['[constraints_traj] Konfig %d/%d: Ergebnis der ', ...
-      'Traj.-IK nach Nullraumbewegung gleich: fval=%1.3e ("%s"). s.wn=[%s]'], ...
-      Structure.config_index, Structure.config_number, fval_ar(1), constrvioltext, ...
-      disp_array(wn_alt', '%1.1g')));
-    constrvioltext = [constrvioltext, sprintf(' Identisches Ergebnis mehrfach berechnet')]; %#ok<AGROW>
-  elseif fval_ar(1) == fval_ar(2) && fval_ar(1) == 1e3
-    % Bestmöglicher Fall. Vorher und nachher in Ordnung. 
-    % Nehme zusätzliche Kennzahlen um zu prüfen, ob sich das Ergebnis auch
-    % verbessert hat. Wobei Verbesserung hier eigentlich kein Kriterium
-    % ist, da primär Nebenbedingungen ("constraints") geprüft werden.
-    cds_log(3, sprintf(['[constraints_traj] Konfig %d/%d: Ergebnis der ', ...
-      'Traj.-IK vor und nach Nullraumbewegung i.O.: %s; \n\twn: [%s] -> [%s]'], ...
-      Structure.config_index, Structure.config_number, debug_str, ...
-      disp_array(wn_all(1,:), '%1.1g'), disp_array(wn_all(2,:), '%1.1g')));
-  else
-    % Zweiter Durchlauf der Optimierung brachte Verbesserung. Jetzt ist es genug.
-    cds_log(3, sprintf(['[constraints_traj] Konfig %d/%d: Ergebnis der ', ...
-      'Traj.-IK hat sich nach Nullraumbewegung verbessert: %1.3e -> ', ...
-      '%1.3e ("%s" -> "%s"), delta: %1.3e. %s'], Structure.config_index, ...
-      Structure.config_number, fval_ar(1), fval_ar(2), constrvioltext_alt, ...
-      constrvioltext, fval_ar(2)-fval_ar(1), debug_str));
-    constrvioltext = [constrvioltext, sprintf([' Verbesserung durch ', ...
-      'erneute IK-Berechnung (%1.3e->%1.3e, delta: %1.3e). Vorher: %s'], ...
-      fval_ar(1), fval_ar(2), fval_ar(2)-fval_ar(1), constrvioltext_alt)]; %#ok<AGROW>
-  end
   % Debug: Vergleiche vorher-nachher.
   if Set.general.debug_taskred_fig
     RP = ['R', 'P'];
@@ -446,6 +404,9 @@ if i_ar == 3
       plot(Traj_0.t, QD_alt(:,i), '-');
       plot(Traj_0.t, QD(:,i), '-');
       plot(Traj_0.t([1,end]), repmat(Structure.qDlim(i,:),2,1), 'r-');
+      if ~isempty(Traj_0.nullspace_maxvel_interp)
+        plot(Traj_0.t(Traj_0.IE), 0, 'rs');
+      end
       if ~all(isnan(QD(:)))
         ylim(minmax2([QD(:,i);QD(:,i);QD_alt(:,i);QD_alt(:,i)]'));
       end
@@ -473,6 +434,9 @@ if i_ar == 3
       plot(Traj_0.t, QDD_alt(:,i), '-');
       plot(Traj_0.t, QDD(:,i), '-');
       plot(Traj_0.t([1,end]), repmat(Structure.qDDlim(i,:),2,1), 'r-');
+      if ~isempty(Traj_0.nullspace_maxvel_interp)
+        plot(Traj_0.t(Traj_0.IE), 0, 'rs');
+      end
       if ~all(isnan(QDD(:)))
         ylim(minmax2([QDD(:,i);QDD(:,i);QDD_alt(:,i);QDD_alt(:,i)]'));
       end
@@ -549,6 +513,51 @@ if i_ar == 3
         end
       end
     end
+  end
+  if fval_ar(1) < fval_ar(2)
+    cds_log(3, sprintf(['[constraints_traj] Konfig %d/%d: Ergebnis der ', ...
+      'Traj.-IK hat sich nach Nullraumbewegung verschlechtert: %1.3e -> ', ...
+      '%1.3e ("%s" -> "%s"), delta: %1.3e. %s'], Structure.config_index, ...
+      Structure.config_number, fval_ar(1), fval_ar(2), constrvioltext_alt, ...
+      constrvioltext, fval_ar(2)-fval_ar(1), debug_str));
+    % Anmerkung: Das muss nicht unbedingt ein Fehler sein. Das Verletzen
+    % der Geschwindigkeitsgrenzen kann eine Konsequenz sein. Die Hinzunahme
+    % eines vorher nicht betrachteten Kriteriums kann eine Verschlechterung
+    % erst erzeugen (z.B. Scheitern bei Ausweichbewegung)
+    Q = Q_alt;
+    QD = QD_alt;
+    QDD = QDD_alt;
+    Jinv_ges = Jinv_ges_alt;
+    JP = JP_alt;
+    fval = fval_ar(1);
+    constrvioltext = [constrvioltext_alt, ' Erneute IK-Berechnung ohne Verbesserung'];
+  elseif fval_ar(1) == fval_ar(2) && fval_ar(1) ~= 1e3
+    % Ergebnisse identisch, obwohl es n.i.O. ist. Deutet auf Logik-Fehler
+    % oder unverstandene Einstellungen
+    cds_log(3, sprintf(['[constraints_traj] Konfig %d/%d: Ergebnis der ', ...
+      'Traj.-IK nach Nullraumbewegung gleich: fval=%1.3e ("%s"). s.wn=[%s]'], ...
+      Structure.config_index, Structure.config_number, fval_ar(1), constrvioltext, ...
+      disp_array(wn_alt', '%1.1g')));
+    constrvioltext = [constrvioltext, sprintf(' Identisches Ergebnis mehrfach berechnet')]; %#ok<AGROW>
+  elseif fval_ar(1) == fval_ar(2) && fval_ar(1) == 1e3
+    % Bestmöglicher Fall. Vorher und nachher in Ordnung. 
+    % Nehme zusätzliche Kennzahlen um zu prüfen, ob sich das Ergebnis auch
+    % verbessert hat. Wobei Verbesserung hier eigentlich kein Kriterium
+    % ist, da primär Nebenbedingungen ("constraints") geprüft werden.
+    cds_log(3, sprintf(['[constraints_traj] Konfig %d/%d: Ergebnis der ', ...
+      'Traj.-IK vor und nach Nullraumbewegung i.O.: %s; \n\twn: [%s] -> [%s]'], ...
+      Structure.config_index, Structure.config_number, debug_str, ...
+      disp_array(wn_all(1,:), '%1.1g'), disp_array(wn_all(2,:), '%1.1g')));
+  else
+    % Zweiter Durchlauf der Optimierung brachte Verbesserung. Jetzt ist es genug.
+    cds_log(3, sprintf(['[constraints_traj] Konfig %d/%d: Ergebnis der ', ...
+      'Traj.-IK hat sich nach Nullraumbewegung verbessert: %1.3e -> ', ...
+      '%1.3e ("%s" -> "%s"), delta: %1.3e. %s'], Structure.config_index, ...
+      Structure.config_number, fval_ar(1), fval_ar(2), constrvioltext_alt, ...
+      constrvioltext, fval_ar(2)-fval_ar(1), debug_str));
+    constrvioltext = [constrvioltext, sprintf([' Verbesserung durch ', ...
+      'erneute IK-Berechnung (%1.3e->%1.3e, delta: %1.3e). Vorher: %s'], ...
+      fval_ar(1), fval_ar(2), fval_ar(2)-fval_ar(1), constrvioltext_alt)]; %#ok<AGROW>
   end
   return
 end
