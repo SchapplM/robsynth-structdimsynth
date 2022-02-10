@@ -76,9 +76,17 @@ else % Mehrkriteriell
 end
 % Setze die Aufgaben-FG bei PKM auf vollständig. Sonst wird bei Aufgaben- 
 % redundanz die Jacobi-Matrix in den Dynamik-Funktionen falsch berechnet. 
-% Dadurch wird die EE-Drehung beim Plot aber inkonsistent. Darf nur für 
-% Dynamik-Plots gesetzt werden und muss danach rückgängig gemacht werden.
-if RobData.Type ~= 0 && strcmp(figname, 'dynamics')
+% Damit die EE-Drehung dann in den Plots nicht falsch ist, berechne die
+% EE-Drehung mit der direkten Kinematik neu.
+X = Traj_0.X; XD = Traj_0.XD; XDD = Traj_0.XDD; XE = Traj_0.XE;
+if Set.task.pointing_task && ~isempty(RobotOptDetails.Traj_Q)
+  [X_fk, XD_fk, XDD_fk] = R.fkineEE2_traj(RobotOptDetails.Traj_Q, ...
+    RobotOptDetails.Traj_QD, RobotOptDetails.Traj_QDD);
+  X(:,6) = denormalize_angle_traj(X_fk(:,6));
+  XD(:,6) = XD_fk(:,6); XDD(:,6) = XDD_fk(:,6);
+  XE = X(Traj_0.IE,:);
+end
+if RobData.Type ~= 0
   R.update_EE_FG(R.I_EE, R.I_EE);
 end
 traj_available = true; % Einige Bilder gehen nur, wenn Zeitverlauf da ist
@@ -168,7 +176,7 @@ for kk = 1:length(Set.general.animation_styles)
   if ~traj_available
     % Keine Trajektorie mit Zeitverlauf gefordert oder Fehler dabei
     I_anim = 1:size(RobotOptDetails.Traj_Q,1); % Zeichne jeden Zeitschritt
-    Traj_X = Traj_0.XE;
+    Traj_X = XE;
   else
     if Traj_0.t(end) > Set.general.maxduration_animation
       % Reduziere das Video auf die maximale Länge. Die Abtastrate ist 30Hz
@@ -181,7 +189,7 @@ for kk = 1:length(Set.general.animation_styles)
       t_Vid = (0:1/30:Traj_0.t(end))'; % Zeitstempel des Videos
     end
     I_anim = knnsearch( Traj_0.t , t_Vid ); % Berechne Indizes in Traj.-Zeitstempeln
-    Traj_X = Traj_0.X;
+    Traj_X = X;
   end
   if RobData.Type == 0 % Seriell
     s_plot = struct( 'straight', 1);
@@ -272,14 +280,14 @@ if strcmp(figname, 'jointtraj') && traj_available
   end
   
   subplot(nrows,3,sprc2no(nrows,3,x_row,1));
-  plot(Traj_0.t, Traj_0.X);
+  plot(Traj_0.t, X);
   grid on; ylabel('x in m oder rad');
   legend({'rx', 'ry', 'rz', 'phix', 'phiy', 'phiz'});
   subplot(nrows,3,sprc2no(nrows,3,x_row,2));
-  plot(Traj_0.t, Traj_0.XD);
+  plot(Traj_0.t, XD);
   grid on; ylabel('xD in m/s oder rad/s');
   subplot(nrows,3,sprc2no(nrows,3,x_row,3));
-  plot(Traj_0.t, Traj_0.XDD);
+  plot(Traj_0.t, XDD);
   grid on; ylabel('xDD in m/s² oder rad/s²');
   linkxaxes;
   fname = sprintf('Rob%d_%s_P%d_KinematikZeit', RNr, Name, PNr);
@@ -444,7 +452,7 @@ if strcmp(figname, 'dynamics') && traj_available
     for i = 1:size(Q,1)
       % Dynamik berechnen. Siehe cds_obj_dependencies und ParRob.
       % Trajektorie in Plattform-Koordinaten umrechnen
-      [xP, xPD, xPDD] = R.xE2xP(Traj_0.X(i,:)', Traj_0.XD(i,:)', Traj_0.XDD(i,:)');
+      [xP, xPD, xPDD] = R.xE2xP(X(i,:)', XD(i,:)', XDD(i,:)');
       % Jacobi-Matrix aufstellen (auf Plattform bezogen
       G_q = R.constr1grad_q(Q(i,:)', xP, true);
       G_x = R.constr1grad_x(Q(i,:)', xP, true);
@@ -479,7 +487,11 @@ if strcmp(figname, 'dynamics') && traj_available
     Dyn_Tau_fitness = RobotOptDetails.Dyn_Tau;
   end
   % Vergleiche Neuberechnung mit Daten aus der Optimierung
-  test_TAU = Dyn_Tau - Dyn_Tau_fitness;
+  if ~Set.optimization.static_force_only
+    test_TAU = Dyn_Tau - Dyn_Tau_fitness;
+  else
+    test_TAU = Dyn_S+Dyn_G - Dyn_Tau_fitness;
+  end
   if any(abs(test_TAU(:)) > 1e-6)
     warning('Antriebsmomente konnten nicht reproduziert werden. Fehler: %1.3e', ...
       max(abs(test_TAU(:))));
@@ -515,10 +527,11 @@ if strcmp(figname, 'dynamics') && traj_available
     plot(Traj_0.t, Dyn_A(:,i));
     plot(Traj_0.t, Dyn_S(:,i));
     plot(Traj_0.t, Dyn_Tau(:,i));
+    plot(Traj_0.t, Dyn_S(:,i)+Dyn_G(:,i));
     plot(Traj_0.t, Dyn_Tau_fitness(:,i), '--');
     ylabel(sprintf('\\tau_%d in %s', i, plotunits{i}));
   end
-  legend({'Cor.', 'Grav.', 'Acc.', 'Spring', 'Sum', 'Sum (fitness)'});
+  legend({'Cor.', 'Grav.', 'Acc.', 'Spring', 'Sum', 'Sum (Static)', 'Sum (fitness)'});
   linkxaxes;
   fname = sprintf('Rob%d_%s_P%d_Antriebskraft_Dynamik', RNr, Name, PNr);
   saveas(fhdl,     fullfile(resrobdir, [fname, '.fig']));
@@ -575,7 +588,7 @@ if strcmp(figname, 'dynparvisu')
       R.plot(RobotOptDetails.Traj_Q(1,:)', s_plot);
     else
       s_plot = struct( 'ks_legs', [], 'straight', 0, 'mode', plotmode(jj));
-      R.plot(RobotOptDetails.Traj_Q(1,:)', Traj_0.X(1,:)', s_plot);
+      R.plot(RobotOptDetails.Traj_Q(1,:)', X(1,:)', s_plot);
     end
     title(plotmodenames{jj});
   end
@@ -663,7 +676,7 @@ if strcmp(figname, 'springrestpos')
   % Video auf Länge 10s bringen
   t_Vid = (0:1/30*(T_ges(end)/10):T_ges(end))';
   I_anim = knnsearch( T_ges, t_Vid ); % Indizes für gewünschte Länge
-  R.anim( Q_ges(I_anim,:), repmat(Traj_0.X(1,:),length(I_anim),1), s_anim, s_plot);
+  R.anim( Q_ges(I_anim,:), repmat(X(1,:),length(I_anim),1), s_anim, s_plot);
 end
 
 % EE-FG von PKM wieder zurücksetzen auf Aufgaben-FG
