@@ -80,7 +80,10 @@ mininstspcdist_all = NaN(3,1);
 Traj_0 = Traj_0_in;
 X2 = NaN(size(Traj_0.X)); XD2 = NaN(size(Traj_0.X)); XDD2 = NaN(size(Traj_0.X));
 constrvioltext_alt = '';
+% Bestimme eindeutige Kennung für Speichern von Debug-Informationen
 [currgen,currind,~,resdir] = cds_get_new_figure_filenumber(Set, Structure, '');
+name_prefix_ardbg = sprintf('Gen%02d_Ind%02d_Konfig%d', currgen, ...
+  currind, Structure.config_index);
 % Schleife über mehrere mögliche Nebenbedingungen der inversen Kinematik
 fval_ar = NaN(1,2);
 if Structure.task_red
@@ -94,85 +97,7 @@ if i_ar > 1
   fval_ar(i_ar-1) = fval;
 end
 
-%% Debug vorherige Iteration: Karte der Leistungsmerkmale für Aufgabenredundanz zeichnen
-if i_ar > 1 && Structure.task_red && Set.general.debug_taskred_perfmap
-  nt_red = size(Traj_0.X,1); % Zum Debuggen: Reduktion der Stützstellen
-  critnames = fields(R.idx_ikpos_wn)';
-  if i_ar == 2 % Nur einmal die Rasterung generieren
-    t1 = tic();
-    % Bereich der Redundanzkarte: -210°...210° oder bis maximal +/-360°,
-    % falls Trajektorie in eine oder beide Richtungen weiter geht
-    perfmap_range_phiz = minmax2([[-1, +1]*210*pi/180,...
-      minmax2(X2(:,6)')+[-20,+20]*pi/180]); % etwas über die Trajektorie hinaus
-    perfmap_range_phiz(perfmap_range_phiz<-2*pi)=-2*pi;
-    perfmap_range_phiz(perfmap_range_phiz> 2*pi)= 2*pi;
-    cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: Beginne Aufgabenredundanz-', ...
-      'Diagnosebild für Trajektorie mit %d Zeit-Stützstellen'], Structure.config_index, Structure.config_number, nt_red));
-    [H_all, ~, s_ref, s_tref, phiz_range] = R.perfmap_taskred_ik( ...
-      Traj_0.X(1:nt_red,:), Traj_0.IE, struct('settings_ik', s, ...
-      'q0', q, 'I_EE_red', Set.task.DoF, 'map_phistart', X2(1,end), ...
-      ... % nur grobe Diskretisierung für die Karte (geht schneller)
-      'mapres_thresh_eepos', 10e-3, 'mapres_thresh_eerot', 5*pi/180, ...
-      'mapres_thresh_pathcoordres', 0.2, 'mapres_redcoord_dist_deg', 5, ...
-      'maplim_phi', perfmap_range_phiz));
-    cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: Daten für Diagnose-Bild der Aufgabenredundanz ', ...
-      'erstellt. Auflösung: %dx%d. Dauer: %1.0fs'], Structure.config_index, Structure.config_number, length(s_ref), ...
-      length(phiz_range), toc(t1)));
-    % Speichere die Redundanzkarte (da die Berechnung recht lange dauert)
-    suffix = 'TaskRedPerfMap_Data';
-    name_prefix_ardbg = sprintf('Gen%02d_Ind%02d_Konfig%d', currgen, currind, Structure.config_index);
-    save(fullfile(resdir,sprintf('%s_%s.mat', name_prefix_ardbg, suffix)), ...
-      'Structure', 'H_all', 's_ref', 's_tref', 'phiz_range', 'i_ar', 'q', ...
-      'nt_red');
-    % Redundanzkarte für jedes Zielkriterium zeichnen (zur Einschätzung)
-    wn_test = zeros(R.idx_ik_length.wnpos,1);
-    wn_phys = zeros(4,1);
-    if Set.general.debug_taskred_perfmap == 2 % Hohes Verbose-Level
-    for ll = 1:length(wn_test)+4 % letzter Durchlauf nur Konditionszahl zeichnen
-      wn_test(:) = 0; wn_phys(:) = 0;
-      if ll <= length(wn_test)
-        wn_test(ll) = 1;
-      else
-        wn_phys(ll-length(wn_test)) = 1;
-      end
-      for ls = [false, true] % Skalierung des Bildes: Linear und Logarithmisch
-        % Wähle Kriterien, die als Nebenbedigung gegen unendlich gehen.
-        I_nbkrit = [R.idx_ikpos_wn.qlim_hyp, R.idx_ikpos_wn.ikjac_cond, ...
-                    R.idx_ikpos_wn.jac_cond, R.idx_ikpos_wn.coll_hyp, ...
-                    R.idx_ikpos_wn.instspc_hyp, R.idx_ikpos_wn.xlim_hyp];
-        if ls && ~any(wn_test(I_nbkrit))
-          continue % kein hyperbolisches Kriterium. Log-Skalierung nicht sinnvoll.
-        end
-        critnames_withphys = [critnames(:)', ...
-          {'coll_phys', 'instspc_phys', 'cond_ik_phys', 'cond_phys'}];
-        cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref(1:nt_red), ...
-          phiz_range, X2(1:nt_red,6), Stats.h(1:nt_red,1), struct('wn', [wn_test;wn_phys], ...
-          'i_ar', i_ar-1, 'i_fig', ll, 'name_prefix_ardbg', name_prefix_ardbg, 'fval', fval, ...
-          'constrvioltext', constrvioltext, 'deactivate_time_figure', true, ...
-          'critnames', {critnames_withphys}, 'ignore_h0', true, 'logscale', ls));
-      end
-    end
-    end
-  end
-  % Rechne die IK-Kriterien von Traj.- zu Pos.-IK um.
-  % Reihenfolge: Siehe IK-Funktionen oder ik_optimcrit_index.m
-  % Einige Kriterien der Pos.-IK haben keine Entsprechung in Traj.-IK
-  i=0; I_wn_traj = zeros(R.idx_ik_length.wnpos,1);
-  for f = intersect(fields(R.idx_ikpos_wn)',fields(R.idx_iktraj_wnP)')
-    i=i+1; I_wn_traj(i) = R.idx_iktraj_wnP.(f{1});
-  end
-  I_wn_traj = I_wn_traj(I_wn_traj~=0); % überzählige Einträge entfernen
-  save(fullfile(resdir,sprintf('%s_TaskRed_Traj%d.mat', name_prefix_ardbg, i_ar-1)), ...
-    'X2', 'Q', 'i_ar', 'q', 'Stats', 'fval', 's');
-  cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref(1:nt_red), ...
-    phiz_range, X2(1:nt_red,6), Stats.h(1:nt_red,1), struct('wn', s.wn(I_wn_traj), ...
-    'i_ar', i_ar-1, 'name_prefix_ardbg', name_prefix_ardbg, 'fval', fval, ...
-    'critnames', {critnames}, 'constrvioltext', constrvioltext));
-  % Falls beim Debuggen die Aufgaben-Indizes zurückgesetzt wurden
-  R.update_EE_FG(R.I_EE, Set.task.DoF);
-end
-
-%% Inverse Kinematik der Trajektorie berechnen
+%% Einstellungen für inverse Kinematik vorbereiten
 % Einstellungen für IK in Trajektorien
 s = struct( ...
   ... % kein Winkel-Normalisierung, da dadurch Sprung in Trajektorie und keine 
@@ -183,11 +108,12 @@ s = struct( ...
   'Phit_tol', 1e-10, 'Phir_tol', 1e-10); % feine Toleranz
 % Interpolations-Stützstellen für relative Maximalgeschwindigkeit der
 % Nullraumbewegung. Dadurch echte Rast-zu-Rast-Bewegung auch im Nullraum.
+% (Falls bei Eingabe der Aufgabe gewünscht)
 s.nullspace_maxvel_interp = Traj_0.nullspace_maxvel_interp;
-s.wn = zeros(R.idx_ik_length.wntraj,1); % Gewichtung Nullraumoptimierung
-if R.Type == 2 % PKM
-  s.debug = Set.general.debug_calc;
-end
+% Sofort abbrechen, wenn eine der Nebenbedingungen verletzt wurde. Dadurch
+% schnellere Berechnung
+s.abort_thresh_h = inf(R.idx_ik_length.hntraj, 1);
+s.abort_thresh_h(R.idx_iktraj_hn.xlim_hyp) = NaN; % nicht für EE-Drehung (falls Aufgabenredundant)
 % Benutze eine Singularitätsvermeidung, die nur in der Nähe von
 % Singularitäten aktiv ist. Wenn die Kondition wesentlich schlechter wird,
 % wird der Roboter am Ende sowieso verworfen. Also nicht so schlimm, falls
@@ -206,6 +132,12 @@ if Set.optimization.constraint_obj(4) ~= 0 % Grenze für Jacobi-Matrix für Abbr
 end
 s.cond_thresh_ikjac = cond_thresh_ikjac;
 s.cond_thresh_jac = cond_thresh_jac; % Für Seriell und PKM
+% Gewichtung Nullraumoptimierung: Zusammstellung je nach Aufgabe
+s.wn = zeros(R.idx_ik_length.wntraj,1);
+if R.Type == 2 % PKM
+  s.debug = Set.general.debug_calc;
+end
+
 % IK-Jacobi (Aufgaben-FG)
 s.wn(R.idx_iktraj_wnP.ikjac_cond) = 1; % P-Anteil Konditionszahl (IK-Jacobi)
 s.wn(R.idx_iktraj_wnD.ikjac_cond) = 0.1; % D-Anteil Konditionszahl (IK-Jacobi)
@@ -232,7 +164,113 @@ if nargin >= 6
     s.collision_thresh = NaN;
   end
 end
-  
+%% Debug vorherige Iteration: Karte der Leistungsmerkmale für Aufgabenredundanz zeichnen
+if Structure.task_red && Set.general.debug_taskred_perfmap
+  nt_red = size(Traj_0.X,1); % Zum Debuggen: Reduktion der Stützstellen
+  critnames = fields(R.idx_ikpos_wn)';
+  % Rechne die IK-Kriterien von Traj.- zu Pos.-IK um.
+  % Reihenfolge: Siehe IK-Funktionen oder ik_optimcrit_index.m
+  % Einige Kriterien der Pos.-IK haben keine Entsprechung in Traj.-IK
+  i=0; I_wn_traj = zeros(R.idx_ik_length.wnpos,1);
+  for f = intersect(fields(R.idx_ikpos_wn)',fields(R.idx_iktraj_wnP)')
+    i=i+1; I_wn_traj(i) = R.idx_iktraj_wnP.(f{1});
+  end
+   % Entferne Einträge für die Kriterien der Positions-IK, die keine
+   % Entsprechung bei der Trajektorien-IK haben 
+  critnames = critnames(I_wn_traj~=0);
+  I_wn_traj = I_wn_traj(I_wn_traj~=0); % überzählige Einträge entfernen
+  if i_ar == 1 % Nur einmal die Rasterung generieren
+    % EE-Drehung für Startpose berechnen
+    x0 = R.fkineEE2_traj(q')';
+    t1 = tic();
+    % Bereich der Redundanzkarte: -210°...210° oder bis maximal +/-360°,
+    % falls Trajektorie in eine oder beide Richtungen weiter geht
+    perfmap_range_phiz = [-1, +1]*210*pi/180; %,...
+%       minmax2(X2(:,6)')+[-20,+20]*pi/180]); % etwas über die Trajektorie hinaus
+%     perfmap_range_phiz(perfmap_range_phiz<-2*pi)=-2*pi;
+%     perfmap_range_phiz(perfmap_range_phiz> 2*pi)= 2*pi;
+    cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: Beginne Aufgabenredundanz-', ...
+      'Diagnosebild für Trajektorie mit %d Zeit-Stützstellen'], Structure.config_index, Structure.config_number, nt_red));
+    [H_all, ~, s_ref, s_tref, phiz_range] = R.perfmap_taskred_ik( ...
+      Traj_0.X(1:nt_red,:), Traj_0.IE, struct('settings_ik', s, ...
+      'q0', q, 'I_EE_red', Set.task.DoF, 'map_phistart', x0(6), ...
+      ... % nur grobe Diskretisierung für die Karte (geht schneller)
+      'mapres_thresh_eepos', 10e-3, 'mapres_thresh_eerot', 5*pi/180, ...
+      'mapres_thresh_pathcoordres', 0.2, 'mapres_redcoord_dist_deg', 5, ...
+      'maplim_phi', perfmap_range_phiz));
+    cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: Daten für Diagnose-Bild der Aufgabenredundanz ', ...
+      'erstellt. Auflösung: %dx%d. Dauer: %1.0fs'], Structure.config_index, Structure.config_number, length(s_ref), ...
+      length(phiz_range), toc(t1)));
+    % Speichere die Redundanzkarte (da die Berechnung recht lange dauert)
+    suffix = 'TaskRedPerfMap_Data';
+    save(fullfile(resdir,sprintf('%s_%s.mat', name_prefix_ardbg, suffix)), ...
+      'Structure', 'H_all', 's_ref', 's_tref', 'phiz_range', 'i_ar', 'q', ...
+      'nt_red', 'x0');
+  end
+  if i_ar > 1 % Redundanzkarte erst zeichnen, wenn Trajektorie zur Verfügung steht
+    % Stelle in Redundanzkarte einzuzeichnende Trajektorien zusammen. 
+    % Möglichst alle bisher berechneten zum Vergleich
+    if i_ar == 2
+      PM_phiz_plot = X2(1:nt_red,6);
+      PM_h_plot = Stats.h(1:nt_red,1);
+      TrajLegendText = {'It. 1'};
+    else % i_ar > 2
+      PM_phiz_plot = [PM_phiz_plot, X2(1:nt_red,6)]; %#ok<AGROW>
+      PM_h_plot = [PM_h_plot, Stats.h(1:nt_red,1)]; %#ok<AGROW>
+      TrajLegendText = [TrajLegendText, sprintf('It. %d', i_ar-1)]; %#ok<AGROW>
+    end
+    if Set.general.taskred_dynprog
+      PM_phiz_plot = [PM_phiz_plot, X2_dp(1:nt_red,6)]; %#ok<AGROW>
+      PM_h_plot = [PM_h_plot, Stats_dp.h(1:nt_red,1)]; %#ok<AGROW>
+      TrajLegendText = [TrajLegendText, sprintf('It. %d DP', i_ar-1)]; %#ok<AGROW>
+    end
+    
+    % Redundanzkarte für jedes Zielkriterium zeichnen (zur Einschätzung)
+    wn_test = zeros(R.idx_ik_length.wnpos,1);
+    wn_phys = zeros(4,1);
+    if Set.general.debug_taskred_perfmap == 2 % Hohes Verbose-Level
+    for ll = 1:length(wn_test)+4 % letzter Durchlauf nur Konditionszahl zeichnen
+      wn_test(:) = 0; wn_phys(:) = 0;
+      if ll <= length(wn_test)
+        wn_test(ll) = 1;
+      else
+        wn_phys(ll-length(wn_test)) = 1;
+      end
+      for ls = [false, true] % Skalierung des Bildes: Linear und Logarithmisch
+        % Wähle Kriterien, die als Nebenbedigung gegen unendlich gehen.
+        I_nbkrit = [R.idx_ikpos_wn.qlim_hyp, R.idx_ikpos_wn.ikjac_cond, ...
+                    R.idx_ikpos_wn.jac_cond, R.idx_ikpos_wn.coll_hyp, ...
+                    R.idx_ikpos_wn.instspc_hyp, R.idx_ikpos_wn.xlim_hyp];
+        if ls && ~any(wn_test(I_nbkrit))
+          continue % kein hyperbolisches Kriterium. Log-Skalierung nicht sinnvoll.
+        end
+        critnames_withphys = [critnames(:)', ...
+          {'coll_phys', 'instspc_phys', 'cond_ik_phys', 'cond_phys'}];
+        cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref(1:nt_red), ...
+          phiz_range, PM_phiz_plot(1:nt_red,:), Stats.h(1:nt_red,1), struct('wn', [wn_test;wn_phys], ...
+          'i_ar', i_ar-1, 'i_fig', ll, 'name_prefix_ardbg', name_prefix_ardbg, ...
+          'fval', fval, 'TrajLegendText', TrajLegendText, ...
+          'constrvioltext', constrvioltext, 'deactivate_time_figure', true, ...
+          'critnames', {critnames_withphys}, 'ignore_h0', true, 'logscale', ls));
+      end
+    end
+    end % Set.general.debug_taskred_perfmap == 2
+    save(fullfile(resdir,sprintf('%s_TaskRed_Traj%d.mat', name_prefix_ardbg, i_ar-1)), ...
+      'PM_phiz_plot', 'Q', 'i_ar', 'q', 'Stats', 'fval', 's');
+    cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref(1:nt_red), ...
+      phiz_range, PM_phiz_plot, PM_h_plot, struct('wn', s.wn(I_wn_traj), ...
+      'i_ar', i_ar-1, 'name_prefix_ardbg', name_prefix_ardbg, 'fval', fval, ...
+      'TrajLegendText', {TrajLegendText},  'ignore_h0', false, ...
+      'deactivate_time_figure', true, ... % Bild nicht wirklich brauchbar
+      'critnames', {critnames}, 'constrvioltext', constrvioltext));
+    % Falls beim Debuggen die Aufgaben-Indizes zurückgesetzt wurden
+    R.update_EE_FG(R.I_EE, Set.task.DoF);
+  end
+else
+  H_all = []; s_ref = []; s_tref = []; phiz_range = [];
+end
+
+%% Inverse Kinematik der Trajektorie vorbereiten 
 % Zusätzliche Optimierung für Aufgabenredundanz.
 % TODO: Die Reglereinstellungen sind noch nicht systematisch ermittelt.
 if i_ar == 1 % erster Durchlauf ohne zusätzliche Optimierung (nimmt minimale Geschwindigkeit)
@@ -580,14 +618,111 @@ if Structure.task_red % Nur bei Redundanz relevant (Nebenbedingungen)
   Traj_0.XDD(:,6) = 0; % wird ignoriert
 end
 wn_all(i_ar,:) = s.wn(:)'; %#ok<AGROW>
+
+%% Dynamische Programmierung für optimale Trajektorie bei Aufgabenredundanz
+if Structure.task_red && Set.general.taskred_dynprog
+  if Set.general.matfile_verbosity > 2
+    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+      'cds_constraints_traj_before_dynprog.mat'));
+  end
+%   Set.task.Tv = R.xDlim(6,2) / R.xDDlim(6,2);
+%   Set.task.T_dec_ns = R.xDlim(6,2) / R.xDDlim(6,2);
+  % Setze IK-Nebenbedingungen für dynamische Programmierung.
+  critnames = {};
+  for f = fields(R.idx_iktraj_wnP)'
+    if s.wn(R.idx_iktraj_wnP.(f{1})) ~= 0 && isfield(R.idx_ikpos_wn, f{1})
+      critnames = [critnames, f{1}]; %#ok<AGROW>
+    end
+  end
+  s_dp = struct(...
+    'wn_names', {critnames}, ...
+    'settings_ik', s, ...
+    'xDDlim', R.xDDlim, 'xDlim', R.xDlim, ...
+    'cost_mode', 'max', ...
+    'H_all', H_all, 's_ref', s_ref, 's_tref', s_tref, 'phiz_range', phiz_range, ...
+    'verbose', 2, 'IE', Traj_0.IE, 'n_phi', 8, 'phi_min', -pi, 'phi_max', pi, ...
+    'T_dec_ns', 0.5*Set.task.T_dec_ns, ... % Zeit für Abbremsvorgang (des Nullraums)
+    'Tv', 1/4*Set.task.T_dec_ns, ... % Die Hälfte des Abbremsvorgangs nur für Ausschwingen und Abbremsen der Aufgabe berücksichtigen
+    'debug_dir', fullfile(resdir,[name_prefix_ardbg, '_dynprog']));
+  if Set.general.debug_dynprog_files, mkdirs(s_dp.debug_dir);
+  else,                               s_dp.debug_dir = '';
+  end
+  cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: Beginne IK mit ', ...
+    'Dynamischer Programmierung über %d Stufen und %d Zustände.'], ...
+    Structure.config_index, Structure.config_number, length(Traj_0.IE), s_dp.n_phi));
+  t1 = tic();
+  [XL, DPstats, TrajDetailDP] = R.dynprog_taskred_ik(Traj_0.X, Traj_0.XD, ...
+    Traj_0.XDD, Traj_0.t, q, s_dp); 
+  cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: %1.1fs für DP. ', ...
+    'Insgesamt %d IK-Zeitschritte (%1.1f x Traj.) berechnet. %d/%d erfolg', ...
+    'reiche Übergänge'], Structure.config_index, Structure.config_number, ...
+    toc(t1), DPstats.nt_ik, DPstats.nt_ik/length(Traj_0.t), ...
+    DPstats.n_statechange_succ, DPstats.n_statechange_total));
+
+  if ~isempty(s_dp.debug_dir) % Zip-Archiv aus den DP-Zwischenergebnissen
+    zip([s_dp.debug_dir,'.zip'], s_dp.debug_dir);
+    rmdir(s_dp.debug_dir, 's');
+  end
+  Q_dp = TrajDetailDP.Q;
+  QD_dp = TrajDetailDP.QD;
+  QDD_dp = TrajDetailDP.QDD;
+  Stats_dp = TrajDetailDP.Stats;
+  X2_dp = Traj_0.X;
+  X2_dp(:,6) = TrajDetailDP.X6;
+  % Setze Trajektorien-Einstellungen für die nochmalige Berechnung im
+  % nächsten Schritt
+  for ii = 1:size(XL,1)-1
+    i1 = Traj_0.IE(ii);
+    i2 = Traj_0.IE(ii+1);
+    [Traj_0.X(i1:i2,6),Traj_0.XD(i1:i2,6),Traj_0.XDD(i1:i2,6)] = ...
+      trapveltraj(XL(ii:ii+1,6)', i2-i1+1,...
+      'EndTime',Traj_0.t(i2)-Traj_0.t(i1), 'Acceleration', R.xDDlim(6,2));
+  end
+  % Nicht die kürzeste Norm nehmen, sondern die Bewegungsrichtung, die
+  % bereits aus der dynamischen Programmierung berechnet wurde
+  s.ik_solution_min_norm = false;
+  % Einhaltung der Trajektorie aus dynamischer Programmierung erzwingen
+  % Dämpfung xlim quadratisch (bzw. Bestrafung der Abweichung von Ref.-Geschw.)
+  s.wn(R.idx_iktraj_wnP.xDlim_par) = 0.5;  
+  % Begrenzung der Plattform-Drehung. Wird in DP vorgegeben.
+  s.wn(R.idx_iktraj_wnP.xlim_par) = 1; % P-Regler xlim quadratisch
+  s.wn(R.idx_iktraj_wnD.xlim_par) = 0.7; % D-Regler xlim quadratisch
+  s.wn(R.idx_iktraj_wnP.xlim_hyp) = 1; % P-Regler xlim hyperbolisch
+  s.wn(R.idx_iktraj_wnD.xlim_hyp) = 0.7; % D-Regler xlim hyperbolisch
+  s.enforce_xDlim = true;
+  % Toleranzband für die Koordinate: Ist so gewählt wie in DynProg
+  s.xlim6_interp = NaN(3,1+2*(length(Traj_0.IE)-1)); % Spalten: Zeitschritte
+  delta_phi = (s_dp.phi_max-s_dp.phi_min)/s_dp.n_phi;
+  s.xlim6_interp(:,1) = [Traj_0.t(1);-delta_phi/2; delta_phi/2];
+  for i = 1:size(XL,1)-1
+    % Zwischen Stützstellen doppelt so breites Toleranzband
+    s.xlim6_interp(:,2*i) = [mean(Traj_0.t(Traj_0.IE([i,i+1])));-delta_phi; delta_phi];
+    % An Stützstellen Toleranzband so breit wie DP-Diskretisierung
+    s.xlim6_interp(:,2*i+1) = [Traj_0.t(Traj_0.IE(i+1));-delta_phi/2 + 1e-3; delta_phi/2 - 1e-3];
+  end
+end
+%% Trajektorie mit lokaler Optimierung berechnen
+% Auf Ergebnis der dynamischen Programmierung aufbauen.
 if R.Type == 0 % Seriell
   qlim = R.qlim;
-  [Q, QD, QDD, PHI, JP, Stats] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
-  Jinv_ges = NaN; % Platzhalter für gleichartige Funktionsaufrufe. Speicherung nicht sinnvoll für seriell.
+  [Q_gp, QD_gp, QDD_gp, PHI_gp, JP_gp, Stats_gp] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+  Jinv_ges_gp = NaN; % Platzhalter für gleichartige Funktionsaufrufe. Speicherung nicht sinnvoll für seriell.
 else % PKM
   qlim = cat(1,R.Leg(:).qlim);
-  [Q, QD, QDD, PHI, Jinv_ges, ~, JP, Stats] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+  [Q_gp, QD_gp, QDD_gp, PHI_gp, Jinv_ges_gp, ~, JP_gp, Stats_gp] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
 end
+% Wahl der Trajektorie falls eine Methode nicht funktioniert hat
+if Stats_gp.iter < length(Traj_0.t) && Stats_dp.iter == length(Traj_0.t)
+  % Gradientenprojektion (gp) hat nicht funktioniert, dynamische
+  % Programmierung (dp) schon. Nehme wieder die dynamische Programmierung.
+  Q = Q_dp; QD = QD_dp; QDD = QDD_dp; PHI = PHI_dp; Jinv_ges = Jinv_ges_dp;
+  JP = JP_dp; Stats = Stats_dp;
+else
+  % Nehme die zuletzt berechnete Methode (Gradientenprojektion)
+  Q = Q_gp; QD = QD_gp; QDD = QDD_gp; PHI = PHI_gp; Jinv_ges = Jinv_ges_gp;
+  JP = JP_gp; Stats = Stats_gp;
+end
+
 % Zurücksetzen später berechneter Größen (sonst verwirrende Redundanzkarte
 % bei frühzeitigem Abbruch)
 X2(:) = NaN; XD2(:) = NaN; XDD2(:) = NaN;
@@ -602,25 +737,16 @@ if R.Type == 0 % Seriell
 else
   for i = 1:R.NLEG, R.Leg(i).qref = Q(1,R.I1J_LEG(i):R.I2J_LEG(i))'; end
 end
-
-% Prüfe Erfolg der Trajektorien-IK
-% Erkenne eine valide Trajektorie bereits bei Fehler kleiner als 1e-6 an.
-% Das ist deutlich großzügiger als die eigentliche IK-Toleranz
-I_ZBviol = any(abs(PHI) > 1e-6,2) | any(isnan(Q),2) | ...
-  ... % Falls beim letzten Schritt die Position noch i.O. ist, aber die Ge-
-  ... % schwindigkeit schon NaN ist: Auch hier als Abbruch zählen.
-  any(isnan(QD),2) | any(isnan(QDD),2);
 %% Endeffektor-Bewegung neu für 3T2R-Roboter berechnen
 % Der letzte Euler-Winkel ist nicht definiert und kann beliebige Werte einnehmen.
 % Muss schon berechnet werden, bevor der Abbruch der Trajektorie geprüft
 % wird (Variable X2 wird für Redundanzkarte benötigt).
 % Gilt für 3T2R-PKM und für 3T3R-PKM in 3T2R-Aufgaben
 if Structure.task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
-  LastTrajIdx = find(~I_ZBviol, 1, 'last' ); % berechne nur für i.O.-Punkte dir Kin.
-  [X2(1:LastTrajIdx,:), XD2(1:LastTrajIdx,:), XDD2(1:LastTrajIdx,:)] = ...
-    R.fkineEE2_traj(Q(1:LastTrajIdx,:), QD(1:LastTrajIdx,:), QDD(1:LastTrajIdx,:));
+  [X2(1:Stats.iter,:), XD2(1:Stats.iter,:), XDD2(1:Stats.iter,:)] = ...
+    R.fkineEE2_traj(Q(1:Stats.iter,:), QD(1:Stats.iter,:), QDD(1:Stats.iter,:));
   % Erlaube auch EE-Drehungen größer als 180°
-  X2(1:LastTrajIdx,6) = denormalize_angle_traj(X2(1:LastTrajIdx,6));
+  X2(1:Stats.iter,6) = denormalize_angle_traj(X2(1:Stats.iter,6));
   % Debug: EE-Trajektorie zeichnen
   if false
     figure(4002);clf; %#ok<UNRCH>
@@ -642,20 +768,23 @@ if Structure.task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_
 end
 
 %% Prüfe Erfolg der Trajektorien-IK
-if any(I_ZBviol)
-  % Bestimme die erste Verletzung der ZB (je später, desto besser)
-  IdxFirst = find(I_ZBviol, 1 );
-  if IdxFirst == 1
+% Die Traj.-IK bricht auch bei Verletzung von Nebenbedingungen ab und nicht
+% nur bei ungültiger Konfiguration. Prüfe hier nur den letzteren Fall.
+if Stats.iter < length(Traj_0.t) && ( ... % zu früher Abbruch der Trajektorie
+    any(abs(PHI(Stats.iter+1,:)) > 1e-6,2) || ... % Zwangsbedingungen verletzt
+  any(isnan(Q(Stats.iter+1,:)),2) || ... % Position bereits nicht berechnet
+  any(isnan(QD(Stats.iter+1,:)),2) || any(isnan(QDD(Stats.iter+1,:)),2)) % Besch. ungültig
+  if Stats.iter == 0
     cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Bereits bei erster ', ...
       'Traj.-Iteration Abbruch, obwohl Einzelpunkt-IK erfolgreich war. ', ...
       'Vermutlich Logik-Fehler.'], Structure.config_index, Structure.config_number));
   end
   % Umrechnung in Prozent der Traj.
-  Failratio = 1-IdxFirst/length(Traj_0.t); % Wert zwischen 0 und 1
+  Failratio = 1-Stats.iter/length(Traj_0.t); % Wert zwischen 0 und 1
   fval = 1e4*(6+4*Failratio); % Wert zwischen 6e4 und 1e5.
   % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
   constrvioltext = sprintf('Keine IK-Konvergenz in Traj. Bis %1.0f%% (%d/%d) gekommen.', ...
-    (1-Failratio)*100, IdxFirst, length(Traj_0.t));
+    (1-Failratio)*100, Stats.iter, length(Traj_0.t));
   continue
   % Debug: Trajektorie zeichnen
   qDlim = Structure.qDlim;
