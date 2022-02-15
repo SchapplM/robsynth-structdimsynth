@@ -170,23 +170,23 @@ if nargin >= 6
   end
 end
 %% Debug vorherige Iteration: Karte der Leistungsmerkmale für Aufgabenredundanz zeichnen
+% Rechne die IK-Kriterien von Traj.- zu Pos.-IK um.
+% Reihenfolge: Siehe IK-Funktionen oder ik_optimcrit_index.m
+% Einige Kriterien der Pos.-IK haben keine Entsprechung in Traj.-IK.
+% Daher wird eine Permutationsmatrix erstellt und kein Index-Vektor
+i=0;
+P_wn_traj = zeros(R.idx_ik_length.wnpos,R.idx_ik_length.wntraj);
+for f = fields(R.idx_ikpos_wn)'
+  if ~isfield(R.idx_iktraj_wnP, f{1}), continue; end
+  i=i+1;
+  P_wn_traj(i, R.idx_iktraj_wnP.(f{1})) = 1;
+end
+% EE-Drehung für Startpose berechnen
+x0 = R.fkineEE2_traj(q')';
 if Structure.task_red && Set.general.debug_taskred_perfmap
   nt_red = size(Traj_0.X,1); % Zum Debuggen: Reduktion der Stützstellen
   critnames = fields(R.idx_ikpos_wn)';
-  % Rechne die IK-Kriterien von Traj.- zu Pos.-IK um.
-  % Reihenfolge: Siehe IK-Funktionen oder ik_optimcrit_index.m
-  % Einige Kriterien der Pos.-IK haben keine Entsprechung in Traj.-IK.
-  % Daher wird eine Permutationsmatrix erstellt und kein Index-Vektor
-  i=0;
-  P_wn_traj = zeros(R.idx_ik_length.wnpos,R.idx_ik_length.wntraj);
-  for f = fields(R.idx_ikpos_wn)'
-    if ~isfield(R.idx_iktraj_wnP, f{1}), continue; end
-    i=i+1;
-    P_wn_traj(i, R.idx_iktraj_wnP.(f{1})) = 1;
-  end
   if i_ar == 1 % Nur einmal die Rasterung generieren
-    % EE-Drehung für Startpose berechnen
-    x0 = R.fkineEE2_traj(q')';
     t1 = tic();
     % Bereich der Redundanzkarte: -210°...210° oder bis maximal +/-360°,
     % falls Trajektorie in eine oder beide Richtungen weiter geht
@@ -630,16 +630,32 @@ if Structure.task_red && Set.general.taskred_dynprog
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
       'cds_constraints_traj_before_dynprog.mat'));
   end
+  % Bestimme die Grenzen der Optimierungsvariable in der DP eher
+  % großzügiger als in der normalen Nullraumbewegung, da die Bewegung
+  % kontrollierter stattfindet.
+  dp_xDlim = repmat(max(Set.optimization.max_velocity_ee_rotation, ...
+    Set.task.vmax)*[-1, +1], 6, 1);
+  dp_xDDlim = repmat(max(Set.optimization.max_acceleration_ee_rotation, ...
+    Set.task.amax)*[-1, +1], 6, 1);
+  % Zeit zum Abbremsen der Nullraumbewegung (Dynamische Prog. Rast-zu-Rast)
+  % Auch als Beschleunigungszeit für Aufgabenbewegung angenommen.
+  T_dec_dp = dp_xDlim(6,2) / dp_xDDlim(6,2);
   s_dp = struct(...
     'wn', P_wn_traj*s.wn, ...
     'settings_ik', s, ...
-    'xDDlim', R.xDDlim, 'xDlim', R.xDlim, ...
+    'xDDlim', dp_xDDlim, 'xDlim', dp_xDlim, ...
     'cost_mode', 'max', ...
     'abort_thresh_h', s.abort_thresh_h, ...
-    'H_all', H_all, 's_ref', s_ref, 's_tref', s_tref, 'phiz_range', phiz_range, ...
-    'verbose', 0, 'IE', Traj_0.IE, 'n_phi', 8, 'phi_min', -pi, 'phi_max', pi, ...
-    'T_dec_ns', 0.5*Set.task.T_dec_ns, ... % Zeit für Abbremsvorgang (des Nullraums)
-    'Tv', 1/4*Set.task.T_dec_ns, ... % Die Hälfte des Abbremsvorgangs nur für Ausschwingen und Abbremsen der Aufgabe berücksichtigen
+    'PM_H_all', H_all, 'PM_s_ref', s_ref, 'PM_s_tref', s_tref, 'PM_phiz_range', phiz_range, ...
+    'verbose', 0, 'IE', Traj_0.IE, 'n_phi', 16, ...
+    ... % Falls Startpose am Rand liegt den Suchbereich etwas aufweiten
+    'phi_min', min(-pi, x0(6)-pi/4), 'phi_max', max(pi, x0(6)+pi/4), ...
+    ... % Zeit für Abbremsvorgang (nur des Nullraums, vor dem Abbremsen der Aufgabe)
+    ... % Kompromiss aus mehr Zeit für Verfahrbewegung und etwas Spielraum für Ausschwingvorgang
+    'T_dec_ns', 1/4*T_dec_dp, ...
+    ... % Annahme: Abbremsen der Aufgabe am Ende mit max. Beschleunigung
+    ... % Für diese Zeit am Ende gibt es keine Nullraumbewegung
+    'Tv', T_dec_dp/2, ...
     'debug_dir', fullfile(resdir,[name_prefix_ardbg, '_dynprog']));
   if Set.general.debug_dynprog_files, mkdirs(s_dp.debug_dir);
   else,                               s_dp.debug_dir = '';
@@ -780,9 +796,7 @@ end
 % Die Traj.-IK bricht auch bei Verletzung von Nebenbedingungen ab und nicht
 % nur bei ungültiger Konfiguration. Prüfe hier nur den letzteren Fall.
 if Stats.iter < length(Traj_0.t) && ( ... % zu früher Abbruch der Trajektorie
-    any(abs(PHI(Stats.iter+1,:)) > 1e-6,2) || ... % Zwangsbedingungen verletzt
-  any(isnan(Q(Stats.iter+1,:)),2) || ... % Position bereits nicht berechnet
-  any(isnan(QD(Stats.iter+1,:)),2) || any(isnan(QDD(Stats.iter+1,:)),2)) % Besch. ungültig
+    any(Stats.errorcode==[1 2])) % Fehlercode nicht durch Zielfunktions-Verletzung
   % Umrechnung in Prozent der Traj.
   Failratio = 1-Stats.iter/length(Traj_0.t); % Wert zwischen 0 und 1
   fval = 1e4*(6+4*Failratio); % Wert zwischen 6e4 und 1e5.
