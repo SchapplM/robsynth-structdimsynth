@@ -713,7 +713,16 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     end
     % Normalisiere den Winkel. Bei manchen Robotern springt das IK-Ergebnis
     % sehr stark. Dadurch wird die Gelenkspannweite sonst immer verletzt.
-    q(R.MDH.sigma==0) = normalize_angle(q(R.MDH.sigma==0));
+    if i == 1 % Normalisierung von -pi bis pi (Mitte 0)
+      q(R.MDH.sigma==0) = normalizeAngle(q(R.MDH.sigma==0), 0);
+    else
+      % Normalisierung nicht um den Wert Null herum, sondern um die Winkel
+      % der ersten Konfiguration. Das führt zu einer minimalen Spannweite
+      % bezüglich aller Gelenkkonfigurationen der Eckpunkte und wird auch
+      % als Mittelwert für die später festgelegten Gelenkgrenzen benutzt.
+      q(R.MDH.sigma==0) = normalizeAngle(q(R.MDH.sigma==0), ...
+        QE(1, R.MDH.sigma==0)'); % Bezugswinkel erste Punkt
+    end
     Phi_E(i,:) = Phi;
     QE(i,:) = q;
     if any(abs(Phi(:)) > 1e-2) || any(isnan(Phi))
