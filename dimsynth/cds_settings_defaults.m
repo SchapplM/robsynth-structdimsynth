@@ -203,7 +203,7 @@ task = struct( ...
   'vmax', 1, ... % maximale Geschwindigkeit (m/s oder rad/s)
   'amax', 3, ... % maximale Beschleunigung (m/s² oder rad/s²)
   'Tv', 0.01, ... % Verschliffzeit der Beschleunigung (für Ruckbegrenzung)
-  'T_dec_ns', 1/3, ... % Zeit zum Abbremsen der Nullraumbewegung zwischen Rastpunkten. Bei 0 kein Abbremsen sondern durchgängige Bewegung. Verhältnis vmax/amax. Muss nachgestellt werden
+  'T_dec_ns', 0, ... % Zeit zum Abbremsen der Nullraumbewegung zwischen Rastpunkten. Bei 0 kein Abbremsen sondern durchgängige Bewegung. Verhältnis vmax/amax wird bei NaN automatisch gebildet
   'Ts', 1e-3, ... % Abtastzeit der Trajektorie
   'maxangle', 2*pi, ... % Keine Einschränkung für die maximalen Winkel
   'installspace', struct( ... % Konfiguration des möglichen Bauraums

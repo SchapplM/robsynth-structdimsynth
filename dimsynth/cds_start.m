@@ -225,11 +225,15 @@ assert(all(abs(test_XEfromIE(:))<1e-10), 'XE muss mit IE aus X indiziert werden 
 
 % Rast-zu-Rast-Verhalten auch für Nullraumbewegung, wenn gefordert.
 % Bestimme die Zeitschritte
+if isnan(Set.task.T_dec_ns)
+  % Zeit zum Abbremsen der Nullraumbewegung bestimmen.
+  Set.task.T_dec_ns = Set.task.vmax / Set.task.amax;
+end
 if Set.task.profile == 1 && Set.task.T_dec_ns > 0
   nullspace_maxvel_interp = nullspace_maxvel_from_tasktraj(Traj.t, ...
     Traj.IE, Set.task.vmax/Set.task.amax, Set.task.T_dec_ns , Set.task.Ts);
   Traj.nullspace_maxvel_interp = nullspace_maxvel_interp;
-else
+else % Deaktiviere Begrenzung der Geschwindigkeit
   Traj.nullspace_maxvel_interp = zeros(2,0);
 end
 
