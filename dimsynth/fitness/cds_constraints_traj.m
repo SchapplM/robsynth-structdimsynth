@@ -114,6 +114,11 @@ s.nullspace_maxvel_interp = Traj_0.nullspace_maxvel_interp;
 % schnellere Berechnung
 s.abort_thresh_h = inf(R.idx_ik_length.hntraj, 1);
 s.abort_thresh_h(R.idx_iktraj_hn.xlim_hyp) = NaN; % nicht für EE-Drehung (falls Aufgabenredundant)
+% Breche auch ab, wenn die Konditionszahl verletzt wird und dies vorher
+% gefordert wurde
+if Set.optimization.constraint_obj(4) ~= 0
+  s.abort_thresh_h(R.idx_iktraj_hn.jac_cond) = Set.optimization.constraint_obj(4);
+end
 % Benutze eine Singularitätsvermeidung, die nur in der Nähe von
 % Singularitäten aktiv ist. Wenn die Kondition wesentlich schlechter wird,
 % wird der Roboter am Ende sowieso verworfen. Also nicht so schlimm, falls
@@ -170,15 +175,15 @@ if Structure.task_red && Set.general.debug_taskred_perfmap
   critnames = fields(R.idx_ikpos_wn)';
   % Rechne die IK-Kriterien von Traj.- zu Pos.-IK um.
   % Reihenfolge: Siehe IK-Funktionen oder ik_optimcrit_index.m
-  % Einige Kriterien der Pos.-IK haben keine Entsprechung in Traj.-IK
-  i=0; I_wn_traj = zeros(R.idx_ik_length.wnpos,1);
-  for f = intersect(fields(R.idx_ikpos_wn)',fields(R.idx_iktraj_wnP)')
-    i=i+1; I_wn_traj(i) = R.idx_iktraj_wnP.(f{1});
+  % Einige Kriterien der Pos.-IK haben keine Entsprechung in Traj.-IK.
+  % Daher wird eine Permutationsmatrix erstellt und kein Index-Vektor
+  i=0;
+  P_wn_traj = zeros(R.idx_ik_length.wnpos,R.idx_ik_length.wntraj);
+  for f = fields(R.idx_ikpos_wn)'
+    if ~isfield(R.idx_iktraj_wnP, f{1}), continue; end
+    i=i+1;
+    P_wn_traj(i, R.idx_iktraj_wnP.(f{1})) = 1;
   end
-   % Entferne Einträge für die Kriterien der Positions-IK, die keine
-   % Entsprechung bei der Trajektorien-IK haben 
-  critnames = critnames(I_wn_traj~=0);
-  I_wn_traj = I_wn_traj(I_wn_traj~=0); % überzählige Einträge entfernen
   if i_ar == 1 % Nur einmal die Rasterung generieren
     % EE-Drehung für Startpose berechnen
     x0 = R.fkineEE2_traj(q')';
@@ -258,7 +263,7 @@ if Structure.task_red && Set.general.debug_taskred_perfmap
     save(fullfile(resdir,sprintf('%s_TaskRed_Traj%d.mat', name_prefix_ardbg, i_ar-1)), ...
       'PM_phiz_plot', 'Q', 'i_ar', 'q', 'Stats', 'fval', 's');
     cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref(1:nt_red), ...
-      phiz_range, PM_phiz_plot, PM_h_plot, struct('wn', s.wn(I_wn_traj), ...
+      phiz_range, PM_phiz_plot, PM_h_plot, struct('wn', P_wn_traj*s.wn, ...
       'i_ar', i_ar-1, 'name_prefix_ardbg', name_prefix_ardbg, 'fval', fval, ...
       'TrajLegendText', {TrajLegendText},  'ignore_h0', false, ...
       'deactivate_time_figure', true, ... % Bild nicht wirklich brauchbar
@@ -625,22 +630,14 @@ if Structure.task_red && Set.general.taskred_dynprog
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
       'cds_constraints_traj_before_dynprog.mat'));
   end
-%   Set.task.Tv = R.xDlim(6,2) / R.xDDlim(6,2);
-%   Set.task.T_dec_ns = R.xDlim(6,2) / R.xDDlim(6,2);
-  % Setze IK-Nebenbedingungen für dynamische Programmierung.
-  critnames = {};
-  for f = fields(R.idx_iktraj_wnP)'
-    if s.wn(R.idx_iktraj_wnP.(f{1})) ~= 0 && isfield(R.idx_ikpos_wn, f{1})
-      critnames = [critnames, f{1}]; %#ok<AGROW>
-    end
-  end
   s_dp = struct(...
-    'wn_names', {critnames}, ...
+    'wn', P_wn_traj*s.wn, ...
     'settings_ik', s, ...
     'xDDlim', R.xDDlim, 'xDlim', R.xDlim, ...
     'cost_mode', 'max', ...
+    'abort_thresh_h', s.abort_thresh_h, ...
     'H_all', H_all, 's_ref', s_ref, 's_tref', s_tref, 'phiz_range', phiz_range, ...
-    'verbose', 2, 'IE', Traj_0.IE, 'n_phi', 8, 'phi_min', -pi, 'phi_max', pi, ...
+    'verbose', 0, 'IE', Traj_0.IE, 'n_phi', 8, 'phi_min', -pi, 'phi_max', pi, ...
     'T_dec_ns', 0.5*Set.task.T_dec_ns, ... % Zeit für Abbremsvorgang (des Nullraums)
     'Tv', 1/4*Set.task.T_dec_ns, ... % Die Hälfte des Abbremsvorgangs nur für Ausschwingen und Abbremsen der Aufgabe berücksichtigen
     'debug_dir', fullfile(resdir,[name_prefix_ardbg, '_dynprog']));
@@ -652,7 +649,7 @@ if Structure.task_red && Set.general.taskred_dynprog
     Structure.config_index, Structure.config_number, length(Traj_0.IE), s_dp.n_phi));
   t1 = tic();
   [XL, DPstats, TrajDetailDP] = R.dynprog_taskred_ik(Traj_0.X, Traj_0.XD, ...
-    Traj_0.XDD, Traj_0.t, q, s_dp); 
+    Traj_0.XDD, Traj_0.t, q, s_dp);
   cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: %1.1fs für DP. ', ...
     'Insgesamt %d IK-Zeitschritte (%1.1f x Traj.) berechnet. %d/%d erfolg', ...
     'reiche Übergänge'], Structure.config_index, Structure.config_number, ...
@@ -666,6 +663,9 @@ if Structure.task_red && Set.general.taskred_dynprog
   Q_dp = TrajDetailDP.Q;
   QD_dp = TrajDetailDP.QD;
   QDD_dp = TrajDetailDP.QDD;
+  PHI_dp = TrajDetailDP.PHI;
+  Jinv_ges_dp = TrajDetailDP.Jinv_ges;
+  JP_dp = TrajDetailDP.JP;
   Stats_dp = TrajDetailDP.Stats;
   X2_dp = Traj_0.X;
   X2_dp(:,6) = TrajDetailDP.X6;
@@ -695,6 +695,10 @@ if Structure.task_red && Set.general.taskred_dynprog
   delta_phi = (s_dp.phi_max-s_dp.phi_min)/s_dp.n_phi;
   s.xlim6_interp(:,1) = [Traj_0.t(1);-delta_phi/2; delta_phi/2];
   for i = 1:size(XL,1)-1
+    % Falls die DP nicht erfolgreich war, gibt es kein Toleranzband
+    if all(isinf(DPstats.F_all(i,:)))
+      delta_phi = inf; % Damit wird xlim6_interp unwirksam
+    end
     % Zwischen Stützstellen doppelt so breites Toleranzband
     s.xlim6_interp(:,2*i) = [mean(Traj_0.t(Traj_0.IE([i,i+1])));-delta_phi; delta_phi];
     % An Stützstellen Toleranzband so breit wie DP-Diskretisierung
@@ -768,17 +772,17 @@ if Structure.task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_
 end
 
 %% Prüfe Erfolg der Trajektorien-IK
+if Stats.iter == 0
+  cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Bereits bei erster ', ...
+    'Traj.-Iteration Abbruch, obwohl Einzelpunkt-IK erfolgreich war. ', ...
+    'Vermutlich Logik-Fehler.'], Structure.config_index, Structure.config_number));
+end
 % Die Traj.-IK bricht auch bei Verletzung von Nebenbedingungen ab und nicht
 % nur bei ungültiger Konfiguration. Prüfe hier nur den letzteren Fall.
 if Stats.iter < length(Traj_0.t) && ( ... % zu früher Abbruch der Trajektorie
     any(abs(PHI(Stats.iter+1,:)) > 1e-6,2) || ... % Zwangsbedingungen verletzt
   any(isnan(Q(Stats.iter+1,:)),2) || ... % Position bereits nicht berechnet
   any(isnan(QD(Stats.iter+1,:)),2) || any(isnan(QDD(Stats.iter+1,:)),2)) % Besch. ungültig
-  if Stats.iter == 0
-    cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Bereits bei erster ', ...
-      'Traj.-Iteration Abbruch, obwohl Einzelpunkt-IK erfolgreich war. ', ...
-      'Vermutlich Logik-Fehler.'], Structure.config_index, Structure.config_number));
-  end
   % Umrechnung in Prozent der Traj.
   Failratio = 1-Stats.iter/length(Traj_0.t); % Wert zwischen 0 und 1
   fval = 1e4*(6+4*Failratio); % Wert zwischen 6e4 und 1e5.
@@ -1521,6 +1525,7 @@ if ~isempty(Set.task.obstacles.type)
   end
 end
 %% Fertig. Bis hier wurden alle Nebenbedingungen geprüft.
+assert(all(~isnan(Jinv_ges(:))), 'Prüfung der Nebenbedingungen nicht vollständig');
 fval = 1e3;
 constrvioltext = 'i.O.';
 end
