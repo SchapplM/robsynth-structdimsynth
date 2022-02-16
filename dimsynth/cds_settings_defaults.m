@@ -37,6 +37,7 @@ general = struct( ...
   'plot_details_in_fitness', 0, ... % Positiv: nur bei besseren; negativ: nur bei schlechteren als ...
   'plot_details_in_desopt' , 0, ... % Wie vorheriges Argument, aber für die Gütefunktion der Entwurfsoptimierung
   'taskred_dynprog', true, ... % Benutze im Fall von Redundanz die dynamische Programmierung
+  'taskred_dynprog_and_gradproj', true, ... % Benutze zusätzlich noch die normale IK-Funktion ohne DP
   ... % Debug-Einstellungen um gezielt einige Bilder und Untersuchungen zu aktivieren
   'debug_taskred_perfmap', 0, ...% Redundanzkarte (Rasterung des redundanten FG über Trajektorie). 0=aus, 1=nur Summe, 2=Details (eine Karte für jedes Leistungsmerkmal getrennt)
   'debug_taskred_fig', false, ... % Diverse weitere Plots zur Aufgabenredundanz
