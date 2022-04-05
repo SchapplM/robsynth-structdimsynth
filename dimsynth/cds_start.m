@@ -653,16 +653,19 @@ if ~Set.general.regenerate_summary_only
     if Set.general.update_template_functions
       if type == 0
         serroblib_writelock('lock', 'template', 0, 5*60, false);
-        serroblib_update_template_functions(Names,Set.general.verbosity>2)
+        serroblib_update_template_functions(Names,Set.general.verbosity>2, ...
+          ~Set.general.use_mex);
         serroblib_writelock('free', 'template', 0, 5*60, false);
       else
         % Zuerst die Vorlagen-Funktionen für die seriellen Beinketten
         serroblib_writelock('lock', 'template', 0, 5*60, false);
-        serroblib_update_template_functions(SNames_Legs,Set.general.verbosity>2)
+        serroblib_update_template_functions(SNames_Legs,Set.general.verbosity>2, ...
+          ~Set.general.use_mex);
         serroblib_writelock('free', 'template', 0, 5*60, false);
         % Danach die Funktionen für die PKM
         parroblib_writelock('lock', 'template', Structures_I{1}.DoF, 5*60, false);
-        parroblib_update_template_functions(Names,Set.general.verbosity>2)
+        parroblib_update_template_functions(Names,Set.general.verbosity>2, ...
+          ~Set.general.use_mex);
         parroblib_writelock('free', 'template', Structures_I{1}.DoF, 5*60, false);
       end
     end
