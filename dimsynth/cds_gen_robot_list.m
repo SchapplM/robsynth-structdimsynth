@@ -65,9 +65,12 @@ if structset.use_serial
     error('Fall nicht implementiert');
   end
   % Bei Aufgabenredundanz: Benutzte EE-FG der Aufgabe müssen weniger als
-  % die tatsächlich steuerbaren sein. TODO: Bessere Abgrenzung.
+  % die tatsächlich steuerbaren (Gelenk-FG) sein
   if Set.structures.max_task_redundancy > 0
-    N_JointDoF_max = max(6, sum(Set.task.DoF)+Set.structures.max_task_redundancy);
+    % Die Aufgaben-FG die egal sind, sind mit Null gekennzeichnet.
+    % In der Summe daher nicht wirksam. Redundanzgrad aufaddiert.
+    % Beispiel Redundanzgrad 1: 2T0*R -> 3 Gelenke, 3T2R -> 6 Gelenke.
+    N_JointDoF_max = sum(Set.task.DoF)+Set.structures.max_task_redundancy;
     N_JointDoF_allowed = N_JointDoF_allowed:1:N_JointDoF_max;
   end
 else
