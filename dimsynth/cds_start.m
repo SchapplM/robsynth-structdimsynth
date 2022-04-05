@@ -315,12 +315,7 @@ end
 %% Berechnung auf PBS-Cluster vorbereiten und durchführen
 if Set.general.computing_cluster
   % Bereite eine Einstellungs-Datei vor
-  % Folgende Zeile scheitert auf dem Cluster, da Pfad dort nicht gesetzt.
-  % Das ist so gewollt.
-  if isempty(which('computingcluster_repo_path.m'))
-    error('Datei computingcluster_repo_path.m existiert nicht. Muss manuell aus template-Datei erstellt werden.');
-  end
-  cluster_repo_path = computingcluster_repo_path();
+  cluster_repo_path = fileparts(which('cluster_transfer_toolbox_path_init.m'));
   % Erzeuge Liste aller oben zur Optimierung gefundener Roboter
   Names = {};
   for k = 1:length(Structures)

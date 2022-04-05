@@ -776,7 +776,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         'Struktursynthese auf Cluster\n']);
       % Führe die Maßsynthese für die Struktursynthese auf dem Cluster durch.
       % Bereite eine Einstellungs-Datei vor
-      cluster_repo_path = computingcluster_repo_path();
+      cluster_repo_path = fileparts(which('cluster_transfer_toolbox_path_init.m'));
       % Eindeutige Bezeichnung für diesen Versuchslauf
       computation_name = sprintf('structsynth_par_%s_G%dP%d_%s_%s%s', EE_FG_Name, ...
         Coupling(1), Coupling(2),  datestr(now,'yyyymmdd_HHMMSS'), genstr, varstr);

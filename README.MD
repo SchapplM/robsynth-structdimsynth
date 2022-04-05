@@ -23,8 +23,8 @@ Die folgenden Toolboxen müssen heruntergeladen und deren Pfad in Matlab initial
 * Datenbank serieller Roboter: [Github](https://github.com/SchapplM/robsynth-serroblib), [Uni Hannover intern](https://gitlab.projekt.uni-hannover.de/imes-gruppe-robotik/serrob_mdlbib)
 * Datenbank paralleler Roboter:  [Github](https://github.com/SchapplM/robsynth-parroblib), [Uni Hannover intern](https://gitlab.projekt.uni-hannover.de/imes-gruppe-robotik/parrob_mdlbib)
 * PBS-Cluster-Transfer: [Github](https://github.com/SchapplM/matlab_pbs_transfer), [Uni Hannover intern](https://gitlab.projekt.uni-hannover.de/imes-material/matlab-luis-cluster)
-  * Wird nur benötigt, falls die Maßsynthese parallel auf einem [PBS-Cluster](https://www.luis.uni-hannover.de/de/services/computing/scientific-computing/) gerechnet werden soll
-  * Die Dateien `computingcluster_repo_path.m.template` und `dimsynth/dimsynth_cluster_header.m.template` müssen angepasst und am gleichen Ort ohne template-Endung gespeichert werden. Für Struktursynthese auf dem Cluster muss zusätzlich `struktsynth_par/structsynth_cluster_header.m.template` angepasst werden.
+  * Wird nur benötigt, falls die Maßsynthese parallel auf einem [PBS-/SLURM-Cluster](https://www.luis.uni-hannover.de/de/services/computing/scientific-computing/) gerechnet werden soll
+  * Die Datei `dimsynth/dimsynth_cluster_header.m.template` muss angepasst und am gleichen Ort ohne template-Endung gespeichert werden. Für Struktursynthese auf dem Cluster muss zusätzlich `struktsynth_par/structsynth_cluster_header.m.template` angepasst werden.
 
 ### Tests
 
