@@ -40,7 +40,7 @@ general = struct( ...
   'debug_taskred_perfmap', 0, ...% Redundanzkarte (Rasterung des redundanten FG über Trajektorie). 0=aus, 1=nur Summe, 2=Details (eine Karte für jedes Leistungsmerkmal getrennt)
   'debug_taskred_fig', false, ... % Diverse weitere Plots zur Aufgabenredundanz
   'save_robot_details_plot_fitness_file_extensions', {''}, ... % Speichern des durch vorherige Einstellung erstellten Bildes
-  'save_animation_file_extensions', {{'gif', 'mp4'}}, ... % Format, in denen die Animationen gespeichert werden
+  'save_animation_file_extensions', {{'mp4'}}, ... % Format, in denen die Animationen gespeichert werden
   'animation_styles', {{'stick'}}, ... % Visualisierungsarten im Video: stick,3D,collision; bei mehr als einem: Syntax {{'1.','2.'}}
   'animation_installationspace', false, ... % Zeichne die Grenzen des Arbeitsraums in Animation mit ein
   'animation_workspaceobstacles', false, ... % Zeichne (Kollisions-)Störobjekte in die Animation mit ein
