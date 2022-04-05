@@ -38,8 +38,15 @@ if all(Set.task.DoF == [1 1 1 1 1 0])
   EE_FG_ser      = [[1 1 1], [1 1 1], [1 1 1]];
   EE_FG_Mask_ser = [[1 1 1], [1 1 1], [1 1 0]];
 else
-  EE_FG_ser = Set.task.DoF;
-  EE_FG_Mask_ser = [1 1 1 1 1 1]; % Die FG müssen genauso auch vom Roboter erfüllt werden (0 darf nicht auch 1 sein)
+  % Annahme: Muss planare Rotation sein. Daher Wiederholung der
+  % Winkelgeschw.-Terme als Euler-Geschw.-Terme (letzte beide Einträge)
+  EE_FG_ser = Set.task.DoF([1:3, 4:6, 4:6]);
+  EE_FG_Mask_ser = [1 1 1 1 1 1 1 1 1]; % Die FG müssen genauso auch vom Roboter erfüllt werden (0 darf nicht auch 1 sein)
+end
+% Auch Fall 2T0*R und 3T0*R für serielle Roboter abdecken
+if Set.task.pointing_task
+  EE_FG_Mask_ser(6) = 0;
+  EE_FG_Mask_ser(9) = 0;
 end
 
 ii = 0; % Laufende Nummer für alle Roboterstrukturen (seriell und parallel)
@@ -81,9 +88,11 @@ for N_JointDoF = N_JointDoF_allowed
     I = I & I_novar;
   end
   % Nehme alle Roboter, die explizit genannt wurden
-  for i = 1:length(I)
-    if any(strcmp(structset.whitelist, l.Names_Ndof{i}))
-      I(i) = true; % wieder aktivieren, da explizit gefordert
+  if ~isempty(structset.whitelist)
+    for i = 1:length(I)
+      if any(strcmp(structset.whitelist, l.Names_Ndof{i}))
+        I(i) = true; % wieder aktivieren, da explizit gefordert
+      end
     end
   end
   II = find(I);
