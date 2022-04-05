@@ -122,10 +122,17 @@ end
 %% EE-Verschiebung
 if any(Structure.vartypes == 3) % Set.optimization.ee_translation
   p_eepos = p(Structure.vartypes == 3);
+  % Koordinaten auswählen (bezogen auf KS N, nicht KS E).
+  % Stellt für planare serielle Roboter einen Unterschied dar
+  if Structure.R_N_E_isset && R.Type == 0
+    task_transl_DoF_rotE = R.T_N_E(1:3,1:3)' * double(Set.task.DoF(1:3)');
+  else
+    task_transl_DoF_rotE = double(Set.task.DoF(1:3)');
+  end
   r_N_E_neu = zeros(3,1);
   % EE-Versatz skaliert mit Roboter-Skalierungsfaktor
-  r_N_E_neu(Set.task.DoF(1:3)) = p_eepos.*scale;
-  p_phys(Structure.vartypes == 3) = r_N_E_neu(Set.task.DoF(1:3));
+  r_N_E_neu(abs(task_transl_DoF_rotE(:))>1e-10) = p_eepos .* scale;
+  p_phys(Structure.vartypes == 3) = r_N_E_neu(abs(task_transl_DoF_rotE(:))>1e-10);
   R_neu.update_EE(r_N_E_neu);
 end
 

@@ -727,7 +727,15 @@ elseif Set.optimization.ee_translation && ...
   nvars = nvars + sum(Set.task.DoF(1:3)); % Verschiebung des EE um translatorische FG der Aufgabe
   vartypes = [vartypes; 3*ones(sum(Set.task.DoF(1:3)),1)];
   varlim = [varlim; repmat([-1, 1], sum(Set.task.DoF(1:3)), 1)]; % bezogen auf Lref
-  for i = find(Set.task.DoF(1:3))
+  % Bei planaren seriellen Robotern muss eine Rotation durchgeführt werden,
+  % falls es eine Transformation N-E gibt. Sonst wird die falsche Richtung
+  % des N-KS benutzt statt wie gewünscht des E-KS.
+  if Structure.R_N_E_isset && R.Type == 0
+    task_transl_DoF_rotE = R.T_N_E(1:3,1:3)' * double(Set.task.DoF(1:3)');
+  else
+    task_transl_DoF_rotE = double(Set.task.DoF(1:3)');
+  end
+  for i = find(abs(task_transl_DoF_rotE(:))>1e-10)'
     varnames = {varnames{:}, sprintf('ee pos %s', char(119+i))}; %#ok<CCAT>
   end
 end
