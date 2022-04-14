@@ -211,7 +211,17 @@ if Set.task.profile ~= 0 % Trajektorie prüfen
   corrXD = diag(corr(XD_numint, Traj.XD));
   corrXD(all(abs(Traj.XD)<1e-3)) = 1;
   assert(all(corrXD>0.98), 'eingegebene Trajektorie ist nicht konsistent (XD-XDD)');
+else % Kein Trajektorienprofil gegeben. Prüfe Datenformat
+  % Trajektorie in X muss identisch zu der in XE sein (für Implementierung)
+  assert(all(size(Traj.X)==size(Traj.XE)), 'Für profile=0 muss Traj.X und Traj.XE gleich sein (Dimension)');
+  assert(all(abs(Traj.X(:)-Traj.XE(:))<1e-10), 'Für profile=0 muss Traj.X und Traj.XE gleich sein (Werte)'); 
 end
+assert(all(size(Traj.X)==size(Traj.XD)), 'Dimension von X und XD nicht gleich');
+assert(all(size(Traj.X)==size(Traj.XDD)), 'Dimension von X und XDD nicht gleich');
+assert(length(Traj.IE)==size(Traj.XE,1), 'IE und XE muss gleiche Dimension haben in Traj.-Var.');
+assert(max(Traj.IE)<=size(Traj.X,1), 'Index-Vektor IE darf Bereich aus X nicht überschreiten');
+test_XEfromIE = Traj.X(Traj.IE,:) - Traj.XE;
+assert(all(abs(test_XEfromIE(:))<1e-10), 'XE muss mit IE aus X indiziert werden können');
 
 %% Menge der Roboter laden
 if ~(Set.general.only_finish_aborted && Set.general.isoncluster) && ... % Abschluss auf Cluster
