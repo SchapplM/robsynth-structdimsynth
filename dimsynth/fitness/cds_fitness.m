@@ -285,7 +285,7 @@ for iIKC = 1:size(Q0,1)
       for i = 1:size(Q,1)
         % Berechne die korrigierten Werte für die Euler-Winkel nach
         if Structure.task_red || all(R.I_EE_Task == [1 1 1 1 1 0])
-          x_i = R.fkineEE2_traj(q')';
+          x_i = R.fkineEE2_traj(Q(i,:))';
           x_i(1:5) = Traj_0.X(i,1:5);
           Traj_0.X(i,:) = x_i;
         end
