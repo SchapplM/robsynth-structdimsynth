@@ -288,6 +288,13 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         condJ(i,1) = Stats.condJ(1+Stats.iter,2);
       else % PKM
         Q0_mod = Q0_ik;
+        if Set.optimization.pos_ik_tryhard_num > 0
+          % Annahme: Wenn Modus aktiv ist, sollen alte Ergebnisse
+          % reproduziert werden. Dann zuerst die vollständige Gelenk-
+          % Konfiguration vorgeben und nicht ab wie unten mit NaN ersetzen.
+          Q0_mod = repmat(Q0_ik, 1, 2);
+          s_par.prefer_q0_over_first_legchain = true; % q0 bevorzugen
+        end
         Q0_mod(R.I1J_LEG(2):end,end) = NaN; % Für Beinkette 2 Ergebnis von BK 1 nehmen (dabei letzten Anfangswert für BK 2 und folgende verwerfen)
         [q, Phi, Tc_stack, Stats] = R.invkin2(Traj_0.XE(i,:)', Q0_mod, s, s_par); % kompilierter Aufruf
         % Rechne kinematische Zwangsbedingungen nach. Ist für Struktur-
