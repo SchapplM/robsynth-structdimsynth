@@ -249,7 +249,7 @@ end
 linleghdl_tmp = line_format_publication(linhdl_tmp, trajlineformat, s.TrajLegendText);
 hdl(1:size(phiz_traj, 2)) = linleghdl_tmp;
 % Marker für Nebenbedingungsverletzungen setzen
-formats = {'bx', 'g*', 'g^', 'co', 'gv', 'm+'};
+formats = {'bx', 'g*', 'm^', 'co', 'gv', 'm+'};
 for i = 1:6
   % Bestimme Indizes für bestimmte Sonderfälle, wie Gelenküberschreitung,
   % Singularität, Kollision, Bauraumverletzung.
@@ -338,7 +338,7 @@ fighdl2 = change_current_figure(2500+30*s.i_ar+s.i_fig+1e3*double(s.logscale));c
 set(fighdl2, 'Name', sprintf('PerfValues_Iter%d_Fig%d%s', s.i_ar, s.i_fig, logscalesuffix), 'NumberTitle', 'off');
 linhdl_tmp_h = NaN(size(phiz_traj,2),1);
 for i = 1:size(phiz_traj,2)
-  h_interp = interp2(s_ref(I),180/pi*phiz_range_ext,CC_ext_orig(:,I),s_tref,phiz_traj(:,i));
+  h_interp = interp2(s_ref(I),phiz_range_ext,CC_ext_orig(:,I),s_tref,phiz_traj(:,i));
   linhdl_tmp_h(i,1) = plot(s_tref, h_traj(:,i));
   linhdl_tmp_h(i,2) = plot(s_tref, h_interp(:));
 end

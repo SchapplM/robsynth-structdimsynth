@@ -1584,8 +1584,10 @@ if ~isempty(Set.task.obstacles.type)
   end
 end
 %% Fertig. Bis hier wurden alle Nebenbedingungen geprüft.
-if R.Type == 2
-  assert(all(~isnan(Jinv_ges(:))), 'Prüfung der Nebenbedingungen nicht vollständig');
+if R.Type == 2 && any(isnan(Jinv_ges(:)))
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+    'cds_constraints_traj_jacobi_nan_error.mat'));  
+  error('Prüfung der Nebenbedingungen nicht vollständig');
 end
 fval_all(i_m, i_ar) = 1e3;
 constrvioltext_m{i_m} = 'i.O.';
@@ -1615,3 +1617,9 @@ end
 constrvioltext = constrvioltext_m{i_m_best};
 constrvioltext_alt = constrvioltext;
 end % for i_ar
+% Hier ist die Funktion zu Ende. Prüfe nochmal Validität
+if R.Type == 2 && any(isnan(Jinv_ges(:))) && fval == 1e3
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+    'cds_constraints_traj_jacobi_nan_error_final.mat'));  
+  error('Prüfung der Nebenbedingungen nicht vollständig');
+end
