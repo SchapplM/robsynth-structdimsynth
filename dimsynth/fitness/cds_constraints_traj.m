@@ -63,7 +63,10 @@ function [fval,Q,QD,QDD,Jinv_ges,JP,constrvioltext, Traj_0] = cds_constraints_tr
 % Debug
 % save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_0.mat'));
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_0.mat')); nargin=6;
-
+% Set.general.taskred_dynprog_and_gradproj = true;
+% Set.general.debug_taskred_fig = true;
+dbg_load_perfmap = false; % Redundanzkarte nicht neu berechnen
+dbg_load_dp = false; % Dynamische Programmierung nicht neu berechnen
 % Initialisierung
 fval = NaN; % Ausgabevariable
 fval_all = NaN(3,2); % Zielfunktion für verschiedene Durchläufe
@@ -81,6 +84,10 @@ mininstspcdist_all = NaN(3,1);
 Traj_0 = Traj_0_in;
 X2 = NaN(size(Traj_0.X)); XD2 = NaN(size(Traj_0.X)); XDD2 = NaN(size(Traj_0.X));
 constrvioltext_alt = '';
+% Speicherung für Linien in Redundanzkarte
+PM_phiz_plot = [];
+PM_h_plot = [];
+TrajLegendText = {};
 % Bestimme eindeutige Kennung für Speichern von Debug-Informationen
 [currgen,currind,~,resdir] = cds_get_new_figure_filenumber(Set, Structure, '');
 name_prefix_ardbg = sprintf('Gen%02d_Ind%02d_Konfig%d', currgen, ...
@@ -197,6 +204,7 @@ if Structure.task_red && Set.general.debug_taskred_perfmap
 %     perfmap_range_phiz(perfmap_range_phiz> 2*pi)= 2*pi;
     cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: Beginne Aufgabenredundanz-', ...
       'Diagnosebild für Trajektorie mit %d Zeit-Stützstellen'], Structure.config_index, Structure.config_number, nt_red));
+    if ~dbg_load_perfmap % normaler Modus: Hier berechnen
     [H_all, ~, s_ref, s_tref, phiz_range] = R.perfmap_taskred_ik( ...
       Traj_0.X(1:nt_red,:), Traj_0.IE, struct('settings_ik', s, ...
       'q0', q, 'I_EE_red', Set.task.DoF, 'map_phistart', x0(6), ...
@@ -212,25 +220,11 @@ if Structure.task_red && Set.general.debug_taskred_perfmap
     save(fullfile(resdir,sprintf('%s_%s.mat', name_prefix_ardbg, suffix)), ...
       'Structure', 'H_all', 's_ref', 's_tref', 'phiz_range', 'i_ar', 'q', ...
       'nt_red', 'x0');
+    else % 
+    load(fullfile(resdir,sprintf('%s_%s.mat', name_prefix_ardbg, suffix)));
+    end
   end
   if i_ar > 1 % Redundanzkarte erst zeichnen, wenn Trajektorie zur Verfügung steht
-    % Stelle in Redundanzkarte einzuzeichnende Trajektorien zusammen. 
-    % Möglichst alle bisher berechneten zum Vergleich
-    if i_ar == 2
-      PM_phiz_plot = X2(1:nt_red,6);
-      PM_h_plot = Stats.h(1:nt_red,1);
-      TrajLegendText = {'It. 1'};
-    else % i_ar > 2
-      PM_phiz_plot = [PM_phiz_plot, X2(1:nt_red,6)]; %#ok<AGROW>
-      PM_h_plot = [PM_h_plot, Stats.h(1:nt_red,1)]; %#ok<AGROW>
-      TrajLegendText = [TrajLegendText, sprintf('It. %d', i_ar-1)]; %#ok<AGROW>
-    end
-    if Set.general.taskred_dynprog
-      PM_phiz_plot = [PM_phiz_plot, X2_dp(1:nt_red,6)]; %#ok<AGROW>
-      PM_h_plot = [PM_h_plot, Stats_dp.h(1:nt_red,1)]; %#ok<AGROW>
-      TrajLegendText = [TrajLegendText, sprintf('It. %d DP', i_ar-1)]; %#ok<AGROW>
-    end
-    
     % Redundanzkarte für jedes Zielkriterium zeichnen (zur Einschätzung)
     wn_test = zeros(R.idx_ik_length.wnpos,1);
     wn_phys = zeros(4,1);
@@ -623,10 +617,11 @@ if Structure.task_red % Nur bei Redundanz relevant (Nebenbedingungen)
   Traj_0.XD(:,6) = 0; % Wird für Dämpfung benötigt
   Traj_0.XDD(:,6) = 0; % wird ignoriert
 end
-wn_all(i_ar,:) = s.wn(:)'; %#ok<AGROW>
+wn_all(i_ar,:) = s.wn(:)'; %#ok<SAGROW>
 
 %% Dynamische Programmierung für optimale Trajektorie bei Aufgabenredundanz
-if Structure.task_red && Set.general.taskred_dynprog
+if Structure.task_red && Set.general.taskred_dynprog && ...
+    i_ar == 1 % nur einmal die DP berechnen (NB werden im ersten Lauf schon geprüft)
   if Set.general.matfile_verbosity > 2
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
       'cds_constraints_traj_before_dynprog.mat'));
@@ -646,6 +641,7 @@ if Structure.task_red && Set.general.taskred_dynprog
     'settings_ik', s, ...
     'xDDlim', dp_xDDlim, 'xDlim', dp_xDlim, ...
     'cost_mode', 'max', ...
+    'cost_mode2', 'motion_redcoord', ... % möglichst geringe Bewegung der red. Koord.
     'abort_thresh_h', s.abort_thresh_h, ...
     'PM_H_all', H_all, 'PM_s_ref', s_ref, 'PM_s_tref', s_tref, 'PM_phiz_range', phiz_range, ...
     'verbose', 0, 'IE', Traj_0.IE, 'n_phi', 16, ...
@@ -657,7 +653,8 @@ if Structure.task_red && Set.general.taskred_dynprog
     ... % Annahme: Abbremsen der Aufgabe am Ende mit max. Beschleunigung
     ... % Für diese Zeit am Ende gibt es keine Nullraumbewegung
     'Tv', T_dec_dp/2, ...
-    'debug_dir', fullfile(resdir,[name_prefix_ardbg, '_dynprog']));
+    'debug_dir', fullfile(resdir,[name_prefix_ardbg, '_dynprog']), ...
+    'continue_saved_state', true); % Debuggen: Falls mehrfach gleicher Aufruf
   if Set.general.debug_dynprog_files, mkdirs(s_dp.debug_dir);
   else,                               s_dp.debug_dir = '';
   end
@@ -665,15 +662,23 @@ if Structure.task_red && Set.general.taskred_dynprog
     'Dynamischer Programmierung über %d Stufen und %d Zustände.'], ...
     Structure.config_index, Structure.config_number, length(Traj_0.IE), s_dp.n_phi));
   t1 = tic();
-  [XL, DPstats, TrajDetailDP] = R.dynprog_taskred_ik(Traj_0.X, Traj_0.XD, ...
-    Traj_0.XDD, Traj_0.t, q, s_dp);
+  % Dynamische Programmierung berechnen oder Ergebnis laden (für Debuggen)
+  matfile_dp=fullfile(resdir,sprintf('%s_%s.mat',name_prefix_ardbg,'dynprog'));
+  if dbg_load_dp && Set.general.debug_dynprog_files && exist(matfile_dp, 'file')
+    load(matfile_dp, 'XL', 'DPstats', 'TrajDetailDP');
+  else
+    [XL, DPstats, TrajDetailDP] = R.dynprog_taskred_ik(Traj_0.X, Traj_0.XD, ...
+      Traj_0.XDD, Traj_0.t, q, s_dp);
+    if Set.general.debug_dynprog_files
+      save(matfile_dp, 'XL', 'DPstats', 'TrajDetailDP');
+    end
+  end
   cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: %1.1fs für DP. ', ...
     'Insgesamt %d IK-Zeitschritte (%1.1f x Traj.) berechnet. %d/%d erfolg', ...
     'reiche Übergänge'], Structure.config_index, Structure.config_number, ...
     toc(t1), DPstats.nt_ik, DPstats.nt_ik/length(Traj_0.t), ...
     DPstats.n_statechange_succ, DPstats.n_statechange_total));
-
-  if ~isempty(s_dp.debug_dir) % Zip-Archiv aus den DP-Zwischenergebnissen
+  if ~isempty(s_dp.debug_dir) && isfolder(s_dp.debug_dir) % Zip-Archiv aus den DP-Zwischenergebnissen
     zip([s_dp.debug_dir,'.zip'], s_dp.debug_dir);
     rmdir(s_dp.debug_dir, 's');
   end
@@ -684,8 +689,11 @@ if Structure.task_red && Set.general.taskred_dynprog
   Jinv_ges_dp = TrajDetailDP.Jinv_ges;
   JP_dp = TrajDetailDP.JP;
   Stats_dp = TrajDetailDP.Stats;
-  X2_dp = Traj_0.X;
-  X2_dp(:,6) = TrajDetailDP.X6;
+  if Structure.task_red && Set.general.debug_taskred_perfmap
+    PM_phiz_plot = [PM_phiz_plot, TrajDetailDP.X6(1:nt_red)]; %#ok<AGROW>
+    PM_h_plot = [PM_h_plot, Stats_dp.h(1:nt_red,1)]; %#ok<AGROW>
+    TrajLegendText = [TrajLegendText, sprintf('It. %d DP', i_ar)]; %#ok<AGROW>
+  end
   % Setze Trajektorien-Einstellungen für die nochmalige Berechnung im
   % nächsten Schritt. Unterschied zur Ausgabe aus der DP-Funktion:
   % Hier wird kein Rast-zu-Rast mehr erzwungen
@@ -738,7 +746,7 @@ elseif Set.general.taskred_dynprog
   end
 end
 constrvioltext_m = cell(3,1);
-for i_m = ikloop
+for i_m = ikloop % Schleife über verschiedene IK-Verfahren
 %% Trajektorie mit lokaler Optimierung berechnen
 if i_m == 1 || i_m == 3 % Gradientenprojektion
   % Auf Ergebnis der dynamischen Programmierung aufbauen.
@@ -746,8 +754,8 @@ if i_m == 1 || i_m == 3 % Gradientenprojektion
     % Entferne die Einstellungen aus der Dynamischen Programmierung.
     % Nur rein lokale Trajektorienoptimierung
     s_trajik = s;
-  else
-    s_trajik = s_ikdp;
+  else % i_m == 1
+    s_trajik = s_ikdp; % aufbauend auf Ergebnis der DynProg
   end
   if R.Type == 0 % Seriell
     qlim = R.qlim;
@@ -761,14 +769,28 @@ if i_m == 1 || i_m == 3 % Gradientenprojektion
   end
   Q = Q_gp; QD = QD_gp; QDD = QDD_gp; PHI = PHI_gp; Jinv_ges = Jinv_ges_gp;
   JP = JP_gp; Stats = Stats_gp;
-else % Nur Ergebnis der dynamischen Programmierung
+  % Eintragen in Variable zum Zeichnen in Redundanzkarte
+  if Structure.task_red && Set.general.debug_taskred_perfmap
+    % EE-Drehung berechnen (für Redundanzkarte, TODO: Code teilw. doppelt zu unten)
+    X6_gp = NaN(size(Q,1),1);
+    X_gp = R.fkineEE2_traj(Q(1:Stats.iter,:));
+    % Erlaube auch EE-Drehungen größer als 180°
+    X6_gp(1:Stats.iter) = denormalize_angle_traj(X_gp(1:Stats.iter,6));
+    PM_phiz_plot = [PM_phiz_plot, X6_gp(1:nt_red)]; %#ok<AGROW>
+    PM_h_plot = [PM_h_plot, Stats_gp.h(1:nt_red,1)]; %#ok<AGROW>
+    legsuffix = '';
+    if i_m == 1
+      legsuffix = ' w. DP';
+    end
+    TrajLegendText = [TrajLegendText, sprintf('It. %d GP%s', i_ar, legsuffix)]; %#ok<AGROW>
+  end
+else % i_m == 2 % Nur Ergebnis der dynamischen Programmierung
   Q = Q_dp; QD = QD_dp; QDD = QDD_dp; PHI = PHI_dp; Jinv_ges = Jinv_ges_dp;
   JP = JP_dp; Stats = Stats_dp;
 end
 % Zurücksetzen später berechneter Größen (sonst verwirrende Redundanzkarte
 % bei frühzeitigem Abbruch)
 X2(:) = NaN; XD2(:) = NaN; XDD2(:) = NaN;
-
 
 % Anfangswerte nochmal neu speichern, damit der Anfangswert exakt der
 % Wert ist, der für die Neuberechnung gebraucht wird. Ansonsten ist die
@@ -1401,9 +1423,10 @@ corrQD(all(abs(QD_num-QD)<1e-3)) = 1;
 corrQ(all(abs(QD)<1e-10)) = 1; % qD=0 und q schwankt numerisch (als Nullraumbewegung) wegen IK-Positionskorrektur
 if Structure.task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
   % TODO: Inkonsistenz ist Fehler in Traj.-IK. Dort korrigieren.
-  cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Nullraumbewegung führt zu nicht ', ...
-    'konsistenten Gelenkverläufen. Korrelation Geschw. min. %1.2f, ', ...
-    'Position %1.2f'], Structure.config_index, Structure.config_number, min(corrQD), min(corrQ)'));
+  cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d; i_ar=%d, i_m=%d: ', ...
+    'Nullraumbewegung führt zu nicht konsistenten Gelenkverläufen. ', ...
+    'Korrelation Geschw. min. %1.2f, Position %1.2f'], Structure.config_index, ...
+    i_ar, i_m, Structure.config_number, min(corrQD), min(corrQ)'));
 end
 if ~Structure.task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
   % Wenn eine Gelenkgröße konstant ist (ohne Rundungsfehler), wird die
@@ -1561,13 +1584,34 @@ if ~isempty(Set.task.obstacles.type)
   end
 end
 %% Fertig. Bis hier wurden alle Nebenbedingungen geprüft.
-assert(all(~isnan(Jinv_ges(:))), 'Prüfung der Nebenbedingungen nicht vollständig');
+if R.Type == 2
+  assert(all(~isnan(Jinv_ges(:))), 'Prüfung der Nebenbedingungen nicht vollständig');
+end
 fval_all(i_m, i_ar) = 1e3;
 constrvioltext_m{i_m} = 'i.O.';
 end % for i_m
-% Verarbeitung der Ergebnisse aus den Schleifen zu den IK-Methoden
-fval = 1e3;
+% Wähle das beste Ergebnis der IK-Methoden (GP/DP) aus.
+[fval] = min(fval_all(:, i_ar));
+i_m_best = find(fval_all(:, i_ar)==fval, 1, 'last');
+% Belege die Variablen Q, QD, ... aus den vorher gespeicherten Werten
+if i_m_best == 2
+  % Übernehme die DP-Ergebnisse erneut
+  Q = Q_dp; QD = QD_dp; QDD = QDD_dp; PHI = PHI_dp; Jinv_ges = Jinv_ges_dp;
+  JP = JP_dp; Stats = Stats_dp;
+elseif i_m_best == 3
+  % In Q, QD, ... sind schon die letzten Ergebnisse gespeichert
+elseif i_m_best == 1 && isempty(setxor(ikloop,[1 2]))
+  % Fall 1 ist die GP-Methode
+  Q = Q_gp; QD = QD_gp; QDD = QDD_gp; PHI = PHI_gp; Jinv_ges = Jinv_ges_gp;
+  JP = JP_gp; Stats = Stats_gp;
+elseif i_m_best == 1 && isempty(setxor(ikloop,[1 2 3]))
+  % Fall 1 ist die GP-Methode mit Einstellungen aus DP, aber am Ende wird
+  % nochmal GP ohne Einschränkungen gerechnet.
+  Q = Q_gp; QD = QD_gp; QDD = QDD_gp; PHI = PHI_gp; Jinv_ges = Jinv_ges_gp;
+  JP = JP_gp; Stats = Stats_gp;
+  cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Beste Alternative ', ...
+    'ist erste GP-Methode. Ergebnis nicht abrufbar.'], Structure.config_index, Structure.config_number));
+end
+constrvioltext = constrvioltext_m{i_m_best};
 constrvioltext_alt = constrvioltext;
-% TODO: Besten aussuchen und behalten
-% fval_all
 end % for i_ar
