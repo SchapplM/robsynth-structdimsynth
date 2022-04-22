@@ -65,6 +65,7 @@ function [fval,Q,QD,QDD,Jinv_ges,JP,constrvioltext, Traj_0] = cds_constraints_tr
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_0.mat')); nargin=6;
 % Set.general.taskred_dynprog_and_gradproj = true;
 % Set.general.debug_taskred_fig = true;
+% Set.general.debug_dynprog_files = true;
 dbg_load_perfmap = false; % Redundanzkarte nicht neu berechnen
 dbg_load_dp = false; % Dynamische Programmierung nicht neu berechnen
 % Initialisierung
@@ -216,6 +217,7 @@ if Structure.task_red && Set.general.debug_taskred_perfmap
 %     perfmap_range_phiz(perfmap_range_phiz> 2*pi)= 2*pi;
     cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: Beginne Aufgabenredundanz-', ...
       'Diagnosebild für Trajektorie mit %d Zeit-Stützstellen'], Structure.config_index, Structure.config_number, nt_red));
+    suffix = 'TaskRedPerfMap_Data';
     if ~dbg_load_perfmap % normaler Modus: Hier berechnen
     [H_all, ~, s_ref, s_tref, phiz_range] = R.perfmap_taskred_ik( ...
       Traj_0.X(1:nt_red,:), Traj_0.IE, struct('settings_ik', s, ...
@@ -228,7 +230,6 @@ if Structure.task_red && Set.general.debug_taskred_perfmap
       'erstellt. Auflösung: %dx%d. Dauer: %1.0fs'], Structure.config_index, Structure.config_number, length(s_ref), ...
       length(phiz_range), toc(t1)));
     % Speichere die Redundanzkarte (da die Berechnung recht lange dauert)
-    suffix = 'TaskRedPerfMap_Data';
     save(fullfile(resdir,sprintf('%s_%s.mat', name_prefix_ardbg, suffix)), ...
       'Structure', 'H_all', 's_ref', 's_tref', 'phiz_range', 'i_ar', 'q', ...
       'nt_red', 'x0');
