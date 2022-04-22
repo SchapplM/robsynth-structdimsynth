@@ -822,7 +822,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   else
     n_condexc = sum(condJ(:) > Set.optimization.constraint_obj(4));
   end
-  n_condexc2 = sum(condJ(:) > Set.optimization.condition_limit_sing);
+  n_condexc2 = sum(condJ(:) > Set.optimization.condition_limit_sing_act);
   if n_condexc > 0 || n_condexc2 > 0
     if n_condexc2 > 0
       % Konditionszahl ist so hoch, dass es eine komplette Singularität ist

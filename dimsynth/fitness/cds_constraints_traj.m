@@ -118,9 +118,21 @@ s = struct( ...
 % Nullraumbewegung. Dadurch echte Rast-zu-Rast-Bewegung auch im Nullraum.
 % (Falls bei Eingabe der Aufgabe gewünscht)
 s.nullspace_maxvel_interp = Traj_0.nullspace_maxvel_interp;
-% Sofort abbrechen, wenn eine der Nebenbedingungen verletzt wurde. Dadurch
-% schnellere Berechnung
-s.abort_thresh_h = inf(R.idx_ik_length.hntraj, 1);
+% Sofort abbrechen, wenn eine der aktiven Nebenbedingungen verletzt wurde.
+s.abort_thresh_h = NaN(R.idx_ik_length.hntraj, 1); % alle deaktivieren.
+if Set.optimization.constraint_collisions
+  s.abort_thresh_h(R.idx_iktraj_hn.coll_hyp) = inf;
+end
+if ~isempty(Set.task.installspace.type)
+  s.abort_thresh_h(R.idx_iktraj_hn.instspc_hyp) = inf;
+end
+% Singularitäten führen zum Abbruch, wenn Schwellwert gesetzt ist
+if ~isinf(Set.optimization.condition_limit_sing_act)
+  s.abort_thresh_h(R.idx_iktraj_hn.jac_cond) = inf;
+end
+if ~isinf(Set.optimization.condition_limit_sing)
+  s.abort_thresh_h(R.idx_iktraj_hn.ikjac_cond) = inf;
+end
 s.abort_thresh_h(R.idx_iktraj_hn.xlim_hyp) = NaN; % nicht für EE-Drehung (falls Aufgabenredundant)
 % Breche auch ab, wenn die Konditionszahl verletzt wird und dies vorher
 % gefordert wurde
@@ -885,9 +897,9 @@ if ~isinf(Set.optimization.condition_limit_sing_act) && R.Type == 2
   for i = 1:length(Traj_0.t)
     % Vollständige (inverse) PKM-Jacobi-Matrix (bezogen auf alle Gelenke)
     Jinv_IK = reshape(Jinv_ges(i,:), R.NJ, sum(R.I_EE));
-    % Konditionszahl der auf Antriebe bezogengen (inversen) Jacobi-Matrix
+    % Konditionszahl der auf Antriebe bezogenen (inversen) Jacobi-Matrix
     c = cond(Jinv_IK(R.I_qa,:));
-    if c > Set.optimization.condition_limit_sing
+    if c > Set.optimization.condition_limit_sing_act_act
       IdxFirst = i;
       break;
     end
@@ -900,7 +912,14 @@ if ~isinf(Set.optimization.condition_limit_sing_act) && R.Type == 2
     continue
   end
 end
-
+%% Singularität prüfen (bezogen auf IK-Jacobi-Matrix)
+if ~isinf(Set.optimization.condition_limit_sing) && Stats.errorcode == 3 && ...
+    any(isinf(Stats.h(:,1+R.idx_iktraj_hn.jac_cond)))
+  % führt bereits in Traj.-IK zum Abbruch. Prüfe, ob dies die Ursache war
+  constrvioltext_m{i_m} = sprintf('Roboter ist singulär (Konditionszahl IK-Jacobi).');
+  fval_all(i_m, i_ar)  = 1e4*(5); % zunächst kein eigener Wertebereich
+  continue
+end
 %% Singularität der Beinketten prüfen (für PKM)
 % Im Gegensatz zu cds_obj_condition wird hier die gesamte Beinkette
 % betrachtet. Entspricht Singularität der direkten Kinematik der Beinkette.
@@ -1584,7 +1603,9 @@ if ~isempty(Set.task.obstacles.type)
   end
 end
 %% Fertig. Bis hier wurden alle Nebenbedingungen geprüft.
-if R.Type == 2 && any(isnan(Jinv_ges(:)))
+if any(isnan(Q(:)))
+  % Wenn Traj.-IK abbricht wegen NB-Verletzung, muss das oben abgefangen
+  % werden. Falls das nicht passiert, hier Fehler aufwerfen.
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
     'cds_constraints_traj_jacobi_nan_error.mat'));  
   error('Prüfung der Nebenbedingungen nicht vollständig');
