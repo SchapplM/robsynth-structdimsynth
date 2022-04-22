@@ -1189,7 +1189,7 @@ if any(I_qlimviol_T)
   [fval_qlimv_T, I_worst] = min(qlimviol_T(I_qlimviol_T)./(q_range_max(I_qlimviol_T))');
   II_qlimviol_T = find(I_qlimviol_T); IIw = II_qlimviol_T(I_worst);
   fval_qlimv_T_norm = 2/pi*atan((-fval_qlimv_T)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
-  fval = 1e3*(8+1*fval_qlimv_T_norm); % Wert zwischen 8e3 und 9e3
+  fval_all(i_m, i_ar) = 1e3*(8+1*fval_qlimv_T_norm); % Wert zwischen 8e3 und 9e3
   % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Weitere Rechnungen machen keinen Sinn.
   constrvioltext_m{i_m} = sprintf(['Gelenkgrenzverletzung in Traj. Schlechteste ', ...
     'Spannweite: %1.2f/%1.2f (Gelenk %d)'], q_range_T(IIw), q_range_max(IIw), IIw);
@@ -1614,8 +1614,9 @@ end
 fval_all(i_m, i_ar) = 1e3;
 constrvioltext_m{i_m} = 'i.O.';
 end % for i_m
+assert(~all(isnan(fval_all(:))), 'Alle fval=NaN. Logik-Fehler.');
 % Wähle das beste Ergebnis der IK-Methoden (GP/DP) aus.
-[fval] = min(fval_all(:, i_ar));
+fval = min(fval_all(:, i_ar));
 i_m_best = find(fval_all(:, i_ar)==fval, 1, 'last');
 % Belege die Variablen Q, QD, ... aus den vorher gespeicherten Werten
 if i_m_best == 2
