@@ -782,6 +782,13 @@ if i_m == 1 || i_m == 3 % Gradientenprojektion
   end
   Q = Q_gp; QD = QD_gp; QDD = QDD_gp; PHI = PHI_gp; Jinv_ges = Jinv_ges_gp;
   JP = JP_gp; Stats = Stats_gp;
+  % Speichere die erste Iteration der GP-Methode nochmal ab, damit später
+  % reproduzierbar, falls GP-Methode nochmal bereechnet wird.
+  if i_m == 1 && any(ikloop==3)
+    Q_gp1 = Q_gp; QD_gp1 = QD_gp; QDD_gp1 = QDD_gp;
+    Jinv_ges_gp1 = Jinv_ges_gp; JP_gp1 = JP_gp; Stats_gp1 = Stats_gp;
+  end
+  
   % Eintragen in Variable zum Zeichnen in Redundanzkarte
   if Structure.task_red && Set.general.debug_taskred_perfmap
     % EE-Drehung berechnen (für Redundanzkarte, TODO: Code teilw. doppelt zu unten)
@@ -1446,7 +1453,7 @@ if Structure.task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
   cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d; i_ar=%d, i_m=%d: ', ...
     'Nullraumbewegung führt zu nicht konsistenten Gelenkverläufen. ', ...
     'Korrelation Geschw. min. %1.2f, Position %1.2f'], Structure.config_index, ...
-    i_ar, i_m, Structure.config_number, min(corrQD), min(corrQ)'));
+    Structure.config_number, i_ar, i_m, min(corrQD), min(corrQ)'));
 end
 if ~Structure.task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
   % Wenn eine Gelenkgröße konstant ist (ohne Rundungsfehler), wird die
@@ -1615,27 +1622,29 @@ fval_all(i_m, i_ar) = 1e3;
 constrvioltext_m{i_m} = 'i.O.';
 end % for i_m
 assert(~all(isnan(fval_all(:))), 'Alle fval=NaN. Logik-Fehler.');
-% Wähle das beste Ergebnis der IK-Methoden (GP/DP) aus.
+% Wähle das beste Ergebnis der IK-Methoden (GP/DP) aus. Das stellt das
+% Ergebnis für die Iteration über die Aufgabenredundanz-Schleife dar (i_ar)
 fval = min(fval_all(:, i_ar));
 i_m_best = find(fval_all(:, i_ar)==fval, 1, 'last');
 % Belege die Variablen Q, QD, ... aus den vorher gespeicherten Werten
 if i_m_best == 2
   % Übernehme die DP-Ergebnisse erneut
-  Q = Q_dp; QD = QD_dp; QDD = QDD_dp; PHI = PHI_dp; Jinv_ges = Jinv_ges_dp;
+  Q = Q_dp; QD = QD_dp; QDD = QDD_dp; Jinv_ges = Jinv_ges_dp;
   JP = JP_dp; Stats = Stats_dp;
 elseif i_m_best == 3
   % In Q, QD, ... sind schon die letzten Ergebnisse gespeichert
 elseif i_m_best == 1 && isempty(setxor(ikloop,[1 2]))
   % Fall 1 ist die GP-Methode
-  Q = Q_gp; QD = QD_gp; QDD = QDD_gp; PHI = PHI_gp; Jinv_ges = Jinv_ges_gp;
+  Q = Q_gp; QD = QD_gp; QDD = QDD_gp; Jinv_ges = Jinv_ges_gp;
   JP = JP_gp; Stats = Stats_gp;
 elseif i_m_best == 1 && isempty(setxor(ikloop,[1 2 3]))
   % Fall 1 ist die GP-Methode mit Einstellungen aus DP, aber am Ende wird
-  % nochmal GP ohne Einschränkungen gerechnet.
-  Q = Q_gp; QD = QD_gp; QDD = QDD_gp; PHI = PHI_gp; Jinv_ges = Jinv_ges_gp;
+  % nochmal GP ohne Einschränkungen gerechnet (Fall 3). Daher andere Variable.
+  Q = Q_gp1; QD = QD_gp1; QDD = QDD_gp1; Jinv_ges = Jinv_ges_gp1;
   JP = JP_gp; Stats = Stats_gp;
-  cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Beste Alternative ', ...
-    'ist erste GP-Methode. Ergebnis nicht abrufbar.'], Structure.config_index, Structure.config_number));
+else
+  error('Fall i_m_best=%d und ikloop=[%s] nicht vorgesehen', i_m_best, ...
+    disp_array(ikloop, '%d'));
 end
 constrvioltext = constrvioltext_m{i_m_best};
 constrvioltext_alt = constrvioltext;
