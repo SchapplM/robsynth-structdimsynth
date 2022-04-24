@@ -180,6 +180,14 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
       fval_i = d.RobotOptRes.fval(:)';
       qval_i = d.RobotOptRes.q0(:)';
     end
+    % Nachverarbeiten von Parametern in der Datei (für Abwärtskompatibilität bei Code-Aktualisierung)
+    % Korrigiere den axoffset-Parameter für neue Implementierung; ab 22.04.22
+    I_pmao = strcmp(d.RobotOptRes.Structure.varnames, 'platform_morph_axoffset');
+    if d.RobotOptRes.timestamps_start_end(1) < datenum(2022, 4, 22) && any(I_pmao) % für ARK-Paper zu 3T2R-PKM
+      I_pfr = d.RobotOptRes.Structure.vartypes == 7;
+      pval_i_file(:,I_pmao) = pval_i_file(:,I_pmao) .* pval_i_file(:,I_pfr);
+    end
+    
     pval_i_const = NaN(nvars,1); % In Datei konstante Parameter, umgerechnet auf aktuelle Parameter
     % Index-Vektor zum Finden der aktuellen Optimierungsparameter pval in
     % den Optimierungsparametern pval_i_file. 0-Einträge deuten auf nicht
