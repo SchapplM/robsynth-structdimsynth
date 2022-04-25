@@ -753,9 +753,9 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
   end
 end
 % Drei verschiedene Berechnungen für die Trajektorie testen: ikloop
-% (1) Gradientenprojektion+DP
+% (1) Gradientenprojektion (mit Vorgabe aus DynProg)
 % (2) Dynamische Programmierung
-% (3) Nur Gradientenproj.
+% (3) Nur Gradientenprojektion (ohne Ergebnisse von DynProg).
 if ~Structure.task_red || ~Set.general.taskred_dynprog
   ikloop = 3;
 elseif Set.general.taskred_dynprog
@@ -764,17 +764,19 @@ elseif Set.general.taskred_dynprog
   else
     ikloop = 1:2;
   end
+else
+  error('Logik-Fehler. Fall nicht möglich.');
 end
 constrvioltext_m = cell(3,1);
 for i_m = ikloop % Schleife über verschiedene IK-Verfahren
 %% Trajektorie mit lokaler Optimierung berechnen
 if i_m == 1 || i_m == 3 % Gradientenprojektion
-  % Auf Ergebnis der dynamischen Programmierung aufbauen.
-  if i_m == 3 && Set.general.taskred_dynprog
+  if i_m == 3
     % Entferne die Einstellungen aus der Dynamischen Programmierung.
     % Nur rein lokale Trajektorienoptimierung
     s_trajik = s;
   else % i_m == 1
+    % Auf Ergebnis der dynamischen Programmierung aufbauen.
     s_trajik = s_ikdp; % aufbauend auf Ergebnis der DynProg
   end
   if R.Type == 0 % Seriell
