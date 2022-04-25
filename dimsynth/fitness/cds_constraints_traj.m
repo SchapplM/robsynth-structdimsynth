@@ -66,8 +66,11 @@ function [fval,Q,QD,QDD,Jinv_ges,JP,constrvioltext, Traj_0] = cds_constraints_tr
 % Set.general.taskred_dynprog_and_gradproj = true;
 % Set.general.debug_taskred_fig = true;
 % Set.general.debug_dynprog_files = true;
+% Debug-Einstellungen für diese Funktion:
 dbg_load_perfmap = false; % Redundanzkarte nicht neu berechnen
 dbg_load_dp = false; % Dynamische Programmierung nicht neu berechnen
+dbg_dynprog_log = false;
+dbg_dynprog_fig = false;
 % Initialisierung
 fval = NaN; % Ausgabevariable
 fval_all = NaN(3,2); % Zielfunktion für verschiedene Durchläufe
@@ -218,7 +221,10 @@ if Structure.task_red && Set.general.debug_taskred_perfmap
     cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: Beginne Aufgabenredundanz-', ...
       'Diagnosebild für Trajektorie mit %d Zeit-Stützstellen'], Structure.config_index, Structure.config_number, nt_red));
     suffix = 'TaskRedPerfMap_Data';
-    if ~dbg_load_perfmap % normaler Modus: Hier berechnen
+    matfile_pm = fullfile(resdir,sprintf('%s_%s.mat', name_prefix_ardbg, suffix));
+    if dbg_load_perfmap && exist(matfile_pm, 'file') % normaler Modus: Hier berechnen
+    load(matfile_pm);
+    else
     [H_all, ~, s_ref, s_tref, phiz_range] = R.perfmap_taskred_ik( ...
       Traj_0.X(1:nt_red,:), Traj_0.IE, struct('settings_ik', s, ...
       'q0', q, 'I_EE_red', Set.task.DoF, 'map_phistart', x0(6), ...
@@ -230,11 +236,8 @@ if Structure.task_red && Set.general.debug_taskred_perfmap
       'erstellt. Auflösung: %dx%d. Dauer: %1.0fs'], Structure.config_index, Structure.config_number, length(s_ref), ...
       length(phiz_range), toc(t1)));
     % Speichere die Redundanzkarte (da die Berechnung recht lange dauert)
-    save(fullfile(resdir,sprintf('%s_%s.mat', name_prefix_ardbg, suffix)), ...
-      'Structure', 'H_all', 's_ref', 's_tref', 'phiz_range', 'i_ar', 'q', ...
-      'nt_red', 'x0');
-    else % 
-    load(fullfile(resdir,sprintf('%s_%s.mat', name_prefix_ardbg, suffix)));
+    save(matfile_pm, 'Structure', 'H_all', 's_ref', 's_tref', ...
+      'phiz_range', 'i_ar', 'q', 'nt_red', 'x0');
     end
   end
   if i_ar > 1 % Redundanzkarte erst zeichnen, wenn Trajektorie zur Verfügung steht
@@ -657,9 +660,11 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     'cost_mode2', 'motion_redcoord', ... % möglichst geringe Bewegung der red. Koord.
     'abort_thresh_h', s.abort_thresh_h, ...
     'PM_H_all', H_all, 'PM_s_ref', s_ref, 'PM_s_tref', s_tref, 'PM_phiz_range', phiz_range, ...
-    'verbose', 0, 'IE', Traj_0.IE, 'n_phi', 16, ...
-    ... % Falls Startpose am Rand liegt den Suchbereich etwas aufweiten
+    'verbose', 0, 'IE', Traj_0.IE, ...
+    ... % 360°. Falls Startpose am Rand liegt den Suchbereich etwas aufweiten
     'phi_min', min(-pi, x0(6)-pi/4), 'phi_max', max(pi, x0(6)+pi/4), ...
+    'n_phi', 6, ... % 60°-Schritte bei 360° Wertebereich
+    'overlap', true, ... % doppelte Anzahl, aber versetzt. Dadurch freiere Bewegung 
     ... % Zeit für Abbremsvorgang (nur des Nullraums, vor dem Abbremsen der Aufgabe)
     ... % Kompromiss aus mehr Zeit für Verfahrbewegung und etwas Spielraum für Ausschwingvorgang
     'T_dec_ns', 1/4*T_dec_dp, ...
@@ -668,6 +673,8 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     'Tv', T_dec_dp/2, ...
     'debug_dir', fullfile(resdir,[name_prefix_ardbg, '_dynprog']), ...
     'continue_saved_state', true); % Debuggen: Falls mehrfach gleicher Aufruf
+  if dbg_dynprog_log, s_dp.verbose = 1; end
+  if dbg_dynprog_fig, s_dp.verbose = 2; end
   if Set.general.debug_dynprog_files, mkdirs(s_dp.debug_dir);
   else,                               s_dp.debug_dir = '';
   end
@@ -808,6 +815,15 @@ else % i_m == 2 % Nur Ergebnis der dynamischen Programmierung
   Q = Q_dp; QD = QD_dp; QDD = QDD_dp; PHI = PHI_dp; Jinv_ges = Jinv_ges_dp;
   JP = JP_dp; Stats = Stats_dp;
 end
+% Bestimme den Index, bis zu dem die Trajektorien-IK ausgibt.
+if any(Stats.errorcode == [0 1 2])
+  % Entweder kein Abbruch der IK (Code 0), oder anderer Grund
+  Stats_iter_h = Stats.iter; % Index auf die Trajektorie bis Ende
+else % errorcode == 3
+  % Abbruch aufgrund der Verletzung einer Nebenbedingung. Nehme den
+  % Wert, der zur Verletzung geführt hat für den Plot.
+  Stats_iter_h = min(size(Q,1), Stats.iter+1);
+end
 % Zurücksetzen später berechneter Größen (sonst verwirrende Redundanzkarte
 % bei frühzeitigem Abbruch)
 X2(:) = NaN; XD2(:) = NaN; XDD2(:) = NaN;
@@ -853,9 +869,12 @@ end
 
 %% Prüfe Erfolg der Trajektorien-IK
 if Stats.iter == 0
+  % TODO: Mögliche Ursachen: Andere Schwellwerte bei Kollision und Abbruch
+  % aus diesem Grund. Sollte eigentlich nicht auftreten
   cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Bereits bei erster ', ...
     'Traj.-Iteration Abbruch, obwohl Einzelpunkt-IK erfolgreich war. ', ...
-    'Vermutlich Logik-Fehler.'], Structure.config_index, Structure.config_number));
+    'Vermutlich Logik-Fehler. Invkin-Fehlercode %d'], Structure.config_index, ...
+    Structure.config_number, Stats.errorcode));
 end
 % Die Traj.-IK bricht auch bei Verletzung von Nebenbedingungen ab und nicht
 % nur bei ungültiger Konfiguration. Prüfe hier nur den letzteren Fall.
@@ -1582,6 +1601,15 @@ if Set.optimization.constraint_collisions
     constrvioltext_m{i_m} = sprintf('Kollision in %d/%d Traj.-Punkten.', ...
       sum(any(coll_traj,2)), size(coll_traj,1));
     continue
+  elseif Stats.errorcode == 3 && Stats.h(Stats_iter_h,1+R.idx_iktraj_hn.coll_hyp) ...
+      <= s.abort_thresh_h(R.idx_iktraj_hn.coll_hyp)
+    cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Kollision in ', ...
+      'Traj.-IK erkannt, aber nicht danach.'], Structure.config_index, Structure.config_number));
+    fval_all(i_m, i_ar) = 4e3; % schlechtestmöglicher Wert für Kollision (da nicht richtig erkannt)
+    constrvioltext_m{i_m} = 'Kollision in Traj.-IK erkannt (sonst nicht)';
+    % TODO: Dieser Fall müsste noch besser von der Objekt-Kollision
+    % abgegrenzt werden.
+    continue
   end
 end
 
@@ -1596,6 +1624,13 @@ if ~isempty(Set.task.installspace.type) && ...
     constrvioltext_m{i_m} = sprintf(['Verletzung des zulässigen Bauraums in Traj.', ...
       'Schlimmstenfalls %1.1f mm draußen.'], 1e3*f_constrinstspc_traj);
     continue
+  elseif Stats.errorcode == 3 && Stats.h(Stats_iter_h,1+R.idx_iktraj_hn.instspc_hyp) ...
+      <= s.abort_thresh_h(R.idx_iktraj_hn.instspc_hyp) 
+    cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Bauraumverletzung in ', ...
+      'Traj.-IK erkannt, aber nicht danach.'], Structure.config_index, Structure.config_number));
+    fval_all(i_m, i_ar) = 3e3; % schlechtestmöglicher Wert für Bauraumprüfung (da nicht richtig erkannt)
+    constrvioltext_m{i_m} = 'Bauraumverletzung in Traj.-IK erkannt (sonst nicht)';
+  	continue
   end
 end
 %% Arbeitsraum-Hindernis-Kollisionsprüfung für Trajektorie
