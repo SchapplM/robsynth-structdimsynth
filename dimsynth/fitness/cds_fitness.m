@@ -645,7 +645,12 @@ for iIKC = 1:size(Q0,1)
         'Abbruch der Optimierung.']));
     end
     abort_fitnesscalc = true;
-    % break; % zur Nachvollziehbarkeit kein direkter Abbruch.
+    % Wenn eine IK-Konfiguration erfolgreich berechnet wird, sofort
+    % abbrechen, wenn dies das Ziel der Optimierung ist.
+    if all(Set.optimization.obj_limit == 1e3) && ... % keine konkrete Vorgabe, hauptsache i.O.
+        all(Set.optimization.obj_limit_physval==0) % keine Vorgabe
+      break;
+    end
   end
 end % Schleife über IK-Konfigurationen
 if Set.general.matfile_verbosity > 2
@@ -672,7 +677,8 @@ else
   fval_IKC_check(abs(fval_IKC_check)<1e-10) = 0; % Runde kleine Differenzen auf Gleichheit
   % Prüfung auf Pareto-Optimalität der Lösungen
   dom_vector = pareto_dominance(fval_IKC_check);
-  iIKCopt = find(~dom_vector); % Menge der möglichen Pareto-optimalen Lösungen
+  % Aus Menge der möglichen Pareto-optimalen Lösungen auswählen.
+  iIKCopt = intersect(find(~dom_vector),I_IKC_iO); % Abfangen von NaN mit intersect
 end
 % Definition "optimaler" Lösungen: Die beste/besten Lösungen.
 % "Beste" Lösung: Nach bestimmten Kriterien aus mehreren Optimalen gewählt

@@ -42,9 +42,9 @@
 
 function [PSO_Detail_Data_output, i_gen, i_ind] = cds_save_particle_details( ...
   Set, R, comptime, fval, pval, physval, constraint_obj_val, desopt_pval, option, PSO_Detail_Data_in)
-if isnan(comptime) || any(isnan(fval))
-  error('Rechenzeit darf nicht NaN sein');
-end
+assert(~isnan(comptime), 'Rechenzeit darf nicht NaN sein');
+assert(~any(isnan(fval)), 'fval darf nicht NaN sein');
+
 i_gen = 0; i_ind = 0;
 % Variable zum Speichern der Ergebnisse
 persistent PSO_Detail_Data
