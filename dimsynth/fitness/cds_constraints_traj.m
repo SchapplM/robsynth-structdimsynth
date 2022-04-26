@@ -585,6 +585,10 @@ if i_ar == 3
     JP = JP_alt;
     fval = fval_ar(1);
     constrvioltext = [constrvioltext_alt, ' Erneute IK-Berechnung ohne Verbesserung'];
+    % Trage wieder die alten Werte in die Trajektorien-Variable ein
+    Traj_0.X(:,6) = X2phizTraj_alt(:,1);
+    Traj_0.XD(:,6) = X2phizTraj_alt(:,2);
+    Traj_0.XDD(:,6) = X2phizTraj_alt(:,3);
   elseif fval_ar(1) == fval_ar(2) && fval_ar(1) ~= 1e3
     % Ergebnisse identisch, obwohl es n.i.O. ist. Deutet auf Logik-Fehler
     % oder unverstandene Einstellungen
@@ -619,6 +623,7 @@ if i_ar == 2
   Q_alt = Q;
   QD_alt = QD;
   QDD_alt = QDD;
+  constrvioltext_alt = constrvioltext;
   X2phizTraj_alt = [X2(:,6),XD2(:,6),XDD2(:,6)];
   wn_alt = s.wn;
   Stats_alt = Stats; 
@@ -849,6 +854,11 @@ if Structure.task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_
     R.fkineEE2_traj(Q(1:Stats.iter,:), QD(1:Stats.iter,:), QDD(1:Stats.iter,:));
   % Erlaube auch EE-Drehungen größer als 180°
   X2(1:Stats.iter,6) = denormalize_angle_traj(X2(1:Stats.iter,6));
+  % Speichern der Werte zum Rekonstruieren
+  if i_m == 1,     X2phizTraj_gp1 = [X2(:,6), XD2(:,6), XDD2(:,6)];
+  elseif i_m == 2, X2phizTraj_dp =  [X2(:,6), XD2(:,6), XDD2(:,6)];
+  else,            X2phizTraj_gp =  [X2(:,6), XD2(:,6), XDD2(:,6)];
+  end
   % Debug: EE-Trajektorie zeichnen
   if false
     figure(4002);clf; %#ok<UNRCH>
@@ -1667,24 +1677,35 @@ i_m_best = find(fval_all(:, i_ar)==fval, 1, 'last');
 if i_m_best == 2
   % Übernehme die DP-Ergebnisse erneut
   Q = Q_dp; QD = QD_dp; QDD = QDD_dp; Jinv_ges = Jinv_ges_dp;
-  JP = JP_dp; Stats = Stats_dp;
+  JP = JP_dp; Stats = Stats_dp; X2phizTraj = X2phizTraj_dp;
 elseif i_m_best == 3
   % In Q, QD, ... sind schon die letzten Ergebnisse gespeichert
+  X2phizTraj = X2phizTraj_gp;
 elseif i_m_best == 1 && isempty(setxor(ikloop,[1 2]))
   % Fall 1 ist die GP-Methode
   Q = Q_gp; QD = QD_gp; QDD = QDD_gp; Jinv_ges = Jinv_ges_gp;
-  JP = JP_gp; Stats = Stats_gp;
+  JP = JP_gp; Stats = Stats_gp; X2phizTraj = X2phizTraj_gp;
 elseif i_m_best == 1 && isempty(setxor(ikloop,[1 2 3]))
   % Fall 1 ist die GP-Methode mit Einstellungen aus DP, aber am Ende wird
   % nochmal GP ohne Einschränkungen gerechnet (Fall 3). Daher andere Variable.
   Q = Q_gp1; QD = QD_gp1; QDD = QDD_gp1; Jinv_ges = Jinv_ges_gp1;
-  JP = JP_gp; Stats = Stats_gp;
+  JP = JP_gp1; Stats = Stats_gp1; X2phizTraj = X2phizTraj_gp1;
 else
   error('Fall i_m_best=%d und ikloop=[%s] nicht vorgesehen', i_m_best, ...
     disp_array(ikloop, '%d'));
 end
 constrvioltext = constrvioltext_m{i_m_best};
-constrvioltext_alt = constrvioltext;
+% Trage die EE-Trajektorie des besten IK-Durchlaufs ein. Wird beibehalten,
+% außer die vorherige Iteration von i_ar war besser
+if Structure.task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) % 3T2R-Aufgabe oder 3T2R-PKM
+  Traj_0.X(:,6) = X2phizTraj(:,1);
+  Traj_0.XD(:,6) = X2phizTraj(:,2);
+  Traj_0.XDD(:,6) = X2phizTraj(:,3);
+end
+if Set.general.debug_calc && fval == 1e3
+  assert(all(~isnan(Traj_0.X(:))) && all(~isnan(Traj_0.XD(:))) && ...
+    all(~isnan(Traj_0.XD(:))), 'i.O. und Traj. NaN ist inkonsistent');
+end
 end % for i_ar
 % Hier ist die Funktion zu Ende. Prüfe nochmal Validität
 if R.Type == 2 && any(isnan(Jinv_ges(:))) && fval == 1e3
