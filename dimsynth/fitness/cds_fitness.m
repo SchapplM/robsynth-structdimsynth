@@ -318,7 +318,9 @@ for iIKC = 1:size(Q0,1)
   QD_IKC(:,:,iIKC) = QD;
   QDD_IKC(:,:,iIKC) = QDD;
   JP_IKC(:,:,iIKC) = JP;
-  Jinv_IKC(:,:,iIKC) = Jinv_ges;
+  if R.Type == 2
+    Jinv_IKC(:,:,iIKC) = Jinv_ges;
+  end
   X6Traj_IKC(:,:,iIKC) = [Traj_0.X(:,6),Traj_0.XD(:,6),Traj_0.XDD(:,6)];
   % Kein Normalisieren der Winkel (wenn dann erst hier durchführen, da
   % einige Prüfungen oben davon beeinflusst werden).
@@ -783,7 +785,9 @@ QD_out = QD_IKC(:,:,iIKCbest);
 QDD_out = QDD_IKC(:,:,iIKCbest);
 TAU_out = TAU_IKC(:,:,iIKCbest);
 JP_out = JP_IKC(:,:,iIKCbest);
-Jinv_out = Jinv_IKC(:,:,iIKCbest);
+if R.Type == 2
+  Jinv_out = Jinv_IKC(:,:,iIKCbest);
+end
 X6Traj_out = X6Traj_IKC(:,:,iIKCbest);
 %% Abbruchbedingung aufgrund von Singularität prüfen
 if ~isinf(Set.optimization.condition_limit_sing) && R.Type == 2 && ...
