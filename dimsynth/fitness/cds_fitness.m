@@ -651,6 +651,7 @@ for iIKC = 1:size(Q0,1)
     % abbrechen, wenn dies das Ziel der Optimierung ist.
     if all(Set.optimization.obj_limit == 1e3) && ... % keine konkrete Vorgabe, hauptsache i.O.
         all(Set.optimization.obj_limit_physval==0) % keine Vorgabe
+      fval_IKC(isnan(fval_IKC)) = inf; % Sonst unten Fehler bei Bestimmung der besten Konfiguration wegen NaN
       break;
     end
   end
@@ -680,7 +681,7 @@ else
   % Prüfung auf Pareto-Optimalität der Lösungen
   dom_vector = pareto_dominance(fval_IKC_check);
   % Aus Menge der möglichen Pareto-optimalen Lösungen auswählen.
-  iIKCopt = intersect(find(~dom_vector),I_IKC_iO); % Abfangen von NaN mit intersect
+  iIKCopt = find(~dom_vector);
 end
 % Definition "optimaler" Lösungen: Die beste/besten Lösungen.
 % "Beste" Lösung: Nach bestimmten Kriterien aus mehreren Optimalen gewählt
