@@ -854,10 +854,11 @@ if Structure.task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_
     R.fkineEE2_traj(Q(1:Stats.iter,:), QD(1:Stats.iter,:), QDD(1:Stats.iter,:));
   % Erlaube auch EE-Drehungen größer als 180°
   X2(1:Stats.iter,6) = denormalize_angle_traj(X2(1:Stats.iter,6));
+  X2phizTraj = [X2(:,6), XD2(:,6), XDD2(:,6)];
   % Speichern der Werte zum Rekonstruieren
-  if i_m == 1,     X2phizTraj_gp1 = [X2(:,6), XD2(:,6), XDD2(:,6)];
-  elseif i_m == 2, X2phizTraj_dp =  [X2(:,6), XD2(:,6), XDD2(:,6)];
-  else,            X2phizTraj_gp =  [X2(:,6), XD2(:,6), XDD2(:,6)];
+  if i_m == 1,     X2phizTraj_gp1 = X2phizTraj;
+  elseif i_m == 2, X2phizTraj_dp =  X2phizTraj;
+  else,            X2phizTraj_gp =  X2phizTraj;
   end
   % Debug: EE-Trajektorie zeichnen
   if false
@@ -1680,7 +1681,6 @@ if i_m_best == 2
   JP = JP_dp; Stats = Stats_dp; X2phizTraj = X2phizTraj_dp;
 elseif i_m_best == 3
   % In Q, QD, ... sind schon die letzten Ergebnisse gespeichert
-  X2phizTraj = X2phizTraj_gp;
 elseif i_m_best == 1 && isempty(setxor(ikloop,[1 2]))
   % Fall 1 ist die GP-Methode
   Q = Q_gp; QD = QD_gp; QDD = QDD_gp; Jinv_ges = Jinv_ges_gp;
