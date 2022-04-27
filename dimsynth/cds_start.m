@@ -23,7 +23,10 @@ warning('off', 'MATLAB:Figure:SetPosition');
 
 %% Log Vorbereiten
 resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
-mkdirs(resdir_main); % Ergebnis-Ordner für diese Optimierung erstellen (doppelt mit unten, aber für Log benötigt)
+if Set.general.isoncluster && isfolder(resdir_main)
+  error('Verzeichnis %s existiert bereits. Kein Überschreiben auf Cluster', resdir_main)
+end
+mkdirs(resdir_main); % Ergebnis-Ordner für diese Optimierung erstellen (für Log benötigt)
 if ~Set.general.only_finish_aborted
   msg = sprintf('Starte Maßsynthese %s.', Set.optimization.optname);
 else
@@ -356,10 +359,6 @@ elseif Set.general.regenerate_summary_only && (Set.general.isoncluster || ...
   Structures = d.Structures;
   cds_log(1, sprintf('Einstellungsdatei %s für Bild-Generierung geladen.', settingsfile));
 elseif ~Set.general.computing_cluster % nicht bei Hochladen des Jobs
-  if Set.general.isoncluster && isfolder(resdir_main)
-    error('Verzeichnis %s existiert bereits. Kein Überschreiben auf Cluster', resdir_main)
-  end
-  mkdirs(resdir_main); % Ergebnis-Ordner für diese Optimierung erstellen
   % Einstellungen dieser kombinierten Synthese speichern. Damit ist im
   % Nachhinein nachvollziehbar, welche Roboter eventuell fehlen. Bereits hier
   % oben machen. Dann passt die Variable Structures auch für den Fall, dass
