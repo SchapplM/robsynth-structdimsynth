@@ -684,8 +684,11 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     'continue_saved_state', true); % Debuggen: Falls mehrfach gleicher Aufruf
   if dbg_dynprog_log, s_dp.verbose = 1; end
   if dbg_dynprog_fig, s_dp.verbose = 2; end
-  if Set.general.debug_dynprog_files, mkdirs(s_dp.debug_dir);
-  else,                               s_dp.debug_dir = '';
+  if Set.general.debug_dynprog_files
+    mkdirs(s_dp.debug_dir);
+  else
+    s_dp.debug_dir = '';
+    s_dp.continue_saved_state = false;
   end
   cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: Beginne IK mit ', ...
     'Dynamischer Programmierung über %d Stufen und %d Zustände.'], ...
