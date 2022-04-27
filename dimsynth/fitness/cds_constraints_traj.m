@@ -124,9 +124,12 @@ s = struct( ...
 s.nullspace_maxvel_interp = Traj_0.nullspace_maxvel_interp;
 % Sofort abbrechen, wenn eine der aktiven Nebenbedingungen verletzt wurde.
 s.abort_thresh_h = NaN(R.idx_ik_length.hntraj, 1); % alle deaktivieren.
-if Set.optimization.constraint_collisions
-  s.abort_thresh_h(R.idx_iktraj_hn.coll_hyp) = inf;
-end
+% Kollisionen führen nicht zum Abbruch, da die Kollisionskörper größer
+% gewählt sind als in Maßsynthese. Sonst wird in Traj.-IK immer zu früh
+% abgebrochen. Alternativ müsste collbodies_thresh=1 gewählt werden.
+% if Set.optimization.constraint_collisions
+%   s.abort_thresh_h(R.idx_iktraj_hn.coll_hyp) = inf;
+% end
 if ~isempty(Set.task.installspace.type)
   s.abort_thresh_h(R.idx_iktraj_hn.instspc_hyp) = inf;
 end
@@ -1621,6 +1624,7 @@ if Set.optimization.constraint_collisions
     continue
   elseif Stats.errorcode == 3 && Stats.h(Stats_iter_h,1+R.idx_iktraj_hn.coll_hyp) ...
       <= s.abort_thresh_h(R.idx_iktraj_hn.coll_hyp)
+    % Mögliche Ursache: Kollisionskörper in Traj.-IK sind größer als hier.
     cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Kollision in ', ...
       'Traj.-IK erkannt, aber nicht danach.'], Structure.config_index, Structure.config_number));
     fval_all(i_m, i_ar) = 4e3; % schlechtestmöglicher Wert für Kollision (da nicht richtig erkannt)
