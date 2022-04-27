@@ -114,6 +114,9 @@ end
 cds_update_robot_parameters(R, Set, Structure, p);
 
 %% Trajektorie anpassen
+if ~isfield(Traj_W, 'nullspace_maxvel_interp')
+  Traj_W.nullspace_maxvel_interp = zeros(2,0); % Abwärtskompatibilität
+end
 Traj_0 = cds_transform_traj(R, Traj_W);
 
 %% Nebenbedingungen prüfen (für Eckpunkte)
@@ -241,6 +244,8 @@ for iIKC = 1:size(Q0,1)
     qlim_neu = qlim; % Für Dreh- und Schubgelenke separat. Berücksichtige 2pi-Periodizität
     qlim_neu(R.MDH.sigma==1,:) = repmat(mean(QE_iIKC(:,R.MDH.sigma==1,iIKC),1)',1,2)+...
       [-qlim_range(R.MDH.sigma==1), qlim_range(R.MDH.sigma==1)]/2;
+    % TODO: Zentrieren um ersten Schritt. Sonst hier Normalisierung in
+    % Grenzen und keine Normalisierung in Winkeln
     qlim_neu(R.MDH.sigma==0,:) = repmat(meanangle(QE_iIKC(:,R.MDH.sigma==0,iIKC),1)',1,2)+...
       [-qlim_range(R.MDH.sigma==0), qlim_range(R.MDH.sigma==0)]/2;
     qlim_neu(R.MDH.sigma==1) = qlim(R.MDH.sigma==1); % Schubgelenke zurücksetzen
@@ -251,6 +256,11 @@ for iIKC = 1:size(Q0,1)
     else % PKM
       for i = 1:R.NLEG, R.Leg(i).qlim = qlim_neu(R.I1J_LEG(i):R.I2J_LEG(i),:); end
     end
+  end
+  if any(Q0(iIKC,:)' < qlim_neu(:,1) | Q0(iIKC,:)' > qlim_neu(:,2))
+    cds_log(-1, '[cds_fitness] Anfangswert für Gelenkwinkel außerhalb der Grenzen. Für Traj. ungünstig.');
+    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+      'tmp', 'cds_fitness_qlim_viol_q0.mat'));
   end
   %% Trajektorie berechnen
   if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt

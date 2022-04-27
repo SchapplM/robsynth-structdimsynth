@@ -62,10 +62,18 @@ function [fval,Q,QD,QDD,Jinv_ges,JP,constrvioltext, Traj_0] = cds_constraints_tr
   R, Traj_0_in, q, Set, Structure, Stats_constraints)
 % Debug
 % save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_0.mat'));
-% load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_0.mat')); nargin=6
-
+% load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_0.mat')); nargin=6;
+% Set.general.taskred_dynprog_and_gradproj = true;
+% Set.general.debug_taskred_fig = true;
+% Set.general.debug_dynprog_files = true;
+% Debug-Einstellungen für diese Funktion:
+dbg_load_perfmap = false; % Redundanzkarte nicht neu berechnen
+dbg_load_dp = false; % Dynamische Programmierung nicht neu berechnen
+dbg_dynprog_log = false;
+dbg_dynprog_fig = false;
 % Initialisierung
-fval = NaN;
+fval = NaN; % Ausgabevariable
+fval_all = NaN(3,2); % Zielfunktion für verschiedene Durchläufe
 constrvioltext = 'Undefiniert';
 X2phizTraj_alt = [];
 Q_alt = [];
@@ -80,7 +88,14 @@ mininstspcdist_all = NaN(3,1);
 Traj_0 = Traj_0_in;
 X2 = NaN(size(Traj_0.X)); XD2 = NaN(size(Traj_0.X)); XDD2 = NaN(size(Traj_0.X));
 constrvioltext_alt = '';
+% Speicherung für Linien in Redundanzkarte
+PM_phiz_plot = [];
+PM_h_plot = [];
+TrajLegendText = {};
+% Bestimme eindeutige Kennung für Speichern von Debug-Informationen
 [currgen,currind,~,resdir] = cds_get_new_figure_filenumber(Set, Structure, '');
+name_prefix_ardbg = sprintf('Gen%02d_Ind%02d_Konfig%d', currgen, ...
+  currind, Structure.config_index);
 % Schleife über mehrere mögliche Nebenbedingungen der inversen Kinematik
 fval_ar = NaN(1,2);
 if Structure.task_red
@@ -94,85 +109,7 @@ if i_ar > 1
   fval_ar(i_ar-1) = fval;
 end
 
-%% Debug vorherige Iteration: Karte der Leistungsmerkmale für Aufgabenredundanz zeichnen
-if i_ar > 1 && Structure.task_red && Set.general.debug_taskred_perfmap
-  nt_red = size(Traj_0.X,1); % Zum Debuggen: Reduktion der Stützstellen
-  critnames = fields(R.idx_ikpos_wn)';
-  if i_ar == 2 % Nur einmal die Rasterung generieren
-    t1 = tic();
-    % Bereich der Redundanzkarte: -210°...210° oder bis maximal +/-360°,
-    % falls Trajektorie in eine oder beide Richtungen weiter geht
-    perfmap_range_phiz = minmax2([[-1, +1]*210*pi/180,...
-      minmax2(X2(:,6)')+[-20,+20]*pi/180]); % etwas über die Trajektorie hinaus
-    perfmap_range_phiz(perfmap_range_phiz<-2*pi)=-2*pi;
-    perfmap_range_phiz(perfmap_range_phiz> 2*pi)= 2*pi;
-    cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: Beginne Aufgabenredundanz-', ...
-      'Diagnosebild für Trajektorie mit %d Zeit-Stützstellen'], Structure.config_index, Structure.config_number, nt_red));
-    [H_all, ~, s_ref, s_tref, phiz_range] = R.perfmap_taskred_ik( ...
-      Traj_0.X(1:nt_red,:), Traj_0.IE, struct('settings_ik', s, ...
-      'q0', q, 'I_EE_red', Set.task.DoF, 'map_phistart', X2(1,end), ...
-      ... % nur grobe Diskretisierung für die Karte (geht schneller)
-      'mapres_thresh_eepos', 10e-3, 'mapres_thresh_eerot', 5*pi/180, ...
-      'mapres_thresh_pathcoordres', 0.2, 'mapres_redcoord_dist_deg', 5, ...
-      'maplim_phi', perfmap_range_phiz));
-    cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: Daten für Diagnose-Bild der Aufgabenredundanz ', ...
-      'erstellt. Auflösung: %dx%d. Dauer: %1.0fs'], Structure.config_index, Structure.config_number, length(s_ref), ...
-      length(phiz_range), toc(t1)));
-    % Speichere die Redundanzkarte (da die Berechnung recht lange dauert)
-    suffix = 'TaskRedPerfMap_Data';
-    name_prefix_ardbg = sprintf('Gen%02d_Ind%02d_Konfig%d', currgen, currind, Structure.config_index);
-    save(fullfile(resdir,sprintf('%s_%s.mat', name_prefix_ardbg, suffix)), ...
-      'Structure', 'H_all', 's_ref', 's_tref', 'phiz_range', 'i_ar', 'q', ...
-      'nt_red');
-    % Redundanzkarte für jedes Zielkriterium zeichnen (zur Einschätzung)
-    wn_test = zeros(R.idx_ik_length.wnpos,1);
-    wn_phys = zeros(4,1);
-    if Set.general.debug_taskred_perfmap == 2 % Hohes Verbose-Level
-    for ll = 1:length(wn_test)+4 % letzter Durchlauf nur Konditionszahl zeichnen
-      wn_test(:) = 0; wn_phys(:) = 0;
-      if ll <= length(wn_test)
-        wn_test(ll) = 1;
-      else
-        wn_phys(ll-length(wn_test)) = 1;
-      end
-      for ls = [false, true] % Skalierung des Bildes: Linear und Logarithmisch
-        % Wähle Kriterien, die als Nebenbedigung gegen unendlich gehen.
-        I_nbkrit = [R.idx_ikpos_wn.qlim_hyp, R.idx_ikpos_wn.ikjac_cond, ...
-                    R.idx_ikpos_wn.jac_cond, R.idx_ikpos_wn.coll_hyp, ...
-                    R.idx_ikpos_wn.instspc_hyp, R.idx_ikpos_wn.xlim_hyp];
-        if ls && ~any(wn_test(I_nbkrit))
-          continue % kein hyperbolisches Kriterium. Log-Skalierung nicht sinnvoll.
-        end
-        critnames_withphys = [critnames(:)', ...
-          {'coll_phys', 'instspc_phys', 'cond_ik_phys', 'cond_phys'}];
-        cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref(1:nt_red), ...
-          phiz_range, X2(1:nt_red,6), Stats.h(1:nt_red,1), struct('wn', [wn_test;wn_phys], ...
-          'i_ar', i_ar-1, 'i_fig', ll, 'name_prefix_ardbg', name_prefix_ardbg, 'fval', fval, ...
-          'constrvioltext', constrvioltext, 'deactivate_time_figure', true, ...
-          'critnames', {critnames_withphys}, 'ignore_h0', true, 'logscale', ls));
-      end
-    end
-    end
-  end
-  % Rechne die IK-Kriterien von Traj.- zu Pos.-IK um.
-  % Reihenfolge: Siehe IK-Funktionen oder ik_optimcrit_index.m
-  % Einige Kriterien der Pos.-IK haben keine Entsprechung in Traj.-IK
-  i=0; I_wn_traj = zeros(R.idx_ik_length.wnpos,1);
-  for f = intersect(fields(R.idx_ikpos_wn)',fields(R.idx_iktraj_wnP)')
-    i=i+1; I_wn_traj(i) = R.idx_iktraj_wnP.(f{1});
-  end
-  I_wn_traj = I_wn_traj(I_wn_traj~=0); % überzählige Einträge entfernen
-  save(fullfile(resdir,sprintf('%s_TaskRed_Traj%d.mat', name_prefix_ardbg, i_ar-1)), ...
-    'X2', 'Q', 'i_ar', 'q', 'Stats', 'fval', 's');
-  cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref(1:nt_red), ...
-    phiz_range, X2(1:nt_red,6), Stats.h(1:nt_red,1), struct('wn', s.wn(I_wn_traj), ...
-    'i_ar', i_ar-1, 'name_prefix_ardbg', name_prefix_ardbg, 'fval', fval, ...
-    'critnames', {critnames}, 'constrvioltext', constrvioltext));
-  % Falls beim Debuggen die Aufgaben-Indizes zurückgesetzt wurden
-  R.update_EE_FG(R.I_EE, Set.task.DoF);
-end
-
-%% Inverse Kinematik der Trajektorie berechnen
+%% Einstellungen für inverse Kinematik vorbereiten
 % Einstellungen für IK in Trajektorien
 s = struct( ...
   ... % kein Winkel-Normalisierung, da dadurch Sprung in Trajektorie und keine 
@@ -181,9 +118,33 @@ s = struct( ...
   ... % Einhaltung der Gelenkwinkelgrenzen nicht über NR-Bewegung erzwingen
   'enforce_qlim', false, ...
   'Phit_tol', 1e-10, 'Phir_tol', 1e-10); % feine Toleranz
-s.wn = zeros(R.idx_ik_length.wntraj,1);
-if R.Type == 2 % PKM
-  s.debug = Set.general.debug_calc;
+% Interpolations-Stützstellen für relative Maximalgeschwindigkeit der
+% Nullraumbewegung. Dadurch echte Rast-zu-Rast-Bewegung auch im Nullraum.
+% (Falls bei Eingabe der Aufgabe gewünscht)
+s.nullspace_maxvel_interp = Traj_0.nullspace_maxvel_interp;
+% Sofort abbrechen, wenn eine der aktiven Nebenbedingungen verletzt wurde.
+s.abort_thresh_h = NaN(R.idx_ik_length.hntraj, 1); % alle deaktivieren.
+% Kollisionen führen nicht zum Abbruch, da die Kollisionskörper größer
+% gewählt sind als in Maßsynthese. Sonst wird in Traj.-IK immer zu früh
+% abgebrochen. Alternativ müsste collbodies_thresh=1 gewählt werden.
+% if Set.optimization.constraint_collisions
+%   s.abort_thresh_h(R.idx_iktraj_hn.coll_hyp) = inf;
+% end
+if ~isempty(Set.task.installspace.type)
+  s.abort_thresh_h(R.idx_iktraj_hn.instspc_hyp) = inf;
+end
+% Singularitäten führen zum Abbruch, wenn Schwellwert gesetzt ist
+if ~isinf(Set.optimization.condition_limit_sing_act)
+  s.abort_thresh_h(R.idx_iktraj_hn.jac_cond) = inf;
+end
+if ~isinf(Set.optimization.condition_limit_sing)
+  s.abort_thresh_h(R.idx_iktraj_hn.ikjac_cond) = inf;
+end
+s.abort_thresh_h(R.idx_iktraj_hn.xlim_hyp) = NaN; % nicht für EE-Drehung (falls Aufgabenredundant)
+% Breche auch ab, wenn die Konditionszahl verletzt wird und dies vorher
+% gefordert wurde
+if Set.optimization.constraint_obj(4) ~= 0
+  s.abort_thresh_h(R.idx_iktraj_hn.jac_cond) = Set.optimization.constraint_obj(4);
 end
 % Benutze eine Singularitätsvermeidung, die nur in der Nähe von
 % Singularitäten aktiv ist. Wenn die Kondition wesentlich schlechter wird,
@@ -203,6 +164,12 @@ if Set.optimization.constraint_obj(4) ~= 0 % Grenze für Jacobi-Matrix für Abbr
 end
 s.cond_thresh_ikjac = cond_thresh_ikjac;
 s.cond_thresh_jac = cond_thresh_jac; % Für Seriell und PKM
+% Gewichtung Nullraumoptimierung: Zusammstellung je nach Aufgabe
+s.wn = zeros(R.idx_ik_length.wntraj,1);
+if R.Type == 2 % PKM
+  s.debug = Set.general.debug_calc;
+end
+
 % IK-Jacobi (Aufgaben-FG)
 s.wn(R.idx_iktraj_wnP.ikjac_cond) = 1; % P-Anteil Konditionszahl (IK-Jacobi)
 s.wn(R.idx_iktraj_wnD.ikjac_cond) = 0.1; % D-Anteil Konditionszahl (IK-Jacobi)
@@ -229,7 +196,100 @@ if nargin >= 6
     s.collision_thresh = NaN;
   end
 end
-  
+%% Debug vorherige Iteration: Karte der Leistungsmerkmale für Aufgabenredundanz zeichnen
+% Rechne die IK-Kriterien von Traj.- zu Pos.-IK um.
+% Reihenfolge: Siehe IK-Funktionen oder ik_optimcrit_index.m
+% Einige Kriterien der Pos.-IK haben keine Entsprechung in Traj.-IK.
+% Daher wird eine Permutationsmatrix erstellt und kein Index-Vektor
+i=0;
+P_wn_traj = zeros(R.idx_ik_length.wnpos,R.idx_ik_length.wntraj);
+for f = fields(R.idx_ikpos_wn)'
+  if ~isfield(R.idx_iktraj_wnP, f{1}), continue; end
+  i=i+1;
+  P_wn_traj(i, R.idx_iktraj_wnP.(f{1})) = 1;
+end
+% EE-Drehung für Startpose berechnen
+x0 = R.fkineEE2_traj(q')';
+if Structure.task_red && Set.general.debug_taskred_perfmap
+  nt_red = size(Traj_0.X,1); % Zum Debuggen: Reduktion der Stützstellen
+  critnames = fields(R.idx_ikpos_wn)';
+  if i_ar == 1 % Nur einmal die Rasterung generieren
+    t1 = tic();
+    % Bereich der Redundanzkarte: -210°...210° oder bis maximal +/-360°,
+    % falls Trajektorie in eine oder beide Richtungen weiter geht
+    perfmap_range_phiz = [-1, +1]*210*pi/180; %,...
+%       minmax2(X2(:,6)')+[-20,+20]*pi/180]); % etwas über die Trajektorie hinaus
+%     perfmap_range_phiz(perfmap_range_phiz<-2*pi)=-2*pi;
+%     perfmap_range_phiz(perfmap_range_phiz> 2*pi)= 2*pi;
+    cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: Beginne Aufgabenredundanz-', ...
+      'Diagnosebild für Trajektorie mit %d Zeit-Stützstellen'], Structure.config_index, Structure.config_number, nt_red));
+    suffix = 'TaskRedPerfMap_Data';
+    matfile_pm = fullfile(resdir,sprintf('%s_%s.mat', name_prefix_ardbg, suffix));
+    if dbg_load_perfmap && exist(matfile_pm, 'file') % normaler Modus: Hier berechnen
+    load(matfile_pm);
+    else
+    [H_all, ~, s_ref, s_tref, phiz_range] = R.perfmap_taskred_ik( ...
+      Traj_0.X(1:nt_red,:), Traj_0.IE, struct('settings_ik', s, ...
+      'q0', q, 'I_EE_red', Set.task.DoF, 'map_phistart', x0(6), ...
+      ... % nur grobe Diskretisierung für die Karte (geht schneller)
+      'mapres_thresh_eepos', 10e-3, 'mapres_thresh_eerot', 5*pi/180, ...
+      'mapres_thresh_pathcoordres', 0.2, 'mapres_redcoord_dist_deg', 5, ...
+      'maplim_phi', perfmap_range_phiz));
+    cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: Daten für Diagnose-Bild der Aufgabenredundanz ', ...
+      'erstellt. Auflösung: %dx%d. Dauer: %1.0fs'], Structure.config_index, Structure.config_number, length(s_ref), ...
+      length(phiz_range), toc(t1)));
+    % Speichere die Redundanzkarte (da die Berechnung recht lange dauert)
+    save(matfile_pm, 'Structure', 'H_all', 's_ref', 's_tref', ...
+      'phiz_range', 'i_ar', 'q', 'nt_red', 'x0');
+    end
+  end
+  if i_ar > 1 % Redundanzkarte erst zeichnen, wenn Trajektorie zur Verfügung steht
+    % Redundanzkarte für jedes Zielkriterium zeichnen (zur Einschätzung)
+    wn_test = zeros(R.idx_ik_length.wnpos,1);
+    wn_phys = zeros(4,1);
+    if Set.general.debug_taskred_perfmap == 2 % Hohes Verbose-Level
+    for ll = 1:length(wn_test)+4 % letzter Durchlauf nur Konditionszahl zeichnen
+      wn_test(:) = 0; wn_phys(:) = 0;
+      if ll <= length(wn_test)
+        wn_test(ll) = 1;
+      else
+        wn_phys(ll-length(wn_test)) = 1;
+      end
+      for ls = [false, true] % Skalierung des Bildes: Linear und Logarithmisch
+        % Wähle Kriterien, die als Nebenbedigung gegen unendlich gehen.
+        I_nbkrit = [R.idx_ikpos_wn.qlim_hyp, R.idx_ikpos_wn.ikjac_cond, ...
+                    R.idx_ikpos_wn.jac_cond, R.idx_ikpos_wn.coll_hyp, ...
+                    R.idx_ikpos_wn.instspc_hyp, R.idx_ikpos_wn.xlim_hyp];
+        if ls && ~any(wn_test(I_nbkrit))
+          continue % kein hyperbolisches Kriterium. Log-Skalierung nicht sinnvoll.
+        end
+        critnames_withphys = [critnames(:)', ...
+          {'coll_phys', 'instspc_phys', 'cond_ik_phys', 'cond_phys'}];
+        cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref(1:nt_red), ...
+          phiz_range, PM_phiz_plot(1:nt_red,:), Stats.h(1:nt_red,1), struct('wn', [wn_test;wn_phys], ...
+          'i_ar', i_ar-1, 'i_fig', ll, 'name_prefix_ardbg', name_prefix_ardbg, ...
+          'fval', fval, 'TrajLegendText', TrajLegendText, ...
+          'constrvioltext', constrvioltext, 'deactivate_time_figure', true, ...
+          'critnames', {critnames_withphys}, 'ignore_h0', true, 'logscale', ls));
+      end
+    end
+    end % Set.general.debug_taskred_perfmap == 2
+    save(fullfile(resdir,sprintf('%s_TaskRed_Traj%d.mat', name_prefix_ardbg, i_ar-1)), ...
+      'PM_phiz_plot', 'Q', 'i_ar', 'q', 'Stats', 'fval', 's');
+    cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref(1:nt_red), ...
+      phiz_range, PM_phiz_plot, PM_h_plot, struct('wn', P_wn_traj*s.wn, ...
+      'i_ar', i_ar-1, 'name_prefix_ardbg', name_prefix_ardbg, 'fval', fval, ...
+      'TrajLegendText', {TrajLegendText},  'ignore_h0', false, ...
+      'deactivate_time_figure', true, ... % Bild nicht wirklich brauchbar
+      'critnames', {critnames}, 'constrvioltext', constrvioltext));
+    % Falls beim Debuggen die Aufgaben-Indizes zurückgesetzt wurden
+    R.update_EE_FG(R.I_EE, Set.task.DoF);
+  end
+else
+  H_all = []; s_ref = []; s_tref = []; phiz_range = [];
+end
+
+%% Inverse Kinematik der Trajektorie vorbereiten 
 % Zusätzliche Optimierung für Aufgabenredundanz.
 % TODO: Die Reglereinstellungen sind noch nicht systematisch ermittelt.
 if i_ar == 1 % erster Durchlauf ohne zusätzliche Optimierung (nimmt minimale Geschwindigkeit)
@@ -358,51 +418,6 @@ if i_ar == 3
     debug_str = [debug_str, sprintf('; instspcdist [mm]: %1.1f -> %1.1f', ...
       1e3*mininstspcdist_all(1), 1e3*mininstspcdist_all(2))]; %#ok<AGROW>
   end
-  if fval_ar(1) < fval_ar(2)
-    cds_log(3, sprintf(['[constraints_traj] Konfig %d/%d: Ergebnis der ', ...
-      'Traj.-IK hat sich nach Nullraumbewegung verschlechtert: %1.3e -> ', ...
-      '%1.3e ("%s" -> "%s"), delta: %1.3e. %s'], Structure.config_index, ...
-      Structure.config_number, fval_ar(1), fval_ar(2), constrvioltext_alt, ...
-      constrvioltext, fval_ar(2)-fval_ar(1), debug_str));
-    % Anmerkung: Das muss nicht unbedingt ein Fehler sein. Das Verletzen
-    % der Geschwindigkeitsgrenzen kann eine Konsequenz sein. Die Hinzunahme
-    % eines vorher nicht betrachteten Kriteriums kann eine Verschlechterung
-    % erst erzeugen (z.B. Scheitern bei Ausweichbewegung)
-    Q = Q_alt;
-    QD = QD_alt;
-    QDD = QDD_alt;
-    Jinv_ges = Jinv_ges_alt;
-    JP = JP_alt;
-    fval = fval_ar(1);
-    constrvioltext = [constrvioltext_alt, ' Erneute IK-Berechnung ohne Verbesserung'];
-  elseif fval_ar(1) == fval_ar(2) && fval_ar(1) ~= 1e3
-    % Ergebnisse identisch, obwohl es n.i.O. ist. Deutet auf Logik-Fehler
-    % oder unverstandene Einstellungen
-    cds_log(3, sprintf(['[constraints_traj] Konfig %d/%d: Ergebnis der ', ...
-      'Traj.-IK nach Nullraumbewegung gleich: fval=%1.3e ("%s"). s.wn=[%s]'], ...
-      Structure.config_index, Structure.config_number, fval_ar(1), constrvioltext, ...
-      disp_array(wn_alt', '%1.1g')));
-    constrvioltext = [constrvioltext, sprintf(' Identisches Ergebnis mehrfach berechnet')]; %#ok<AGROW>
-  elseif fval_ar(1) == fval_ar(2) && fval_ar(1) == 1e3
-    % Bestmöglicher Fall. Vorher und nachher in Ordnung. 
-    % Nehme zusätzliche Kennzahlen um zu prüfen, ob sich das Ergebnis auch
-    % verbessert hat. Wobei Verbesserung hier eigentlich kein Kriterium
-    % ist, da primär Nebenbedingungen ("constraints") geprüft werden.
-    cds_log(3, sprintf(['[constraints_traj] Konfig %d/%d: Ergebnis der ', ...
-      'Traj.-IK vor und nach Nullraumbewegung i.O.: %s; \n\twn: [%s] -> [%s]'], ...
-      Structure.config_index, Structure.config_number, debug_str, ...
-      disp_array(wn_all(1,:), '%1.1g'), disp_array(wn_all(2,:), '%1.1g')));
-  else
-    % Zweiter Durchlauf der Optimierung brachte Verbesserung. Jetzt ist es genug.
-    cds_log(3, sprintf(['[constraints_traj] Konfig %d/%d: Ergebnis der ', ...
-      'Traj.-IK hat sich nach Nullraumbewegung verbessert: %1.3e -> ', ...
-      '%1.3e ("%s" -> "%s"), delta: %1.3e. %s'], Structure.config_index, ...
-      Structure.config_number, fval_ar(1), fval_ar(2), constrvioltext_alt, ...
-      constrvioltext, fval_ar(2)-fval_ar(1), debug_str));
-    constrvioltext = [constrvioltext, sprintf([' Verbesserung durch ', ...
-      'erneute IK-Berechnung (%1.3e->%1.3e, delta: %1.3e). Vorher: %s'], ...
-      fval_ar(1), fval_ar(2), fval_ar(2)-fval_ar(1), constrvioltext_alt)]; %#ok<AGROW>
-  end
   % Debug: Vergleiche vorher-nachher.
   if Set.general.debug_taskred_fig
     RP = ['R', 'P'];
@@ -446,6 +461,9 @@ if i_ar == 3
       plot(Traj_0.t, QD_alt(:,i), '-');
       plot(Traj_0.t, QD(:,i), '-');
       plot(Traj_0.t([1,end]), repmat(Structure.qDlim(i,:),2,1), 'r-');
+      if ~isempty(Traj_0.nullspace_maxvel_interp)
+        plot(Traj_0.t(Traj_0.IE), 0, 'rs');
+      end
       if ~all(isnan(QD(:)))
         ylim(minmax2([QD(:,i);QD(:,i);QD_alt(:,i);QD_alt(:,i)]'));
       end
@@ -473,6 +491,9 @@ if i_ar == 3
       plot(Traj_0.t, QDD_alt(:,i), '-');
       plot(Traj_0.t, QDD(:,i), '-');
       plot(Traj_0.t([1,end]), repmat(Structure.qDDlim(i,:),2,1), 'r-');
+      if ~isempty(Traj_0.nullspace_maxvel_interp)
+        plot(Traj_0.t(Traj_0.IE), 0, 'rs');
+      end
       if ~all(isnan(QDD(:)))
         ylim(minmax2([QDD(:,i);QDD(:,i);QDD_alt(:,i);QDD_alt(:,i)]'));
       end
@@ -539,6 +560,7 @@ if i_ar == 3
     name_prefix_ardbg = sprintf('Gen%02d_Ind%02d_Konfig%d', currgen, ...
       currind, Structure.config_index);
     for fignr = 3009:3013
+      set(fignr,'color','w');
       for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
         if strcmp(fileext{1}, 'fig')
           saveas(fignr, fullfile(resdir, sprintf('%s_TaskRed_%s.fig', ...
@@ -550,15 +572,65 @@ if i_ar == 3
       end
     end
   end
+  if fval_ar(1) < fval_ar(2)
+    cds_log(3, sprintf(['[constraints_traj] Konfig %d/%d: Ergebnis der ', ...
+      'Traj.-IK hat sich nach Nullraumbewegung verschlechtert: %1.3e -> ', ...
+      '%1.3e ("%s" -> "%s"), delta: %1.3e. %s'], Structure.config_index, ...
+      Structure.config_number, fval_ar(1), fval_ar(2), constrvioltext_alt, ...
+      constrvioltext, fval_ar(2)-fval_ar(1), debug_str));
+    % Anmerkung: Das muss nicht unbedingt ein Fehler sein. Das Verletzen
+    % der Geschwindigkeitsgrenzen kann eine Konsequenz sein. Die Hinzunahme
+    % eines vorher nicht betrachteten Kriteriums kann eine Verschlechterung
+    % erst erzeugen (z.B. Scheitern bei Ausweichbewegung)
+    Q = Q_alt;
+    QD = QD_alt;
+    QDD = QDD_alt;
+    Jinv_ges = Jinv_ges_alt;
+    JP = JP_alt;
+    fval = fval_ar(1);
+    constrvioltext = [constrvioltext_alt, ' Erneute IK-Berechnung ohne Verbesserung'];
+    % Trage wieder die alten Werte in die Trajektorien-Variable ein
+    Traj_0.X(:,6) = X2phizTraj_alt(:,1);
+    Traj_0.XD(:,6) = X2phizTraj_alt(:,2);
+    Traj_0.XDD(:,6) = X2phizTraj_alt(:,3);
+  elseif fval_ar(1) == fval_ar(2) && fval_ar(1) ~= 1e3
+    % Ergebnisse identisch, obwohl es n.i.O. ist. Deutet auf Logik-Fehler
+    % oder unverstandene Einstellungen
+    cds_log(3, sprintf(['[constraints_traj] Konfig %d/%d: Ergebnis der ', ...
+      'Traj.-IK nach Nullraumbewegung gleich: fval=%1.3e ("%s"). s.wn=[%s]'], ...
+      Structure.config_index, Structure.config_number, fval_ar(1), constrvioltext, ...
+      disp_array(wn_alt', '%1.1g')));
+    constrvioltext = [constrvioltext, sprintf(' Identisches Ergebnis mehrfach berechnet')]; %#ok<AGROW>
+  elseif fval_ar(1) == fval_ar(2) && fval_ar(1) == 1e3
+    % Bestmöglicher Fall. Vorher und nachher in Ordnung. 
+    % Nehme zusätzliche Kennzahlen um zu prüfen, ob sich das Ergebnis auch
+    % verbessert hat. Wobei Verbesserung hier eigentlich kein Kriterium
+    % ist, da primär Nebenbedingungen ("constraints") geprüft werden.
+    cds_log(3, sprintf(['[constraints_traj] Konfig %d/%d: Ergebnis der ', ...
+      'Traj.-IK vor und nach Nullraumbewegung i.O.: %s; \n\twn: [%s] -> [%s]'], ...
+      Structure.config_index, Structure.config_number, debug_str, ...
+      disp_array(wn_all(1,:), '%1.1g'), disp_array(wn_all(2,:), '%1.1g')));
+  else
+    % Zweiter Durchlauf der Optimierung brachte Verbesserung. Jetzt ist es genug.
+    cds_log(3, sprintf(['[constraints_traj] Konfig %d/%d: Ergebnis der ', ...
+      'Traj.-IK hat sich nach Nullraumbewegung verbessert: %1.3e -> ', ...
+      '%1.3e ("%s" -> "%s"), delta: %1.3e. %s'], Structure.config_index, ...
+      Structure.config_number, fval_ar(1), fval_ar(2), constrvioltext_alt, ...
+      constrvioltext, fval_ar(2)-fval_ar(1), debug_str));
+    constrvioltext = [constrvioltext, sprintf([' Verbesserung durch ', ...
+      'erneute IK-Berechnung (%1.3e->%1.3e, delta: %1.3e). Vorher: %s'], ...
+      fval_ar(1), fval_ar(2), fval_ar(2)-fval_ar(1), constrvioltext_alt)]; %#ok<AGROW>
+  end
   return
 end
 if i_ar == 2
   Q_alt = Q;
   QD_alt = QD;
   QDD_alt = QDD;
+  constrvioltext_alt = constrvioltext;
   X2phizTraj_alt = [X2(:,6),XD2(:,6),XDD2(:,6)];
   wn_alt = s.wn;
-  Stats_alt = Stats; %#ok<NASGU>
+  Stats_alt = Stats; 
   Jinv_ges_alt = Jinv_ges;
   JP_alt = JP;
 end
@@ -570,20 +642,203 @@ if Structure.task_red % Nur bei Redundanz relevant (Nebenbedingungen)
   Traj_0.XD(:,6) = 0; % Wird für Dämpfung benötigt
   Traj_0.XDD(:,6) = 0; % wird ignoriert
 end
-wn_all(i_ar,:) = s.wn(:)'; %#ok<AGROW>
-if R.Type == 0 % Seriell
-  qlim = R.qlim;
-  [Q, QD, QDD, PHI, JP, Stats] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
-  Jinv_ges = NaN; % Platzhalter für gleichartige Funktionsaufrufe. Speicherung nicht sinnvoll für seriell.
-else % PKM
-  qlim = cat(1,R.Leg(:).qlim);
-  [Q, QD, QDD, PHI, Jinv_ges, ~, JP, Stats] = R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s);
+wn_all(i_ar,:) = s.wn(:)'; %#ok<SAGROW>
+
+%% Dynamische Programmierung für optimale Trajektorie bei Aufgabenredundanz
+if Structure.task_red && Set.general.taskred_dynprog && ...
+    i_ar == 1 % nur einmal die DP berechnen (NB werden im ersten Lauf schon geprüft)
+  if Set.general.matfile_verbosity > 2
+    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+      'cds_constraints_traj_before_dynprog.mat'));
+  end
+  % Bestimme die Grenzen der Optimierungsvariable in der DP eher
+  % großzügiger als in der normalen Nullraumbewegung, da die Bewegung
+  % kontrollierter stattfindet.
+  dp_xDlim = repmat(max(Set.optimization.max_velocity_ee_rotation, ...
+    Set.task.vmax)*[-1, +1], 6, 1);
+  dp_xDDlim = repmat(max(Set.optimization.max_acceleration_ee_rotation, ...
+    Set.task.amax)*[-1, +1], 6, 1);
+  % Zeit zum Abbremsen der Nullraumbewegung (Dynamische Prog. Rast-zu-Rast)
+  % Auch als Beschleunigungszeit für Aufgabenbewegung angenommen.
+  T_dec_dp = dp_xDlim(6,2) / dp_xDDlim(6,2);
+  s_dp = struct(...
+    'wn', P_wn_traj*s.wn, ...
+    'settings_ik', s, ...
+    'xDDlim', dp_xDDlim, 'xDlim', dp_xDlim, ...
+    'cost_mode', 'max', ...
+    'cost_mode2', 'motion_redcoord', ... % möglichst geringe Bewegung der red. Koord.
+    'abort_thresh_h', s.abort_thresh_h, ...
+    'PM_H_all', H_all, 'PM_s_ref', s_ref, 'PM_s_tref', s_tref, 'PM_phiz_range', phiz_range, ...
+    'verbose', 0, 'IE', Traj_0.IE, ...
+    ... % 360°. Falls Startpose am Rand liegt den Suchbereich etwas aufweiten
+    'phi_min', min(-pi, x0(6)-pi/4), 'phi_max', max(pi, x0(6)+pi/4), ...
+    'n_phi', 6, ... % 60°-Schritte bei 360° Wertebereich
+    'overlap', true, ... % doppelte Anzahl, aber versetzt. Dadurch freiere Bewegung 
+    ... % Zeit für Abbremsvorgang (nur des Nullraums, vor dem Abbremsen der Aufgabe)
+    ... % Kompromiss aus mehr Zeit für Verfahrbewegung und etwas Spielraum für Ausschwingvorgang
+    'T_dec_ns', 1/4*T_dec_dp, ...
+    ... % Annahme: Abbremsen der Aufgabe am Ende mit max. Beschleunigung
+    ... % Für diese Zeit am Ende gibt es keine Nullraumbewegung
+    'Tv', T_dec_dp/2, ...
+    'debug_dir', fullfile(resdir,[name_prefix_ardbg, '_dynprog']), ...
+    'continue_saved_state', true); % Debuggen: Falls mehrfach gleicher Aufruf
+  if dbg_dynprog_log, s_dp.verbose = 1; end
+  if dbg_dynprog_fig, s_dp.verbose = 2; end
+  if Set.general.debug_dynprog_files, mkdirs(s_dp.debug_dir);
+  else,                               s_dp.debug_dir = '';
+  end
+  cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: Beginne IK mit ', ...
+    'Dynamischer Programmierung über %d Stufen und %d Zustände.'], ...
+    Structure.config_index, Structure.config_number, length(Traj_0.IE), s_dp.n_phi));
+  t1 = tic();
+  % Dynamische Programmierung berechnen oder Ergebnis laden (für Debuggen)
+  matfile_dp=fullfile(resdir,sprintf('%s_%s.mat',name_prefix_ardbg,'dynprog'));
+  if dbg_load_dp && Set.general.debug_dynprog_files && exist(matfile_dp, 'file')
+    load(matfile_dp, 'XL', 'DPstats', 'TrajDetailDP');
+  else
+    [XL, DPstats, TrajDetailDP] = R.dynprog_taskred_ik(Traj_0.X, Traj_0.XD, ...
+      Traj_0.XDD, Traj_0.t, q, s_dp);
+    if Set.general.debug_dynprog_files
+      save(matfile_dp, 'XL', 'DPstats', 'TrajDetailDP');
+    end
+  end
+  cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: %1.1fs für DP. ', ...
+    'Insgesamt %d IK-Zeitschritte (%1.1f x Traj.) berechnet. %d/%d erfolg', ...
+    'reiche Übergänge'], Structure.config_index, Structure.config_number, ...
+    toc(t1), DPstats.nt_ik, DPstats.nt_ik/length(Traj_0.t), ...
+    DPstats.n_statechange_succ, DPstats.n_statechange_total));
+  if ~isempty(s_dp.debug_dir) && isfolder(s_dp.debug_dir) % Zip-Archiv aus den DP-Zwischenergebnissen
+    zip([s_dp.debug_dir,'.zip'], s_dp.debug_dir);
+    rmdir(s_dp.debug_dir, 's');
+  end
+  Q_dp = TrajDetailDP.Q;
+  QD_dp = TrajDetailDP.QD;
+  QDD_dp = TrajDetailDP.QDD;
+  PHI_dp = TrajDetailDP.PHI;
+  Jinv_ges_dp = TrajDetailDP.Jinv_ges;
+  JP_dp = TrajDetailDP.JP;
+  Stats_dp = TrajDetailDP.Stats;
+  if Structure.task_red && Set.general.debug_taskred_perfmap
+    PM_phiz_plot = [PM_phiz_plot, TrajDetailDP.X6(1:nt_red)]; %#ok<AGROW>
+    PM_h_plot = [PM_h_plot, Stats_dp.h(1:nt_red,1)]; %#ok<AGROW>
+    TrajLegendText = [TrajLegendText, sprintf('It. %d DP', i_ar)]; %#ok<AGROW>
+  end
+  % Setze Trajektorien-Einstellungen für die nochmalige Berechnung im
+  % nächsten Schritt. Unterschied zur Ausgabe aus der DP-Funktion:
+  % Hier wird kein Rast-zu-Rast mehr erzwungen
+  for ii = 1:size(XL,1)-1
+    i1 = Traj_0.IE(ii);
+    i2 = Traj_0.IE(ii+1);
+    [Traj_0.X(i1:i2,6),Traj_0.XD(i1:i2,6),Traj_0.XDD(i1:i2,6)] = ...
+      trapveltraj(XL(ii:ii+1,6)', i2-i1+1,...
+      'EndTime',Traj_0.t(i2)-Traj_0.t(i1), 'Acceleration', R.xDDlim(6,2));
+  end
+  s_ikdp = s;
+  % Nicht die kürzeste Norm nehmen, sondern die Bewegungsrichtung, die
+  % bereits aus der dynamischen Programmierung berechnet wurde
+  s_ikdp.ik_solution_min_norm = false;
+  % Einhaltung der Trajektorie aus dynamischer Programmierung erzwingen
+  % Dämpfung xlim quadratisch (bzw. Bestrafung der Abweichung von Ref.-Geschw.)
+  s_ikdp.wn(R.idx_iktraj_wnP.xDlim_par) = 0.5;  
+  % Begrenzung der Plattform-Drehung. Wird in DP vorgegeben.
+  s_ikdp.wn(R.idx_iktraj_wnP.xlim_par) = 1; % P-Regler xlim quadratisch
+  s_ikdp.wn(R.idx_iktraj_wnD.xlim_par) = 0.7; % D-Regler xlim quadratisch
+  s_ikdp.wn(R.idx_iktraj_wnP.xlim_hyp) = 1; % P-Regler xlim hyperbolisch
+  s_ikdp.wn(R.idx_iktraj_wnD.xlim_hyp) = 0.7; % D-Regler xlim hyperbolisch
+  s_ikdp.enforce_xDlim = true;
+  % Toleranzband für die Koordinate: Ist so gewählt wie in DynProg
+  s_ikdp.xlim6_interp = NaN(3,1+2*(length(Traj_0.IE)-1)); % Spalten: Zeitschritte
+  delta_phi = (s_dp.phi_max-s_dp.phi_min)/s_dp.n_phi;
+  s_ikdp.xlim6_interp(:,1) = [Traj_0.t(1);-delta_phi/2; delta_phi/2];
+  for i = 1:size(XL,1)-1
+    % Falls die DP nicht erfolgreich war, gibt es kein Toleranzband
+    if all(isinf(DPstats.F_all(i,:)))
+      delta_phi = inf; % Damit wird xlim6_interp unwirksam
+    end
+    % Zwischen Stützstellen doppelt so breites Toleranzband
+    s_ikdp.xlim6_interp(:,2*i) = [mean(Traj_0.t(Traj_0.IE([i,i+1])));-delta_phi; delta_phi];
+    % An Stützstellen Toleranzband so breit wie DP-Diskretisierung
+    s_ikdp.xlim6_interp(:,2*i+1) = [Traj_0.t(Traj_0.IE(i+1));-delta_phi/2 + 1e-3; delta_phi/2 - 1e-3];
+  end
+end
+% Drei verschiedene Berechnungen für die Trajektorie testen: ikloop
+% (1) Gradientenprojektion (mit Vorgabe aus DynProg)
+% (2) Dynamische Programmierung
+% (3) Nur Gradientenprojektion (ohne Ergebnisse von DynProg).
+if ~Structure.task_red || ~Set.general.taskred_dynprog
+  ikloop = 3;
+elseif Set.general.taskred_dynprog
+  if Set.general.taskred_dynprog_and_gradproj
+    ikloop = 1:3;
+  else
+    ikloop = 1:2;
+  end
+else
+  error('Logik-Fehler. Fall nicht möglich.');
+end
+constrvioltext_m = cell(3,1);
+for i_m = ikloop % Schleife über verschiedene IK-Verfahren
+%% Trajektorie mit lokaler Optimierung berechnen
+if i_m == 1 || i_m == 3 % Gradientenprojektion
+  if i_m == 3
+    % Entferne die Einstellungen aus der Dynamischen Programmierung.
+    % Nur rein lokale Trajektorienoptimierung
+    s_trajik = s;
+  else % i_m == 1
+    % Auf Ergebnis der dynamischen Programmierung aufbauen.
+    s_trajik = s_ikdp; % aufbauend auf Ergebnis der DynProg
+  end
+  if R.Type == 0 % Seriell
+    qlim = R.qlim;
+    [Q_gp, QD_gp, QDD_gp, PHI_gp, JP_gp, Stats_gp] = ...
+      R.invkin2_traj( Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s_trajik);
+    Jinv_ges_gp = NaN; % Platzhalter für gleichartige Funktionsaufrufe. Speicherung nicht sinnvoll für seriell.
+  else % PKM
+    qlim = cat(1,R.Leg(:).qlim);
+    [Q_gp, QD_gp, QDD_gp, PHI_gp, Jinv_ges_gp, ~, JP_gp, Stats_gp] = ...
+      R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s_trajik);
+  end
+  Q = Q_gp; QD = QD_gp; QDD = QDD_gp; PHI = PHI_gp; Jinv_ges = Jinv_ges_gp;
+  JP = JP_gp; Stats = Stats_gp;
+  % Speichere die erste Iteration der GP-Methode nochmal ab, damit später
+  % reproduzierbar, falls GP-Methode nochmal bereechnet wird.
+  if i_m == 1 && any(ikloop==3)
+    Q_gp1 = Q_gp; QD_gp1 = QD_gp; QDD_gp1 = QDD_gp;
+    Jinv_ges_gp1 = Jinv_ges_gp; JP_gp1 = JP_gp; Stats_gp1 = Stats_gp;
+  end
+  
+  % Eintragen in Variable zum Zeichnen in Redundanzkarte
+  if Structure.task_red && Set.general.debug_taskred_perfmap
+    % EE-Drehung berechnen (für Redundanzkarte, TODO: Code teilw. doppelt zu unten)
+    X6_gp = NaN(size(Q,1),1);
+    X_gp = R.fkineEE2_traj(Q(1:Stats.iter,:));
+    % Erlaube auch EE-Drehungen größer als 180°
+    X6_gp(1:Stats.iter) = denormalize_angle_traj(X_gp(1:Stats.iter,6));
+    PM_phiz_plot = [PM_phiz_plot, X6_gp(1:nt_red)]; %#ok<AGROW>
+    PM_h_plot = [PM_h_plot, Stats_gp.h(1:nt_red,1)]; %#ok<AGROW>
+    legsuffix = '';
+    if i_m == 1
+      legsuffix = ' w. DP';
+    end
+    TrajLegendText = [TrajLegendText, sprintf('It. %d GP%s', i_ar, legsuffix)]; %#ok<AGROW>
+  end
+else % i_m == 2 % Nur Ergebnis der dynamischen Programmierung
+  Q = Q_dp; QD = QD_dp; QDD = QDD_dp; PHI = PHI_dp; Jinv_ges = Jinv_ges_dp;
+  JP = JP_dp; Stats = Stats_dp;
+end
+% Bestimme den Index, bis zu dem die Trajektorien-IK ausgibt.
+if any(Stats.errorcode == [0 1 2])
+  % Entweder kein Abbruch der IK (Code 0), oder anderer Grund
+  Stats_iter_h = Stats.iter; % Index auf die Trajektorie bis Ende
+else % errorcode == 3
+  % Abbruch aufgrund der Verletzung einer Nebenbedingung. Nehme den
+  % Wert, der zur Verletzung geführt hat für den Plot.
+  Stats_iter_h = min(size(Q,1), Stats.iter+1);
 end
 % Zurücksetzen später berechneter Größen (sonst verwirrende Redundanzkarte
 % bei frühzeitigem Abbruch)
 X2(:) = NaN; XD2(:) = NaN; XDD2(:) = NaN;
 
-constrvioltext_alt = constrvioltext;
 % Anfangswerte nochmal neu speichern, damit der Anfangswert exakt der
 % Wert ist, der für die Neuberechnung gebraucht wird. Ansonsten ist die
 % Reproduzierbarkeit durch die rng-Initialisierung der mex-Funktionen
@@ -593,25 +848,22 @@ if R.Type == 0 % Seriell
 else
   for i = 1:R.NLEG, R.Leg(i).qref = Q(1,R.I1J_LEG(i):R.I2J_LEG(i))'; end
 end
-
-% Prüfe Erfolg der Trajektorien-IK
-% Erkenne eine valide Trajektorie bereits bei Fehler kleiner als 1e-6 an.
-% Das ist deutlich großzügiger als die eigentliche IK-Toleranz
-I_ZBviol = any(abs(PHI) > 1e-6,2) | any(isnan(Q),2) | ...
-  ... % Falls beim letzten Schritt die Position noch i.O. ist, aber die Ge-
-  ... % schwindigkeit schon NaN ist: Auch hier als Abbruch zählen.
-  any(isnan(QD),2) | any(isnan(QDD),2);
 %% Endeffektor-Bewegung neu für 3T2R-Roboter berechnen
 % Der letzte Euler-Winkel ist nicht definiert und kann beliebige Werte einnehmen.
 % Muss schon berechnet werden, bevor der Abbruch der Trajektorie geprüft
 % wird (Variable X2 wird für Redundanzkarte benötigt).
 % Gilt für 3T2R-PKM und für 3T3R-PKM in 3T2R-Aufgaben
 if Structure.task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
-  LastTrajIdx = find(~I_ZBviol, 1, 'last' ); % berechne nur für i.O.-Punkte dir Kin.
-  [X2(1:LastTrajIdx,:), XD2(1:LastTrajIdx,:), XDD2(1:LastTrajIdx,:)] = ...
-    R.fkineEE2_traj(Q(1:LastTrajIdx,:), QD(1:LastTrajIdx,:), QDD(1:LastTrajIdx,:));
+  [X2(1:Stats.iter,:), XD2(1:Stats.iter,:), XDD2(1:Stats.iter,:)] = ...
+    R.fkineEE2_traj(Q(1:Stats.iter,:), QD(1:Stats.iter,:), QDD(1:Stats.iter,:));
   % Erlaube auch EE-Drehungen größer als 180°
-  X2(1:LastTrajIdx,6) = denormalize_angle_traj(X2(1:LastTrajIdx,6));
+  X2(1:Stats.iter,6) = denormalize_angle_traj(X2(1:Stats.iter,6));
+  X2phizTraj = [X2(:,6), XD2(:,6), XDD2(:,6)];
+  % Speichern der Werte zum Rekonstruieren
+  if i_m == 1,     X2phizTraj_gp1 = X2phizTraj;
+  elseif i_m == 2, X2phizTraj_dp =  X2phizTraj;
+  else,            X2phizTraj_gp =  X2phizTraj;
+  end
   % Debug: EE-Trajektorie zeichnen
   if false
     figure(4002);clf; %#ok<UNRCH>
@@ -633,23 +885,27 @@ if Structure.task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_
 end
 
 %% Prüfe Erfolg der Trajektorien-IK
-if any(I_ZBviol)
-  % Bestimme die erste Verletzung der ZB (je später, desto besser)
-  IdxFirst = find(I_ZBviol, 1 );
-  if IdxFirst == 1
-    cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Bereits bei erster ', ...
-      'Traj.-Iteration Abbruch, obwohl Einzelpunkt-IK erfolgreich war. ', ...
-      'Vermutlich Logik-Fehler.'], Structure.config_index, Structure.config_number));
-  end
+if Stats.iter == 0
+  % TODO: Mögliche Ursachen: Andere Schwellwerte bei Kollision und Abbruch
+  % aus diesem Grund. Sollte eigentlich nicht auftreten
+  cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Bereits bei erster ', ...
+    'Traj.-Iteration Abbruch, obwohl Einzelpunkt-IK erfolgreich war. ', ...
+    'Vermutlich Logik-Fehler. Invkin-Fehlercode %d'], Structure.config_index, ...
+    Structure.config_number, Stats.errorcode));
+end
+% Die Traj.-IK bricht auch bei Verletzung von Nebenbedingungen ab und nicht
+% nur bei ungültiger Konfiguration. Prüfe hier nur den letzteren Fall.
+if Stats.iter < length(Traj_0.t) && ( ... % zu früher Abbruch der Trajektorie
+    any(Stats.errorcode==[1 2])) % Fehlercode nicht durch Zielfunktions-Verletzung
   % Umrechnung in Prozent der Traj.
-  Failratio = 1-IdxFirst/length(Traj_0.t); % Wert zwischen 0 und 1
-  fval = 1e4*(6+4*Failratio); % Wert zwischen 6e4 und 1e5.
+  Failratio = 1-Stats.iter/length(Traj_0.t); % Wert zwischen 0 und 1
+  fval_all(i_m, i_ar)  = 1e4*(6+4*Failratio); % Wert zwischen 6e4 und 1e5.
   % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
-  constrvioltext = sprintf('Keine IK-Konvergenz in Traj. Bis %1.0f%% (%d/%d) gekommen.', ...
-    (1-Failratio)*100, IdxFirst, length(Traj_0.t));
+  constrvioltext_m{i_m} = sprintf('Keine IK-Konvergenz in Traj. Bis %1.0f%% (%d/%d) gekommen.', ...
+    (1-Failratio)*100, Stats.iter, length(Traj_0.t));
   continue
   % Debug: Trajektorie zeichnen
-  qDlim = Structure.qDlim;
+  qDlim = Structure.qDlim; %#ok<UNRCH>
   qDDlim = Structure.qDDlim;
   RP = ['R', 'P'];
   Q_norm = (Q - repmat(qlim(:,1)', size(Q,1), 1)) ./ ...
@@ -685,22 +941,29 @@ if ~isinf(Set.optimization.condition_limit_sing_act) && R.Type == 2
   for i = 1:length(Traj_0.t)
     % Vollständige (inverse) PKM-Jacobi-Matrix (bezogen auf alle Gelenke)
     Jinv_IK = reshape(Jinv_ges(i,:), R.NJ, sum(R.I_EE));
-    % Konditionszahl der auf Antriebe bezogengen (inversen) Jacobi-Matrix
+    % Konditionszahl der auf Antriebe bezogenen (inversen) Jacobi-Matrix
     c = cond(Jinv_IK(R.I_qa,:));
-    if c > Set.optimization.condition_limit_sing
+    if c > Set.optimization.condition_limit_sing_act_act
       IdxFirst = i;
       break;
     end
   end
   if IdxFirst ~= 0
     Failratio = 1-IdxFirst/length(Traj_0.t); % Wert zwischen 0 und 1
-    constrvioltext = sprintf(['PKM ist singulär (Konditionszahl %1.1e ', ...
+    constrvioltext_m{i_m} = sprintf(['PKM ist singulär (Konditionszahl %1.1e ', ...
       'bei %1.0f%% der Traj. bzw. Schritt %d/%d).'], c, 100*(1-Failratio), IdxFirst, length(Traj_0.t));
-    fval = 1e4*(5+1*Failratio); % Wert zwischen 5e4 und 6e4.
+    fval_all(i_m, i_ar)  = 1e4*(5+1*Failratio); % Wert zwischen 5e4 und 6e4.
     continue
   end
 end
-
+%% Singularität prüfen (bezogen auf IK-Jacobi-Matrix)
+if ~isinf(Set.optimization.condition_limit_sing) && Stats.errorcode == 3 && ...
+    any(isinf(Stats.h(:,1+R.idx_iktraj_hn.jac_cond)))
+  % führt bereits in Traj.-IK zum Abbruch. Prüfe, ob dies die Ursache war
+  constrvioltext_m{i_m} = sprintf('Roboter ist singulär (Konditionszahl IK-Jacobi).');
+  fval_all(i_m, i_ar)  = 1e4*(5); % zunächst kein eigener Wertebereich
+  continue
+end
 %% Singularität der Beinketten prüfen (für PKM)
 % Im Gegensatz zu cds_obj_condition wird hier die gesamte Beinkette
 % betrachtet. Entspricht Singularität der direkten Kinematik der Beinkette.
@@ -744,10 +1007,10 @@ if R.Type == 2 % nur PKM; TODO: Auch für seriell prüfen?
 end
 if IdxFirst ~= 0
   Failratio = 1-IdxFirst/length(Traj_0.t); % Wert zwischen 0 und 1
-  fval = 1e4*(4+1*Failratio); % Wert zwischen 4e4 und 5e4.
+  fval_all(i_m, i_ar)  = 1e4*(4+1*Failratio); % Wert zwischen 4e4 und 5e4.
   % Singularität in Beinkette. Weitere Rechnungen ergeben keinen Sinn
   % (Geschwindigkeit der Gelenke kann beliebig springen)
-  constrvioltext = sprintf('Singularität in Beinkette %d (cond=%1.1e). Bis %1.0f%% (%d/%d) gekommen.', ...
+  constrvioltext_m{i_m} = sprintf('Singularität in Beinkette %d (cond=%1.1e). Bis %1.0f%% (%d/%d) gekommen.', ...
     kk, kappa_jjkk, (1-Failratio)*100, IdxFirst, length(Traj_0.t));
   continue
 end
@@ -855,8 +1118,8 @@ if Structure.task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_
     % fkin korrekt implementiert sind.
     fval_x = mean(test_X(:));
     fval_x_norm = 2/pi*atan(fval_x*70); % Normierung auf 0 bis 1. 0.1 -> 0.9
-    fval = 1e4*(3+fval_x_norm); % Werte zwischen 3e4 und 4e4
-    constrvioltext=sprintf(['Fehler der EE-Lage der ersten Beinkette ', ...
+    fval_all(i_m, i_ar)  = 1e4*(3+fval_x_norm); % Werte zwischen 3e4 und 4e4
+    constrvioltext_m{i_m}=sprintf(['Fehler der EE-Lage der ersten Beinkette ', ...
       'zwischen invkin und fkine. Max Fehler %1.2e'], max(abs(test_X(:))));
     continue
   end
@@ -867,8 +1130,8 @@ if Structure.task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_
     % eigentlich nicht passieren (s.o.).
     fval_xD = mean(test_XD(:));
     fval_xD_norm = 2/pi*atan(fval_xD*70); % Normierung auf 0 bis 1. 0.1 -> 0.9
-    fval = 1e4*(2+fval_xD_norm); % Werte zwischen 2e4 und 3e4
-    constrvioltext=sprintf(['Fehler der EE-Geschwindigkeit der ersten Beinkette ', ...
+    fval_all(i_m, i_ar)  = 1e4*(2+fval_xD_norm); % Werte zwischen 2e4 und 3e4
+    constrvioltext_m{i_m}=sprintf(['Fehler der EE-Geschwindigkeit der ersten Beinkette ', ...
       'zwischen invkin und fkine. Max Fehler %1.2e'], max(abs(test_XD(:))));
     continue
   end
@@ -879,8 +1142,8 @@ if Structure.task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_
     % eigentlich nicht passieren (s.o.).
     fval_xDD = mean(test_XDD(:));
     fval_xDD_norm = 2/pi*atan(fval_xDD*70); % Normierung auf 0 bis 1. 0.1 -> 0.9
-    fval = 1e4*(1+fval_xDD_norm); % Werte zwischen 1e4 und 2e4
-    constrvioltext=sprintf(['Fehler der EE-Beschleunigung der ersten Beinkette ', ...
+    fval_all(i_m, i_ar)  = 1e4*(1+fval_xDD_norm); % Werte zwischen 1e4 und 2e4
+    constrvioltext_m{i_m}=sprintf(['Fehler der EE-Beschleunigung der ersten Beinkette ', ...
       'zwischen invkin und fkine. Max Fehler %1.2e'], max(abs(test_XDD(:))));
     continue
   end
@@ -909,8 +1172,8 @@ if any(strcmp(Set.optimization.objective, 'valid_act')) && R.Type ~= 0 % nur sin
     % Bilde Kennzahl aus Schwere der parasitären Bewegung
     fval_paras = mean(abs(PHI4D_ges(:)));
     fval_paras_norm = 2/pi*atan(fval_paras*700); % Normierung auf 0 bis 1. 0.01 -> 0.9
-    fval = 1e3*(9+1*fval_paras_norm); % Normierung auf 9e3...1e4
-    constrvioltext = sprintf(['Es gibt eine parasitäre Bewegung in %d/%d ', ...
+    fval_all(i_m, i_ar)  = 1e3*(9+1*fval_paras_norm); % Normierung auf 9e3...1e4
+    constrvioltext_m{i_m} = sprintf(['Es gibt eine parasitäre Bewegung in %d/%d ', ...
       'Zeitschritten. Im Mittel %1.4f (rad/s bzw. m/s). Zuerst bei Zeitschritt %d.'], ...
       sum(any(abs(PHI4D_ges)>1e-3,2)), length(Traj_0.t), fval_paras, ...
       find(any(abs(PHI4D_ges)>1e-6,2),1,'first'));
@@ -969,9 +1232,9 @@ if any(I_qlimviol_T)
   [fval_qlimv_T, I_worst] = min(qlimviol_T(I_qlimviol_T)./(q_range_max(I_qlimviol_T))');
   II_qlimviol_T = find(I_qlimviol_T); IIw = II_qlimviol_T(I_worst);
   fval_qlimv_T_norm = 2/pi*atan((-fval_qlimv_T)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
-  fval = 1e3*(8+1*fval_qlimv_T_norm); % Wert zwischen 8e3 und 9e3
+  fval_all(i_m, i_ar) = 1e3*(8+1*fval_qlimv_T_norm); % Wert zwischen 8e3 und 9e3
   % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Weitere Rechnungen machen keinen Sinn.
-  constrvioltext = sprintf(['Gelenkgrenzverletzung in Traj. Schlechteste ', ...
+  constrvioltext_m{i_m} = sprintf(['Gelenkgrenzverletzung in Traj. Schlechteste ', ...
     'Spannweite: %1.2f/%1.2f (Gelenk %d)'], q_range_T(IIw), q_range_max(IIw), IIw);
   if Set.general.plot_details_in_fitness < 0 && 1e4*fval >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
      Set.general.plot_details_in_fitness > 0 && 1e4*fval <= abs(Set.general.plot_details_in_fitness)
@@ -1035,12 +1298,12 @@ if any(I_symlim)
     [fval_qlimv_T, I_worst] = min(qlimviol_T(I_qlimviol_T)./(q_range_max(I_qlimviol_T))');
     II_qlimviol_T = find(I_qlimviol_T); IIw = II_qlimviol_T(I_worst);
     fval_qlimv_T_norm = 2/pi*atan((-fval_qlimv_T)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
-    fval = 1e3*(7.5+0.5*fval_qlimv_T_norm); % Wert zwischen 7.5e3 und 8e3
+    fval_all(i_m, i_ar)  = 1e3*(7.5+0.5*fval_qlimv_T_norm); % Wert zwischen 7.5e3 und 8e3
     % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Dadurch werden die
     % Bedingungen für Gelenkfedern später nicht mehr erfüllt.
     legnum = find(IIw>=R.I1J_LEG, 1, 'last');
     legjointnum = IIw-(R.I1J_LEG(legnum)-1);
-    constrvioltext = sprintf(['Gelenkgrenzverletzung in Traj bei Be', ...
+    constrvioltext_m{i_m} = sprintf(['Gelenkgrenzverletzung in Traj bei Be', ...
       'trachtung aller Beinketten. Schlechteste Spannweite: %1.2f/%1.2f ', ...
       '(Gelenk %d; Beinkette %d, Beingelenk %d)'], q_range_T_all_legs(IIw), ...
       q_range_max(IIw), IIw, legnum, legjointnum);
@@ -1062,8 +1325,8 @@ if Set.optimization.fix_joint_limits
     [lvmax,Imax] = max(Q_limviolA,[],1);
     [delta_lv_maxrel,Imax2] = max(lvmax-0.5);
     fval_qlimva_norm = 2/pi*atan((delta_lv_maxrel)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
-    fval = 1e3*(7.4+0.1*fval_qlimva_norm); % Normierung auf 7.4e3 bis 7.5e3
-    constrvioltext = sprintf(['Gelenkgrenzverletzung in Trajektorie. ', ...
+    fval_all(i_m, i_ar)  = 1e3*(7.4+0.1*fval_qlimva_norm); % Normierung auf 7.4e3 bis 7.5e3
+    constrvioltext_m{i_m} = sprintf(['Gelenkgrenzverletzung in Trajektorie. ', ...
       'Größte relative Überschreitung: %1.1f%% (Gelenk %d, Zeitschritt %d/%d)'], ...
       100*delta_lv_maxrel, Imax2, Imax(Imax2), size(Q,1));
     continue;
@@ -1082,11 +1345,11 @@ if ~Set.optimization.prismatic_cylinder_allow_overlength && any(Structure.I_stra
   length_cyl = qmax_cyl - qmin_cyl;
   [fval_cyllen, Iworst] = max(length_cyl./qmin_cyl);
   if fval_cyllen > 1
-    constrvioltext = sprintf(['Länge eines Schubzylinders steht ', ...
+    constrvioltext_m{i_m} = sprintf(['Länge eines Schubzylinders steht ', ...
       'nach hinten über. Min. Abstand %1.1fmm, Innenzylinder Länge %1.1fmm ', ...
       '(Gelenk %d)'], 1e3*qmin_cyl(Iworst), 1e3*length_cyl(Iworst), Iworst);
     fval_cyllen_norm = 2/pi*atan((fval_cyllen-1)*3); % Normierung auf 0 bis 1; 100% zu lang ist 0.8
-    fval = 1e3*(7.2+0.2*fval_cyllen_norm); % Normierung auf 7.2e3 bis 7.4e3
+    fval_all(i_m, i_ar)  = 1e3*(7.2+0.2*fval_cyllen_norm); % Normierung auf 7.2e3 bis 7.4e3
     continue;
     % Debug: Zeichnen des Roboters in der Konfiguration
     if R.Type == 0 %#ok<UNRCH>
@@ -1096,7 +1359,7 @@ if ~Set.optimization.prismatic_cylinder_allow_overlength && any(Structure.I_stra
         R.Leg(kkk).qlim(:,:) = minmax2(Q(:,R.I1J_LEG(kkk):R.I2J_LEG(kkk))');
       end
     end
-    cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_0, Set, Structure, [], mean(fval), {});
+    cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_0, Set, Structure, [], fval_all(i_m, i_ar ), {});
   end
   % Gleiche Rechnung, nur für symmetrische Anordnung der Beinketten.
   % Annahme: Symmetrischer Aufbau, also zählen die Bewegungen aller Beine
@@ -1110,12 +1373,12 @@ if ~Set.optimization.prismatic_cylinder_allow_overlength && any(Structure.I_stra
     length_cyl = qminmax_cyl(:,2) - qminmax_cyl(:,1);
     [fval_cyllen, Iworst] = max(length_cyl./min(qminmax_cyl(:,1)));
     if fval_cyllen > 1
-      constrvioltext = sprintf(['Länge eines Schubzylinders steht ', ...
+      constrvioltext_m{i_m} = sprintf(['Länge eines Schubzylinders steht ', ...
         'nach hinten über. Min. Abstand %1.1fmm, Innenzylinder Länge %1.1fmm ', ...
         '(Gelenk %d). Aufgrund symmetrischer Auslegung der Beinketten.'], ...
         1e3*qmin_cyl(Iworst), 1e3*length_cyl(Iworst), Iworst);
       fval_cyllen_norm = 2/pi*atan((fval_cyllen-1)*3); % Normierung auf 0 bis 1; 100% zu lang ist 0.8
-      fval = 1e3*(7+0.2*fval_cyllen_norm); % Normierung auf 7e3 bis 7.2e3
+      fval_all(i_m, i_ar)  = 1e3*(7+0.2*fval_cyllen_norm); % Normierung auf 7e3 bis 7.2e3
       continue
     end
   end
@@ -1132,13 +1395,13 @@ if any(~isinf(Structure.qDlim(:)))
   [f_qD_exc,ifmax] = max(qD_max./qD_lim);
   if f_qD_exc>1
     f_qD_exc_norm = 2/pi*atan((f_qD_exc-1)); % Normierung auf 0 bis 1; 1->0.5; 10->0.94
-    fval = 1e3*(6+1*f_qD_exc_norm); % Wert zwischen 6e3 und 7e3
+    fval_all(i_m, i_ar)  = 1e3*(6+1*f_qD_exc_norm); % Wert zwischen 6e3 und 7e3
     % Weitere Berechnungen voraussichtlich wenig sinnvoll, da vermutlich eine
     % Singularität vorliegt
-    constrvioltext = sprintf('Geschwindigkeit eines Gelenks zu hoch: max Verletzung %1.1f%% (Gelenk %d)', ...
+    constrvioltext_m{i_m} = sprintf('Geschwindigkeit eines Gelenks zu hoch: max Verletzung %1.1f%% (Gelenk %d)', ...
       (f_qD_exc-1)*100, ifmax);
-    if Set.general.plot_details_in_fitness < 0 && 1e4*fval >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
-       Set.general.plot_details_in_fitness > 0 && 1e4*fval <= abs(Set.general.plot_details_in_fitness)
+    if Set.general.plot_details_in_fitness < 0 && 1e4*fval_all(i_m, i_ar)  >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
+       Set.general.plot_details_in_fitness > 0 && 1e4*fval_all(i_m, i_ar)  <= abs(Set.general.plot_details_in_fitness)
       RP = ['R', 'P'];
       change_current_figure(1004);clf;
       for i = 1:R.NJ
@@ -1172,13 +1435,13 @@ if any(~isinf(Structure.qDDlim(:)))
   [f_qDD_exc,ifmax] = max(qDD_max./qDD_lim);
   if f_qDD_exc>1
     f_qDD_exc_norm = 2/pi*atan((f_qDD_exc-1)); % Normierung auf 0 bis 1; 1->0.5; 10->0.94
-    fval = 1e3*(5+1*f_qDD_exc_norm); % Wert zwischen 5e3 und 6e3
+    fval_all(i_m, i_ar)  = 1e3*(5+1*f_qDD_exc_norm); % Wert zwischen 5e3 und 6e3
     % Weitere Berechnungen voraussichtlich wenig sinnvoll, da vermutlich eine
     % Singularität vorliegt
-    constrvioltext = sprintf(['Beschleunigung eines Gelenks zu hoch: ', ...
+    constrvioltext_m{i_m} = sprintf(['Beschleunigung eines Gelenks zu hoch: ', ...
       'max Verletzung %1.1f%% (Gelenk %d)'], (f_qDD_exc-1)*100, ifmax);
-    if Set.general.plot_details_in_fitness < 0 && 1e4*fval >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
-       Set.general.plot_details_in_fitness > 0 && 1e4*fval <= abs(Set.general.plot_details_in_fitness)
+    if Set.general.plot_details_in_fitness < 0 && 1e4*fval_all(i_m, i_ar)  >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
+       Set.general.plot_details_in_fitness > 0 && 1e4*fval_all(i_m, i_ar)  <= abs(Set.general.plot_details_in_fitness)
       RP = ['R', 'P'];
       change_current_figure(1005);clf;
       for i = 1:R.NJ
@@ -1223,9 +1486,10 @@ corrQD(all(abs(QD_num-QD)<1e-3)) = 1;
 corrQ(all(abs(QD)<1e-10)) = 1; % qD=0 und q schwankt numerisch (als Nullraumbewegung) wegen IK-Positionskorrektur
 if Structure.task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
   % TODO: Inkonsistenz ist Fehler in Traj.-IK. Dort korrigieren.
-  cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Nullraumbewegung führt zu nicht ', ...
-    'konsistenten Gelenkverläufen. Korrelation Geschw. min. %1.2f, ', ...
-    'Position %1.2f'], Structure.config_index, Structure.config_number, min(corrQD), min(corrQ)'));
+  cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d; i_ar=%d, i_m=%d: ', ...
+    'Nullraumbewegung führt zu nicht konsistenten Gelenkverläufen. ', ...
+    'Korrelation Geschw. min. %1.2f, Position %1.2f'], Structure.config_index, ...
+    Structure.config_number, i_ar, i_m, min(corrQD), min(corrQ)'));
 end
 if ~Structure.task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
   % Wenn eine Gelenkgröße konstant ist (ohne Rundungsfehler), wird die
@@ -1237,11 +1501,11 @@ if ~Structure.task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
   % Bilde normierten Strafterm aus Korrelationskoeffizienten (zwischen -1
   % und 1).
   fval_jump_norm = 0.5*(mean(1-corrQ) + mean(1-corrQD));
-  fval = 1e3*(4+1*fval_jump_norm); % Wert zwischen 4e3 und 5e3
-  constrvioltext = sprintf('Konfiguration scheint zu springen. Korrelation Geschw. min. %1.2f, Position %1.2f', ...
+  fval_all(i_m, i_ar)  = 1e3*(4+1*fval_jump_norm); % Wert zwischen 4e3 und 5e3
+  constrvioltext_m{i_m} = sprintf('Konfiguration scheint zu springen. Korrelation Geschw. min. %1.2f, Position %1.2f', ...
     min(corrQD), min(corrQ));
-  if Set.general.plot_details_in_fitness < 0 && 1e4*fval >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
-     Set.general.plot_details_in_fitness > 0 && 1e4*fval <= abs(Set.general.plot_details_in_fitness)
+  if Set.general.plot_details_in_fitness < 0 && 1e4*fval_all(i_m, i_ar)  >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
+     Set.general.plot_details_in_fitness > 0 && 1e4*fval_all(i_m, i_ar)  <= abs(Set.general.plot_details_in_fitness)
     % Geschwindigkeit neu mit Trapezregel berechnen (Integration)
     QD_num2 = repmat(QD(1,:),size(QD,1),1)+cumtrapz(Traj_0.t, QDD);
     RP = ['R', 'P'];
@@ -1350,9 +1614,23 @@ if Set.optimization.constraint_collisions
     Set, Structure, JP, Q, [3e3; 4e3]);
   mincolldist_all(i_ar) = min(colldepth_abs(:));
   if fval_coll_traj > 0
-    fval = fval_coll_traj; % Normierung auf 3e3 bis 4e3 -> bereits in Funktion
-    constrvioltext = sprintf('Kollision in %d/%d Traj.-Punkten.', ...
+    fval_all(i_m, i_ar)  = fval_coll_traj; % Normierung auf 3e3 bis 4e3 -> bereits in Funktion
+    constrvioltext_m{i_m} = sprintf('Kollision in %d/%d Traj.-Punkten.', ...
       sum(any(coll_traj,2)), size(coll_traj,1));
+%     if Stats.errorcode ~= 3 % Auskommentiert, da IK-Funktion nicht dafür implementiert.
+%       cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Kollision ', ...
+%         'nicht in Traj.-IK erkannt, danach aber schon.'], Structure.config_index, Structure.config_number));
+%     end
+    continue
+  elseif Stats.errorcode == 3 && Stats.h(Stats_iter_h,1+R.idx_iktraj_hn.coll_hyp) ...
+      <= s.abort_thresh_h(R.idx_iktraj_hn.coll_hyp)
+    % Mögliche Ursache: Kollisionskörper in Traj.-IK sind größer als hier.
+    cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Kollision in ', ...
+      'Traj.-IK erkannt, aber nicht danach.'], Structure.config_index, Structure.config_number));
+    fval_all(i_m, i_ar) = 4e3; % schlechtestmöglicher Wert für Kollision (da nicht richtig erkannt)
+    constrvioltext_m{i_m} = 'Kollision in Traj.-IK erkannt (sonst nicht)';
+    % TODO: Dieser Fall müsste noch besser von der Objekt-Kollision
+    % abgegrenzt werden.
     continue
   end
 end
@@ -1364,10 +1642,17 @@ if ~isempty(Set.task.installspace.type) && ...
     R, Traj_0.X, Set, Structure, JP, Q, [2e3;3e3]);
   mininstspcdist_all(i_ar) = f_constrinstspc_traj;
   if fval_instspc_traj > 0
-    fval = fval_instspc_traj; % Normierung auf 2e3 bis 3e3 -> bereits in Funktion
-    constrvioltext = sprintf(['Verletzung des zulässigen Bauraums in Traj.', ...
+    fval_all(i_m, i_ar)  = fval_instspc_traj; % Normierung auf 2e3 bis 3e3 -> bereits in Funktion
+    constrvioltext_m{i_m} = sprintf(['Verletzung des zulässigen Bauraums in Traj.', ...
       'Schlimmstenfalls %1.1f mm draußen.'], 1e3*f_constrinstspc_traj);
     continue
+  elseif Stats.errorcode == 3 && Stats.h(Stats_iter_h,1+R.idx_iktraj_hn.instspc_hyp) ...
+      <= s.abort_thresh_h(R.idx_iktraj_hn.instspc_hyp) 
+    cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Bauraumverletzung in ', ...
+      'Traj.-IK erkannt, aber nicht danach.'], Structure.config_index, Structure.config_number));
+    fval_all(i_m, i_ar) = 3e3; % schlechtestmöglicher Wert für Bauraumprüfung (da nicht richtig erkannt)
+    constrvioltext_m{i_m} = 'Bauraumverletzung in Traj.-IK erkannt (sonst nicht)';
+  	continue
   end
 end
 %% Arbeitsraum-Hindernis-Kollisionsprüfung für Trajektorie
@@ -1375,14 +1660,65 @@ if ~isempty(Set.task.obstacles.type)
   [fval_obstcoll_traj, coll_obst_traj, f_constr_obstcoll_traj] = cds_constr_collisions_ws( ...
     R, Traj_0.X, Set, Structure, JP, Q, [1e3;2e3]);
   if fval_obstcoll_traj > 0
-    fval = fval_obstcoll_traj; % Normierung auf 1e3 bis 2e3 -> bereits in Funktion
-    constrvioltext = sprintf(['Arbeitsraum-Kollision in %d/%d Traj.-Punkten. ', ...
+    fval_all(i_m, i_ar)  = fval_obstcoll_traj; % Normierung auf 1e3 bis 2e3 -> bereits in Funktion
+    constrvioltext_m{i_m} = sprintf(['Arbeitsraum-Kollision in %d/%d Traj.-Punkten. ', ...
       'Schlimmstenfalls %1.1f mm in Kollision.'], sum(any(coll_obst_traj,2)), ...
       size(coll_obst_traj,1), f_constr_obstcoll_traj);
     continue
   end
 end
 %% Fertig. Bis hier wurden alle Nebenbedingungen geprüft.
-fval = 1e3;
-constrvioltext = 'i.O.';
+if any(isnan(Q(:)))
+  % Wenn Traj.-IK abbricht wegen NB-Verletzung, muss das oben abgefangen
+  % werden. Falls das nicht passiert, hier Fehler aufwerfen.
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+    'cds_constraints_traj_jacobi_nan_error.mat'));  
+  error('Prüfung der Nebenbedingungen nicht vollständig');
+end
+fval_all(i_m, i_ar) = 1e3;
+constrvioltext_m{i_m} = 'i.O.';
+end % for i_m
+assert(~all(isnan(fval_all(:))), 'Alle fval=NaN. Logik-Fehler.');
+% Wähle das beste Ergebnis der IK-Methoden (GP/DP) aus. Das stellt das
+% Ergebnis für die Iteration über die Aufgabenredundanz-Schleife dar (i_ar)
+fval = min(fval_all(:, i_ar));
+i_m_best = find(fval_all(:, i_ar)==fval, 1, 'last');
+% Belege die Variablen Q, QD, ... aus den vorher gespeicherten Werten
+if i_m_best == 2
+  % Übernehme die DP-Ergebnisse erneut
+  Q = Q_dp; QD = QD_dp; QDD = QDD_dp; Jinv_ges = Jinv_ges_dp;
+  JP = JP_dp; Stats = Stats_dp; X2phizTraj = X2phizTraj_dp;
+elseif i_m_best == 3
+  % In Q, QD, ... sind schon die letzten Ergebnisse gespeichert
+elseif i_m_best == 1 && isempty(setxor(ikloop,[1 2]))
+  % Fall 1 ist die GP-Methode
+  Q = Q_gp; QD = QD_gp; QDD = QDD_gp; Jinv_ges = Jinv_ges_gp;
+  JP = JP_gp; Stats = Stats_gp; X2phizTraj = X2phizTraj_gp;
+elseif i_m_best == 1 && isempty(setxor(ikloop,[1 2 3]))
+  % Fall 1 ist die GP-Methode mit Einstellungen aus DP, aber am Ende wird
+  % nochmal GP ohne Einschränkungen gerechnet (Fall 3). Daher andere Variable.
+  Q = Q_gp1; QD = QD_gp1; QDD = QDD_gp1; Jinv_ges = Jinv_ges_gp1;
+  JP = JP_gp1; Stats = Stats_gp1; X2phizTraj = X2phizTraj_gp1;
+else
+  error('Fall i_m_best=%d und ikloop=[%s] nicht vorgesehen', i_m_best, ...
+    disp_array(ikloop, '%d'));
+end
+constrvioltext = constrvioltext_m{i_m_best};
+% Trage die EE-Trajektorie des besten IK-Durchlaufs ein. Wird beibehalten,
+% außer die vorherige Iteration von i_ar war besser
+if Structure.task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) % 3T2R-Aufgabe oder 3T2R-PKM
+  Traj_0.X(:,6) = X2phizTraj(:,1);
+  Traj_0.XD(:,6) = X2phizTraj(:,2);
+  Traj_0.XDD(:,6) = X2phizTraj(:,3);
+end
+if Set.general.debug_calc && fval == 1e3
+  assert(all(~isnan(Traj_0.X(:))) && all(~isnan(Traj_0.XD(:))) && ...
+    all(~isnan(Traj_0.XD(:))), 'i.O. und Traj. NaN ist inkonsistent');
+end
+end % for i_ar
+% Hier ist die Funktion zu Ende. Prüfe nochmal Validität
+if R.Type == 2 && any(isnan(Jinv_ges(:))) && fval == 1e3
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+    'cds_constraints_traj_jacobi_nan_error_final.mat'));  
+  error('Prüfung der Nebenbedingungen nicht vollständig');
 end

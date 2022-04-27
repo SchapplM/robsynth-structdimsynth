@@ -19,10 +19,14 @@
 % phiz_range [NP x 1]
 %   Stützstellen der EE-Rotation (phi_z) für zu erstellendes Bild
 %   (Anzahl NP richtet sich nach der Auflösung des Bildes aus Einstellung)
-% phiz_traj [NT x 1]
+% phiz_traj [NT x NTRAJ]
 %   Trajektorie der redundanten Koordinate (phi_z) über `NT` Zeitschritte
+%   Eingabe mehrerer Trajektorien möglich.
 % s_in
-%   Struktur mir Einstellungswerten (siehe Quelltext)
+%   Struktur mir Einstellungswerten (siehe Quelltext). Felder:
+%   .TrajLegendText [1 x NTRAJ cell]. Für jede Trajektorie aus phiz_range
+%     ein Legendeneintrag.
+%   ...
 % 
 % Erzeugt Bild: Farbkarte des Verlaufs von Optimierungskriterien
 % 
@@ -33,7 +37,8 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref, phiz_range, phiz_traj, h_traj, s_in)
+function cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref, ...
+  phiz_range, phiz_traj, h_traj, s_in)
 %% Initialisierung
 if any(diff(s_ref<0)) || any(diff(phiz_range)<0) % Prüfe für Stützstellen
   cds_log(-1, '[debug/taskred_perfmap] Eingabedaten s_ref oder phiz_range sind nicht monoton');
@@ -41,10 +46,10 @@ if any(diff(s_ref<0)) || any(diff(phiz_range)<0) % Prüfe für Stützstellen
 end
 assert(size(s_ref,2)==1, 's_ref muss NI x 1 sein');
 assert(size(s_tref,2)==1, 's_tref muss NT x 1 sein');
-assert(size(phiz_range,2)==1, 'phiz_range muss NP x 1 sein');
-assert(size(h_traj,2)==1&&size(h_traj,1)==size(s_tref,1), 'h_traj muss NT x 1 sein');
+assert(size(h_traj,1)==size(s_tref,1), 'h_traj muss NT x NTRAJ sein');
 assert(size(H_all,1)==size(s_ref,1)&&size(H_all,2)==size(phiz_range,1), 'H_all muss NI x NP x NK sein');
-
+assert(size(phiz_traj,2) == size(h_traj,2), ['Für jede Trajektorie ', ...
+  'phiz_traj muss ein Zielgrößenverlauf h_traj gegeben sein']);
 % Einstellungen laden und Standard-Werte setzen
 s = struct( ...
   ... % high condition numers all get the same dark (or magenta) color to
@@ -56,6 +61,7 @@ s = struct( ...
   'name_prefix_ardbg', '', ... % Für Dateinamen der zu speichernden Bilder
   'fval', NaN, ... % Für Titelbeschriftung
   'critnames', {{}}, ... % Für Beschriftungen
+  'TrajLegendText', {{}}, ... % Legenden-Text für Trajektorien aus Eingabe phiz_traj
   'constrvioltext', '', ... % Für Titelbeschriftung
   'i_ar', 0, ... % Iteration der Aufgabenredundanz-Schleife
   'i_fig', 0, ... % Index von möglichen Bildern für Trajektorie
@@ -77,6 +83,8 @@ wn_plot = s.wn;
 if all(isnan(s.wn))
   wn_plot(:) = 0;
 end
+assert(length(s.TrajLegendText) == size(phiz_traj,2), ['Jeder Trajektorie aus', ...
+  'phiz_traj muss ein Legendeneintrag in s.TrajLegendText zugeordnet sein']);
 condsat_limit = s.condsat_limit;
 colorlimit = s.colorlimit;
 % NaN-Werte aus Eingabe entfernen
@@ -214,12 +222,34 @@ ylabel(cb, cbtext, 'Rotation', 90, 'interpreter', 'tex');
 
 % insert trajectory into plot
 change_current_figure(fighdl);
-hdl = NaN(6,1);
-hdl(1) = plot(s_tref, 180/pi*phiz_traj, 'b+-', 'linewidth', 2);
-
-formats = {'bx', 'g*', 'g^', 'co', 'gv', 'm+'};
-legtxt = {'Traj', ... % Legendeneintrag für die T. in hdl(1)
-  'Joint Lim', 'Act. Sing.', 'IK Sing.', 'Collision', 'Install. Space', 'Out of Range'};
+hdl = NaN(size(phiz_traj,2)+6,1);
+legtxt = [s.TrajLegendText, 'Joint Lim', 'Act. Sing.', 'IK Sing.', ...
+  'Collision', 'Install. Space', 'Out of Range'];
+trajmarkers = {'<', '>', 'p', 'h'};
+linhdl_tmp = NaN(size(phiz_traj, 2), 1);
+trajlineformat = cell(size(phiz_traj, 2), 4);
+for i = 1:size(phiz_traj, 2)
+  % Marker für die Linie
+  if i <= 4, trajlineformat{i,2} = trajmarkers{i};
+  else,      trajlineformat{i,2} = '+';
+  end
+  % Farbe der Linie abwechselnd
+  if mod(i,2) == 0
+    trajlineformat{i,1} = 'b';
+  else
+    trajlineformat{i,1} = 'c';
+  end
+  % Linien immer durchgezogen
+  trajlineformat{i,3} = '-';
+  % Unterschiedliche Anzahl an Markern für Unterscheidbarkeit
+  trajlineformat{i,4} = 5+3*i;
+  % Farbe des Plots wird danach nochmal überschrieben
+  linhdl_tmp(i) = plot(s_tref, 180/pi*phiz_traj(:,i), 'b-', 'linewidth', 2);
+end
+linleghdl_tmp = line_format_publication(linhdl_tmp, trajlineformat, s.TrajLegendText);
+hdl(1:size(phiz_traj, 2)) = linleghdl_tmp;
+% Marker für Nebenbedingungsverletzungen setzen
+formats = {'bx', 'g*', 'm^', 'co', 'gv', 'm+'};
 for i = 1:6
   % Bestimme Indizes für bestimmte Sonderfälle, wie Gelenküberschreitung,
   % Singularität, Kollision, Bauraumverletzung.
@@ -246,7 +276,7 @@ for i = 1:6
   end
   x_i = X_ext(I);
   y_i = Y_ext(I);
-  hdl(1+i) = plot(x_i(:), y_i(:), formats{i}, 'MarkerSize', 4);
+  hdl(size(phiz_traj, 2)+i) = plot(x_i(:), y_i(:), formats{i}, 'MarkerSize', 4);
 end
 I_hdl = ~isnan(hdl);
 
@@ -297,22 +327,30 @@ for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
 end
 
 %% Bild mit Verlauf der Kriterien über die Trajektorie
-if all(isnan(phiz_traj)) || s.deactivate_time_figure
+if all(isnan(phiz_traj(:))) || s.deactivate_time_figure
   return; % Nichts zu zeichnen
 end
 % Dient zum Abgleich der Redundanz-Karte mit der IK
 % Interpoliere die Werte der Redundanz-Karte über die Trajektorie. Abfangen
 % von Fehlerhaften Daten für die Interp-Funktion
 [~,I] = unique(s_ref);
-h_interp = interp2(s_ref(I),180/pi*phiz_range_ext,CC_ext_orig(:,I),s_tref,phiz_traj);
 fighdl2 = change_current_figure(2500+30*s.i_ar+s.i_fig+1e3*double(s.logscale));clf;hold on;
 set(fighdl2, 'Name', sprintf('PerfValues_Iter%d_Fig%d%s', s.i_ar, s.i_fig, logscalesuffix), 'NumberTitle', 'off');
-plot(s_tref, h_traj);
-plot(s_tref, h_interp);
+linhdl_tmp_h = NaN(size(phiz_traj,2),1);
+for i = 1:size(phiz_traj,2)
+  h_interp = interp2(s_ref(I),phiz_range_ext,CC_ext_orig(:,I),s_tref,phiz_traj(:,i));
+  linhdl_tmp_h(i,1) = plot(s_tref, h_traj(:,i));
+  linhdl_tmp_h(i,2) = plot(s_tref, h_interp(:));
+end
+% Linien genauso formatieren wie bereits in Redundanzkarte
+trajlineformat(:,3) = {'-'};
+leghdl_h = line_format_publication(linhdl_tmp_h(:,1), trajlineformat, s.TrajLegendText);
+trajlineformat(:,3) = {'--'};
+line_format_publication(linhdl_tmp_h(:,2), trajlineformat, s.TrajLegendText);
 xlabel('Normalized trajectory progress s (per point of support)', 'interpreter', 'none');
 ylabel(sprintf('Performance criterion for trajectory IK: %s', wnstr), 'interpreter', 'none');
 set(fighdl2, 'color','w');
-legend({'from IK', 'interp. from map'});
+legend(leghdl_h, s.TrajLegendText);
 grid on;
 sgtitle(titlestr, 'interpreter', 'none');
 

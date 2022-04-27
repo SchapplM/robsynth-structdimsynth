@@ -23,7 +23,7 @@
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
 function Traj_0 = cds_transform_traj(R, Traj_W)
-% Initialisierung. Dadurch Übernahme der Felder 't' und 'IE'.
+%  Übernahme der Felder 't', 'IE' und 'nullspace_maxvel_interp'
 Traj_0 = Traj_W;
 % Zwei Eingabestrukturen erstellen (Trajektorie und Eckpunkte)
 Traj_W_X = struct('X', Traj_W.X, 'XD', Traj_W.XD, 'XDD', Traj_W.XDD);

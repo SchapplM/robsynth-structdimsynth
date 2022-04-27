@@ -36,9 +36,12 @@ general = struct( ...
   'plot_robot_in_fitness', 0, ... % Schwellwert der Gütefunktion zum Zeichnen von Details.
   'plot_details_in_fitness', 0, ... % Positiv: nur bei besseren; negativ: nur bei schlechteren als ...
   'plot_details_in_desopt' , 0, ... % Wie vorheriges Argument, aber für die Gütefunktion der Entwurfsoptimierung
+  'taskred_dynprog', false, ... % Benutze im Fall von Redundanz die dynamische Programmierung
+  'taskred_dynprog_and_gradproj', true, ... % Benutze zusätzlich noch die normale IK-Funktion ohne DP
   ... % Debug-Einstellungen um gezielt einige Bilder und Untersuchungen zu aktivieren
   'debug_taskred_perfmap', 0, ...% Redundanzkarte (Rasterung des redundanten FG über Trajektorie). 0=aus, 1=nur Summe, 2=Details (eine Karte für jedes Leistungsmerkmal getrennt)
   'debug_taskred_fig', false, ... % Diverse weitere Plots zur Aufgabenredundanz
+  'debug_dynprog_files', false, ... % Speichert alle Zwischenzustände der Dynamischen Programmierung ab. Für Produktiv-Betrieb zu große Datenmenge.
   'save_robot_details_plot_fitness_file_extensions', {''}, ... % Speichern des durch vorherige Einstellung erstellten Bildes
   'save_animation_file_extensions', {{'mp4'}}, ... % Format, in denen die Animationen gespeichert werden
   'animation_styles', {{'stick'}}, ... % Visualisierungsarten im Video: stick,3D,collision; bei mehr als einem: Syntax {{'1.','2.'}}
@@ -201,6 +204,7 @@ task = struct( ...
   'vmax', 1, ... % maximale Geschwindigkeit (m/s oder rad/s)
   'amax', 3, ... % maximale Beschleunigung (m/s² oder rad/s²)
   'Tv', 0.01, ... % Verschliffzeit der Beschleunigung (für Ruckbegrenzung)
+  'T_dec_ns', 0, ... % Zeit zum Abbremsen der Nullraumbewegung zwischen Rastpunkten. Bei 0 kein Abbremsen sondern durchgängige Bewegung. Verhältnis vmax/amax wird bei NaN automatisch gebildet
   'Ts', 1e-3, ... % Abtastzeit der Trajektorie
   'maxangle', 2*pi, ... % Keine Einschränkung für die maximalen Winkel
   'installspace', struct( ... % Konfiguration des möglichen Bauraums
