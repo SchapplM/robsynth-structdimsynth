@@ -775,6 +775,8 @@ if ~Set.general.regenerate_summary_only
       end
     end
   end
+ 
+  cds_gen_init_pop_index(Set, Structures);
   t1 = tic();
   cds_log(1, sprintf('Starte Schleife über %d Roboter. parfor_numworkers=%d', ...
     length(Structures), parfor_numworkers));
