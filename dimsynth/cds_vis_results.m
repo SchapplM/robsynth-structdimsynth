@@ -94,7 +94,7 @@ if Set.general.parcomp_plot && length_Structures_parfor > 0 && ...
       Pool=parpool([1,Set.general.parcomp_maxworkers]);
       parfor_numworkers = Pool.NumWorkers;
     catch err
-      fprintf('Fehler beim Starten des parpool: %s\n', err.message);
+      cds_log(1, sprintf('[cds_vis_results] Fehler beim Starten des parpool: %s', err.message));
       parfor_numworkers = 1;
     end
     if Set.general.isoncluster
