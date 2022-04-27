@@ -600,9 +600,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         if Set.general.debug_taskred_fig % Zum Debuggen
         if R.Type == 0, I_constr_red = [1 2 3 5 6];
         else,           I_constr_red = R.I_constr_red; end
-        change_current_figure(2345);clf;
+        FigARDbg = change_current_figure(2345);clf;
         Iter = 1:1+Stats.iter;
-        set(2345,'Name','AR_PTPDbg', 'NumberTitle', 'off');
+        set(FigARDbg,'Name','AR_PTPDbg', 'NumberTitle', 'off');
         subplot(3,3,1);
         plot(Stats.condJ(Iter,:));
         xlabel('Iterationen'); grid on;
@@ -677,16 +677,17 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           legend({'alle', 'beeinflussbar'});
         end
         linkxaxes
+        set(FigARDbg,'color','w');
         [currgen,currind,~,resdir] = cds_get_new_figure_filenumber(Set, Structure, '');
         name_prefix_ardbg = sprintf('Gen%02d_Ind%02d_Konfig%d_Pt%d', currgen, ...
           currind, jic, i);
         for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
           if strcmp(fileext{1}, 'fig')
-            saveas(2345, fullfile(resdir, sprintf('%s_TaskRed_%s.fig', ...
-              name_prefix_ardbg, get(2345, 'name'))));
+            saveas(FigARDbg, fullfile(resdir, sprintf('%s_TaskRed_%s.fig', ...
+              name_prefix_ardbg, get(FigARDbg, 'name'))));
           else
-            export_fig(2345, fullfile(resdir, sprintf('%s_TaskRed_%s.%s', ...
-              name_prefix_ardbg, get(2345, 'name'), fileext{1})));
+            export_fig(FigARDbg, fullfile(resdir, sprintf('%s_TaskRed_%s.%s', ...
+              name_prefix_ardbg, get(FigARDbg, 'name'), fileext{1})));
           end
         end
         end

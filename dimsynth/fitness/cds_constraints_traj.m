@@ -557,6 +557,7 @@ if i_ar == 3
     name_prefix_ardbg = sprintf('Gen%02d_Ind%02d_Konfig%d', currgen, ...
       currind, Structure.config_index);
     for fignr = 3009:3013
+      set(fignr,'color','w');
       for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
         if strcmp(fileext{1}, 'fig')
           saveas(fignr, fullfile(resdir, sprintf('%s_TaskRed_%s.fig', ...
@@ -1613,6 +1614,10 @@ if Set.optimization.constraint_collisions
     fval_all(i_m, i_ar)  = fval_coll_traj; % Normierung auf 3e3 bis 4e3 -> bereits in Funktion
     constrvioltext_m{i_m} = sprintf('Kollision in %d/%d Traj.-Punkten.', ...
       sum(any(coll_traj,2)), size(coll_traj,1));
+%     if Stats.errorcode ~= 3 % Auskommentiert, da IK-Funktion nicht dafür implementiert.
+%       cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Kollision ', ...
+%         'nicht in Traj.-IK erkannt, danach aber schon.'], Structure.config_index, Structure.config_number));
+%     end
     continue
   elseif Stats.errorcode == 3 && Stats.h(Stats_iter_h,1+R.idx_iktraj_hn.coll_hyp) ...
       <= s.abort_thresh_h(R.idx_iktraj_hn.coll_hyp)
