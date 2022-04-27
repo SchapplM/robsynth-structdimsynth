@@ -512,6 +512,7 @@ if Set.general.computing_cluster
       Set.optimization.optname);
     fclose(fid);
     % Zusammenfassungs-Job auf Cluster hochladen
+    pause(5); % bei sofortigem Start sonst Einfrieren von Matlab
     jobID_merge = jobStart(struct( ...
       'name', computation_name3, ...
       'ppn', 1, ... % gleiche Anzahl wie oben
