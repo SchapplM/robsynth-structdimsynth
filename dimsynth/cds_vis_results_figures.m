@@ -74,12 +74,17 @@ elseif length(fval) == 1 % Einkriteriell
 else % Mehrkriteriell
   fval_str = ['[',disp_array(fval', '%1.1f'),']'];
 end
+traj_available = true; % Einige Bilder gehen nur, wenn Zeitverlauf da ist
+if Set.task.profile == 0 || all(fval > 1e9)
+  % Keine Trajektorie mit Zeitverlauf gefordert oder Fehler dabei
+  traj_available = false;
+end
 % Setze die Aufgaben-FG bei PKM auf vollständig. Sonst wird bei Aufgaben- 
 % redundanz die Jacobi-Matrix in den Dynamik-Funktionen falsch berechnet. 
 % Damit die EE-Drehung dann in den Plots nicht falsch ist, berechne die
 % EE-Drehung mit der direkten Kinematik neu.
 X = Traj_0.X; XD = Traj_0.XD; XDD = Traj_0.XDD; XE = Traj_0.XE;
-if Set.task.pointing_task && ~isempty(RobotOptDetails.Traj_Q)
+if Set.task.pointing_task && ~isempty(RobotOptDetails.Traj_Q) && traj_available
   [X_fk, XD_fk, XDD_fk] = R.fkineEE2_traj(RobotOptDetails.Traj_Q, ...
     RobotOptDetails.Traj_QD, RobotOptDetails.Traj_QDD);
   X(:,6) = denormalize_angle_traj(X_fk(:,6));
@@ -89,11 +94,7 @@ end
 if RobData.Type ~= 0
   R.update_EE_FG(R.I_EE, R.I_EE);
 end
-traj_available = true; % Einige Bilder gehen nur, wenn Zeitverlauf da ist
-if Set.task.profile == 0 || all(fval > 1e9)
-  % Keine Trajektorie mit Zeitverlauf gefordert oder Fehler dabei
-  traj_available = false;
-end
+
 %% Animation
 if strcmp(figname, 'robvisu')
   % Die Roboter-Visualisierung ist größtenteils identisch zur Animation.
