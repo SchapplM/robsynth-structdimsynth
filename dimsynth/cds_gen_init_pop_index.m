@@ -18,6 +18,7 @@ if Set.optimization.InitPopRatioOldResults == 0
   % Ordner notwendig.
   return
 end
+cds_log(2, sprintf('[gen_init_pop_index] Beginne Zusammenfassung bisheriger Ergebnisse'));
 t1 = tic();
 RobNames = {};
 for k = 1:length(Structures)

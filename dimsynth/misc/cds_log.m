@@ -44,11 +44,16 @@ if nargin > 2 && any(strcmp(option, {'init', 'amend'}))
     logfilepath = fullfile(resdir, robstr, sprintf('%s.log', robstr));
   else
     % Allgemeine Log-Datei (unterschieden in Hochladen und Optimierung auf
-    % Cluster).
-    robstr = 'cds';
-    logfilepath = fullfile(resdir, 'cds.log');
+    % Cluster). Bei Hochladen keine Datei erstellen.
+    if Set.general.computing_cluster
+      robstr = '';
+      logfilepath = '';
+    else
+      robstr = 'cds';
+      logfilepath = fullfile(resdir, 'cds.log');
+    end
   end
-  if exist(logfilepath, 'file') && strcmp(option, 'init')
+  if ~isempty(logfilepath) && exist(logfilepath, 'file') && strcmp(option, 'init')
     backupfilename = sprintf('%s_backup_%s.log', robstr, ...
       datestr(now,'yyyymmdd_HHMMSS'));
     logdir = fileparts(logfilepath);

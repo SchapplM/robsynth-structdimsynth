@@ -23,10 +23,17 @@ warning('off', 'MATLAB:Figure:SetPosition');
 
 %% Log Vorbereiten
 resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
-if Set.general.isoncluster && isfolder(resdir_main)
+if Set.general.isoncluster && isfolder(resdir_main) && ...
+    ~Set.general.regenerate_summary_only && ~Set.general.only_finish_aborted
+  % Nur Abbruch, wenn Maßsynthese auf Cluster durchgeführt werden soll
   error('Verzeichnis %s existiert bereits. Kein Überschreiben auf Cluster', resdir_main)
 end
-mkdirs(resdir_main); % Ergebnis-Ordner für diese Optimierung erstellen (für Log benötigt)
+if ~Set.general.computing_cluster
+  % Ergebnis-Ordner für diese Optimierung erstellen (für Log benötigt).
+  % Falls nur hochgeladen wird, wird keine Log-Datei angelegt.
+  % Wenn auf Cluster gerechnet wird, ist die Option deaktiviert.
+  mkdirs(resdir_main);
+end
 if ~Set.general.only_finish_aborted
   msg = sprintf('Starte Maßsynthese %s.', Set.optimization.optname);
 else
@@ -35,38 +42,39 @@ end
 clear cds_log
 fpfile = cds_log(1, msg, 'init', Set, struct('Number', 0));
 % Fingerabdruck der relevanten Repos in Log-Datei speichern
-repo_deps = {
-  {'structgeomsynth', 'structgeomsynth_path_init.m'}, ...
-  {'parroblib', 'parroblib_path_init.m'}, ...
-  {'serroblib', 'serroblib_path_init.m'}, ...
-  {'robotics', 'robotics_toolbox_path_init.m'}, ...
-  {'hybriddyn', 'hybrdyn_path_init.m'}, ...
-  {'matlab-tools', 'matlab_tools_path_init.m'}, ...
-  {'matlab-ext', 'matlab_ext_path_init.m'}, ...
-  {'trajectory-toolbox', 'trajectory_toolbox_path_init.m'}, ...
-  {'geometry-toolbox', 'geometry_toolbox_path_init.m'}};
-olddir = pwd();
-fid = fopen(fpfile, 'a');
-fprintf(fid, 'Fingerabdruck aller Abhängigkeiten:\n');
-for i = 1:length(repo_deps)
-  cd(fileparts(which(repo_deps{i}{2})));
-  [~,rev]=system('git rev-parse HEAD');
-  if ispc() % Windows
-    [~,revdatum]=system('git log -1 --date=short --pretty=format:%cd');
-  else % Linux
-    [~,revdatum]=system('export TERM=ansi; git log -1 --date=short --pretty=format:%cd');
-    revdatum = revdatum(2:11); % Entferne Zeilenumbruch und nicht lesbare Zeichen
+if ~isempty(fpfile) % (nur wenn Log-Datei erstellt wird, nicht bei Hochladen)
+  repo_deps = {
+    {'structgeomsynth', 'structgeomsynth_path_init.m'}, ...
+    {'parroblib', 'parroblib_path_init.m'}, ...
+    {'serroblib', 'serroblib_path_init.m'}, ...
+    {'robotics', 'robotics_toolbox_path_init.m'}, ...
+    {'hybriddyn', 'hybrdyn_path_init.m'}, ...
+    {'matlab-tools', 'matlab_tools_path_init.m'}, ...
+    {'matlab-ext', 'matlab_ext_path_init.m'}, ...
+    {'trajectory-toolbox', 'trajectory_toolbox_path_init.m'}, ...
+    {'geometry-toolbox', 'geometry_toolbox_path_init.m'}};
+  olddir = pwd();
+  fid = fopen(fpfile, 'a');
+  fprintf(fid, 'Fingerabdruck aller Abhängigkeiten:\n');
+  for i = 1:length(repo_deps)
+    cd(fileparts(which(repo_deps{i}{2})));
+    [~,rev]=system('git rev-parse HEAD');
+    if ispc() % Windows
+      [~,revdatum]=system('git log -1 --date=short --pretty=format:%cd');
+    else % Linux
+      [~,revdatum]=system('export TERM=ansi; git log -1 --date=short --pretty=format:%cd');
+      revdatum = revdatum(2:11); % Entferne Zeilenumbruch und nicht lesbare Zeichen
+    end
+    [~,branch]=system('git rev-parse --abbrev-ref HEAD');
+    fprintf(fid, '%s: Branch %s, Rev. %s (%s)\n', repo_deps{i}{1}, branch(1:end-1), rev(1:8), revdatum);
   end
-  [~,branch]=system('git rev-parse --abbrev-ref HEAD');
-  fprintf(fid, '%s: Branch %s, Rev. %s (%s)\n', repo_deps{i}{1}, branch(1:end-1), rev(1:8), revdatum);
+  fclose(fid);
+  if ~ispc() % lscpu funktioniert nur unter Linux
+    system(sprintf('echo "Eigenschaften des Rechners (lscpu):" >> %s', fpfile));
+    system(sprintf('lscpu >> %s', fpfile));
+  end
+  cd(olddir);
 end
-fclose(fid);
-if ~ispc() % lscpu funktioniert nur unter Linux
-  system(sprintf('echo "Eigenschaften des Rechners (lscpu):" >> %s', fpfile));
-  system(sprintf('lscpu >> %s', fpfile));
-end
-cd(olddir);
-
 %% Eingaben prüfen 
 if Set.general.only_finish_aborted && Set.general.regenerate_summary_only
   error('Option only_finish_aborted zusammen mit regenerate_summary_only nicht sinnvoll');
@@ -561,11 +569,12 @@ if Set.general.computing_cluster
       'time',1), ... % Geht schnell
       ... % Nur starten, wenn vorherige Produktiv- und Aufräum-Jobs erledigt
       struct('afterany', jobIDs(:)'));
-    cds_log(1, sprintf(['Insgesamt %d Optimierungen mit in Summe %d Robotern hochgeladen',...
+    cds_log(1, sprintf(['Insgesamt %d Optimierungen mit in Summe %d Robotern hochgeladen. ',...
       'Produktiv-Jobs: [%s], Finish-Jobs: [%s], Merge-Job: %d'], ...
       length(I1_Struct), length(Structures), disp_array(jobIDs(1,:), '%d'), ...
       disp_array(jobIDs(2,:), '%d'), jobID_merge));
   end
+
   return;
 end
 %% Vorbereitung und Durchführung der lokalen Optimierung
@@ -774,8 +783,9 @@ if ~Set.general.regenerate_summary_only
       end
     end
   end
- 
-  cds_gen_init_pop_index(Set, Structures);
+  if ~Set.general.only_finish_aborted
+    cds_gen_init_pop_index(Set, Structures);
+  end
   t1 = tic();
   cds_log(1, sprintf('Starte Schleife über %d Roboter. parfor_numworkers=%d', ...
     length(Structures), parfor_numworkers));
