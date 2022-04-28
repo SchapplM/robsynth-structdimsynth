@@ -11,6 +11,10 @@
 %   Ergebnisordner. Falls true: Eingabe Set und Structures kann leer
 %   gelassen werden.
 % 
+% Benutzung:
+% Globalen Index erstellen:
+% `cds_gen_init_pop_index([], [], true);`
+% 
 % Siehe auch: cds_gen_init_pop
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2022-04
@@ -58,6 +62,8 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
   % der Dateisystemzugriff auf dem Cluster über Matlab sehr langsam
   status = 1;
   if isunix()
+    t2 = tic(); % Beginn der Prüfung auf Datei-Existenz
+    t_ll = t2; % Zeitpunkt der letzten Log-Ausgabe diesbezüglich
     for j = 1:length(RobNames)
       RobName = RobNames{j};
       [status,matlist_j] = system(sprintf(['find -L "%s" -maxdepth 2 ', ...
@@ -70,9 +76,16 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
       else
         cds_log(-1, sprintf('Find-Befehl funktionierte nicht in %s. Ausgabe:\n%s', resdir, dirlist));
       end
+      if toc(t_ll) > 20 || j == length(RobNames)
+        cds_log(2, sprintf(['[gen_init_pop_index] Ergebnisse für Find-Dateisuche %d/%d', ...
+          ' zusammengefasst. Dauer bis hier: %1.1fs'], j, length(RobNames), toc(t2)));
+        t_ll = tic();
+      end
     end
   end
   if status ~= 0 % Entweder Windows oder Find-Befehl erfolglos
+    t2 = tic(); % Beginn dieser Prüfung auf Datei-Existenz
+    t_ll = t2; % Zeitpunkt der letzten Log-Ausgabe diesbezüglich
     optdirs = dir(fullfile(resdir, '*'));
     for i = 1:length(optdirs) % Unterordner durchgehen.
       if ~optdirs(i).isdir || optdirs(i).name(1) == '.'
@@ -84,6 +97,11 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
         RobName = RobNames{j};
         resfiles = dir(fullfile(optdirs(i).folder, dirname_i, sprintf('Rob*_%s*_Endergebnis.mat',RobName)));
         III = find(contains({resfiles(:).name}, RobName));
+        if toc(t_ll) > 20 || i == length(optdirs)
+          cds_log(2, sprintf(['[gen_init_pop_index] Ergebnisse für Dir-Dateisuche %d/%d', ...
+            ' zusammengefasst. Dauer bis hier: %1.1fs'], i, length(optdirs), toc(t2)));
+          t_ll = tic();
+        end
         if isempty(III)
           continue % Roboter nicht enthalten
         end
