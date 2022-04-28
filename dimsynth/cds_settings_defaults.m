@@ -192,6 +192,7 @@ optimization = struct( ...
   'noplatformmass', false, ... % Setze die Masse der PKM-Plattform auf Null.
   'ElectricCoupling', true, ... % Kopplung der Achsen für Energieberechnung. TODO
   'InitPopRatioOldResults', 0.50, ... % Diesen Anteil der Initialpopulation aus bisherigen Ergebnissen generieren
+  'InitPopFromGlobalIndex', false, ... % Benutze Index-Datei (index.mat) im Ergebnis-Order zum Laden alter Ergebnisse (deutlich schneller auf Cluster). Muss mit cds_gen_init_pop_index erstellt werden.
   'result_dirs_for_init_pop', {{}}, ... % Zusätzliche Verzeichnisse zum Laden der Initialpopulation
   'resdir', fullfile(fileparts(which('structgeomsynth_path_init.m')), 'results'), ...
   'optname', 'unnamed');

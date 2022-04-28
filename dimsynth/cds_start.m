@@ -783,7 +783,7 @@ if ~Set.general.regenerate_summary_only
       end
     end
   end
-  if ~Set.general.only_finish_aborted
+  if ~Set.general.only_finish_aborted && ~Set.optimization.InitPopFromGlobalIndex
     cds_gen_init_pop_index(Set, Structures);
   end
   t1 = tic();

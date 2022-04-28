@@ -6,25 +6,48 @@
 %   Einstellungen des Optimierungsalgorithmus aus cds_settings_defaults
 % Structures
 %   Eigenschaften aller optimierter Roboterstrukturen der Maßsynthese
+% make_global_index [logical]
+%   Schalter zur Erzeugung eines globalen Index für den kompletten
+%   Ergebnisordner. Falls true: Eingabe Set und Structures kann leer
+%   gelassen werden.
 % 
 % Siehe auch: cds_gen_init_pop
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2022-04
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function cds_gen_init_pop_index(Set, Structures)
+function cds_gen_init_pop_index(Set, Structures, make_global_index)
+
+if isempty(Set)
+  resdir = fullfile(fileparts(which( ...
+                  'structgeomsynth_path_init.m')), 'results');
+  Set = struct('optimization', struct( ...
+    'InitPopRatioOldResults', 1, ...
+    'result_dirs_for_init_pop', {{resdir}}, ...
+    'resdir', resdir));
+end
+
 if Set.optimization.InitPopRatioOldResults == 0
   % Es sollen keine alten Ergebnisse geladen werden. Kein Durchsuchen der
   % Ordner notwendig.
   return
 end
+if nargin < 3
+  make_global_index = false;
+end
 cds_log(2, sprintf('[gen_init_pop_index] Beginne Zusammenfassung bisheriger Ergebnisse'));
 t1 = tic();
 RobNames = {};
-for k = 1:length(Structures)
-  RobNames = [RobNames, Structures{k}.Name]; %#ok<AGROW>
+if ~make_global_index
+  for k = 1:length(Structures)
+    RobNames = [RobNames, Structures{k}.Name]; %#ok<AGROW>
+  end
+  RobNames = unique(RobNames);
+else
+  % Wähle die Dateien zu allen Robotern aus. Es muss kein Wildcard (*) mehr
+  % gesetzt werden, da die Ausdrücke unten bereits den * nach RobName haben
+  RobNames = {''};
 end
-RobNames = unique(RobNames);
 
 initpop_matlist = {};
 % Alle möglichen Ergebnis-Ordner durchgehen
@@ -59,7 +82,7 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
       % Aktuelle Roboter suchen
       for j = 1:length(RobNames)
         RobName = RobNames{j};
-        resfiles = dir(fullfile(optdirs(i).folder, dirname_i, sprintf('Rob*%s*_Endergebnis.mat',RobName)));
+        resfiles = dir(fullfile(optdirs(i).folder, dirname_i, sprintf('Rob*_%s*_Endergebnis.mat',RobName)));
         III = find(contains({resfiles(:).name}, RobName));
         if isempty(III)
           continue % Roboter nicht enthalten
@@ -73,7 +96,13 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
   end % if status
 end
 % Speichere Dateiliste ab
-resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
-mkdirs(fullfile(resdir_main, 'tmp'));
-save(fullfile(resdir_main, 'tmp', 'old_results.mat'), 'initpop_matlist');
-cds_log(2, sprintf('[gen_init_pop_index] Vorherige Ergebnisse zusammengefasst. Dauer: %1.1fs', toc(t1)));
+if make_global_index
+  filename_idx = fullfile(Set.optimization.resdir, 'index_results.mat');
+else
+  resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
+  mkdirs(fullfile(resdir_main, 'tmp'));
+  filename_idx = fullfile(resdir_main, 'tmp', 'old_results.mat');
+end
+save(filename_idx, 'initpop_matlist');
+cds_log(2, sprintf(['[gen_init_pop_index] Vorherige Ergebnisse ', ...
+  'zusammengefasst. Dauer: %1.1fs. Index-Datei: %s'], toc(t1), filename_idx));

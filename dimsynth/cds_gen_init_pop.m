@@ -46,8 +46,19 @@ if Set.optimization.InitPopRatioOldResults == 0
 else
   % Lade bisherige Liste vorhandener Ergebnisse, erstellt von cds_gen_init_pop_index
   resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
-  tmp = load(fullfile(resdir_main, 'tmp', 'old_results.mat'), 'initpop_matlist');
-  initpop_matlist = tmp.initpop_matlist;
+  if Set.optimization.InitPopFromGlobalIndex
+    filename_idx = fullfile(Set.optimization.resdir, 'index_results.mat');
+  else
+    filename_idx = fullfile(resdir_main, 'tmp', 'old_results.mat');
+  end
+  if exist(filename_idx, 'file')
+    tmp = load(filename_idx, 'initpop_matlist');
+    initpop_matlist = tmp.initpop_matlist;
+  else
+    initpop_matlist = {};
+    cds_log(-1, sprintf(['[gen_init_pop] Datei %s existiert nicht.'], ...
+      filename_idx));
+  end
 end
 I_RobMatch = contains(initpop_matlist, ['_', RobName, '_']);
 % Alle möglichen Ergebnis-Dateien durchgehen
