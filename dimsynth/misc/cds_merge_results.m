@@ -282,7 +282,12 @@ writetable(ResTab_ges, csvtable_ges, 'Delimiter', ';', 'WriteMode', 'append');
 % Skripte benötigt).
 settingsfile = fullfile(resdir_ges,[optname, '_settings.mat']);
 Set = s.Set;
+% Setze den ursprünglichen Namen der Optimierung ohne Bezeichnung p_...
 Set.optimization.optname = optname;
+% Entferne die Filterung der Roboter, die in den Einstellungen der
+% Einstellungen der Teile enthalten ist (erzeugt später komische Ausgabe).
+% Erzeuge neuen Filter für alle enthaltenen Roboter
+Set.structures.whitelist = ResTab_ges.Name';
 Traj = s.Traj;
 save(settingsfile, 'Structures', 'Traj', 'Set');
 % Pareto-Bild erstellen (ist nur für die einzelnen Teile generiert worden)
