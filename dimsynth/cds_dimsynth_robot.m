@@ -2294,6 +2294,7 @@ else
   % gefunden wurde.
   fval_obj_all = NaN(16,1);
   physval_obj_all = NaN(16,1);
+  physval_cond = inf;
 end
 % Prüfe auf Plausibilität, ob die Optimierungsziele erreicht wurden. Neben-
 % bedingungen nur prüfen, falls überhaupt gültige Lösung erreicht wurde.
