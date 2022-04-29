@@ -21,12 +21,61 @@ warning('off', 'Coder:MATLAB:rankDeficientMatrix');
 % Falls Figure manuell angedockt wurde und gespeichert werden soll
 warning('off', 'MATLAB:Figure:SetPosition');
 
-%% Eingabe prüfen
-if ~Set.general.only_finish_aborted
-  fprintf('Starte Maßsynthese %s.\n', Set.optimization.optname);
-else
-  fprintf('Schließe die abgebrochene Maßsynthese %s ab.\n', Set.optimization.optname);
+%% Log Vorbereiten
+resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
+if Set.general.isoncluster && isfolder(resdir_main) && ...
+    ~Set.general.regenerate_summary_only && ~Set.general.only_finish_aborted
+  % Nur Abbruch, wenn Maßsynthese auf Cluster durchgeführt werden soll
+  error('Verzeichnis %s existiert bereits. Kein Überschreiben auf Cluster', resdir_main)
 end
+if ~Set.general.computing_cluster
+  % Ergebnis-Ordner für diese Optimierung erstellen (für Log benötigt).
+  % Falls nur hochgeladen wird, wird keine Log-Datei angelegt.
+  % Wenn auf Cluster gerechnet wird, ist die Option deaktiviert.
+  mkdirs(resdir_main);
+end
+if ~Set.general.only_finish_aborted
+  msg = sprintf('Starte Maßsynthese %s.', Set.optimization.optname);
+else
+  msg = sprintf('Schließe die abgebrochene Maßsynthese %s ab.', Set.optimization.optname);
+end
+clear cds_log
+fpfile = cds_log(1, msg, 'init', Set, struct('Number', 0));
+% Fingerabdruck der relevanten Repos in Log-Datei speichern
+if ~isempty(fpfile) % (nur wenn Log-Datei erstellt wird, nicht bei Hochladen)
+  repo_deps = {
+    {'structgeomsynth', 'structgeomsynth_path_init.m'}, ...
+    {'parroblib', 'parroblib_path_init.m'}, ...
+    {'serroblib', 'serroblib_path_init.m'}, ...
+    {'robotics', 'robotics_toolbox_path_init.m'}, ...
+    {'hybriddyn', 'hybrdyn_path_init.m'}, ...
+    {'matlab-tools', 'matlab_tools_path_init.m'}, ...
+    {'matlab-ext', 'matlab_ext_path_init.m'}, ...
+    {'trajectory-toolbox', 'trajectory_toolbox_path_init.m'}, ...
+    {'geometry-toolbox', 'geometry_toolbox_path_init.m'}};
+  olddir = pwd();
+  fid = fopen(fpfile, 'a');
+  fprintf(fid, 'Fingerabdruck aller Abhängigkeiten:\n');
+  for i = 1:length(repo_deps)
+    cd(fileparts(which(repo_deps{i}{2})));
+    [~,rev]=system('git rev-parse HEAD');
+    if ispc() % Windows
+      [~,revdatum]=system('git log -1 --date=short --pretty=format:%cd');
+    else % Linux
+      [~,revdatum]=system('export TERM=ansi; git log -1 --date=short --pretty=format:%cd');
+      revdatum = revdatum(2:11); % Entferne Zeilenumbruch und nicht lesbare Zeichen
+    end
+    [~,branch]=system('git rev-parse --abbrev-ref HEAD');
+    fprintf(fid, '%s: Branch %s, Rev. %s (%s)\n', repo_deps{i}{1}, branch(1:end-1), rev(1:8), revdatum);
+  end
+  fclose(fid);
+  if ~ispc() % lscpu funktioniert nur unter Linux
+    system(sprintf('echo "Eigenschaften des Rechners (lscpu):" >> %s', fpfile));
+    system(sprintf('lscpu >> %s', fpfile));
+  end
+  cd(olddir);
+end
+%% Eingaben prüfen 
 if Set.general.only_finish_aborted && Set.general.regenerate_summary_only
   error('Option only_finish_aborted zusammen mit regenerate_summary_only nicht sinnvoll');
 end
@@ -246,17 +295,20 @@ if ~(Set.general.only_finish_aborted && Set.general.isoncluster) && ... % Abschl
   % Auch nicht notwendig bei reiner Neu-Erzeugung der Ergebnis-Bilder.
   % Der Fall des Hochladens des Auftrags zum Abschluss auf das Cluster wird
   % mit obiger Logik berücksichtigt (zum Aufteilen auf parallele Jobs)
+  t1 = tic();
   Structures = cds_gen_robot_list(Set);
+  cds_log(1, sprintf('Insgesamt %d Roboter ausgewählt. Dauer: %1.1fs', ...
+    length(Structures), toc(t1)));
   if isempty(Structures)
-    fprintf('Keine Strukturen entsprechen den Filterkriterien\n');
+    cds_log(1, 'Keine Strukturen entsprechen den Filterkriterien');
     if ~isempty(Set.structures.whitelist)
-      fprintf('Es wurde eine Positiv-Liste übergeben, aber keine Strukturen entsprachen den Kriterien. Filter-Liste passt nicht\n');
+      cds_log(1, ['Es wurde eine Positiv-Liste übergeben, aber keine ', ...
+        'Strukturen entsprachen den Kriterien. Filter-Liste passt nicht']);
     end
     return
   end
 end
 %% Ergebnis-Speicherort vorbereiten. Einstellungen speichern.
-resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
 settingsfile = fullfile(resdir_main, sprintf('%s_settings.mat', ...
   Set.optimization.optname));
 if Set.general.only_finish_aborted && (Set.general.isoncluster || ...
@@ -264,13 +316,13 @@ if Set.general.only_finish_aborted && (Set.general.isoncluster || ...
   % Alte Einstellungsdatei laden. Damit muss nicht die Menge der Strukturen
   % neu erzeugt werden (geht schneller und ist robuster).
   if ~exist(resdir_main, 'file')
-    fprintf(['Nachträglicher Abschluss von %s nicht möglich. Verzeichnis %s ', ...
-      'fehlt.\n'], Set.optimization.optname, resdir_main);
+    cds_log(1, sprintf(['Nachträglicher Abschluss von %s nicht möglich. ', ...
+      'Verzeichnis %s fehlt.'], Set.optimization.optname, resdir_main));
     return
   end
   if ~exist(settingsfile, 'file')
-    fprintf(['Nachträglicher Abschluss von %s nicht möglich. Datei %s ', ...
-      'fehlt.\n'], Set.optimization.optname, settingsfile);
+    cds_log(1, sprintf(['Nachträglicher Abschluss von %s nicht möglich. ', ...
+      'Datei %s fehlt.'], Set.optimization.optname, settingsfile));
     return
   end
   d = load(settingsfile, 'Set', 'Traj', 'Structures');
@@ -286,14 +338,14 @@ if Set.general.only_finish_aborted && (Set.general.isoncluster || ...
   Set.general.parcomp_maxworkers = Set_tmp.general.parcomp_maxworkers;
   Set.optimization.resdir = Set_tmp.optimization.resdir;
   Set.general.create_template_functions = Set_tmp.general.create_template_functions;
-  fprintf('Einstellungsdatei %s für Abschluss geladen.\n', settingsfile);
+  cds_log(1, sprintf('Einstellungsdatei %s für Abschluss geladen.', settingsfile));
   % Prüfe, ob der Abschluss noch notwendig ist. Annahme: Ist die Ergebnis-
   % Tabelle einmal erstellt, sind alle einzelnen Roboter abgeschlossen.
   restabfile = fullfile(resdir_main, sprintf('%s_results_table.csv', ...
     Set.optimization.optname));
   if exist(restabfile, 'file')
-    fprintf(['Ergebnis-Tabelle existiert schon. Kein Abschluss der abge', ...
-      'brochenen Berechnung notwendig.\n']);
+    cds_log(1, sprintf(['Ergebnis-Tabelle existiert schon. Kein Abschluss der abge', ...
+      'brochenen Berechnung notwendig.']));
     return
   end
 elseif Set.general.regenerate_summary_only && (Set.general.isoncluster || ...
@@ -313,12 +365,8 @@ elseif Set.general.regenerate_summary_only && (Set.general.isoncluster || ...
   Set.general.nosummary = Set_tmp.general.nosummary; % für nur Tabelle ohne Bilder
   Set.optimization.resdir = Set_tmp.optimization.resdir; % anders auf Cluster
   Structures = d.Structures;
-  fprintf('Einstellungsdatei %s für Bild-Generierung geladen.\n', settingsfile);
+  cds_log(1, sprintf('Einstellungsdatei %s für Bild-Generierung geladen.', settingsfile));
 elseif ~Set.general.computing_cluster % nicht bei Hochladen des Jobs
-  if Set.general.isoncluster && isfolder(resdir_main)
-    error('Verzeichnis %s existiert bereits. Kein Überschreiben auf Cluster', resdir_main)
-  end
-  mkdirs(resdir_main); % Ergebnis-Ordner für diese Optimierung erstellen
   % Einstellungen dieser kombinierten Synthese speichern. Damit ist im
   % Nachhinein nachvollziehbar, welche Roboter eventuell fehlen. Bereits hier
   % oben machen. Dann passt die Variable Structures auch für den Fall, dass
@@ -350,10 +398,10 @@ if Set.general.computing_cluster
   % gestartet werden können.
   I1_Struct = 1:Set.general.cluster_maxrobotspernode:length(Structures);
   if length(I1_Struct) > 1
-    fprintf(['Teile die Optimierung von %d Robotern auf %d parallele Cluster-', ...
-      'Instanzen auf\n'], length(Structures), length(I1_Struct));
+    cds_log(1, sprintf(['Teile die Optimierung von %d Robotern auf %d parallele Cluster-', ...
+      'Instanzen auf'], length(Structures), length(I1_Struct)));
   else
-    fprintf('Lade die Optimierung von %d Robotern auf das Cluster hoch\n', length(Structures));
+    cds_log(1, sprintf('Lade die Optimierung von %d Robotern auf das Cluster hoch', length(Structures)));
   end
   jobIDs = NaN(2,length(I1_Struct)); % erste Zeile: Produktiv-Job; zweite Zeile: Aufräum-Job
   for kk = 1:length(I1_Struct)
@@ -486,9 +534,9 @@ if Set.general.computing_cluster
       'locUploadFolder', jobdir, ...
       'time',2), ... % % Geht schnell. Veranschlage 2h. Evtl. länger wegen ParPool-Synchronisation.
       struct('afternotok', jobIDs(1,kk))); % Abbruch des vorherigen Jobs als Start-Bedingung
-    fprintf(['Berechnung von %d Robotern wurde auf Cluster hochgeladen. Ende. ', ...
+    cds_log(1, sprintf(['Berechnung von %d Robotern wurde auf Cluster hochgeladen. Ende. ', ...
       'Die Ergebnisse müssen nach Beendigung der Rechnung manuell heruntergeladen ', ...
-      'werden.\n'], length(I1_kk:I2_kk));
+      'werden.'], length(I1_kk:I2_kk)));
     if kk < length(I1_Struct) % Damit nicht alle exakt zeitgleich starten; exakt gleichzeitiger, ...
       pause(30); % ... paralleler Start des parpools sowieso nicht möglich
     end
@@ -521,60 +569,15 @@ if Set.general.computing_cluster
       'time',1), ... % Geht schnell
       ... % Nur starten, wenn vorherige Produktiv- und Aufräum-Jobs erledigt
       struct('afterany', jobIDs(:)'));
-    fprintf(['Insgesamt %d Optimierungen mit in Summe %d Robotern hochgeladen\n',...
-      'Produktiv-Jobs: [%s], Finish-Jobs: [%s], Merge-Job: %d\n'], ...
+    cds_log(1, sprintf(['Insgesamt %d Optimierungen mit in Summe %d Robotern hochgeladen. ',...
+      'Produktiv-Jobs: [%s], Finish-Jobs: [%s], Merge-Job: %d'], ...
       length(I1_Struct), length(Structures), disp_array(jobIDs(1,:), '%d'), ...
-      disp_array(jobIDs(2,:), '%d'), jobID_merge);
+      disp_array(jobIDs(2,:), '%d'), jobID_merge));
   end
+
   return;
 end
 %% Vorbereitung und Durchführung der lokalen Optimierung
-% Bei paralleler Berechnung dürfen keine Dateien geschrieben werden um
-% Konflikte zu vermeiden
-if Set.general.parcomp_struct && ... % Parallele Rechnung ist ausgewählt
-    ~Set.general.regenerate_summary_only && ... % für Bildgenerierung ParComp nicht benötigt
-    length(Structures) > 1 && ... % für Optimierung eines Roboters keine parallele Rechnung
-    Set.general.parcomp_maxworkers > 0 % Parallele Berechnung auch so deaktivierbar
-  Set.general.noprogressfigure = true;
-  % Keine (allgemeinen) mat-Dateien speichern
-  Set.general.matfile_verbosity = 0;
-  if Set.general.isoncluster % auf Cluster möglicher Zugriffskonflikt für ParPool
-    parpool_writelock('lock', 180, true); % Synchronisationsmittel für ParPool
-  end
-  Pool = gcp('nocreate');
-  if isempty(Pool)
-    try
-      fprintf('Starte ParPool mit Ziel parfor_numworkers=%d\n', Set.general.parcomp_maxworkers);
-      Pool=parpool([1,Set.general.parcomp_maxworkers]);
-      parfor_numworkers = Pool.NumWorkers;
-    catch err
-      fprintf('Fehler beim Starten des parpool: %s\n', err.message);
-      parfor_numworkers = 1;
-    end
-  else
-    parfor_numworkers = Pool.NumWorkers;
-  end
-  clear Pool
-  if Set.general.isoncluster
-    parpool_writelock('free', 0, true);
-  end
-  if ~isinf(Set.general.parcomp_maxworkers) && parfor_numworkers ~= Set.general.parcomp_maxworkers
-    warning('Die gewünschte Zahl von %d Parallelinstanzen konnte nicht erfüllt werden. Es sind jetzt %d.', ...
-      Set.general.parcomp_maxworkers, parfor_numworkers)
-  end
-  % Warnungen auch in ParPool-Workern unterdrücken
-  parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:singularMatrix');
-  parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:nearlySingularMatrix');
-  parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:illConditionedMatrix');
-  parfevalOnAll(gcp(), @warning, 0, 'off', 'Coder:MATLAB:rankDeficientMatrix');
-  parfevalOnAll(gcp(), @warning, 0, 'off', 'Coder:MATLAB:nearlySingularMatrix');
-  parfevalOnAll(gcp(), @warning, 0, 'off', 'Coder:MATLAB:illConditionedMatrix');
-  % Siehe https://github.com/altmany/export_fig/issues/75
-  parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:prnRenderer:opengl');
-else
-  parfor_numworkers = 0;
-end
-
 if ~isempty(Set.structures.whitelist)
   if length(Set.structures.whitelist) ~= length(unique(Set.structures.whitelist))
     error('Die Positiv-Liste enthält doppelte Einträge');
@@ -582,9 +585,9 @@ if ~isempty(Set.structures.whitelist)
   Names_in_Struct = {}; % Es können bei Struktursynthese Strukturen doppelt getestet werden
   for i = 1:length(Structures), Names_in_Struct{i} = Structures{i}.Name; end %#ok<AGROW>
   if length(Set.structures.whitelist) ~= length(unique(Names_in_Struct))
-    warning(['Es wurde eine Positiv-Liste übergeben, aber nur %d ', ...
+    cds_log(-1, sprintf(['Es wurde eine Positiv-Liste übergeben, aber nur %d ', ...
       'dieser %d Strukturen wurden gewählt.'], length(unique(Names_in_Struct)), ...
-      length(Set.structures.whitelist));
+      length(Set.structures.whitelist)));
     disp('Gültige Roboter:');
     disp(intersect(Set.structures.whitelist, Names_in_Struct));
     disp('Ungültige Roboter:')
@@ -609,8 +612,8 @@ if ~isempty(Set.optimization.desopt_vars)
   end
   if ~valid_desopt
     Set.optimization.desopt_vars = {};
-    fprintf(['Entwurfsoptimierung wurde verlangt, aber keine dafür notwendigen ', ...
-      'Zielfunktionen oder Nebenbedingungen definiert. Wurde wieder deaktiviert\n']);
+    cds_log(1, sprintf(['Entwurfsoptimierung wurde verlangt, aber keine dafür notwendigen ', ...
+      'Zielfunktionen oder Nebenbedingungen definiert. Wurde wieder deaktiviert']));
   end
 end
 % Optimierung der Strukturen durchführen
@@ -650,7 +653,7 @@ if ~Set.general.regenerate_summary_only
     % wurden). Die automatische Neugenerierung in der parfor-Schleife
     % funktioniert nicht aufgrund von Dateikonflikten, autom. Ordnerlöschung.
     if Set.general.create_template_functions
-      fprintf('Erstelle kompilierbare Funktionsdateien aus Vorlagen für %d Roboter\n', length(Names));
+      cds_log(1, sprintf('Erstelle kompilierbare Funktionsdateien aus Vorlagen für %d Roboter', length(Names)));
       tplmode = false; % Erzeuge alle Dateien neu (auch wenn schon vorhanden)
     else
       tplmode = true; % Erzeuge nur fehlende Dateien neu (sonst später Fehler)
@@ -725,16 +728,34 @@ if ~Set.general.regenerate_summary_only
           parroblib_writelock('free', Names{i}, R.I_EE);
         end
         if toc(t_ll) > 20 || i == III(end)
-          fprintf('%d/%d Roboter vom Typ %d auf Existenz der Dateien geprüft. Dauer bis hier: %1.1fs\n', ...
-            find(III==i,1,'first'), length(Names), type, toc(t1));
+          cds_log(1, sprintf(['%d/%d Roboter vom Typ %d auf Existenz der ', ...
+            'Dateien geprüft. Dauer bis hier: %1.1fs'], ...
+            find(III==i,1,'first'), length(Names), type, toc(t1)));
           t_ll = tic();
         end
       end
     end
   end
+  if ~Set.general.only_finish_aborted && ~Set.optimization.InitPopFromGlobalIndex
+    cds_gen_init_pop_index(Set, Structures);
+  end
+
+  % Initialisiere ParPool: Bei paralleler Berechnung dürfen keine Dateien
+  % geschrieben werden um Konflikte zu vermeiden
+  if Set.general.parcomp_struct && ... % Parallele Rechnung ist ausgewählt
+      ~Set.general.regenerate_summary_only && ... % für Bildgenerierung ParComp nicht benötigt
+      length(Structures) > 1 && ... % für Optimierung eines Roboters keine parallele Rechnung
+      Set.general.parcomp_maxworkers > 0 % Parallele Berechnung auch so deaktivierbar
+    Set.general.noprogressfigure = true; % Auf ParFor-Worker nicht notwendig
+    % Keine (allgemeinen) mat-Dateien speichern
+    Set.general.matfile_verbosity = 0;
+    parfor_numworkers = cds_start_parpool(Set);
+  else
+    parfor_numworkers = 0;
+  end
   t1 = tic();
-  fprintf('Starte Schleife über %d Roboter. parfor_numworkers=%d\n', ...
-    length(Structures), parfor_numworkers);
+  cds_log(1, sprintf('Starte Schleife über %d Roboter. parfor_numworkers=%d', ...
+    length(Structures), parfor_numworkers));
   parfor (i = 1:length(Structures), parfor_numworkers)
     % Auflösung für Debug-Bilder setzen (wird auf ParPool auf Cluster nicht
     % vererbt aus globalen Einstellungen)
@@ -747,10 +768,15 @@ if ~Set.general.regenerate_summary_only
     else,                                mode = 'Abschluss'; end
     if isempty(Structures{i}.RobName), RobNameStr = '';
     else, RobNameStr = sprintf('; %s', Structures{i}.RobName); end
-    fprintf('Starte %s für Roboter %d (%s%s)\n', mode, i, Structures{i}.Name, RobNameStr);
+    cds_log(1, sprintf('Starte %s für Roboter %d (%s%s)', mode, i, ...
+      Structures{i}.Name, RobNameStr));
     cds_dimsynth_robot(Set, Traj, Structures{i});
+    % Log-Funktion muss erneut initialisiert werden (oben evtl zurückgesetzt)
+    cds_log(1, sprintf('Beendet: %s für Roboter %d (%s%s)', mode, i, ...
+      Structures{i}.Name, RobNameStr), 'amend', Set, struct('Number', 0));
   end
-  fprintf('Optimierung von %d Robotern abgeschlossen. Dauer: %1.1fs\n', length(Structures), toc(t1));
+  cds_log(1, sprintf(['Optimierung von %d Robotern abgeschlossen. ', ...
+    'Dauer: %1.1fs'], length(Structures), toc(t1)), 'amend', Set, struct('Number', 0));
 end
 if isempty(Structures)
   % Aufgrund der Filterkriterien wurden keine Roboter verglichen.
@@ -759,6 +785,12 @@ if isempty(Structures)
 end
 
 %% Ergebnisse darstellen
+t1 = tic();
 cds_results_table(Set, Traj, Structures);
 cds_vis_results(Set, Traj, Structures);
 cds_create_evolution_videos(Set, Traj, Structures);
+lfp = cds_log(1, sprintf(['Ergebnis-Nachverarbeitung von %d Robotern ', ...
+  'abgeschlossen. Dauer: %1.1fs'], length(Structures), toc(t1)));
+if exist(lfp, 'file')
+  gzip(lfp); delete(lfp);
+end

@@ -12,9 +12,12 @@
 % msg
 %   Log-Zeile
 % option
-%   Für Zurücksetzen der Log-Datei: "init". Sonst keine Eingabe
+%   Für Zurücksetzen der Log-Datei: "init"
+%   Für erneute Initialisierung ohne Löschen der Datei: "amend"
+%   Sonst keine Eingabe
 % Set, Structure
 %   Informationsstrukturen für Optimierung (siehe andere Dateien)
+%   Falls Structure.Number = 0: Allgemeine Log-Datei
 % 
 % Ausgabe:
 % lfp
@@ -28,18 +31,40 @@ function lfp = cds_log(level, msg, option, Set, Structure)
 persistent logfilepath
 persistent loglevel
 % Initialisierung durch Funktionsaufruf
-if nargin > 2 && strcmp(option, 'init')
+if nargin > 2 && any(strcmp(option, {'init', 'amend'}))
   % Initialisiere die persistenten Variablen
   resdir = fullfile(Set.optimization.resdir, Set.optimization.optname);
   loglevel = Set.general.verbosity;
   if nargin < 5 || isempty(Structure)  % Falls ohne Struktur-Info ...
     return % ... initialisiert wird, wird nur das Log-Level neu gesetzt
   end
-  robstr = sprintf('Rob%d_%s', Structure.Number, Structure.Name);
-  logfilepath = fullfile(resdir, robstr, sprintf('%s.log', robstr));
-  if exist(logfilepath, 'file')
-    movefile(logfilepath, fullfile(resdir, robstr, sprintf('%s_backup_%s.log', ...
-      robstr, datestr(now,'yyyymmdd_HHMMSS'))) );
+  if Structure.Number > 0
+    % Roboterspezifische Log-Datei
+    robstr = sprintf('Rob%d_%s', Structure.Number, Structure.Name);
+    logfilepath = fullfile(resdir, robstr, sprintf('%s.log', robstr));
+  else
+    % Allgemeine Log-Datei (unterschieden in Hochladen und Optimierung auf
+    % Cluster). Bei Hochladen keine Datei erstellen.
+    if Set.general.computing_cluster
+      robstr = '';
+      logfilepath = '';
+    else
+      % Je nach Modus unterschiedliche Log-Dateien
+      if Set.general.only_finish_aborted
+        robstr = 'cds_finish';
+      elseif Set.general.regenerate_summary_only
+        robstr = 'cds_summary';
+      else
+        robstr = 'cds_dimsynth';
+      end
+      logfilepath = fullfile(resdir, [robstr,'.log']);
+    end
+  end
+  if ~isempty(logfilepath) && exist(logfilepath, 'file') && strcmp(option, 'init')
+    backupfilename = sprintf('%s_backup_%s.log', robstr, ...
+      datestr(now,'yyyymmdd_HHMMSS'));
+    logdir = fileparts(logfilepath);
+    movefile(logfilepath, fullfile(logdir, backupfilename));
   end
 end
 % Falls Fitness-Funktion nachträglich aufgerufen wird, ist das Loggen nicht

@@ -85,31 +85,7 @@ end
 %% Parallele Durchführung der Plots vorbereiten
 if Set.general.parcomp_plot && length_Structures_parfor > 0 && ...
     Set.general.parcomp_maxworkers > 0 % Parallele Berechnung auch so deaktivierbar
-  Pool = gcp('nocreate');
-  if isempty(Pool) % kein Pool aktiv
-    if Set.general.isoncluster % auf Cluster möglicher Zugriffskonflikt für ParPool
-      parpool_writelock('lock', 180, true); % Synchronisationsmittel für ParPool
-    end
-    try % Pool starten
-      Pool=parpool([1,Set.general.parcomp_maxworkers]);
-      parfor_numworkers = Pool.NumWorkers;
-    catch err
-      fprintf('Fehler beim Starten des parpool: %s\n', err.message);
-      parfor_numworkers = 1;
-    end
-    if Set.general.isoncluster
-      parpool_writelock('free', 0, true);
-    end
-  else
-    parfor_numworkers = Pool.NumWorkers;
-  end
-  clear Pool
-  if ~isinf(Set.general.parcomp_maxworkers) && parfor_numworkers ~= Set.general.parcomp_maxworkers
-    warning('Die gewünschte Zahl von %d Parallelinstanzen konnte nicht erfüllt werden. Es sind jetzt %d.', ...
-      Set.general.parcomp_maxworkers, parfor_numworkers)
-  end
-  % Warnungen auch in ParPool-Workern unterdrücken: https://github.com/altmany/export_fig/issues/75
-  parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:prnRenderer:opengl');
+  parfor_numworkers = cds_start_parpool(Set);
 else
   parfor_numworkers = 0;
 end
