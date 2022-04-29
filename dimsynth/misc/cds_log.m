@@ -49,8 +49,15 @@ if nargin > 2 && any(strcmp(option, {'init', 'amend'}))
       robstr = '';
       logfilepath = '';
     else
-      robstr = 'cds';
-      logfilepath = fullfile(resdir, 'cds.log');
+      % Je nach Modus unterschiedliche Log-Dateien
+      if Set.general.only_finish_aborted
+        robstr = 'cds_finish';
+      elseif Set.general.regenerate_summary_only
+        robstr = 'cds_summary';
+      else
+        robstr = 'cds_dimsynth';
+      end
+      logfilepath = fullfile(resdir, [robstr,'.log']);
     end
   end
   if ~isempty(logfilepath) && exist(logfilepath, 'file') && strcmp(option, 'init')
