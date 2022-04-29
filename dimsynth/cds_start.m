@@ -578,53 +578,6 @@ if Set.general.computing_cluster
   return;
 end
 %% Vorbereitung und Durchführung der lokalen Optimierung
-% Bei paralleler Berechnung dürfen keine Dateien geschrieben werden um
-% Konflikte zu vermeiden
-if Set.general.parcomp_struct && ... % Parallele Rechnung ist ausgewählt
-    ~Set.general.regenerate_summary_only && ... % für Bildgenerierung ParComp nicht benötigt
-    length(Structures) > 1 && ... % für Optimierung eines Roboters keine parallele Rechnung
-    Set.general.parcomp_maxworkers > 0 % Parallele Berechnung auch so deaktivierbar
-  Set.general.noprogressfigure = true;
-  % Keine (allgemeinen) mat-Dateien speichern
-  Set.general.matfile_verbosity = 0;
-  if Set.general.isoncluster % auf Cluster möglicher Zugriffskonflikt für ParPool
-    parpool_writelock('lock', 180, true); % Synchronisationsmittel für ParPool
-  end
-  Pool = gcp('nocreate');
-  if isempty(Pool)
-    try
-      cds_log(1, sprintf('Starte ParPool mit Ziel parfor_numworkers=%d', ...
-        Set.general.parcomp_maxworkers));
-      Pool=parpool([1,Set.general.parcomp_maxworkers]);
-      parfor_numworkers = Pool.NumWorkers;
-    catch err
-      cds_log(1, sprintf('Fehler beim Starten des parpool: %s', err.message));
-      parfor_numworkers = 1;
-    end
-  else
-    parfor_numworkers = Pool.NumWorkers;
-  end
-  clear Pool
-  if Set.general.isoncluster
-    parpool_writelock('free', 0, true);
-  end
-  if ~isinf(Set.general.parcomp_maxworkers) && parfor_numworkers ~= Set.general.parcomp_maxworkers
-    warning('Die gewünschte Zahl von %d Parallelinstanzen konnte nicht erfüllt werden. Es sind jetzt %d.', ...
-      Set.general.parcomp_maxworkers, parfor_numworkers)
-  end
-  % Warnungen auch in ParPool-Workern unterdrücken
-  parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:singularMatrix');
-  parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:nearlySingularMatrix');
-  parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:illConditionedMatrix');
-  parfevalOnAll(gcp(), @warning, 0, 'off', 'Coder:MATLAB:rankDeficientMatrix');
-  parfevalOnAll(gcp(), @warning, 0, 'off', 'Coder:MATLAB:nearlySingularMatrix');
-  parfevalOnAll(gcp(), @warning, 0, 'off', 'Coder:MATLAB:illConditionedMatrix');
-  % Siehe https://github.com/altmany/export_fig/issues/75
-  parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:prnRenderer:opengl');
-else
-  parfor_numworkers = 0;
-end
-
 if ~isempty(Set.structures.whitelist)
   if length(Set.structures.whitelist) ~= length(unique(Set.structures.whitelist))
     error('Die Positiv-Liste enthält doppelte Einträge');
@@ -632,9 +585,9 @@ if ~isempty(Set.structures.whitelist)
   Names_in_Struct = {}; % Es können bei Struktursynthese Strukturen doppelt getestet werden
   for i = 1:length(Structures), Names_in_Struct{i} = Structures{i}.Name; end %#ok<AGROW>
   if length(Set.structures.whitelist) ~= length(unique(Names_in_Struct))
-    warning(['Es wurde eine Positiv-Liste übergeben, aber nur %d ', ...
+    cds_log(-1, sprintf(['Es wurde eine Positiv-Liste übergeben, aber nur %d ', ...
       'dieser %d Strukturen wurden gewählt.'], length(unique(Names_in_Struct)), ...
-      length(Set.structures.whitelist));
+      length(Set.structures.whitelist)));
     disp('Gültige Roboter:');
     disp(intersect(Set.structures.whitelist, Names_in_Struct));
     disp('Ungültige Roboter:')
@@ -785,6 +738,20 @@ if ~Set.general.regenerate_summary_only
   end
   if ~Set.general.only_finish_aborted && ~Set.optimization.InitPopFromGlobalIndex
     cds_gen_init_pop_index(Set, Structures);
+  end
+
+  % Initialisiere ParPool: Bei paralleler Berechnung dürfen keine Dateien
+  % geschrieben werden um Konflikte zu vermeiden
+  if Set.general.parcomp_struct && ... % Parallele Rechnung ist ausgewählt
+      ~Set.general.regenerate_summary_only && ... % für Bildgenerierung ParComp nicht benötigt
+      length(Structures) > 1 && ... % für Optimierung eines Roboters keine parallele Rechnung
+      Set.general.parcomp_maxworkers > 0 % Parallele Berechnung auch so deaktivierbar
+    Set.general.noprogressfigure = true; % Auf ParFor-Worker nicht notwendig
+    % Keine (allgemeinen) mat-Dateien speichern
+    Set.general.matfile_verbosity = 0;
+    parfor_numworkers = cds_start_parpool(Set);
+  else
+    parfor_numworkers = 0;
   end
   t1 = tic();
   cds_log(1, sprintf('Starte Schleife über %d Roboter. parfor_numworkers=%d', ...
