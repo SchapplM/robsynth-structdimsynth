@@ -62,12 +62,8 @@ else
 end
 I_RobMatch = contains(initpop_matlist, ['_', RobName, '_']);
 % Alle möglichen Ergebnis-Dateien durchgehen
-for i = 1:length(initpop_matlist) % Unterordner durchgehen.
+for i = find(I_RobMatch)'% Unterordner durchgehen.
   dirname_i = fileparts(initpop_matlist{i});
-  % Aktuellen Roboter suchen (die Dateiliste enthält verschiedene Roboter)
-  if ~I_RobMatch(i)
-    continue % Roboter nicht enthalten
-  end
   sflist = dir(fullfile(dirname_i, '*_settings.mat'));
   if length(sflist) > 1
     continue % Mehr als eine Einstellungsdatei. Ungültig.
