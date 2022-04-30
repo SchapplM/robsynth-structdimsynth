@@ -317,7 +317,8 @@ for k = 1:NLEG
   collbodies_type_mod = R_cc.collbodies.type;
   collbodies_params_mod = R_cc.collbodies.params;
   if R_cc.MDH.sigma(1) == 1
-    if R_cc.collbodies.type(1) == 3
+    if any(R_cc.collbodies.type(1) == [3 13])
+      % 3=Kapsel mitbewegt, 13=Kapsel basisfest. Muss noch vereinheitlicht werden in Initialisierung
       collbodies_type_mod(1) = uint8(13);
       if R_cc.islegchain
         % Transformation der Parameter ins Basis-KS der PKM. Das ist für

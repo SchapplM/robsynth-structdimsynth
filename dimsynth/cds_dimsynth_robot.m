@@ -922,7 +922,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       end
       if i == 1 % erstes Gelenk der Kette ist Schubgelenk. Führungsschiene basisfest.
         % Kapsel, zwei Punkte (im weltfesten Basis-KS der Kette)
-        collbodies.type = [collbodies.type; uint8(3)];
+        collbodies.type = [collbodies.type; uint8(13)];
         % Umrechnung der Parameter ins Welt-KS: Notwendig. Aber hier
         % ignoriert.
       elseif i < R_cc.NJ
