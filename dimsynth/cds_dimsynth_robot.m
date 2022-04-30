@@ -938,6 +938,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       else
         cds_log(-1, sprintf(['[dimsynth] Kollisionsprüfung für Schubgelenk ', ...
           'als letztes Gelenk der Kette noch nicht implementiert']));
+        continue; % TODO: Prüfen, ob type=6 hier funktionieren würde
       end
       collbodies.params = [collbodies.params; cbi_par, NaN(1,3)];
       % Führungsschiene/Führungszylinder ist vorherigem Segment zugeordnet
@@ -1027,7 +1028,12 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   % Ist erstmal nur Platzhalter. Wird zur Laufzeit noch aktualisiert.
   Structure.collbodies_robot = cds_update_collbodies(R, Set, Structure, Structure.qlim');
   % Probe: Sind Daten konsistent? Inkonsistenz durch obigen Aufruf möglich.
+  assert(size(Structure.collbodies_robot.params,1)==length(Structure.collbodies_robot.type), ...
+    'Felder params und type haben keine konsistente Dimension in Structure.collbodies_robot.');
+  assert(size(Structure.collbodies_robot.link,1)==length(Structure.collbodies_robot.type), ...
+    'Felder params und type haben keine konsistente Dimension in Structure.collbodies_robot.');
   if any(any(~isnan(Structure.collbodies_robot.params(Structure.collbodies_robot.type==6,2:end))))
+    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot_cb_error.mat'));
     error('Inkonsistente Kollisionsdaten: Kapsel-Direktverbindung hat zu viele Parameter');
   end
   if size(Structure.collbodies_robot.link,2)~=2
