@@ -961,8 +961,8 @@ if ~isinf(Set.optimization.condition_limit_sing_act) && R.Type == 2
 end
 %% Singularität prüfen (bezogen auf IK-Jacobi-Matrix)
 if ~isinf(Set.optimization.condition_limit_sing) && Stats.errorcode == 3 && ...
-    any(isinf(Stats.h(:,1+R.idx_iktraj_hn.jac_cond)))
-  % führt bereits in Traj.-IK zum Abbruch. Prüfe, ob dies die Ursache war
+    any(Stats.h(:,1+R.idx_iktraj_hn.jac_cond) > 0)
+  % Führt bereits in Traj.-IK zum Abbruch. Prüfe, ob dies die Ursache war
   constrvioltext_m{i_m} = sprintf('Roboter ist singulär (Konditionszahl IK-Jacobi).');
   fval_all(i_m, i_ar)  = 1e4*(5); % zunächst kein eigener Wertebereich
   continue
