@@ -106,12 +106,14 @@ elseif ~strcmp(figname, 'animation')
 end
 
 % Hole Erklärungstext zum Fitness-Wert aus Tabelle
-fval_text = ResTab.Fval_Text{strcmp(ResTab.Name,Name) & ResTab.LfdNr==RNr};
-if ~isa(ResTab.Beschreibung, 'cell')
-  RobShortName_str = ''; % Wenn kein Wert belegt ist, wird NaN gesetzt
-else
-  RobShortName = ResTab.Beschreibung{strcmp(ResTab.Name,Name) & ResTab.LfdNr==RNr};
-  RobShortName_str = sprintf(' (%s)', RobShortName);
+iRobTab = strcmp(ResTab.Name,Name) & ResTab.LfdNr==RNr;
+fval_text = ResTab.Fval_Text{iRobTab};
+RobShortName_str = ''; % Wenn kein Wert belegt ist, wird NaN gesetzt
+if isa(ResTab.Beschreibung, 'cell')
+  RobShortName = ResTab.Beschreibung{iRobTab};
+  if ~isempty(RobShortName)
+    RobShortName_str = sprintf(' (%s)', RobShortName);
+  end
 end
 for kk = 1:length(Set.general.animation_styles)
   anim_mode = Set.general.animation_styles{kk}; % Strichzeichnung, 3D-Modell, Kollisionskörper
