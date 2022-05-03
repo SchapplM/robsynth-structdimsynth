@@ -1639,23 +1639,25 @@ if Set.optimization.constraint_collisions
 end
 
 %% Bauraumprüfung für Trajektorie
-if ~isempty(Set.task.installspace.type) && ...
-      (isnan(fval_instspc_tmp) || fval_instspc_tmp > 0)
-  [fval_instspc_traj, f_constrinstspc_traj] = cds_constr_installspace( ...
-    R, Traj_0.X, Set, Structure, JP, Q, [2e3;3e3]);
-  mininstspcdist_all(i_ar) = f_constrinstspc_traj;
-  if fval_instspc_traj > 0
-    fval_all(i_m, i_ar)  = fval_instspc_traj; % Normierung auf 2e3 bis 3e3 -> bereits in Funktion
-    constrvioltext_m{i_m} = sprintf(['Verletzung des zulässigen Bauraums in Traj.', ...
-      'Schlimmstenfalls %1.1f mm draußen.'], 1e3*f_constrinstspc_traj);
-    continue
-  elseif Stats.errorcode == 3 && Stats.h(Stats_iter_h,1+R.idx_iktraj_hn.instspc_hyp) ...
+if ~isempty(Set.task.installspace.type)
+  if isnan(fval_instspc_tmp) || fval_instspc_tmp > 0
+    [fval_instspc_traj, f_constrinstspc_traj] = cds_constr_installspace( ...
+      R, Traj_0.X, Set, Structure, JP, Q, [2e3;3e3]);
+    mininstspcdist_all(i_ar) = f_constrinstspc_traj;
+    if fval_instspc_traj > 0
+      fval_all(i_m, i_ar)  = fval_instspc_traj; % Normierung auf 2e3 bis 3e3 -> bereits in Funktion
+      constrvioltext_m{i_m} = sprintf(['Verletzung des zulässigen Bauraums in Traj.', ...
+        'Schlimmstenfalls %1.1f mm draußen.'], 1e3*f_constrinstspc_traj);
+      continue
+    end
+  end
+  if Stats.errorcode == 3 && Stats.h(Stats_iter_h,1+R.idx_iktraj_hn.instspc_hyp) ...
       <= s.abort_thresh_h(R.idx_iktraj_hn.instspc_hyp) 
     cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Bauraumverletzung in ', ...
       'Traj.-IK erkannt, aber nicht danach.'], Structure.config_index, Structure.config_number));
     fval_all(i_m, i_ar) = 3e3; % schlechtestmöglicher Wert für Bauraumprüfung (da nicht richtig erkannt)
     constrvioltext_m{i_m} = 'Bauraumverletzung in Traj.-IK erkannt (sonst nicht)';
-  	continue
+    continue
   end
 end
 %% Arbeitsraum-Hindernis-Kollisionsprüfung für Trajektorie
