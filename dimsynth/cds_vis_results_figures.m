@@ -104,7 +104,13 @@ if strcmp(figname, 'robvisu')
 elseif ~strcmp(figname, 'animation')
   Set.general.animation_styles = {};
 end
-
+% Einstellung bzgl Dateiformat anpassen. Falls Abbruch bereits bei
+% Eckpunkten, sollte eine GIF-Datei erzeugt werden. MP4 mit nur wenigen
+% Einzelbildern sind problematisch beim Abspielen
+if ~traj_available
+  Set.general.save_animation_file_extensions = unique(['gif', ...
+    Set.general.save_animation_file_extensions]);
+end
 % Hole Erklärungstext zum Fitness-Wert aus Tabelle
 iRobTab = strcmp(ResTab.Name,Name) & ResTab.LfdNr==RNr;
 fval_text = ResTab.Fval_Text{iRobTab};
