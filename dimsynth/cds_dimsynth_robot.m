@@ -684,6 +684,10 @@ else
     r_W_0(1:2) = Structure.xT_mean(1:2);
   end
 end
+% Für planare Aufgabe die Z-Position belegen (nicht durch Roboter änderbar)
+if all(Set.task.DoF(1:5) == [1 1 0 0 0]) % egal ob 2T0R, 2T0*R oder 2T1R
+  r_W_0(3) = Traj.XE(1,3);
+end
 R.update_base(r_W_0);
 % EE-Verschiebung
 if all(~isnan(Set.optimization.ee_translation_fixed))

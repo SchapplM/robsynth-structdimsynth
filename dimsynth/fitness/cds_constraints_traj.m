@@ -1652,7 +1652,9 @@ if ~isempty(Set.task.installspace.type)
     end
   end
   if Stats.errorcode == 3 && Stats.h(Stats_iter_h,1+R.idx_iktraj_hn.instspc_hyp) ...
-      <= s.abort_thresh_h(R.idx_iktraj_hn.instspc_hyp) 
+      <= s.abort_thresh_h(R.idx_iktraj_hn.instspc_hyp)
+    % Eine Ursache für falsche Erkennung: Exakt auf Grenze, daher in Traj.
+    % erkannt und in CDS nicht.
     cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Bauraumverletzung in ', ...
       'Traj.-IK erkannt, aber nicht danach.'], Structure.config_index, Structure.config_number));
     fval_all(i_m, i_ar) = 3e3; % schlechtestmöglicher Wert für Bauraumprüfung (da nicht richtig erkannt)

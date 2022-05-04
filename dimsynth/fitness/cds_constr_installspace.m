@@ -107,7 +107,7 @@ end
 [f_constr, idx_body_worst] = max(mindist_all);
 
 % Strafterm für Bauraumprüfung:
-if all(ininstallspace_all)
+if all(ininstallspace_all) % && all(mindist_all < 0) % zweite Abfrage für Prüfung auf Gleichheit
   fval = 0; % Alle Punkte im Bauraum. Alles i.O.
 else
   % Normierung der Ausgabe. Wert von f_constr (in m) ist größer 0 aber
@@ -119,7 +119,7 @@ else
   % (Eckwerte und Trajektorie möglich)
   fval = scale(1) + (scale(2)-scale(1))*f_constr_norm;
 end
-%% Debug: Zeichnen der Situation
+%% Debug: Zeichnen der Situation (Abfrage für Ausstieg aus Funktion)
 if fval ~= 0 && ... % Nur Zeichnen, wenn auch Kollisionen auftreten
    (Set.general.plot_details_in_fitness < 0 && 1e4*fval >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
     Set.general.plot_details_in_fitness > 0 && 1e4*fval <= abs(Set.general.plot_details_in_fitness))
@@ -127,6 +127,7 @@ if fval ~= 0 && ... % Nur Zeichnen, wenn auch Kollisionen auftreten
 else
   return
 end
+%% Debug: Zeichnen der Situation
 % Suche Datenpunkt mit weitester Entfernung vom Bauraum (schlechtester Fall)
 if isempty(idx_timestep_worst)
   j = 1; % Debug: Keine Verletzung aufgetreten. Trotzdem zeichnen

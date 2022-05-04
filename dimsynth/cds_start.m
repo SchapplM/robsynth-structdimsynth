@@ -271,7 +271,11 @@ assert(length(Traj.IE)==size(Traj.XE,1), 'IE und XE muss gleiche Dimension haben
 assert(max(Traj.IE)<=size(Traj.X,1), 'Index-Vektor IE darf Bereich aus X nicht überschreiten');
 test_XEfromIE = Traj.X(Traj.IE,:) - Traj.XE;
 assert(all(abs(test_XEfromIE(:))<1e-10), 'XE muss mit IE aus X indiziert werden können');
-
+if all(Set.task.DoF(1:5) == [1 1 0 0 0]) % planare Aufgabe: 2T0R, 2T0*R oder 2T1R
+  assert(all(abs(Traj.X(1,3)- Traj.X(:,3))  < 1e-10) && ...
+         all(abs(Traj.XE(1,3)-Traj.XE(:,3)) < 1e-10), ...
+    'Planare Aufgabe: z-Position darf sich nicht verändern');
+end
 % Rast-zu-Rast-Verhalten auch für Nullraumbewegung, wenn gefordert.
 % Bestimme die Zeitschritte
 if isnan(Set.task.T_dec_ns)
