@@ -224,9 +224,9 @@ fval_debugtext_IKC = constrvioltext_IKC;
 Q_IKC = NaN(size(Traj_0.X,1), R.NJ, size(Q0,1));
 QD_IKC = Q_IKC; QDD_IKC = Q_IKC;
 if R.Type == 0
-  JP_IKC = NaN(size(Traj_0.X,1), 3*(1+R.NJ), size(Q0,1));
+  JP_IKC = NaN(size(Traj_0.X,1), 3*(1+R.NJ+1), size(Q0,1));
 else
-  JP_IKC = NaN(size(Traj_0.X,1), 3*(1+R.NJ+R.NLEG+1), size(Q0,1));
+  JP_IKC = NaN(size(Traj_0.X,1), 3*(1+R.NJ+R.NLEG+1+1), size(Q0,1));
 end
 Jinv_IKC = NaN(size(Traj_0.X,1), sum(R.I_EE)*R.NJ, size(Q0,1));
 X6Traj_IKC = NaN(size(Traj_0.X,1), 3, size(Q0,1));

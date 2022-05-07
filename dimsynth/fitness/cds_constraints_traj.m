@@ -1043,7 +1043,7 @@ if R.Type == 2 && Set.general.debug_calc && ...% PKM; Rechne nochmal mit Klassen
   end
   % Prüfe, ob die ausgegebenen Gelenk-Positionen auch stimmen
   for i = 1:size(Q,1)
-    JointPos_all_i_frominvkin = reshape(JP(i,:)',3,1+R.NJ+R.NLEG+1);
+    JointPos_all_i_frominvkin = reshape(JP(i,:)',3,1+R.NJ+R.NLEG+1+1);
     Tc_Lges = R.fkine_legs(Q(i,:)');
     JointPos_all_i_fromdirkin = [zeros(3,1), squeeze(Tc_Lges(1:3,4,1:end)), NaN(3,1)];
     % Vergleiche die Positionen. In fkine_legs wird zusätzlich ein

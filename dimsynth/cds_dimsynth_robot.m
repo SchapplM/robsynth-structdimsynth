@@ -967,9 +967,16 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         collbodies.params = [collbodies.params; 20e-3, NaN(1,9)];
       end
     end
+    % Trage eine EE-Transformation ein: Kapsel von letzten Roboter-Segment
+    % zu TCP. Direkte Verbindung.
+    if Structure.Type == 0 && Set.optimization.ee_translation
+      collbodies.link =   [collbodies.link; [uint8(R_cc.NJ+1),uint8(R_cc.NJ)]];
+      collbodies.type =   [collbodies.type; uint8(6)]; % Kapsel, direkte Verbindung
+      collbodies.params = [collbodies.params; 10e-3, NaN(1,9)]; % Radius 10mm
+    end
     R_cc.collbodies = collbodies;
     % Trage die Kollisionsprüfungen ein
-    for i = 3:R_cc.NJ
+    for i = 3:R_cc.NJ+1 % für letztes Segment und zusätzlich für virt. EE-Segment
       % Füge Prüfung mit allen vorherigen hinzu (außer direktem Vorgänger)
       % Diese Kollision wird nicht geprüft, da dort keine Kollision
       % stattfinden können sollte (direkt gegeneinander drehbare Teile
@@ -981,7 +988,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       % Sonderfall Portal-System: Abstand zwischen Kollisionskörpern noch
       % um eins vergrößern. TODO: Ist so noch nicht allgemeingültig.
       % Dadurch wird die Kollisionsprüfung effektiv deaktiviert.
-      if sum(R_cc.MDH.sigma(i-2:i) == 1) == 3
+      if i<=R_cc.NJ && sum(R_cc.MDH.sigma(i-2:i) == 1) == 3
         cbdist = 3;
       else
         if length(j_hascollbody) <= 1
@@ -1025,6 +1032,8 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       v(R.I1J_LEG(k)+k:R.I2J_LEG(k)+k+1) = [0; NLoffset+R.Leg(k).MDH.v];
     end
   end
+  % zusätzliche Vorgänger-Index für EE-TCP zu EE-Segment
+  v = [v; max(v)+1];
   Structure.MDH_ante_collcheck = v; % wird nicht mehr benötigt.
   
   % Roboter-Kollisionsobjekte in Struktur abspeichern (zum Abruf in den
@@ -1158,6 +1167,12 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         % fprintf(['Kollisionsprüfung (%d): Bein %d Seg. %d vs Plattform. ', ...
         %   'Zeile [%d,%d]\n'], size(selfcollchecks_bodies,1), k, cb_k, ...
         %   selfcollchecks_bodies(end,1), selfcollchecks_bodies(end,2));
+        % Kollisionsprüfung für EE-Segment zu EE-TCP
+        selfcollchecks_bodies = [selfcollchecks_bodies; ...
+          uint8([NLoffset_k+cb_k, R.NL+R.NLEG])]; %#ok<AGROW>
+        % fprintf(['Kollisionsprüfung (%d): Bein %d Seg. %d vs TCP. ', ...
+        %   'Zeile [%d,%d]\n'], size(selfcollchecks_bodies,1), k, cb_k, ...
+        %   selfcollchecks_bodies(end,1), selfcollchecks_bodies(end,2));
       end
     end
   end
@@ -1167,13 +1182,13 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   % Debug: Namen der Körper für die Kollisionsprüfung anzeigen
   % (unterscheidet sich von den Kollisionskörpern, den Körpern zugeordnet)
   if Structure.Type == 0
-    names_bodies = cell(R.NL,1);
+    names_bodies = cell(R.NL+1,1);
     names_bodies{1} = 'Base';
     for k = 2:R.NL
       names_bodies{k} = sprintf('Link %d', k-1);
     end
   else % PKM
-    names_bodies = cell(R.I2L_LEG(end)-R.NLEG+1+1,1);
+    names_bodies = cell(R.I2L_LEG(end)-R.NLEG+1+1+1,1);
     names_bodies{1} = 'Base';
     i = 1;
     for k = 1:NLEG
@@ -1186,8 +1201,9 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       i = i + 1;
       names_bodies{i} = sprintf('Leg %d Link %d (EE)', k, R.Leg(1).NL-1);
     end
-    names_bodies{end} = 'Platform';
+    names_bodies{end-1} = 'Platform';
   end
+  names_bodies{end} = 'TCP'; % Pseudo-Körper, damit Verbindung zum TCP mit einfacher Geometrie möglich ist.
   names_collbodies = cell(size(Structure.collbodies_robot.link,1),1);
   for i = 1:size(Structure.collbodies_robot.link,1)
     names_collbodies{i} = sprintf('%s + %s', names_bodies{1+Structure.collbodies_robot.link(i,1)}, ...
@@ -1214,9 +1230,9 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   % Prüfe die zusammengestellten Kollisionskörper. Die höchste Nummer
   % (Null-indiziert) ist durch die Roboterstruktur vorgegeben.
   if Structure.Type == 0
-    Nmax = R.NL-1;
+    Nmax = R.NL-1+1;
   else
-    Nmax = R.I2L_LEG(end)-(R.NLEG-1);
+    Nmax = R.I2L_LEG(end)-(R.NLEG-1)+1;
   end
   if any(Structure.collbodies_robot.link(:) > Nmax)
     error(['Ungültige Kollisionskörper. Maximaler Index %d in Structure.', ...
@@ -1371,13 +1387,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     % Nutze den vollständigen Winkelbereich. Sonst falsch-positiv.
     Q_test = -pi+2*pi*rand(100,R.NJ); JP_test = [];
     for jj = 1:size(Q_test,1)
-      if Structure.Type == 0  % Seriell
-        Tc_jj = R.fkine(Q_test(jj,:)');
-        JP_jj = squeeze(Tc_jj (1:3,4,1:end));
-      else % PKM-Beinkette
-        Tc_jj = R.fkine_coll2(Q_test(jj,:)');
-        JP_jj = reshape(Tc_jj(:,4),3,size(Tc_jj,1)/3);
-      end
+      [~, JP_jj] = R.fkine_coll2(Q_test(jj,:)');
       JP_test = [JP_test; JP_jj(:)']; %#ok<AGROW>
     end
     [~, colldist_test] = check_collisionset_simplegeom_mex(R.collbodies, ...
