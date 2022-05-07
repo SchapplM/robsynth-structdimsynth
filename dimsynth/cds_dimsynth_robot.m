@@ -1089,9 +1089,15 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
                 cb_k == R.Leg(k).collbodies.link(1,1) && cb_i == R.Leg(i).collbodies.link(1,1) % erstes Segment
               continue
             end
+            row_ki = uint8([NLoffset_k+cb_k, NLoffset_i+cb_i]);
+            if any(all(selfcollchecks_bodies==...
+                repmat(row_ki,size(selfcollchecks_bodies,1),1),2))
+              % Eintrag ist schon vorhanden. Betrifft voraussichtlich
+              % Kollisionsprüfungen der Beinkette mit der eigenen Basis
+              continue
+            end
             % Eintragen
-            selfcollchecks_bodies = [selfcollchecks_bodies; ...
-              uint8([NLoffset_k+cb_k, NLoffset_i+cb_i])]; %#ok<AGROW>
+            selfcollchecks_bodies = [selfcollchecks_bodies; row_ki]; %#ok<AGROW>
             % fprintf(['Kollisionsprüfung (%d): Bein %d Seg. %d vs Bein %d Seg. %d. ', ...
             %   'Zeile [%d,%d]\n'], size(selfcollchecks_bodies,1), k, cb_k, i, ...
             %   cb_i, selfcollchecks_bodies(end,1), selfcollchecks_bodies(end,2));
@@ -1176,9 +1182,6 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       end
     end
   end
-  selfcollchecks_bodies_sort = sortrows(selfcollchecks_bodies')';
-  assert(size(unique(selfcollchecks_bodies_sort, 'rows'),1)==size( ...
-    selfcollchecks_bodies_sort,1), 'In selfcollchecks_bodies sind doppelte Einträge');
   % Debug: Namen der Körper für die Kollisionsprüfung anzeigen
   % (unterscheidet sich von den Kollisionskörpern, den Körpern zugeordnet)
   if Structure.Type == 0
@@ -1226,6 +1229,23 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         selfcollchecks_bodies(i,2), names_bodies{1+selfcollchecks_bodies(i,1)}, ...
         names_bodies{1+selfcollchecks_bodies(i,2)});
     end
+  end
+  % Prüfe die Liste der Kollisionsprüfungen aus selfcollchecks_bodies
+  selfcollchecks_bodies_sort = sortrows(selfcollchecks_bodies')';
+  [selfcollchecks_bodies_unique, I_unique] = unique(selfcollchecks_bodies_sort, 'rows');
+  if size(selfcollchecks_bodies_unique,1) ~= size( ...
+    selfcollchecks_bodies_sort,1)
+    I_nonunique = []; % Indizes der doppelten Kollisionsprüfungen
+    for jj = 1:size(selfcollchecks_bodies_sort,1)
+      if ~any(I_unique==jj), I_nonunique = [I_nonunique, jj]; end %#ok<AGROW>
+    end
+    I_exist = []; % Indizes der bereits vorhandenen zu den doppelten
+    for kk = I_nonunique
+      I_exist = [I_exist, find(all(selfcollchecks_bodies==repmat( ...
+        selfcollchecks_bodies(kk,:),size(selfcollchecks_bodies,1),1),2))']; %#ok<AGROW>
+    end
+    error('In selfcollchecks_bodies sind doppelte Einträge. Doppelt: [%s], vorhanden: [%s]', ...
+      disp_array(I_nonunique,'%d'), disp_array(setxor(I_nonunique,I_exist),'%d'));
   end
   % Prüfe die zusammengestellten Kollisionskörper. Die höchste Nummer
   % (Null-indiziert) ist durch die Roboterstruktur vorgegeben.
