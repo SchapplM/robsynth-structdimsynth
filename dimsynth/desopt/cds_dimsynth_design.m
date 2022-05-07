@@ -355,7 +355,11 @@ for i = 1:length(m_ges_Link)
       % Annahme: Da die Plattform in der Mitte des Roboters ist, muss keine besondere
       % EE-Transformation berücksichtigt werden.
       R_i_Si = eye(3);
-      if any(R.T_P_E(1:3,4))
+      if Set.optimization.ee_translation && any(R.T_P_E(1:3,4))
+        % Wenn eine EE-Transformation optimiert wird, müssten dafür auch
+        % Dynamik-Parameter bestimmt werden. Ist noch nicht implementiert.
+        % Wenn eine EE-Trafo gegeben ist, kann die Masse davon bei
+        % Einstellung "payload" eingesetzt werden.
         save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_design_error.mat'));
         error('Der Vergleich zwischen Seriell und Parallel bei vorhandener Trafo P-E ist aktuell nicht möglich');
       end
