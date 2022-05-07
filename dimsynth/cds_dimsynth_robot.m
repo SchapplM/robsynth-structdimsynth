@@ -495,6 +495,9 @@ elseif Structure.Type == 0 || Structure.Type == 2
   % Plausibilität der Ergebnisse eingeschränkt. TODO: Zurücknehmen, sobald
   % Kollisionskörper für Führungsschiene/Zylinder besser implementiert sind
   I_cyl = find(R_pkin.MDH.sigma == 1 & R_init.DesPar.joint_type == 5);
+  % Nur bei räumlichen Systemen mit Drehung aus der Ebene heraus machen.
+  % Betrifft die serielle Kette und nicht die Aufgabe (im Fall von PKM)
+  if all(R_pkin.I_EE(4:5)==0), I_cyl = []; end
   for ii_cyl = I_cyl' % Alle Gelenke mit Schubzylinder durchgehen (falls mehrere)
     % Setze den a-Parameter vor einem Schubylinder zu Null. Dadurch drückt
     % der Zylinder direkt auf das vorhergehende Gelenk
