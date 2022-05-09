@@ -1111,39 +1111,39 @@ end
 if Structure.task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
   % Teste nur die ersten fünf Einträge (sind vorgegeben). Der sechste
   % Wert wird an dieser Stelle erst berechnet und kann nicht verglichen werden.
-  % Hier wird nur eine Hin- und Rückrechnung (InvKin/DirKin) gemacht. 
-  test_X = Traj_0.X(:,1:5) - X2(:,1:5);
+  % Hier wird nur eine Hin- und Rückrechnung (InvKin/DirKin) gemacht.
+  test_X = Traj_0.X(1:Stats.iter,1:5) - X2(1:Stats.iter,1:5);
   test_X([false(size(test_X,1),3),abs(abs(test_X(:,4:5))-2*pi)<1e-3]) = 0; % 2pi-Fehler entfernen
   if any(abs(test_X(:))>1e-6)
     % Bestimme die mittlere Abweichung zwischen Position des Endeffektors
     % aus inverser und direkter Kinematik
     % Dieser Fall darf eigentlich gar nicht auftreten, wenn invkin und
     % fkin korrekt implementiert sind.
-    fval_x = mean(test_X(:));
+    fval_x = mean(abs(test_X(:)));
     fval_x_norm = 2/pi*atan(fval_x*70); % Normierung auf 0 bis 1. 0.1 -> 0.9
     fval_all(i_m, i_ar)  = 1e4*(3+fval_x_norm); % Werte zwischen 3e4 und 4e4
     constrvioltext_m{i_m}=sprintf(['Fehler der EE-Lage der ersten Beinkette ', ...
       'zwischen invkin und fkine. Max Fehler %1.2e'], max(abs(test_X(:))));
     continue
   end
-  test_XD = Traj_0.XD(:,1:5) - XD2(:,1:5);
+  test_XD = Traj_0.XD(1:Stats.iter,1:5) - XD2(1:Stats.iter,1:5);
   if any(abs(test_XD(:))>1e-5)
     % Bestimme die mittlere Abweichung zwischen Geschwindigkeit des Endeffektors
     % aus inverser und direkter differentieller Kinematik. Darf
     % eigentlich nicht passieren (s.o.).
-    fval_xD = mean(test_XD(:));
+    fval_xD = mean(abs(test_XD(:)));
     fval_xD_norm = 2/pi*atan(fval_xD*70); % Normierung auf 0 bis 1. 0.1 -> 0.9
     fval_all(i_m, i_ar)  = 1e4*(2+fval_xD_norm); % Werte zwischen 2e4 und 3e4
     constrvioltext_m{i_m}=sprintf(['Fehler der EE-Geschwindigkeit der ersten Beinkette ', ...
       'zwischen invkin und fkine. Max Fehler %1.2e'], max(abs(test_XD(:))));
     continue
   end
-  test_XDD = Traj_0.XDD(:,1:5) - XDD2(:,1:5);
+  test_XDD = Traj_0.XDD(1:Stats.iter,1:5) - XDD2(1:Stats.iter,1:5);
   if any(abs(test_XDD(:))>1e-4)
     % Bestimme die mittlere Abweichung zwischen Beschleunigung des Endeffektors
     % aus inverser und direkter differentieller Kinematik. Darf
     % eigentlich nicht passieren (s.o.).
-    fval_xDD = mean(test_XDD(:));
+    fval_xDD = mean(abs(test_XDD(:)));
     fval_xDD_norm = 2/pi*atan(fval_xDD*70); % Normierung auf 0 bis 1. 0.1 -> 0.9
     fval_all(i_m, i_ar)  = 1e4*(1+fval_xDD_norm); % Werte zwischen 1e4 und 2e4
     constrvioltext_m{i_m}=sprintf(['Fehler der EE-Beschleunigung der ersten Beinkette ', ...
@@ -1685,7 +1685,11 @@ end
 fval_all(i_m, i_ar) = 1e3;
 constrvioltext_m{i_m} = 'i.O.';
 end % for i_m
-assert(~all(isnan(fval_all(:))), 'Alle fval=NaN. Logik-Fehler.');
+if all(isnan(fval_all(:)))
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+    'cds_constraints_traj_fval_nan_error.mat')); 
+  error('Alle fval=NaN. Logik-Fehler.');
+end
 % Wähle das beste Ergebnis der IK-Methoden (GP/DP) aus. Das stellt das
 % Ergebnis für die Iteration über die Aufgabenredundanz-Schleife dar (i_ar)
 fval = min(fval_all(:, i_ar));
