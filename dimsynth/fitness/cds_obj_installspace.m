@@ -41,18 +41,12 @@ fval = 1e3;
 %% Gelenkpositionen berechnen
 if nargin < 6 || isempty(JP_in) || Set.general.debug_calc
   if R.Type == 0
-    JP = NaN(size(Q,1), 3*(1+R.NJ));
+    JP = NaN(size(Q,1), 3*(1+R.NJ+1));
   else
-    JP = NaN(size(Q,1), 3*(1+R.NJ+R.NLEG+1));
+    JP = NaN(size(Q,1), 3*(1+R.NJ+R.NLEG+1+1));
   end
   for i = 1:size(Q,1)
-    if R.Type == 0
-      Tc = R.fkine(Q(i,:)');
-      JointPos_all_i_fromdirkin = squeeze(Tc(1:3,4,1:end));
-    else
-      Tc_stack_PKM = R.fkine_coll2(Q(i,:)');
-      JointPos_all_i_fromdirkin = reshape(Tc_stack_PKM(:,4),3,size(Tc_stack_PKM,1)/3);
-    end
+    [~, JointPos_all_i_fromdirkin] = R.fkine_coll2(Q(i,:)');
     JP(i,:) = JointPos_all_i_fromdirkin(:);
   end
   if Set.general.debug_calc && nargin == 6 && ~isempty(JP_in)
