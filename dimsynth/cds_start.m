@@ -505,6 +505,7 @@ if Set.general.computing_cluster
     addpath(cluster_repo_path);
     ppn = min(length(I1_kk:I2_kk),Set.general.computing_cluster_cores);
     dependstruct = Set.general.cluster_dependjobs;
+    dependstruct.waittime_max = 3600; % eine Stunde lang versuchen (falls Cluster voll)
     jobIDs(1,kk) = jobStart(struct( ...
       'name', computation_name, ...
       ... % Nur so viele Kerne beantragen, wie auch benötigt werden ("ppn")
@@ -514,6 +515,7 @@ if Set.general.computing_cluster
       'locUploadFolder', jobdir, ...
       'time',comptime_est/3600), ... % Angabe in h
       dependstruct); % Mögliche Abhängigkeiten (optional)
+    assert(jobIDs(1,kk)~=0, 'Fehler beim Starten des Produktiv-Jobs auf Cluster');
     % Zusätzlich direkt das Aufräum-Skript starten. Es ist davon auszugehen, 
     % dass der Job vorzeitig abgebrochen wird, da die Rechenzeit unterschätzt
     % wird.
@@ -537,7 +539,9 @@ if Set.general.computing_cluster
       'matFileName', [computation_name2, '.m'], ...
       'locUploadFolder', jobdir, ...
       'time',2), ... % % Geht schnell. Veranschlage 2h. Evtl. länger wegen ParPool-Synchronisation.
-      struct('afternotok', jobIDs(1,kk))); % Abbruch des vorherigen Jobs als Start-Bedingung
+      struct('afternotok', jobIDs(1,kk), ... % Abbruch des vorherigen Jobs als Start-Bedingung
+      'waittime_max', 3600)); % eine Stunde lang versuchen (falls Cluster voll)
+    assert(jobIDs(2,kk)~=0, 'Fehler beim Starten des Finish-Jobs auf Cluster');
     cds_log(1, sprintf(['Berechnung von %d Robotern wurde auf Cluster hochgeladen. Ende. ', ...
       'Die Ergebnisse müssen nach Beendigung der Rechnung manuell heruntergeladen ', ...
       'werden.'], length(I1_kk:I2_kk)));
@@ -572,7 +576,8 @@ if Set.general.computing_cluster
       'locUploadFolder', jobdir3, ...
       'time',1), ... % Geht schnell
       ... % Nur starten, wenn vorherige Produktiv- und Aufräum-Jobs erledigt
-      struct('afterany', jobIDs(:)'));
+      struct('afterany', jobIDs(:)', 'waittime_max', 3600));
+    assert(jobID_merge~=0, 'Fehler beim Starten des Merge-Jobs auf Cluster');
     cds_log(1, sprintf(['Insgesamt %d Optimierungen mit in Summe %d Robotern hochgeladen. ',...
       'Produktiv-Jobs: [%s], Finish-Jobs: [%s], Merge-Job: %d'], ...
       length(I1_Struct), length(Structures), disp_array(jobIDs(1,:), '%d'), ...
