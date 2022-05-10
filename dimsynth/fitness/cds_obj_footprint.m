@@ -107,7 +107,7 @@ if Set.general.plot_robot_in_fitness < 0 && 1e4*fval > abs(Set.general.plot_robo
 else
   return
 end
-change_current_figure(701); clf; hold all;
+fhdl = change_current_figure(701); clf; hold all;
 view([0 90]); axis auto; hold on; grid on;
 xlabel('x in m'); ylabel('y in m'); zlabel('z in m');
 % Gelenkpunkte zeichnen
@@ -127,8 +127,8 @@ drawnow();
 [currgen,currind,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'ObjInstallspace');
 for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
   if strcmp(fileext{1}, 'fig')
-    saveas(701, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ObjFootprint.fig', currgen, currind, currimg)));
+    saveas(fhdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ObjFootprint.fig', currgen, currind, currimg)));
   else
-    export_fig(701, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ObjFootprint.%s', currgen, currind, currimg, fileext{1})));
+    export_fig(fhdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ObjFootprint.%s', currgen, currind, currimg, fileext{1})));
   end
 end

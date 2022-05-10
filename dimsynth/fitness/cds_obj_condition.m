@@ -110,7 +110,7 @@ else % PKM
       assert(all(abs(test_xD) < 1e-10), 'Umrechnung qD->xD falsch');
     end
   end
-  change_current_figure(201); clf;
+  fhdl = change_current_figure(201); clf;
   sgtitle('Auswertung Jacobi-Matrizen')
   subplot(2,3,1);
   plot(Traj_0.t, Cges); hold on;
@@ -137,9 +137,9 @@ else % PKM
   [currgen,currind,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'ParRobJacobian');
   for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
     if strcmp(fileext{1}, 'fig')
-      saveas(201, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ParRobJacobian.fig', currgen, currind, currimg)));
+      saveas(fhdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ParRobJacobian.fig', currgen, currind, currimg)));
     else
-      export_fig(201, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ParRobJacobian.%s', currgen, currind, currimg, fileext{1})));
+      export_fig(fhdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ParRobJacobian.%s', currgen, currind, currimg, fileext{1})));
     end
   end
 end

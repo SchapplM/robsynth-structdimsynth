@@ -72,7 +72,7 @@ if isnan(fval), fval = 1000-eps(1000); end
 if Set.general.plot_details_in_fitness < 0 && fval >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
    Set.general.plot_details_in_fitness > 0 && fval <= abs(Set.general.plot_details_in_fitness)
   E_Netz = cumtrapz(Traj_0.t, P_Netz);
-  change_current_figure(202); clf;
+  fhdl = change_current_figure(202); clf;
   if Set.optimization.ElectricCoupling, sgtitle('Energieverteilung (mit Zwischenkreis)');
   else,                                 sgtitle('Energieverteilung (ohne Zwischenkreis'); end
   subplot(2,2,1);
@@ -101,9 +101,9 @@ if Set.general.plot_details_in_fitness < 0 && fval >= abs(Set.general.plot_detai
   [currgen,currind,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'ParRobEnergy');
   for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
     if strcmp(fileext{1}, 'fig')
-      saveas(202, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ParRobEnergy.fig', currgen, currind, currimg)));
+      saveas(fhdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ParRobEnergy.fig', currgen, currind, currimg)));
     else
-      export_fig(202, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ParRobEnergy.%s', currgen, currind, currimg, fileext{1})));
+      export_fig(fhdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ParRobEnergy.%s', currgen, currind, currimg, fileext{1})));
     end
   end
 end

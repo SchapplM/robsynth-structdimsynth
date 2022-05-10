@@ -37,7 +37,7 @@ end
 tt = '';
 for i = 1:length(debug_info), tt = [tt, newline(), debug_info{i}]; end %#ok<AGROW>
 
-change_current_figure(200); clf; hold all;
+fighdl = change_current_figure(200); clf; hold all;
 view(3);
 axis auto
 hold on;grid on;
@@ -63,9 +63,9 @@ axis auto
 if ~isempty(Set.general.save_robot_details_plot_fitness_file_extensions)
   for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
     if strcmp(fileext{1}, 'fig')
-      saveas(200, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_Details.fig', currgen, currind, currimg)));
+      saveas(fighdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_Details.fig', currgen, currind, currimg)));
     else
-      export_fig(200, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_Details.%s', currgen, currind, currimg, fileext{1})));
+      export_fig(fighdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_Details.%s', currgen, currind, currimg, fileext{1})));
     end
   end
 end
