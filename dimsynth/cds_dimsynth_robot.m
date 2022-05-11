@@ -1306,7 +1306,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
           % Segment-Nummern der beteiligten Körper (jeder Kollisionskörper
           % hat zwei Roboter-Körper zugewiesen)
           ii_links = [Structure.collbodies_robot.link(ii1,:), ...
-            Structure.collbodies_robot.link(ii2,:)];
+                      Structure.collbodies_robot.link(ii2,:)];
           % Ein Körper darf nicht zwei mal auftreten (bei beiden
           % Kollisionsparteien). Dann sind es direkt benachbarte Objekte.
           ii_links_test = ii_links;
@@ -1331,19 +1331,19 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
           % PKM-Basis) oder zwei Einträge mit 0 (Kugeln um Gestellgelenk)
           % (siehe cds_update_collbodies zur Definition der Gestellteile)
           c1_is_base = false;
-          if ( length(intersect(Structure.collbodies_robot.link(ii1,:)', I_base)) == 2 || ... % beide Beinketten-Basis zugeordnet (Kreis)
-              length(intersect(Structure.collbodies_robot.link(ii1,:)', I_base)) == 1 && ... % einer zur PKM-Basis, einer zur Beinketten-Basis (Stern)
-              any(Structure.collbodies_robot.link(ii1,:)==0) || ...
-              all(Structure.collbodies_robot.link(ii1,:)==0) ) && ... % Beide zur PKM-Basis gezählt (Gestellgelenk-Kugel)
-              Structure.collbodies_robot.link(ii1,1) ~= Structure.collbodies_robot.link(ii1,2)
+          if (length(intersect(ii_links(1:2)', I_base)) == 2 || ... % beide Beinketten-Basis zugeordnet (Kreis)
+              length(intersect(ii_links(1:2)', I_base)) == 1 && ... % einer zur PKM-Basis, einer zur Beinketten-Basis (Stern)
+              any(ii_links(1:2)==0) || ...
+              all(ii_links(1:2)==0) ) && ... % Beide zur PKM-Basis gezählt (Gestellgelenk-Kugel)
+              ii_links(1) ~= ii_links(2)
             c1_is_base = true;
           end
           c2_is_base = false; % das gleiche nochmal
-          if ( length(intersect(Structure.collbodies_robot.link(ii2,:)', I_base)) == 2 || ...
-              length(intersect(Structure.collbodies_robot.link(ii2,:)', I_base)) == 1 && ...
-              any(Structure.collbodies_robot.link(ii2,:)==0) || ...
-              all(Structure.collbodies_robot.link(ii2,:)==0) ) && ...
-              Structure.collbodies_robot.link(ii2,1) ~= Structure.collbodies_robot.link(ii2,2)
+          if (length(intersect(ii_links(3:4)', I_base)) == 2 || ...
+              length(intersect(ii_links(3:4)', I_base)) == 1 && ...
+              any(ii_links(3:4)==0) || ...
+              all(ii_links(3:4)==0) ) && ...
+              ii_links(3) ~= ii_links(4)
             c2_is_base = true;
           end
           % Finde heraus, ob einer der Kollisionskörper ein Plattformteil ist
@@ -1362,6 +1362,9 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
               ii_links(3) == ii_links(4)
             c2_is_platform = true;
           end
+          % Finde heraus, ob beide Körper zu der gleichen Beinkette gehören
+          is_same_leg = ~isempty(intersect(ii_leg(1:2), ii_leg(3:4)));
+          % Prüfe auf mögliche Ausschlüssgründe für die Kollisionsprüfung
           if c1_is_platform && c2_is_platform
             % Beide Körper sind Teil der Plattform, aber zwecks Implemen-
             % tierung verschiedenen Beinketten zugeordnet. Keine Kollisions-
@@ -1379,9 +1382,22 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
             % Beinkette mit nicht daran angrenzenden Kanten der Plattform
             % gebildet. Teilweise ist dann aber eine Kollision mit dem
             % Anfang der Beinkette und der eigenen Plattform-Seite möglich
-            if ~isempty(intersect(ii_leg(1:2), ii_leg(3:4)))
+            if is_same_leg
               continue
             end
+          end
+          % Prüfe, ob ein an das Gestell angrenzender Körper mit dem
+          % Gestell auf Kollision geprüft wird. Hier liegt immer eine
+          % Überschneidung vor, daher keine Prüfung möglich. Wird durch
+          % obige Initialisierung nicht ausgeschlossen, da Beinketten-Basis- 
+          % Kollisionskörper mehreren Körpern zugeordnet sind.
+          I_leglink1 = I_base + 1;
+          if is_same_leg && (...
+              c1_is_base && ... % Erster Körper ist Basis
+              ~isempty(intersect(I_leglink1, ii_links(3:4))) || ... % zweiter Körper ist erstes Beinsegment
+              c2_is_base && ... % Zweiter Körper ist Basis
+              ~isempty(intersect(I_leglink1, ii_links(1:2)))) % erster Körper ist erstes Beinsegment
+            continue
           end
         end
         kk = kk + 1;
@@ -1413,7 +1429,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       [~, JP_jj] = R.fkine_coll2(Q_test(jj,:)');
       JP_test = [JP_test; JP_jj(:)']; %#ok<AGROW>
     end
-    [~, colldist_test] = check_collisionset_simplegeom_mex(R.collbodies, ...
+    [colldet_test, colldist_test] = check_collisionset_simplegeom_mex(R.collbodies, ...
       R.collchecks, JP_test, struct('collsearch', false));
     % Prüfe, welche Abstände sich bei diesen Zufallswerten nicht ändern.
     % Mit der Information kann man hier nicht wirklich etwas anfangen.
@@ -1435,6 +1451,19 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
           i, colldist_range(i), R.collchecks(i,1), R.collchecks(i,2), ...
           names_collbodies{R.collchecks(i,1)}, names_collbodies{R.collchecks(i,2)});
       end
+    end
+    % Prüfe, ob permanent unbeeinflussbare Kollisionen erkannt werden.
+    I_alwayscoll = all(colldet_test)' & I_ccnc;
+    if any(I_alwayscoll)
+      fprintf('%d/%d Kollisionsprüfungen mit permanenter Kollision:\n', ...
+        sum(I_alwayscoll), length(I_alwayscoll));
+      for i = find(I_alwayscoll(:))'
+        fprintf('%03d: [%02d %02d], "%s" vs "%s"\n', ...
+          i, R.collchecks(i,1), R.collchecks(i,2), ...
+          names_collbodies{R.collchecks(i,1)}, names_collbodies{R.collchecks(i,2)});
+      end
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot_collcheck_error.mat'));
+      error('Logik-Fehler bei Initialisierung der Kollisionsprüfungen.')
     end
 %     if any(I_ccnc)
 %       cds_log(3, sprintf(['[dimsynth] Die Kollisionsabstände für %d ', ...

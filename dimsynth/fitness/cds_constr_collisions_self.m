@@ -76,7 +76,7 @@ else
   % Als Rückgabe, dass es keine Kollision gibt
   fval = 0;
 end
-%% Debug: Zeichnen der Situation
+%% Debug: Zeichnen der Situation (Abfrage für Ausstieg aus Funktion)
 if fval ~= 0 && ... % Nur Zeichnen, wenn auch Kollisionen auftreten
    (Set.general.plot_details_in_fitness < 0 && 1e4*fval >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
     Set.general.plot_details_in_fitness > 0 && 1e4*fval <= abs(Set.general.plot_details_in_fitness))
@@ -84,6 +84,7 @@ if fval ~= 0 && ... % Nur Zeichnen, wenn auch Kollisionen auftreten
 else
   return
 end
+%% Debug: Zeichnen der Situation
 % Suche Datenpunkt mit größter Kollision
 colldepth_rel(coll==0) = 0;
 colldepth_t = sum(colldepth_rel,2);
