@@ -150,7 +150,7 @@ end
 % Suche Datenpunkt mit weitester Entfernung vom Bauraum (schlechtester Fall)
 j = idx_timestep_worst(idx_body_worst); % Index für Zeitschritt in Daten 
 % Bild zeichnen
-change_current_figure(869); clf; hold all
+fhdl = change_current_figure(869); clf; hold all
 view(3); axis auto; grid on;
 xlabel('x in m');ylabel('y in m');zlabel('z in m');
 % Trajektorie zeichnen
@@ -242,9 +242,9 @@ drawnow();
 [currgen,currind,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'CollisionsWS');
 for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
   if strcmp(fileext{1}, 'fig')
-    saveas(869, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_CollisionsWS.fig', currgen, currind, currimg)));
+    saveas(fhdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_CollisionsWS.fig', currgen, currind, currimg)));
   else
-    export_fig(869, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_CollisionsWS.%s', currgen, currind, currimg, fileext{1})));
+    export_fig(fhdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_CollisionsWS.%s', currgen, currind, currimg, fileext{1})));
   end
 end
 if num_coll_plot == 0

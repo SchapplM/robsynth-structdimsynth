@@ -97,7 +97,7 @@ colldepth_t = sum(colldepth_rel,2);
 % end
 
 % Bild zeichnen
-change_current_figure(867); clf; hold all
+fhdl = change_current_figure(867); clf; hold all
 view(3); axis auto; grid on;
 xlabel('x in m');ylabel('y in m');zlabel('z in m');
 if R.Type == 0 % Seriell
@@ -169,9 +169,9 @@ drawnow();
 [currgen,currind,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'CollisionsSelf');
 for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
   if strcmp(fileext{1}, 'fig')
-    saveas(867, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_CollisionsSelf.fig', currgen, currind, currimg)));
+    saveas(fhdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_CollisionsSelf.fig', currgen, currind, currimg)));
   else
-    export_fig(867, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_CollisionsSelf.%s', currgen, currind, currimg, fileext{1})));
+    export_fig(fhdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_CollisionsSelf.%s', currgen, currind, currimg, fileext{1})));
   end
 end
 if any(num_coll_plot) ~= any(coll(j,:))
