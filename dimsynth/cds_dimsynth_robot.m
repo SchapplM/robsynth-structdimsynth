@@ -547,9 +547,7 @@ elseif Structure.Type == 0 || Structure.Type == 2
   if Structure.Type == 0
     R.update_mdh(pkin_init);
   else
-    for i = 1:R.NLEG
-      R.Leg(i).update_mdh(pkin_init);
-    end
+    R.update_mdh_legs(pkin_init);
   end
   nvars = nvars + sum(Ipkinrel);
   vartypes = [vartypes; 1*ones(sum(Ipkinrel),1)];
@@ -1437,10 +1435,10 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       % Variieren der Kinematikparameter, damit nicht die oben zufällig
       % gewählten Parameter immer zu einer Kollision führen (bswp. durch
       % Kollision der letzten Beinkette mit einem Plattform-Kollisionskörper)
-      pkin_jj = pkin_init;
+      pkin_jj = pkin_init;  
       pkin_jj(pkin_jj~=0) = -0.5+rand(sum(pkin_jj~=0),1);
       if Structure.Type == 0, R.update_mdh(pkin_jj);
-      else, for i = 1:R.NLEG, R.Leg(i).update_mdh(pkin_jj); end; end
+      else,                         R.update_mdh_legs(pkin_jj); end
       [~, JP_jj] = R.fkine_coll2(Q_test(jj,:)');
       JP_test = [JP_test; JP_jj(:)']; %#ok<AGROW>
     end

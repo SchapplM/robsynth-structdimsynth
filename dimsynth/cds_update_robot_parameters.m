@@ -77,13 +77,8 @@ if R_neu.Type == 0 || R_neu.Type == 2
       p_phys(Ipkin(j)) = pkin_optvar(j)*scale;
     end
   end
-  if R_neu.Type == 0 % Seriell
-    R_neu.update_mdh(pkin_voll);
-  else  % Parallel
-    for i = 1:R.NLEG
-      R_neu.Leg(i).update_mdh(pkin_voll);
-    end
-  end
+  if R_neu.Type == 0, R_neu.update_mdh(pkin_voll);  % Seriell
+  else,               R_neu.update_mdh_legs(pkin_voll); end % Parallel
 else
   error('Noch nicht implementiert');
 end
