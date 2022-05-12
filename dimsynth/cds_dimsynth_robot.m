@@ -1386,17 +1386,25 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
               continue
             end
           end
-          % Prüfe, ob ein an das Gestell angrenzender Körper mit dem
+          % Prüfe, ob ein an das Gestell angrenzender Kollisionskörper mit dem
           % Gestell auf Kollision geprüft wird. Hier liegt immer eine
           % Überschneidung vor, daher keine Prüfung möglich. Wird durch
           % obige Initialisierung nicht ausgeschlossen, da Beinketten-Basis- 
-          % Kollisionskörper mehreren Körpern zugeordnet sind.
-          I_leglink1 = I_base + 1;
+          % Kollisionskörper mehreren Körpern zugeordnet sind. Es muss
+          % geprüft werden, ob es der erste Kollisionskörper der Beinkette
+          % ist - nicht der erste Körper (falls z.B. U-Gelenk zuerst kommt).
+          for j = 1:R.Leg(1).NJ % Gehe alle Körper der Beinkette durch
+            I_leglink_first = I_base + j; % Annahme: Symmetrische PKM
+            % Prüfe, ob diesem Körper j ein Kollisionskörper zugeordnet ist
+            if ~isempty(intersect(Structure.collbodies_robot.link(:), I_leglink_first))
+              break; % Körper j ist ein KK zugeordnet
+            end
+          end
           if is_same_leg && (...
               c1_is_base && ... % Erster Körper ist Basis
-              ~isempty(intersect(I_leglink1, ii_links(3:4))) || ... % zweiter Körper ist erstes Beinsegment
+              ~isempty(intersect(I_leglink_first, ii_links(3:4))) || ... % zweiter Körper ist erster Bein-Kollisionskörper
               c2_is_base && ... % Zweiter Körper ist Basis
-              ~isempty(intersect(I_leglink1, ii_links(1:2)))) % erster Körper ist erstes Beinsegment
+              ~isempty(intersect(I_leglink_first, ii_links(1:2)))) % erster Körper ist erster Bein-Kollisionskörper
             continue
           end
         end
@@ -1426,49 +1434,66 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     % Nutze den vollständigen Winkelbereich. Sonst falsch-positiv.
     Q_test = -pi+2*pi*rand(100,R.NJ); JP_test = [];
     for jj = 1:size(Q_test,1)
+      % Variieren der Kinematikparameter, damit nicht die oben zufällig
+      % gewählten Parameter immer zu einer Kollision führen (bswp. durch
+      % Kollision der letzten Beinkette mit einem Plattform-Kollisionskörper)
+      pkin_jj = pkin_init;
+      pkin_jj(pkin_jj~=0) = -0.5+rand(sum(pkin_jj~=0),1);
+      if Structure.Type == 0, R.update_mdh(pkin_jj);
+      else, for i = 1:R.NLEG, R.Leg(i).update_mdh(pkin_jj); end; end
       [~, JP_jj] = R.fkine_coll2(Q_test(jj,:)');
       JP_test = [JP_test; JP_jj(:)']; %#ok<AGROW>
     end
     [colldet_test, colldist_test] = check_collisionset_simplegeom_mex(R.collbodies, ...
       R.collchecks, JP_test, struct('collsearch', false));
     % Prüfe, welche Abstände sich bei diesen Zufallswerten nicht ändern.
-    % Mit der Information kann man hier nicht wirklich etwas anfangen.
     % Die kinematischen Zwangsbedingungen für PKM sind nicht berücksichtigt.
+    % Es kann später also noch mehr Prüfungen geben, die gleich sind. Hier
+    % sollte aber eigentlich keine Prüfung immer gleich bleiben.
     colldist_range = diff(minmax2(colldist_test')');
     I_ccnc = abs(colldist_range(:)) < 1e-10; % "ccnc": "collcheck nochange"
-    if false % Debug:
-      fprintf('%d/%d Kollisionsprüfungen ohne Änderung der Abstände:\n', ...
-        sum(I_ccnc), length(I_ccnc)); %#ok<UNRCH>
+    if any(I_ccnc)
+      cds_log(2, sprintf(['[dimsynth] Die Kollisionsabstände für %d ', ...
+        'Prüfungen sind immer gleich.'], sum(I_ccnc)));
+      logstr=sprintf('%d/%d Kollisionsprüfungen ohne Änderung der Abstände:\n', ...
+        sum(I_ccnc), length(I_ccnc));
       for i = find(I_ccnc(:))'
-        fprintf('%03d (dist range. %1.1e): [%02d %02d], "%30s" vs "%30s"\n', ...
+        logstr=[logstr,sprintf('%03d (dist range. %1.1e): [%02d %02d], "%30s" vs "%30s"\n', ...
           i, colldist_range(i), R.collchecks(i,1), R.collchecks(i,2), ...
-          names_collbodies{R.collchecks(i,1)}, names_collbodies{R.collchecks(i,2)});
+          names_collbodies{R.collchecks(i,1)}, names_collbodies{R.collchecks(i,2)})]; %#ok<AGROW> 
       end
-      fprintf('%d/%d Kollisionsprüfungen mit Änderung der Abstände:\n', ...
-        sum(~I_ccnc), length(I_ccnc));
+      logstr=[logstr,sprintf('%d/%d Kollisionsprüfungen mit Änderung der Abstände:\n', ...
+        sum(~I_ccnc), length(I_ccnc))];
       for i = find(~I_ccnc(:))'
-        fprintf('%03d (dist range. %1.1e): [%02d %02d], "%30s" vs "%30s"\n', ...
+        logstr=[logstr,sprintf('%03d (dist range. %1.1e): [%02d %02d], "%30s" vs "%30s"\n', ...
           i, colldist_range(i), R.collchecks(i,1), R.collchecks(i,2), ...
-          names_collbodies{R.collchecks(i,1)}, names_collbodies{R.collchecks(i,2)});
+          names_collbodies{R.collchecks(i,1)}, names_collbodies{R.collchecks(i,2)})]; %#ok<AGROW> 
       end
+      cds_log(3, logstr);
     end
     % Prüfe, ob permanent unbeeinflussbare Kollisionen erkannt werden.
     I_alwayscoll = all(colldet_test)' & I_ccnc;
     if any(I_alwayscoll)
-      fprintf('%d/%d Kollisionsprüfungen mit permanenter Kollision:\n', ...
+      logstr=sprintf('%d/%d Kollisionsprüfungen mit permanenter Kollision:\n', ...
         sum(I_alwayscoll), length(I_alwayscoll));
       for i = find(I_alwayscoll(:))'
-        fprintf('%03d: [%02d %02d], "%s" vs "%s"\n', ...
+        logstr=[logstr,sprintf('%03d: [%02d %02d], "%s" vs "%s"\n', ...
           i, R.collchecks(i,1), R.collchecks(i,2), ...
-          names_collbodies{R.collchecks(i,1)}, names_collbodies{R.collchecks(i,2)});
+          names_collbodies{R.collchecks(i,1)}, names_collbodies{R.collchecks(i,2)})]; %#ok<AGROW> 
       end
+      cds_log(-1, logstr);
       save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot_collcheck_error.mat'));
+      % Debug: Unterschiedliche Fälle untersuchen
+%       Set.general.plot_details_in_fitness = inf;
+%       Traj_0 = cds_transform_traj(R, Traj);
+%       for k = 1:3
+%         cds_constr_collisions_self(R, Traj_0.X(k,:), Set, Structure, ...
+%           JP_test(k,:), Q_test(k,:), [1 2]);
+%         saveas(867, fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+%           'tmp', sprintf('cds_dimsynth_robot_collision_case_%d.fig', k)));
+%       end
       error('Logik-Fehler bei Initialisierung der Kollisionsprüfungen.')
     end
-%     if any(I_ccnc)
-%       cds_log(3, sprintf(['[dimsynth] Die Kollisionsabstände für %d ', ...
-%         'Prüfungen sind immer gleich.'], sum(I_ccnc)));
-%     end
     Structure.I_collcheck_nochange = I_ccnc;
     % Untersuche, welche Kollisionskörper gar nicht geprüft werden
     for i = 1:length(R.collbodies)
