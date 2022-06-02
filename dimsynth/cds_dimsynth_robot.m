@@ -1435,10 +1435,24 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       % Variieren der Kinematikparameter, damit nicht die oben zufällig
       % gewählten Parameter immer zu einer Kollision führen (bswp. durch
       % Kollision der letzten Beinkette mit einem Plattform-Kollisionskörper)
-      pkin_jj = pkin_init;  
-      pkin_jj(pkin_jj~=0) = -0.5+rand(sum(pkin_jj~=0),1);
-      if Structure.Type == 0, R.update_mdh(pkin_jj);
-      else,                         R.update_mdh_legs(pkin_jj); end
+      p_rand = varlim(:,1)+rand(size(varlim,1),1).*(varlim(:,2)-varlim(:,1));
+      cds_update_robot_parameters(R, Set, Structure, p_rand);
+      % Trage neue Grenzen mit Null für die Gelenkkoordinaten ein, damit
+      % Ersatzkörper für Schubgelenke in dieser Prüfung hier ignoriert werden
+      qmin_rand = Structure.qlim(:,1)+rand(size(Structure.qlim,1),1).* ...
+        diff(Structure.qlim')';
+      qmin_rand(isnan(qmin_rand)) = Structure.qlim(isnan(qmin_rand),1);
+      % Übernehme Werte der ersten Beinkette für alle anderen
+      if R.Type == 2
+        for k = 1:R.NLEG
+          qmin_rand(R.I1J_LEG(k):R.I2J_LEG(k)) = qmin_rand(R.I1J_LEG(1):R.I2J_LEG(1));
+        end
+      end
+      % minimal kurze Schubwege damit Kollisionskörper so klein wie möglich werden
+      qmax_rand = qmin_rand + eps;
+      qmax_rand(isinf(qmin_rand)) = +inf;
+      % Aktualisiere die Kollisionskörper der Schubgelenke
+      cds_update_collbodies(R, Set, Structure, [qmin_rand,qmax_rand]');
       [~, JP_jj] = R.fkine_coll2(Q_test(jj,:)');
       JP_test = [JP_test; JP_jj(:)']; %#ok<AGROW>
     end
