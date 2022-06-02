@@ -209,6 +209,7 @@ task = struct( ...
   'T_dec_ns', 0, ... % Zeit zum Abbremsen der Nullraumbewegung zwischen Rastpunkten. Bei 0 kein Abbremsen sondern durchgängige Bewegung. Verhältnis vmax/amax wird bei NaN automatisch gebildet
   'Ts', 1e-3, ... % Abtastzeit der Trajektorie
   'maxangle', 2*pi, ... % Keine Einschränkung für die maximalen Winkel
+  'wall_rotate_traj', false, ... % Schalter für Wandmontage, damit Trajektorie gedreht wird. Nur notwendig, falls Standard-Trajektorie benutzt werden soll.
   'installspace', struct( ... % Konfiguration des möglichen Bauraums
     'links', {{}}, ... % jew. Liste der von der Basis gezählten Segmente (Bsp.: alle erlaubt ist 0:6)
     'type', [], ... % 1=Quader, 2=Zylinder; zeilenweise mehrere Körper

@@ -296,7 +296,6 @@ if strcmp(mounting, 'floor')
 elseif strcmp(mounting, 'ceiling')
   % Roboter zeigt nach unten. x-Achse bleibt gleich
   R.update_base([], [pi;0;0]); % xyz-Euler-Winkel
-  R.update_gravity([0;0;-9.81]); % Gravitation wird für Dynamik im Basis-KS definiert.
   % Drehe End-Effektor auch um. Die Aufgaben sind so definiert, dass die
   % z-Achse standardmäßig (im Welt-KS) nach oben zeigt. Sonst ist bei
   % 2T1R, 3T0R und 3T1R die IK nicht lösbar.
@@ -304,9 +303,13 @@ elseif strcmp(mounting, 'ceiling')
   % nach oben zeigt. Jetzt zeigt sie im Basis-KS nach unten.
   Structure.R_N_E = Structure.R_N_E*rotx(pi); % wird damit in Opt. der EE-Rotation berücksichtigt
   R.update_EE([], r2eulxyz(Structure.R_N_E));
+elseif strcmp(mounting, 'wall')
+  % Roboter zeigt zur Seite (y-Achse). Bei 2T1R also Bewegung in xz-Ebene.
+  R.update_base([], [-pi/2;0;0]);
 else
   error('Fall %s noch nicht implementiert', mounting);
 end
+R.update_gravity([0;0;-9.81]); % Gravitation wird für Dynamik im Basis-KS definiert.
 if any(any(abs(Structure.R_N_E-eye(3)) > 1e-10))
   Structure.R_N_E_isset = true;
 else
@@ -634,6 +637,8 @@ if Set.optimization.movebase
       % Roboterbasis ist unterhalb der Aufgabe
       varlim = [varlim; repmat([-1, 0], sum(I_DoF_basepos(3)), 1)];
     elseif strcmp(mounting, 'ceiling')
+      varlim = [varlim; repmat([0, 1], sum(I_DoF_basepos(3)), 1)];
+    elseif strcmp(mounting, 'wall') % Annahme: Basis über der Aufgabe, Roboter arbeitet von der Wand weg
       varlim = [varlim; repmat([0, 1], sum(I_DoF_basepos(3)), 1)];
     else
       error('Noch nicht implementiert');

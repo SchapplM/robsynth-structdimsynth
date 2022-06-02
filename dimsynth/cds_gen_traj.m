@@ -237,7 +237,16 @@ if maxangle_traj > trajset.maxangle
   % Betrachte nur die einzelnen Euler-Komponenten. Ignoriere Kopplung
   XE(:,4:6) = trajset.maxangle * XE(:,4:6) / maxangle_traj;
 end
-
+%% Anpassung für Wandmontage
+if trajset.wall_rotate_traj % Drehe die Aufgabe um 90°
+  XE_old = XE;
+  for i = 1:size(XE,1)
+    R_W_0 = rotx(-pi/2);
+    % Trajektorie ursprünglich bzgl KS 0
+    XE(i,1:3) = R_W_0 * XE_old(i,1:3)';
+    XE(i,4:6) = r2eulxyz(R_W_0*eulxyz2r(XE_old(i,4:6)'));
+  end
+end
 %% Trajektorie generieren
 if trajset.profile == 1
   % TODO: Hier wäre eine echte Orientierungsinterpolation besser (z.B.
