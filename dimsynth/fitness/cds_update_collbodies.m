@@ -110,6 +110,9 @@ if update_collbodies
 end
 %% 
 if nargout == 0
+  if R.Type == 2
+    R.update_collbodies(); % sonst nicht wirksam für weitere Nutzung bei PKM
+  end
   return
 end
 %% Debug: Kollisionskörper zeichnen
@@ -117,12 +120,14 @@ if false
   change_current_figure(2301); clf; hold all %#ok<UNRCH>
   view(3); axis auto; grid on;
   xlabel('x in m');ylabel('y in m');zlabel('z in m');
+  q_plot = Q(1,:)';
+  q_plot(isinf(q_plot)) = 0;
   if R.Type == 0 % Seriell
     s_plot = struct( 'ks', 1:R.NJ+2, 'straight', 1, 'mode', 5);
-    R.plot( Q(1,:)', s_plot);
+    R.plot( q_plot, s_plot);
   else % PKM
     s_plot = struct( 'ks_legs', [], 'ks_platform', [], 'straight', 1, 'mode', 5);
-    R.plot( Q(1,:)', NaN(6,1), s_plot);
+    R.plot( q_plot, NaN(6,1), s_plot); % TODO: EE-Trafo fehlt noch
   end
 end
 
@@ -302,36 +307,25 @@ if Structure.Type ~= 0 % PKM
     'params', collbodies_robot.params(cbbpidx1:cbbpidx2,:));
   R.update_collbodies();
 end
+% Struktur der Kollisionskörper aus Roboterklasse nehmen
+collbodies_robot = R.collbodies;
 
-%% Kollisionskörper für PKM-Beinketten oder serielle Roboter
+%% Bauraumprüfung für Führungsschienen der PKM-Beinketten oder serielle Roboter
 if nargin < 4
   % Vereinfachter Aufruf um nur die Basis-Bauraumgeometrien zu initialisieren
   update_installspcbodies = false;
 end
 isidx = n_cb_instspc+1; % Nächster Index für collbodies_instspc
+
 for k = 1:NLEG
   if R.Type == 0  % Seriell 
-    NLoffset = 0;
     R_cc = R;
   else % PKM-Beinkette
-    % Alle bewegten Körper der Beinketten werden als Kollisionskörper
-    % gezählt, aber theoretisch auch (in der Zählung) alle Beinketten- 
-    % Basis-KS. Damit wird die spätere Kollisionsprüfung vereinfacht.
-    % Zusätzlich wird die PKM-Basis selbst gezählt (als erster Eintrag).
-    NLoffset = 1; % Für Basis der Beinkette
     R_cc = R.Leg(k);
-    if k > 1
-      NLoffset = 1+R.I2L_LEG(k-1)-(k-1); % in I1L wird auch Basis und EE-Link noch mitgezählt. Hier nicht.
-    end
   end
-  % Passe den Typ der Parameter an. Kollisionsobjekte der Führungsschiene
-  % an der PKM-Basis werden genauso zum Welt-KS gezählt.
-  collbodies_type_mod = R_cc.collbodies.type;
-  collbodies_params_mod = R_cc.collbodies.params;
   if R_cc.MDH.sigma(1) == 1
     if any(R_cc.collbodies.type(1) == [3 13])
       % 3=Kapsel mitbewegt, 13=Kapsel basisfest. Muss noch vereinheitlicht werden in Initialisierung
-      collbodies_type_mod(1) = uint8(13);
       if R_cc.islegchain
         % Transformation der Parameter ins Basis-KS der PKM. Das ist für
         % die Kollisionsprüfung einfacher.
@@ -339,7 +333,6 @@ for k = 1:NLEG
         pts_0i = R_cc.collbodies.params(1,1:6);
         pts_0 = [eye(3,4)*T_0_0i*[pts_0i(1:3)';1]; ...   % Punkt 1
                  eye(3,4)*T_0_0i*[pts_0i(4:6)';1]]'; ... % Punkt 2
-        collbodies_params_mod(1,1:6) = pts_0;
       else
         % Keine Anpassung notwendig. Führungsschiene ist bereits bezogen auf
         % Roboter-Basis-KS
@@ -357,11 +350,6 @@ for k = 1:NLEG
       isidx = isidx + 2;
     end
   end
-  % Trage in PKM-weite Variable ein (oder für Seriell-Roboter)
-  collbodies_robot.link = [collbodies_robot.link; ...
-    R_cc.collbodies.link(:,1:2)+NLoffset];
-  collbodies_robot.type = [collbodies_robot.type; collbodies_type_mod];
-  collbodies_robot.params = [collbodies_robot.params; collbodies_params_mod];
   % Überspringe die Indizes der Bauraum-Kollisionsobjekte für die Gelenke
   % Die übrigen Punktkoordinaten wurden schon vorher auf Null gesetzt.
   % (Entspricht Ursprung des jeweiligen Körper-KS)
@@ -371,6 +359,7 @@ end
 % Ausgabe der aktualisierten Liste der Bauraum-Kollisionsprüfungen
 return
 
+%% Debug: Vorbereitung
 % Debug: Bei Fehler bezüglich falscher Indizierung
 if isfield(Structure, 'collbodies_robot') %#ok<UNRCH> 
   n_cb_1 = size(Structure.collbodies_robot.type,1);
