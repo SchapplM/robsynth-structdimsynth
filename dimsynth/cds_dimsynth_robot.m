@@ -1040,7 +1040,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   % Roboter-Kollisionsobjekte in Struktur abspeichern (zum Abruf in den
   % Funktionen cds_constr_collisions_... und cds_constr_installspace
   % Ist erstmal nur Platzhalter. Wird zur Laufzeit noch aktualisiert.
-  Structure.collbodies_robot = cds_update_collbodies(R, Set, Structure, Structure.qlim');
+  Structure.collbodies_robot = cds_update_collbodies(R, Set, Structure, Structure.qlim', true);
   % Probe: Sind Daten konsistent? Inkonsistenz durch obigen Aufruf möglich.
   assert(size(Structure.collbodies_robot.params,1)==length(Structure.collbodies_robot.type), ...
     'Felder params und type haben keine konsistente Dimension in Structure.collbodies_robot.');
@@ -1110,7 +1110,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     for k = 1:NLEG
       if k > 1, NLoffset_k = 1+R.I2L_LEG(k-1)-(k-1);
       else,     NLoffset_k = 1; end
-      % Prüfe keine Kollision des ersten Kollisionskörpers, da dieser
+      % Prüfe keine Kollision des ersten Körpers, da dieser
       % Körper direkt nach dem Gestell kommt. Annahme. Kollision
       % konstruktiv vermeidbar
       for cb_k = R.Leg(k).collbodies.link(2:end,1)'
@@ -1121,7 +1121,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         % fprintf(['Kollisionsprüfung (%d): Bein %d Seg. %d vs Gestell. ', ...
         %   'Zeile [%d,%d]\n'], size(selfcollchecks_bodies,1), k, cb_k, ...
         %   selfcollchecks_bodies(end,1), selfcollchecks_bodies(end,2));
-        % Prüfe Kollision mit gestellfesten Kollisionskörpern, die dem
+        % Prüfe Kollision mit gestellfesten Körpern, die dem
         % Basis-KS von anderen Beinketten zugeordnet sind. Prüfe nicht die
         % Körper dieser Beinkette selbst, da dies schon weiter oben
         % geschehen ist. Gestell-Körper, die den Basis-KS von zwei Bein-
@@ -1327,7 +1327,9 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
           % Basis-Körper haben entweder Zugehörigkeit zu zwei Beinketten-
           % Basis-KS (in I_base) oder einen Eintrag mit 0 (sternförmig für
           % PKM-Basis) oder zwei Einträge mit 0 (Kugeln um Gestellgelenk)
-          % (siehe cds_update_collbodies zur Definition der Gestellteile)
+          % (siehe cds_update_collbodies zur Definition der Gestellteile).
+          % Hier müssen die Führungsschienen von gestellfesten Schub-
+          % gelenken noch der jeweiligen Beinketten-Basis zugeordnet sein
           c1_is_base = false;
           if (length(intersect(ii_links(1:2)', I_base)) == 2 || ... % beide Beinketten-Basis zugeordnet (Kreis)
               length(intersect(ii_links(1:2)', I_base)) == 1 && ... % einer zur PKM-Basis, einer zur Beinketten-Basis (Stern)
@@ -1451,8 +1453,9 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       % minimal kurze Schubwege damit Kollisionskörper so klein wie möglich werden
       qmax_rand = qmin_rand + eps;
       qmax_rand(isinf(qmin_rand)) = +inf;
-      % Aktualisiere die Kollisionskörper der Schubgelenke
-      cds_update_collbodies(R, Set, Structure, [qmin_rand,qmax_rand]');
+      % Aktualisiere die Kollisionskörper der Schubgelenke. Verschiebung der
+      % Zuordnung von Kollisionskörpern von Beinketten-Basis zu PKM-Basis.
+      cds_update_collbodies(R, Set, Structure, [qmin_rand,qmax_rand]', false);
       [~, JP_jj] = R.fkine_coll2(Q_test(jj,:)');
       JP_test = [JP_test; JP_jj(:)']; %#ok<AGROW>
     end

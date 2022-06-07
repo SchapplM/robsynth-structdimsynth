@@ -19,6 +19,11 @@
 %   Struktur mit Ersatz-Kollisionskörpern für die Prüfungs des Bauraums.
 %   Enthält Punkte für jedes Gelenk und Anfangs- und Endpunkt von
 %   Linearführungen von Schubachsen.
+% init
+%   Schalter, ob der Aufruf der Funktion für die Initialisierung oder vor
+%   einer Kollisionsprüfung geschieht.
+%   Vor der Initialisierung werden gestellfeste Kollisionskörper von PKM-
+%   Beinketten noch nicht zusammengefasst (siehe cds_dimsynth_robot).
 % 
 % Siehe auch: cds_dimsynth_robot.m (Code teilweise identisch), 
 % cds_constr_collisions_self
@@ -26,7 +31,10 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-07
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function [collbodies_robot, collbodies_instspc] = cds_update_collbodies(R, Set, Structure, Q)
+function [collbodies_robot, collbodies_instspc] = cds_update_collbodies(R, Set, Structure, Q, init)
+if nargin < 5
+  init = false;
+end
 if Set.general.matfile_verbosity > 2
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_update_collbodies_0.mat'));
   % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_update_collbodies_0.mat'));
@@ -36,7 +44,7 @@ if R.Type == 0 % Seriell
 elseif R.Type == 2 % Parallel
   NLEG = R.NLEG;
 end
-if nargin == 4
+if nargin >= 4 % Eingabe Q ist gegeben
   update_collbodies = true;
 else
   update_collbodies = false;
@@ -111,7 +119,7 @@ end
 %% 
 if nargout == 0
   if R.Type == 2
-    R.update_collbodies(); % sonst nicht wirksam für weitere Nutzung bei PKM
+    R.update_collbodies([1 2], init); % sonst nicht wirksam für weitere Nutzung bei PKM
   end
   return
 end
@@ -305,7 +313,7 @@ if Structure.Type ~= 0 % PKM
     'link',   collbodies_robot.link(cbbpidx1:cbbpidx2,:), ...
     'type',   collbodies_robot.type(cbbpidx1:cbbpidx2,:), ...
     'params', collbodies_robot.params(cbbpidx1:cbbpidx2,:));
-  R.update_collbodies();
+  R.update_collbodies([1 2], init);
 end
 % Struktur der Kollisionskörper aus Roboterklasse nehmen
 collbodies_robot = R.collbodies;

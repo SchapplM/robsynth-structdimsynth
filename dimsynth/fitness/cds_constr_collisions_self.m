@@ -152,8 +152,10 @@ for i = 1:size(collbodies.link,1)
     % collpairs_i = collchecks_i(collstate_i,:);
     % collpartners_i = unique(collpairs_i(:));
     % collpartners_i(collpartners_i==i) = []; % Entferne Element selbst
-    % fprintf('Koll.-Körper %d (Rob.-Seg. %d): Kollision mit KK [%s]\n', i, ...
-    %   collbodies.link(i,1), disp_array(collpartners_i', '%d'));
+    % II = find(I)'; % Zähl-Indizes der Kollisionsprüfungen, die getroffen wurden
+    % fprintf('Koll.-Körper %d (Rob.-Seg. %d): Kollision mit KK [%s]. Kollisionsprüfungen: [%s]\n', i, ...
+    %   collbodies.link(i,1), disp_array(collpartners_i', '%d'), ...
+    %   disp_array(II(coll(j,I)), '%d'));
   else
     color = 'b';
   end
