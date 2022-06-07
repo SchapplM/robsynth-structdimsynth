@@ -815,7 +815,7 @@ end
 % Plattform-Morphologie-Parameter (z.B. Gelenkpaarabstand).
 % Siehe align_platform_coupling.m
 if Structure.Type == 2 && Set.optimization.platform_morphology
-  if any(R.DesPar.platform_method == 1:3) % keine Parameter bei Kreis
+  if any(R.DesPar.platform_method == [1:3,7]) % keine Parameter bei Kreis
   elseif any(R.DesPar.platform_method == 4:6) % Parameter ist Gelenkpaarabstand (6FG-PKM)
     nvars = nvars + 1;
     vartypes = [vartypes; 9];
@@ -827,7 +827,7 @@ if Structure.Type == 2 && Set.optimization.platform_morphology
     varlim = [varlim; [-pi,pi]]; % Offset für Gelenkrichtung auf Plattform
     varnames = {varnames{:}, 'platform_morph_axoffset'}; %#ok<CCAT>
   else
-    error('Parameter "platform_morphology" für Platform-Methode %d nicht implementiert', R.DesPar.platform_method);
+    error('Parameter "platform_morphology" für Plattform-Methode %d nicht implementiert', R.DesPar.platform_method);
   end
 end
 % Variablen-Typen speichern
