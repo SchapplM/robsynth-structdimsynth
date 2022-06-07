@@ -22,7 +22,8 @@
 %   Strafterm in der Fitnessfunktion bei Verletzung der Nebenbedingungen
 %   Werte:
 %   1e3: Keine Verletzung der Nebenbedingungen. Alles i.O.
-%   1e3...2e3: Arbeitsraum-Hindernis-Kollision in Trajektorie
+%   1.0e3...1.1e3: Abbruch aufgrund Überschreitung Konditionszahl-Grenze
+%   1.1e3...2e3: Arbeitsraum-Hindernis-Kollision in Trajektorie
 %   2e3...3e3: Bauraumverletzung in Trajektorie
 %   3e3...4e3: Selbstkollision in Trajektorie
 %   4e3...5e3: Konfiguration springt
@@ -1626,7 +1627,7 @@ if Set.optimization.constraint_collisions
 %     end
     continue
   elseif Stats.errorcode == 3 && Stats.h(Stats_iter_h,1+R.idx_iktraj_hn.coll_hyp) ...
-      <= s.abort_thresh_h(R.idx_iktraj_hn.coll_hyp)
+      >= s.abort_thresh_h(R.idx_iktraj_hn.coll_hyp)
     % Mögliche Ursache: Kollisionskörper in Traj.-IK sind größer als hier.
     cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Kollision in ', ...
       'Traj.-IK erkannt, aber nicht danach.'], Structure.config_index, Structure.config_number));
@@ -1652,7 +1653,7 @@ if ~isempty(Set.task.installspace.type)
     end
   end
   if Stats.errorcode == 3 && Stats.h(Stats_iter_h,1+R.idx_iktraj_hn.instspc_hyp) ...
-      <= s.abort_thresh_h(R.idx_iktraj_hn.instspc_hyp)
+      >= s.abort_thresh_h(R.idx_iktraj_hn.instspc_hyp)
     % Eine Ursache für falsche Erkennung: Exakt auf Grenze, daher in Traj.
     % erkannt und in CDS nicht.
     cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Bauraumverletzung in ', ...
@@ -1665,14 +1666,28 @@ end
 %% Arbeitsraum-Hindernis-Kollisionsprüfung für Trajektorie
 if ~isempty(Set.task.obstacles.type)
   [fval_obstcoll_traj, coll_obst_traj, f_constr_obstcoll_traj] = cds_constr_collisions_ws( ...
-    R, Traj_0.X, Set, Structure, JP, Q, [1e3;2e3]);
+    R, Traj_0.X, Set, Structure, JP, Q, [1.1e3;2e3]);
   if fval_obstcoll_traj > 0
-    fval_all(i_m, i_ar)  = fval_obstcoll_traj; % Normierung auf 1e3 bis 2e3 -> bereits in Funktion
+    fval_all(i_m, i_ar)  = fval_obstcoll_traj; % Normierung auf 1.1e3 bis 2e3 -> bereits in Funktion
     constrvioltext_m{i_m} = sprintf(['Arbeitsraum-Kollision in %d/%d Traj.-Punkten. ', ...
       'Schlimmstenfalls %1.1f mm in Kollision.'], sum(any(coll_obst_traj,2)), ...
       size(coll_obst_traj,1), f_constr_obstcoll_traj);
     continue
   end
+end
+%% Weitere Gründe für frühen Abbruch prüfen
+% Wenn aufgrund der Konditionszahl-NB abgebrochen wird, wird die Funktion
+% normal verlassen, damit in cds_fitness dann der Abbruch passiert.
+% Kann inkonsistente Wertebereiche der Fitness-Funktion erzeugen zugunsten
+% einer schnelleren Rechenzeit (ohne Abbruch wäre evtl. Kollision der Abbruchgrund)
+if Stats.errorcode == 3 && Stats.h(Stats_iter_h,1+R.idx_iktraj_hn.jac_cond) ...
+      >= s.abort_thresh_h(R.idx_iktraj_hn.jac_cond)
+  Failratio = 1-Stats.iter/length(Traj_0.t);
+  fval_all(i_m, i_ar) = 1e3 * (1+0.1*Failratio); % 1.0e3 bis 1.1e3
+  constrvioltext_m{i_m} = sprintf(['Vorzeitiger Abbruch aufgrund von Über', ...
+    'schreitung der Konditionszahl-Grenze %1.1e in Traj.-Iter. %d.'], ...
+    s.abort_thresh_h(R.idx_iktraj_hn.jac_cond), Stats_iter_h);
+  continue % damit nicht die Fehlermeldung hierunter ausgelöst wird
 end
 %% Fertig. Bis hier wurden alle Nebenbedingungen geprüft.
 if any(isnan(Q(:)))
