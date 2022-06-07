@@ -1167,8 +1167,14 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     for k = 1:NLEG
       if k > 1, NLoffset_k = 1+R.I2L_LEG(k-1)-(k-1);
       else,     NLoffset_k = 1; end
-      % Nehme alle Kollisionskörper der Beinketten
-      for cb_k = R.Leg(k).collbodies.link(1:end,1)'
+      % Nehme alle Kollisionskörper der Beinketten. Bei paralleler Bewegung
+      % der Beinketten auslassen des letzten. Annahme: Konstruktive
+      % Vermeidung möglich. Sonst zu viele Kollisionen.
+      Ilast = size(R.Leg(k).collbodies.link,1);
+      if any(R.DesPar.platform_method == [1 4 7])
+        Ilast = Ilast-1;
+      end
+      for cb_k = R.Leg(k).collbodies.link(1:Ilast,1)'
         selfcollchecks_bodies = [selfcollchecks_bodies; ...
           uint8([NLoffset_k+cb_k, R.NL+R.NLEG-1])]; %#ok<AGROW>
         % fprintf(['Kollisionsprüfung (%d): Bein %d Seg. %d vs Plattform. ', ...
@@ -1293,6 +1299,8 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         % Prüfe, ob diese Kombination sinnvoll zu prüfen ist. Keine Prüfung
         % von Gestellteilen gegen die Beinketten.
         % TODO: Weitere Differenzierung sinnvoll, aber nicht akut notwendig.
+        % fprintf('Kollisionsprüfung für Körper %d: Koll.-körper %d (%s) vs Koll.-körper %d (%s).\n', ...
+        %   size(Structure.selfcollchecks_collbodies,1), ii1, names_collbodies{ii1}, ii2, names_collbodies{ii2});
         if Structure.Type == 2
           % Indizes der Körper zum Gestell (bzw. Beinketten-Basis-KS)
           I_base = R.I1L_LEG(1:NLEG)-((1:NLEG)'-1);
@@ -1300,7 +1308,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
           % Beinketten-KS)
           I_pl = R.I2L_LEG(1:NLEG)-((1:NLEG)'-1)-1;
           % Plattform-Körper zusätzlich einfügen (zu keiner Beinkette).
-          I_pl = [I_pl; I_pl(end)+1]; %#ok<AGROW> 
+          I_pl = [I_pl; I_pl(end)+1; I_pl(end)+2]; %#ok<AGROW> 
           % Segment-Nummern der beteiligten Körper (jeder Kollisionskörper
           % hat zwei Roboter-Körper zugewiesen)
           ii_links = [Structure.collbodies_robot.link(ii1,:), ...
@@ -1317,12 +1325,14 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
           if length(ii_links_test)>length(unique(ii_links_test))
             continue
           end
-          % Bestimme die Nummern der zugehörigen Beinketten
+          % Bestimme die Nummern der zugehörigen Beinketten (NaN für Plf)
           ii_leg = NaN(1,4);
           for kkk = 1:4
             if ii_links(kkk) == 0, continue; end
             ii_leg(kkk) = find(ii_links(kkk) >= I_base, 1, 'last');
+            if any(ii_links(kkk) == I_pl(end-1:end)), ii_leg(kkk) = NaN; end
           end
+          
           % Finde heraus, ob einer der Kollisionskörper ein Gestellteil ist.
           % Basis-Körper haben entweder Zugehörigkeit zu zwei Beinketten-
           % Basis-KS (in I_base) oder einen Eintrag mit 0 (sternförmig für
