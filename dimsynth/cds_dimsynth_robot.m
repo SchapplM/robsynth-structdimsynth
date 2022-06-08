@@ -1465,6 +1465,8 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       qmax_rand(isinf(qmin_rand)) = +inf;
       % Aktualisiere die Kollisionskörper der Schubgelenke. Verschiebung der
       % Zuordnung von Kollisionskörpern von Beinketten-Basis zu PKM-Basis.
+      % TODO: Das funktioniert noch nicht so gut. Bei einigen PKM gibt es
+      % immer Kollisionen. Bei anderen nicht. Unklar, warum.
       cds_update_collbodies(R, Set, Structure, [qmin_rand,qmax_rand]', false);
       [~, JP_jj] = R.fkine_coll2(Q_test(jj,:)');
       JP_test = [JP_test; JP_jj(:)']; %#ok<AGROW>
@@ -1475,29 +1477,39 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     % Die kinematischen Zwangsbedingungen für PKM sind nicht berücksichtigt.
     % Es kann später also noch mehr Prüfungen geben, die gleich sind. Hier
     % sollte aber eigentlich keine Prüfung immer gleich bleiben.
-    colldist_range = diff(minmax2(colldist_test')');
+    colldist_minmax = minmax2(colldist_test')';
+    colldist_range = diff(colldist_minmax);
     I_ccnc = abs(colldist_range(:)) < 1e-10; % "ccnc": "collcheck nochange"
-    if any(I_ccnc)
+    % Schließe Kollisionen der Schubgelenk-Führungsschienen von der Prüfung
+    % aus. Zuordnung von Zufallswerten oben funktioniert nicht gut (TODO).
+    I_bb = contains(names_collbodies(R.collchecks(:,1)), 'Base') & ...
+           contains(names_collbodies(R.collchecks(:,2)), 'Base');
+    if any(I_ccnc & ~I_bb)
       cds_log(2, sprintf(['[dimsynth] Die Kollisionsabstände für %d ', ...
         'Prüfungen sind immer gleich.'], sum(I_ccnc)));
-      logstr=sprintf('%d/%d Kollisionsprüfungen ohne Änderung der Abstände:\n', ...
-        sum(I_ccnc), length(I_ccnc));
-      for i = find(I_ccnc(:))'
-        logstr=[logstr,sprintf('%03d (dist range. %1.1e): [%02d %02d], "%30s" vs "%30s"\n', ...
-          i, colldist_range(i), R.collchecks(i,1), R.collchecks(i,2), ...
-          names_collbodies{R.collchecks(i,1)}, names_collbodies{R.collchecks(i,2)})]; %#ok<AGROW> 
+      for kkk = 1:2
+        if kkk == 1
+          I_kkk = I_ccnc;
+          str_kkk = 'ohne';
+        else
+          I_kkk = ~I_ccnc;
+          str_kkk = 'mit';
+        end
+        logstr=sprintf('%d/%d Kollisionsprüfungen %s Änderung der Abstände:\n', ...
+          sum(I_kkk), length(I_kkk), str_kkk);
+        for i = find(I_kkk(:))'
+          logstr=[logstr,sprintf(['%03d (dist range. %1.1e: %1.2e...%1.2e): ', ...
+            '[%02d %02d], "%30s" vs "%30s"\n'], i, colldist_range(i), ...
+            colldist_minmax(1,i), colldist_minmax(2,i), R.collchecks(i,1), R.collchecks(i,2), ...
+            names_collbodies{R.collchecks(i,1)}, names_collbodies{R.collchecks(i,2)})]; %#ok<AGROW> 
+        end
+        cds_log(3, logstr);
       end
-      logstr=[logstr,sprintf('%d/%d Kollisionsprüfungen mit Änderung der Abstände:\n', ...
-        sum(~I_ccnc), length(I_ccnc))];
-      for i = find(~I_ccnc(:))'
-        logstr=[logstr,sprintf('%03d (dist range. %1.1e): [%02d %02d], "%30s" vs "%30s"\n', ...
-          i, colldist_range(i), R.collchecks(i,1), R.collchecks(i,2), ...
-          names_collbodies{R.collchecks(i,1)}, names_collbodies{R.collchecks(i,2)})]; %#ok<AGROW> 
-      end
-      cds_log(3, logstr);
     end
     % Prüfe, ob permanent unbeeinflussbare Kollisionen erkannt werden.
-    I_alwayscoll = all(colldet_test)' & I_ccnc;
+    % Schließe die Kollision mit der Führungsschiene aus, da die
+    % Zufallsmenge der Kollisionen oben nicht gut gebildet wird (TODO).
+    I_alwayscoll = all(colldet_test)' & I_ccnc & ~I_bb;
     if any(I_alwayscoll)
       logstr=sprintf('%d/%d Kollisionsprüfungen mit permanenter Kollision:\n', ...
         sum(I_alwayscoll), length(I_alwayscoll));
