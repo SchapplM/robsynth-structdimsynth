@@ -246,7 +246,10 @@ assert(isa(Set.general.cluster_dependjobs, 'struct'), 'cluster_dependjobs muss S
 assert(isfield(Set.general.cluster_dependjobs, 'afterok'), 'cluster_dependjobs muss Feld afterok haben');
 assert(isfield(Set.general.cluster_dependjobs, 'afternotok'), 'cluster_dependjobs muss Feld afternotok haben');
 assert(isfield(Set.general.cluster_dependjobs, 'afterany'), 'cluster_dependjobs muss Feld afterany haben');
-
+if Set.optimization.InitPopRatioOldResults == 0
+  % Es wird kein Index alter Ergebnisse benötigt
+  Set.optimization.InitPopFromGlobalIndex = false;
+end
 if Set.task.profile ~= 0 % Trajektorie prüfen
   % De-Normalisiere die Trajektorie. Dadurch springen die Euler-Winkel nicht
   % (Auswirkung hauptsächlich optisch in Auswertungen). Winkel größer pi.
