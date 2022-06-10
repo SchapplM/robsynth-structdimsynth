@@ -128,7 +128,31 @@ for N_JointDoF = N_JointDoF_allowed
     end
     TooManyPrisJoints = false;
     FilterMatch = true;
-
+    WrongOrigin = false;
+    
+    % Prüfe Herkunft der kinematischen Kette. Soll keine PKM-Beinkette sein
+    % (mit Kardan-Gelenken etc.), sondern als serieller Roboter eingetragen
+    if Set.structures.only_serialrobot_from_synthesis
+      % Entspricht Spalten "Herkunft Struktursynthese" in S6RRRRRR.csv usw.
+      % Wird bei den Bits von rechts nach links gezählt.
+      Mask_Origin = uint16(bin2dec(fliplr('01000'))); % Nehme nur Ursprung Struktursynthese-Seriell
+    else
+      Mask_Origin = uint16(bin2dec(fliplr('01001'))); % Nehme auch Gelenkfolge-Varianten der Hauptmodelle
+    end
+    ilc = find(strcmp(SerRob_DB_all.Names, SName)); % Index des Roboters in Datenbank
+    if isempty(ilc) || length(ilc)>1, error('Unerwarteter Eintrag in Datenbank für Beinkette %s', LegChainName); end
+    if ~Set.structures.only_serialrobot_from_synthesis && ... % Modus: Varianten betrachten
+        SerRob_DB_all.AdditionalInfo(ilc,2) == 1 % ist Variante
+      % Es werden auch Varianten der Hauptmodelle betrachtet, wenn diese
+      % aus der Synthese von Gelenkfolgen kommen (Schneidende Gelenkachsen)
+      ilc_genmdl = SerRob_DB_all.AdditionalInfo(ilc,3); % Hauptmodell zu der Variante
+    else
+      ilc_genmdl = ilc;
+    end
+    if ~bitand(Mask_Origin, SerRob_DB_all.BitArrays_Origin(ilc_genmdl,:)) ~= 0
+      % Es gibt keine Übereinstimmung der Modellherkunft. Wird ignoriert.
+      WrongOrigin = true;
+    end
     % Prüfe Anzahl Schubgelenke
     numprismatic = sum(SName == 'P');
     if numprismatic > structset.maxnumprismatic
@@ -146,7 +170,15 @@ for N_JointDoF = N_JointDoF_allowed
     end
     
     SkipRobot = false;
-    if TooManyPrisJoints
+    if WrongOrigin
+      if verblevel >= 3
+        fprintf(['%s kommt nicht aus der gewünschten Struktursynthese. ', ...
+          'Herkunft-Bits: [%s], Maske: [%s]'], SName, dec2bin( ...
+          SerRob_DB_all.BitArrays_Origin(ilc_genmdl,:), 5), dec2bin(Mask_Origin, 5));
+      end
+      SkipRobot = true;
+    end
+    if ~SkipRobot && TooManyPrisJoints
       if verblevel >= 3
         fprintf('%s hat zu viele Schubgelenke (%d>%d).', ...
           SName, numprismatic, structset.maxnumprismatic);

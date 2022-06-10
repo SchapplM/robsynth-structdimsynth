@@ -42,18 +42,12 @@ fval = 1e3;
 %% Gelenkpositionen berechnen
 if nargin < 6 || isempty(JP_in) || Set.general.debug_calc
   if R.Type == 0
-    JP = NaN(size(Q,1), 3*(1+R.NJ));
+    JP = NaN(size(Q,1), 3*(1+R.NJ+1));
   else
-    JP = NaN(size(Q,1), 3*(1+R.NJ+R.NLEG+1));
+    JP = NaN(size(Q,1), 3*(1+R.NJ+R.NLEG+1+1));
   end
   for i = 1:size(Q,1)
-    if R.Type == 0
-      Tc = R.fkine(Q(i,:)');
-      JointPos_all_i_fromdirkin = squeeze(Tc(1:3,4,1:end));
-    else
-      Tc_stack_PKM = R.fkine_coll2(Q(i,:)');
-      JointPos_all_i_fromdirkin = reshape(Tc_stack_PKM(:,4),3,size(Tc_stack_PKM,1)/3);
-    end
+    [~, JointPos_all_i_fromdirkin] = R.fkine_coll2(Q(i,:)');
     JP(i,:) = JointPos_all_i_fromdirkin(:);
   end
   if Set.general.debug_calc && nargin == 6 && ~isempty(JP_in)
@@ -113,7 +107,7 @@ if Set.general.plot_robot_in_fitness < 0 && 1e4*fval > abs(Set.general.plot_robo
 else
   return
 end
-change_current_figure(701); clf; hold all;
+fhdl = change_current_figure(701); clf; hold all;
 view([0 90]); axis auto; hold on; grid on;
 xlabel('x in m'); ylabel('y in m'); zlabel('z in m');
 % Gelenkpunkte zeichnen
@@ -133,8 +127,8 @@ drawnow();
 [currgen,currind,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'ObjInstallspace');
 for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
   if strcmp(fileext{1}, 'fig')
-    saveas(701, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ObjFootprint.fig', currgen, currind, currimg)));
+    saveas(fhdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ObjFootprint.fig', currgen, currind, currimg)));
   else
-    export_fig(701, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ObjFootprint.%s', currgen, currind, currimg, fileext{1})));
+    export_fig(fhdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ObjFootprint.%s', currgen, currind, currimg, fileext{1})));
   end
 end

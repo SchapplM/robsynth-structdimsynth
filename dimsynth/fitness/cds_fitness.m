@@ -224,9 +224,9 @@ fval_debugtext_IKC = constrvioltext_IKC;
 Q_IKC = NaN(size(Traj_0.X,1), R.NJ, size(Q0,1));
 QD_IKC = Q_IKC; QDD_IKC = Q_IKC;
 if R.Type == 0
-  JP_IKC = NaN(size(Traj_0.X,1), 3*(1+R.NJ), size(Q0,1));
+  JP_IKC = NaN(size(Traj_0.X,1), 3*(1+R.NJ+1), size(Q0,1));
 else
-  JP_IKC = NaN(size(Traj_0.X,1), 3*(1+R.NJ+R.NLEG+1), size(Q0,1));
+  JP_IKC = NaN(size(Traj_0.X,1), 3*(1+R.NJ+R.NLEG+1+1), size(Q0,1));
 end
 Jinv_IKC = NaN(size(Traj_0.X,1), sum(R.I_EE)*R.NJ, size(Q0,1));
 X6Traj_IKC = NaN(size(Traj_0.X,1), 3, size(Q0,1));
@@ -314,13 +314,7 @@ for iIKC = 1:size(Q0,1)
     % Bestimme auch die Gelenkpositionen nochmal mit der direkten Kinematik
     JP = NaN(size(JP_IKC(:,:,iIKC))); % wurde oben nicht belegt
     for i = 1:size(Q,1)
-      if R.Type == 0
-        Tc = R.fkine(Q(i,:)');
-        JointPos_all_i_fromdirkin = squeeze(Tc(1:3,4,1:end));
-      else
-        Tc_stack_PKM = R.fkine_coll2(Q(i,:)');
-        JointPos_all_i_fromdirkin = reshape(Tc_stack_PKM(:,4),3,size(Tc_stack_PKM,1)/3);
-      end
+      [~, JointPos_all_i_fromdirkin] = R.fkine_coll2(Q(i,:)');
       JP(i,:) = JointPos_all_i_fromdirkin(:);
     end
   end

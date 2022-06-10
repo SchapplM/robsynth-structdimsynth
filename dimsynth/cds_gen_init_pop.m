@@ -43,6 +43,7 @@ if Set.optimization.InitPopRatioOldResults == 0
   % Es sollen keine alten Ergebnisse geladen werden. Kein Durchsuchen der
   % Ordner notwendig.
   Set.optimization.result_dirs_for_init_pop = {};
+  initpop_matlist = {};
 else
   % Lade bisherige Liste vorhandener Ergebnisse, erstellt von cds_gen_init_pop_index
   resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);

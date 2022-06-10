@@ -107,7 +107,7 @@ end
 [f_constr, idx_body_worst] = max(mindist_all);
 
 % Strafterm für Bauraumprüfung:
-if all(ininstallspace_all)
+if all(ininstallspace_all) % && all(mindist_all < 0) % zweite Abfrage für Prüfung auf Gleichheit
   fval = 0; % Alle Punkte im Bauraum. Alles i.O.
 else
   % Normierung der Ausgabe. Wert von f_constr (in m) ist größer 0 aber
@@ -119,7 +119,7 @@ else
   % (Eckwerte und Trajektorie möglich)
   fval = scale(1) + (scale(2)-scale(1))*f_constr_norm;
 end
-%% Debug: Zeichnen der Situation
+%% Debug: Zeichnen der Situation (Abfrage für Ausstieg aus Funktion)
 if fval ~= 0 && ... % Nur Zeichnen, wenn auch Kollisionen auftreten
    (Set.general.plot_details_in_fitness < 0 && 1e4*fval >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
     Set.general.plot_details_in_fitness > 0 && 1e4*fval <= abs(Set.general.plot_details_in_fitness))
@@ -127,6 +127,7 @@ if fval ~= 0 && ... % Nur Zeichnen, wenn auch Kollisionen auftreten
 else
   return
 end
+%% Debug: Zeichnen der Situation
 % Suche Datenpunkt mit weitester Entfernung vom Bauraum (schlechtester Fall)
 if isempty(idx_timestep_worst)
   j = 1; % Debug: Keine Verletzung aufgetreten. Trotzdem zeichnen
@@ -134,7 +135,7 @@ else
   j = idx_timestep_worst(idx_body_worst); % Index für Zeitschritt in Daten
 end
 % Bild zeichnen
-change_current_figure(868); clf; hold all
+fhdl = change_current_figure(868); clf; hold all
 view(3); axis auto; grid on;
 xlabel('x in m');ylabel('y in m');zlabel('z in m');
 % Trajektorie zeichnen
@@ -228,9 +229,9 @@ drawnow();
 [currgen,currind,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'InstallSpace');
 for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
   if strcmp(fileext{1}, 'fig')
-    saveas(868, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_InstallSpace.fig', currgen, currind, currimg)));
+    saveas(fhdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_InstallSpace.fig', currgen, currind, currimg)));
   else
-    export_fig(868, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_InstallSpace.%s', currgen, currind, currimg, fileext{1})));
+    export_fig(fhdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_InstallSpace.%s', currgen, currind, currimg, fileext{1})));
   end
 end
 if num_outside_plot == 0

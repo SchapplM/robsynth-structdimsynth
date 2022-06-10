@@ -246,7 +246,10 @@ assert(isa(Set.general.cluster_dependjobs, 'struct'), 'cluster_dependjobs muss S
 assert(isfield(Set.general.cluster_dependjobs, 'afterok'), 'cluster_dependjobs muss Feld afterok haben');
 assert(isfield(Set.general.cluster_dependjobs, 'afternotok'), 'cluster_dependjobs muss Feld afternotok haben');
 assert(isfield(Set.general.cluster_dependjobs, 'afterany'), 'cluster_dependjobs muss Feld afterany haben');
-
+if Set.optimization.InitPopRatioOldResults == 0
+  % Es wird kein Index alter Ergebnisse benötigt
+  Set.optimization.InitPopFromGlobalIndex = false;
+end
 if Set.task.profile ~= 0 % Trajektorie prüfen
   % De-Normalisiere die Trajektorie. Dadurch springen die Euler-Winkel nicht
   % (Auswirkung hauptsächlich optisch in Auswertungen). Winkel größer pi.
@@ -271,7 +274,11 @@ assert(length(Traj.IE)==size(Traj.XE,1), 'IE und XE muss gleiche Dimension haben
 assert(max(Traj.IE)<=size(Traj.X,1), 'Index-Vektor IE darf Bereich aus X nicht überschreiten');
 test_XEfromIE = Traj.X(Traj.IE,:) - Traj.XE;
 assert(all(abs(test_XEfromIE(:))<1e-10), 'XE muss mit IE aus X indiziert werden können');
-
+if all(Set.task.DoF(1:5) == [1 1 0 0 0]) % planare Aufgabe: 2T0R, 2T0*R oder 2T1R
+  assert(all(abs(Traj.X(1,3)- Traj.X(:,3))  < 1e-10) && ...
+         all(abs(Traj.XE(1,3)-Traj.XE(:,3)) < 1e-10), ...
+    'Planare Aufgabe: z-Position darf sich nicht verändern');
+end
 % Rast-zu-Rast-Verhalten auch für Nullraumbewegung, wenn gefordert.
 % Bestimme die Zeitschritte
 if isnan(Set.task.T_dec_ns)
@@ -501,6 +508,7 @@ if Set.general.computing_cluster
     addpath(cluster_repo_path);
     ppn = min(length(I1_kk:I2_kk),Set.general.computing_cluster_cores);
     dependstruct = Set.general.cluster_dependjobs;
+    dependstruct.waittime_max = 3600; % eine Stunde lang versuchen (falls Cluster voll)
     jobIDs(1,kk) = jobStart(struct( ...
       'name', computation_name, ...
       ... % Nur so viele Kerne beantragen, wie auch benötigt werden ("ppn")
@@ -510,6 +518,7 @@ if Set.general.computing_cluster
       'locUploadFolder', jobdir, ...
       'time',comptime_est/3600), ... % Angabe in h
       dependstruct); % Mögliche Abhängigkeiten (optional)
+    assert(jobIDs(1,kk)~=0, 'Fehler beim Starten des Produktiv-Jobs auf Cluster');
     % Zusätzlich direkt das Aufräum-Skript starten. Es ist davon auszugehen, 
     % dass der Job vorzeitig abgebrochen wird, da die Rechenzeit unterschätzt
     % wird.
@@ -533,7 +542,9 @@ if Set.general.computing_cluster
       'matFileName', [computation_name2, '.m'], ...
       'locUploadFolder', jobdir, ...
       'time',2), ... % % Geht schnell. Veranschlage 2h. Evtl. länger wegen ParPool-Synchronisation.
-      struct('afternotok', jobIDs(1,kk))); % Abbruch des vorherigen Jobs als Start-Bedingung
+      struct('afternotok', jobIDs(1,kk), ... % Abbruch des vorherigen Jobs als Start-Bedingung
+      'waittime_max', 3600)); % eine Stunde lang versuchen (falls Cluster voll)
+    assert(jobIDs(2,kk)~=0, 'Fehler beim Starten des Finish-Jobs auf Cluster');
     cds_log(1, sprintf(['Berechnung von %d Robotern wurde auf Cluster hochgeladen. Ende. ', ...
       'Die Ergebnisse müssen nach Beendigung der Rechnung manuell heruntergeladen ', ...
       'werden.'], length(I1_kk:I2_kk)));
@@ -568,7 +579,8 @@ if Set.general.computing_cluster
       'locUploadFolder', jobdir3, ...
       'time',1), ... % Geht schnell
       ... % Nur starten, wenn vorherige Produktiv- und Aufräum-Jobs erledigt
-      struct('afterany', jobIDs(:)'));
+      struct('afterany', jobIDs(:)', 'waittime_max', 3600));
+    assert(jobID_merge~=0, 'Fehler beim Starten des Merge-Jobs auf Cluster');
     cds_log(1, sprintf(['Insgesamt %d Optimierungen mit in Summe %d Robotern hochgeladen. ',...
       'Produktiv-Jobs: [%s], Finish-Jobs: [%s], Merge-Job: %d'], ...
       length(I1_Struct), length(Structures), disp_array(jobIDs(1,:), '%d'), ...

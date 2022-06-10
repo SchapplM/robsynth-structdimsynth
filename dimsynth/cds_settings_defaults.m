@@ -97,6 +97,7 @@ structures = struct( ...
   'use_parallel_rankdef', false, ... Nehme auch parallele Roboter, die mit Rangverlust in der Datenbank stehen
   'onlylegchain_from_synthesis', true, ... % Nehme keine seriellen Ketten als Beinkette, die nur manuell in die SerRobLib eingetragen wurden
   'use_kinematic_variants', true, ... % Nehme auch serielle Ketten, die eine Variante eines allgemeinen Modells sind
+  'only_serialrobot_from_synthesis', true, ... % Nehme nur allgemeine Robotermodelle aus Ramirez-Struktursynthese (keine Varianten)
   'maxnumprismatic', 1, ... % Maximal ein Schubgelenk in Roboter (bzw. PKM-Beinkette)
   'min_task_redundancy', 0, ... % Geforderter Grad der Aufgabenredundanz
   'max_task_redundancy', 0, ... % Zulässiger Grad der Aufgabenredundanz

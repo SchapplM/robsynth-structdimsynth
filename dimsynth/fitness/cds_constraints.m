@@ -158,7 +158,7 @@ if R.Type == 0 % Seriell
   condJik = NaN(size(Traj_0.XE,1), 1); % IK-Jacobi
   QE = NaN(size(Traj_0.XE,1), R.NQJ);
   % Variable zum Speichern der Gelenkpositionen (für Kollisionserkennung)
-  JPE = NaN(size(Traj_0.XE,1), R.NL*3);
+  JPE = NaN(size(Traj_0.XE,1), (R.NL+1)*3);
 else % PKM
   qlim = cat(1,R.Leg(:).qlim);
   qref = cat(1,R.Leg(:).qref);
@@ -169,9 +169,12 @@ else % PKM
   % Abbruch der IK-Berechnung, wenn eine Beinkette nicht erfolgreich war.
   % Dadurch wesentlich schnellerer Durchlauf der PKM-IK
   s_par = struct('abort_firstlegerror', true);
-  JPE = NaN(size(Traj_0.XE,1), (R.NL+R.NLEG)*3);
+  JPE = NaN(size(Traj_0.XE,1), (R.NL+R.NLEG+1)*3);
 end
-n_jic = 30+Set.optimization.pos_ik_tryhard_num;
+if R.Type == 2 % zusätzliche IK-Konfigurationen für PKM
+  n_ikcomb = 2^R.NLEG; % Annahme zwei Umklapp-Lagen für IK jeder Beinkette
+end
+n_jic = 30+Set.optimization.pos_ik_tryhard_num+n_ikcomb;
 fval_jic = NaN(1,n_jic);
 calctimes_jic = NaN(2,n_jic);
 constrvioltext_jic = cell(n_jic,1);
@@ -229,16 +232,52 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     % zufällige Neuversuche gemacht). Andere Anfangswerte sind zwecklos.
     break;
   end
-
-  if jic > n_jic/3 && jic < 2*n_jic/3 % zwischen ein Drittel und zwei Drittel der Versuche
+  if jic <= (n_jic-n_ikcomb)/3
+    % Benutze Zufallswerte von oben (nicht überschreiben wie in anderen
+    % Fällen)
+  elseif jic > (n_jic-n_ikcomb)/3 && jic < 2*(n_jic-n_ikcomb)/3 % zwischen ein Drittel und zwei Drittel der regulären Versuche
     % Setze die Anfangswerte (für Schubgelenke) ganz weit nach "links"
     q0(R.MDH.sigma==1) = q0(R.MDH.sigma==1) - 0.5*rand(1)*...
       (qlim_norm(R.MDH.sigma==1,2)-qlim_norm(R.MDH.sigma==1,1));
-  elseif jic >= 2*n_jic/3 % Letztes Drittel der Versuche
+  elseif jic >= 2*(n_jic-n_ikcomb)/3 && jic <= n_jic-n_ikcomb % Letztes Drittel der regulären Versuche
     % Anfangswerte weit nach rechts
     q0(R.MDH.sigma==1) = q0(R.MDH.sigma==1) + 0.5*rand(1)*...
       (qlim_norm(R.MDH.sigma==1,2)-qlim_norm(R.MDH.sigma==1,1));
-  end
+  elseif jic > n_jic-n_ikcomb % Versuche mit Kombinationen der bisherigen gefundenen Konfigurationen (für PKM)
+    if jic == n_jic-n_ikcomb+1 && R.Type == 2
+      % Bestimme alle Kombinationen der Gelenkkoordinaten der Beinketten
+      Q_configperm1 = NaN(0,size(Q_jic,2));
+      % alle Kombinationen der einzelnen Beinketten durchgehen
+      nj = zeros(1,R.NLEG); % Anzahl der Kombinationen für jede Beinkette
+      indvec = cell(1,5); % Vektor mit Indizes zum Bilden der PKM-Kombinationen
+      for j = 1:R.NLEG
+        Ij = R.I1J_LEG(j):R.I2J_LEG(j); % Index für Beinketten-Gelenke
+        nj(j) = 0;
+        for i = 1:size(Q_jic,3) % Über alle Neuversuche der IK (vorher berechnet)
+          if any(isnan(Q_jic(1,Ij,i))), continue; end
+          test_exist = repmat(Q_jic(1,Ij,i), size(Q_configperm1,1), 1) - Q_configperm1(:,Ij);
+          if isempty(test_exist) || ~any(all( abs(test_exist) < 1e-6, 2 ))
+            % Neue Konfiguration für diese Beinkette gefunden. Hinzufügen.
+            nj(j) = nj(j) + 1;
+            Q_configperm1(nj(j),Ij) = Q_jic(1,Ij,i);
+          end
+        end % i
+        indvec{j} = 1:nj(j);
+      end % for j
+      Q_configperm_idx = allcomb(indvec{:});
+      Q_configperm3 = NaN(size(Q_configperm_idx,1), size(Q_configperm1,2));
+      for ii = 1:size(Q_configperm3,1)
+        for j = 1:R.NLEG
+          Q_configperm3(ii,R.I1J_LEG(j):R.I2J_LEG(j)) = ...
+            Q_configperm1(Q_configperm_idx(ii,j), R.I1J_LEG(j):R.I2J_LEG(j));
+        end
+      end
+    end
+    if jic-(n_jic-n_ikcomb) > size(Q_configperm3,1), break; end % keine weiteren Kombinationen verfügbar
+    q0 = Q_configperm3(jic-(n_jic-n_ikcomb),:)';
+  else
+    error('Fall nicht vorgesehen. Logik-Fehler bei Index-Bereichen')
+  end % Fälle für Bestimmung von q0
   % Normalisiere den Anfangswert (außerhalb [-pi,pi) nicht sinnvoll).
   % (Betrifft nur Fall, falls Winkelgrenzen groß gewählt sind)
   q0(R.MDH.sigma==0) = normalize_angle(q0(R.MDH.sigma==0));
@@ -292,7 +331,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           % Annahme: Wenn Modus aktiv ist, sollen alte Ergebnisse
           % reproduziert werden. Dann zuerst die vollständige Gelenk-
           % Konfiguration vorgeben und nicht ab wie unten mit NaN ersetzen.
-          Q0_mod = repmat(Q0_ik, 1, 2);
+          Q0_mod = [Q0_ik, Q0_ik(:,1)];
           s_par.prefer_q0_over_first_legchain = true; % q0 bevorzugen
         end
         Q0_mod(R.I1J_LEG(2):end,end) = NaN; % Für Beinkette 2 Ergebnis von BK 1 nehmen (dabei letzten Anfangswert für BK 2 und folgende verwerfen)
@@ -744,7 +783,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     JPE(i,:) = Tc_stack(:,4); % Vierte Spalte ist Koordinatenursprung der Körper-KS
     if Set.general.debug_calc && R.Type == 2
       % Prüfe, ob die ausgegebenen Gelenk-Positionen auch stimmen
-      JointPos_all_i_frominvkin = reshape(JPE(i,:)',3,1+R.NLEG+R.NJ+1);
+      JointPos_all_i_frominvkin = reshape(JPE(i,:)',3,1+R.NLEG+R.NJ+1+1);
       Tc_Lges = R.fkine_legs(QE(i,:)');
       JointPos_all_i_fromdirkin = [zeros(3,1), squeeze(Tc_Lges(1:3,4,1:end)), NaN(3,1)];
       % Vergleiche die Positionen. In fkine_legs wird zusätzlich ein

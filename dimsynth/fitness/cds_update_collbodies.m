@@ -19,6 +19,11 @@
 %   Struktur mit Ersatz-Kollisionskörpern für die Prüfungs des Bauraums.
 %   Enthält Punkte für jedes Gelenk und Anfangs- und Endpunkt von
 %   Linearführungen von Schubachsen.
+% init
+%   Schalter, ob der Aufruf der Funktion für die Initialisierung oder vor
+%   einer Kollisionsprüfung geschieht.
+%   Vor der Initialisierung werden gestellfeste Kollisionskörper von PKM-
+%   Beinketten noch nicht zusammengefasst (siehe cds_dimsynth_robot).
 % 
 % Siehe auch: cds_dimsynth_robot.m (Code teilweise identisch), 
 % cds_constr_collisions_self
@@ -26,7 +31,10 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-07
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function [collbodies_robot, collbodies_instspc] = cds_update_collbodies(R, Set, Structure, Q)
+function [collbodies_robot, collbodies_instspc] = cds_update_collbodies(R, Set, Structure, Q, init)
+if nargin < 5
+  init = false;
+end
 if Set.general.matfile_verbosity > 2
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_update_collbodies_0.mat'));
   % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_update_collbodies_0.mat'));
@@ -36,7 +44,7 @@ if R.Type == 0 % Seriell
 elseif R.Type == 2 % Parallel
   NLEG = R.NLEG;
 end
-if nargin == 4
+if nargin >= 4 % Eingabe Q ist gegeben
   update_collbodies = true;
 else
   update_collbodies = false;
@@ -110,6 +118,9 @@ if update_collbodies
 end
 %% 
 if nargout == 0
+  if R.Type == 2
+    R.update_collbodies([1 2], init); % sonst nicht wirksam für weitere Nutzung bei PKM
+  end
   return
 end
 %% Debug: Kollisionskörper zeichnen
@@ -117,12 +128,14 @@ if false
   change_current_figure(2301); clf; hold all %#ok<UNRCH>
   view(3); axis auto; grid on;
   xlabel('x in m');ylabel('y in m');zlabel('z in m');
+  q_plot = Q(1,:)';
+  q_plot(isinf(q_plot)) = 0;
   if R.Type == 0 % Seriell
     s_plot = struct( 'ks', 1:R.NJ+2, 'straight', 1, 'mode', 5);
-    R.plot( Q(1,:)', s_plot);
+    R.plot( q_plot, s_plot);
   else % PKM
     s_plot = struct( 'ks_legs', [], 'ks_platform', [], 'straight', 1, 'mode', 5);
-    R.plot( Q(1,:)', NaN(6,1), s_plot);
+    R.plot( q_plot, NaN(6,1), s_plot); % TODO: EE-Trafo fehlt noch
   end
 end
 
@@ -282,43 +295,45 @@ if Structure.Type ~= 0 % PKM
     collbodies_robot.params = [collbodies_robot.params; ...
       [repmat(10e-3, NLEG, 1), NaN(NLEG, 9)]];
   end
+  % Kollisionsobjekt für Verbindung von Plattform zu TCP (falls zutreffend)
+  if Set.optimization.ee_translation_only_serial && ...
+      ~Set.optimization.ee_translation_only_serial || ...
+      all(~isnan(Set.optimization.ee_translation_fixed))
+    % Direkte Verbindung als Kapsel
+    collbodies_robot.link = [collbodies_robot.link; ...
+      uint8(R.I2L_LEG(end)-I1(end)+[1 2])]; % Plattform+TCP
+    collbodies_robot.type = [collbodies_robot.type; uint8(6)]; % Kapsel
+    collbodies_robot.params = [collbodies_robot.params; ...
+      [10e-3, NaN(1, 9)]]; % Radius 10mm
+  end
+
   cbbpidx2 = size(collbodies_robot.link,1);
   % Eintragen in Klassen-Variable
   R.collbodies_nonleg =struct( ...
     'link',   collbodies_robot.link(cbbpidx1:cbbpidx2,:), ...
     'type',   collbodies_robot.type(cbbpidx1:cbbpidx2,:), ...
     'params', collbodies_robot.params(cbbpidx1:cbbpidx2,:));
-  R.update_collbodies();
+  R.update_collbodies([1 2], init);
 end
+% Struktur der Kollisionskörper aus Roboterklasse nehmen
+collbodies_robot = R.collbodies;
 
-%% Kollisionskörper für PKM-Beinketten oder serielle Roboter
+%% Bauraumprüfung für Führungsschienen der PKM-Beinketten oder serielle Roboter
 if nargin < 4
   % Vereinfachter Aufruf um nur die Basis-Bauraumgeometrien zu initialisieren
   update_installspcbodies = false;
 end
 isidx = n_cb_instspc+1; % Nächster Index für collbodies_instspc
+
 for k = 1:NLEG
   if R.Type == 0  % Seriell 
-    NLoffset = 0;
     R_cc = R;
   else % PKM-Beinkette
-    % Alle bewegten Körper der Beinketten werden als Kollisionskörper
-    % gezählt, aber theoretisch auch (in der Zählung) alle Beinketten- 
-    % Basis-KS. Damit wird die spätere Kollisionsprüfung vereinfacht.
-    % Zusätzlich wird die PKM-Basis selbst gezählt (als erster Eintrag).
-    NLoffset = 1; % Für Basis der Beinkette
     R_cc = R.Leg(k);
-    if k > 1
-      NLoffset = 1+R.I2L_LEG(k-1)-(k-1); % in I1L wird auch Basis und EE-Link noch mitgezählt. Hier nicht.
-    end
   end
-  % Passe den Typ der Parameter an. Kollisionsobjekte der Führungsschiene
-  % an der PKM-Basis werden genauso zum Welt-KS gezählt.
-  collbodies_type_mod = R_cc.collbodies.type;
-  collbodies_params_mod = R_cc.collbodies.params;
   if R_cc.MDH.sigma(1) == 1
-    if R_cc.collbodies.type(1) == 3
-      collbodies_type_mod(1) = uint8(13);
+    if any(R_cc.collbodies.type(1) == [3 13])
+      % 3=Kapsel mitbewegt, 13=Kapsel basisfest. Muss noch vereinheitlicht werden in Initialisierung
       if R_cc.islegchain
         % Transformation der Parameter ins Basis-KS der PKM. Das ist für
         % die Kollisionsprüfung einfacher.
@@ -326,7 +341,6 @@ for k = 1:NLEG
         pts_0i = R_cc.collbodies.params(1,1:6);
         pts_0 = [eye(3,4)*T_0_0i*[pts_0i(1:3)';1]; ...   % Punkt 1
                  eye(3,4)*T_0_0i*[pts_0i(4:6)';1]]'; ... % Punkt 2
-        collbodies_params_mod(1,1:6) = pts_0;
       else
         % Keine Anpassung notwendig. Führungsschiene ist bereits bezogen auf
         % Roboter-Basis-KS
@@ -344,11 +358,6 @@ for k = 1:NLEG
       isidx = isidx + 2;
     end
   end
-  % Trage in PKM-weite Variable ein (oder für Seriell-Roboter)
-  collbodies_robot.link = [collbodies_robot.link; ...
-    R_cc.collbodies.link(:,1:2)+NLoffset];
-  collbodies_robot.type = [collbodies_robot.type; collbodies_type_mod];
-  collbodies_robot.params = [collbodies_robot.params; collbodies_params_mod];
   % Überspringe die Indizes der Bauraum-Kollisionsobjekte für die Gelenke
   % Die übrigen Punktkoordinaten wurden schon vorher auf Null gesetzt.
   % (Entspricht Ursprung des jeweiligen Körper-KS)
@@ -358,6 +367,7 @@ end
 % Ausgabe der aktualisierten Liste der Bauraum-Kollisionsprüfungen
 return
 
+%% Debug: Vorbereitung
 % Debug: Bei Fehler bezüglich falscher Indizierung
 if isfield(Structure, 'collbodies_robot') %#ok<UNRCH> 
   n_cb_1 = size(Structure.collbodies_robot.type,1);

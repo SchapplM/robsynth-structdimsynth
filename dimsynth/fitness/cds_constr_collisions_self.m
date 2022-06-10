@@ -76,7 +76,7 @@ else
   % Als Rückgabe, dass es keine Kollision gibt
   fval = 0;
 end
-%% Debug: Zeichnen der Situation
+%% Debug: Zeichnen der Situation (Abfrage für Ausstieg aus Funktion)
 if fval ~= 0 && ... % Nur Zeichnen, wenn auch Kollisionen auftreten
    (Set.general.plot_details_in_fitness < 0 && 1e4*fval >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
     Set.general.plot_details_in_fitness > 0 && 1e4*fval <= abs(Set.general.plot_details_in_fitness))
@@ -84,6 +84,7 @@ if fval ~= 0 && ... % Nur Zeichnen, wenn auch Kollisionen auftreten
 else
   return
 end
+%% Debug: Zeichnen der Situation
 % Suche Datenpunkt mit größter Kollision
 colldepth_rel(coll==0) = 0;
 colldepth_t = sum(colldepth_rel,2);
@@ -96,7 +97,7 @@ colldepth_t = sum(colldepth_rel,2);
 % end
 
 % Bild zeichnen
-change_current_figure(867); clf; hold all
+fhdl = change_current_figure(867); clf; hold all
 view(3); axis auto; grid on;
 xlabel('x in m');ylabel('y in m');zlabel('z in m');
 if R.Type == 0 % Seriell
@@ -151,8 +152,10 @@ for i = 1:size(collbodies.link,1)
     % collpairs_i = collchecks_i(collstate_i,:);
     % collpartners_i = unique(collpairs_i(:));
     % collpartners_i(collpartners_i==i) = []; % Entferne Element selbst
-    % fprintf('Koll.-Körper %d (Rob.-Seg. %d): Kollision mit KK [%s]\n', i, ...
-    %   collbodies.link(i,1), disp_array(collpartners_i', '%d'));
+    % II = find(I)'; % Zähl-Indizes der Kollisionsprüfungen, die getroffen wurden
+    % fprintf('Koll.-Körper %d (Rob.-Seg. %d): Kollision mit KK [%s]. Kollisionsprüfungen: [%s]\n', i, ...
+    %   collbodies.link(i,1), disp_array(collpartners_i', '%d'), ...
+    %   disp_array(II(coll(j,I)), '%d'));
   else
     color = 'b';
   end
@@ -168,9 +171,9 @@ drawnow();
 [currgen,currind,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'CollisionsSelf');
 for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
   if strcmp(fileext{1}, 'fig')
-    saveas(867, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_CollisionsSelf.fig', currgen, currind, currimg)));
+    saveas(fhdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_CollisionsSelf.fig', currgen, currind, currimg)));
   else
-    export_fig(867, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_CollisionsSelf.%s', currgen, currind, currimg, fileext{1})));
+    export_fig(fhdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_CollisionsSelf.%s', currgen, currind, currimg, fileext{1})));
   end
 end
 if any(num_coll_plot) ~= any(coll(j,:))

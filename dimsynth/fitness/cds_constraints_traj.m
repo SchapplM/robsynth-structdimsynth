@@ -22,7 +22,8 @@
 %   Strafterm in der Fitnessfunktion bei Verletzung der Nebenbedingungen
 %   Werte:
 %   1e3: Keine Verletzung der Nebenbedingungen. Alles i.O.
-%   1e3...2e3: Arbeitsraum-Hindernis-Kollision in Trajektorie
+%   1.0e3...1.1e3: Abbruch aufgrund Überschreitung Konditionszahl-Grenze
+%   1.1e3...2e3: Arbeitsraum-Hindernis-Kollision in Trajektorie
 %   2e3...3e3: Bauraumverletzung in Trajektorie
 %   3e3...4e3: Selbstkollision in Trajektorie
 %   4e3...5e3: Konfiguration springt
@@ -961,8 +962,8 @@ if ~isinf(Set.optimization.condition_limit_sing_act) && R.Type == 2
 end
 %% Singularität prüfen (bezogen auf IK-Jacobi-Matrix)
 if ~isinf(Set.optimization.condition_limit_sing) && Stats.errorcode == 3 && ...
-    any(isinf(Stats.h(:,1+R.idx_iktraj_hn.jac_cond)))
-  % führt bereits in Traj.-IK zum Abbruch. Prüfe, ob dies die Ursache war
+    any(Stats.h(:,1+R.idx_iktraj_hn.jac_cond) > 0)
+  % Führt bereits in Traj.-IK zum Abbruch. Prüfe, ob dies die Ursache war
   constrvioltext_m{i_m} = sprintf('Roboter ist singulär (Konditionszahl IK-Jacobi).');
   fval_all(i_m, i_ar)  = 1e4*(5); % zunächst kein eigener Wertebereich
   continue
@@ -1043,7 +1044,7 @@ if R.Type == 2 && Set.general.debug_calc && ...% PKM; Rechne nochmal mit Klassen
   end
   % Prüfe, ob die ausgegebenen Gelenk-Positionen auch stimmen
   for i = 1:size(Q,1)
-    JointPos_all_i_frominvkin = reshape(JP(i,:)',3,1+R.NJ+R.NLEG+1);
+    JointPos_all_i_frominvkin = reshape(JP(i,:)',3,1+R.NJ+R.NLEG+1+1);
     Tc_Lges = R.fkine_legs(Q(i,:)');
     JointPos_all_i_fromdirkin = [zeros(3,1), squeeze(Tc_Lges(1:3,4,1:end)), NaN(3,1)];
     % Vergleiche die Positionen. In fkine_legs wird zusätzlich ein
@@ -1111,39 +1112,39 @@ end
 if Structure.task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_calc
   % Teste nur die ersten fünf Einträge (sind vorgegeben). Der sechste
   % Wert wird an dieser Stelle erst berechnet und kann nicht verglichen werden.
-  % Hier wird nur eine Hin- und Rückrechnung (InvKin/DirKin) gemacht. 
-  test_X = Traj_0.X(:,1:5) - X2(:,1:5);
+  % Hier wird nur eine Hin- und Rückrechnung (InvKin/DirKin) gemacht.
+  test_X = Traj_0.X(1:Stats.iter,1:5) - X2(1:Stats.iter,1:5);
   test_X([false(size(test_X,1),3),abs(abs(test_X(:,4:5))-2*pi)<1e-3]) = 0; % 2pi-Fehler entfernen
   if any(abs(test_X(:))>1e-6)
     % Bestimme die mittlere Abweichung zwischen Position des Endeffektors
     % aus inverser und direkter Kinematik
     % Dieser Fall darf eigentlich gar nicht auftreten, wenn invkin und
     % fkin korrekt implementiert sind.
-    fval_x = mean(test_X(:));
+    fval_x = mean(abs(test_X(:)));
     fval_x_norm = 2/pi*atan(fval_x*70); % Normierung auf 0 bis 1. 0.1 -> 0.9
     fval_all(i_m, i_ar)  = 1e4*(3+fval_x_norm); % Werte zwischen 3e4 und 4e4
     constrvioltext_m{i_m}=sprintf(['Fehler der EE-Lage der ersten Beinkette ', ...
       'zwischen invkin und fkine. Max Fehler %1.2e'], max(abs(test_X(:))));
     continue
   end
-  test_XD = Traj_0.XD(:,1:5) - XD2(:,1:5);
+  test_XD = Traj_0.XD(1:Stats.iter,1:5) - XD2(1:Stats.iter,1:5);
   if any(abs(test_XD(:))>1e-5)
     % Bestimme die mittlere Abweichung zwischen Geschwindigkeit des Endeffektors
     % aus inverser und direkter differentieller Kinematik. Darf
     % eigentlich nicht passieren (s.o.).
-    fval_xD = mean(test_XD(:));
+    fval_xD = mean(abs(test_XD(:)));
     fval_xD_norm = 2/pi*atan(fval_xD*70); % Normierung auf 0 bis 1. 0.1 -> 0.9
     fval_all(i_m, i_ar)  = 1e4*(2+fval_xD_norm); % Werte zwischen 2e4 und 3e4
     constrvioltext_m{i_m}=sprintf(['Fehler der EE-Geschwindigkeit der ersten Beinkette ', ...
       'zwischen invkin und fkine. Max Fehler %1.2e'], max(abs(test_XD(:))));
     continue
   end
-  test_XDD = Traj_0.XDD(:,1:5) - XDD2(:,1:5);
+  test_XDD = Traj_0.XDD(1:Stats.iter,1:5) - XDD2(1:Stats.iter,1:5);
   if any(abs(test_XDD(:))>1e-4)
     % Bestimme die mittlere Abweichung zwischen Beschleunigung des Endeffektors
     % aus inverser und direkter differentieller Kinematik. Darf
     % eigentlich nicht passieren (s.o.).
-    fval_xDD = mean(test_XDD(:));
+    fval_xDD = mean(abs(test_XDD(:)));
     fval_xDD_norm = 2/pi*atan(fval_xDD*70); % Normierung auf 0 bis 1. 0.1 -> 0.9
     fval_all(i_m, i_ar)  = 1e4*(1+fval_xDD_norm); % Werte zwischen 1e4 und 2e4
     constrvioltext_m{i_m}=sprintf(['Fehler der EE-Beschleunigung der ersten Beinkette ', ...
@@ -1626,7 +1627,7 @@ if Set.optimization.constraint_collisions
 %     end
     continue
   elseif Stats.errorcode == 3 && Stats.h(Stats_iter_h,1+R.idx_iktraj_hn.coll_hyp) ...
-      <= s.abort_thresh_h(R.idx_iktraj_hn.coll_hyp)
+      >= s.abort_thresh_h(R.idx_iktraj_hn.coll_hyp)
     % Mögliche Ursache: Kollisionskörper in Traj.-IK sind größer als hier.
     cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Kollision in ', ...
       'Traj.-IK erkannt, aber nicht danach.'], Structure.config_index, Structure.config_number));
@@ -1639,36 +1640,54 @@ if Set.optimization.constraint_collisions
 end
 
 %% Bauraumprüfung für Trajektorie
-if ~isempty(Set.task.installspace.type) && ...
-      (isnan(fval_instspc_tmp) || fval_instspc_tmp > 0)
-  [fval_instspc_traj, f_constrinstspc_traj] = cds_constr_installspace( ...
-    R, Traj_0.X, Set, Structure, JP, Q, [2e3;3e3]);
-  mininstspcdist_all(i_ar) = f_constrinstspc_traj;
-  if fval_instspc_traj > 0
-    fval_all(i_m, i_ar)  = fval_instspc_traj; % Normierung auf 2e3 bis 3e3 -> bereits in Funktion
-    constrvioltext_m{i_m} = sprintf(['Verletzung des zulässigen Bauraums in Traj.', ...
-      'Schlimmstenfalls %1.1f mm draußen.'], 1e3*f_constrinstspc_traj);
-    continue
-  elseif Stats.errorcode == 3 && Stats.h(Stats_iter_h,1+R.idx_iktraj_hn.instspc_hyp) ...
-      <= s.abort_thresh_h(R.idx_iktraj_hn.instspc_hyp) 
+if ~isempty(Set.task.installspace.type)
+  if isnan(fval_instspc_tmp) || fval_instspc_tmp > 0
+    [fval_instspc_traj, f_constrinstspc_traj] = cds_constr_installspace( ...
+      R, Traj_0.X, Set, Structure, JP, Q, [2e3;3e3]);
+    mininstspcdist_all(i_ar) = f_constrinstspc_traj;
+    if fval_instspc_traj > 0
+      fval_all(i_m, i_ar)  = fval_instspc_traj; % Normierung auf 2e3 bis 3e3 -> bereits in Funktion
+      constrvioltext_m{i_m} = sprintf(['Verletzung des zulässigen Bauraums in Traj.', ...
+        'Schlimmstenfalls %1.1f mm draußen.'], 1e3*f_constrinstspc_traj);
+      continue
+    end
+  end
+  if Stats.errorcode == 3 && Stats.h(Stats_iter_h,1+R.idx_iktraj_hn.instspc_hyp) ...
+      >= s.abort_thresh_h(R.idx_iktraj_hn.instspc_hyp)
+    % Eine Ursache für falsche Erkennung: Exakt auf Grenze, daher in Traj.
+    % erkannt und in CDS nicht.
     cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Bauraumverletzung in ', ...
       'Traj.-IK erkannt, aber nicht danach.'], Structure.config_index, Structure.config_number));
     fval_all(i_m, i_ar) = 3e3; % schlechtestmöglicher Wert für Bauraumprüfung (da nicht richtig erkannt)
     constrvioltext_m{i_m} = 'Bauraumverletzung in Traj.-IK erkannt (sonst nicht)';
-  	continue
+    continue
   end
 end
 %% Arbeitsraum-Hindernis-Kollisionsprüfung für Trajektorie
 if ~isempty(Set.task.obstacles.type)
   [fval_obstcoll_traj, coll_obst_traj, f_constr_obstcoll_traj] = cds_constr_collisions_ws( ...
-    R, Traj_0.X, Set, Structure, JP, Q, [1e3;2e3]);
+    R, Traj_0.X, Set, Structure, JP, Q, [1.1e3;2e3]);
   if fval_obstcoll_traj > 0
-    fval_all(i_m, i_ar)  = fval_obstcoll_traj; % Normierung auf 1e3 bis 2e3 -> bereits in Funktion
+    fval_all(i_m, i_ar)  = fval_obstcoll_traj; % Normierung auf 1.1e3 bis 2e3 -> bereits in Funktion
     constrvioltext_m{i_m} = sprintf(['Arbeitsraum-Kollision in %d/%d Traj.-Punkten. ', ...
       'Schlimmstenfalls %1.1f mm in Kollision.'], sum(any(coll_obst_traj,2)), ...
       size(coll_obst_traj,1), f_constr_obstcoll_traj);
     continue
   end
+end
+%% Weitere Gründe für frühen Abbruch prüfen
+% Wenn aufgrund der Konditionszahl-NB abgebrochen wird, wird die Funktion
+% normal verlassen, damit in cds_fitness dann der Abbruch passiert.
+% Kann inkonsistente Wertebereiche der Fitness-Funktion erzeugen zugunsten
+% einer schnelleren Rechenzeit (ohne Abbruch wäre evtl. Kollision der Abbruchgrund)
+if Stats.errorcode == 3 && Stats.h(Stats_iter_h,1+R.idx_iktraj_hn.jac_cond) ...
+      >= s.abort_thresh_h(R.idx_iktraj_hn.jac_cond)
+  Failratio = 1-Stats.iter/length(Traj_0.t);
+  fval_all(i_m, i_ar) = 1e3 * (1+0.1*Failratio); % 1.0e3 bis 1.1e3
+  constrvioltext_m{i_m} = sprintf(['Vorzeitiger Abbruch aufgrund von Über', ...
+    'schreitung der Konditionszahl-Grenze %1.1e in Traj.-Iter. %d.'], ...
+    s.abort_thresh_h(R.idx_iktraj_hn.jac_cond), Stats_iter_h);
+  continue % damit nicht die Fehlermeldung hierunter ausgelöst wird
 end
 %% Fertig. Bis hier wurden alle Nebenbedingungen geprüft.
 if any(isnan(Q(:)))
@@ -1681,7 +1700,11 @@ end
 fval_all(i_m, i_ar) = 1e3;
 constrvioltext_m{i_m} = 'i.O.';
 end % for i_m
-assert(~all(isnan(fval_all(:))), 'Alle fval=NaN. Logik-Fehler.');
+if all(isnan(fval_all(:)))
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+    'cds_constraints_traj_fval_nan_error.mat')); 
+  error('Alle fval=NaN. Logik-Fehler.');
+end
 % Wähle das beste Ergebnis der IK-Methoden (GP/DP) aus. Das stellt das
 % Ergebnis für die Iteration über die Aufgabenredundanz-Schleife dar (i_ar)
 fval = min(fval_all(:, i_ar));
