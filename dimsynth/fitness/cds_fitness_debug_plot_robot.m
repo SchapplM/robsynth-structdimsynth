@@ -34,6 +34,9 @@ end
 if isempty(q) || any(isnan(q))
   q = zeros(R.NJ,1);
 end
+if isempty(Traj_0)
+  Traj_0 = cds_transform_traj(R, Traj_W);
+end
 tt = '';
 for i = 1:length(debug_info), tt = [tt, newline(), debug_info{i}]; end %#ok<AGROW>
 
