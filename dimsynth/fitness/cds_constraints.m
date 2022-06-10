@@ -249,7 +249,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       Q_configperm1 = NaN(0,size(Q_jic,2));
       % alle Kombinationen der einzelnen Beinketten durchgehen
       nj = zeros(1,R.NLEG); % Anzahl der Kombinationen für jede Beinkette
-      indvec = cell(1,5); % Vektor mit Indizes zum Bilden der PKM-Kombinationen
+      indvec = cell(1,R.NLEG); % Vektor mit Indizes zum Bilden der PKM-Kombinationen
       for j = 1:R.NLEG
         Ij = R.I1J_LEG(j):R.I2J_LEG(j); % Index für Beinketten-Gelenke
         nj(j) = 0;
