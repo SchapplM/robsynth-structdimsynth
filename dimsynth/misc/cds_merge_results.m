@@ -14,11 +14,18 @@
 %   falls die Ursprungsdaten mit dem Cluster synchronisiert werden und
 %   Änderungen/Umbenennungen durch erneute Synchronisation überschrieben
 %   würde)
+% create_missing_tables
+%   Fehlende Ergebnis-Tabellen erstellen
+% create_pareto_fig
+%   Neues Pareto-Bild mit den zusammengefassten Ergebnissen erstellen
+% delete_parts_dirs
+%   Lösche die Ordner mit den Teil-Ergebnissen nach erfolgreichem Merge
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-11
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function cds_merge_results(optname, mode, create_missing_tables, create_pareto_fig)
+function cds_merge_results(optname, mode, create_missing_tables, ...
+  create_pareto_fig, delete_parts_dirs)
 
 if nargin < 2
   mode = 'copy';
@@ -28,6 +35,12 @@ if nargin < 3
 end
 if nargin < 4
   create_pareto_fig = false;
+end
+if nargin < 5
+  delete_parts_dirs = true;
+end
+if strcmp(mode, 'symlink')
+  delete_parts_dirs = false; % Bei Verlinkung löschen nicht sinnvoll.
 end
 resdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), 'results');
 resdir_ges = fullfile(resdir, optname);
@@ -59,6 +72,7 @@ for i = 1:length(optdirs)
   maxnum_parts = max(maxnum_parts, str2double(tokens{1}{1}));
 end
 numdirs_processed = 0;
+dir_success = false(1,maxnum_parts);
 % Gehe durch alle (möglichen) Ergebnis-Ordner
 for i = 1:maxnum_parts
   % Erzeuge den Ordner-Namen hier neu, da nicht davon ausgegangen werden
@@ -113,6 +127,10 @@ for i = 1:maxnum_parts
       cds_results_table(s.Set, s.Traj, s.Structures);
     end
     continue % Ignoriere diesen Ordner
+  end
+  % Prüfe Erfolg des Teils anhand der Ergebnis-Tabelle
+  if size(ResTab_i,1) == length(s.Structures)
+    dir_success(i) = true;
   end
   if numdirs_processed == 0 % Setze als Gesamt-Tabelle. Das hier ist das erste vollständige Ergebnis mit Tabelle
     ResTab_ges = ResTab_i;
@@ -255,7 +273,7 @@ for i = 1:maxnum_parts
       % Verlinke alle Dateien im Verzeichnis
       for l = 1:length(tmpobjects_j)
         if tmpobjects_j(l).name(1) == '.', continue; end
-        status_k = system(sprintf('ln -s %s %s', fullfile(tmpdir_j_alt,tmpobjects_j(l).name), ...
+        system(sprintf('ln -s %s %s', fullfile(tmpdir_j_alt,tmpobjects_j(l).name), ...
           fullfile(tmpdir_j_neu,tmpobjects_j(l).name)));
       end
     else
@@ -295,4 +313,12 @@ if create_pareto_fig && length(Set.optimization.objective) > 1
   Set.general.eval_figures = {'pareto_all_phys'};
   Set.general.animation_styles = {};
   cds_vis_results(Set, Traj, Structures);
+end
+
+% Lösche die Ordner mit den Teil-Ergebnissen (werden nicht mehr benötigt)
+if delete_parts_dirs
+  for i = find(dir_success)
+    dirname_i = sprintf('%s_p%d', optname, i);
+    rmdir(fullfile(resdir, dirname_i), 's');
+  end
 end
