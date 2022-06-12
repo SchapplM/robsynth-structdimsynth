@@ -250,6 +250,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       % alle Kombinationen der einzelnen Beinketten durchgehen
       nj = zeros(1,R.NLEG); % Anzahl der Kombinationen für jede Beinkette
       indvec = cell(1,R.NLEG); % Vektor mit Indizes zum Bilden der PKM-Kombinationen
+      dist_pt1 = NaN(size(Q_jic,3), R.NLEG);
+      Idesc = dist_pt1;
       for j = 1:R.NLEG
         Ij = R.I1J_LEG(j):R.I2J_LEG(j); % Index für Beinketten-Gelenke
         nj(j) = 0;
@@ -260,11 +262,29 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
             % Neue Konfiguration für diese Beinkette gefunden. Hinzufügen.
             nj(j) = nj(j) + 1;
             Q_configperm1(nj(j),Ij) = Q_jic(1,Ij,i);
+            % Bestimme den Abstand zur ersten gefundenen Beinkette als
+            % Betragssumme aller Gelenkwinkeldifferenzen (ohne
+            % Schubgelenke). Annahme: Entspricht am ehesten den
+            % Umklapplagen)
+            Ijrev = Ij(R.Leg(j).MDH.sigma==0);
+            dist_qi_q1 = angleDiff(Q_configperm1(1, Ijrev),Q_configperm1(nj(j), Ijrev));
+            dist_pt1(i,j) = sum(abs(dist_qi_q1));
           end
         end % i
-        indvec{j} = 1:nj(j);
+        % Indizes gemäß Abstand zum ersten sortieren. Hilft bei Aufgaben-
+        % redundanz, wenn unendlich viele Konfigurationen möglich sind.
+        [~,Idesc(:,j)] = sort(dist_pt1(:,j), 'desc');
+        % Nehme zwei Konfigurationen für die Beinkette. Konsistent mit der
+        % Initialisierung von n_ikcomb. Mehr als zwei noch nicht
+        % implementiert.
+        indvec{j} = [1, Idesc(1,j)];
       end % for j
       Q_configperm_idx = allcomb(indvec{:});
+      if Structure.task_red && length(Idesc)>2
+        % Nehme absichtlich einen anderen Wert, wenn Konfigurationen
+        % doppelt sind. Sonst werden diese erneut berechnet ohne Mehrwert.
+        Q_configperm_idx(all(diff(Q_configperm_idx')==0),1) = Idesc(2);
+      end
       Q_configperm3 = NaN(size(Q_configperm_idx,1), size(Q_configperm1,2));
       for ii = 1:size(Q_configperm3,1)
         for j = 1:R.NLEG
@@ -564,10 +584,10 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       else
         [q, Phi, Tc_stack, Stats] = R.invkin4(Traj_0.XE(i,:)', q0_arik, s4);
       end
-      if Stats.iter == 2
-        cds_log(-1, sprintf(['[constraints] Konfig %d/%d, Eckpunkt %d, Iter. %d: ', ...
-          'Nur eine Iteration bei AR-IK. Parametrierung schlecht oder Start in Optimum.'], jic, n_jic, i, i_ar));
-      end
+%       if Stats.iter == 2 % TODO: Unklar, ob das hier schlecht ist
+%         cds_log(4, sprintf(['[constraints] Konfig %d/%d, Eckpunkt %d, Iter. %d: ', ...
+%           'Nur eine Iteration bei AR-IK. Parametrierung schlecht oder Start in Optimum.'], jic, n_jic, i, i_ar));
+%       end
       % Trage die Kollisionsabstände für den Startwert ein (entspricht
       % Ergebnis der normalen IK von oben. Dort werden die Kennzahlen nicht
       % berechnet). Annahme: Die IK in der ersten Iteration ist i.O.
