@@ -34,6 +34,7 @@
 %   Physikalische Entsprechung des für das Abbruchkriterium maßgeblichen
 %   Kennwertes. Beispielsweise relative Überlastung der Materialspannung
 %   oder der Antriebe. Entspricht dem Kriterium des Wertebereichs aus fval.
+%   Bei Erfolg entsprechend physikalischer Wert des Kriteriums aus fval
 % abort_fitnesscalc_retval
 %   Schalter für Abbruch der Berechnung, wenn alle gesetzten Grenzen
 %   erreicht werden.
@@ -62,7 +63,7 @@ if isempty(abort_fitnesscalc)
   abort_fitnesscalc = false;
 elseif abort_fitnesscalc
   fval = Inf;
-  cds_desopt_save_particle_details(toc(t1), fval, p_desopt);
+  cds_desopt_save_particle_details(toc(t1), fval, p_desopt, physval_desopt);
   return;
 end
 vartypes = Structure.desopt_ptypes(Structure.desopt_ptypes~=1);
@@ -219,7 +220,7 @@ if fval == 0  && Set.optimization.constraint_obj(5) % NB für Steifigkeit gesetz
   end
 end
 if fval > 1000 % Nebenbedingungen verletzt.
-  [~, i_gen, i_ind] = cds_desopt_save_particle_details(toc(t1), fval, p_desopt);
+  [~, i_gen, i_ind] = cds_desopt_save_particle_details(toc(t1), fval, p_desopt, physval_desopt);
   cds_log(4,sprintf(['[desopt/fitness] G=%d;I=%d. DesOpt-Fitness-Evaluation ', ...
     'in %1.2fs. Parameter: [%s]. fval=%1.3e. %s'], i_gen, i_ind, toc(t1), ...
     disp_array(p_desopt', '%1.3f'), fval, constrvioltext));
@@ -229,6 +230,8 @@ end
 % Eintrag in Fitness-Wert für die äußere Optimierungsschleife in der
 % Maßsynthese. Nehme in dieser Optimierung nur ein Zielkriterium, auch wenn
 % die Maßsynthese mehrkriteriell ist. Fange mit den einfachen Kriterien an.
+% TODO: Es sollten trotzdem alle Kriterien berechnet werden, falls ein
+% Pareto-Bild für die Entwurfsoptimierung gezeichnet werden soll.
 fval_main = NaN(length(Set.optimization.objective),1);
 physval_main = NaN(length(Set.optimization.objective),1);
 abort_logtext = '';
@@ -290,8 +293,9 @@ end
 % Prüfe, ob in Entwurfsoptimierung berechnete Zielfunktionen ihre Grenze
 % erreicht haben. Kinematik-bezogene Zielfunktionen werden hier nicht
 % aktualisiert und bleiben NaN, werden also dabei nicht betrachtet.
-if fval <= 1000 && (all(fval_main(~isnan(fval_main)) <= Set.optimization.obj_limit(~isnan(fval_main)) ) || ...
-   all(physval_main(~isnan(fval_main)) <= Set.optimization.obj_limit_physval(~isnan(fval_main))))
+if Set.optimization.desopt_use_obj_limit && fval <= 1000 && ( ...
+    all(fval_main(~isnan(fval_main)) <= Set.optimization.obj_limit(~isnan(fval_main)) ) || ...
+    all(physval_main(~isnan(fval_main)) <= Set.optimization.obj_limit_physval(~isnan(fval_main))))
   % Die Fitness-Funktion ist besser als die Grenze. Optimierung kann
   % hiernach beendet werden.
   abort_fitnesscalc = true;
@@ -299,7 +303,8 @@ if fval <= 1000 && (all(fval_main(~isnan(fval_main)) <= Set.optimization.obj_lim
   abort_logtext = ' Abbruchgrenze für Zielfunktion erreicht.';
 end
 if fval <= 1000
-  [~, i_gen, i_ind] = cds_desopt_save_particle_details(toc(t1), fval, p_desopt);
+  physval = physval_main(fval_main==fval); % Benutze nicht physval_desopt, da anders definiert.
+  [~, i_gen, i_ind] = cds_desopt_save_particle_details(toc(t1), fval, p_desopt, physval);
   cds_log(4,sprintf(['[desopt/fitness] G=%d;I=%d. DesOpt-Fitness-Evaluation ', ...
     'in %1.2fs. Parameter: [%s]. fval=%1.3e. Erfolgreich. %s %s'], i_gen, ...
     i_ind, toc(t1), disp_array(p_desopt', '%1.3f'), fval, fval_debugtext, abort_logtext));
@@ -308,8 +313,8 @@ if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_detail
    Set.general.plot_details_in_desopt > 0 && fval <= abs(Set.general.plot_details_in_desopt) % Gütefunktion ist besser als Schwellwert: Zeichne
   % Plotte die Antriebskraft, wenn die Feder-Ruhelagen optimiert werden
   if any(vartypes==3) || any(vartypes==4)
-    change_current_figure(986);clf;
-    set(986, 'Name', 'DesOpt_ActForce', 'NumberTitle', 'off');
+    fig_986 = change_current_figure(986);clf;
+    set(fig_986, 'Name', 'DesOpt_ActForce', 'NumberTitle', 'off');
     ntau = size(data_dyn.TAU_spring, 2);
     units = reshape([R.Leg(:).tauunit_sci],R.NJ,1);
     plotunits = units(R.I_qa);
@@ -330,12 +335,12 @@ if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_detail
     for i = 1:length(Traj_0.t)
       Jinv_all = reshape(Jinv_ges(i,:), R.NJ, sum(R.I_EE));
       Jinv_qa = Jinv_all(R.I_qa,:);
-      Fx_TAU(i,:) = (Jinv_qa')*data_dyn.TAU(i,:)';
-      Fx_TAU_ID(i,:) = (Jinv_qa')*data_dyn.TAU_ID(i,:)';
-      Fx_TAU_spring(i,:) = (Jinv_qa')*data_dyn.TAU_spring(i,:)';
+      Fx_TAU(i,R.I_EE) = (Jinv_qa')*data_dyn.TAU(i,:)';
+      Fx_TAU_ID(i,R.I_EE) = (Jinv_qa')*data_dyn.TAU_ID(i,:)';
+      Fx_TAU_spring(i,R.I_EE) = (Jinv_qa')*data_dyn.TAU_spring(i,:)';
     end
-    change_current_figure(988);clf;
-    set(988, 'Name', 'DesOpt_PlfForce', 'NumberTitle', 'off');
+    fig_988 = change_current_figure(988);clf;
+    set(fig_988, 'Name', 'DesOpt_PlfForce', 'NumberTitle', 'off');
     tauplf_names = {'fx', 'fy', 'fz', 'mx', 'my', 'mz'};
     for i = 1:6
       subplot(2,3,i);hold on; grid on;
@@ -350,8 +355,8 @@ if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_detail
     drawnow();
   end
   if any(vartypes==3)
-    change_current_figure(987);clf;
-    set(987, 'Name', 'JointSpring_Angles', 'NumberTitle', 'off');
+    fig_987 = change_current_figure(987);clf;
+    set(fig_987, 'Name', 'JointSpring_Angles', 'NumberTitle', 'off');
     for i = 1:R.NJ
       legnum = find(i>=R.I1J_LEG, 1, 'last');
       legjointnum = i-(R.I1J_LEG(legnum)-1);
@@ -366,8 +371,10 @@ if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_detail
       hdl1=plot(Traj_0.t, Q(:,i));
       if R.Leg(legnum).DesPar.joint_stiffness(legjointnum) ~= 0
         hdl2=plot(Traj_0.t([1,end]), R.Leg(legnum).DesPar.joint_stiffness_qref(legjointnum)*[1;1]);
+      else
+        hdl2 = plot(NaN,NaN);
       end
-      title(sprintf('q %d (%s), L%d,J%d, k=%1.2f', i, type, legnum, legjointnum, ...
+      title(sprintf('q%d (%s), L%d,J%d, k=%1.2f', i, type, legnum, legjointnum, ...
         R.Leg(legnum).DesPar.joint_stiffness(legjointnum)));
       if i == R.NJ, legend([hdl1;hdl2], {'q','qref'}); end
       if legjointnum == 1, ylabel(sprintf('Beinkette %d',legnum)); end

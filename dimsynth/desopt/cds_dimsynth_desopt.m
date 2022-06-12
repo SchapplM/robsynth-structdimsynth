@@ -128,6 +128,8 @@ assert(size(varlim,1)==nvars, 'Dimension von varlim passt nicht zu nvars');
 options_desopt.SwarmSize = NumIndividuals;
 InitPop = repmat(varlim(:,1)', NumIndividuals,1) + rand(NumIndividuals, nvars) .* ...
                         repmat(varlim(:,2)'-varlim(:,1)',NumIndividuals,1);
+% Standardwert für Optimierungsparameter immer zum Vergleich rechnen
+InitPop(end,:) = Structure.desopt_pdefault;
 % Wähle nur plausible Anfangswerte
 if any(vartypes == 2)
   IIls = find(vartypes==2);
@@ -171,7 +173,7 @@ end
 options_desopt.InitialSwarmMatrix = InitPop;
 % Erstelle die Fitness-Funktion und führe sie einmal zu testzwecken aus
 clear cds_dimsynth_desopt_fitness % Für persistente Variablen von vorheriger Iteration in Maßsynthese
-cds_desopt_save_particle_details(0, 0,  zeros(nvars,1), 'reset', ... % Zurücksetzen der ...
+cds_desopt_save_particle_details(0, 0, zeros(nvars,1), 0, 'reset', ... % Zurücksetzen der ...
   struct('comptime', NaN([options_desopt.MaxIter+1, NumIndividuals]))); % ... Detail-Speicherfunktion
 fitnessfcn_desopt=@(p_desopt)cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn, Structure, p_desopt(:));
 t2 = tic();
@@ -268,7 +270,7 @@ end
 % Debug:
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt2.mat'));
 %% Optimierung der Entwurfsparameter durchführen
-cds_desopt_save_particle_details(0, 0,  zeros(nvars,1), 'reset', ...
+cds_desopt_save_particle_details(0, 0, zeros(nvars,1), 0, 'reset', ...
   struct('comptime', NaN([options_desopt.MaxIter+1, NumIndividuals])));
 if ~avoid_optimization
   cds_log(3,sprintf(['[desopt] Führe Entwurfsoptimierung durch. Dauer für ', ...
@@ -298,8 +300,14 @@ I_bordersol = any(repmat(p_val(:),1,2) == varlim,2); % Prüfe, ob Endergebnis ei
 if any(I_bordersol)
   detailstring = [detailstring, sprintf('. Lösung bei %d/%d Par. an Grenze', sum(I_bordersol), length(I_bordersol))];
 end
-cds_log(3,sprintf('[desopt] Entwurfsoptimierung durchgeführt. Dauer: %1.1fs. %s. %d Iterationen, %d Funktionsauswertungen.', ...
-    toc(t1), detailstring, output.iterations, output.funccount));
+detailstring = [detailstring, sprintf('. Ergebnis: ')];
+for i = 1:length(p_val)
+  detailstring = [detailstring, sprintf('(%s: %1.1f)', Structure.desopt_pnames{i}, p_val(i))]; %#ok<AGROW>
+  if i < length(p_val), detailstring = [detailstring, ', ']; end %#ok<AGROW>
+end
+cds_log(3,sprintf(['[desopt] Entwurfsoptimierung durchgeführt. %d Iter', ...
+  'ationen, %d Funktionsauswertungen. Dauer: %1.1fs. %s.'], ...
+    output.iterations, output.funccount, toc(t1), detailstring));
 % Debug: Fitness-Funktion mit bestem Ergebnis nochmal aufrufen. Mit Bildern
 % Set.general.plot_details_in_desopt = 1e3;
 % Set.general.plot_details_in_fitness = 1e3;
@@ -333,12 +341,23 @@ if any(vartypes == 4)
     R.Leg(i).DesPar.joint_stiffness(I_update) = p_val(vartypes==4);
   end
 end
+
+% Speichere die Zwischenergebnisse ab (falls notwendig für die Auswertung)
+if Set.general.debug_desopt
+  [currgen,currind,~,resdir] = cds_get_new_figure_filenumber(Set, Structure, '');
+  name_matfile = sprintf('Gen%02d_Ind%02d_Konfig%d_desopt_dbg.mat', currgen, ...
+    currind, Structure.config_index);
+  % Extrahiere Detail-Daten aus den einzelnen PSO-Partikeln
+  PSO_Detail_Data = cds_desopt_save_particle_details(0, 0, NaN, 0, 'output');
+  fval_default = PSO_Detail_Data.fval(1,end); % letztes Partikel waren Standard-Werte
+  physval_default = PSO_Detail_Data.physval(1,end);
+  save(fullfile(resdir, name_matfile), 'PSO_Detail_Data', 'fval', ...
+    'fval_default', 'physval_default', 'p_val');
+end
 return
 %% Debug
-% Extrahiere Detail-Daten aus den einzelnen PSO-Partikeln
-PSO_Detail_Data = cds_desopt_save_particle_details(0, 0, NaN, 'output'); %#ok<UNRCH>
 
-% Rufe Fitness-Funktion mit bestem Partikel auf (mit Plotten von
+% Rufe Fitness-Funktion mit bestem Partikel auf (zum Plotten von
 % zusätzlichen Debug-Bildern).
 Set_tmp = Set;
 Set_tmp.general.plot_details_in_desopt = 1e10;
@@ -351,10 +370,10 @@ axhdl = subplot(2,1,1);
 plot(PSO_Detail_Data.fval, 'kx');
 set(axhdl, 'yscale', 'log');
 grid on;
-ylabel('Fitness-Wert');
+ylabel('Alle Fitness-Werte (log)');
 subplot(2,1,2);
 plot(min(PSO_Detail_Data.fval,[],2), 'kx-');
-ylabel('Fitness-Wert');
+ylabel('Bester Fitness-Wert (linear)');
 xlabel('Generation');
 grid on;
 linkxaxes
@@ -371,7 +390,9 @@ for i = 1:size(PSO_Detail_Data.pval,2)
 end
 figure(8);clf;
 plot(pval_stack_norm', 'x-');
-xlabel('Parameter Nr.');
+xlabel('Optimierungsparameter');
+set(gca, 'xtick', 1:length(p_val));
+set(gca, 'xticklabel', Structure.desopt_pnames);
 ylabel('Parameter Wert (normiert)');
 title('Ausnutzung des möglichen Parameterraums');
 

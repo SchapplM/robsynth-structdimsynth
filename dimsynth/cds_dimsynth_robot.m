@@ -1879,6 +1879,7 @@ end
 % Typen von Parametern in der Entwurfsoptimierung: 1=Gelenk-Offset, 
 % 2=Segmentstärke, 3=Nullstellung von Gelenkfedern, 4=Gelenk-Steifigkeit
 desopt_ptypes = [];
+desopt_pnames = {};
 if Structure.desopt_prismaticoffset
   % Gelenk-Offsets. Siehe cds_desopt_prismaticoffset.m
   if Structure.Type == 0 % Serieller Roboter
@@ -1887,12 +1888,15 @@ if Structure.desopt_prismaticoffset
     desopt_nvars_po = sum(R.Leg(1).MDH.sigma==1);
   end
   desopt_ptypes = [desopt_ptypes; 1*ones(desopt_nvars_po, 1)];
+  desopt_pnames = [desopt_pnames, [cellfun(@(s)sprintf(...
+    'prismaticoffset %d',s),num2cell(1:desopt_nvars_po), 'UniformOutput',false)]];
 end
 
 if any(strcmp(Set.optimization.desopt_vars, 'linkstrength'))
   % Siehe cds_dimsynth_desopt
   desopt_nvars_ls = 2; % Annahme: Alle Segmente gleich.
   desopt_ptypes = [desopt_ptypes; 2*ones(desopt_nvars_ls, 1)];
+  desopt_pnames = [desopt_pnames, {'linkmaterialstrength', 'linkdiameter'}];
 end
 
 if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref'))
@@ -1923,6 +1927,8 @@ if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref'))
     end
   end
   desopt_ptypes = [desopt_ptypes; 3*ones(desopt_nvars_js, 1)];
+  desopt_pnames = [desopt_pnames, [cellfun(@(s)sprintf(...
+    'jointstiffness_qref %d',s),num2cell(1:desopt_nvars_js), 'UniformOutput',false)]];
 end
 if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness'))
   % Siehe cds_dimsynth_desopt
@@ -1941,14 +1947,33 @@ if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness'))
     end
   end
   desopt_ptypes = [desopt_ptypes; 4*ones(desopt_nvars_js, 1)];
+  desopt_pnames = [desopt_pnames, [cellfun(@(s)sprintf(...
+    'jointstiffness %d',s),num2cell(1:desopt_nvars_js), 'UniformOutput',false)]];
 end
-Structure.desopt_ptypes = desopt_ptypes;
-
 % Belege die Dynamik-Parameter mit Platzhalter-Werten. Wichtig, damit die
 % Plots in jedem Fall ordentlich ausehen. Wird später überschrieben.
 % Wenn immer vor Trajektorien-Berechnung abgebrochen wird, sind die Werte
 % sonst nicht gesetzt.
 cds_dimsynth_design(R, zeros(2,R.NJ), Set, Structure);
+% Bestimme den Standard-Parametervektor der Entwurfsoptimierung, den man
+% ohne Optimierung nehmen würde
+desopt_pdefault = NaN(length(desopt_ptypes),1);
+desopt_pdefault(desopt_ptypes==4) = 0; % Keine Federsteifigkeit
+desopt_pdefault(desopt_ptypes==3) = 0; % Feder-Ruhelage dann egal
+desopt_pdefault(desopt_ptypes==1) = 0; % Kein Schubgelenk-Offset
+% Trage die Segment-Parameter aus der Roboterklasse ein. Wird in cds_dimsynth_design gesetzt 
+if any(desopt_ptypes==2)
+  if R.Type == 0 % Seriell
+    desopt_pdefault(desopt_ptypes==2) = R.DesPar.seg_par(1,:);
+  else % PKM
+    desopt_pdefault(desopt_ptypes==2) = R.Leg(1).DesPar.seg_par(1,:);
+  end
+end
+assert(all(~isnan(desopt_pdefault)), 'Fehler bei Belegung von desopt_pdefault');
+Structure.desopt_ptypes = desopt_ptypes;
+Structure.desopt_pnames = desopt_pnames;
+Structure.desopt_pdefault = desopt_pdefault;
+
 if nargin == 4 && init_only
   % Keine Optimierung durchführen. Damit kann nachträglich die
   % initialisierte Roboterklasse basierend auf Ergebnissen der Maßsynthese

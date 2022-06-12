@@ -191,6 +191,10 @@ if length(union(Set.optimization.desopt_vars, {'joint_stiffness_qref', ...
     'joint_stiffness', 'linkstrength'})) ~= 3
   error('Unerwarteter Wert in Set.optimization.desopt_vars');
 end
+if any(strcmp(Set.general.eval_figures, 'pareto_desopt')) && ~Set.general.debug_desopt
+  warning('Set.general.debug_desopt wurde auf true gesetzt, da Daten notwendig für Auswertung sind');
+  Set.general.debug_desopt = true;
+end
 % Prüfe das Namensformat von Robotern auf der Positiv-Liste
 for i = 1:length(Set.structures.whitelist)
   Name_i = Set.structures.whitelist{i};
@@ -240,7 +244,7 @@ if ~isempty(Set.general.save_animation_file_extensions) && isempty(Set.general.a
   Set.general.save_animation_file_extensions = {};
 end
 eval_figures_allowed = {'robvisu', 'robvisuanim', 'animation', 'jointtraj', ...
-  'pareto', 'dynamics', 'dynparvisu', 'optpar', 'springrestpos', ... % cds_vis_results_figures
+  'pareto', 'pareto_dimsynth_desopt', 'pareto_desopt', 'dynamics', 'dynparvisu', 'optpar', 'springrestpos', ... % cds_vis_results_figures
   'pareto_all_phys', 'pareto_all_fval', 'histogram', 'fitness_various'}; % cds_vis_results
 if length(intersect(eval_figures_allowed, Set.general.eval_figures)) ~= ...
     length(Set.general.eval_figures)
@@ -665,7 +669,7 @@ if ~isempty(Set.optimization.desopt_vars)
       any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness'))) && ...
       (Set.optimization.joint_stiffness_passive_revolute~=0 || ...
        Set.optimization.joint_stiffness_passive_universal~=0) && ...
-      (~isempty(intersect(Set.optimization.objective, {'mass', 'energy', ...
+      (~isempty(intersect(Set.optimization.objective, {'mass', 'energy', 'actforce', ...
       'materialstress'})) || any(Set.optimization.constraint_obj([1 2 3 5 6])))
     valid_desopt = true;
   end
