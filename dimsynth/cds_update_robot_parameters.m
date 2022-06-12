@@ -90,11 +90,19 @@ if Set.optimization.movebase
   p_basepos = p(Structure.vartypes == 2);
   I_bp = find(Structure.vartypes == 2);
   r_W_0_neu = R.T_W_0(1:3,4);
+  if Structure.Type == 0, mounting = Set.structures.mounting_serial;
+  else, mounting = Set.structures.mounting_parallel;
+  end
+  if strcmp(mounting, 'wall') && all(Set.task.DoF(1:5) == [1 1 0 0 0])
+    task_transl_DoF_rot0 = [1 0 1]; % Sonderfall: Basis-Position in z0-Richtung soll nicht optimiert werden
+  else
+    task_transl_DoF_rot0 = Set.task.DoF(1:3);
+  end
   % xyz-Punktkoordinaten der Basis skaliert mit Referenzlänge
   % TODO: Klären, ob Roboter-Skalierungsfaktor für z-Koordinate doch besser wäre
   p_idx = 0;
-  for i_xyz = 1:3
-    if ~Set.task.DoF(i_xyz) || ...  % FG ist nicht Teil der Aufgabe (z.B. bei 2T1R). Ignorieren.
+  for i_xyz = 1:3 % bezogen auf Basis-KS des Roboters
+    if task_transl_DoF_rot0(i_xyz) == 0 || ...  % FG ist nicht Teil der Aufgabe (z.B. bei 2T1R). Ignorieren.
         Set.optimization.basepos_limits(i_xyz,1)==Set.optimization.basepos_limits(i_xyz,2) % nur ein Wert vorgegeben
       continue
     end
