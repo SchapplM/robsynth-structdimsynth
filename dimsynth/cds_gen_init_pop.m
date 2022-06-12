@@ -326,6 +326,7 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
       end
     end
   end
+  % Hinzufügen zu Liste von Parametern
   InitPopLoadTmp = [InitPopLoadTmp; pval_i(I_param_iO,:)]; %#ok<AGROW>
   Q_PopTmp = [Q_PopTmp; qval_i(I_param_iO,:)]; %#ok<AGROW>
   fval_mean_all = mean(fval_i(I_param_iO,:),2);
@@ -356,7 +357,8 @@ if ~isempty(InitPopLoadTmp)
   Q_PopTmp = Q_PopTmp(I,:);
   ScoreLoad = ScoreLoad(I,:);
   % Lösche Duplikate. Behalte die mit den besten Bewertungen.
-  [~,I] = unique(InitPopLoadTmp, 'rows', 'stable');
+  [~,I] = uniquetol(InitPopLoadTmp, 'ByRows', true);
+  I = sort(I); % für gleichbleibende Reihenfolge der Partikel (unklar ob notwendig)
   InitPopLoadTmp = InitPopLoadTmp(I,:);
   Q_PopTmp = Q_PopTmp(I,:);
   ScoreLoad = ScoreLoad(I,:);
