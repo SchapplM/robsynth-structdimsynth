@@ -42,7 +42,10 @@ Set.optimization.MaxIter = 5;
 Set.optimization.optname = '2T0R_taskred_desopt_test_3RRR';
 Set.structures.whitelist = {'P3RRR1G1P1A1'};
 % Debug: Bei erstem Erfolg aufhören. Hat auch Auswirkung auf die Entwurfsopt.
-Set.optimization.obj_limit = [1e3;1e3];
+% Set.optimization.obj_limit = [1e3;1e3];
+% Um den Einfluss der Aufgabenredundanz im Auswertungsbild zu sehen, sollte
+% es eine sichtbare Pareto-Front geben.
+Set.optimization.abort_pareto_front_size = 4;
 
 % Debug:
 % Set.general.plot_details_in_fitness = 4e9; % Bei Selbstkollision (Eckpunkt) plotten

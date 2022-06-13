@@ -2053,10 +2053,15 @@ elseif length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
       'maxvel', 5, 'u_mut', 1/nvars); % [SierraCoe2005] S. 4
     options = struct('fun', fitnessfcn_vec, 'nVar', nvars, ...
       'var_min', varlim(:,1), 'var_max', varlim(:,2));
+    mopso_outputfuns = {};
     if Set.general.matfile_verbosity > 2 || Set.general.isoncluster
-      mopso_outputfun = @(MS)cds_save_all_results_mopso(MS,Set,Structure);
-      options.OutputFcn = {mopso_outputfun};
+      mopso_outputfuns = {@(MS)cds_save_all_results_mopso(MS,Set,Structure)};
     end
+    if ~isinf(Set.optimization.abort_pareto_front_size)
+      outputfun = @(MS)cds_check_abortparetosize_mopso(MS,Set);
+      mopso_outputfuns = [mopso_outputfuns(:)', {outputfun}];
+    end
+    options.OutputFcn = mopso_outputfuns;
   elseif strcmp(Set.optimization.algorithm, 'gamultiobj')
     options = optimoptions('gamultiobj');
     options.MaxGenerations = Set.optimization.MaxIter;

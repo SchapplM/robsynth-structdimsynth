@@ -190,6 +190,7 @@ optimization = struct( ...
   'obj_limit_physval', 0, ... % Grenze für den physikalischen Wert zum Beenden
   'NumIndividuals', 50, ... % Anzahl der Partikel im PSO
   'MaxIter', 10, ... % Anzahl der Iterationen im PSO (zusätzlich zur initialen)
+  'abort_pareto_front_size', inf, ... % Mit dem Wert kann die Optimierung vorzeitig bei ausreichend gefüllter Pareto-Front abgebrochen werden
   'desopt_NumIndividuals', NaN, ... % Anzahl der PSO-Partikel bei der Entwurfsoptimierung. NaN ist Standard-Wert (abhängig von Anzahl der Variablen)
   'desopt_MaxIter', NaN, ... % Anzahl der PSO-Generationen bei der Entwurfsoptimierung.
   'desopt_use_obj_limit', true, ... % Nutze Option obj_limit auch in cds_dimsynth_desopt_fitness.m. Zum Debuggen deaktivieren.
