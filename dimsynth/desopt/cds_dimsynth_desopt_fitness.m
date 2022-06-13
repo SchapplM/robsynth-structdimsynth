@@ -238,7 +238,8 @@ abort_logtext = '';
 if fval > 1000
   % Nichts machen. Materialspannung wurde schon verletzt. Gehe nur bis
   % unten durch, um eventuell Debug-Plots zu zeichnen
-elseif any(strcmp(Set.optimization.objective, 'mass'))
+elseif any(strcmp(Set.optimization.objective, 'mass')) && ...
+    any(vartypes==2) % Nur die Optimierung der Segmentstärke beeinflusst auch die Masse
   if Set.optimization.constraint_obj(1) % Vermeide doppelten Aufruf der Funktion
     fval = fval_mass; % Nehme Wert von der NB-Berechnung oben
     fval_debugtext = fval_debugtext_mass;
