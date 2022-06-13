@@ -273,14 +273,14 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         end % i
         % Indizes gemäß Abstand zum ersten sortieren. Hilft bei Aufgaben-
         % redundanz, wenn unendlich viele Konfigurationen möglich sind.
-        [~,Idesc(:,j)] = sort(dist_pt1(:,j), 'desc');
+        [~,Idesc(1:nj(j),j)] = sort(dist_pt1(1:nj(j),j), 'desc');
         % Nehme zwei Konfigurationen für die Beinkette. Konsistent mit der
         % Initialisierung von n_ikcomb. Mehr als zwei noch nicht
         % implementiert.
         indvec{j} = [1, Idesc(1,j)];
       end % for j
       Q_configperm_idx = allcomb(indvec{:});
-      if Structure.task_red && length(Idesc)>2
+      if size(Idesc,1)>2 && ~isnan(Idesc(3,1))
         % Nehme absichtlich einen anderen Wert, wenn Konfigurationen
         % doppelt sind. Sonst werden diese erneut berechnet ohne Mehrwert.
         Q_configperm_idx(all(diff(Q_configperm_idx')==0),1) = Idesc(2);
@@ -292,9 +292,16 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
             Q_configperm1(Q_configperm_idx(ii,j), R.I1J_LEG(j):R.I2J_LEG(j));
         end
       end
+      % Entferne doppelte Einträge durch NaN-Setzen (dadurch überspringen)
+      Q_configperm3(all(diff(Q_configperm_idx')==0),:) = NaN;
     end
     if jic-(n_jic-n_ikcomb) > size(Q_configperm3,1), break; end % keine weiteren Kombinationen verfügbar
     q0 = Q_configperm3(jic-(n_jic-n_ikcomb),:)';
+    if any(isnan(q0))
+      constrvioltext_jic{jic} = 'Gelenkwinkel aus Kombination der Beinketten-IK-Konfigurationen doppelt';
+      fval_jic(jic) = inf;
+      continue; % NaN als Marker für doppelte q0 gegenüber vorheriger Iteration überspringen
+    end
   else
     error('Fall nicht vorgesehen. Logik-Fehler bei Index-Bereichen')
   end % Fälle für Bestimmung von q0
@@ -354,7 +361,13 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           Q0_mod = [Q0_ik, Q0_ik(:,1)];
           s_par.prefer_q0_over_first_legchain = true; % q0 bevorzugen
         end
-        Q0_mod(R.I1J_LEG(2):end,end) = NaN; % Für Beinkette 2 Ergebnis von BK 1 nehmen (dabei letzten Anfangswert für BK 2 und folgende verwerfen)
+        if jic <= n_jic-n_ikcomb
+           % Für Beinkette 2 Ergebnis von BK 1 nehmen (dabei letzten
+           % Anfangswert für BK 2 und folgende verwerfen). Nur, wenn es
+           % nicht gerade darum gehen soll, alle Kombinationen auszu-
+           % probieren (siehe Definition der jic-Bereiche für q0 oben)
+          Q0_mod(R.I1J_LEG(2):end,end) = NaN;
+        end
         [q, Phi, Tc_stack, Stats] = R.invkin2(Traj_0.XE(i,:)', Q0_mod, s, s_par); % kompilierter Aufruf
         % Rechne kinematische Zwangsbedingungen nach. Ist für Struktur-
         % synthese sinnvoll, falls die Modellierung unsicher ist.
