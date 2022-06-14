@@ -139,7 +139,7 @@ else
   % (Eckwerte und Trajektorie möglich)
   fval = scale(1) + (scale(2)-scale(1))*f_constr_norm;
 end
-%% Debug: Zeichnen der Situation
+%% Debug: Zeichnen der Situation (Abfrage für Ausstieg aus Funktion)
 if fval ~= 0 && ... % Nur Zeichnen, wenn auch Kollisionen auftreten
    (Set.general.plot_details_in_fitness < 0 && 1e4*fval >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
     Set.general.plot_details_in_fitness > 0 && 1e4*fval <= abs(Set.general.plot_details_in_fitness))
@@ -147,6 +147,7 @@ if fval ~= 0 && ... % Nur Zeichnen, wenn auch Kollisionen auftreten
 else
   return
 end
+%% Debug: Zeichnen der Situation
 % Suche Datenpunkt mit weitester Entfernung vom Bauraum (schlechtester Fall)
 j = idx_timestep_worst(idx_body_worst); % Index für Zeitschritt in Daten 
 % Bild zeichnen
@@ -166,8 +167,9 @@ end
 num_coll_plot = 0; % zum Debuggen, s.u.
 for i = 1:size(collbodies.link,1)
   % Anfangs- und Endpunkt des Ersatzkörpers bestimmen
-  if all(collbodies.type(i) ~= [6 9 10 12 13 15])
-    warning('Methode %d nicht implementiert', collbodies.type(i));
+  if ~any(collbodies.type(i) == [6 9 10 12 13 15 16])
+    warning(['Andere Methoden als Kapseln und Kugeln für Plot nicht ', ...
+      'implementiert. Nr. %d hat Methode %d'], i, collbodies.type(i));
     continue
   end
   % Nummer der Starrkörper in mathematischer Notation: 0=Basis
@@ -232,6 +234,10 @@ for i = 1:size(collbodies.link,1)
       c = eye(3,4)*R.T_W_0*[collbodies.params(i,1:3)';1];
       r = collbodies.params(i,4);
       drawSphere([c',r],'FaceColor', color, 'FaceAlpha', 0.3);
+    case 16 % Kugel im Ursprung des Körper-KS
+      c = pts_W(1:3);
+      r = collbodies.params(i,1); % Keine Vergrößerung für Plot
+      drawSphere([c',r],'FaceColor', color, 'FaceAlpha', 0.3);
     otherwise
       error('Dieser Fall darf nicht auftreten');
   end
@@ -247,9 +253,10 @@ for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
     export_fig(fhdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_CollisionsWS.%s', currgen, currind, currimg, fileext{1})));
   end
 end
-if num_coll_plot == 0
-  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constr_collisions_self_1_errplot.mat'));
-  error('Anzahl der geplotteten Kollisionen stimmt nicht mit vorab berechneten überein');
+if any(num_coll_plot) ~= any(coll(j,:))
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constr_collisions_ws_1_errplot.mat'));
+  error(['Status der geplotteten Kollisionen (logisch %d) stimmt nicht mit vorab ', ...
+    'berechnetem (logisch %d) überein'], any(num_coll_plot), any(coll(j,:)));
 end
 return
 end
