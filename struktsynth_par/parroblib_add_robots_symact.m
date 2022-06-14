@@ -335,6 +335,18 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         % gelenk ist. Dann spielt die Ausrichtung um die z-Achse keine Rolle.
         continue
       end
+      if strcmp(SName(3:4), 'PR') && Coupling(1) == 10
+        % Methode 10 ist identisch zu Methode 1, wenn nach einem
+        % Schubgelenk direkt ein dazu paralleles Drehgelenk kommt.
+        % Gilt nur, wenn es keinen Versatz gibt. Gelenke also koaxial. Ist
+        % durch Implementierung in der Maßsynthese gegeben.
+        [~,PS] = serroblib_create_robot_class(SName, '', true);
+        if PS.alpha(2) == 0
+          fprintf(['Beinkette %s verworfen, da Gestell-Koppelgelenk G10 ', ...
+            'und G1 in diesem Fall identisch sind\n'], SName);
+          continue
+        end
+      end
       
       N_LegDoF = str2double(SName(2));% Beinkette FHG
       PName = sprintf('P%d%s', N_Legs, SName(3:end));
