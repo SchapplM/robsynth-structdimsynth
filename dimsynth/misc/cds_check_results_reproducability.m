@@ -29,7 +29,7 @@ s = struct( ...
   'update_template_functions', false, ... % Aktualisieren die Matlab-Funktionen
   'figure_invisible', true, ... % Unsichtbar erzeugen zum Speichern ohne Fokus-Klau
   'eval_plots', {{}}, ... % Liste von Plots, die für jedes Partikel erstellt werden. Siehe Eingabe figname in cds_vis_results_figures.
-  'results_dir', [], ... % Alternatives Verzeichnis zum Laden der Ergebnisse
+  'results_dir', '', ... % Alternatives Verzeichnis zum Laden der Ergebnisse
   'only_from_pareto_front', true); % bei false werden alle Partikel geprüft, bei true nur die besten
 if nargin < 3
   s_in = s;
@@ -53,6 +53,7 @@ else
       optfolder, OptName);
   end
 end
+assert(isa(s.eval_plots, 'cell'), 'Eingabefeld eval_plots muss cell array sein');
 
 %% Optimierung laden
 if ~exist(resdir_opt, 'file')
