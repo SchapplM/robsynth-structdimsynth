@@ -123,7 +123,7 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
         end
         for jj = III
           initpop_matlist = [initpop_matlist; ...
-            fullfile(optdirs(i).folder, dirname_i, resfiles(III).name )]; %#ok<AGROW> 
+            fullfile(optdirs(i).folder, dirname_i, resfiles(jj).name )]; %#ok<AGROW> 
         end
       end
     end

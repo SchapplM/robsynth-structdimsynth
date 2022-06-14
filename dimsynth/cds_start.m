@@ -250,6 +250,11 @@ if Set.optimization.InitPopRatioOldResults == 0
   % Es wird kein Index alter Ergebnisse benötigt
   Set.optimization.InitPopFromGlobalIndex = false;
 end
+if ~isempty(Set.optimization.result_dirs_for_init_pop)
+  % Der globale Index kann aktuell nur benutzt werden, wenn keine zusätz- 
+  % lichen Verzeichnisse mit eingelesen werden sollen (Implementierung)
+  Set.optimization.InitPopFromGlobalIndex = false;
+end
 if Set.task.profile ~= 0 % Trajektorie prüfen
   % De-Normalisiere die Trajektorie. Dadurch springen die Euler-Winkel nicht
   % (Auswirkung hauptsächlich optisch in Auswertungen). Winkel größer pi.
