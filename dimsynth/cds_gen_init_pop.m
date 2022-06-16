@@ -356,8 +356,11 @@ if ~isempty(InitPopLoadTmp)
   InitPopLoadTmp = InitPopLoadTmp(I,:);
   Q_PopTmp = Q_PopTmp(I,:);
   ScoreLoad = ScoreLoad(I,:);
-  % Lösche Duplikate. Behalte die mit den besten Bewertungen.
-  [~,I] = uniquetol(InitPopLoadTmp, 'ByRows', true);
+  % Lösche Duplikate. Behalte die mit den besten Bewertungen. Prüfe mit
+  % Toleranz (geht nur ohne NaN-Werte in Eingabe für uniquetol)
+  InitPopLoadTmp2 = InitPopLoadTmp;
+  InitPopLoadTmp2(isnan(InitPopLoadTmp2)) = inf; % Dummy-Wert
+  [~,I] = uniquetol(InitPopLoadTmp2, 'ByRows', true);
   I = sort(I); % für gleichbleibende Reihenfolge der Partikel (unklar ob notwendig)
   InitPopLoadTmp = InitPopLoadTmp(I,:);
   Q_PopTmp = Q_PopTmp(I,:);
