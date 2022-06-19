@@ -64,9 +64,18 @@ end
 % Aktuelle Pareto-Front und Details abspeichern
 resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
   'tmp', sprintf('%d_%s', Structure.Number, Structure.Name));
-save(fullfile(resdir, filename), 'PSO_Detail_Data', 'REP');
+save_success = false;
+try
+  % Auf Cluster ab und zu Fehlermeldung: Daher try-catch
+  % "Unable to write to file because it appears to be corrupt"
+  save(fullfile(resdir, filename), 'PSO_Detail_Data', 'REP');
+  save_success = true;
+catch e
+  cds_log(-1,sprintf('[output] Fehler beim Speichern von Generation %d: %s', ...
+    currgen, e.message));
+end
 % Datei der vorherigen Iteration löschen (wird nicht mehr benötigt)
-if currgen > 1
+if currgen > 1 && save_success % nur löschen, falls neues Speichern erfolgreich
   filename_previous = sprintf('MOPSO_Gen%02d_AllInd.mat', currgen-1);
   delete(fullfile(resdir, filename_previous));
 end
