@@ -25,8 +25,13 @@ warning('off', 'MATLAB:Figure:SetPosition');
 resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
 if Set.general.isoncluster && isfolder(resdir_main) && ...
     ~Set.general.regenerate_summary_only && ~Set.general.only_finish_aborted
-  % Nur Abbruch, wenn Maßsynthese auf Cluster durchgeführt werden soll
-  error('Verzeichnis %s existiert bereits. Kein Überschreiben auf Cluster', resdir_main)
+  % Nur Abbruch, wenn Maßsynthese auf Cluster durchgeführt werden soll.
+  % Auch nur dann, wenn schon Ergebnisse vorliegen. Im Fall von Abbruch
+  % eines Jobs auf dem Cluster (z.B. wegen NODE FAIL), wird dieser automatisch neu gestartet.
+  if exist(fullfile(resdir_main, [Set.optimization.optname, '_results_table.csv']), 'file')
+    error('Ergebnis-Tabelle existiert bereits in %s. Kein Überschreiben auf Cluster', resdir_main)
+  end
+  fprintf('Verzeichnis %s existiert bereits, aber ohne Endergebnisse. Überschreibe.', resdir_main)
 end
 if ~Set.general.computing_cluster
   % Ergebnis-Ordner für diese Optimierung erstellen (für Log benötigt).

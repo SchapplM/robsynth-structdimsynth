@@ -31,7 +31,7 @@ counter_optresults = 0;
 InitPopLoadTmp = [];
 Q_PopTmp = [];
 ScoreLoad = [];
-
+resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
 if any(strcmp(Set.optimization.objective,'valid_act')) && Structure.Type==2
   % Bei Struktursynthese sind die Ergebnisse bei einer anderen Aktuierung
   % auch verwertbar. Nehme nur den Roboternahmen ohne "A"-Suffix
@@ -46,7 +46,6 @@ if Set.optimization.InitPopRatioOldResults == 0
   initpop_matlist = {};
 else
   % Lade bisherige Liste vorhandener Ergebnisse, erstellt von cds_gen_init_pop_index
-  resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
   if Set.optimization.InitPopFromGlobalIndex
     filename_idx = fullfile(Set.optimization.resdir, 'index_results.mat');
   else
@@ -61,8 +60,47 @@ else
       filename_idx));
   end
 end
+%% Lade Ergebnisse aus dem Temp-Ordner
+% Lade zusätzlich aus dem tmp-Ordner der aktuellen Optimierung die
+% Zwischenergebnisse. Damit kann bei Fortsetzen einer abgebrochenen
+% Optimierung der Stand weitergenutzt werden. Betrifft besonders die
+% Fortsetzung bei Abbruch auf dem Cluster durch Cluster-Fehler.
+tmpdirsrob = dir(fullfile(resdir_main, 'tmp', sprintf('*_%s', RobName)));
+for i = 1:length(tmpdirsrob)
+  % Lade Datei mit Zwischenständen der Optimierung
+  genfiles = dir(fullfile(tmpdirsrob(i).folder, tmpdirsrob(i).name, ...
+    '*_Gen*_AllInd.mat')); % aus cds_save_all_results_mopso
+  [ttt, ~] = regexp(tmpdirsrob(i).name, ['(\d+)_', RobName], 'tokens', 'match');
+  irob = str2double(ttt{1}{1});
+  for j = 1:length(genfiles)
+    tmp = load(fullfile(genfiles(j).folder, genfiles(j).name));
+    % Erzeuge eine Dummy-Datei mit den Daten der Generation, die dann
+    % später wieder geladen werden kann.
+    [ttt, ~] = regexp(genfiles(j).name, '_Gen(\d+)_', 'tokens', 'match');
+    igen = str2double(ttt{1}{1});
+    RobotOptRes = struct('Structure', Structure); % Annahme: Gleiche Einstellungen der Optimierung
+    if size(tmp.PSO_Detail_Data.fval,2) > 1 % siehe cds_save_particle_details
+      RobotOptRes.fval_pareto = tmp.PSO_Detail_Data.fval(:,:,1+igen);
+      RobotOptRes.p_val_pareto = tmp.PSO_Detail_Data.pval(:,:,1+igen);
+      RobotOptRes.q0_pareto = tmp.PSO_Detail_Data.q0_ik(:,:,1+igen);
+      RobotOptRes.q0 = RobotOptRes.q0_pareto(1,:)';
+      RobotOptRes.fval = RobotOptRes.fval_pareto(1,:)';
+      RobotOptRes.timestamps_start_end = datenum(datetime('now'));
+    else
+      % TODO: Fall noch nicht definiert.
+      continue
+    end
+    filename_dummy = fullfile(resdir_main, sprintf( ...
+      'Rob%d_%s_Endergebnis_Gen%d.mat', irob, RobName, igen));
+    save(filename_dummy,'RobotOptRes');
+    cds_log(3, sprintf(['[gen_init_pop] Ergebnis-Datei %s aus vorhandenem ', ...
+      'Zwischenstand %s erstellt.'], filename_dummy, genfiles(j).name));
+    initpop_matlist = [initpop_matlist; filename_dummy]; %#ok<AGROW> 
+  end
+end
+
+%% Alle möglichen Ergebnis-Dateien durchgehen
 I_RobMatch = contains(initpop_matlist, ['_', RobName, '_']);
-% Alle möglichen Ergebnis-Dateien durchgehen
 for i = find(I_RobMatch)'% Unterordner durchgehen.
   dirname_i = fileparts(initpop_matlist{i});
   sflist = dir(fullfile(dirname_i, '*_settings.mat'));
