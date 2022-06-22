@@ -366,10 +366,19 @@ if Set.general.only_finish_aborted && (Set.general.isoncluster || ...
   % Tabelle einmal erstellt, sind alle einzelnen Roboter abgeschlossen.
   restabfile = fullfile(resdir_main, sprintf('%s_results_table.csv', ...
     Set.optimization.optname));
-  if exist(restabfile, 'file')
-    cds_log(1, sprintf(['Ergebnis-Tabelle existiert schon. Kein Abschluss der abge', ...
-      'brochenen Berechnung notwendig.']));
-    return
+  if exist(restabfile, 'file') % Prüfe, ob die Tabelle auch vollständig ist
+    opts = detectImportOptions(restabfile,'NumHeaderLines',2);
+    opts.VariableNamesLine = 1;
+    opts.VariableDescriptionsLine = 2;
+    ResTab = readtable(restabfile, opts);
+    if size(ResTab, 1) == length(Structures)
+      cds_log(1, sprintf(['Ergebnis-Tabelle existiert schon mit %d Einträgen. ', ...
+        'Kein Abschluss der abgebrochenen Berechnung notwendig.'], size(ResTab, 1)));
+      return
+    else
+      cds_log(1, sprintf(['Ergebnis-Tabelle existiert schon mit %d/%d Einträgen. ', ...
+        'Führe Abschluss der Berechnung durch.'], size(ResTab, 1), length(Structures)));
+    end
   end
 elseif Set.general.regenerate_summary_only && (Set.general.isoncluster || ...
     ~Set.general.computing_cluster)
