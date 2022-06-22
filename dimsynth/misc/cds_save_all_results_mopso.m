@@ -75,8 +75,10 @@ catch e
     currgen, e.message));
 end
 % Datei der vorherigen Iteration löschen (wird nicht mehr benötigt)
-if currgen > 1 && save_success % nur löschen, falls neues Speichern erfolgreich
-  filename_previous = sprintf('MOPSO_Gen%02d_AllInd.mat', currgen-1);
+if currgen > 5 && save_success % nur löschen, falls neues Speichern erfolgreich
+  % Lösche die Dateien ein paar Nummern vorher rollierend. Behalte also
+  % immer mehrere Zwischenergebnisse, falls eine Datei inkonsistent ist.
+  filename_previous = sprintf('MOPSO_Gen%02d_AllInd.mat', currgen-5);
   delete(fullfile(resdir, filename_previous));
 end
 

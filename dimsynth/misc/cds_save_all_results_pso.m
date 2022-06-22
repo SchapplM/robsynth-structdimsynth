@@ -43,10 +43,20 @@ PSO_Detail_Data = cds_save_particle_details(Set, [], 0, 0, NaN, NaN, NaN, NaN, '
 resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
   'tmp', sprintf('%d_%s', Structure.Number, Structure.Name));
 filename = sprintf('PSO_Gen%02d_AllInd.mat', optimValues.iteration);
-save(fullfile(resdir, filename), 'optimValues', 'PSO_Detail_Data');
+save_success = false;
+try
+  % Auf Cluster ab und zu Fehlermeldung: Daher try-catch
+  % "Unable to write to file because it appears to be corrupt"
+  save(fullfile(resdir, filename), 'optimValues', 'PSO_Detail_Data');
+catch e
+  cds_log(-1,sprintf('[output] Fehler beim Speichern von Generation %d: %s', ...
+    currgen, e.message));
+end
 % Datei der vorherigen Iteration löschen (wird nicht mehr benötigt)
-if optimValues.iteration > 1
-  filename_previous = sprintf('PSO_Gen%02d_AllInd.mat', optimValues.iteration-1);
+if optimValues.iteration > 5
+  % Lösche die Dateien ein paar Nummern vorher rollierend. Behalte also
+  % immer mehrere Zwischenergebnisse, falls eine Datei inkonsistent ist.
+  filename_previous = sprintf('PSO_Gen%02d_AllInd.mat', optimValues.iteration-5);
   delete(fullfile(resdir, filename_previous));
 end
 

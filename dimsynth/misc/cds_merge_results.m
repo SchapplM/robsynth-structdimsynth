@@ -131,6 +131,9 @@ for i = 1:maxnum_parts
   % Prüfe Erfolg des Teils anhand der Ergebnis-Tabelle
   if size(ResTab_i,1) == length(s.Structures)
     dir_success(i) = true;
+  else
+    warning(['Optimierung Teil %d war nicht erfolgreich: %d Zeilen in Ergebnis, ', ...
+      '%d erwartet.'], i, size(ResTab_i,1), length(s.Structures));
   end
   if numdirs_processed == 0 % Setze als Gesamt-Tabelle. Das hier ist das erste vollständige Ergebnis mit Tabelle
     ResTab_ges = ResTab_i;
@@ -148,20 +151,20 @@ for i = 1:maxnum_parts
   % wird in cds_start.m und cds_dimsynth_robot.m bestimmt.
   resobjects_i = dir(fullfile(resdir,dirname_i,'Rob*'));
   for j = 1:length(resobjects_i)
-    if resobjects_i(j).isdir % Ist ein Ordner mit Bildern/Animation/Log-Datei
-      tokens = regexp(resobjects_i(j).name, 'Rob([\d]+)_([A-Z0-9]+)', 'tokens');
-    else % Ist eine Endergebnis-mat-Datei
-      tokens = regexp(resobjects_i(j).name, 'Rob([\d]+)_([A-Z0-9]+)_Endergebnis.mat', 'tokens');
-      if isempty(tokens)
-        tokens = regexp(resobjects_i(j).name, 'Rob([\d]+)_([A-Z0-9]+)_Details.mat', 'tokens');
-      end
-      if isempty(tokens)
-        error('Datei %s passt nicht in das Suchschema', resobjects_i(j).name);
-      end
+    % Egal ob Ergebnisordner eines Roboters oder Ergebnis-Datei. Muster:
+    tokens = regexp(resobjects_i(j).name, 'Rob([\d]+)_([A-Z0-9]+)(.*)', 'tokens');
+    if isempty(tokens)
+      warning('Datei %s passt nicht in das Suchschema', resobjects_i(j).name);
+      continue
     end
     % Lese Daten des Roboters aus den Datei-/Ordnernamen
     RobNr_j_alt = str2double(tokens{1}{1});
     RobName_j = tokens{1}{2};
+    if length(tokens{1}) == 3
+      Suffix = tokens{1}{3};
+    else
+      Suffix = '';
+    end
     RobNr_j_neu = IdxNeu(IdxAlt==RobNr_j_alt); % Setze neue Nummer
     if resobjects_i(j).isdir % Kopiere das Verzeichnis
       dirname_j_neu = sprintf('Rob%d_%s', RobNr_j_neu, RobName_j);
@@ -210,13 +213,7 @@ for i = 1:maxnum_parts
         end
       end
     else % Kopiere die Endergebnis-mat-Dateien
-      if contains(resobjects_i(j).name, 'Endergebnis.mat')
-        resfilename_j_neu = sprintf('Rob%d_%s_Endergebnis.mat', RobNr_j_neu, RobName_j);
-      elseif contains(resobjects_i(j).name, 'Details.mat')
-        resfilename_j_neu = sprintf('Rob%d_%s_Details.mat', RobNr_j_neu, RobName_j);
-      else
-        error('Unbehandelte Ausnahme');
-      end
+      resfilename_j_neu = sprintf('Rob%d_%s%s', RobNr_j_neu, RobName_j, Suffix);
       sourcefile = fullfile(resdir,dirname_i,resobjects_i(j).name);
       targetfile = fullfile(resdir_ges, resfilename_j_neu);
       if strcmp(mode, 'copy')
@@ -319,6 +316,7 @@ end
 if delete_parts_dirs
   for i = find(dir_success)
     dirname_i = sprintf('%s_p%d', optname, i);
+    fprintf('Verzeichnis %d erfolgreich zusamengeführt. Lösche %s\n', i, dirname_i);
     rmdir(fullfile(resdir, dirname_i), 's');
   end
 end

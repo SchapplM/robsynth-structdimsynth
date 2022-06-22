@@ -88,7 +88,7 @@ Set_default = cds_settings_defaults(struct('DoF', Set.task.DoF));
 for subconf = fields(Set_default)'
   for ftmp = fields(Set.(subconf{1}))'
     if ~isfield(Set_default.(subconf{1}), ftmp{1})
-      warning('Feld %s in der Eingabestruktur ist nicht vorgesehen', ftmp{1})
+      warning('Feld %s.%s in der Eingabestruktur ist nicht vorgesehen', subconf{1}, ftmp{1})
     end
   end
 end
@@ -567,7 +567,7 @@ if Set.general.computing_cluster
       'matFileName', [computation_name2, '.m'], ...
       'locUploadFolder', jobdir, ...
       'time',2), ... % % Geht schnell. Veranschlage 2h. Evtl. länger wegen ParPool-Synchronisation.
-      struct('afternotok', jobIDs(1,kk), ... % Abbruch des vorherigen Jobs als Start-Bedingung
+      struct('afterany', jobIDs(1,kk), ... % egal welchen Status der Produktiv-Job hatte: Immer Abschluss-Job hinterher durchführen (Bei Code-Fehler und Abbruch aus Matlab endet der Job mit "ok").
       'waittime_max', 3600)); % eine Stunde lang versuchen (falls Cluster voll)
     assert(jobIDs(2,kk)~=0, 'Fehler beim Starten des Finish-Jobs auf Cluster');
     cds_log(1, sprintf(['Berechnung von %d Robotern wurde auf Cluster hochgeladen. Ende. ', ...

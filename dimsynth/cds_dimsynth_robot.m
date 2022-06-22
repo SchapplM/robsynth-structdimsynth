@@ -2246,9 +2246,13 @@ if ~any(strcmp(Set.optimization.objective, 'valid_act')) && ...
     (any(isnan(Q(:))) || isempty(QD) && Set.task.profile~=0)
   % Berechnung der Trajektorie ist fehlgeschlagen. Toleranz wie in cds_constraints
   if any(fval<1e4*1e4) % nur bemerkenswert, falls vorher überhaupt soweit gekommen.
-    save(fullfile(resdir, 'trajikreprowarning.mat'));
     cds_log(-1, sprintf(['[dimsynth] PSO-Ergebnis für Trajektorie nicht ', ...
       'reproduzierbar oder nicht gültig (ZB-Verletzung).'] ));
+    try % Auf Cluster teilweise Probleme beim Dateisystemzugriff
+      save(fullfile(resdir, 'trajikreprowarning.mat'));
+    catch err
+      cds_log(-1, sprintf('[dimsynth] Fehler beim Speichern von mat-Datei: %s', err.message));
+    end
   end
   result_invalid = true;
 end
@@ -2281,17 +2285,25 @@ if R.Type ~= 0 && ~result_invalid && ~isempty(QD) % nur machen, wenn Traj.-IK er
     end
   end
   if test_xD_fromJ_max > 1e-6
-    save(fullfile(resdir, 'jacobireprowarning.mat'));
     cds_log(-1, sprintf(['[dimsynth] Neuberechnung der Jacobi-Matrix ', ...
       'falsch. Zuerst Schritt %d/%d. Fehler in EE-Geschw.: max %1.1e'], ...
       i_maxerr, size(Q,1), test_xD_fromJ_max));
+    try % Auf Cluster teilweise Probleme beim Dateisystemzugriff
+      save(fullfile(resdir, 'jacobireprowarning.mat'));
+    catch err
+      cds_log(-1, sprintf('[dimsynth] Fehler beim Speichern von mat-Datei: %s', err.message));
+    end
   end
 end
 
 if any(q0_ik<qlim_neu(:,1) | q0_ik>qlim_neu(:,2))
   cds_log(-1, sprintf(['[dimsynth] Startwert für Gelenkwinkel liegt außer', ...
     'halb des erlaubten Bereichs.']));
-  save(fullfile(resdir, 'jointlimitviolationwarning.mat'));
+  try % Auf Cluster teilweise Probleme beim Dateisystemzugriff
+    save(fullfile(resdir, 'jointlimitviolationwarning.mat'));
+  catch err
+    cds_log(-1, sprintf('[dimsynth] Fehler beim Speichern von mat-Datei: %s', err.message));
+  end
 end
 
 %% Berechne andere Leistungsmerkmale
@@ -2357,10 +2369,14 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
     physval_instspc; physval_footprint; physval_colldist; physval_stiff];
   if length(fval_obj_all)~=16 || length(physval_obj_all)~=16
     % Dimension ist falsch, wenn eine Zielfunktion nicht skalar ist (z.B. leer)
-    save(fullfile(resdir, 'fvaldimensionerror.mat'));
     cds_log(-1, sprintf(['[dimsynth] Dimension der Zielfunktionen falsch ', ...
       'berechnet. dim(fval_obj_all)=%d, dim(physval_obj_all)=%d'], ...
       length(fval_obj_all), length(physval_obj_all)));
+    try % Auf Cluster teilweise Probleme beim Dateisystemzugriff
+      save(fullfile(resdir, 'fvaldimensionerror.mat'));
+    catch err
+      cds_log(-1, sprintf('[dimsynth] Fehler beim Speichern von mat-Datei: %s', err.message));
+    end
   end
   % Vergleiche neu berechnete Werte mit den zuvor abgespeicherten (müssen
   % übereinstimmen)
@@ -2368,34 +2384,50 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
   test_Jcond_rel = test_Jcond_abs / physval_cond;
   if abs(test_Jcond_abs) > 1e-6 && test_Jcond_rel > 1e-3 && ...
       physval_cond < 1e6 % Abweichung nicht in Singularität bestimmbar
-    save(fullfile(resdir, 'condreprowarning.mat'));
     cds_log(-1, sprintf(['[dimsynth] Während Optimierung gespeicherte ', ...
       'Konditionszahl (%1.5e) stimmt nicht mit erneuter Berechnung (%1.5e) ', ...
       'überein. Differenz %1.5e (%1.2f%%)'], ...
       PSO_Detail_Data.constraint_obj_val(dd_optind, 4, dd_optgen), ...
       physval_cond, test_Jcond_abs, 100*test_Jcond_rel));
+    try % Auf Cluster teilweise Probleme beim Dateisystemzugriff
+      save(fullfile(resdir, 'condreprowarning.mat'));
+    catch err
+      cds_log(-1, sprintf('[dimsynth] Fehler beim Speichern von mat-Datei: %s', err.message));
+    end
   end
   test_sv = PSO_Detail_Data.constraint_obj_val(dd_optind, 6, dd_optgen) - physval_ms;
   if abs(test_sv) > 1e-5
-    save(fullfile(resdir, 'svreprowarning.mat'));
     cds_log(-1, sprintf(['[dimsynth] Während Optimierung gespeicherte ', ...
       'Materialbelastung (%1.5e) stimmt nicht mit erneuter Berechnung (%1.5e) ', ...
       'überein. Differenz %1.5e.'], ...
       PSO_Detail_Data.constraint_obj_val(dd_optind, 6, dd_optgen), physval_ms, test_sv));
+    try % Auf Cluster teilweise Probleme beim Dateisystemzugriff
+      save(fullfile(resdir, 'svreprowarning.mat'));
+    catch err
+      cds_log(-1, sprintf('[dimsynth] Fehler beim Speichern von mat-Datei: %s', err.message));
+    end
   end
   test_actforce = PSO_Detail_Data.constraint_obj_val(dd_optind, 3, dd_optgen) - physval_actforce;
   if abs(test_actforce) > 1e-5
-    save(fullfile(resdir, 'actforcereprowarning.mat'));
     cds_log(-1, sprintf(['[dimsynth] Während Optimierung gespeicherte ', ...
       'Antriebskraft (%1.5e) stimmt nicht mit erneuter Berechnung (%1.5e) ', ...
       'überein. Differenz %1.5e.'], ...
       PSO_Detail_Data.constraint_obj_val(dd_optind, 3, dd_optgen), physval_actforce, test_actforce));
+    try % Auf Cluster teilweise Probleme beim Dateisystemzugriff
+      save(fullfile(resdir, 'actforcereprowarning.mat'));
+    catch err
+      cds_log(-1, sprintf('[dimsynth] Fehler beim Speichern von mat-Datei: %s', err.message));
+    end
   end
   test_mass = PSO_Detail_Data.constraint_obj_val(dd_optind, 1, dd_optgen) - physval_mass;
   if abs(test_mass) > 1e-5
-    save(fullfile(resdir, 'massreprowarning.mat'));
     cds_log(-1, sprintf('[dimsynth] Während Optimierung gespeicherte Masse (%1.5e) stimmt nicht mit erneuter Berechnung (%1.5e) überein. Differenz %1.5e.', ...
       PSO_Detail_Data.constraint_obj_val(dd_optind, 1, dd_optgen), physval_mass, test_mass));
+    try % Auf Cluster teilweise Probleme beim Dateisystemzugriff
+      save(fullfile(resdir, 'massreprowarning.mat'));
+    catch err
+      cds_log(-1, sprintf('[dimsynth] Fehler beim Speichern von mat-Datei: %s', err.message));
+    end
   end
 else
   % Keine Berechnung der Leistungsmerkmale möglich, da keine zulässige Lösung
@@ -2421,17 +2453,25 @@ end
 % Indizes der verletzten Nebenbedingungen. Wert Null heißt inaktiv.
 I_viol = physval_obj_all(I_constr) > Set.optimization.constraint_obj & I_fobj_set;
 if any(fval<1e3) && any(I_viol)
-  save(fullfile(resdir, 'objconstrwarning.mat'));
   for i = find(I_viol)'
     cds_log(-1,sprintf(['[dimsynth] Zielfunktions-Nebenbedingung %d (%s) verletzt ', ...
       'trotz Berücksichtigung in Optimierung: %1.4e > %1.4e. Keine Lösung gefunden.'], ...
       i, objconstr_names_all{i}, physval_obj_all(I_constr(i)), Set.optimization.constraint_obj(i)));
   end
+  try % Auf Cluster teilweise Probleme beim Dateisystemzugriff
+    save(fullfile(resdir, 'objconstrwarning.mat'));
+  catch err
+    cds_log(-1, sprintf('[dimsynth] Fehler beim Speichern von mat-Datei: %s', err.message));
+  end
 end
 if any(fval<1e3) && Set.optimization.constraint_obj(6) ~= 0 && ...
     physval_ms > Set.optimization.constraint_obj(6) 
-  save(fullfile(resdir, 'strengthconstrwarning.mat'));
   cds_log(-1, sprintf('[dimsynth] Materialbelastungs-Nebenbedingung verletzt trotz Berücksichtigung in Optimierung. Keine Lösung gefunden.'));
+  try % Auf Cluster teilweise Probleme beim Dateisystemzugriff
+    save(fullfile(resdir, 'strengthconstrwarning.mat'));
+  catch err
+    cds_log(-1, sprintf('[dimsynth] Fehler beim Speichern von mat-Datei: %s', err.message));
+  end
 end
 % Bestimme Zuordnung der Fitness-Vektor-Einträge zu den Leistungsmerkmalen
 % (Erleichtert spätere Auswertung bei Pareto-Optimierung)
@@ -2452,10 +2492,14 @@ for i = 1:length(Set.optimization.objective)
   end
   test_fval_i = fval(i) - fval_obj_all(I_fval_obj_all(i));
   if abs(test_fval_i) > 1e-5
-    save(fullfile(resdir, 'fvalreprowarning.mat'));
     cds_log(-1, sprintf(['[dimsynth] Zielfunktionswert %d (%s) nicht aus Neu', ...
       'berechnung der Leistungsmerkmale reproduzierbar. Aus PSO: %1.5f, neu: %1.5f.'], ...
       i, obj_names_all{I_fval_obj_all(i)}, fval(i), fval_obj_all(I_fval_obj_all(i))));
+    try % Auf Cluster teilweise Probleme beim Dateisystemzugriff
+      save(fullfile(resdir, 'fvalreprowarning.mat'));
+    catch err
+      cds_log(-1, sprintf('[dimsynth] Fehler beim Speichern von mat-Datei: %s', err.message));
+    end
   end
 end
 %% Speichere Ergebnisse der Entwurfsoptimierung
