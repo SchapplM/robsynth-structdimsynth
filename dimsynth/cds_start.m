@@ -31,7 +31,7 @@ if Set.general.isoncluster && isfolder(resdir_main) && ...
   if exist(fullfile(resdir_main, [Set.optimization.optname, '_results_table.csv']), 'file')
     error('Ergebnis-Tabelle existiert bereits in %s. Kein Überschreiben auf Cluster', resdir_main)
   end
-  fprintf('Verzeichnis %s existiert bereits, aber ohne Endergebnisse. Überschreibe.', resdir_main)
+  fprintf('Verzeichnis %s existiert bereits, aber ohne Endergebnisse. Überschreibe.\n', resdir_main)
 end
 if ~Set.general.computing_cluster
   % Ergebnis-Ordner für diese Optimierung erstellen (für Log benötigt).
