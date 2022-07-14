@@ -173,6 +173,8 @@ else % PKM
 end
 if R.Type == 2 % zusätzliche IK-Konfigurationen für PKM
   n_ikcomb = 2^R.NLEG; % Annahme zwei Umklapp-Lagen für IK jeder Beinkette
+else
+  n_ikcomb = 0; % Für serielle Roboter nicht relevant.
 end
 n_jic = 30+Set.optimization.pos_ik_tryhard_num+n_ikcomb;
 fval_jic = NaN(1,n_jic);
