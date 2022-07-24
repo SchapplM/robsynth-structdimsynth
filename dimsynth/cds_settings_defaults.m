@@ -217,7 +217,10 @@ task = struct( ...
   'obstacles', struct( ... % Hindernisse im Arbeitsraum zur Kollisionsprüfung
     'type', [], ... % Nummerierung siehe SerRob.m (collbodies)
     'params', []), ...% s.o.
-  'payload', struct('m', 3, 'rS', zeros(3,1), 'Ic', zeros(6,1)));
+  'payload', struct( ... % Zusätzliche Masse
+    'm', 3, ... % Masse
+    'rS', zeros(3,1), ... % Schwerpunkt, bezogen auf EE-KS (nicht: Plattform-KS)
+    'Ic', zeros(6,1))); % Trägheitstensor bzgl. Schwerpunkt. Reihenfolge xx, yy, zz, xy, xz, yz.
 task.payload.Ic(1:3) =  2/5 * task.payload.m * (60e-3)^2; % Kugel Radius 60mm
 %% Rückgabe Gesamt-Einstellungen
 settings = struct(...
