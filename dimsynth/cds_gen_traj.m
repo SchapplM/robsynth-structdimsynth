@@ -265,4 +265,5 @@ else
 end
 
 %% Ausgabe
-Traj = struct('X', X_ges, 'XD', XD_ges, 'XDD', XDD_ges, 't', T_ges, 'XE', XE, 'IE', IE);
+Traj = struct('X', X_ges, 'XD', XD_ges, 'XDD', XDD_ges, 't', T_ges, ...
+  'Fext', zeros(length(T_ges), 6), 'XE', XE, 'IE', IE);
