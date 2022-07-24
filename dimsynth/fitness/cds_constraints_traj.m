@@ -230,7 +230,7 @@ if Structure.task_red && Set.general.debug_taskred_perfmap
     load(matfile_pm);
     else
     [H_all, ~, s_ref, s_tref, phiz_range] = R.perfmap_taskred_ik( ...
-      Traj_0.X(1:nt_red,:), Traj_0.IE, struct('settings_ik', s, ...
+      Traj_0.X(1:nt_red,:), Traj_0.IE(Traj_0.IE~=0), struct('settings_ik', s, ...
       'q0', q, 'I_EE_red', Set.task.DoF, 'map_phistart', x0(6), ...
       ... % nur grobe Diskretisierung für die Karte (geht schneller)
       'mapres_thresh_eepos', 10e-3, 'mapres_thresh_eerot', 5*pi/180, ...
@@ -463,7 +463,7 @@ if i_ar == 3
       plot(Traj_0.t, QD(:,i), '-');
       plot(Traj_0.t([1,end]), repmat(Structure.qDlim(i,:),2,1), 'r-');
       if ~isempty(Traj_0.nullspace_maxvel_interp)
-        plot(Traj_0.t(Traj_0.IE), 0, 'rs');
+        plot(Traj_0.t(Traj_0.IE(Traj_0.IE~=0)), 0, 'rs');
       end
       if ~all(isnan(QD(:)))
         ylim(minmax2([QD(:,i);QD(:,i);QD_alt(:,i);QD_alt(:,i)]'));
@@ -493,7 +493,7 @@ if i_ar == 3
       plot(Traj_0.t, QDD(:,i), '-');
       plot(Traj_0.t([1,end]), repmat(Structure.qDDlim(i,:),2,1), 'r-');
       if ~isempty(Traj_0.nullspace_maxvel_interp)
-        plot(Traj_0.t(Traj_0.IE), 0, 'rs');
+        plot(Traj_0.t(Traj_0.IE(Traj_0.IE~=0)), 0, 'rs');
       end
       if ~all(isnan(QDD(:)))
         ylim(minmax2([QDD(:,i);QDD(:,i);QDD_alt(:,i);QDD_alt(:,i)]'));
@@ -670,7 +670,7 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     'cost_mode2', 'motion_redcoord', ... % möglichst geringe Bewegung der red. Koord.
     'abort_thresh_h', s.abort_thresh_h, ...
     'PM_H_all', H_all, 'PM_s_ref', s_ref, 'PM_s_tref', s_tref, 'PM_phiz_range', phiz_range, ...
-    'verbose', 0, 'IE', Traj_0.IE, ...
+    'verbose', 0, 'IE', Traj_0.IE(Traj_0.IE~=0), ...
     ... % 360°. Falls Startpose am Rand liegt den Suchbereich etwas aufweiten
     'phi_min', min(-pi, x0(6)-pi/4), 'phi_max', max(pi, x0(6)+pi/4), ...
     'n_phi', 6, ... % 60°-Schritte bei 360° Wertebereich
@@ -693,7 +693,7 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
   end
   cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: Beginne IK mit ', ...
     'Dynamischer Programmierung über %d Stufen und %d Zustände.'], ...
-    Structure.config_index, Structure.config_number, length(Traj_0.IE), s_dp.n_phi));
+    Structure.config_index, Structure.config_number, sum(Traj_0.IE~=0), s_dp.n_phi));
   t1 = tic();
   % Dynamische Programmierung berechnen oder Ergebnis laden (für Debuggen)
   matfile_dp=fullfile(resdir,sprintf('%s_%s.mat',name_prefix_ardbg,'dynprog'));
@@ -731,6 +731,7 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
   % nächsten Schritt. Unterschied zur Ausgabe aus der DP-Funktion:
   % Hier wird kein Rast-zu-Rast mehr erzwungen
   for ii = 1:size(XL,1)-1
+    if Traj_0.IE(ii) == 0, break; end % Eckpunkt nicht mehr Traj. zugeordnet
     i1 = Traj_0.IE(ii);
     i2 = Traj_0.IE(ii+1);
     [Traj_0.X(i1:i2,6),Traj_0.XD(i1:i2,6),Traj_0.XDD(i1:i2,6)] = ...
@@ -751,10 +752,11 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
   s_ikdp.wn(R.idx_iktraj_wnD.xlim_hyp) = 0.7; % D-Regler xlim hyperbolisch
   s_ikdp.enforce_xDlim = true;
   % Toleranzband für die Koordinate: Ist so gewählt wie in DynProg
-  s_ikdp.xlim6_interp = NaN(3,1+2*(length(Traj_0.IE)-1)); % Spalten: Zeitschritte
+  s_ikdp.xlim6_interp = NaN(3,1+2*(sum(Traj_0.IE~=0)-1)); % Spalten: Zeitschritte
   delta_phi = (s_dp.phi_max-s_dp.phi_min)/s_dp.n_phi;
   s_ikdp.xlim6_interp(:,1) = [Traj_0.t(1);-delta_phi/2; delta_phi/2];
   for i = 1:size(XL,1)-1
+    if Traj_0.IE(ii) == 0, break; end % Eckpunkt nicht mehr Traj. zugeordnet
     % Falls die DP nicht erfolgreich war, gibt es kein Toleranzband
     if all(isinf(DPstats.F_all(i,:)))
       delta_phi = inf; % Damit wird xlim6_interp unwirksam

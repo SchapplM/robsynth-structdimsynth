@@ -282,8 +282,12 @@ assert(all(size(Traj.X)==size(Traj.XD)), 'Dimension von X und XD nicht gleich');
 assert(all(size(Traj.X)==size(Traj.XDD)), 'Dimension von X und XDD nicht gleich');
 assert(length(Traj.IE)==size(Traj.XE,1), 'IE und XE muss gleiche Dimension haben in Traj.-Var.');
 assert(max(Traj.IE)<=size(Traj.X,1), 'Index-Vektor IE darf Bereich aus X nicht überschreiten');
-test_XEfromIE = Traj.X(Traj.IE,:) - Traj.XE;
-assert(all(abs(test_XEfromIE(:))<1e-10), 'XE muss mit IE aus X indiziert werden können');
+test_XEfromIE = Traj.X(Traj.IE(Traj.IE~=0),:) - Traj.XE(Traj.IE~=0,:);
+assert(all(abs(test_XEfromIE(:))<1e-10), 'Eckpunkte der Trajektorie X müssen in XE mit IE indiziert werden können');
+IE_firstzero = find(Traj.IE==0, 1, 'first');
+if ~isempty(IE_firstzero)
+  assert(all(Traj.IE(IE_firstzero:end)==0), 'die letzten Werte in XE dürfen nicht mehr der Trajektorie zugeordnet sein');
+end
 if all(Set.task.DoF(1:5) == [1 1 0 0 0]) % planare Aufgabe: 2T0R, 2T0*R oder 2T1R
   if ~strcmp(Set.structures.mounting_parallel, 'wall')
     assert(all(abs(Traj.X(1,3)- Traj.X(:,3))  < 1e-10) && ...
@@ -303,7 +307,7 @@ if isnan(Set.task.T_dec_ns)
 end
 if Set.task.profile == 1 && Set.task.T_dec_ns > 0
   nullspace_maxvel_interp = nullspace_maxvel_from_tasktraj(Traj.t, ...
-    Traj.IE, Set.task.vmax/Set.task.amax, Set.task.T_dec_ns , Set.task.Ts);
+    Traj.IE(Traj.IE~=0), Set.task.vmax/Set.task.amax, Set.task.T_dec_ns , Set.task.Ts);
   Traj.nullspace_maxvel_interp = nullspace_maxvel_interp;
 else % Deaktiviere Begrenzung der Geschwindigkeit
   Traj.nullspace_maxvel_interp = zeros(2,0);
