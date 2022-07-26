@@ -23,16 +23,20 @@
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
 function Traj_0 = cds_transform_traj(R, Traj_W)
-%  Übernahme der Felder 't', 'IE' und 'nullspace_maxvel_interp'
+% Kopie: Dadurch Übernahme der Felder 't', 'IE' und 'nullspace_maxvel_interp'
 Traj_0 = Traj_W;
-% Zwei Eingabestrukturen erstellen (Trajektorie und Eckpunkte)
-Traj_W_X = struct('X', Traj_W.X, 'XD', Traj_W.XD, 'XDD', Traj_W.XDD);
+% Eckpunkt-Posen ins Basis-KS transformieren (für cds_constraints)
 Traj_W_XE = struct('X', Traj_W.XE);
-% Transformation über Roboter-Klasse
-Traj_0_X = R.transform_traj(Traj_W_X);
 Traj_0_XE = R.transform_traj(Traj_W_XE);
-% Belegung der Ausgabe-Struktur
 Traj_0.XE = Traj_0_XE.X;
+if ~isfield(Traj_W, 'X')
+  return
+end
+% Vollständige Zeit-Trajektorie transformieren (für cds_constraints_traj)
+% Transformation über Roboter-Klasse
+Traj_W_X = struct('X', Traj_W.X, 'XD', Traj_W.XD, 'XDD', Traj_W.XDD);
+Traj_0_X = R.transform_traj(Traj_W_X);
+% Belegung der Ausgabe-Struktur (Felder aus Eingabe behalten)
 Traj_0.X = Traj_0_X.X;
 Traj_0.XD = Traj_0_X.XD;
 Traj_0.XDD = Traj_0_X.XDD;

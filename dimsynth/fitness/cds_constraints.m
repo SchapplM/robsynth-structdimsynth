@@ -1256,7 +1256,7 @@ else % Gebe alle gültigen Lösungen aus
       else % PKM
         s_plot = struct( 'ks_legs', [], 'ks_platform', [], ...
           'straight', 1, 'mode', plotmode);
-        R.plot( Q0(k,:)', Traj_0.X(1,:)', s_plot);
+        R.plot( Q0(k,:)', Traj_0.XE(1,:)', s_plot);
       end
       title(sprintf('Konfiguration %d', k));
     end

@@ -113,14 +113,15 @@ end
 % Funktion geschrieben; R.pkin ist vor/nach dem Aufruf unterschiedlich
 cds_update_robot_parameters(R, Set, Structure, p);
 
-%% Trajektorie anpassen
+%% Trajektorien-Struktur bezüglich der Eckpunkte anpassen
+% Komplette Trajektorie wird erst weiter unten gebraucht. Rechenzeit sparen
 if ~isfield(Traj_W, 'nullspace_maxvel_interp')
   Traj_W.nullspace_maxvel_interp = zeros(2,0); % Abwärtskompatibilität
 end
-Traj_0 = cds_transform_traj(R, Traj_W);
+Traj_0_E = cds_transform_traj(R, struct('XE', Traj_W.XE));
 
 %% Nebenbedingungen prüfen (für Eckpunkte)
-[fval_constr,QE_iIKC, Q0, constrvioltext, Stats_constraints] = cds_constraints(R, Traj_0, Set, Structure);
+[fval_constr,QE_iIKC, Q0, constrvioltext, Stats_constraints] = cds_constraints(R, Traj_0_E, Set, Structure);
 % Füge weitere Anfangswerte für die Trajektorien-IK hinzu. Diese werden
 % zusätzlich vorgegeben (bspw. aus vorherigem Ergebnis, das reproduziert
 % werden muss). Wird genutzt, falls aus numerischen Gründen die Einzelpunkt-
@@ -205,13 +206,18 @@ if fval_constr > 1000 % Nebenbedingungen verletzt.
   [~, i_gen, i_ind] = cds_save_particle_details([],[],0,0,NaN,NaN,NaN,NaN,'output');
   cds_log(2,sprintf(['[fitness] G=%d;I=%d. Fitness-Evaluation in %1.2fs. ', ...
     'fval=%1.3e. %s'],i_gen, i_ind, toc(t1), fval(1), constrvioltext));
-  cds_fitness_debug_plot_robot(R, Q0(1,:)', Traj_0, Traj_W, Set, Structure, p, mean(fval), debug_info);
+  cds_fitness_debug_plot_robot(R, Q0(1,:)', Traj_0_E, Traj_W, Set, Structure, p, mean(fval), debug_info);
   cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, desopt_pval);
   return
 end
 % Gelenkgrenzen merken (werden später überschrieben)
 if R.Type == 0, qlim = R.qlim; % Seriell
 else,           qlim = cat(1, R.Leg.qlim); end % PKM
+
+%% Trajektorie auf Roboter-Basis umrechnen (wegen Basis-Verschiebung)
+% Erst hier berechnen, da zeitaufwändig bei größeren Trajektorien
+Traj_0 = cds_transform_traj(R, Traj_W);
+
 %% Alle IK-Konfigurationen durchgehen
 % Berechne jeweils alle Zielfunktionen. Bestimme erst danach, welcher
 % Parametersatz der beste ist

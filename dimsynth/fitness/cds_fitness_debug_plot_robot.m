@@ -45,7 +45,7 @@ view(3);
 axis auto
 hold on;grid on;
 xlabel('x in m');ylabel('y in m');zlabel('z in m');
-if ~isempty(Traj_W)
+if ~isempty(Traj_W) && isfield(Traj_W, 'X')
   plot3(Traj_W.X(:,1), Traj_W.X(:,2),Traj_W.X(:,3), 'k-');
 end
 % plotmode = 1; % Strichzeichnung
@@ -56,7 +56,7 @@ if R.Type == 0 % Seriell
 else % PKM
   s_plot = struct( 'ks_legs', [R.I1L_LEG; R.I2L_LEG], 'ks_platform', 1:6, ...
     'straight', 1, 'mode', plotmode);
-  R.plot( q, Traj_0.X(1,:)', s_plot);
+  R.plot( q, Traj_0.XE(1,:)', s_plot);
 end
 if ~isempty(p)
   title(sprintf('fval=%1.2e; p=[%s]; %s', fval,disp_array(p','%1.3f'), tt));
