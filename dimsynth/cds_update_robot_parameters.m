@@ -126,7 +126,7 @@ end
 if any(Structure.vartypes == 3) % Set.optimization.ee_translation
   p_eepos = p(Structure.vartypes == 3);
   % Koordinaten auswählen (bezogen auf KS N, nicht KS E).
-  % Stellt für planare serielle RobR.mdlnameoter einen Unterschied dar
+  % Stellt für planare serielle Roboter einen Unterschied dar
   if Structure.R_N_E_isset && R.Type == 0
     % hier nicht R.T_N_E(1:3,1:3)' benutzen, da die Rotation dann nicht passt
     task_transl_DoF_rotE = Structure.R_N_E' * double(Set.task.DoF(1:3)');
