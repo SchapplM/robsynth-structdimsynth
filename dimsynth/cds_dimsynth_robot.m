@@ -2325,7 +2325,7 @@ if R.Type ~= 0 % für PKM
 	R.DynPar.mode = 3; 
   for i = 1:R.NLEG, R.Leg(i).DynPar.mode = 3; end
 end
-if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
+if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act')) && ~isempty(QD)
   % Masseparameter belegen, falls das nicht vorher passiert ist.
   % Nachbildung der Bedingungen für Belegung der Masseparameter in cds_fitness.m
   % Stelle fest, ob die Zielfunktion rein kinematisch ist; dann werden die
