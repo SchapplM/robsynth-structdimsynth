@@ -852,7 +852,15 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       if any(all(abs(test_vs_all_prev_norm)<3e-2,1))
         fval_jic(jic) = Inf; % damit jic-Iteration nicht weiter gemacht wird
         constrvioltext_jic{jic} = sprintf('Erste Gelenkwinkel identisch zu vorherigem Versuch');
-        break;  % Das IK-Ergebnisse für den ersten Eckpunkt gibt es schon. Nicht weiter rechnen.
+        break;  % Das IK-Ergebnis für den ersten Eckpunkt gibt es schon. Nicht weiter rechnen.
+      end
+      % Prüfe, ob sich die Konfiguration hinsichtlich der Positionen unter-
+      % scheidet (z.B. Ellenbogen-Wechsel) oder ob es nur geänderte Winkel sind
+      test_JP_vs_all_prev = repmat(JPE(1,:), jic-1, 1) - JP_jic(1:jic-1,:);
+      if any(all(abs(test_JP_vs_all_prev)<1e-6,2))
+        fval_jic(jic) = Inf; % damit jic-Iteration nicht weiter gemacht wird und doppelte Konfiguration nicht in Liste aufgenommen wird.
+        constrvioltext_jic{jic} = sprintf('Erste Gelenkpunkte identisch zu vorherigem Versuch');
+        break; % Ein ähnliches IK-Ergebnis für den ersten Eckpunkt gibt es schon. Nicht weiter rechnen.
       end
     end
     %% Vorläufige Prüfung einzelner Abbruchkriterien für einzelne Eckpunkte
