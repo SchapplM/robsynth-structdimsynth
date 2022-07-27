@@ -20,7 +20,8 @@
 %   1e3...1e5: Nicht belegt (siehe cds_fitness)
 %   1e5...2e5: Arbeitsraum-Hindernis-Kollision in Einzelpunkten
 %   2e5...3e5: Bauraumverletzung in Einzelpunkten
-%   3e5...4e5: Selbstkollision in Einzelpunkten
+%   3e5...3.5e5: Selbstkollision in Einzelpunkten (Prüfung direkt nach IK)
+%   3.5e5...4e5: Selbstkollision in Einzelpunkten (Prüfung nach IK aller Punkte)
 %   4e5...4.25e5: Schubzylinder geht ... (symmetrisch für PKM)
 %   4.25e5...4.5e5: Schubzylinder geht zu weit nach hinten weg (nach IK erkannt)
 %   4.5e5...5e5: Gestell ist wegen Schubgelenken zu groß (nach IK erkannt)
@@ -246,6 +247,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     q0(R.MDH.sigma==1) = q0(R.MDH.sigma==1) + 0.5*rand(1)*...
       (qlim_norm(R.MDH.sigma==1,2)-qlim_norm(R.MDH.sigma==1,1));
   elseif jic > n_jic-n_ikcomb % Versuche mit Kombinationen der bisherigen gefundenen Konfigurationen (für PKM)
+    if all(isnan(Q_jic(:))), break; end % Keine Kombination möglich. Bis hier nur NaN.
     if jic == n_jic-n_ikcomb+1 && R.Type == 2
       % Bestimme alle Kombinationen der Gelenkkoordinaten der Beinketten
       Q_configperm1 = NaN(0,size(Q_jic,2));
@@ -853,17 +855,42 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         break;  % Das IK-Ergebnisse für den ersten Eckpunkt gibt es schon. Nicht weiter rechnen.
       end
     end
+    %% Vorläufige Prüfung einzelner Abbruchkriterien für einzelne Eckpunkte
+    % Prüfe Kriterien für den neuen Punkt einzeln, auch wenn diese erst
+    % unten für alle Punkte gemeinsam geprüft würden
+    if ~Set.optimization.single_point_constraint_check, continue; end
+    if Set.optimization.constraint_collisions
+      [fval_coll, coll_self] = cds_constr_collisions_self(R, Traj_0.XE(i,:), ...
+        Set, Structure, JPE(i,:), QE(i,:), [0;1]);
+      if fval_coll > 0
+        % Normierte Gütefunktion auf 0 bis 1. Je mehr Eckpunkte `i` gelöst
+        % werden, desto kleiner der Strafterm. Kontinuierliche Wertung der
+        % Kollisionstiefe mit `fval_coll` (kaskadierte Wertebereiche).
+        fval_coll_sp = 1 - (i-fval_coll)/size(Traj_0.XE,1);
+        fval_jic(jic) = 1e5 * (3.5+0.5*fval_coll_sp); % Normierung auf 3.5e5 bis 4e5
+        constrvioltext_jic{jic} = sprintf('Selbstkollision bei AR-Eckpunkt %d/%d.', i, size(Traj_0.XE,1));
+        break;
+      end
+    end
   end % Schleife über Trajektorienpunkte
   if isinf(fval_jic(jic)) % Aufhören bei Duplikat.
     calctimes_jic(i_ar,jic) = toc(t1);
     continue;
   end
   QE(isnan(QE)) = 0;
-  Q_jic(:,:,jic) = QE;
+  Q_jic(:,:,jic) = QE; % hier belegen falls früher Abbruch in nächster Prüfung
   JP_jic(jic,:) = JPE(1,:);
+  if fval_jic(jic) < inf
+    % Bereits für einzelnen Punkt geprüft und Abbruchgrund gefunden.
+    % Höre hier auf. Ansonsten müsste noch die Einträge in QE hinsichtlich
+    % NaN in den folgenden Abbruch-Prüfungen berücksichtigt werden.
+    calctimes_jic(i_ar,jic) = toc(t1);
+    continue;
+  end
   Phi_E(isnan(Phi_E)) = 1e6;
-  if any(abs(Phi_E(:)) > 1e-2) || ... % Die Toleranz beim IK-Verfahren ist etwas größer
-      any(abs(Phi_E(1,:))>1e-8) % Startpunkt für Traj. Hat feine Toleranz, sonst missverständliche Ergebnisse. Konsistent mit Toleranz oben.
+  if (any(abs(Phi_E(:)) > 1e-2) || ... % Die Toleranz beim IK-Verfahren ist etwas größer
+      any(abs(Phi_E(1,:))>1e-8)) && ... % Startpunkt für Traj. Hat feine Toleranz, sonst missverständliche Ergebnisse. Konsistent mit Toleranz oben.
+      (isinf(fval_jic(jic)) || isnan(fval_jic(jic))) % Kein anderer Abbruchgrund oben
     % Nehme die mittlere IK-Abweichung aller Eckpunkte (Translation/Rotation
     % gemischt). Typische Werte von 1e-2 bis 10.
     % Bei vorzeitigem Abbruch zählt die Anzahl der erfolgreichen Eckpunkte
@@ -1034,9 +1061,10 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     length_cyl = qmax_cyl - qmin_cyl;
     [fval_cyllen, Iworst] = max(length_cyl./qmin_cyl);
     if fval_cyllen > 1
+      II_straightcylinder = find(Structure.I_straightcylinder);
       constrvioltext_jic{jic} = sprintf(['Länge eines Schubzylinders steht ', ...
         'nach hinten über. Min. Abstand %1.1fmm, Innenzylinder Länge %1.1fmm ', ...
-        '(Gelenk %d)'], 1e3*qmin_cyl(Iworst), 1e3*length_cyl(Iworst), Iworst);
+        '(Gelenk %d)'], 1e3*qmin_cyl(Iworst), 1e3*length_cyl(Iworst), II_straightcylinder(Iworst));
       fval_cyllen_norm = 2/pi*atan((fval_cyllen-1)*3); % Normierung auf 0 bis 1; 100% zu lang ist 0.8
       fval = 1e5*(4.25+0.25*fval_cyllen_norm); % Normierung auf 4.25e5 bis 4.5e5
       fval_jic(jic) = fval;
@@ -1099,10 +1127,11 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   %% Selbst-Kollisionsprüfung für Einzelpunkte
   if Set.optimization.constraint_collisions
     % Keine Nutzung bereits vorliegender Daten (obige Berechnung mit
-    % weniger Kollisionskörpern)
-    [fval_coll, coll_self] = cds_constr_collisions_self(R, Traj_0.XE, Set, Structure, JPE, QE, [3e5;4e5]);
+    % weniger Kollisionskörpern).
+    [fval_coll, coll_self] = cds_constr_collisions_self(R, Traj_0.XE, Set, ...
+      Structure, JPE, QE, [3e5;3.5e5]);
     if fval_coll > 0
-      fval_jic(jic) = fval_coll; % Normierung auf 3e5 bis 4e5 bereits in Funktion
+      fval_jic(jic) = fval_coll; % Normierung auf 3e5 bis 3.5e5 bereits in Funktion
       constrvioltext_jic{jic} = sprintf('Selbstkollision in %d/%d AR-Eckwerten.', ...
         sum(any(coll_self,2)), size(coll_self,1));
       if fval_jic_old(jic) > 3e5 && fval_jic_old(jic) < 4e5 && fval_coll > fval_jic_old(jic)+1e-4
