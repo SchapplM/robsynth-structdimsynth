@@ -793,7 +793,11 @@ if Structure.Type == 2 && Set.optimization.base_morphology
   if any(R.DesPar.base_method == 5:8) % Paarweise Anordnung der Beinketten
     nvars = nvars + 1;
     vartypes = [vartypes; 8];
-    varlim = [varlim; [0.2,0.8]]; % Gelenkpaarabstand. Relativ zu Gestell-Radius.
+    % Grenzfall: Koppelgelenke benachbarter Paare fallen zusammen. Dann
+    % klassische Hexapod-Koppelgelenke aus Literatur
+    % Geometrische Berechnung des Grenzfalls für l/r: `(cos(4*pi/3)-1) / sin(4*pi/3)`
+    % Dabei ist `l` der halbe Paar-Abstand
+    varlim = [varlim; [0.2,1.7321*2]]; % Gelenkpaarabstand. Relativ zu Gestell-Radius.
     varnames = {varnames{:}, 'base_morph_pairdist'}; %#ok<CCAT>
   end
   if any(R.DesPar.base_method == [4 8]) % Erste Achse hat eine Steigung gegen die Mitte
@@ -824,7 +828,7 @@ if Structure.Type == 2 && Set.optimization.platform_morphology
   elseif any(R.DesPar.platform_method == 4:6) % Parameter ist Gelenkpaarabstand (6FG-PKM)
     nvars = nvars + 1;
     vartypes = [vartypes; 9];
-    varlim = [varlim; [0.2,0.8]]; % Gelenkpaarabstand. Relativ zu Plattform-Radius.
+    varlim = [varlim; [0.2,1.7321*2]]; % Gelenkpaarabstand. Relativ zu Plattform-Radius. Grenzfall, siehe oben für Gestell.
     varnames = {varnames{:}, 'platform_morph_pairdist'}; %#ok<CCAT>
   elseif R.DesPar.platform_method == 8
     nvars = nvars + 1;

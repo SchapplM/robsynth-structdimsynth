@@ -143,8 +143,8 @@ optimization = struct( ...
   'base_tolerance_prismatic_guidance', 1.0, ... % Erhöhte Toleranz für das Überstehen von Schubgelenk-Führungsschienen
   'platform_size', true, ... % Größe der Plattform
   'platform_size_limits', [NaN, NaN], ... % Grenzen für Plattform-Größe (Radius; Absolut)
-  'base_morphology', false, ... % Aussehen des Gestells (z.B. Schrägheit, Gelenkpaarabstand)
-  'platform_morphology', false, ... % Aussehen der Plattform (z.B. Gelenkpaarabstand)
+  'base_morphology', true, ... % Aussehen des Gestells (z.B. Schrägheit, Gelenkpaarabstand)
+  'platform_morphology', true, ... % Aussehen der Plattform (z.B. Gelenkpaarabstand)
   'rotate_base', true, ... % Orientierung der Roboter-Basis (nur um die z-Achse). Hilft bei PKM.
   ... % Fixiere die Gelenkwinkel-Grenzen auf den beim Start gesetzten Wert.
   ... % Ist nur sinnvoll, wenn ein bereits gegebenes Robotermodell genutzt wird.
