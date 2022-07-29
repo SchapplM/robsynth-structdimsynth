@@ -930,6 +930,14 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   if Set.optimization.constraint_obj(4) == 0
     n_condexc = 0; % Nebenbedingung für Jacobi ist nicht aktiv
   else
+    % Bei Parallel-IK ist die Konditionszahl nicht bestimmt. Rechne Jacobi
+    % und Kondition neu aus
+    if R.Type == 2
+      for ii = find(isnan(condJ))'
+        Jinv_ii = R.jacobi_qa_x(QE(ii,:)', Traj_0.XE(ii,:)');
+        condJ(ii) = cond(Jinv_ii);
+      end
+    end
     n_condexc = sum(condJ(:) > Set.optimization.constraint_obj(4));
   end
   n_condexc2 = sum(condJ(:) > Set.optimization.condition_limit_sing_act);
@@ -946,7 +954,6 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         'Eckpunkte zu groß. max(cond(J))=%1.1e.'], n_condexc, size(condJ,1), max(condJ(:)));
     end
     fval_jic(jic) = fval;
-
     calctimes_jic(i_ar,jic) = toc(t1);
     continue;
   end
