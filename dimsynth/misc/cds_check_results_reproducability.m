@@ -90,7 +90,20 @@ ReproStatsTab = ReproStatsTab_empty;
 %% Roboter auswerten und Nachrechnen der Fitness-Funktion
 if s.update_template_functions
   for i = 1:length(RobNames)
-    parroblib_update_template_functions(RobNames(i));
+    Type = -1;
+    for j = 1:length(Structures)
+      if strcmp(Structures{j}.Name, RobNames(i))
+        Type = Structures{j}.Type;
+        break;
+      end
+    end
+    if Type == 0
+      serroblib_update_template_functions(RobNames(i));
+    elseif Type == 2
+      parroblib_update_template_functions(RobNames(i));
+    else
+      error('Fehler bei Typ-Bestimmung des Roboters %s', RobNames(i));
+    end
   end
 end
 Pool = gcp('nocreate');
