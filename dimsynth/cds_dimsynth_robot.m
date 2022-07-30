@@ -1155,11 +1155,11 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         end
       end
     end
-    % Kollision mit Plattform und Gestell
-    for k = 1:NLEG
-      for j = 1:NLEG
+    % Kollision von Plattform und Gestell
+    for j = 1:NLEG % Über Beinketten bzgl. Gestell
+      j_base = R.I1L_LEG(j)-(j-1);
+      for k = 1:NLEG % Über Beinketten bzgl. Plattform
         k_plf = R.I2L_LEG(k)-(k-1)-1;
-        j_base = R.I1L_LEG(j)-(j-1);
         row_kj = uint8([k_plf, j_base]);
         if any(all(selfcollchecks_bodies==...
             repmat(row_kj,size(selfcollchecks_bodies,1),1),2))
@@ -1173,7 +1173,18 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         %   selfcollchecks_bodies(end,1), selfcollchecks_bodies(end,2));
       end
       % Plattform-Modell zugeordnet zum Plattform-KS (Stern oder Kugel)
+      selfcollchecks_bodies = [selfcollchecks_bodies; ...
+        uint8([j_base, R.NL+R.NLEG-1])]; %#ok<AGROW>
+      % Kollisionsprüfung für EE-Segment zu EE-TCP
+      selfcollchecks_bodies = [selfcollchecks_bodies; ...
+        uint8([j_base, R.NL+R.NLEG])]; %#ok<AGROW>
     end
+    % Plattform und TCP gegen Roboter-Basis
+    selfcollchecks_bodies = [selfcollchecks_bodies; ...
+      uint8([0, R.NL+R.NLEG-1])];
+    % Kollisionsprüfung für EE-Segment zu EE-TCP
+    selfcollchecks_bodies = [selfcollchecks_bodies; ...
+      uint8([0, R.NL+R.NLEG])];
     % Kollisionen mit der Plattform
     for k = 1:NLEG
       if k > 1, NLoffset_k = 1+R.I2L_LEG(k-1)-(k-1);
@@ -1543,10 +1554,12 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       error('Logik-Fehler bei Initialisierung der Kollisionsprüfungen.')
     end
     Structure.I_collcheck_nochange = I_ccnc;
-    % Untersuche, welche Kollisionskörper gar nicht geprüft werden
-    for i = 1:length(R.collbodies)
+    % Untersuche, welche Kollisionskörper gar nicht geprüft werden. Muss nicht
+    % unbedingt ein Fehler sein, deutet aber auf nicht berücksichtigten Fall
+    for i = 1:length(R.collbodies.type)
       if ~any(R.collchecks(:) == i)
-        cds_log(-1, sprintf('[dimsynth] Kollisionskörper %d wird nie geprüft.', i));
+        cds_log(-1, sprintf(['[dimsynth] Kollisionskörper %d (%s) wird ', ...
+          'nie geprüft.'], i, names_collbodies{i}));
       end
     end
     
