@@ -105,6 +105,9 @@ end
 if Set.task.profile == 0 && any(strcmp(Set.optimization.objective, 'energy'))
   error('Energieberechnung ohne Zeitverlauf der Trajektorie nicht sinnvoll');
 end
+if Set.task.profile == 0 && any(strcmp(Set.optimization.objective, 'actvelo'))
+  error('Antriebsgeschwindigkeit als Optimierungsziel ohne Zeitverlauf der Trajektorie nicht sinnvoll');
+end
 if Set.optimization.nolinkmass && any(strcmp(Set.optimization.objective, 'stiffness'))
   error('Berechnung der Steifigkeit zusammen mit nolinkmass aktuell nicht möglich');
 end

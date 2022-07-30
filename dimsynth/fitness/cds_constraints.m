@@ -885,7 +885,6 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     calctimes_jic(i_ar,jic) = toc(t1);
     continue;
   end
-  QE(isnan(QE)) = 0;
   Q_jic(:,:,jic) = QE; % hier belegen falls früher Abbruch in nächster Prüfung
   JP_jic(jic,:) = JPE(1,:);
   if fval_jic(jic) < inf
