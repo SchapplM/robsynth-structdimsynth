@@ -333,51 +333,47 @@ for i = 1:length(m_ges_Link)
     % Letzter Körper: Flansch->EE bei Seriell; Plattform->EE bei Parallel
     if Structure.Type == 0 % Serieller Roboter
       r_i_i_D = R_pkin.T_N_E(1:3,4);
-      % Rotationsmatrix für das letzte Segment-KS
-      % Die x-Achse muss zum EE zeigen. Die anderen beiden Achsen sind
-      % willkürlich senkrecht dazu.
-      if ~all(R_pkin.T_N_E(1:3,4) == 0)
-        x_Si = R_pkin.T_N_E(1:3,4) / norm(R_pkin.T_N_E(1:3,4));
-        y_Si = cross(x_Si, R_pkin.T_N_E(1:3,1));
-        y_Si = y_Si/norm(y_Si);
-        z_Si = cross(x_Si, y_Si);
-        R_i_Si = [x_Si, y_Si, z_Si];
-      else
-        R_i_Si = eye(3); % Es gibt keinen Abstand zum letzten KS. EE hat keine eigene Ausdehnung
-      end
-      if abs(det(R_i_Si)-1) > 1e-6 || any(isnan(R_i_Si(:)))
-        save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_design_error.mat'));
-        error('Letztes Segment-KS stimmt nicht');
-      end
-    else % Paralleler Roboter
+      T_P_E = R_pkin.T_N_E; % Für gleiche Benennung seriell/parallel
+    else
       r_i_i_D = R.T_P_E(1:3,4);
-      % Annahme: Da die Plattform in der Mitte des Roboters ist, muss keine besondere
-      % EE-Transformation berücksichtigt werden.
-      R_i_Si = eye(3);
-      if Set.optimization.ee_translation && any(R.T_P_E(1:3,4))
-        % Wenn eine EE-Transformation optimiert wird, müssten dafür auch
-        % Dynamik-Parameter bestimmt werden. Ist noch nicht implementiert.
-        % Wenn eine EE-Trafo gegeben ist, kann die Masse davon bei
-        % Einstellung "payload" eingesetzt werden.
-        save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_design_error.mat'));
-        error('Der Vergleich zwischen Seriell und Parallel bei vorhandener Trafo P-E ist aktuell nicht möglich');
+      T_P_E = R.T_P_E;
+    end
+    % Rotationsmatrix für das letzte Segment-KS
+    % Die x-Achse muss zum EE zeigen. Die anderen beiden Achsen sind
+    % willkürlich senkrecht dazu.
+    if ~all(r_i_i_D == 0)
+      x_Si = r_i_i_D / norm(r_i_i_D);
+      if dot(x_Si, T_P_E(1:3,1)) > 0.99 % Verlängerung zeigt nur in x-Richtung
+        y_Si = T_P_E(1:3,2); % wähle y-Achse so wie in EE-KS
+      else
+        y_Si = cross(x_Si, T_P_E(1:3,1)); % y-Achse neu wählen
+        y_Si = y_Si/norm(y_Si);
       end
+      z_Si = cross(x_Si, y_Si); % senkrecht dazu
+      R_i_Si = [x_Si, y_Si, z_Si];
+    else
+      R_i_Si = eye(3); % Es gibt keinen Abstand zum letzten KS. EE hat keine eigene Ausdehnung
+    end
+    if abs(det(R_i_Si)-1) > 1e-6 || any(isnan(R_i_Si(:)))
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_design_error.mat'));
+      error('Letztes Segment-KS stimmt nicht');
     end
   end
   %% Segment-Geometrie als Dynamikparameter berechnen
-  if Structure.Type == 0 || Structure.Type == 2 && i < size(m_ges_Link,1)
-    % Hohlzylinder-Segment für Serielle Roboter und PKM
-    L_i = norm(r_i_i_D);
-    % Modellierung Hohlzylinder. Siehe TM-Formelsammlung
-    [m_s, J_S_C] = data_hollow_cylinder(R_i, e_i, L_i, density);
-    % Umrechnen auf Körper-KS;
-    J_i_C = R_i_Si * J_S_C * R_i_Si'; % [A]/(8)
-    r_i_Oi_C = 0.5*r_i_i_D;
-    % Eintragen in Dynamik-Parameter (bezogen auf Ursprung)
-    J_i_C_vec= inertiamatrix2vector(J_i_C);
-    m_ges_Link(i) = m_s;
-    [mrS_ges_Link(i,:), If_ges_Link(i,:)] = inertial_parameters_convert_par1_par2(r_i_Oi_C', J_i_C_vec, m_s);
-  elseif Structure.Type == 2 && i == size(m_ges_Link,1)
+  % Hohlzylinder-Segment für Serielle Roboter und PKM-Beinketten sowie
+  % für EE-Verbindungen (vom Plattform- oder Flansch-KS zum EE)
+  L_i = norm(r_i_i_D);
+  % Modellierung Hohlzylinder. Siehe TM-Formelsammlung
+  [m_s, J_S_C] = data_hollow_cylinder(R_i, e_i, L_i, density);
+  % Umrechnen auf Körper-KS;
+  J_i_C = R_i_Si * J_S_C * R_i_Si'; % [A]/(8)
+  r_i_Oi_C = 0.5*r_i_i_D;
+  % Eintragen in Dynamik-Parameter (bezogen auf Ursprung)
+  J_i_C_vec= inertiamatrix2vector(J_i_C);
+  m_ges_Link(i) = m_s;
+  [mrS_ges_Link(i,:), If_ges_Link(i,:)] = inertial_parameters_convert_par1_par2(r_i_Oi_C', J_i_C_vec, m_s);
+  %% Dynamik-Parameter für Plattform
+  if Structure.Type == 2 && i == size(m_ges_Link,1)
     % Plattform-Segment bei PKM
     % Annahme: Kreisscheibe. Plattform-Parameter siehe align_platform_coupling
     % (ist nur eine Näherung bei paarweiser Anordnung)
@@ -393,8 +389,11 @@ for i = 1:length(m_ges_Link)
       J_P_C = diag([J_P_P_xx; J_P_P_yy; J_P_P_zz]);
       % Umrechnen auf Körper-KS nicht notwendig.
       J_P_C_vec= inertiamatrix2vector(J_P_C);
-      m_ges_Link(i) = m_P;
-      [mrS_ges_Link(i,:), If_ges_Link(i,:)] = inertial_parameters_convert_par1_par2(r_P_P_C', J_P_C_vec, m_P);
+      [mrS_P, If_P] = inertial_parameters_convert_par1_par2(r_P_P_C', J_P_C_vec, m_P);
+      % Addieren zur bisherigen Masse der EE-Trafo (P-E)
+      m_ges_Link(i) = m_ges_Link(i) + m_P;
+      mrS_ges_Link(i,:) = mrS_ges_Link(i,:) + mrS_P;
+      If_ges_Link(i,:) = If_ges_Link(i,:) + If_P;
     else
       error('platform_method %d ist nicht implementiert', R.DesPar.platform_method);
     end
