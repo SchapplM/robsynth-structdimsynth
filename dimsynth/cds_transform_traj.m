@@ -40,3 +40,9 @@ Traj_0_X = R.transform_traj(Traj_W_X);
 Traj_0.X = Traj_0_X.X;
 Traj_0.XD = Traj_0_X.XD;
 Traj_0.XDD = Traj_0_X.XDD;
+% Externe Kraft rotieren
+if isfield(Traj_0, 'Fext') && any(Traj_W.Fext(:))
+  for i = 1:length(Traj_0.t)
+    Traj_0.Fext(i,:) = rotate_wrench(Traj_W.Fext(i,:)', R.T_W_0(1:3,1:3)');
+  end
+end

@@ -117,3 +117,11 @@ end
 if isfield(output, 'TAU_spring')
   output.TAU = output.TAU + output.TAU_spring;
 end
+
+%% Füge externe Kraft hinzu
+if isfield(data_dyn, 'TAU_ext')
+  output.TAU = output.TAU + data_dyn.TAU_ext;
+end
+if isfield(data_dyn, 'W_ext')
+  output.Wges = output.Wges + data_dyn.W_ext;
+end

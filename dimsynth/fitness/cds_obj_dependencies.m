@@ -18,7 +18,7 @@
 % 
 % Ausgabe:
 % data_dyn
-%   Struktur mit Diversen zu berechnenden Größen des Roboters im
+%   Struktur mit diversen zu berechnenden Größen des Roboters im
 %   Zeitverlauf. Bei Berechnung der Regressorform sind die Größen selbst
 %   nicht gesetzt.Felder:
 %   TAU
@@ -29,6 +29,8 @@
 %   TAU_spring
 %     Antriebsmomente zur Kompensation des Einflusses von Gelenkfedern
 %     (Sonderfall für Festkörpergelenke oder zusätzliche Federn in passiven Gelenken von PKM)
+%   TAU_ext
+%     Antriebsmomente zur Kompensation externer Kräfte aus Traj_0.Fext
 %   TAU_ID_reg
 %     Regressormatrix für TAU_ID
 %   TAU_spring_reg
@@ -201,6 +203,49 @@ if R.Type ~= 0 && (Structure.calc_cut && ~Structure.calc_spring_reg && ...
   Wges_spring = R.internforce_traj(Q, 0*QD, 0*QDD, TAU_spring, R.springtorque_traj(Q));
 end
 
+% Externe Kräfte berücksichtigen. Kräfte greifen in Richtung der
+% EE-Koordinaten an und wirken daher entgegen der Richtung der Antriebe:
+% M*xDD + C + G = F_m + F_ext
+if any(Traj_0.Fext(:))
+  if R.Type == 0, I_qa = R.MDH.mu == 1;
+  else,           I_qa = R.I_qa;
+  end
+  data_dyn.TAU_ext = zeros(length(Traj_0.t), sum(I_qa));
+  for i = 1:length(Traj_0.t)
+    if R.Type == 0
+      J = R.jacobig(Q(i,:)');
+      tau_aext = - J' * Traj_0.Fext(i,:)'; % negatives Vorzeichen, s.o.
+    else
+      Ja_inv_E = reshape(JinvE_ges(i,:), R.NJ, sum(R.I_EE));
+      Ja_inv_E_3T3R = zeros(sum(R.I_qa), 6);
+      Ja_inv_E_3T3R(:, R.I_EE) = Ja_inv_E(R.I_qa, :);
+      Tw = [eye(3,3), zeros(3,3); zeros(3,3), euljac(Traj_0.X(i,4:6)', R.phiconv_W_E)];
+      Jg_inv_E_3T3R = Ja_inv_E_3T3R / Tw;
+      tau_aext = - Jg_inv_E_3T3R' \ Traj_0.Fext(i,:)';
+    end
+    data_dyn.TAU_ext(i,:) = tau_aext;
+  end
+  if Structure.calc_cut
+    if R.Type == 0
+      data_dyn.W_ext = zeros(length(Traj_0.t), size(Wges_ID,2));
+      for i = 1:length(Traj_0.t)
+        W_ext_i = R.internforce_ext(Q(i,:)', Traj_0.Fext(i,:)', R.I_EElink, zeros(3,1));
+        data_dyn.W_ext(i,:) = W_ext_i(:);
+      end
+    else
+      data_dyn.W_ext = R.internforce_traj(Q, 0*QD, 0*QDD, data_dyn.TAU_ext, zeros(size(Q)));
+    end
+  end
+  if Set.general.debug_calc
+    % Prüfe Leistung der externen Kraft gegen resultierende Antriebskraft
+    for i = 1:length(Traj_0.t)
+      p_act = data_dyn.TAU_ext(i,:) * QD(i,I_qa)';
+      T_phiW = euljac_mex(Traj_0.X(i, 4:6)', R.phiconv_W_E);
+      p_ext = [Traj_0.XD(i,1:3)'; T_phiW*Traj_0.XD(i,4:6)']' * Traj_0.Fext(i,:)';
+      assert(abs(p_act - -p_ext) < 1e-8, 'Leistung aus externer Kraft ist nicht konsistent mit Antrieben');
+    end
+  end
+end
 %% Ausgabe belegen 
 if ~Structure.calc_dyn_reg && Structure.calc_dyn_act
   data_dyn.TAU_ID = TAU_ID;
@@ -242,6 +287,10 @@ if isfield(data_dyn, 'TAU_ID')
       ~isfield(data_dyn, 'TAU_spring_reg'))
     data_dyn.TAU = data_dyn.TAU_ID + data_dyn.TAU_spring;
   end
+  % Zusätzlich externe Kraft berücksichtigen
+  if isfield(data_dyn, 'TAU_ext')
+    data_dyn.TAU = data_dyn.TAU + data_dyn.TAU_ext;
+  end
 end
 
 if isfield(data_dyn, 'Wges_ID')
@@ -251,6 +300,9 @@ if isfield(data_dyn, 'Wges_ID')
   end
   if isfield(data_dyn, 'Wges_spring') && ~isfield(data_dyn, 'Wges_spring_reg')
     data_dyn.Wges = data_dyn.Wges_ID + data_dyn.Wges_spring;
+  end
+  if isfield(data_dyn, 'W_ext')
+    data_dyn.Wges = data_dyn.Wges + data_dyn.W_ext;
   end
 end
 
