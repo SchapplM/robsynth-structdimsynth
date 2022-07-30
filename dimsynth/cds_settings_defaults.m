@@ -143,8 +143,8 @@ optimization = struct( ...
   'base_tolerance_prismatic_guidance', 1.0, ... % Erhöhte Toleranz für das Überstehen von Schubgelenk-Führungsschienen
   'platform_size', true, ... % Größe der Plattform
   'platform_size_limits', [NaN, NaN], ... % Grenzen für Plattform-Größe (Radius; Absolut)
-  'base_morphology', false, ... % Aussehen des Gestells (z.B. Schrägheit, Gelenkpaarabstand)
-  'platform_morphology', false, ... % Aussehen der Plattform (z.B. Gelenkpaarabstand)
+  'base_morphology', true, ... % Aussehen des Gestells (z.B. Schrägheit, Gelenkpaarabstand)
+  'platform_morphology', true, ... % Aussehen der Plattform (z.B. Gelenkpaarabstand)
   'rotate_base', true, ... % Orientierung der Roboter-Basis (nur um die z-Achse). Hilft bei PKM.
   ... % Fixiere die Gelenkwinkel-Grenzen auf den beim Start gesetzten Wert.
   ... % Ist nur sinnvoll, wenn ein bereits gegebenes Robotermodell genutzt wird.
@@ -180,6 +180,7 @@ optimization = struct( ...
   'desopt_vars', {{}}, ... % Variablen für eigene Optimierung der Entwurfsparameter. Möglich: "linkstrength", "joint_stiffness_qref"
   'safety_link_yieldstrength', 1, ... % Sicherheitsfaktor für Streckgrenze der Segmente als Nebenbedingung. Berechnung gesteuert über constraint_obj(6)
   'constraint_collisions', false, ... Schalter für Kollisionsprüfung
+  'single_point_constraint_check', false, ... % Prüfe einige Nebenbedingungen für jeden Arbeitsraum-Eckpunkt. Schnellere Prüfungen, aber voraussichtlich schlechtere Konvergenz
   'collshape_base', {{'default'}}, ... % Form der Kollisionskörper für die PKM-Basis: default, star, ring, joint. Siehe cds_update_collbodies.m; mehrere möglich.
   'collshape_platform', {{'default'}}, ... % Form der Kollisionskörper für die PKM-Plattform default, star, ring, sphere. Siehe cds_update_collbodies.m; mehrere möglich.
   'pos_ik_tryhard_num', 0, ... % Anzahl der Versuche für die Positions-IK erhöhen (für Reproduktion der Ergebnisse bei anderer Zufallszahlen-Grundlage). Dient auch als Schalter für IK-Einstellungen mit Fokus auf Reproduzierbarkeit
@@ -217,7 +218,10 @@ task = struct( ...
   'obstacles', struct( ... % Hindernisse im Arbeitsraum zur Kollisionsprüfung
     'type', [], ... % Nummerierung siehe SerRob.m (collbodies)
     'params', []), ...% s.o.
-  'payload', struct('m', 3, 'rS', zeros(3,1), 'Ic', zeros(6,1)));
+  'payload', struct( ... % Zusätzliche Masse
+    'm', 3, ... % Masse
+    'rS', zeros(3,1), ... % Schwerpunkt, bezogen auf EE-KS (nicht: Plattform-KS)
+    'Ic', zeros(6,1))); % Trägheitstensor bzgl. Schwerpunkt. Reihenfolge xx, yy, zz, xy, xz, yz.
 task.payload.Ic(1:3) =  2/5 * task.payload.m * (60e-3)^2; % Kugel Radius 60mm
 %% Rückgabe Gesamt-Einstellungen
 settings = struct(...

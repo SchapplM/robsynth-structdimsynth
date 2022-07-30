@@ -109,24 +109,23 @@ if desopt_debug
 end
 
 %% EE-Zusatzlast
-
-if any(Set.task.payload.Ic(4:6)~=0) || any(diff(Set.task.payload.Ic(1:3)))
-  error('Nicht symmetrische EE-Last noch nicht definiert');
-end
 % Dynamikparameter für Robotermodell belegen
 m_ges_Zus = zeros(R_pkin.NL,1);
 mrS_ges_Zus = zeros(R_pkin.NL,3);
 If_ges_Zus = zeros(R_pkin.NL,6);
 m_ges_Zus(end) = Set.task.payload.m;
-if R.Type == 0 % Seriell
-  r_N_N_E = R.T_N_E(1:3,4);
-  [mrS_ges_Zus(end,:), If_ges_Zus(end,:)] = inertial_parameters_convert_par1_par2( ...
-    r_N_N_E(:)', Set.task.payload.Ic(:)', Set.task.payload.m);
+r_E_E_S = Set.task.payload.rS; % Schwerpunkt bzgl. EE-KS
+% Trägheitstensor in Plattform-KS rotieren
+Ic_E = inertiavector2matrix(Set.task.payload.Ic');
+if R.Type == 0 % Seriell (Benennung P=N für Konsistenz mit PKM)
+  r_P_P_S = R.T_N_E(1:3,4) + R.T_N_E(1:3,1:3) * r_E_E_S;
+  Ic_P = R.T_N_E(1:3,1:3)' * Ic_E * R.T_N_E(1:3,1:3);
 else
-  r_P_P_E = R.T_P_E(1:3,4);
-  [mrS_ges_Zus(end,:), If_ges_Zus(end,:)] = inertial_parameters_convert_par1_par2( ...
-    r_P_P_E(:)', Set.task.payload.Ic(:)', Set.task.payload.m);
+  r_P_P_S = R.T_P_E(1:3,4) + R.T_P_E(1:3,1:3) * r_E_E_S;
+  Ic_P = R.T_P_E(1:3,1:3)' * Ic_E * R.T_P_E(1:3,1:3);
 end
+[mrS_ges_Zus(end,:), If_ges_Zus(end,:)] = inertial_parameters_convert_par1_par2( ...
+  r_P_P_S(:)', inertiamatrix2vector(Ic_P), Set.task.payload.m);
 %% Strukturteile
 % Länge von Schubgelenken herausfinden
 q_minmax = NaN(R.NJ, 2);

@@ -89,7 +89,7 @@ if Set.task.pointing_task && ~isempty(RobotOptDetails.Traj_Q) && traj_available
     RobotOptDetails.Traj_QD, RobotOptDetails.Traj_QDD);
   X(:,6) = denormalize_angle_traj(X_fk(:,6));
   XD(:,6) = XD_fk(:,6); XDD(:,6) = XDD_fk(:,6);
-  XE = X(Traj_0.IE,:);
+  XE(Traj_0.IE~=0,:) = X(Traj_0.IE(Traj_0.IE~=0),:);
 end
 if RobData.Type ~= 0
   R.update_EE_FG(R.I_EE, R.I_EE);

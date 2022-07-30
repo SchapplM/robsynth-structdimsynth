@@ -113,19 +113,20 @@ end
 % Funktion geschrieben; R.pkin ist vor/nach dem Aufruf unterschiedlich
 cds_update_robot_parameters(R, Set, Structure, p);
 
-%% Trajektorie anpassen
+%% Trajektorien-Struktur bezüglich der Eckpunkte anpassen
+% Komplette Trajektorie wird erst weiter unten gebraucht. Rechenzeit sparen
 if ~isfield(Traj_W, 'nullspace_maxvel_interp')
   Traj_W.nullspace_maxvel_interp = zeros(2,0); % Abwärtskompatibilität
 end
-Traj_0 = cds_transform_traj(R, Traj_W);
+Traj_0_E = cds_transform_traj(R, struct('XE', Traj_W.XE));
 
 %% Nebenbedingungen prüfen (für Eckpunkte)
-[fval_constr,QE_iIKC, Q0, constrvioltext, Stats_constraints] = cds_constraints(R, Traj_0, Set, Structure);
+[fval_constr,QE_iIKC, Q0, constrvioltext, Stats_constraints] = cds_constraints(R, Traj_0_E, Set, Structure);
 % Füge weitere Anfangswerte für die Trajektorien-IK hinzu. Diese werden
 % zusätzlich vorgegeben (bspw. aus vorherigem Ergebnis, das reproduziert
 % werden muss). Wird genutzt, falls aus numerischen Gründen die Einzelpunkt-
 % IK nicht mehr reproduzierbar ist (z.B. durch Code-Änderung)
-if all(~isnan(Structure.q0_traj))
+if all(~isnan(Structure.q0_traj)) && Set.task.profile ~= 0 % nur, falls es auch eine Trajektorie gibt
   % Prüfe, ob diese vorgegebene Werte auch von alleine gefunden wurden.
   if ~any(all(abs(Q0-repmat(Structure.q0_traj',size(Q0,1),1))<1e-6,2))
     cds_log(-1,sprintf(['[fitness] Vorgegebene Werte aus q0_traj wurden nicht ', ...
@@ -197,7 +198,7 @@ if fval_constr > 1000 % Nebenbedingungen verletzt.
   end
   % Belege die Ausgabe mit den berechneten Gelenkwinkeln. Dann kann immer
   % noch das Bild gezeichnet werden (zur Fehlersuche)
-  Q_out = QE_iIKC;
+  Q_out = QE_iIKC(all(~isnan(QE_iIKC),2), :);
   
   % Speichere Gelenk-Grenzen. Damit sehen eine hieraus erstellte 3D-Bilder
   % besser aus, weil die Schubgelenk-Führungsschienen ungefähr stimmen.
@@ -205,13 +206,18 @@ if fval_constr > 1000 % Nebenbedingungen verletzt.
   [~, i_gen, i_ind] = cds_save_particle_details([],[],0,0,NaN,NaN,NaN,NaN,'output');
   cds_log(2,sprintf(['[fitness] G=%d;I=%d. Fitness-Evaluation in %1.2fs. ', ...
     'fval=%1.3e. %s'],i_gen, i_ind, toc(t1), fval(1), constrvioltext));
-  cds_fitness_debug_plot_robot(R, Q0(1,:)', Traj_0, Traj_W, Set, Structure, p, mean(fval), debug_info);
+  cds_fitness_debug_plot_robot(R, Q0(1,:)', Traj_0_E, Traj_W, Set, Structure, p, mean(fval), debug_info);
   cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, desopt_pval);
   return
 end
 % Gelenkgrenzen merken (werden später überschrieben)
 if R.Type == 0, qlim = R.qlim; % Seriell
 else,           qlim = cat(1, R.Leg.qlim); end % PKM
+
+%% Trajektorie auf Roboter-Basis umrechnen (wegen Basis-Verschiebung)
+% Erst hier berechnen, da zeitaufwändig bei größeren Trajektorien
+Traj_0 = cds_transform_traj(R, Traj_W);
+
 %% Alle IK-Konfigurationen durchgehen
 % Berechne jeweils alle Zielfunktionen. Bestimme erst danach, welcher
 % Parametersatz der beste ist
@@ -293,6 +299,7 @@ for iIKC = 1:size(Q0,1)
     else % Parallel
       Jinv_ges = NaN(size(Q,1), sum(R.I_EE)*size(Q,2));
       for i = 1:size(Q,1)
+        if any(isnan(Q(i,:))); break; end
         % Berechne die korrigierten Werte für die Euler-Winkel nach
         if Structure.task_red || all(R.I_EE_Task == [1 1 1 1 1 0])
           x_i = R.fkineEE2_traj(Q(i,:))';
@@ -314,6 +321,7 @@ for iIKC = 1:size(Q0,1)
     % Bestimme auch die Gelenkpositionen nochmal mit der direkten Kinematik
     JP = NaN(size(JP_IKC(:,:,iIKC))); % wurde oben nicht belegt
     for i = 1:size(Q,1)
+      if any(isnan(Q(i,:))); break; end
       [~, JointPos_all_i_fromdirkin] = R.fkine_coll2(Q(i,:)');
       JP(i,:) = JointPos_all_i_fromdirkin(:);
     end
@@ -897,17 +905,19 @@ if Set.optimization.fix_joint_limits
   % Bei Roboter-Modellen mit vorgegebenen Gelenkgrenzen wird nichts gemacht
   return
 end
+I_valid = all(~isnan(Q),2);
+if ~any(I_valid), return; end % keine Daten übergeben. Aktualisiere nichts.
 if R.Type == 0 % Seriell
   if only_pris
     I = R.MDH.sigma==1;
   else
     I = true(R.NQJ,1);
   end
-  R.qlim(I,:) = minmax2(Q(:,I)') + tol*repmat([-1, 1], sum(I), 1);
+  R.qlim(I,:) = minmax2(Q(I_valid,I)') + tol*repmat([-1, 1], sum(I), 1);
 else % PKM
   % Grenzen bei symmetrischer Wahl
   if Set.optimization.joint_limits_symmetric_prismatic
-    qminmax_legs = reshape(minmax2(Q'),R.Leg(1).NJ,2*R.NLEG);
+    qminmax_legs = reshape(minmax2(Q(I_valid,:)'),R.Leg(1).NJ,2*R.NLEG);
     qminmax_leg = minmax2(qminmax_legs);
   end
   for i = 1:R.NLEG

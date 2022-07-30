@@ -721,8 +721,10 @@ end
 
 % EE-Rotation
 if all(~isnan(Set.optimization.ee_rotation_fixed))
-  % EE-Rotation wird in Einstellung vorgegeben. Nicht optimieren
-  R.update_EE([], Set.optimization.ee_rotation_fixed(:));
+  % EE-Rotation wird in Einstellung vorgegeben. Nicht optimieren. Boden- 
+  % oder Deckenmontage über zusätzliche Rotation berücksichtigen (s.o.)
+  R_N_E_fix = Structure.R_N_E * eulxyz2r(Set.optimization.ee_rotation_fixed(:));
+  R.update_EE([], r2eulxyz(R_N_E_fix));
 elseif Set.optimization.ee_rotation
   if sum(Set.task.DoF(4:6)) == 1
     neerot = 1;
@@ -793,7 +795,11 @@ if Structure.Type == 2 && Set.optimization.base_morphology
   if any(R.DesPar.base_method == 5:8) % Paarweise Anordnung der Beinketten
     nvars = nvars + 1;
     vartypes = [vartypes; 8];
-    varlim = [varlim; [0.2,0.8]]; % Gelenkpaarabstand. Relativ zu Gestell-Radius.
+    % Grenzfall: Koppelgelenke benachbarter Paare fallen zusammen. Dann
+    % klassische Hexapod-Koppelgelenke aus Literatur
+    % Geometrische Berechnung des Grenzfalls für l/r: `(cos(4*pi/3)-1) / sin(4*pi/3)`
+    % Dabei ist `l` der halbe Paar-Abstand
+    varlim = [varlim; [0.2,1.7321*2]]; % Gelenkpaarabstand. Relativ zu Gestell-Radius.
     varnames = {varnames{:}, 'base_morph_pairdist'}; %#ok<CCAT>
   end
   if any(R.DesPar.base_method == [4 8]) % Erste Achse hat eine Steigung gegen die Mitte
@@ -824,7 +830,7 @@ if Structure.Type == 2 && Set.optimization.platform_morphology
   elseif any(R.DesPar.platform_method == 4:6) % Parameter ist Gelenkpaarabstand (6FG-PKM)
     nvars = nvars + 1;
     vartypes = [vartypes; 9];
-    varlim = [varlim; [0.2,0.8]]; % Gelenkpaarabstand. Relativ zu Plattform-Radius.
+    varlim = [varlim; [0.2,1.7321*2]]; % Gelenkpaarabstand. Relativ zu Plattform-Radius. Grenzfall, siehe oben für Gestell.
     varnames = {varnames{:}, 'platform_morph_pairdist'}; %#ok<CCAT>
   elseif R.DesPar.platform_method == 8
     nvars = nvars + 1;
@@ -1149,11 +1155,11 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         end
       end
     end
-    % Kollision mit Plattform und Gestell
-    for k = 1:NLEG
-      for j = 1:NLEG
+    % Kollision von Plattform und Gestell
+    for j = 1:NLEG % Über Beinketten bzgl. Gestell
+      j_base = R.I1L_LEG(j)-(j-1);
+      for k = 1:NLEG % Über Beinketten bzgl. Plattform
         k_plf = R.I2L_LEG(k)-(k-1)-1;
-        j_base = R.I1L_LEG(j)-(j-1);
         row_kj = uint8([k_plf, j_base]);
         if any(all(selfcollchecks_bodies==...
             repmat(row_kj,size(selfcollchecks_bodies,1),1),2))
@@ -1167,7 +1173,18 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         %   selfcollchecks_bodies(end,1), selfcollchecks_bodies(end,2));
       end
       % Plattform-Modell zugeordnet zum Plattform-KS (Stern oder Kugel)
+      selfcollchecks_bodies = [selfcollchecks_bodies; ...
+        uint8([j_base, R.NL+R.NLEG-1])]; %#ok<AGROW>
+      % Kollisionsprüfung für EE-Segment zu EE-TCP
+      selfcollchecks_bodies = [selfcollchecks_bodies; ...
+        uint8([j_base, R.NL+R.NLEG])]; %#ok<AGROW>
     end
+    % Plattform und TCP gegen Roboter-Basis
+    selfcollchecks_bodies = [selfcollchecks_bodies; ...
+      uint8([0, R.NL+R.NLEG-1])];
+    % Kollisionsprüfung für EE-Segment zu EE-TCP
+    selfcollchecks_bodies = [selfcollchecks_bodies; ...
+      uint8([0, R.NL+R.NLEG])];
     % Kollisionen mit der Plattform
     for k = 1:NLEG
       if k > 1, NLoffset_k = 1+R.I2L_LEG(k-1)-(k-1);
@@ -1537,10 +1554,12 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       error('Logik-Fehler bei Initialisierung der Kollisionsprüfungen.')
     end
     Structure.I_collcheck_nochange = I_ccnc;
-    % Untersuche, welche Kollisionskörper gar nicht geprüft werden
-    for i = 1:length(R.collbodies)
+    % Untersuche, welche Kollisionskörper gar nicht geprüft werden. Muss nicht
+    % unbedingt ein Fehler sein, deutet aber auf nicht berücksichtigten Fall
+    for i = 1:length(R.collbodies.type)
       if ~any(R.collchecks(:) == i)
-        cds_log(-1, sprintf('[dimsynth] Kollisionskörper %d wird nie geprüft.', i));
+        cds_log(-1, sprintf(['[dimsynth] Kollisionskörper %d (%s) wird ', ...
+          'nie geprüft.'], i, names_collbodies{i}));
       end
     end
     
@@ -2321,7 +2340,7 @@ if R.Type ~= 0 % für PKM
 	R.DynPar.mode = 3; 
   for i = 1:R.NLEG, R.Leg(i).DynPar.mode = 3; end
 end
-if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act'))
+if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act')) && ~isempty(QD)
   % Masseparameter belegen, falls das nicht vorher passiert ist.
   % Nachbildung der Bedingungen für Belegung der Masseparameter in cds_fitness.m
   % Stelle fest, ob die Zielfunktion rein kinematisch ist; dann werden die
