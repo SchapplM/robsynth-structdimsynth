@@ -152,4 +152,4 @@ for i = 1:length(Structures)
   ResTab = [ResTab; Row_i]; %#ok<AGROW>
 end
 writetable(ResTab, restabfile, 'Delimiter', ';');
-cds_log(1, sprintf('[cds_results_table] Ergebnis-Tabelle nach %s geschrieben.', restabfile));
+cds_log(1, sprintf('[results_table] Ergebnis-Tabelle nach %s geschrieben.', restabfile));
