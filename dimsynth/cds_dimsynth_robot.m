@@ -721,8 +721,10 @@ end
 
 % EE-Rotation
 if all(~isnan(Set.optimization.ee_rotation_fixed))
-  % EE-Rotation wird in Einstellung vorgegeben. Nicht optimieren
-  R.update_EE([], Set.optimization.ee_rotation_fixed(:));
+  % EE-Rotation wird in Einstellung vorgegeben. Nicht optimieren. Boden- 
+  % oder Deckenmontage über zusätzliche Rotation berücksichtigen (s.o.)
+  R_N_E_fix = Structure.R_N_E * eulxyz2r(Set.optimization.ee_rotation_fixed(:));
+  R.update_EE([], r2eulxyz(R_N_E_fix));
 elseif Set.optimization.ee_rotation
   if sum(Set.task.DoF(4:6)) == 1
     neerot = 1;
