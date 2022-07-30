@@ -171,7 +171,7 @@ for N_JointDoF = N_JointDoF_allowed
     
     SkipRobot = false;
     if WrongOrigin
-      if verblevel >= 3
+      if verblevel > 3
         fprintf(['%s kommt nicht aus der gewünschten Struktursynthese. ', ...
           'Herkunft-Bits: [%s], Maske: [%s]'], SName, dec2bin( ...
           SerRob_DB_all.BitArrays_Origin(ilc_genmdl,:), 5), dec2bin(Mask_Origin, 5));
@@ -179,14 +179,14 @@ for N_JointDoF = N_JointDoF_allowed
       SkipRobot = true;
     end
     if ~SkipRobot && TooManyPrisJoints
-      if verblevel >= 3
+      if verblevel > 3
         fprintf('%s hat zu viele Schubgelenke (%d>%d).', ...
           SName, numprismatic, structset.maxnumprismatic);
       end
       SkipRobot = true;
     end
     if ~SkipRobot && ~FilterMatch
-      if verblevel >= 3
+      if verblevel > 3
         fprintf('%s passt nicht zum Filter %s.', ...
           SName, structset.joint_filter);
       end
@@ -194,9 +194,9 @@ for N_JointDoF = N_JointDoF_allowed
     end
     if SkipRobot % Einer der Ausschlussgründe oben wurde getroffen.
       if IsInWhiteList % Positiv-Liste wird trotzdem genommen.
-        if verblevel >= 3, fprintf(' Füge trotzdem hinzu, da auf Positiv-Liste.\n'); end
+        if verblevel > 3, fprintf(' Füge trotzdem hinzu, da auf Positiv-Liste.\n'); end
       else
-        if verblevel >= 3, fprintf(' Ignoriere.\n'); end
+        if verblevel > 3, fprintf(' Ignoriere.\n'); end
         continue
       end
     end
@@ -268,20 +268,20 @@ for kkk = 1:size(EE_FG_allowed,1)
     StructuralDHParam = ActTab.Values_Angle_Parameters(Ij);
     % Prüfe Koppelpunkt-Eigenschaften
     if ~any(Coupling(1) == 1:10) || ~any(Coupling(2) == 1:8)
-      if verblevel >= 3 || IsInWhiteList
+      if verblevel > 3 || IsInWhiteList
         fprintf('%s hat eine nicht implementierte Koppelpunkt-Variante\n', PNames_Akt{j});
       end
       continue % Robotermodell kann in Optimierung nicht generiert werden.
     end
     if ~any(Coupling(1) == Set.structures.parrob_basejointfilter)
-      if verblevel >= 3 || IsInWhiteList
+      if verblevel > 3 || IsInWhiteList
         fprintf( '%s hat nicht die gewünschte Gestell-Koppelgelenk-Variante (%s). Ignoriere.\n', ...
           PNames_Akt{j}, disp_array(Set.structures.parrob_basejointfilter,'%d') );
       end
       continue
     end
     if ~any(Coupling(2) == Set.structures.parrob_platformjointfilter)
-      if verblevel >= 3 || IsInWhiteList
+      if verblevel > 3 || IsInWhiteList
         fprintf( '%s hat nicht die gewünschte Plattform-Koppelgelenk-Variante (%s). Ignoriere.\n', ...
           PNames_Akt{j}, disp_array(Set.structures.parrob_platformjointfilter,'%d') );
       end
@@ -293,7 +293,7 @@ for kkk = 1:size(EE_FG_allowed,1)
     % "valid_act" soll in Struktursynthese der Rang geprüft werden. Dann
     % damit weitermachen.
     if isnan(AdditionalInfo_Akt(j,1)) && ~any(strcmp(Set.optimization.objective, 'valid_act'))
-      if verblevel >= 3 || IsInWhiteList
+      if verblevel > 3 || IsInWhiteList
         fprintf(['%s hat keine Angabe eines Rangverlusts der Jacobi-Matrix. ', ...
           'Vermutlich ungeprüfte PKM. Ignoriere.\n'], PNames_Akt{j});
       end
@@ -381,14 +381,14 @@ for kkk = 1:size(EE_FG_allowed,1)
           % Eigentlich nur dritte Spalte für Modellherkunft für 3T0R-PKM
           % Benutze auch Beinketten für 3T1R-PKM. TODO: Seriell-Synthese
           % passt eventuell nicht komplett
-          Mask_Origin = uint16(bin2dec('00110'));
+          Mask_Origin = uint16(bin2dec(fliplr('00110'))); % siehe oben bei SerRob-Filter
         elseif all(EE_FG_allowed(kkk,:) == [1 1 1 0 0 1])
           % Eigentlich nur vierte Spalte (in S5RPRPR.csv o.ä.) für 3T1R-PKM
           % Benutze auch Beinketten für 3T0R-PKM
-          Mask_Origin = uint16(bin2dec('00110'));
+          Mask_Origin = uint16(bin2dec(fliplr('00110')));
         else
           % Keine Einschränkung (außer manuell eingefügte Ketten)
-          Mask_Origin = uint16(bin2dec('01111'));
+          Mask_Origin = uint16(bin2dec(fliplr('01111')));
         end
         % Maske für die Beinkette erstellen. Bei allgemeinen Hauptmodellen
         % direkt ablesen. Bei Varianten die Maske des Hauptmodells nehmen.
@@ -398,7 +398,7 @@ for kkk = 1:size(EE_FG_allowed,1)
           % Struktursynthese genommen (noch ungeklärt, woher die kommen).
         elseif SerRob_DB_all.AdditionalInfo(ilc,2) == 1 % ist Variante
            % Beinkette ist so direkt nicht richtig
-          if ~bitand(uint16(bin2dec('10000')), SerRob_DB_all.BitArrays_Origin(ilc))
+          if bitand(uint16(bin2dec(fliplr('10000'))), SerRob_DB_all.BitArrays_Origin(ilc))
              % Variante soll zumindest aus Generierung der mehrwertigen
              % Gelenke kommen. Keine manuell eingefügten Varianten oder
              % Varianten aus direkter Struktursynthese.
@@ -420,53 +420,53 @@ for kkk = 1:size(EE_FG_allowed,1)
     end
     SkipRobot = false;
     if structset.nopassiveprismatic && PassPrisJoint % PKM enthält passive Schubgelenke. Nicht auswählen
-      if verblevel >= 3 || IsInWhiteList
+      if verblevel > 3 || IsInWhiteList
         fprintf('%s hat passives Schubgelenk.', PNames_Akt{j});
       end
       SkipRobot = true;
     end
     if ~SkipRobot && TooManyPrisJoints
-      if verblevel >= 3 || IsInWhiteList
+      if verblevel > 3 || IsInWhiteList
         fprintf('%s hat zu viele Schubgelenke.', PNames_Akt{j});
       end
       SkipRobot = true;
     end
     if ~SkipRobot && structset.activenotlastjoint && LastJointActive
-      if verblevel >= 3 || IsInWhiteList
+      if verblevel > 3 || IsInWhiteList
         fprintf('%s hat aktives letztes Gelenk.', PNames_Akt{j});
       end
       SkipRobot = true;
     end
     if ~SkipRobot && DistalJointActive
-      if verblevel >= 3 || IsInWhiteList
+      if verblevel > 3 || IsInWhiteList
         fprintf('%s hat aktives Gelenk nach Position %d.', PNames_Akt{j}, ...
           Set.structures.max_index_active);
       end
       SkipRobot = true;
     end
     if ~SkipRobot && DistalPrisJointActive
-      if verblevel >= 3 || IsInWhiteList
+      if verblevel > 3 || IsInWhiteList
         fprintf('%s hat aktives Schubgelenk nach Position %d.', PNames_Akt{j}, ...
           Set.structures.max_index_active_prismatic);
       end
       SkipRobot = true;
     end
     if ~SkipRobot && DistalRevJointActive
-      if verblevel >= 3 || IsInWhiteList
+      if verblevel > 3 || IsInWhiteList
         fprintf('%s hat aktives Drehgelenk nach Position %d.', PNames_Akt{j}, ...
           Set.structures.max_index_active_revolute);
       end
       SkipRobot = true;
     end
     if ~SkipRobot && ~FilterMatch
-      if verblevel >= 3 || IsInWhiteList
+      if verblevel > 3 || IsInWhiteList
         fprintf('%s passt nicht zum Filter %s.', PNames_Akt{j}, ...
           structset.joint_filter);
       end
       SkipRobot = true;
     end
     if ~SkipRobot && NumTechJointsDontMatch
-      if verblevel >= 3 || IsInWhiteList
+      if verblevel > 3 || IsInWhiteList
         fprintf(['%s hat nicht die passende Gelenkzahl in Beinkette (%s). ', ...
           'Ist: %d. Erlaubt: [%s]'], PNames_Akt{j}, SName_TechJoint, ...
           length(SName_TechJoint), disp_array(structset.num_tech_joints, '%d'));
@@ -474,7 +474,7 @@ for kkk = 1:size(EE_FG_allowed,1)
       SkipRobot = true;
     end
     if ~SkipRobot && SphericalJointInChain
-      if verblevel >= 3 || IsInWhiteList
+      if verblevel > 3 || IsInWhiteList
         fprintf('%s hat ein Kugelgelenk in der Mitte der Beinkette (%s)', ...
           PNames_Akt{j}, SName_TechJoint);
       end
@@ -482,7 +482,7 @@ for kkk = 1:size(EE_FG_allowed,1)
     end
     
     if ~SkipRobot && WrongLegChainOrigin
-      if verblevel >= 3 || IsInWhiteList
+      if verblevel > 3 || IsInWhiteList
         fprintf('%s hat keine Beinkette aus %s-PKM-Synthese (%s).', ...
           PNames_Akt{j}, EEstr, LegChainName);
       end
@@ -492,7 +492,7 @@ for kkk = 1:size(EE_FG_allowed,1)
       if IsInWhiteList % Positiv-Liste wird trotzdem genommen.
         fprintf(' Füge trotzdem hinzu, da auf Positiv-Liste.\n');
       else
-        if verblevel >= 3, fprintf(' Ignoriere.\n'); end
+        if verblevel > 3, fprintf(' Ignoriere.\n'); end
         continue
       end
     end
@@ -559,7 +559,7 @@ for kkk = 1:size(EE_FG_allowed,1)
       if verblevel >= 2, fprintf('%d: %s; %s\n', ii, PNames_Akt{j}, theta_logstr); end
       Structures{ii} = struct('Name', PNames_Akt{j}, 'Type', 2, 'Number', ii, ...
         'Coupling', Coupling, 'angles_values', av, 'DoF', EE_FG_allowed(kkk,:), ...
-        'RobName', ''); % Zur Angleichung an SerRob. %#ok<AGROW>
+        'RobName', ''); %#ok<AGROW> % Zur Angleichung an SerRob.
     end
   end
 end
