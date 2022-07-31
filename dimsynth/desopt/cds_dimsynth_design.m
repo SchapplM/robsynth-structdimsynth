@@ -344,7 +344,7 @@ for i = 1:length(m_ges_Link)
     if ~all(r_i_i_D == 0)
       x_Si = r_i_i_D / norm(r_i_i_D);
       if dot(x_Si, T_P_E(1:3,1)) > 0.99 % Verlängerung zeigt nur in x-Richtung
-        y_Si = T_P_E(1:3,2); % wähle y-Achse so wie in EE-KS
+        y_Si = cross(x_Si, T_P_E(1:3,3)); % wähle y-Achse so wie in EE-KS (aber ausgehend von z-Achse, damit exakt senkrecht zu x-Achse)
       else
         y_Si = cross(x_Si, T_P_E(1:3,1)); % y-Achse neu wählen
         y_Si = y_Si/norm(y_Si);
