@@ -104,10 +104,14 @@ if strcmp(figname, 'robvisu')
 elseif ~strcmp(figname, 'animation')
   Set.general.animation_styles = {};
 end
-% Einstellung bzgl Dateiformat anpassen. Falls Abbruch bereits bei
+% Einstellung bzgl Dateiformat anpassen. Falls Abbruch bereits bei wenigen
 % Eckpunkten, sollte eine GIF-Datei erzeugt werden. MP4 mit nur wenigen
-% Einzelbildern sind problematisch beim Abspielen
-if ~traj_available
+% Einzelbildern sind problematisch beim Abspielen (Grenze: 10 Bilder)
+n_qvalid = size(RobotOptDetails.Traj_Q,1);
+if any(isnan(isnan(RobotOptDetails.Traj_Q(:))))
+  n_qvalid = find(any(isnan(RobotOptDetails.Traj_Q),2),1,'first')-1;
+end
+if ~traj_available && n_qvalid < 10
   Set.general.save_animation_file_extensions = unique(['gif', ...
     Set.general.save_animation_file_extensions]);
 end
@@ -186,6 +190,7 @@ for kk = 1:length(Set.general.animation_styles)
     % Keine Trajektorie mit Zeitverlauf gefordert oder Fehler dabei
     I_anim = 1:size(RobotOptDetails.Traj_Q,1); % Zeichne jeden Zeitschritt
     Traj_X = XE;
+    s_anim.FrameRate = 10; % langsamer abspielen
   else
     if Traj_0.t(end) > Set.general.maxduration_animation
       % Reduziere das Video auf die maximale Länge. Die Abtastrate ist 30Hz
