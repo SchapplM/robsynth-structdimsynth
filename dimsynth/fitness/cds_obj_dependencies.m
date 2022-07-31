@@ -220,11 +220,58 @@ if any(Traj_0.Fext(:))
       Ja_inv_E_3T3R = zeros(sum(R.I_qa), 6);
       Ja_inv_E_3T3R(:, R.I_EE) = Ja_inv_E(R.I_qa, :);
       Tw = [eye(3,3), zeros(3,3); zeros(3,3), euljac(Traj_0.X(i,4:6)', R.phiconv_W_E)];
-      Jg_inv_E_3T3R = Ja_inv_E_3T3R / Tw;
-      tau_aext = - Jg_inv_E_3T3R' \ Traj_0.Fext(i,:)';
+      % Debug: Über geometrische Jacobi-Matrix rechnen (funktioniert nicht
+      % bei 3T2R-PKM)
+%       Jg_inv_E_3T3R = Ja_inv_E_3T3R / Tw;
+%       tau_aext_geom = - Jg_inv_E_3T3R' \ Traj_0.Fext(i,:)';
+      % Berechne Antriebskräfte über Euler-Momente
+      F0_Eul = Tw' * Traj_0.Fext(i,:)';
+      if all(R.I_EE == [1 1 1 1 1 0]) % Sonderfall 3T2R-PKM
+        % Bestimme die vollständige Jacobi-Matrix für 3T3R-EE-FG. Daraus
+        % Umrechnung der externen Kraft auf die 3T2R-FG. Sonst können
+        % externe Momente entlang der z-Achse nicht korrekt abgebildet
+        % werden. Die Matrix in Ja_inv_E enthält die Komponente nicht.
+        [~, Phi_q_voll] = R.constr3grad_q(Q(i,:)', Traj_0.X(i,:)');
+        [~, Phi_x_voll] = R.constr3grad_x(Q(i,:)', Traj_0.X(i,:)');
+        Jinv_num_voll = -Phi_q_voll\ Phi_x_voll;
+        % Matrix zum Umrechnen zwischen phizD und yD (3T2R-EE-Geschw.)
+        J_y_phiz = (-Jinv_num_voll(R.I_qa, R.I_EE) \ Jinv_num_voll(R.I_qa, 6));
+        % Diverse Probe-Rechnungen (zum besseren Verständnis der
+        % verschiedenen Matrizen)
+        if Set.general.debug_calc
+          test_Jainv = Ja_inv_E * Traj_0.XD(i,R.I_EE)'  - QD(i,:)';
+          assert(all(abs(test_Jainv)<1e-10), 'Trajektorie und Matrix Ja_inv_E inkonsistent');
+          test_Jinv_num_voll = Jinv_num_voll(R.I_qa, :) * Traj_0.XD(i,:)' - QD(i,R.I_qa)';
+          assert(all(abs(test_Jinv_num_voll)<1e-10), 'Trajektorie und Matrix Jinv_num_voll inkonsistent');
+          yD_korr = J_y_phiz * Traj_0.XD(i,6);
+          test_yDkorr = Jinv_num_voll(R.I_qa, R.I_EE) * (Traj_0.XD(i,R.I_EE)'-yD_korr) - QD(i,R.I_qa)';
+          assert(all(abs(test_yDkorr)<1e-10), 'Matrix zum Umrechnen von phizD auf yD funktioniert nicht');
+        end
+        % Korrektur-Moment für 3T2R-PKM. Moment in Richtung des Kompen-
+        % sationsterms für yD. Enthält nur Momente in mx und my Richtung.
+        % TODO: Damit ist nur die Leistungsbilanz der externen Kraft
+        % konsistent. Die statischen Kräfte in die Struktur sind noch nicht
+        % richtig. Eine korrekte Lösung ist noch nicht gefunden.
+        F0_Eul_Add_test =  [J_y_phiz * F0_Eul(6); 0];
+        p1 = F0_Eul(6) * Traj_0.XD(i,6); % Dieser Wert muss kompensiert werden. Ansonsten wird nur die Leistung der Einträge 1:5 gezählt
+        % Bestimme die Antriebsmomente, die aus dem Test-Vektor entstehen
+        tau_aext_add_test = - (Ja_inv_E(R.I_qa,:))' \ (F0_Eul_Add_test(R.I_EE));
+        % Daraus entstehende mechanische Leistung. Skalierung mit Soll.
+        p_add_test = tau_aext_add_test' * QD(i,R.I_qa)';
+        if p_add_test ~= 0
+          F0_Eul_Add = F0_Eul_Add_test * p1/p_add_test;
+        else % sonst NaN.
+          F0_Eul_Add = zeros(6,1);
+        end
+      else
+        F0_Eul_Add = zeros(6,1);
+      end
+      % Umrechnung von EE auf Antriebe. Moment ist das Antriebsmoment, das
+      % das externe Moment kompensiert. Daher negatives Vorzeichen.
+      tau_aext = - (Ja_inv_E(R.I_qa,:))' \ (F0_Eul(R.I_EE)-F0_Eul_Add(R.I_EE));% + F0_Eul_Add(R.I_EE));
     end
     data_dyn.TAU_ext(i,:) = tau_aext;
-  end
+  end % for i
   if Structure.calc_cut
     if R.Type == 0
       data_dyn.W_ext = zeros(length(Traj_0.t), size(Wges_ID,2));
@@ -240,10 +287,21 @@ if any(Traj_0.Fext(:))
     % Prüfe Leistung der externen Kraft gegen resultierende Antriebskraft
     for i = 1:length(Traj_0.t)
       p_act = data_dyn.TAU_ext(i,:) * QD(i,I_qa)';
-      T_phiW = euljac_mex(Traj_0.X(i, 4:6)', R.phiconv_W_E);
-      p_ext = [Traj_0.XD(i,1:3)'; T_phiW*Traj_0.XD(i,4:6)']' * Traj_0.Fext(i,:)';
-      assert(abs(p_act - -p_ext) < 1e-8, 'Leistung aus externer Kraft ist nicht konsistent mit Antrieben');
-    end
+      Tw = [eye(3,3), zeros(3,3); zeros(3,3), euljac(Traj_0.X(i,4:6)', R.phiconv_W_E)];
+      % Berechne Antriebskräfte über Euler-Momente
+      F0_Eul = Tw' * Traj_0.Fext(i,:)';
+      p_ext = Traj_0.XD(i,:) * F0_Eul(:);
+      test_p_abs = p_act - -p_ext;
+      test_p_rel = test_p_abs/p_ext;
+      if isnan(test_p_rel), test_p_rel = 0; end % Teilen durch Null
+      if abs(test_p_abs) > 1e-8 && abs(test_p_rel)>1e-2
+        save(fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp', ...
+          sprintf('%d_%s', Structure.Number, Structure.Name), 'obj_dep_pext_reprowarning.mat'));
+        error(['Leistung aus externer Kraft ist nicht konsistent mit An', ...
+          'trieben (i=%d; Fehler abs: %1.1e; rel: %1.1e. %1.3e vs %1.3e)'], ...
+          i, test_p_abs, test_p_rel, p_act, p_ext);
+      end
+    end % for i
   end
 end
 %% Ausgabe belegen 

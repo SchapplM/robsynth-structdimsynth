@@ -445,6 +445,9 @@ if strcmp(figname, 'pareto')
 end
 %% Rechne die Dynamik neu nach
 if strcmp(figname, 'dynamics') && traj_available
+  if all(R.I_EE == [1 1 1 1 1 0]) && R.Type == 2
+    warning('Dynamik-Plot für 3T2R-PKM noch nicht korrekt implementiert');
+  end
   Q = RobotOptDetails.Traj_Q;
   QD = RobotOptDetails.Traj_QD;
   QDD = RobotOptDetails.Traj_QDD;
