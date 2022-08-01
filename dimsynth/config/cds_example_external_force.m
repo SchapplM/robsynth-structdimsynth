@@ -16,7 +16,7 @@ EEFG_Ges = logical(...
    1 1 1 0 0 1; ...
    1 1 1 1 1 0; ...
    1 1 1 1 1 1]);
-for i_desopt = 0%:1 % mit und ohne Entwurfsoptimierung
+for i_desopt = 0:1 % ohne und mit Entwurfsoptimierung
 for i_FG = 1:size(EEFG_Ges,1) % Alle FG einmal durchgehen
   %% Aufgaben-FG und Trajektorie
   EEFG = EEFG_Ges(i_FG,:);
@@ -112,7 +112,8 @@ for i_FG = 1:size(EEFG_Ges,1) % Alle FG einmal durchgehen
     % IK-Anfangswerte der besten Lösung manuell. Sonst manchmal nicht
     % reproduzierbar
     R.update_qref(tmp1.RobotOptRes.q0);
-    fval_rtest = cds_fitness(R, Set, Traj, Structure, tmp1.RobotOptRes.p_val);
+    [fval_rtest, ~, Q_rtest, QD_rtest] = cds_fitness(R, Set, Traj, ...
+      Structure, tmp1.RobotOptRes.p_val, tmp1.RobotOptRes.desopt_pval);
     abserr_fval = fval_rtest - tmp1.RobotOptRes.fval;
     relerr_fval = abserr_fval./tmp1.RobotOptRes.fval;
     if abs(abserr_fval) > 1e-4 && abs(relerr_fval) > 1e-2
@@ -122,10 +123,13 @@ for i_FG = 1:size(EEFG_Ges,1) % Alle FG einmal durchgehen
     Traj_0Fext = Traj;
     Traj_0Fext.Fext(:) = 0;
     clear cds_fitness
-    [fval_0Fext, ~, Q_0Fext, QD_0Fext, ~, TAU_0Fext] = cds_fitness(R, Set, Traj_0Fext, Structure, tmp1.RobotOptRes.p_val);
+    [fval_0Fext, ~, Q_0Fext, QD_0Fext, ~, TAU_0Fext] = cds_fitness(R, Set, ...
+      Traj_0Fext, Structure, tmp1.RobotOptRes.p_val, tmp1.RobotOptRes.desopt_pval); 
     if fval_0Fext > 1e3
       error('Ergebnis bei erneuter Berechnung nicht mehr i.O.');
     end
+    assert(all(abs(Q_rtest(:)-Q_0Fext(:)) < 1e-6), 'Gelenkposition ist anders mit erneuter Berechnung');
+    assert(all(abs(QD_rtest(:)-QD_0Fext(:)) < 1e-6), 'Geschwindigkeit ist anders mit erneuter Berechnung');
     %% Berechne mit Fitness-Funktion Antriebskräfte mit neu gewählter externer Kraft.
     Traj_1Fext = Traj;
     Traj_1Fext.Fext(:) = 0;
@@ -133,7 +137,8 @@ for i_FG = 1:size(EEFG_Ges,1) % Alle FG einmal durchgehen
       Traj_1Fext.Fext(:,kk) = 100*cumtrapz(Traj.t, -0.5+rand(length(Traj.t), 1));
     end
     clear cds_fitness
-    [fval_1Fext, ~, Q_1Fext, QD_1Fext, ~, TAU_1Fext] = cds_fitness(R, Set, Traj_1Fext, Structure, tmp1.RobotOptRes.p_val);
+    [fval_1Fext, ~, Q_1Fext, QD_1Fext, ~, TAU_1Fext] = cds_fitness(R, Set, ...
+      Traj_1Fext, Structure, tmp1.RobotOptRes.p_val, tmp1.RobotOptRes.desopt_pval);
     if fval_1Fext > 1e3
       error('Ergebnis bei erneuter Berechnung nicht mehr i.O.');
     end
