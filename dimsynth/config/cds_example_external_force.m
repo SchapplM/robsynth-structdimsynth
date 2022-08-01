@@ -43,9 +43,10 @@ for i_FG = 1:size(EEFG_Ges,1) % Alle FG einmal durchgehen
   end
   Set.optimization.objective = {'actforce'};
   Set.optimization.constraint_obj(4) = 1e4; % max. Wert für Konditionszahl (damit Umrechnung EE-Antrieb numerisch gut funktioniert). Erlaube auch recht hohe Werte, damit Maßsynthese nicht daran scheitert.
-  if ~isempty(Set.optimization.desopt_vars)
-    Set.optimization.obj_limit = 1e3; % nur eine Iteration mit Entwurfsopt.
-  end
+  % Höre auf, sobald eine gültige Lösung gefunden wurde. Wie gut diese
+  % Lösung ist, ist für das Testskript nicht wichtig.
+  Set.optimization.obj_limit = 1e3;
+
   Set.optimization.optname = sprintf('extforce_test_%dT%dR', ...
     sum(EEFG(1:3)), sum(EEFG(4:6)));
   if ~isempty(Set.optimization.desopt_vars)
@@ -87,6 +88,11 @@ for i_FG = 1:size(EEFG_Ges,1) % Alle FG einmal durchgehen
   elseif i_FG == 5
     Set.structures.whitelist = {'S6RRRRRR10', 'P6PRRRRR6V4G8P4A1'};
   end
+  % Lade auch Ergebnisse früherer Versuche aus der Projektablage, damit es
+  % schneller geht (Finden der Lösung ist nicht das Ziel dieses Tests)
+  Set.optimization.result_dirs_for_init_pop = {fullfile(fileparts(which( ...
+    'robsynth_projektablage_path.m')), '03_Entwicklung', ...
+    'Simulationsergebnisse', 'Maßsynthese', 'cds_example_external_force')};
   %% Optimierung starten und Ergebnisse verarbeiten
   cds_start(Set,Traj);
   % Ergebnisse laden
@@ -112,13 +118,24 @@ for i_FG = 1:size(EEFG_Ges,1) % Alle FG einmal durchgehen
     % IK-Anfangswerte der besten Lösung manuell. Sonst manchmal nicht
     % reproduzierbar
     R.update_qref(tmp1.RobotOptRes.q0);
-    [fval_rtest, ~, Q_rtest, QD_rtest] = cds_fitness(R, Set, Traj, ...
+    Structure.q0_traj = tmp1.RobotOptRes.q0;
+    [fval_rtest, ~, Q_rtest, QD_rtest, QDD_rtest, TAU_rtest] = cds_fitness(R, Set, Traj, ...
       Structure, tmp1.RobotOptRes.p_val, tmp1.RobotOptRes.desopt_pval);
     abserr_fval = fval_rtest - tmp1.RobotOptRes.fval;
     relerr_fval = abserr_fval./tmp1.RobotOptRes.fval;
     if abs(abserr_fval) > 1e-4 && abs(relerr_fval) > 1e-2
       error('Fitness-Wert für %s nicht reproduzierbar', Structures{j}.Name);
     end
+    assert(all(abs(Q_rtest(:)-tmp2.RobotOptDetails.Traj_Q(:)) < 1e-6), ...
+      'Gelenkposition ist anders mit erneuter Berechnung');
+    assert(all(abs(QD_rtest(:)-tmp2.RobotOptDetails.Traj_QD(:)) < 1e-6), ...
+      'Geschwindigkeit ist anders mit erneuter Berechnung');
+    test_QDD = QDD_rtest - tmp2.RobotOptDetails.Traj_QDD;
+    assert(all(abs(test_QDD(:)) < 1e-3), ...
+      'Beschleunigung ist anders mit erneuter Berechnung');
+    test_Tau = TAU_rtest - tmp2.RobotOptDetails.Traj_Tau;
+    assert(all(abs(test_Tau(:)) < 1e-3), ...
+      'Antriebsmoment ist anders mit erneuter Berechnung');
     %% Berechne mit Fitness-Funktion Antriebskräfte ohne externe Kraft.
     Traj_0Fext = Traj;
     Traj_0Fext.Fext(:) = 0;
@@ -128,8 +145,10 @@ for i_FG = 1:size(EEFG_Ges,1) % Alle FG einmal durchgehen
     if fval_0Fext > 1e3
       error('Ergebnis bei erneuter Berechnung nicht mehr i.O.');
     end
-    assert(all(abs(Q_rtest(:)-Q_0Fext(:)) < 1e-6), 'Gelenkposition ist anders mit erneuter Berechnung');
-    assert(all(abs(QD_rtest(:)-QD_0Fext(:)) < 1e-6), 'Geschwindigkeit ist anders mit erneuter Berechnung');
+    assert(all(abs(Q_rtest(:)-Q_0Fext(:)) < 1e-6), ...
+      'Gelenkposition ist anders mit erneuter Berechnung');
+    assert(all(abs(QD_rtest(:)-QD_0Fext(:)) < 1e-6), ...
+      'Geschwindigkeit ist anders mit erneuter Berechnung');
     %% Berechne mit Fitness-Funktion Antriebskräfte mit neu gewählter externer Kraft.
     Traj_1Fext = Traj;
     Traj_1Fext.Fext(:) = 0;
