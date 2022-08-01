@@ -191,11 +191,7 @@ fval(:) = fval_constr*1e4; % Erhöhung, damit später kommende Funktionswerte au
 if fval_constr > 1000 % Nebenbedingungen verletzt.
   % Speichere die Anfangs-Winkelstellung in der Roboterklasse für später.
   % Dient zum Vergleich und zur Reproduktion der Ergebnisse
-  if R.Type == 0 % Seriell
-    R.qref = Q0(1,:)';
-  else
-    for i = 1:R.NLEG, R.Leg(i).qref = Q0(1,R.I1J_LEG(i):R.I2J_LEG(i))'; end
-  end
+  R.update_qref(Q0(1,:)');
   % Belege die Ausgabe mit den berechneten Gelenkwinkeln. Dann kann immer
   % noch das Bild gezeichnet werden (zur Fehlersuche)
   Q_out = QE_iIKC(all(~isnan(QE_iIKC),2), :);
@@ -846,11 +842,7 @@ end
 %% Ende
 % Anfangs-Gelenkwinkel in Roboter-Klasse speichern (zur Reproduktion der
 % Ergebnisse)
-if R.Type == 0 % Seriell
-  R.qref = Q0(iIKCbest,:)';
-else
-  for i = 1:R.NLEG, R.Leg(i).qref = Q0(iIKCbest,R.I1J_LEG(i):R.I2J_LEG(i))'; end
-end
+R.update_qref(Q0(iIKCbest,:)');
 % Erneutes Eintragen der Gelenkgrenzen des gewählten besten Ergebnisses.
 % Grenzen numerisch etwas erweitern. Dadurch kein Fehlschlag, falls
 % rundungsbedingte Abweichungen auftreten. Ansonsten dadurch Verletzung
