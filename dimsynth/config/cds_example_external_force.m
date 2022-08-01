@@ -16,15 +16,14 @@ EEFG_Ges = logical(...
    1 1 1 0 0 1; ...
    1 1 1 1 1 0; ...
    1 1 1 1 1 1]);
-
+for i_desopt = 0%:1 % mit und ohne Entwurfsoptimierung
 for i_FG = 1:size(EEFG_Ges,1) % Alle FG einmal durchgehen
-  for i_desopt = 0%:1 % mit und ohne Entwurfsoptimierung
   %% Aufgaben-FG und Trajektorie
   EEFG = EEFG_Ges(i_FG,:);
   if i_FG == 1
     Traj_no = 2;
-  elseif i_FG == 4
-    Traj_no = 3; % TODO: Prüfen, woran das liegt.
+  elseif i_FG == 4 || i_FG == 5
+    Traj_no = 3; % Trajektorie ohne 0-Rotation. TODO: Sollte auch so laufen, tut es aber nicht.
   else
     Traj_no = 1;
   end
@@ -43,8 +42,8 @@ for i_FG = 1:size(EEFG_Ges,1) % Alle FG einmal durchgehen
     Set.optimization.constraint_obj(6) = 1; % Materialspannung als Nebenbedingung;
   end
   Set.optimization.objective = {'actforce'};
-  Set.optimization.constraint_obj(4) = 1e3; % max. Wert für Konditionszahl (damit Umrechnung EE-Antrieb numerisch gut funktioniert)
-  if isempty(Set.optimization.desopt_vars)
+  Set.optimization.constraint_obj(4) = 1e4; % max. Wert für Konditionszahl (damit Umrechnung EE-Antrieb numerisch gut funktioniert). Erlaube auch recht hohe Werte, damit Maßsynthese nicht daran scheitert.
+  if ~isempty(Set.optimization.desopt_vars)
     Set.optimization.obj_limit = 1e3; % nur eine Iteration mit Entwurfsopt.
   end
   Set.optimization.optname = sprintf('extforce_test_%dT%dR', ...
@@ -86,7 +85,7 @@ for i_FG = 1:size(EEFG_Ges,1) % Alle FG einmal durchgehen
   elseif i_FG == 4
     Set.structures.whitelist = {'P5RPRRR8V1G9P8A1', 'S5RRRRR5', 'S5RRRRR6'};
   elseif i_FG == 5
-    Set.structures.whitelist = {'S6RRRRRR10', 'P6RRPRRR14V3G6P4A1'};
+    Set.structures.whitelist = {'S6RRRRRR10', 'P6PRRRRR6V4G8P4A1'};
   end
   %% Optimierung starten und Ergebnisse verarbeiten
   cds_start(Set,Traj);
@@ -109,7 +108,11 @@ for i_FG = 1:size(EEFG_Ges,1) % Alle FG einmal durchgehen
     % für nächste Schritte unten mit Änderung der externen Kraft
     [R, Structure] = cds_dimsynth_robot(Set, Traj, Structures{j}, true);
     clear cds_fitness
-    [fval_rtest] = cds_fitness(R, Set, Traj, Structure, tmp1.RobotOptRes.p_val);
+    % Vertraue nicht auf gleichbleibende Zufallswerte, sondern setze
+    % IK-Anfangswerte der besten Lösung manuell. Sonst manchmal nicht
+    % reproduzierbar
+    R.update_qref(tmp1.RobotOptRes.q0);
+    fval_rtest = cds_fitness(R, Set, Traj, Structure, tmp1.RobotOptRes.p_val);
     abserr_fval = fval_rtest - tmp1.RobotOptRes.fval;
     relerr_fval = abserr_fval./tmp1.RobotOptRes.fval;
     if abs(abserr_fval) > 1e-4 && abs(relerr_fval) > 1e-2
@@ -120,6 +123,9 @@ for i_FG = 1:size(EEFG_Ges,1) % Alle FG einmal durchgehen
     Traj_0Fext.Fext(:) = 0;
     clear cds_fitness
     [fval_0Fext, ~, Q_0Fext, QD_0Fext, ~, TAU_0Fext] = cds_fitness(R, Set, Traj_0Fext, Structure, tmp1.RobotOptRes.p_val);
+    if fval_0Fext > 1e3
+      error('Ergebnis bei erneuter Berechnung nicht mehr i.O.');
+    end
     %% Berechne mit Fitness-Funktion Antriebskräfte mit neu gewählter externer Kraft.
     Traj_1Fext = Traj;
     Traj_1Fext.Fext(:) = 0;
@@ -128,6 +134,9 @@ for i_FG = 1:size(EEFG_Ges,1) % Alle FG einmal durchgehen
     end
     clear cds_fitness
     [fval_1Fext, ~, Q_1Fext, QD_1Fext, ~, TAU_1Fext] = cds_fitness(R, Set, Traj_1Fext, Structure, tmp1.RobotOptRes.p_val);
+    if fval_1Fext > 1e3
+      error('Ergebnis bei erneuter Berechnung nicht mehr i.O.');
+    end
     %% Vergleiche Energien mit und ohne externe Kraft.
     if R.Type == 0, I_qa = R.MDH.mu == 1;
     else,           I_qa = R.I_qa;
@@ -160,7 +169,7 @@ for i_FG = 1:size(EEFG_Ges,1) % Alle FG einmal durchgehen
     E_Fext = trapz(Traj.t, P_Fext);
     % Vergleiche Differenz zwischen den Energiebilanzen. Vorzeichen müssen
     % entgegengesetzt sein
-    figure(1);clf;
+    change_current_figure(1);clf;
     subplot(2,2,1);
     plot(Traj.t, [P_0Fext_act, P_1Fext_act]);
     ylabel('P in W'); xlabel('t in s'); grid on;
@@ -186,6 +195,7 @@ for i_FG = 1:size(EEFG_Ges,1) % Alle FG einmal durchgehen
     test_E = E_Fext + E_ext_act;
     assert(abs(test_E)<1e-6, sprintf(['Von externer Kraft erbrachte Arbeit (%1.1e) ', ...
       'nicht konsistent mit Energie in den Antrieben (%1.1e)'], E_Fext, E_ext_act));
+    fprintf('Test der externen Kraft erfolgreich für Rob %d (%s)\n', j, Structures{j}.Name);
   end
   end
 end
