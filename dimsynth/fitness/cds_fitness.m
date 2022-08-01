@@ -405,19 +405,19 @@ for iIKC = 1:size(Q0,1)
       % Berechne Dynamik-Funktionen als Regressorform für die Entwurfsopt.
       data_dyn = cds_obj_dependencies(R, Traj_0, Set, Structure, Q, QD, QDD, Jinv_ges);
 
-      [fval_desopt, pval_desopt, vartypes_desopt] = cds_dimsynth_desopt( ...
+      [fval_desopt, desopt_pval, vartypes_desopt] = cds_dimsynth_desopt( ...
         R, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn, Set, Structure);
       if fval_desopt > 1e5
         warning('Ein Funktionswert > 1e5 ist nicht für Entwurfsoptimierung vorgesehen');
       end
       if any(strcmp(Set.optimization.desopt_vars, 'linkstrength'))
         % Speichere die Parameter der Segmentstärke (jedes Segment gleich)
-        desopt_pval_IKC(iIKC,Structure.desopt_ptypes==2) = pval_desopt(vartypes_desopt==2);
+        desopt_pval_IKC(iIKC,Structure.desopt_ptypes==2) = desopt_pval(vartypes_desopt==2);
       end
       if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref'))
         % Speichere die Parameter der Gelenkfeder-Ruhelage (jede Beinkette
         % gleich). Siehe cds_dimsynth_desopt_fitness.
-        desopt_pval_IKC(iIKC,Structure.desopt_ptypes==3) = pval_desopt(vartypes_desopt==3);
+        desopt_pval_IKC(iIKC,Structure.desopt_ptypes==3) = desopt_pval(vartypes_desopt==3);
       end
       if fval_desopt > 1000 % Nebenbedingungen in Entwurfsoptimierung verletzt.
         % Neue Werte (geändert gegenüber cds_dimsynth_desopt_fitness.)

@@ -194,7 +194,9 @@ if fval == 0  && Set.optimization.constraint_obj(5) % NB für Steifigkeit gesetz
   end
 end
 if fval > 1000 % Nebenbedingungen verletzt.
-  cds_log(4,sprintf('[desopt/fitness] DesOpt-Fitness-Evaluation in %1.1fs. fval=%1.3e. %s', toc(t1), fval, constrvioltext));
+  cds_log(4,sprintf(['[desopt/fitness] DesOpt-Fitness-Evaluation in %1.1fs. ', ...
+    'Parameter: [%s]. fval=%1.3e. %s'], toc(t1), disp_array(p_desopt', '%1.3f'), ...
+    fval, constrvioltext));
 end
 
 %% Fitness-Wert berechnen

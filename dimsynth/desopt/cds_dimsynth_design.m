@@ -11,9 +11,9 @@
 %   Einstellungen des Optimierungsalgorithmus
 % Structure
 %   Eigenschaften der Roboterstruktur
-% p_desopt
-%   Parameter der Entwurfsvariablen: Wandstärke und Durchmesser der
-%   Segmente (modelliert als Hohlzylinder)
+% p_desopt_ls
+%   Parameter der Entwurfsvariablen ("ls"="linkstrength"): Wandstärke und
+%   Durchmesser der Segmente (modelliert als Hohlzylinder)
 % 
 % Ausgabe:
 % R
@@ -34,13 +34,13 @@
 % Siehe auch: SerRob/plot (bezüglich Anfangssegment für Schubgelenke)
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
-% (C) Institut für Mechatronische Systeme, Universität Hannover
+% (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function R=cds_dimsynth_design(R, Q, Set, Structure, p_desopt)
+function R=cds_dimsynth_design(R, Q, Set, Structure, p_desopt_ls)
 desopt_debug = false;
-if nargin < 5 || ~any(strcmp(Set.optimization.desopt_vars, 'linkstrength'))
+if nargin < 5
   use_default_link_param = true;
-else
+else % Annahme: Die Eingabe p_desopt_ls soll immer gesetzt werden.
   use_default_link_param = false;
 end
 if Set.general.matfile_verbosity > 2 + (~use_default_link_param) % weniger oft speichern, wenn Aufruf in desopt_fitness
@@ -64,7 +64,7 @@ if R.Type == 0
     R.DesPar.seg_par = repmat([5e-3, 80e-3], R.NL, 1);
   else
     % Nehme die Segmentparameter aus Eingabeargument
-    R.DesPar.seg_par = repmat([p_desopt(1), p_desopt(2)], R.NL, 1);
+    R.DesPar.seg_par = repmat([p_desopt_ls(1), p_desopt_ls(2)], R.NL, 1);
   end
   % R.DesPar.seg_par(end,:) = [5e-3, 300e-3]; % EE anders zum Testen der Visu.
 elseif R.Type == 2  % Parallel (symmetrisch)
@@ -77,7 +77,7 @@ elseif R.Type == 2  % Parallel (symmetrisch)
       % mehr wird die Last aufgeteilt. Siehe cds_dimsynth_desopt
       R.Leg(i).DesPar.seg_par = repmat([5e-3, 80e-3]/(R.NLEG/2), R.Leg(i).NL, 1);
     else
-      R.Leg(i).DesPar.seg_par = repmat([p_desopt(1), p_desopt(2)], R.Leg(i).NL, 1);
+      R.Leg(i).DesPar.seg_par = repmat([p_desopt_ls(1), p_desopt_ls(2)], R.Leg(i).NL, 1);
     end
   end
   if     any(Structure.Coupling(2) == [1:3 7]), i_plfthickness = 2; %#ok<ALIGN>
