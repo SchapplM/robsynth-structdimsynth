@@ -426,7 +426,7 @@ for iIKC = 1:size(Q0,1)
       if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness'))
         % Speichere die Parameter der Gelenkfeder-Steifigkeit (jede Beinkette
         % gleich). Siehe cds_dimsynth_desopt_fitness.
-        desopt_pval_IKC(iIKC,Structure.desopt_ptypes==4) = pval_desopt(vartypes_desopt==4);
+        desopt_pval_IKC(iIKC,Structure.desopt_ptypes==4) = desopt_pval(vartypes_desopt==4);
       end
       if fval_desopt > 1000 % Nebenbedingungen in Entwurfsoptimierung verletzt.
         % Neue Werte (geändert gegenüber cds_dimsynth_desopt_fitness.)
