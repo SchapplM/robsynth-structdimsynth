@@ -3,6 +3,8 @@
 % Eingabe
 % Set
 %   Struktur mit Einstellungen.
+% Structure
+%   Cell-Array mit Kenngrößen der zu optimierenden Roboterstrukturen
 % Ausgabe:
 % obj_units
 %   Einheiten der physikalischen Werte der Zielfunktionen
@@ -12,10 +14,25 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2021-01
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function [obj_units, objscale] = cds_objective_plotdetails(Set)
-
+function [obj_units, objscale] = cds_objective_plotdetails(Set, Structures)
+% Initialisierung
 obj_units = cell(1,length(Set.optimization.objective));
 objscale = ones(length(Set.optimization.objective),1);
+% Prüfe für alle untersuchten Strukturen die Art der Antriebe
+acttype = ''; % 'revolute', 'prismatic' oder 'mixed'. Siehe cds_gen_robot_list
+if nargin == 2
+  for i = 1:length(Structures)
+    % Belege mit erstem Vorkommnis
+    if isempty(acttype), acttype = Structures{i}.act_type; end
+    if strcmp(acttype, Structures{i}.act_type)
+      continue
+    else
+      acttype = 'mixed';
+      break; % Die Roboter haben gemischte Antriebsgelenke
+    end % nichts tun
+  end
+end
+% Zielkriterien durchgehen
 for jj = 1:length(Set.optimization.objective)
   if strcmp(Set.optimization.objective{jj}, 'valid_act')
     obj_units{jj} = 'unitless'; % Rangverlust ist nur eine Zahl. Plot nicht vorgesehen.
@@ -26,7 +43,13 @@ for jj = 1:length(Set.optimization.objective)
   elseif strcmp(Set.optimization.objective{jj}, 'energy')
     obj_units{jj} = 'J';
   elseif strcmp(Set.optimization.objective{jj}, 'actforce')
-    obj_units{jj} = 'N or Nm';
+    if strcmp(acttype, 'prismatic')
+      obj_units{jj} = 'N';
+    elseif strcmp(acttype, 'revolute')
+      obj_units{jj} = 'Nm';
+    else
+      obj_units{jj} = 'N or Nm';
+    end
   elseif strcmp(Set.optimization.objective{jj}, 'materialstress')
     obj_units{jj} = 'in %';
     objscale(jj) = 100;
@@ -54,7 +77,13 @@ for jj = 1:length(Set.optimization.objective)
     obj_units{jj} = 'mm';
     objscale(jj) = 1e3;
   elseif strcmp(Set.optimization.objective{jj}, 'actvelo')
-    obj_units{jj} = '{rad/m}/s';
+    if strcmp(acttype, 'prismatic')
+      obj_units{jj} = 'm/s';
+    elseif strcmp(acttype, 'revolute')
+      obj_units{jj} = 'rad/s';
+    else
+      obj_units{jj} = 'rad/s or m/s';
+    end
     objscale(jj) = 1;
   elseif strcmp(Set.optimization.objective{jj}, 'installspace')
     obj_units{jj} = 'm³';

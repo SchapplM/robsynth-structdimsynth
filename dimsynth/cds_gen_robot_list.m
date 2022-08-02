@@ -200,11 +200,19 @@ for N_JointDoF = N_JointDoF_allowed
         continue
       end
     end
-
+    % Bestimme den Typ der Antriebe
+    if all(strcmp(SName(3:3+N_JointDoF-1), 'P'))
+      acttype_i = 'prismatic';
+    elseif all(strcmp(SName(3:3+N_JointDoF-1), 'R'))
+      acttype_i = 'revolute';
+    else
+     acttype_i = 'mixed';
+    end
     ii = ii + 1;
     if verblevel >= 2, fprintf('%d: %s\n', ii, SName); end
     Structures{ii} = struct('Name', SName, 'Type', 0, 'Number', ii, ...
       'RobName', RName, ... % Falls ein konkreter Roboter mit Parametern gewählt ist
+      'act_type', acttype_i, ...
       ... % Platzhalter, Angleichung an PKM (Erkennung altes Dateiformat)
       'angles_values', []); %#ok<AGROW> 
   end
@@ -547,6 +555,19 @@ for kkk = 1:size(EE_FG_allowed,1)
     if isempty(angles_values) % Fall darf nicht vorkommen
       error('Es würde kein Eintrag für %s hinzugefügt werden.', PNames_Akt{j});
     end
+    % Typ der Antriebe herausfinden
+    for k = 1 % Annahme: Symmetrische PKM (so wie oben)
+      NlegJ = str2double(LEG_Names{k}(2));
+      Chain = LEG_Names{k}(3:3+NlegJ-1);
+      if all(strcmp(Chain(Actuation{k}), 'P'))
+        acttype_i = 'prismatic';
+      elseif all(strcmp(Chain(Actuation{k}), 'R'))
+       acttype_i = 'revolute';
+      else
+        acttype_i = 'mixed';
+      end
+    end
+      
     for avtmp = angles_values(:)' % Gehe alle möglichen Werte für theta durch und trage als eigene PKM ein.
       av = avtmp{1};
       ii = ii + 1;
@@ -559,6 +580,7 @@ for kkk = 1:size(EE_FG_allowed,1)
       if verblevel >= 2, fprintf('%d: %s; %s\n', ii, PNames_Akt{j}, theta_logstr); end
       Structures{ii} = struct('Name', PNames_Akt{j}, 'Type', 2, 'Number', ii, ...
         'Coupling', Coupling, 'angles_values', av, 'DoF', EE_FG_allowed(kkk,:), ...
+        'act_type', acttype_i, ...
         'RobName', ''); %#ok<AGROW> % Zur Angleichung an SerRob.
     end
   end

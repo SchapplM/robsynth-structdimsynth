@@ -63,6 +63,28 @@ end
 % Zum Debuggen
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_vis_results1.mat'));
 
+%% Debug: Structures-Variable aktualisieren (geht nur für PKM)
+% Benutze diesen Code-Abschnitt provisorisch, um die am 02.08.2022
+% eingeführte Schnittstelle auch für ältere Ergebnisse zu nutzen.
+% TODO: Diesen Abschnitt entfernen, falls nicht mehr notwendig. (ab ca. 2024)
+for k = 1:length(Structures)
+  if isfield(Structures{k}, 'act_type'), continue; end
+  if Structures{k}.Type == 0
+    Structures{k}.act_type = 'mixed';
+    break; % für serielle Roboter nicht erfassen
+  end
+  [~,Leg_Names, Actuation] = parroblib_load_robot(Structures{k}.Name, 2);
+  for j = 1:length(Leg_Names)
+    NlegJ = str2double(Leg_Names{j}(2));
+    Chain = Leg_Names{j}(3:3+NlegJ-1);
+    if any(strcmp(Chain(Actuation{j}), 'P'))
+      Structures{k}.act_type = 'prismatic';
+    else
+      Structures{k}.act_type = 'revolute';
+    end
+  end
+end
+
 %% Initialisierung
 resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
 % Ergebnistabelle laden
@@ -73,7 +95,7 @@ opts.VariableDescriptionsLine = 2;
 ResTab = readtable(restabfile, opts);
 
 % Einheiten für die physikalischen Werte der Zielfunktionen vorbereiten
-[obj_units, objscale] = cds_objective_plotdetails(Set);
+[obj_units, objscale] = cds_objective_plotdetails(Set, Structures);
 
 length_Structures = length(Structures);
 % Prüfe, ob überhaupt roboterspezifische Plots erzeugt werden sollen
@@ -336,9 +358,32 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
      pffig == 2 && ~any(strcmp(Set.general.eval_figures, 'pareto_all_fval'))
     continue
   end
-  if pffig == 1, name_suffix = 'phys';
-  else,          name_suffix = 'fval'; end
-  
+  if pffig == 1, name_suffix_phys = 'phys';
+  else,          name_suffix_phys = 'fval'; end
+  % Prüfe die Art der Aktuierung der Roboter. Wenn gemischt Dreh- und
+  % Schubantriebe vorkommen, erzeuge zwei zusätzliche Bilder. Sonst
+  % ist der Vergleich in einem Diagramm nicht zielführend
+  I_acttype = false(length(Structures), 4); % Jede Spalte entspricht einem Diagramm
+  % Einmal Pareto-Diagramm für alle Roboter zeichnen, unabhängig von Typ
+  I_acttype(:,4) = 1;
+  if ~isempty(intersect(Set.optimization.objective, {'actforce', 'actvelo'}))
+    for k = 1:length(Structures)
+      I_acttype(k,1) = strcmp(Structures{k}.act_type, 'revolute');
+      I_acttype(k,2) = strcmp(Structures{k}.act_type, 'prismatic');
+      I_acttype(k,3) = ~(I_acttype(k,1)&I_acttype(k,2)); % Mischung
+    end
+  end
+  % Schleife über verschiedene Aktuierungstypen (Dreh/Schub/Mischung)
+  for pfact = find(any(I_acttype))
+  if     pfact == 1, name_suffix = [name_suffix_phys, '_revact'];
+  elseif pfact == 2, name_suffix = [name_suffix_phys, '_prisact'];
+  elseif pfact == 3, name_suffix = [name_suffix_phys, '_mixact'];
+  else,              name_suffix =  name_suffix_phys;
+  end
+  if ~any(I_acttype(:,pfact)), continue; end
+  % Achsbeschriftungen für Diagramm für diese Roboterauswahl aktualisieren
+  [obj_units, objscale] = cds_objective_plotdetails(Set, Structures(I_acttype(:,pfact)'));
+  % Bild zeichnen
   f = change_current_figure(10+pffig, vis_settings.figure_invisible);
   clf; hold on; grid on;
   set(f, 'name', sprintf('Pareto_Gesamt_%s',name_suffix), ...
@@ -347,7 +392,7 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   countmarker = 0; % Stelle Marker für jeden Roboter zusammen
   markerlist = {'x', 's', 'v', '^', '*', 'o', 'd', 'v', '<', '>', 'p', 'h'};
   colorlist =  {'r', 'g', 'b', 'c', 'm', 'k'};
-  for i = 1:length_Structures
+  for i = find(I_acttype(:,pfact)') % Auswahl der Roboter durchgehen
     % Lade Ergebnisse Für Roboter i
     Name = Structures{i}.Name;
     resfile1 = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', i, Name));
@@ -408,7 +453,7 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     ButtonDownFcn=@(src,event)cds_paretoplot_buttondownfcn(src,event,...
       Set.optimization.optname,Structures{i}.Name, i);
     set(hdl, 'ButtonDownFcn', ButtonDownFcn)
-  end
+  end % for i (Roboter)
   if pffig == 1
     xlabel(sprintf('%s in %s', Set.optimization.objective{1}, obj_units{1}));
     ylabel(sprintf('%s in %s', Set.optimization.objective{2}, obj_units{2}));
@@ -488,5 +533,6 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
             'Units', 'pixels', ...
             'Position', [10, 30, 120, 24]);
   saveas(f, fullfile(resmaindir, sprintf('Pareto_Gesamt_%s.fig',name_suffix)));
-  end
+  end % for pfact
+  end % for pffig
 end
