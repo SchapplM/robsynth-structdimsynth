@@ -158,10 +158,16 @@ if Set.optimization.ee_rotation && any(Structure.vartypes == 4)
     phi_N_E = Set.optimization.ee_rotation_fixed(:); % NaN für optimierte Werte
     phi_N_E(isnan(phi_N_E)) = p_eerot;
     phi_N_E(3) = 0;
+    if Structure.R_N_E_isset % Berücksichtige Drehung z.B. für Deckenmontage
+      phi_N_E = r2eulxyz(Structure.R_N_E*eulxyz2r(phi_N_E));
+    end
   else % muss 3T3R sein. Andere Fälle können hier nicht vorkommen
     % Annahme: R_N_E/R_P_E wird von diesem Typ nicht verwendet.
     phi_N_E = Set.optimization.ee_rotation_fixed(:); % NaN für optimierte Werte
     phi_N_E(isnan(phi_N_E)) = p_eerot;
+    if Structure.R_N_E_isset % Berücksichtige Drehung z.B. für Deckenmontage
+      phi_N_E = r2eulxyz(Structure.R_N_E*eulxyz2r(phi_N_E));
+    end
   end
   R.update_EE([], phi_N_E);
 end
