@@ -85,6 +85,9 @@ if nargin == 6 && ~isempty(desopt_pval) && ~all(isnan(desopt_pval))% Die Eingabe
     % Werte für die Gelenkfeder-Ruhelagen weiter unten einstellen.
     % Optimierungsvariablen deaktivieren. Hierdurch keine erneute Optimierung.
     Set.optimization.desopt_vars = {};
+    % Keine Berechnungen für Entwurfsoptimierung mehr notwendig
+    Structure.calc_dyn_reg = false;
+    Structure.calc_spring_reg = false;
   else
     % Übergebener Wert war NaN. Optimierung doch durchführen. Keine
     % Anpassung notwendig (desopt_vars ist noch richtig eingestellt).

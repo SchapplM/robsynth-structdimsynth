@@ -315,6 +315,7 @@ if Set.task.profile == 1 && Set.task.T_dec_ns > 0
 else % Deaktiviere Begrenzung der Geschwindigkeit
   Traj.nullspace_maxvel_interp = zeros(2,0);
 end
+if ~isfield(Traj, 'Fext'), Traj.Fext = zeros(length(Traj.t), 6); end
 
 %% Menge der Roboter laden
 if ~(Set.general.only_finish_aborted && Set.general.isoncluster) && ... % Abschluss auf Cluster
