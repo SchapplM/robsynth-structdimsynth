@@ -145,7 +145,7 @@ phi_N_E = NaN(3,1);
 if Set.optimization.ee_rotation && any(Structure.vartypes == 4)
   p_eerot = p(Structure.vartypes == 4);
   p_phys(Structure.vartypes == 4) = p_eerot;
-  if sum(Set.task.DoF(4:6)) == 1 % 2T1R -> Drehung um z-Achse
+  if sum(Set.task.DoF(4:6)) == 1 % 2T1R oder 3T1R -> Drehung um z-Achse
     % Die Drehung in Structure.R_N_E richtet die z-Achse nach oben
     if Structure.R_N_E_isset
       phi_N_E = r2eulxyz(Structure.R_N_E*rotz(p_eerot));
@@ -155,10 +155,19 @@ if Set.optimization.ee_rotation && any(Structure.vartypes == 4)
   elseif sum(Set.task.DoF(4:6)) == 2
     % 3T2R. Nehme an, dass die EE-Transformation mit XYZ-Notation
     % durchgeführt wird. Daher keine Drehung um die letzte z-Achse
-    phi_N_E = [p_eerot(1:2);0];
+    phi_N_E = Set.optimization.ee_rotation_fixed(:); % NaN für optimierte Werte
+    phi_N_E(isnan(phi_N_E)) = p_eerot;
+    phi_N_E(3) = 0;
+    if Structure.R_N_E_isset % Berücksichtige Drehung z.B. für Deckenmontage
+      phi_N_E = r2eulxyz(Structure.R_N_E*eulxyz2r(phi_N_E));
+    end
   else % muss 3T3R sein. Andere Fälle können hier nicht vorkommen
     % Annahme: R_N_E/R_P_E wird von diesem Typ nicht verwendet.
-    phi_N_E = p_eerot(:);
+    phi_N_E = Set.optimization.ee_rotation_fixed(:); % NaN für optimierte Werte
+    phi_N_E(isnan(phi_N_E)) = p_eerot;
+    if Structure.R_N_E_isset % Berücksichtige Drehung z.B. für Deckenmontage
+      phi_N_E = r2eulxyz(Structure.R_N_E*eulxyz2r(phi_N_E));
+    end
   end
   R.update_EE([], phi_N_E);
 end

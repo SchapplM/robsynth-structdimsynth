@@ -726,20 +726,29 @@ if all(~isnan(Set.optimization.ee_rotation_fixed))
   R_N_E_fix = Structure.R_N_E * eulxyz2r(Set.optimization.ee_rotation_fixed(:));
   R.update_EE([], r2eulxyz(R_N_E_fix));
 elseif Set.optimization.ee_rotation
-  if sum(Set.task.DoF(4:6)) == 1
+  % Gehe die verschiedenen Fälle von EE-FG durch. Falls einzelne
+  % Euler-Winkel fix vorgegeben werden, werden diese nicht optimiert
+  if sum(Set.task.DoF(4:6)) == 1 % 2T1R oder 3T1R
     neerot = 1;
-  elseif sum(Set.task.DoF(4:6)) == 0
+    assert(neerot~=0, ['Bei 2T1R/3T1R und ee_rotation=true darf z-Winkel ', ...
+      'nicht vorgegeben werden']);
+  elseif sum(Set.task.DoF(4:6)) == 0 % 3T0R
     neerot = 0;
-  elseif sum(Set.task.DoF(4:6)) == 2
+  elseif sum(Set.task.DoF(4:6)) == 2 % 3T2R
     % Bei 3T2R wird die Rotation um die Werkzeugachse nicht optimiert.
-    neerot = 2;
-  else
-    neerot = 3;
+    neerot = 2 - sum(~isnan(Set.optimization.ee_rotation_fixed(1:2)));
+    assert(neerot~=0, ['Bei 3T2R und ee_rotation=true dürfen nicht x- ', ...
+      'und y-Winkel vorgegeben werden']);
+  else % 3T3R
+    neerot = 3 - sum(~isnan(Set.optimization.ee_rotation_fixed(1:3)));
+    assert(neerot~=0, ['Bei 3T3R und ee_rotation=true dürfen nicht x- ', ...
+      'y- und z-Winkel vorgegeben werden']);
   end
-  nvars = nvars + neerot; % Verschiebung des EE um translatorische FG der Aufgabe
+  nvars = nvars + neerot; % Verdrehung des EE um rotatorische FG der Aufgabe
   vartypes = [vartypes; 4*ones(neerot,1)];
   varlim = [varlim; repmat([0, pi], neerot, 1)];
   for i = find(Set.task.DoF(4:6))
+    if ~isnan(Set.optimization.ee_rotation_fixed(i)), continue; end
     varnames = [varnames(:)', {sprintf('ee rot %d', i)}];
   end
 end
