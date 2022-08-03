@@ -373,6 +373,10 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
       I_acttype(k,3) = ~(I_acttype(k,1)&I_acttype(k,2)); % Mischung
     end
   end
+  if size(I_acttype,1) == 1 % Sonderfall einzelner Roboter
+    I_acttype = [I_acttype; false(1,4)]; %#ok<AGROW> % Dummy-Zeile für any-Befehl unten
+    I_acttype(:,1:3) = false; % nur die letzte Spalte aktivieren für Standard-Bild
+  end
   % Schleife über verschiedene Aktuierungstypen (Dreh/Schub/Mischung)
   for pfact = find(any(I_acttype))
   if     pfact == 1, name_suffix = [name_suffix_phys, '_revact'];
