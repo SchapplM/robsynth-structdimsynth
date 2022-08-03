@@ -82,15 +82,17 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
     t_ll = t2; % Zeitpunkt der letzten Log-Ausgabe diesbezüglich
     for j = 1:length(RobNames)
       RobName = RobNames{j};
-      [status,matlist_j] = system(sprintf(['find -L "%s" -maxdepth 2 ', ...
-        '-name "Rob*_%s*_Endergebnis.mat"'], resdir, RobName));
+      findcmd = sprintf(['find -L "%s" -maxdepth 2 ', ...
+        '-name "Rob*_%s*_Endergebnis.mat"'], resdir, RobName);
+      [status, matlist_j] = system(findcmd);
       % Erzeuge Liste der Mat-Dateien aus der Vorauswahl
       if status == 0
         matlist_j_cell = splitlines(matlist_j);
         I = ~strcmp(matlist_j_cell, '');
         initpop_matlist = [initpop_matlist;matlist_j_cell(I)]; %#ok<AGROW> 
       else
-        cds_log(-1, sprintf('Find-Befehl funktionierte nicht in %s. Ausgabe:\n%s', resdir, dirlist));
+        cds_log(-1, sprintf(['Find-Befehl "%s" funktionierte nicht. ', ...
+          'Status=%d Ausgabe:\n%s'], findcmd, status, matlist_j));
       end
       if toc(t_ll) > 20 || j == length(RobNames)
         cds_log(2, sprintf(['[gen_init_pop_index] Ergebnisse für Find-Dateisuche %d/%d', ...
