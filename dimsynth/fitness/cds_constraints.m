@@ -230,7 +230,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   end
   % Anpassung der IK-Anfangswerte für diesen Durchlauf der IK-Konfigurationen.
   % Versuche damit eine andere Konfiguration zu erzwingen
-  if fval_jic(1) > 1e6
+  if fval_jic_old(1) > 1e6
     % IK hat beim ersten Mal schon nicht funktioniert (dort werden aber
     % zufällige Neuversuche gemacht). Andere Anfangswerte sind zwecklos.
     break;
@@ -324,7 +324,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   % Optimierung (etwas langsamer). Dadurch bessere Einhaltung von Nebenbed.
   for i_ar = ar_loop % 1=ohne Nebenopt.; 2=mit
   t1 = tic();
-  if Set.general.debug_calc && i_ar == 2
+  if i_ar == 2
     fval_jic_old(jic) = fval_jic(jic);
     Q_jic_old(:,:,jic) = Q_jic(:,:,jic);
     constrvioltext_jic_old{jic} = constrvioltext_jic{jic};
@@ -333,7 +333,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       fval_jic(jic) > 1e6 % ... falls normale IK erfolgreich war.
     break; % sonst ist die zweite Iteration nicht notwendig.
   end
-  constrvioltext_jic{jic} = 'i.O.'; % hier zurücksetzen. Berechne Nebenbedingungen ab hier neu.
+  fval_jic(jic) = NaN; % Muss später im Ablauf überschrieben werden
+  constrvioltext_jic{jic} = ''; % hier zurücksetzen. Berechne Nebenbedingungen ab hier neu.
   % IK für alle Eckpunkte
   for i = 1:size(Traj_0.XE,1)
     if Set.task.profile ~= 0 % Trajektorie wird in cds_constraints_traj berechnet
@@ -480,12 +481,12 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       end
       % Setze die Einstellungen und Nebenbedingungen so, dass sich das
       % Ergebnis bestmöglich verändert.
-      if fval_jic(jic) == 1e3 && i>1
+      if fval_jic_old(jic) == 1e3 && i>1
         % Wenn vorher alle Punkte in Ordnung waren, muss nur noch der erste
         % Punkt optimiert werden. Für die hierauf folgende Trajektorie
         % haben die anderen Punkte sowieso keine Bedeutung.
         break;
-      elseif fval_jic(jic) > 5e5 && fval_jic(jic) < 7e5
+      elseif fval_jic_old(jic) > 5e5 && fval_jic_old(jic) < 7e5
         % Der vorherige Ausschlussgrund war eine zu große Winkelspannweite.
         % Als IK-Nebenbedingung sollte die Winkelspannweite verkleinert
         % werden
@@ -522,7 +523,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         % q0_arik(q0_arik<qlim(:,1)) = qlim(q0_arik<qlim(:,1))+0.05*qlim_range(q0_arik<qlim(:,1));
         % % Dann keine Überschreitung der neuen Grenzen mehr zulassen
         % s4.scale_lim = 0.7; % Scheint die Erfolgsquote stark zu verschlechtern.
-      elseif fval_jic(jic) > 3e5 && fval_jic(jic) < 4e5
+      elseif fval_jic_old(jic) > 3e5 && fval_jic_old(jic) < 4e5
         % Der vorherige Ausschlussgrund war eine Kollision.
         % Kollisionsvermeidung als Optimierung
         % Prüfe vorher, ob dieser Punkt ausschlaggebend für die Kollision
@@ -540,12 +541,12 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           s4.wn(R.idx_ikpos_wn.instspc_hyp) = 1;
           s4.installspace_thresh = 0.05; % Nur bei geringem Abstand aktiv
         end
-      elseif fval_jic(jic) > 2e5 && fval_jic(jic) < 3e5
+      elseif fval_jic_old(jic) > 2e5 && fval_jic_old(jic) < 3e5
         % Der vorherige Ausschlussgrund war eine Bauraumverletzung.
         s4.wn(:) = 0;
         s4.wn(R.idx_ikpos_wn.instspc_hyp) = 1;
         s4.installspace_thresh = 0.1500; % Etwas höherer Abstand zur Aktivierung der Funktion
-      elseif fval_jic(jic) == 1e3 % Vorher erfolgreich
+      elseif fval_jic_old(jic) == 1e3 % Vorher erfolgreich
         % Vermeide Singularitäten. Abseits davon keine Betrachtung.
         s4.cond_thresh_ikjac = cond_thresh_ikjac; % IK-Jacobi
         s4.wn(R.idx_ikpos_wn.ikjac_cond) = 1;
@@ -916,8 +917,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   % weitere Rechnung für die Trajektorie sowieso sinnlos
   n_condexc = sum(any(condJik > Set.optimization.condition_limit_sing, 2));
   if n_condexc > 0
-    fval = 1e5*(9+n_condexc/size(condJik,1)); % Normierung auf 9e5 bis 1e6
-    fval_jic(jic) = fval;
+    fval_jic(jic) = 1e5*(9+n_condexc/size(condJik,1)); % Normierung auf 9e5 bis 1e6
     constrvioltext_jic{jic} = sprintf(['Konditionszahl in IK für %d/%d ', ...
       'Eckpunkte zu groß. max(cond(J_IK))=%1.1e.'], n_condexc, size(condJik,1), max(condJik(:)));
     calctimes_jic(i_ar,jic) = toc(t1);
@@ -943,16 +943,15 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   if n_condexc > 0 || n_condexc2 > 0
     if n_condexc2 > 0
       % Konditionszahl ist so hoch, dass es eine komplette Singularität ist
-      fval = 1e5*(8+n_condexc2/size(condJ,1)); % Normierung auf 8e5 bis 9e5
+      fval_jic(jic) = 1e5*(8+n_condexc2/size(condJ,1)); % Normierung auf 8e5 bis 9e5
       constrvioltext_jic{jic} = sprintf(['Jacobi-Konditionszahl für %d/%d ', ...
         'Eckpunkte singulär. max(cond(J))=%1.1e.'], n_condexc2, size(condJ,1), max(condJ(:)));
     else
       % Konditionszahl ist hoch, aber nur "schlechter-Wert-hoch"
-      fval = 1e5*(7+n_condexc/size(condJ,1)); % Normierung auf 7e5 bis 8e5
+      fval_jic(jic) = 1e5*(7+n_condexc/size(condJ,1)); % Normierung auf 7e5 bis 8e5
       constrvioltext_jic{jic} = sprintf(['Jacobi-Konditionszahl für %d/%d ', ...
         'Eckpunkte zu groß. max(cond(J))=%1.1e.'], n_condexc, size(condJ,1), max(condJ(:)));
     end
-    fval_jic(jic) = fval;
     calctimes_jic(i_ar,jic) = toc(t1);
     continue;
   end
@@ -971,8 +970,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     [fval_qlimv_E, I_worst] = min(qlimviol_E(I_qlimviol_E)./(qlim(I_qlimviol_E,2)-qlim(I_qlimviol_E,1))');
     II_qlimviol_E = find(I_qlimviol_E); IIw = II_qlimviol_E(I_worst);
     fval_qlimv_E_norm = 2/pi*atan((-fval_qlimv_E)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
-    fval = 1e5*(6+1*fval_qlimv_E_norm); % Normierung auf 6e5 bis 7e5
-    fval_jic(jic) = fval;
+    fval_jic(jic) = 1e5*(6+1*fval_qlimv_E_norm); % Normierung auf 6e5 bis 7e5
     % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Weitere Rechnungen machen keinen Sinn.
     if R.Type ~= 0
       legnum = find(IIw>=R.I1J_LEG, 1, 'last');
@@ -984,8 +982,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     constrvioltext_jic{jic} = sprintf(['Gelenkgrenzverletzung in AR-Eckwerten. ', ...
       'Schlechteste Spannweite: %1.2f/%1.2f (Gelenk %d%s)'], q_range_E(IIw), ...
       qlim(IIw,2)-qlim(IIw,1), IIw, jointstr);
-    if Set.general.plot_details_in_fitness < 0 && 1e4*fval >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
-       Set.general.plot_details_in_fitness > 0 && 1e4*fval <= abs(Set.general.plot_details_in_fitness)
+    if Set.general.plot_details_in_fitness < 0 && 1e4*fval_jic(jic) >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
+       Set.general.plot_details_in_fitness > 0 && 1e4*fval_jic(jic) <= abs(Set.general.plot_details_in_fitness)
       change_current_figure(1000); clf; hold on;
       % Gut-Einträge: Dummy-NaN-Eintrag mit plotten, damit Handle für Legende nicht leer bleibt.
       hdl_iO= plot([find(~I_qlimviol_E),NaN], [QE(:,~I_qlimviol_E)-min(QE(:,~I_qlimviol_E)),NaN(size(QE,1),1)], 'co');
@@ -995,7 +993,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       xlabel('Koordinate Nummer'); ylabel('Koordinate Wert');
       grid on;
       legend([hdl_iO(1);hdl_niO(1);hdl1;hdl2], {'iO-Gelenke', 'niO-Gelenke', 'qmax''', 'qmin''=0'});
-      sgtitle(sprintf('Auswertung Grenzverletzung AR-Eckwerte. fval=%1.2e', fval));
+      sgtitle(sprintf('Auswertung Grenzverletzung AR-Eckwerte. fval=%1.2e', fval_jic(jic)));
     end
     calctimes_jic(i_ar,jic) = toc(t1);
     continue;
@@ -1022,8 +1020,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       [lvmax,Imax] = max(Q_limviolA,[],1);
       [delta_lv_maxrel,Imax2] = max(lvmax-0.5);
       fval_qlimva_E_norm = 2/pi*atan((delta_lv_maxrel)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
-      fval = 1e5*(5+1*fval_qlimva_E_norm); % Normierung auf 5e5 bis 6e5
-      fval_jic(jic) = fval;
+      fval_jic(jic) = 1e5*(5+1*fval_qlimva_E_norm); % Normierung auf 5e5 bis 6e5
       constrvioltext_jic{jic} = sprintf(['Gelenkgrenzverletzung in AR-Eckwerten. ', ...
         'Größte relative Überschreitung: %1.1f%% (Gelenk %d, Eckpunkt %d/%d)'], ...
         100*delta_lv_maxrel, Imax2, Imax(Imax2), size(QE,1));
@@ -1058,8 +1055,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         'achsen-Führungsschienen um %1.0f%% zu groß (%1.1fmm>%1.1fmm).'], ...
         100*fval_rbase, 1e3*r_base_eff, 1e3*1/((fval_rbase+1)/r_base_eff));
       fval_rbase_norm = 2/pi*atan(fval_rbase*3); % Normierung auf 0 bis 1; 100% zu groß ist 0.8
-      fval = 1e5*(4.5+0.5*fval_rbase_norm); % Normierung auf 4.5e5 bis 5e5
-      fval_jic(jic) = fval;
+      fval_jic(jic) = 1e5*(4.5+0.5*fval_rbase_norm); % Normierung auf 4.5e5 bis 5e5
       calctimes_jic(i_ar,jic) = toc(t1);
       continue;
     end
@@ -1080,8 +1076,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         'nach hinten über. Min. Abstand %1.1fmm, Innenzylinder Länge %1.1fmm ', ...
         '(Gelenk %d)'], 1e3*qmin_cyl(Iworst), 1e3*length_cyl(Iworst), II_straightcylinder(Iworst));
       fval_cyllen_norm = 2/pi*atan((fval_cyllen-1)*3); % Normierung auf 0 bis 1; 100% zu lang ist 0.8
-      fval = 1e5*(4.25+0.25*fval_cyllen_norm); % Normierung auf 4.25e5 bis 4.5e5
-      fval_jic(jic) = fval;
+      fval_jic(jic) = 1e5*(4.25+0.25*fval_cyllen_norm); % Normierung auf 4.25e5 bis 4.5e5
       calctimes_jic(i_ar,jic) = toc(t1);
       continue;
       % Debug: Zeichnen des Roboters in der Konfiguration
@@ -1092,7 +1087,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           R.Leg(kkk).qlim(:,:) = minmax2(QE(:,R.I1J_LEG(kkk):R.I2J_LEG(kkk))');
         end
       end
-      cds_fitness_debug_plot_robot(R, QE(1,:)', Traj_0, Traj_0, Set, Structure, [], mean(fval), {});
+      cds_fitness_debug_plot_robot(R, QE(1,:)', Traj_0, Traj_0, Set, Structure, [], fval_jic(jic), {});
     end
     % Gleiche Rechnung, nur für symmetrische Anordnung der PKM-Beinketten.
     % Annahme: Symmetrischer Aufbau, also zählen die Bewegungen aller Beine
@@ -1111,8 +1106,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           '(Gelenk %d). Aufgrund symmetrischer Auslegung der Beinketten.'], ...
           1e3*qmin_cyl(Iworst), 1e3*length_cyl(Iworst), Iworst);
         fval_cyllen_norm = 2/pi*atan((fval_cyllen-1)*3); % Normierung auf 0 bis 1; 100% zu lang ist 0.8
-        fval = 1e5*(4+0.25*fval_cyllen_norm); % Normierung auf 4e5 bis 4.25e5
-        fval_jic(jic) = fval;
+        fval_jic(jic) = 1e5*(4+0.25*fval_cyllen_norm); % Normierung auf 4e5 bis 4.25e5
         calctimes_jic(i_ar,jic) = toc(t1);
         continue
       end
@@ -1182,15 +1176,26 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       continue;
     end
   end
+  constrvioltext_jic{jic} = 'i.O.';
   fval_jic(jic) = 1e3; % Bis hier hin gekommen. Also erfolgreich.
   calctimes_jic(i_ar,jic) = toc(t1);
-  end % Schleife über IK ohne/mit zusätzlicher Optimierung
+  end % i_ar-Schleife über IK ohne/mit zusätzlicher Optimierung
   if fval_jic(jic) == 1e3 && ...% Nur die erste Konfiguration belassen. Geht schneller.
       all(abs(Q_jic(1,:,jic)' - Structure.q0_traj) < 1e-6) % Nur, falls Anfangswert schon gegeben
     % Bei der nachträglichen Auswertung soll es schneller gehen und die
     % alternativen Konfigurationen werden voraussichtlich sowieso nicht
     % besser sein.
     break;
+  end
+  if i_ar == 2 && fval_jic(jic) < fval_jic_old(jic)
+    fval_jic(jic) = fval_jic_old(jic);
+    Q_jic(:,:,jic) =  Q_jic_old(:,:,jic);
+    constrvioltext_jic{jic} = constrvioltext_jic_old{jic};
+  end
+  if isnan(fval_jic(jic))
+    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+       'tmp', 'cds_constraints_fvalnanerror.mat'));
+    error('Wert wurde nicht belegt. Logik-Fehler');
   end
 end % Schleife über IK-Konfigurationen
 
