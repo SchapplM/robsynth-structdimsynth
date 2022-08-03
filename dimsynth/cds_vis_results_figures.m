@@ -470,6 +470,7 @@ if strcmp(figname, 'pareto_dimsynth_desopt')
   % Trage die gespeicherten Daten aus der Entwurfsoptimierung in das
   % gleiche Bild ein, das oben mit Schalter 'pareto' erstellt wurde.
   % Lade die in der Entwurfsoptimierung gespeicherten Daten
+  % Siehe cds_dimsynth_desopt und Set.general.debug_desopt
   resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
     'tmp', sprintf('%d_%s', RNr, Name)); % Siehe Ende von cds_dimsynth_desopt
   matfiles = dir(fullfile(resdir, 'Gen*_Ind*_Konfig*_desopt_dbg.mat'));
@@ -555,6 +556,7 @@ if strcmp(figname, 'pareto_desopt')
     physval = RobotOptRes.physval_pareto(PNr,:)';
   end
   % Lade Ergebnisdatei für Entwurfsoptimierung für gefordertes Partikel
+  % Wird in cds_dimsynth_desopt mit Set.general.debug_desopt erzeugt.
   [k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, fval);
   resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
     'tmp', sprintf('%d_%s', RNr, Name)); % Siehe Ende von cds_dimsynth_desopt
@@ -572,7 +574,7 @@ if strcmp(figname, 'pareto_desopt')
     break;
   end
   if ~load_success
-    warning('Ergebnis-Daten der Entwurfsoptimierung für Partikel nicht gefunden');
+    warning('Ergebnis-Daten der Entwurfsoptimierung für Partikel nicht in %s gefunden', resdir);
     if settings.delete_figure
       delete(fhdl2D);
     end

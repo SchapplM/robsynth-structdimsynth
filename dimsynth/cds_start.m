@@ -191,8 +191,10 @@ if length(union(Set.optimization.desopt_vars, {'joint_stiffness_qref', ...
     'joint_stiffness', 'linkstrength'})) ~= 3
   error('Unerwarteter Wert in Set.optimization.desopt_vars');
 end
-if any(strcmp(Set.general.eval_figures, 'pareto_desopt')) && ~Set.general.debug_desopt
-  warning('Set.general.debug_desopt wurde auf true gesetzt, da Daten notwendig für Auswertung sind');
+if ~isempty(intersect(Set.general.eval_figures, {'pareto_desopt', ...
+    'pareto_dimsynth_desopt'})) && ~Set.general.debug_desopt
+  warning(['Set.general.debug_desopt wurde auf true gesetzt, da damit ', ...
+    'erzeugte Daten notwendig für Auswertung sind']);
   Set.general.debug_desopt = true;
 end
 % Prüfe das Namensformat von Robotern auf der Positiv-Liste
