@@ -53,7 +53,7 @@ catch e
     currgen, e.message));
 end
 % Datei der vorherigen Iteration löschen (wird nicht mehr benötigt)
-if optimValues.iteration > 5
+if optimValues.iteration > 5 && save_success % nur löschen, falls neues Speichern erfolgreich
   % Lösche die Dateien ein paar Nummern vorher rollierend. Behalte also
   % immer mehrere Zwischenergebnisse, falls eine Datei inkonsistent ist.
   filename_previous = sprintf('PSO_Gen%02d_AllInd.mat', optimValues.iteration-5);
