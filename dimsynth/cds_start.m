@@ -492,27 +492,6 @@ if Set.general.computing_cluster
     end
 
     save(fullfile(jobdir, [computation_name,'.mat']), 'Set_cluster', 'Traj');
-    % Matlab-Skript erzeugen
-    clusterheaderfile=fullfile(jobdir,'..','..','dimsynth_cluster_header.m');
-    if ~exist(clusterheaderfile, 'file')
-      error('Datei %s existiert nicht. Muss manuell aus template-Datei erstellt werden.', clusterheaderfile);
-    end
-    copyfile(clusterheaderfile, targetfile);
-    fid = fopen(targetfile, 'a');
-    fprintf(fid, 'tmp=load(''%s'');\n', [computation_name,'.mat']);
-    fprintf(fid, 'Set=tmp.Set_cluster;\nTraj=tmp.Traj;\n');
-    % Ergebnis-Ordner neu setzen. Ansonsten ist der Pfad des Rechners
-    % gesetzt, von dem der Job gestartet wird.
-    fprintf(fid, ['Set.optimization.resdir=fullfile(fileparts(', ...
-      'which(''structgeomsynth_path_init.m'')),''results'');\n']);
-    % Platzhalter-Eintrag, der weiter unten ersetzt wird:
-    fprintf(fid, '%% Set.general.only_finish_aborted = true;\n');
-    fprintf(fid, 'cds_start(Set,Traj);\n');
-    % Schließen des ParPools auch in Datei hineinschreiben
-    fprintf(fid, 'parpool_writelock(''lock'', 300, true);\n');
-    fprintf(fid, 'delete(gcp(''nocreate''));\n');
-    fprintf(fid, 'parpool_writelock(''free'', 0, true);\n');
-    fclose(fid);
     % Schätze die Rechenzeit: Im Mittel 2s pro Parametersatz aufgeteilt auf
     % 12 parallele Kerne, 30min für Bilderstellung und 6h Reserve/Allgemeines
     comptime_est = (Set.optimization.NumIndividuals*(1+Set.optimization.MaxIter)*2 + ...
@@ -537,6 +516,32 @@ if Set.general.computing_cluster
         comptime_est = Set.general.computing_cluster_max_time;
       end
     end
+    % Matlab-Skript erzeugen
+    clusterheaderfile=fullfile(jobdir,'..','..','dimsynth_cluster_header.m');
+    if ~exist(clusterheaderfile, 'file')
+      error('Datei %s existiert nicht. Muss manuell aus template-Datei erstellt werden.', clusterheaderfile);
+    end
+    copyfile(clusterheaderfile, targetfile);
+    fid = fopen(targetfile, 'a');
+    fprintf(fid, 'tmp=load(''%s'');\n', [computation_name,'.mat']);
+    fprintf(fid, 'Set=tmp.Set_cluster;\nTraj=tmp.Traj;\n');
+    % Ergebnis-Ordner neu setzen. Ansonsten ist der Pfad des Rechners
+    % gesetzt, von dem der Job gestartet wird.
+    fprintf(fid, ['Set.optimization.resdir=fullfile(fileparts(', ...
+      'which(''structgeomsynth_path_init.m'')),''results'');\n']);
+    % Maximale Rechenzeit auf dem Cluster eintragen (in Sekunden).
+    % Kann in Optimierung genutzt werden um baldigen Abbruch zu erkennen
+    fprintf(fid, 'Set.general.computing_cluster_max_time=%1.0f\n', comptime_est);
+    fprintf(fid, 'Set.general.computing_cluster_start_time=now()\n');
+    % Platzhalter-Eintrag, der weiter unten ersetzt wird:
+    fprintf(fid, '%% Set.general.only_finish_aborted = true;\n');
+    fprintf(fid, 'cds_start(Set, Traj);\n');
+    % Schließen des ParPools auch in Datei hineinschreiben
+    fprintf(fid, 'parpool_writelock(''lock'', 300, true);\n');
+    fprintf(fid, 'delete(gcp(''nocreate''));\n');
+    fprintf(fid, 'parpool_writelock(''free'', 0, true);\n');
+    fclose(fid);
+
     % Matlab-Skript auf Cluster starten.
     addpath(cluster_repo_path);
     ppn = min(length(I1_kk:I2_kk),Set.general.computing_cluster_cores);
