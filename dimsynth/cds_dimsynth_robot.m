@@ -2038,6 +2038,10 @@ elseif length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
       error('Algorithmus %s nicht definiert', Set.optimization.algorithm);
     end
   end
+  if isempty(p_val_pareto)
+    cds_log(-1, sprintf('[dimsynth] Pareto-Front war leer. Logik-Fehler?'));
+    return
+  end
   % Entferne doppelte Partikel aus der Pareto-Front (bei MOPSO beobachtet)
   [~,I_unique] = unique(p_val_pareto, 'rows'); % Ausgabe sind Zahlen-Indizes (nicht: Binär)
   if length(I_unique) ~= size(p_val_pareto,1)

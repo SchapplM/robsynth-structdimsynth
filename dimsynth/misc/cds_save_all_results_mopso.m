@@ -8,7 +8,8 @@
 % Eingabe:
 % MOPSO_struct
 %   Standard-Eingabe für MOPSO-Output-Fcn. Siehe MOPSO.m, OutputFcn
-%   Felder: POS, POS_fit, REP
+%   Felder: POS, POS_fit, REP.
+%   Kann leer gelassen werden bei manuellem Aufruf. Dann andere Datenquelle
 % Set
 %   Eingabe zusätzlich zu MOPSO-Standard.
 %   Einstellungen des Optimierungsalgorithmus (aus cds_settings_defaults.m)
@@ -34,6 +35,9 @@ stop = false; % Zuweisung der Ausgabe zuerst
 persistent time_lastsave
 if isempty(time_lastsave)
   time_lastsave = 0;
+elseif ~isempty(MOPSO_struct)
+  % Der Aufruf kam aus der outputfcn und nicht zusätzlich. Daher kein
+  % vorzeitiger Abbruch, damit vollständige Generation gespeichert wird.
 elseif time_lastsave > now() - 5/(24*60)
   % Letztes Speichern vor weniger als 5min. Plattenzugriff kostet Zeit.
   return % ... daher keine erneute Speicherung
@@ -61,14 +65,15 @@ filename = sprintf('MOPSO_Gen%02d_AllInd.mat', currgen);
 if isempty(REP)
   % Initialisieren: Entspricht p_val_pareto und fval_pareto
   REP = struct('pos', [], 'pos_fit', []);
-  for i = 1:currgen
+  for i = 1:currgen+1
     REP.pos = [REP.pos; PSO_Detail_Data.pval(:,:,i)];
     REP.pos_fit = [REP.pos_fit; PSO_Detail_Data.fval(:,:,i)];
   end
   % Reduziere die Daten, damit weniger gespeichert wird
   Idom = pareto_dominance(REP.pos_fit);
-  REP.pos = REP.pos(~Idom,:);
-  REP.pos_fit = REP.pos_fit(~Idom,:);
+  Inan = any(isnan(REP.pos),2); % NaN-Einträge entstehen bei Speicherung unvollständiger Generationen
+  REP.pos = REP.pos(~Idom & ~Inan,:);
+  REP.pos_fit = REP.pos_fit(~Idom & ~Inan,:);
 end
 % Aktuelle Pareto-Front und Details abspeichern
 resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
