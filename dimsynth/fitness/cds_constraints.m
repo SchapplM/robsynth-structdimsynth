@@ -230,7 +230,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   end
   % Anpassung der IK-Anfangswerte für diesen Durchlauf der IK-Konfigurationen.
   % Versuche damit eine andere Konfiguration zu erzwingen
-  if fval_jic_old(1) > 1e6
+  if fval_jic(1) > 1e6
     % IK hat beim ersten Mal schon nicht funktioniert (dort werden aber
     % zufällige Neuversuche gemacht). Andere Anfangswerte sind zwecklos.
     break;
