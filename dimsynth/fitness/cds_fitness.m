@@ -883,18 +883,22 @@ else
 end
 rng('shuffle'); % damit Zufallszahlen in anderen Funktionen zufällig bleiben
 % Prüfe, ob die Optimierung bald abgebrochen wird und ob die Generation vor-
-% zeitig gespeichert werden sollte.
-if Set.general.isoncluster && ... % nur auf Cluster relevant
-    now() > Set.general.computing_cluster_start_time + ... % Rechne in Tagen
-    (Set.general.computing_cluster_max_time/(24*3600) - 5/(24*60)) % 5min vor max. Zeitpunkt in Tagen
-  % Ende ist nur noch 5min entfernt. Speichere Zwischenstand der Generation
-  if strcmp(Set.optimization.algorithm, 'mopso')
-    cds_save_all_results_mopso([], Set, Structure);
-  elseif strcmp(Set.optimization.algorithm, 'gamultiobj')
-    cds_save_all_results_gamultiobj(struct(),struct('Generation', i_gen, ...
-      'Score', []), 'iter', Set, Structure);
-  elseif strcmp(Set.optimization.algorithm, 'pso')
-    cds_save_all_results_pso(struct('iteration', i_gen),'iter', Set, Structure);
+% zeitig gespeichert werden sollte. Hilfreicht, falls eine Generation lange
+% dauert und sonst zu viele Daten verloren gehen würden.
+if Set.general.isoncluster
+  t_end_plan = Set.general.computing_cluster_start_time + ... % Rechne in Tagen
+    Set.general.computing_cluster_max_time/(24*3600); % geplante Endzeit
+  if now() > t_end_plan - 5/(24*60)  && ... % 5min vor max. Zeitpunkt in Tagen
+      now() < t_end_plan + 10/(24*60) % Annahme: Mehr als 10min nach Ende entspricht Offline-Auswertung
+    % Ende ist nur noch 5min entfernt. Speichere Zwischenstand der Generation
+    if strcmp(Set.optimization.algorithm, 'mopso')
+      cds_save_all_results_mopso([], Set, Structure);
+    elseif strcmp(Set.optimization.algorithm, 'gamultiobj')
+      cds_save_all_results_gamultiobj(struct(),struct('Generation', i_gen, ...
+        'Score', []), 'iter', Set, Structure);
+    elseif strcmp(Set.optimization.algorithm, 'pso')
+      cds_save_all_results_pso(struct('iteration', i_gen),'iter', Set, Structure);
+    end
   end
 end
 end % function

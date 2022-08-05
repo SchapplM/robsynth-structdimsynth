@@ -68,6 +68,7 @@ end
 d3 = load(setfile, 'Set', 'Structures', 'Traj');
 Structures = d3.Structures;
 Set = cds_settings_update(d3.Set);
+Set.general.isoncluster = false; % Falls auf Cluster durchgeführt, jetzt Einstellungen für lokale Auswertung
 Traj = d3.Traj;
 
 Structures_Names = cell(1,length(Structures));
