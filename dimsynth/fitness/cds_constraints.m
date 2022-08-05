@@ -247,7 +247,11 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     q0(R.MDH.sigma==1) = q0(R.MDH.sigma==1) + 0.5*rand(1)*...
       (qlim_norm(R.MDH.sigma==1,2)-qlim_norm(R.MDH.sigma==1,1));
   elseif jic > n_jic-n_ikcomb % Versuche mit Kombinationen der bisherigen gefundenen Konfigurationen (für PKM)
-    if all(isnan(Q_jic(:))), break; end % Keine Kombination möglich. Bis hier nur NaN.
+    % Prüfe, ob für die zweite oder folgende Beinkette Werte ungleich NaN
+    % vorliegen. Falls nicht, konnte die eine Beinkette nie erfolgreich
+    % berechnet werden, es liegen aber Zahlenwerte des Versuchs für die
+    % ersten Beinketten vor. Dann bringen Neu-Kombinationen auch nichts.
+    if any(any( squeeze(isnan(Q_jic(1,R.I1J_LEG(2):end,:))), 2 )), break; end
     if jic == n_jic-n_ikcomb+1 && R.Type == 2
       % Bestimme alle Kombinationen der Gelenkkoordinaten der Beinketten
       Q_configperm1 = NaN(0,size(Q_jic,2));
@@ -282,6 +286,11 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         % Initialisierung von n_ikcomb. Mehr als zwei noch nicht
         % implementiert.
         indvec{j} = [1, Idesc(1,j)];
+        if any(isnan(Idesc(1,j)))
+          save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+            'tmp', 'cds_constraints_q0comb_error.mat'));
+          error('Logik-Fehler in Kombination der IK-Konfigurationen');
+        end
       end % for j
       Q_configperm_idx = allcomb(indvec{:});
       if size(Idesc,1)>2 && ~isnan(Idesc(3,1))
