@@ -370,12 +370,18 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     for k = 1:length(Structures)
       I_acttype(k,1) = strcmp(Structures{k}.act_type, 'revolute');
       I_acttype(k,2) = strcmp(Structures{k}.act_type, 'prismatic');
-      I_acttype(k,3) = ~(I_acttype(k,1)&I_acttype(k,2)); % Mischung
+      I_acttype(k,3) = ~(I_acttype(k,1)|I_acttype(k,2)); % Mischung bereits in den Antrieben
     end
   end
   if size(I_acttype,1) == 1 % Sonderfall einzelner Roboter
     I_acttype = [I_acttype; false(1,4)]; %#ok<AGROW> % Dummy-Zeile für any-Befehl unten
     I_acttype(:,1:3) = false; % nur die letzte Spalte aktivieren für Standard-Bild
+  end
+  % Falls es nur einen Typ von Antrieben gibt (nur Dreh- oder Schubantriebe)
+  % dann nur ein Diagramm und nicht doppelt
+  if all(I_acttype(:,1)) || all(I_acttype(:,2))
+    I_acttype(:,1:2) = 0; % Spezifisches Diagramm Dreh-/Schub weglassen
+    I_acttype(:,4) = true; % allgemeines Diagramm ist bereits richtig
   end
   % Schleife über verschiedene Aktuierungstypen (Dreh/Schub/Mischung)
   for pfact = find(any(I_acttype))
