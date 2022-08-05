@@ -531,8 +531,8 @@ if Set.general.computing_cluster
       'which(''structgeomsynth_path_init.m'')),''results'');\n']);
     % Maximale Rechenzeit auf dem Cluster eintragen (in Sekunden).
     % Kann in Optimierung genutzt werden um baldigen Abbruch zu erkennen
-    fprintf(fid, 'Set.general.computing_cluster_max_time=%1.0f\n', comptime_est);
-    fprintf(fid, 'Set.general.computing_cluster_start_time=now()\n');
+    fprintf(fid, 'Set.general.computing_cluster_max_time=%1.0f;\n', comptime_est);
+    fprintf(fid, 'Set.general.computing_cluster_start_time=now();\n');
     % Platzhalter-Eintrag, der weiter unten ersetzt wird:
     fprintf(fid, '%% Set.general.only_finish_aborted = true;\n');
     fprintf(fid, 'cds_start(Set, Traj);\n');

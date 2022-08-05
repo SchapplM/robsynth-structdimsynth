@@ -24,7 +24,16 @@
 
 function [state,options,optchanged] = cds_save_all_results_gamultiobj(options, state, flag, Set, Structure)
 
-optchanged = false;
+optchanged = false; % Zuweisung der Ausgabe zuerst
+
+persistent time_lastsave
+if isempty(time_lastsave)
+  time_lastsave = 0;
+elseif time_lastsave > now() - 5/(24*60)
+  % Letztes Speichern vor weniger als 5min. Plattenzugriff kostet Zeit.
+  return % ... daher keine erneute Speicherung
+end
+
 if any(isinf(state.Score(:)))
   % Der Wert inf wird in cds_fitness als Marker benutzt, um die Optimierung
   % abzubrechen. Das kann hier an den MOGA übergeben werden, falls die
@@ -47,6 +56,7 @@ try
   filename = sprintf('GAMO_Gen%02d_AllInd.mat', state.Generation);
   save(fullfile(resdir, filename), 'state', 'PSO_Detail_Data');
   save_success = true;
+  time_lastsave = now();
 catch e
   cds_log(-1,sprintf('[output] Fehler beim Speichern von Generation %d: %s', ...
     state.Generation, e.message));

@@ -26,7 +26,16 @@
 
 function stop = cds_save_all_results_pso(optimValues, state, Set, Structure)
 
-stop = false;
+stop = false; % Zuweisung der Ausgabe zuerst
+
+persistent time_lastsave
+if isempty(time_lastsave)
+  time_lastsave = 0;
+elseif time_lastsave > now() - 5/(24*60)
+  % Letztes Speichern vor weniger als 5min. Plattenzugriff kostet Zeit.
+  return % ... daher keine erneute Speicherung
+end
+
 if any(isinf(optimValues.swarmfvals(:)))
   % Der Wert inf wird in cds_fitness als Marker benutzt, um die Optimierung
   % abzubrechen. Das kann hier an den PSO übergeben werden, falls die
@@ -48,6 +57,8 @@ try
   % Auf Cluster ab und zu Fehlermeldung: Daher try-catch
   % "Unable to write to file because it appears to be corrupt"
   save(fullfile(resdir, filename), 'optimValues', 'PSO_Detail_Data');
+  save_success = true;
+  time_lastsave = now();
 catch e
   cds_log(-1,sprintf('[output] Fehler beim Speichern von Generation %d: %s', ...
     currgen, e.message));

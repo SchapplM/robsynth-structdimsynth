@@ -9,6 +9,8 @@
 % In diesem Skript wird die Initialisierung der einzelnen Repos gemacht
 run('/bigwork/nhkbscha/REPO/scripts/startup_cluster.m');
 
+fprintf('Start der Maßsynthese: %s\n', datestr(now));
+
 % Bilder immer in Vollbild erstellen (die eingestellte Grenze in Pixeln ist
 % wirksam; die Auflösung des virtuellen Displays ist nicht begrenzt).
 set(0, 'defaultfigureposition', [0 0 1920 1080]);

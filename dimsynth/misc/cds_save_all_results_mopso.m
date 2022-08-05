@@ -29,7 +29,16 @@
 
 function stop = cds_save_all_results_mopso(MOPSO_struct, Set, Structure)
 
-stop = false;
+stop = false; % Zuweisung der Ausgabe zuerst
+
+persistent time_lastsave
+if isempty(time_lastsave)
+  time_lastsave = 0;
+elseif time_lastsave > now() - 5/(24*60)
+  % Letztes Speichern vor weniger als 5min. Plattenzugriff kostet Zeit.
+  return % ... daher keine erneute Speicherung
+end
+
 if ~isempty(MOPSO_struct)
   if any(isinf(MOPSO_struct.POS_fit(:)))
     % Der Wert inf wird in cds_fitness als Marker benutzt, um die Optimierung
@@ -70,6 +79,7 @@ try
   % "Unable to write to file because it appears to be corrupt"
   save(fullfile(resdir, filename), 'PSO_Detail_Data', 'REP');
   save_success = true;
+  time_lastsave = now();
 catch e
   cds_log(-1,sprintf('[output] Fehler beim Speichern von Generation %d: %s', ...
     currgen, e.message));
