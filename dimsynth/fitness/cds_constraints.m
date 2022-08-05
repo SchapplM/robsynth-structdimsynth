@@ -878,6 +878,14 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     % unten für alle Punkte gemeinsam geprüft würden
     if ~Set.optimization.single_point_constraint_check, continue; end
     if Set.optimization.constraint_collisions
+      % Kollisionskörper aktualisieren (sonst z.B. Führungsschienen falsch)
+      % Die Länge der Führungsschienen ist hier nicht vollständig bekannt.
+      % Kollisionsprüfung daher zunächst unvollständig und unten dann richtig.
+      if i == 1 % Zur Zeitersparnis nicht für jeden Punkt aktualisieren
+        [Structure.collbodies_robot, Structure.installspace_collbodies] = ...
+          cds_update_collbodies(R, Set, Structure, QE(i,:));
+      end
+      % Kollisionsprüfung durchführen
       [fval_coll, coll_self] = cds_constr_collisions_self(R, Traj_0.XE(i,:), ...
         Set, Structure, JPE(i,:), QE(i,:), [0;1]);
       if fval_coll > 0
