@@ -52,22 +52,39 @@ end
 resdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), 'results');
 resdir_ges = fullfile(resdir, optname);
 
-if exist(resdir_ges, 'file') && ~settings.retry
-  fprintf('Gesamt-Verzeichnis %s existiert schon. Abbruch.\n', resdir_ges);
-  return
+if exist(resdir_ges, 'file') 
+  if ~settings.retry
+    fprintf('Gesamt-Verzeichnis %s existiert schon. Abbruch.\n', resdir_ges);
+    return
+  else
+    % Benenne das Ziel-Verzeichnung um als Part 0. Damit wird diese wieder
+    % mit den anderen Teilen zusammengeführt.
+    resdir_p0 = fullfile(resdir, [optname, '_p0']);
+    if exist(resdir_p0, 'file')
+      fprintf('Verzeichnis %s existiert schon. Abbruch\n', resdir_p0);
+      return;
+    end
+    movefile(resdir_ges, resdir_p0);
+    % Dateien umbenennen, damit konsistent mit erwartetem Schema
+    if ~exist(fullfile(resdir_p0, [optname, '_settings.mat']), 'file')
+      fprintf('Datei %s existiert nicht. Unerwarteter Fehler\n', ...
+        fullfile(resdir_p0, [optname, '_settings.mat']));
+      return
+    end
+    movefile(fullfile(resdir_p0, [optname, '_settings.mat']), ...
+             fullfile(resdir_p0, [optname, '_p0_settings.mat']));
+    if ~exist(fullfile(resdir_p0, [optname, '_results_table.csv']), 'file')
+      fprintf('Datei %s existiert nicht. Unerwarteter Fehler\n', ...
+        fullfile(resdir_p0, [optname, '_results_table.csv']));
+      return
+    end
+    movefile(fullfile(resdir_p0, [optname, '_results_table.csv']), ...
+             fullfile(resdir_p0, [optname, '_p0_results_table.csv']));
+  end
   % rmdir(resdir_ges, 's');
 end
 % Zielordner erstellen
 mkdirs(resdir_ges);
-
-% Pfad zur zu erstellenden Gesamt-Tabelle
-csvtable_ges = fullfile(resdir_ges,[optname,'_results_table.csv']);
-if exist(csvtable_ges, 'file')
-  opts = detectImportOptions(csvtable_ges,'NumHeaderLines',1);
-  opts.VariableNamesLine = 1;
-  opts.VariableDescriptionsLine = 2;
-  ResTab_Ges_exist = readtable(csvtable_ges, opts);
-end
 
 % Finde alle aufgeteilten Ergebnisse
 optdirs = dir(fullfile(resdir, [optname, '_p*']));
@@ -88,15 +105,17 @@ for i = 1:length(optdirs)
   maxnum_parts = max(maxnum_parts, str2double(tokens{1}{1}));
 end
 numdirs_processed = 0;
-dir_success = false(1,maxnum_parts);
+dir_success = false(1,1+maxnum_parts);
 % Gehe durch alle (möglichen) Ergebnis-Ordner
-for i = 1:maxnum_parts
+for i = 0:maxnum_parts % Ordner 0 kommt nicht aus Optimierung sondern von oben
   % Erzeuge den Ordner-Namen hier neu, da nicht davon ausgegangen werden
   % kann, dass die Reihenfolge mit aufsteigenden Nummern ist.
   dirname_i = sprintf('%s_p%d', optname, i);
   II = find(strcmp({optdirs(:).name}, dirname_i),1);
   if isempty(II)
-    warning('Ordner %s nicht gefunden', dirname_i);
+    if i > 0 % Ordner 0 existiert nur in seltenen Fällen
+      warning('Ordner %s nicht gefunden', dirname_i);
+    end
     continue; % fehlender Ordner. Versuche den nächsten
   end
   % Lade die Einstellungen
@@ -146,7 +165,7 @@ for i = 1:maxnum_parts
   end
   % Prüfe Erfolg des Teils anhand der Ergebnis-Tabelle
   if size(ResTab_i,1) == length(s.Structures)
-    dir_success(i) = true;
+    dir_success(1+i) = true;
   else
     warning(['Optimierung Teil %d war nicht erfolgreich: %d Zeilen in Ergebnis, ', ...
       '%d erwartet.'], i, size(ResTab_i,1), length(s.Structures));
@@ -302,6 +321,7 @@ if numdirs_processed == 0
   return
 end
 % Speichere die Gesamt-Tabelle ab
+csvtable_ges = fullfile(resdir_ges,[optname,'_results_table.csv']);
 % Zeile mit Überschriften und erklärenden Kommentaren zuerst
 Tab_Descr  = cell2table(ResTab_ges.Properties.VariableDescriptions, ...
   'VariableNames', ResTab_ges.Properties.VariableNames);
@@ -310,7 +330,6 @@ writetable(Tab_Descr, csvtable_ges, 'Delimiter', ';');
 writetable(ResTab_ges, csvtable_ges, 'Delimiter', ';', 'WriteMode', 'append');
 % Speichere die Gesamt-Einstellungsdatei ab (wird für einige Auswertungs-
 % Skripte benötigt).
-settingsfile = fullfile(resdir_ges,[optname, '_settings.mat']);
 Set = s.Set;
 % Setze den ursprünglichen Namen der Optimierung ohne Bezeichnung p_...
 Set.optimization.optname = optname;
@@ -319,6 +338,7 @@ Set.optimization.optname = optname;
 % Erzeuge neuen Filter für alle enthaltenen Roboter
 Set.structures.whitelist = ResTab_ges.Name';
 Traj = s.Traj;
+settingsfile = fullfile(resdir_ges,[optname, '_settings.mat']);
 save(settingsfile, 'Structures', 'Traj', 'Set');
 % Pareto-Bild erstellen (ist nur für die einzelnen Teile generiert worden)
 if settings.create_pareto_fig && length(Set.optimization.objective) > 1
@@ -329,7 +349,7 @@ end
 
 % Lösche die Ordner mit den Teil-Ergebnissen (werden nicht mehr benötigt)
 if settings.delete_parts_dirs
-  for i = find(dir_success)
+  for i = find(dir_success)-1
     dirname_i = sprintf('%s_p%d', optname, i);
     fprintf('Verzeichnis %d erfolgreich zusamengeführt. Lösche %s\n', i, dirname_i);
     rmdir(fullfile(resdir, dirname_i), 's');
