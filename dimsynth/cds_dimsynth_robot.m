@@ -2206,6 +2206,7 @@ end
 Set.general.debug_taskred_perfmap = false;
 Set.general.plot_details_in_fitness = 0;
 Set.general.plot_robot_in_fitness = 0;
+Set.general.isoncluster = false; % Dadurch keine Cluster-spezifische nochmalige Speicherung des Zwischenstands
 for i = 1:max_retry 
   % Mehrere Versuche vornehmen, da beim Umklappen der Roboterkonfiguration
   % andere Ergebnisse entstehen können.

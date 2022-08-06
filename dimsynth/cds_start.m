@@ -75,6 +75,7 @@ if ~isempty(fpfile) % (nur wenn Log-Datei erstellt wird, nicht bei Hochladen)
   end
   fclose(fid);
   if ~ispc() % lscpu funktioniert nur unter Linux
+    system(sprintf('echo "Rechnung läuft auf: $(whoami)@$(hostname)" >> %s', fpfile));
     system(sprintf('echo "Eigenschaften des Rechners (lscpu):" >> %s', fpfile));
     system(sprintf('lscpu >> %s', fpfile));
   end
@@ -579,6 +580,7 @@ if Set.general.computing_cluster
       'name', computation_name2, ...
       'nodes', 1, ...
       'ppn', min(length(I1_kk:I2_kk),Set.general.computing_cluster_cores), ... % gleiche Anzahl wie oben
+      'mem', 24+4*ppn, ... % gleiche Zahl wie oben (da beim Finish-Job die Fitness-Funktion auch einmal ausgeführt wird)
       'matFileName', [computation_name2, '.m'], ...
       'locUploadFolder', jobdir, ...
       'time',2), ... % % Geht schnell. Veranschlage 2h. Evtl. länger wegen ParPool-Synchronisation.

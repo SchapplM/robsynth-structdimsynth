@@ -74,10 +74,25 @@ for i = 1:length(Structures)
       i, length(Structures), Name, resfile1);
     continue
   end
-  tmp1 = load(resfile1, 'RobotOptRes');
+  try
+    tmp1 = load(resfile1, 'RobotOptRes');
+  catch e
+    warning('Fehler beim Laden der Ergebnis-Datei für Roboter %d/%d (%s): %s', ...
+      i, length(Structures), Name, e.message);
+    continue
+  end
   if exist(resfile2, 'file')
-    tmp2 = load(resfile2, 'RobotOptDetails', 'PSO_Detail_Data');
-  else % Platzhalter für Inhalte der fehlenden Datei
+    try
+      tmp2 = load(resfile2, 'RobotOptDetails', 'PSO_Detail_Data');
+    catch e
+      tmp2 = [];
+      warning('Fehler beim Laden der Ergebnis-Detail-Datei für Roboter %d/%d (%s): %s', ...
+        i, length(Structures), Name, e.message);
+    end
+  else
+    tmp2 = [];
+  end
+  if isempty(tmp2) % Platzhalter für Inhalte der fehlenden Datei
     tmp2 = struct('PSO_Detail_Data', struct('fval_mean', NaN, 'comptime', NaN));
   end
   
