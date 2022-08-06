@@ -609,8 +609,9 @@ if Set.general.computing_cluster
     end
     copyfile(clusterheaderfile, targetfile3);
     fid = fopen(targetfile3, 'a');
-    fprintf(fid, 'cds_merge_results( ''%s'', ''move'', true, true );', ...
-      Set.optimization.optname);
+    fprintf(fid, ['cds_merge_results(''%s'', struct(''mode'', ''move'', ', ...
+      '''create_missing_tables'', true, ''create_pareto_fig'', true, ', ...
+      '''delete_parts_dirs'', true));'], Set.optimization.optname);
     fclose(fid);
     % Zusammenfassungs-Job auf Cluster hochladen
     pause(5); % bei sofortigem Start sonst Einfrieren von Matlab

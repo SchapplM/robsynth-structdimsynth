@@ -6,7 +6,9 @@
 %   Name der Optimierung. Entspricht Eintrag in Set.optimization.optname.
 %   (die Ordner der Teilergebenisse mit Endung _p1, _p2, ... werden darin
 %   zusammengefasst).
-% mode
+% settings
+%   Struktur mit Einstellungen. Felder:
+% .mode
 %   Modus, mit dem die Daten zusammengefasst werden:
 %   'copy': Kopiere die Daten aus den Part-Ordnern in den neuen Ordnern
 %   'move': Verschiebe die Daten
@@ -14,44 +16,58 @@
 %   falls die Ursprungsdaten mit dem Cluster synchronisiert werden und
 %   Änderungen/Umbenennungen durch erneute Synchronisation überschrieben
 %   würde)
-% create_missing_tables
+% .create_missing_tables
 %   Fehlende Ergebnis-Tabellen erstellen
-% create_pareto_fig
+% .create_pareto_fig
 %   Neues Pareto-Bild mit den zusammengefassten Ergebnissen erstellen
-% delete_parts_dirs
+% .delete_parts_dirs
 %   Lösche die Ordner mit den Teil-Ergebnissen nach erfolgreichem Merge
+% .retry
+%   Versuche das Zusammenführen erneut, z.B. falls vorher unvollständig
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-11
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function cds_merge_results(optname, mode, create_missing_tables, ...
-  create_pareto_fig, delete_parts_dirs)
+function cds_merge_results(optname, settings_in)
 
-if nargin < 2
-  mode = 'copy';
+% Bedeutung der Einstellungen, siehe Kommentar oben
+settings = struct( ...
+  'mode', 'copy', ...
+  'create_missing_tables', false, ...
+  'create_pareto_fig', false, ...
+  'delete_parts_dirs', true, ...
+  'retry', false);
+if nargin == 2
+  for f = fields(settings_in)'
+    if ~isfield(settings, f{1})
+      warning('Unerwartetes Feld %s in Eingabe. Ignorieren.');
+      continue
+    end
+    settings.(f{1}) = settings_in.(f{1});
+  end
 end
-if nargin < 3
-  create_missing_tables = false;
-end
-if nargin < 4
-  create_pareto_fig = false;
-end
-if nargin < 5
-  delete_parts_dirs = true;
-end
-if strcmp(mode, 'symlink')
-  delete_parts_dirs = false; % Bei Verlinkung löschen nicht sinnvoll.
+if strcmp(settings.mode, 'symlink')
+  settings.delete_parts_dirs = false; % Bei Verlinkung löschen nicht sinnvoll.
 end
 resdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), 'results');
 resdir_ges = fullfile(resdir, optname);
 
-if exist(resdir_ges, 'file')
+if exist(resdir_ges, 'file') && ~settings.retry
   fprintf('Gesamt-Verzeichnis %s existiert schon. Abbruch.\n', resdir_ges);
   return
   % rmdir(resdir_ges, 's');
 end
 % Zielordner erstellen
 mkdirs(resdir_ges);
+
+% Pfad zur zu erstellenden Gesamt-Tabelle
+csvtable_ges = fullfile(resdir_ges,[optname,'_results_table.csv']);
+if exist(csvtable_ges, 'file')
+  opts = detectImportOptions(csvtable_ges,'NumHeaderLines',1);
+  opts.VariableNamesLine = 1;
+  opts.VariableDescriptionsLine = 2;
+  ResTab_Ges_exist = readtable(csvtable_ges, opts);
+end
 
 % Finde alle aufgeteilten Ergebnisse
 optdirs = dir(fullfile(resdir, [optname, '_p*']));
@@ -95,7 +111,7 @@ for i = 1:maxnum_parts
   % Lese die aktuelle Tabelle
   csvtable_i = fullfile(resdir,dirname_i,[dirname_i,'_results_table.csv']);
   if ~exist(csvtable_i, 'file')
-    if create_missing_tables
+    if settings.create_missing_tables
       cds_results_table(s.Set, s.Traj, s.Structures);
     else
       warning('Ergebnisse im Ordner %s sind unvollständig. Keine csv-Tabelle. Überspringe.', dirname_i);
@@ -123,7 +139,7 @@ for i = 1:maxnum_parts
   ResTab_i = readtable(csvtable_i, opts);
   if isempty(ResTab_i)
     warning('Ergebnis-Tabelle %s existiert, ist aber leer.', csvtable_i);
-    if create_missing_tables
+    if settings.create_missing_tables
       cds_results_table(s.Set, s.Traj, s.Structures);
     end
     continue % Ignoriere diesen Ordner
@@ -168,13 +184,13 @@ for i = 1:maxnum_parts
     RobNr_j_neu = IdxNeu(IdxAlt==RobNr_j_alt); % Setze neue Nummer
     if resobjects_i(j).isdir % Kopiere das Verzeichnis
       dirname_j_neu = sprintf('Rob%d_%s', RobNr_j_neu, RobName_j);
-      if strcmp(mode, 'copy')
+      if strcmp(settings.mode, 'copy')
         copyfile(fullfile(resdir,dirname_i,resobjects_i(j).name), ...
           fullfile(resdir_ges, dirname_j_neu));
-      elseif strcmp(mode, 'move')
+      elseif strcmp(settings.mode, 'move')
         movefile(fullfile(resdir,dirname_i,resobjects_i(j).name), ...
           fullfile(resdir_ges, dirname_j_neu));
-      elseif strcmp(mode, 'symlink')
+      elseif strcmp(settings.mode, 'symlink')
         if ~isunix()
           error('Symbolische Verknüpfung nur unter Linux möglich');
         end
@@ -194,10 +210,10 @@ for i = 1:maxnum_parts
             fullfile(resdir_ges,dirname_j_neu,newfilename_k)));
         end
       else
-        error('Modus %s nicht definiert', mode);
+        error('Modus %s nicht definiert', settings.mode);
       end
       % Benenne alle Dateien in den Ordnern konsistent um
-      if RobNr_j_alt ~= RobNr_j_neu && ~strcmp(mode, 'symlink')
+      if RobNr_j_alt ~= RobNr_j_neu && ~strcmp(settings.mode, 'symlink')
         % Keine Umbenennung notwendig, wenn symbolische Verknüpfungen
         % gesetzt wurden. Dann ist der neue Name schon korrekt.
         resfiles_j = dir(fullfile(resdir_ges, dirname_j_neu, 'Rob*.*'));
@@ -216,17 +232,17 @@ for i = 1:maxnum_parts
       resfilename_j_neu = sprintf('Rob%d_%s%s', RobNr_j_neu, RobName_j, Suffix);
       sourcefile = fullfile(resdir,dirname_i,resobjects_i(j).name);
       targetfile = fullfile(resdir_ges, resfilename_j_neu);
-      if strcmp(mode, 'copy')
+      if strcmp(settings.mode, 'copy')
         copyfile(sourcefile, targetfile);
-      elseif strcmp(mode, 'move') % Verschieben anstatt kopieren
+      elseif strcmp(settings.mode, 'move') % Verschieben anstatt kopieren
         movefile(sourcefile, targetfile);
-      elseif strcmp(mode, 'symlink')
+      elseif strcmp(settings.mode, 'symlink')
         if ~isunix()
           error('Symbolische Verknüpfung nur unter Linux möglich');
         end
         system(sprintf('ln -s "%s" "%s"', sourcefile, targetfile));
       else
-        error('Modus %s nicht definiert', mode);
+        error('Modus %s nicht definiert', settings.mode);
       end
     end
   end
@@ -256,11 +272,11 @@ for i = 1:maxnum_parts
     % Gesamt-Verzeichnis erstellen
     mkdirs(fullfile(resdir_ges, 'tmp'));
     % Kopiere das tmp-Verzeichnis
-    if strcmp(mode, 'copy')
+    if strcmp(settings.mode, 'copy')
       copyfile(tmpdir_j_alt, tmpdir_j_neu);
-    elseif strcmp(mode, 'move')
+    elseif strcmp(settings.mode, 'move')
       movefile(tmpdir_j_alt, tmpdir_j_neu);
-    elseif strcmp(mode, 'symlink')
+    elseif strcmp(settings.mode, 'symlink')
       if ~isunix()
         error('Symbolische Verknüpfung nur unter Linux möglich');
       end
@@ -274,7 +290,7 @@ for i = 1:maxnum_parts
           fullfile(tmpdir_j_neu,tmpobjects_j(l).name)));
       end
     else
-      error('Modus %s nicht definiert', mode);
+      error('Modus %s nicht definiert', settings.mode);
     end
   end
   fprintf('%s: Teil-Ergebnis %d/%d kopiert.\n', optname, i, length(optdirs));
@@ -286,7 +302,6 @@ if numdirs_processed == 0
   return
 end
 % Speichere die Gesamt-Tabelle ab
-csvtable_ges = fullfile(resdir_ges,[optname,'_results_table.csv']);
 % Zeile mit Überschriften und erklärenden Kommentaren zuerst
 Tab_Descr  = cell2table(ResTab_ges.Properties.VariableDescriptions, ...
   'VariableNames', ResTab_ges.Properties.VariableNames);
@@ -306,14 +321,14 @@ Set.structures.whitelist = ResTab_ges.Name';
 Traj = s.Traj;
 save(settingsfile, 'Structures', 'Traj', 'Set');
 % Pareto-Bild erstellen (ist nur für die einzelnen Teile generiert worden)
-if create_pareto_fig && length(Set.optimization.objective) > 1
+if settings.create_pareto_fig && length(Set.optimization.objective) > 1
   Set.general.eval_figures = {'pareto_all_phys'};
   Set.general.animation_styles = {};
   cds_vis_results(Set, Traj, Structures);
 end
 
 % Lösche die Ordner mit den Teil-Ergebnissen (werden nicht mehr benötigt)
-if delete_parts_dirs
+if settings.delete_parts_dirs
   for i = find(dir_success)
     dirname_i = sprintf('%s_p%d', optname, i);
     fprintf('Verzeichnis %d erfolgreich zusamengeführt. Lösche %s\n', i, dirname_i);
