@@ -383,6 +383,8 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     I_acttype(:,1:2) = 0; % Spezifisches Diagramm Dreh-/Schub weglassen
     I_acttype(:,4) = true; % allgemeines Diagramm ist bereits richtig
   end
+  % Schleife über Zusammenfassung der Gestell-/Plattform-Varianten
+  for pfvar = 1:2 % 1=alle Roboter, 2=Varianten mit gleichem Marker zusammengefasst
   % Schleife über verschiedene Aktuierungstypen (Dreh/Schub/Mischung)
   for pfact = find(any(I_acttype))
   if     pfact == 1, name_suffix = [name_suffix_phys, '_revact'];
@@ -390,18 +392,22 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   elseif pfact == 3, name_suffix = [name_suffix_phys, '_mixact'];
   else,              name_suffix =  name_suffix_phys;
   end
+  if     pfvar == 2, name_suffix = [name_suffix, '_groups']; %#ok<AGROW>
+  end
   if ~any(I_acttype(:,pfact)), continue; end
+  if sum(I_acttype(:,pfact)) == 1 && pfvar == 2 % Sonderfall einzelner Roboter
+    continue; % Nichts zu gruppieren
+  end
+  if sum(I_acttype(:,pfact)) > 80 && pfvar == 1 % Zu viele Roboter. Kein Einzel-Bild (sowieso zu unübersichtlich)
+    continue;
+  end
   % Achsbeschriftungen für Diagramm für diese Roboterauswahl aktualisieren
   [obj_units, objscale] = cds_objective_plotdetails(Set, Structures(I_acttype(:,pfact)'));
-  % Bild zeichnen
-  f = change_current_figure(10+pffig, vis_settings.figure_invisible);
-  clf; hold on; grid on;
-  set(f, 'name', sprintf('Pareto_Gesamt_%s',name_suffix), ...
-    'NumberTitle', 'off', 'color','w');
-  leghdl = []; legstr = {}; % Für Erstellung der Legende am Ende
-  countmarker = 0; % Stelle Marker für jeden Roboter zusammen
-  markerlist = {'x', 's', 'v', '^', '*', 'o', 'd', 'v', '<', '>', 'p', 'h'};
-  colorlist =  {'r', 'g', 'b', 'c', 'm', 'k'};
+
+  % Daten für Pareto-Front sammeln
+  pf_data = NaN(0, length(Set.optimization.objective));
+  pf_robnum = []; % zugehörige Roboter-Nummer für jedes Partikel
+  RobName_base = cell(1,size(I_acttype,1)); % Name des Roboters zum Zusammenfassen zu Gruppen
   for i = find(I_acttype(:,pfact)') % Auswahl der Roboter durchgehen
     % Lade Ergebnisse Für Roboter i
     Name = Structures{i}.Name;
@@ -416,8 +422,78 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     if any(RobotOptRes.fval > 1e3)
       continue
     end
-    % Für Legende: Nur erfolgreiche PKM zählen
-    countmarker = countmarker + 1; % Hochzählen für die Marker und Farben
+    if Structures{i}.Type == 0 % Seriell: Keine Unterscheidung
+      RobName_base{i} = Structures{i}.Name;
+    else % PKM-Name ohne G-P-Nummer
+      [~,~,Actuation,~,~,~,~,~,PName_Legs] = parroblib_load_robot(Structures{i}.Name, 2);
+      % TODO: Der Name mit Aktuierung sollte direkt aus der Datenbank
+      % kommen und es sollte die Unterstrich-Notation in die Legende.
+      RobName_base{i} = sprintf('%s,Act=%d', PName_Legs, Actuation{1});
+    end
+    % Pareto-Front anhängen
+    if pffig == 1 % Bild mit physikalischen Werten (bereits mit Plot-Skalierung)
+      pf_data = [pf_data; repmat(objscale(:)', size(...
+        tmp1.RobotOptRes.physval_pareto,1),1).*tmp1.RobotOptRes.physval_pareto]; %#ok<AGROW>
+    else % Bild mit normierten Werten
+      pf_data = [pf_data; tmp1.RobotOptRes.fval_pareto]; %#ok<AGROW>
+    end
+    pf_robnum = [pf_robnum; i*ones(size(tmp1.RobotOptRes.physval_pareto,1),1)]; %#ok<AGROW>
+  end
+  if pfvar == 2
+    pf_groupnum = zeros(length(pf_robnum),1);
+    % Pareto-Front nachverarbeiten, falls Roboter zusammengefasst werden.
+    robgroups = zeros(length(RobName_base), 1); % Zuordnung der Roboter-Nummern zu Gruppen-Nummern
+    for i = find(I_acttype(:,pfact)')
+      if isempty(RobName_base{i}), continue; end % nicht belegt
+      I_find = find(strcmp(RobName_base{i}, RobName_base(1:i-1)));
+      if ~isempty(I_find)
+        % Dieser Roboter ist nicht der erste seiner Art. Nehme gleiche Gruppe
+        robgroups(i) = robgroups(I_find(1));
+      else
+        % Roboter ist der erste seiner Gruppe. Erzeuge neue Gruppe
+        robgroups(i) = max(robgroups(:))+1;
+      end
+      pf_groupnum(pf_robnum==i) = robgroups(i);
+    end
+    % Gehe alle Gruppen durch und erzeuge eine neue Gruppen-Pareto-Front.
+    % Sonst wird das Bild zu unübersichtlich und es gibt nicht-dominierende
+    % Partikel im Bild, die missverständlich sind.
+    for kk = 1:max(robgroups)
+      Idom = pareto_dominance(pf_data(pf_groupnum==kk, :));
+      I_group_kk = find(pf_groupnum==kk);
+      pf_data(I_group_kk(Idom), :) = NaN; % Deaktiviere die Punkte
+    end
+    % Deaktiviere Roboter-Struktur wieder, wenn sie komplett dominiert wird
+    % Damit kann die Anzahl der Roboter pro Gruppe in der Legende bestimmt
+    % werden.
+    for kk = find(I_acttype(:,pfact)')
+      if all(any(isnan(pf_data(pf_robnum==kk,:)),2))
+        pf_robnum(pf_robnum==kk) = 0; %#ok<AGROW>
+        pf_groupnum(pf_robnum==kk) = 0;
+        robgroups(kk) = 0;
+      end
+    end
+  end
+  % Bild zeichnen
+  f = change_current_figure(10+pffig, vis_settings.figure_invisible);
+  clf; hold on; grid on;
+  set(f, 'name', sprintf('Pareto_Gesamt_%s',name_suffix), ...
+    'NumberTitle', 'off', 'color','w');
+  leghdl = []; legstr = {}; % Für Erstellung der Legende am Ende
+  countmarker = 0; % Stelle Marker für jeden Roboter zusammen
+  markerlist = {'x', 's', 'v', '^', '*', 'o', 'd', 'v', '<', '>', 'p', 'h'};
+  colorlist =  {'r', 'g', 'b', 'c', 'm', 'k'};
+  for i = find(I_acttype(:,pfact)')
+    Name = Structures{i}.Name;
+    % Für Legende: Nur erfolgreiche PKM zählen (werden oben schon gefiltert
+    if ~any(pf_robnum==i), continue; end
+    % Falls alle Pareto-Partikel dieses Roboters dominiert wurden, weiter.
+    if all(any(isnan(pf_data(pf_robnum==i,:)),2)), continue; end
+    if pfvar == 1 || ... % Bild-Variante 1: jeden Roboter zählen
+        pfvar == 2 && ... % Bild-Variante 2: Gruppen zählen
+        (countmarker == 0 || all(robgroups(i)>robgroups(1:i-1)))
+      countmarker = countmarker + 1; % Hochzählen für die Marker und Farben
+    end
     if countmarker > length(markerlist)*length(colorlist)
       warning('Zu viele verschiedene Roboter. Eindeutiges Plotten nicht mehr möglich.');
       marker = 'k.'; % ab jetzt sehen alle Marker gleich aus
@@ -428,37 +504,39 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     end
     % Pareto-Front für diesen Roboter einzeichnen
     if length(Set.optimization.objective) == 2
-      if pffig == 1 % Bild mit physikalischen Werten
-        hdl=plot(objscale(1)*tmp1.RobotOptRes.physval_pareto(:,1), ...
-                 objscale(2)*tmp1.RobotOptRes.physval_pareto(:,2), marker);
-      else % Bild mit normierten Zielfunktionswerten
-        hdl=plot(tmp1.RobotOptRes.fval_pareto(:,1), ...
-                 tmp1.RobotOptRes.fval_pareto(:,2), marker);
-      end
+      hdl=plot(pf_data(pf_robnum==i,1), pf_data(pf_robnum==i,2), marker);
     else % length(Set.optimization.objective) == 3
-      if pffig == 1 % Bild mit physikalischen Werten
-        hdl=plot3(objscale(1)*tmp1.RobotOptRes.physval_pareto(:,1), ...
-                  objscale(2)*tmp1.RobotOptRes.physval_pareto(:,2), ...
-                  objscale(3)*tmp1.RobotOptRes.physval_pareto(:,3), marker);
-      else % Bild mit normierten Zielfunktionswerten
-        hdl=plot3(tmp1.RobotOptRes.fval_pareto(:,1), ...
-                  tmp1.RobotOptRes.fval_pareto(:,2), ...
-                  tmp1.RobotOptRes.fval_pareto(:,3), marker);
-      end
+      hdl=plot3(pf_data(pf_robnum==i,1), pf_data(pf_robnum==i,2), pf_data(pf_robnum==i,3), marker);
     end
+    % Der Legendeneintrag wird im Fall von gruppierten Ergebnissen mehrmals
+    % überschrieben. Dadurch nur ein Legendeneintrag pro Gruppe.
     leghdl(countmarker,:) = hdl; %#ok<AGROW>
     if ~isa(ResTab.Beschreibung, 'cell')
       RobShortName = ''; % Wenn kein Wert belegt ist, wird NaN gesetzt
     else
-      RobShortName = ResTab.Beschreibung{strcmp(ResTab.Name,Name) & ResTab.LfdNr==i};
+      RobShortName = ResTab.Beschreibung(strcmp(ResTab.Name,Name)); % Filter weglassen: `ResTab.LfdNr==i`. Damit auch Inkonsistenz csv zu Struktures-Var. möglich.
+      RobShortName = RobShortName{1}; % Falls mehrere gleiche Namen vorkommen
     end
     if ~isempty(RobShortName)
       addtxt = sprintf('; %s', RobShortName);
     else
       addtxt = '';
     end
-    legstr{countmarker} = sprintf('%d/%d (%s%s)', i, length_Structures, ...
-      Structures{i}.Name, addtxt); %#ok<AGROW>
+    if pfvar == 1 % Legendeneintrag einzelner Roboter
+      legstr{countmarker} = sprintf('%d/%d (%s%s)', i, length_Structures, ...
+        Structures{i}.Name, addtxt); %#ok<AGROW>
+    else % Variante 2: Legendeneintrag mit Gruppe
+       if sum(robgroups(1:i)==robgroups(i)) == 1
+        % Nur ein Roboter dieser Gruppe. Dann direkt den vollen Namen
+        % hinschreiben (aber Nummerierung der Gruppe beibehalten)
+        legstr{countmarker} = sprintf('%d/%d (%s%s)', countmarker, max(robgroups), ...
+          Structures{i}.Name, addtxt); %#ok<AGROW>
+      else % Mehrere Roboter. Anderer Text mit Bezug auf Gruppe
+        addtxt2 = sprintf(' (%d Rob.)', sum(robgroups(1:i)==robgroups(i)));
+        legstr{countmarker} = sprintf('%d/%d (%s%s)%s', countmarker, max(robgroups), ...
+          RobName_base{i}, addtxt, addtxt2); %#ok<AGROW>
+      end
+    end
     % Funktions-Handle zum Anklicken der Datenpunkte
     ButtonDownFcn=@(src,event)cds_paretoplot_buttondownfcn(src,event,...
       Set.optimization.optname,Structures{i}.Name, i);
@@ -544,5 +622,6 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
             'Position', [10, 30, 120, 24]);
   saveas(f, fullfile(resmaindir, sprintf('Pareto_Gesamt_%s.fig',name_suffix)));
   end % for pfact
+  end % for pfvar
   end % for pffig
 end
