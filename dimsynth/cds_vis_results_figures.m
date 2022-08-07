@@ -108,7 +108,7 @@ end
 % Eckpunkten, sollte eine GIF-Datei erzeugt werden. MP4 mit nur wenigen
 % Einzelbildern sind problematisch beim Abspielen (Grenze: 10 Bilder)
 n_qvalid = size(RobotOptDetails.Traj_Q,1);
-if any(isnan(isnan(RobotOptDetails.Traj_Q(:))))
+if any(isnan(RobotOptDetails.Traj_Q(:)))
   n_qvalid = find(any(isnan(RobotOptDetails.Traj_Q),2),1,'first')-1;
 end
 if ~traj_available && n_qvalid < 10
@@ -328,7 +328,7 @@ if strcmp(figname, 'pareto')
       'detailliertes Pareto-Diagramm möglich']);
   end
   % Einheiten für die physikalischen Werte der Zielfunktionen vorbereiten
-  [obj_units, objscale] = cds_objective_plotdetails(Set);
+  [obj_units, objscale] = cds_objective_plotdetails(Set, {RobotOptRes.Structure});
   if length(Set.optimization.objective) > 1 % Mehrkriterielle Optimierung
     % Gehe alle Kombinationen von zwei Zielkriterien durch (falls mehr als
     % zwei gewählt).

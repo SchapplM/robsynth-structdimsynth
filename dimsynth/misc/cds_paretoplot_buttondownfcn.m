@@ -209,7 +209,7 @@ if fitness_recalc_necessary
     'R', R, 'Dyn_Tau', TAU);
 else % Roboter-Klasse muss trotzdem neu erstellt werden.
   R = cds_dimsynth_robot(Set, Traj, Structure, true);
-  RobotOptDetails = struct('R', R);
+  RobotOptDetails = struct('R', R, 'Traj_Q', []);
 end
 
 %% Rufe die Plot-Funktion auf
