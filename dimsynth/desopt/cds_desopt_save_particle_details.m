@@ -10,6 +10,9 @@
 %   Vektor der Optimierungsvariablen für PSO
 % physval
 %   Physikalischer Wert für Zielfunktionswert(e) aus fval.
+% fval_main, physval_main
+%   Güte-Wert und physikalischer Wert für Zielfunktion der Maßsynthese
+%   (Entspricht Ausgabe von cds_fitness bei Erfolg)
 % option
 %   Steuerungsparameter für das Verhalten der Funktion
 %   output: Nur Ausgabe der gespeicherten persistenten Variable
@@ -30,7 +33,7 @@
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
 function [PSO_Detail_Data_output, i_gen, i_ind] = cds_desopt_save_particle_details( ...
-  comptime, fval, pval, physval, option, PSO_Detail_Data_in)
+  comptime, fval, pval, physval, fval_main, physval_main, option, PSO_Detail_Data_in)
 if isnan(comptime) || any(isnan(fval))
   error('Rechenzeit darf nicht NaN sein');
 end
@@ -39,8 +42,12 @@ i_gen = 0; i_ind = 0;
 persistent PSO_Detail_Data
 PSO_Detail_Data_output = [];
 % Eingabe verarbeiten
-if nargin < 5
+if nargin < 7
   option = 'iter';
+end
+if nargin < 5 % Werte nicht belegt. NaN mit gespeicherter Dimension
+  fval_main = NaN(size(PSO_Detail_Data.fval_main, 2), 1);
+  physval_main = fval_main;
 end
 if strcmp(option, 'output')
   PSO_Detail_Data_output = PSO_Detail_Data;
@@ -54,6 +61,8 @@ if isempty(PSO_Detail_Data) || strcmp(option, 'reset')
     'comptime', NaN(size_data), ...
     'fval', NaN(size_data), ...
     'physval', NaN(size_data), ...
+    'fval_main', NaN(size_data(2), length(fval_main), size_data(1)), ...
+    'physval_main', NaN(size_data(2), length(fval_main), size_data(1)), ...
     'pval', NaN(size_data(2), length(pval), size_data(1)));
   if strcmp(option, 'reset')
     return
@@ -77,3 +86,5 @@ PSO_Detail_Data.comptime(i_gen,i_ind) = comptime; % Rechenzeit
 PSO_Detail_Data.fval(i_gen,i_ind) = fval;
 PSO_Detail_Data.physval(i_gen,i_ind) = physval; % Physikalische Werte zu fval
 PSO_Detail_Data.pval(i_ind,:,i_gen) = pval; % Parametersatz zu fval
+PSO_Detail_Data.fval_main(i_ind,:,i_gen) = fval_main; % vollständiger Vektor bei mehrkriteriell
+PSO_Detail_Data.physval_main(i_ind,:,i_gen) = physval_main;

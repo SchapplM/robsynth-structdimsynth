@@ -477,9 +477,15 @@ if strcmp(figname, 'pareto_dimsynth_desopt')
   n_obj = length(Set.optimization.objective);
   pdo_data = struct('physval', NaN(length(matfiles), n_obj)); % "pdo" = "physval design optimization"
   pdo_data.physval_default = pdo_data.physval;
+  pdo_data.fval = NaN(length(matfiles), 1);
   for i = 1:length(matfiles)
     % Abgleich der gespeicherten Daten von Maßsynthese und Entwurfsopt.
     d_i = load(fullfile(resdir, matfiles(i).name));
+    % Hole aus den gespeicherten Zwischenwerten der Entwurfsoptimierung den
+    % Funktionswert der Maßsynthese für das Ergebnis-Partikel der Entw.Opt.
+    [k_gen, k_ind] = cds_load_particle_details(struct('fval', ... % Funktion ...
+      d_i.PSO_Detail_Data.pval), d_i.p_val); % ... erwartet fval als Eintrag, daher Umbenennung
+    d_i_fval_main = d_i.PSO_Detail_Data.fval_main(k_ind, :, k_gen)';
     [tokens, ~] = regexp(matfiles(i).name, 'Gen(\d+)_Ind(\d+)_Konfig(\d+)_.*', 'tokens', 'match');
     i_gen = str2double(tokens{1}{1});
     i_ind = str2double(tokens{1}{2});
@@ -487,19 +493,24 @@ if strcmp(figname, 'pareto_dimsynth_desopt')
       % fprintf('Datei %s: Parameter nicht gefunden\n', matfiles(i).name);
       continue % vermutlich nicht-optimale Konfiguration, daher nicht gespeichert
     end
+    % Werte für die Maßsynthese
     fval_pareto_i = PSO_Detail_Data.fval(i_ind,:,i_gen)';
     physval_pareto_i = PSO_Detail_Data.physval(i_ind,:,i_gen)';
-    % Eine Zielfunktion muss identisch sein (siehe cds_dimsynth_desopt_fitness)
-    I_f = abs(d_i.fval - fval_pareto_i) < 1e-9;
-    if sum(I_f) ~= 1
+    % Die Zielfunktion muss identisch sein (siehe cds_dimsynth_desopt_fitness)
+    % (soweit sie in der Entwurfsoptimierung neu berechnet wurde).
+    I_f = abs(d_i_fval_main - fval_pareto_i) < 1e-9;
+    if ~any(I_f)
       warning('Zielfunktionswert aus Entwurfsoptimierung nicht gefunden. Datei %s', matfiles(i).name);
       continue
     end
+    % Trage in Entwurfsoptimierung (neu) berechnete Werte ein. Manche
+    % sind dort NaN, falls dort nicht berechnet.
     physval_pareto_i_default = physval_pareto_i;
-    physval_pareto_i_default(I_f) = d_i.physval_default;
+    physval_pareto_i_default(I_f) = d_i.physval_main_default;
     % Eintragen in Datenstruktur zum späteren Plotten
     pdo_data.physval_default(i,:) = physval_pareto_i_default;
     pdo_data.physval(i,:) = physval_pareto_i;
+    pdo_data.fval(i) = d_i.fval;
   end % i = 1:length(matfiles)
   if all(isnan(pdo_data.physval(:)))
     warning('Keine Ergebnis-Daten aus Entwurfsoptimierung vorliegend. Kein Bild "pareto_dimsynth_desopt" möglich');
@@ -512,6 +523,7 @@ if strcmp(figname, 'pareto_dimsynth_desopt')
   % Pareto-Partikel
   set(fhdl2D, 'Name', sprintf('Rob%d_ParetoDesOpt', RNr));
   nlegorig = length(leghdl2D); % Zum Anhängen an die Legende
+  leghdl2D(10) = NaN; % Legendeneintrag für vorherige Pareto-Front-Marker löschen
   for kk = 1:size(objcomb2D,1)
     kk1 = objcomb2D(kk,1); kk2 = objcomb2D(kk,2);
     % Verbindung von jedem Punkt zu dem Standardwert ohne Entwurfsopt.
@@ -523,17 +535,24 @@ if strcmp(figname, 'pareto_dimsynth_desopt')
     leghdl2D(nlegorig+1) = plot(axhdl2D, objscale(kk1)*...
       pdo_data.physval_default(:,kk1), objscale(kk2)*pdo_data.physval_default(:,kk2), 'kx');
     legtext2D{nlegorig+1} = 'ohne Entw.Opt.';
-    % TODO: Pareto-Front als Linie einzeichnen (zwei Fälle, mit/ohne EO)
+    % Ohne Entwurfsoptimerung sind einige Partikel ungültig (z.B. bei NB-
+    % Verletzung).
+    n_valid_wo_desopt = sum(all(~isnan(pdo_data.physval_default),2)); % abgeschlossene DesOpt.
+    n_desopt_all = sum(~isnan(pdo_data.fval)); % begonnene Entw.Opt. NaN hier sind ignorierte Konfigurationen.
+    % Pareto-Front als Linie einzeichnen (zwei Fälle, mit/ohne EO)
+    legtext2D{nlegorig+1} = [legtext2D{nlegorig+1}, sprintf(' (%d/%d i.O.)', ...
+      n_valid_wo_desopt, n_desopt_all)];
     % Bestimme Pareto-Front aus den Standardwerten der Entwurfsoptimierung
-    Ipfdef = find(~pareto_dominance(pdo_data.physval_default));
+    Ipfdef = find(~pareto_dominance(pdo_data.physval_default) & ...
+                  ~any(isnan(pdo_data.physval_default), 2));
     [~,I_sort] = sort(pdo_data.physval_default(Ipfdef,kk1));
     Ipdf = Ipfdef(I_sort);
     leghdl2D(nlegorig+2) = plot(axhdl2D, objscale(kk1)*pdo_data.physval_default(Ipdf,kk1), ...
-      objscale(kk2)*pdo_data.physval_default(Ipdf,kk2), 'r-', 'LineWidth', 2);
+      objscale(kk2)*pdo_data.physval_default(Ipdf,kk2), 'r-+', 'LineWidth', 2);
     legtext2D{nlegorig+2} = 'PF ohne EO';
-    % Pareto-Front mit Entwurfsoptimierung
+    % Pareto-Front mit Entwurfsoptimierung (Nochmal mit anderer Formatierung).
     leghdl2D(nlegorig+3) = plot(axhdl2D, objscale(kk1)*RobotOptRes.physval_pareto(:,kk1), ...
-      objscale(kk2)*RobotOptRes.physval_pareto(:,kk2), 'm-', 'LineWidth', 2);
+      objscale(kk2)*RobotOptRes.physval_pareto(:,kk2), 'm-*', 'LineWidth', 2);
     legtext2D{nlegorig+3} = 'PF mit EO';
     legend(leghdl2D(~isnan(leghdl2D)), legtext2D(~isnan(leghdl2D)));
   end
@@ -546,9 +565,9 @@ if strcmp(figname, 'pareto_dimsynth_desopt')
   end
 end
 
-%% Pareto-Diagramm für Maßsynthese
-% Dieses Bild entspricht einer Linie im Pareto-Diagramm der Maßsynthese, da
-% in der Entwurfsoptimierung aktuell nur eine Zielfunktion berechnet wird.
+%% Pareto-Diagramm für Entwurfsoptimierung
+% Erzeugt eine Punktewolke und die Pareto-Front für eine einzelne Entwurfs-
+% optimierung (also für ein einzelnes Partikel der Maßsynthese).
 if strcmp(figname, 'pareto_desopt')
   if isempty(RobotOptRes.physval_pareto)
     physval = RobotOptRes.physval;
@@ -557,16 +576,30 @@ if strcmp(figname, 'pareto_desopt')
   end
   % Lade Ergebnisdatei für Entwurfsoptimierung für gefordertes Partikel
   % Wird in cds_dimsynth_desopt mit Set.general.debug_desopt erzeugt.
-  [k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, fval);
+  [j_gen, j_ind] = cds_load_particle_details(PSO_Detail_Data, fval);
   resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
     'tmp', sprintf('%d_%s', RNr, Name)); % Siehe Ende von cds_dimsynth_desopt
   matfiles = dir(fullfile(resdir, sprintf(['Gen%02d_Ind%02d_Konfig*', ...
-    '_desopt_dbg.mat'], k_gen, k_ind)));
+    '_desopt_dbg.mat'], j_gen, j_ind)));
   load_success = false;
   for i = 1:length(matfiles)
-    % Suche das angeklickte Partikel
+    % Suche das angeklickte Partikel in den Daten der Entwurfsoptimierung
     d_i = load(fullfile(resdir, matfiles(i).name));
-    I_f = abs(d_i.fval - fval) < 1e-9;
+    [k_gen, k_ind] = cds_load_particle_details(struct('fval', ... % Funktion ...
+      d_i.PSO_Detail_Data.pval), d_i.p_val); % ... erwartet fval als Eintrag, daher Umbenennung
+    d_i_fval_main = d_i.PSO_Detail_Data.fval_main(k_ind, :, k_gen)';
+    [tokens, ~] = regexp(matfiles(i).name, 'Gen(\d+)_Ind(\d+)_Konfig(\d+)_.*', 'tokens', 'match');
+    i_gen = str2double(tokens{1}{1});
+    i_ind = str2double(tokens{1}{2});
+    if ~all(d_i.p_val==PSO_Detail_Data.desopt_pval(i_ind,:,i_gen)')
+      % fprintf('Datei %s: Parameter nicht gefunden\n', matfiles(i).name);
+      continue % vermutlich nicht-optimale Konfiguration, daher nicht gespeichert
+    end
+    % Werte für die Maßsynthese
+    fval_pareto_i = PSO_Detail_Data.fval(i_ind,:,i_gen)';
+    % Die Zielfunktion muss identisch sein (siehe cds_dimsynth_desopt_fitness)
+    % (soweit sie in der Entwurfsoptimierung neu berechnet wurde).
+    I_f = abs(d_i_fval_main - fval_pareto_i) < 1e-9;
     if ~any(I_f)
       continue % geladene Datei kann nicht stimmen (falsche Konfiguration)
     end
@@ -586,28 +619,38 @@ if strcmp(figname, 'pareto_desopt')
   for kk = 1:size(objcomb2D,1)
     kk1 = objcomb2D(kk,1); kk2 = objcomb2D(kk,2);
     physval_all = NaN(length(d_i.PSO_Detail_Data.physval(:)),2);
+    % Trage ursprünglichen Wert aus der Maßsynthese ein
     physval_all(:,[1 2]) = repmat(physval([kk1,kk2])',size(physval_all,1),1);
-    % Trage skalare Zielfunktion aus Entwurfsoptimierung ein
-    if all(find(I_f)==kk1)
-      I_fdo = kk1; % "fd0" = "fval design optimization"
-    elseif all(find(I_f)==kk2)
-      I_fdo = kk2;
-    else
+    % Trage berechnete Werte aus der Zielfunktion der Entwurfsoptimierung ein
+    if I_f(kk1)
+      physval_all(:,kk1) = reshape(squeeze( ...
+        d_i.PSO_Detail_Data.physval_main(:,kk1,:)),size(physval_all,1),1);
+    end
+    if I_f(kk2)
+      physval_all(:,kk2) = reshape(squeeze( ...
+        d_i.PSO_Detail_Data.physval_main(:,kk2,:)),size(physval_all,1),1);
+    end
+    if ~any(I_f([kk1,kk2])) % falls bei 3 Kriterien 2 gewählt sind und keins davon in EntwOpt berechnet wird
       % Zielfunktion gar nicht in Entwurfsoptimierung gefunden. Überspringe
       continue; % Kann bei 3D-Plots passieren
     end
-    physval_all(:,I_fdo) = d_i.PSO_Detail_Data.physval(:);
     plot(axhdl2D, objscale(kk1)*physval_all(:,kk1), ...
                   objscale(kk2)*physval_all(:,kk2), 'k+');
     physval_default = physval_all(1,:)';
-    physval_default(I_fdo) = d_i.physval_default;
+    physval_default(I_f) = d_i.physval_main_default(I_f);
     plot(axhdl2D, objscale(kk1)*physval_default(kk1), ...
                   objscale(kk2)*physval_default(kk2), 'mx', 'MarkerSize', 12);
-    legend({'PSO Design Optimization', 'Ohne DesOpt'});
-  end
+    defaultstr = 'Ohne DesOpt';
+    if any(isnan(physval_default))
+      defaultstr = [defaultstr, ' (n.i.O.)']; %#ok<AGROW>
+    end
+    plot(axhdl2D, objscale(kk1)*physval(kk1), ...
+                  objscale(kk2)*physval(kk2), 'rs', 'MarkerSize', 12);
+    legend({'PSO Design Optimization', defaultstr, 'DimSynth'});
+  end % kk = 1:size(objcomb2D,1)
   name_suffix = 'phys';
-  saveas(fhdl2D,     fullfile(resrobdir, sprintf('Rob%d_%s_Pareto2D_DesOpt_%s.fig', RNr, Name, name_suffix)));
-  export_fig(fhdl2D, fullfile(resrobdir, sprintf('Rob%d_%s_Pareto2D_DesOpt_%s.png', RNr, Name, name_suffix)));
+  saveas(fhdl2D,     fullfile(resrobdir, sprintf('Rob%d_%s_P%d_Pareto2D_DesOpt_%s.fig', RNr, Name, PNr, name_suffix)));
+  export_fig(fhdl2D, fullfile(resrobdir, sprintf('Rob%d_%s_P%d_Pareto2D_DesOpt_%s.png', RNr, Name, PNr, name_suffix)));
   if settings.delete_figure
     delete(fhdl2D);
   end

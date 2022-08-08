@@ -173,7 +173,8 @@ end
 options_desopt.InitialSwarmMatrix = InitPop;
 % Erstelle die Fitness-Funktion und führe sie einmal zu testzwecken aus
 clear cds_dimsynth_desopt_fitness % Für persistente Variablen von vorheriger Iteration in Maßsynthese
-cds_desopt_save_particle_details(0, 0, zeros(nvars,1), 0, 'reset', ... % Zurücksetzen der ...
+fval_main_dummy = NaN(length(Set.optimization.objective), 1);
+cds_desopt_save_particle_details(0, 0, zeros(nvars,1), 0, fval_main_dummy, fval_main_dummy, 'reset', ... % Zurücksetzen der ...
   struct('comptime', NaN([options_desopt.MaxIter+1, NumIndividuals]))); % ... Detail-Speicherfunktion
 fitnessfcn_desopt=@(p_desopt)cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn, Structure, p_desopt(:));
 t2 = tic();
@@ -270,7 +271,7 @@ end
 % Debug:
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt2.mat'));
 %% Optimierung der Entwurfsparameter durchführen
-cds_desopt_save_particle_details(0, 0, zeros(nvars,1), 0, 'reset', ...
+cds_desopt_save_particle_details(0, 0, zeros(nvars,1), 0, fval_main_dummy, fval_main_dummy, 'reset', ...
   struct('comptime', NaN([options_desopt.MaxIter+1, NumIndividuals])));
 if ~avoid_optimization
   cds_log(3,sprintf(['[desopt] Führe Entwurfsoptimierung durch. Dauer für ', ...
@@ -348,11 +349,13 @@ if Set.general.debug_desopt
   name_matfile = sprintf('Gen%02d_Ind%02d_Konfig%d_desopt_dbg.mat', currgen, ...
     currind, Structure.config_index);
   % Extrahiere Detail-Daten aus den einzelnen PSO-Partikeln
-  PSO_Detail_Data = cds_desopt_save_particle_details(0, 0, NaN, 0, 'output');
-  fval_default = PSO_Detail_Data.fval(1,end); % letztes Partikel waren Standard-Werte
-  physval_default = PSO_Detail_Data.physval(1,end);
-  save(fullfile(resdir, name_matfile), 'PSO_Detail_Data', 'fval', ...
-    'fval_default', 'physval_default', 'p_val');
+  PSO_Detail_Data = cds_desopt_save_particle_details(0, 0, NaN, 0, fval_main_dummy, fval_main_dummy, 'output');
+  % Nehme die Standard-Werte aus dem letzten Aufruf aus der Initial- 
+  % Population (siehe InitPop).
+  fval_main_default = PSO_Detail_Data.fval_main(1,:,end);
+  physval_main_default = PSO_Detail_Data.physval_main(1,:,end);
+  save(fullfile(resdir, name_matfile), 'PSO_Detail_Data', 'fval', 'p_val', ...
+    'fval_main_default', 'physval_main_default');
 end
 return
 %% Debug

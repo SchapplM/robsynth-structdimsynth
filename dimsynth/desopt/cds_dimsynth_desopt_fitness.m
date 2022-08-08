@@ -56,6 +56,9 @@ end
 fval = 0;
 physval_desopt = 0;
 fval_debugtext = '';
+% Speicherung der Fitness-Werte bezogen auf die überlagerte Maßsynthese
+fval_main = NaN(length(Set.optimization.objective),1);
+physval_main = NaN(length(Set.optimization.objective),1);
 % Abbruch prüfen
 persistent abort_fitnesscalc
 abort_fitnesscalc_retval = false;
@@ -227,64 +230,90 @@ if fval > 1000 % Nebenbedingungen verletzt.
 end
 
 %% Fitness-Wert berechnen
-% Eintrag in Fitness-Wert für die äußere Optimierungsschleife in der
-% Maßsynthese. Nehme in dieser Optimierung nur ein Zielkriterium, auch wenn
-% die Maßsynthese mehrkriteriell ist. Fange mit den einfachen Kriterien an.
-% TODO: Es sollten trotzdem alle Kriterien berechnet werden, falls ein
-% Pareto-Bild für die Entwurfsoptimierung gezeichnet werden soll.
-fval_main = NaN(length(Set.optimization.objective),1);
-physval_main = NaN(length(Set.optimization.objective),1);
+% Eintrag in Fitness-Wert für die äußere Optimierungsschleife in der Maß-
+% synthese. Nehme in der Entwurfs-Optimierung nur ein Zielkriterium, auch wenn
+% die Maßsynthese mehrkriteriell ist. Es werden trotzdem alle Zielkriterien
+% berechnet, falls mehrere beeinflusst werden (und gespeichert werden soll)
+% Fange mit den einfachen Kriterien an und nehme das erste für Entw.-Opt.
 abort_logtext = '';
 if fval > 1000
   % Nichts machen. Materialspannung wurde schon verletzt. Gehe nur bis
   % unten durch, um eventuell Debug-Plots zu zeichnen
-elseif any(strcmp(Set.optimization.objective, 'mass')) && ...
-    any(vartypes==2) % Nur die Optimierung der Segmentstärke beeinflusst auch die Masse
+end
+if any(strcmp(Set.optimization.objective, 'mass')) && ...
+    any(vartypes==2) && ... % Nur die Optimierung der Segmentstärke beeinflusst auch die Masse
+    (fval==0 || Set.general.debug_desopt)
   if Set.optimization.constraint_obj(1) % Vermeide doppelten Aufruf der Funktion
-    fval = fval_mass; % Nehme Wert von der NB-Berechnung oben
-    fval_debugtext = fval_debugtext_mass;
+    % fval_mass und fval_debugtext von der NB-Berechnung oben
   else
-    [fval, fval_debugtext, ~, fphys_m] = cds_obj_mass(R);
+    [fval_mass, fval_debugtext_mass, ~, fphys_m] = cds_obj_mass(R);
   end
-  fval_main(strcmp(Set.optimization.objective, 'mass')) = fval;
+  fval_main(strcmp(Set.optimization.objective, 'mass')) = fval_mass;
   physval_main(strcmp(Set.optimization.objective, 'mass')) = fphys_m;
-elseif any(strcmp(Set.optimization.objective, 'energy'))
+  if fval == 0
+    fval = fval_mass;
+    fval_debugtext = fval_debugtext_mass;
+  end
+end
+if any(strcmp(Set.optimization.objective, 'energy')) && ...
+    (fval==0 || Set.general.debug_desopt)
   if Set.optimization.constraint_obj(2) % Vermeide doppelten Aufruf der Funktion
+    % fval_energy und fval_debugtext_energy von der NB-Berechnung oben
+    error('Nocht nicht implementiert'); % s.o.
+  else
+    [fval_energy,fval_debugtext_energy,~,physval_en] = cds_obj_energy(R, Set, Structure, Traj_0, data_dyn.TAU, QD);
+  end
+  fval_main(strcmp(Set.optimization.objective, 'energy')) = fval_energy;
+  physval_main(strcmp(Set.optimization.objective, 'energy')) = physval_en;
+  if fval == 0
     fval = fval_energy; % Nehme Wert von der NB-Berechnung oben
     fval_debugtext = fval_debugtext_energy;
-  else
-    [fval,fval_debugtext,~,physval_en] = cds_obj_energy(R, Set, Structure, Traj_0, data_dyn.TAU, QD);
   end
-  fval_main(strcmp(Set.optimization.objective, 'energy')) = fval;
-  physval_main(strcmp(Set.optimization.objective, 'energy')) = physval_en;
-elseif any(strcmp(Set.optimization.objective, 'actforce'))
+end
+if any(strcmp(Set.optimization.objective, 'actforce')) && ...
+    (fval==0 || Set.general.debug_desopt)
   if Set.optimization.constraint_obj(3) % Vermeide doppelten Aufruf der Funktion
-    fval = fval_actforce; % Nehme Wert von der NB-Berechnung oben
-    fval_debugtext = fval_debugtext_actforce;
+    % fval_actforce und fval_debugtext_actforce von der NB-Berechnung oben
   else
-    [fval, fval_debugtext, ~, fphys_actforce] = cds_obj_actforce(data_dyn.TAU);
+    [fval_actforce, fval_debugtext_actforce, ~, fphys_actforce] = cds_obj_actforce(data_dyn.TAU);
   end
-  fval_main(strcmp(Set.optimization.objective, 'actforce')) = fval;
+  fval_main(strcmp(Set.optimization.objective, 'actforce')) = fval_actforce;
   physval_main(strcmp(Set.optimization.objective, 'actforce')) = fphys_actforce;
-elseif any(strcmp(Set.optimization.objective, 'stiffness'))
+  if fval == 0
+    fval = fval_actforce;
+    fval_debugtext = fval_debugtext_actforce;
+  end
+end
+if any(strcmp(Set.optimization.objective, 'stiffness')) && ...
+    (fval==0 || Set.general.debug_desopt)
   if Set.optimization.constraint_obj(5) % Vermeide doppelten Aufruf der Funktion
-    fval = fval_st; % Nehme Wert von der NB-Berechnung oben
+    % fval_st und fval_debugtext_st von der NB-Berechnung oben
     fval_debugtext = fval_debugtext_st;
   else
-    [fval,fval_debugtext,~,fphys_st] = cds_obj_stiffness(R, Set, Q);
+    [fval_st,fval_debugtext_st,~,fphys_st] = cds_obj_stiffness(R, Set, Q);
   end
-  fval_main(strcmp(Set.optimization.objective, 'stiffness')) = fval;
+  fval_main(strcmp(Set.optimization.objective, 'stiffness')) = fval_st;
   physval_main(strcmp(Set.optimization.objective, 'stiffness')) = fphys_st;
-elseif any(strcmp(Set.optimization.objective, 'materialstress'))
-  if Set.optimization.constraint_obj(6) % Vermeide doppelten Aufruf der Funktion
-    fval = fval_ms; % Nehme Wert von der NB-Berechnung oben
-    fval_debugtext = constrvioltext_ms;
-  else
-    [fval,fval_debugtext,~,physval_materialstress] = cds_obj_materialstress(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
+  if fval == 0
+    fval = fval_st;
+    fval_debugtext = fval_debugtext_st;
   end
-  fval_main(strcmp(Set.optimization.objective, 'materialstress')) = fval;
+end
+if any(strcmp(Set.optimization.objective, 'materialstress')) && ...
+    (fval==0 || Set.general.debug_desopt)
+  if Set.optimization.constraint_obj(6) % Vermeide doppelten Aufruf der Funktion
+    % fval_ms und constrvioltext_ms von der NB-Berechnung oben
+  else
+    [fval_ms,constrvioltext_ms,~,physval_materialstress] = cds_obj_materialstress(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
+  end
+  fval_main(strcmp(Set.optimization.objective, 'materialstress')) = fval_ms;
   physval_main(strcmp(Set.optimization.objective, 'materialstress')) = physval_materialstress;
-else
+  if fval == 0
+    fval = fval_ms;
+    fval_debugtext = constrvioltext_ms;
+  end
+end
+if fval == 0 % Anfangswert für fval oder bestmöglicher Wert überhaupt
   % Es wurde eine Dimensionierung gefunden, die alle Nebenbedingungen ein-
   % hält. Keine Zielfunktion definiert, die jetzt noch profitieren würde.
   abort_fitnesscalc = true;
@@ -305,7 +334,8 @@ if Set.optimization.desopt_use_obj_limit && fval <= 1000 && ( ...
 end
 if fval <= 1000
   physval = physval_main(fval_main==fval); % Benutze nicht physval_desopt, da anders definiert.
-  [~, i_gen, i_ind] = cds_desopt_save_particle_details(toc(t1), fval, p_desopt, physval);
+  [~, i_gen, i_ind] = cds_desopt_save_particle_details(toc(t1), fval, ...
+    p_desopt, physval, fval_main, physval_main);
   cds_log(4,sprintf(['[desopt/fitness] G=%d;I=%d. DesOpt-Fitness-Evaluation ', ...
     'in %1.2fs. Parameter: [%s]. fval=%1.3e. Erfolgreich. %s %s'], i_gen, ...
     i_ind, toc(t1), disp_array(p_desopt', '%1.3f'), fval, fval_debugtext, abort_logtext));
