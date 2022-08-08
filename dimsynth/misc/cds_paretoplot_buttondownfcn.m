@@ -124,7 +124,8 @@ RobData = struct('Name', RobName, 'Number', RobNr, 'ParetoNumber', PNr, ...
   'Type', RobotOptRes.Structure.Type);
 %% Berechne fehlende Größen
 fitness_recalc_necessary = true;
-if any(strcmp(SelStr(Selection), {'Pareto', 'Parameter'}))
+if any(strcmp(SelStr(Selection), {'Pareto', 'Parameter', ...
+    'Pareto Einfluss DesOpt', 'Pareto DesOpt'})) % Namen konsistent mit `SelStr`
   % Neuberechnung der Fitness-Funktion für diese Bilder nicht notwendig.
   fitness_recalc_necessary = false;
 end
