@@ -205,6 +205,16 @@ for kk = 1:length(Set.general.animation_styles)
     I_anim = knnsearch( Traj_0.t , t_Vid ); % Berechne Indizes in Traj.-Zeitstempeln
     Traj_X = X;
   end
+  if isempty(I_anim) || isempty(RobotOptDetails.Traj_Q)
+    % Speichere Zwischenstand zum Debuggen eines Fehlers, der 2022-08
+    % aufgetreten ist. TODO: Lösche diese Abfrage, sobald korrigiert.
+    resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+      'tmp', sprintf('%d_%s', RNr, Name));
+    filename = 'vis_results_figures_error_Traj_Q_I_anim.mat';
+    save(fullfile(resdir, filename));
+    error(['Logik-Fehler bei Speicherung Vorbereitung des Videos. ', ...
+      'Status-Abbild: %s'], fullfile(resdir, filename));
+  end
   if RobData.Type == 0 % Seriell
     s_plot = struct( 'straight', 1);
   else % Parallel
