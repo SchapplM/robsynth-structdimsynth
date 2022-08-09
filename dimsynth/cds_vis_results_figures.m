@@ -545,10 +545,14 @@ if strcmp(figname, 'pareto_dimsynth_desopt')
     % Bestimme Pareto-Front aus den Standardwerten der Entwurfsoptimierung
     Ipfdef = find(~pareto_dominance(pdo_data.physval_default) & ...
                   ~any(isnan(pdo_data.physval_default), 2));
-    [~,I_sort] = sort(pdo_data.physval_default(Ipfdef,kk1));
-    Ipdf = Ipfdef(I_sort);
-    leghdl2D(nlegorig+2) = plot(axhdl2D, objscale(kk1)*pdo_data.physval_default(Ipdf,kk1), ...
-      objscale(kk2)*pdo_data.physval_default(Ipdf,kk2), 'r-+', 'LineWidth', 2);
+    if ~isempty(Ipfdef)
+      [~,I_sort] = sort(pdo_data.physval_default(Ipfdef,kk1));
+      Ipdf = Ipfdef(I_sort);
+      leghdl2D(nlegorig+2) = plot(axhdl2D, objscale(kk1)*pdo_data.physval_default(Ipdf,kk1), ...
+        objscale(kk2)*pdo_data.physval_default(Ipdf,kk2), 'r-+', 'LineWidth', 2);
+    else
+      leghdl2D(nlegorig+2) = NaN;
+    end
     legtext2D{nlegorig+2} = 'PF ohne EO';
     % Pareto-Front mit Entwurfsoptimierung (Nochmal mit anderer Formatierung).
     leghdl2D(nlegorig+3) = plot(axhdl2D, objscale(kk1)*RobotOptRes.physval_pareto(:,kk1), ...
