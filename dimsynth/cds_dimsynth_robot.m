@@ -1922,8 +1922,11 @@ if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref'))
     I_passuniversal_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==2 & ...
       Set.optimization.joint_stiffness_passive_universal ~= 0;
     desopt_nvars_js = sum(I_actrevolute_opt|I_passrevolute_opt|I_passuniversal_opt);
-    if desopt_nvars_js == 0
-      error('Anzahl der zu optimierenden Variablen für joint_stiffness_qref ist Null. Logik-Fehler.');
+    if desopt_nvars_js == 0 % Die Struktur des Roboters erlaubt keine Feder-Optimierung mit den gewählten Einstellungen
+      cds_log(1, sprintf(['[dimsynth] Anzahl der zu optimierenden Variablen ', ...
+        'für "joint_stiffness_qref" ist Null. Entferne "joint_stiffness_qref" aus Entwurfsoptimierung.']));
+      Set.optimization.desopt_vars = Set.optimization.desopt_vars(...
+        ~strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref'));
     end
   end
   desopt_ptypes = [desopt_ptypes; 3*ones(desopt_nvars_js, 1)];
@@ -1942,8 +1945,11 @@ if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness'))
     I_passuniversal_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==2 & ...
       isnan(Set.optimization.joint_stiffness_passive_universal);
     desopt_nvars_js = sum(I_actrevolute_opt|I_passrevolute_opt|I_passuniversal_opt);
-    if desopt_nvars_js == 0
-      error('Anzahl der zu optimierenden Variablen für joint_stiffness ist Null. Logik-Fehler.');
+    if desopt_nvars_js == 0 % s.o.: Die Struktur hat keine entsprechenden Gelenke
+      cds_log(1, sprintf(['[dimsynth] Anzahl der zu optimierenden Variablen ', ...
+        'für "joint_stiffness" ist Null. Entferne "joint_stiffness" aus Entwurfsoptimierung.']));
+      Set.optimization.desopt_vars = Set.optimization.desopt_vars(...
+        ~strcmp(Set.optimization.desopt_vars, 'joint_stiffness'));
     end
   end
   desopt_ptypes = [desopt_ptypes; 4*ones(desopt_nvars_js, 1)];
