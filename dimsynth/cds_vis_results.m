@@ -94,9 +94,6 @@ opts.VariableNamesLine = 1;
 opts.VariableDescriptionsLine = 2;
 ResTab = readtable(restabfile, opts);
 
-% Einheiten für die physikalischen Werte der Zielfunktionen vorbereiten
-[obj_units, objscale] = cds_objective_plotdetails(Set, Structures);
-
 length_Structures = length(Structures);
 % Prüfe, ob überhaupt roboterspezifische Plots erzeugt werden sollen
 length_Structures_parfor = length_Structures;
