@@ -327,6 +327,11 @@ if strcmp(figname, 'pareto')
     error(['Variable PSO_Detail_Data wurde nicht gespeichert. Daher kein ', ...
       'detailliertes Pareto-Diagramm möglich']);
   end
+  if any(fval > 1e3)
+    fprintf(['Keine erfolgreiche Lösung in Maßsynthese. Kein Pareto-', ...
+      'Diagramm möglich ("%s")\n'], figname);
+    return;
+  end
   % Einheiten für die physikalischen Werte der Zielfunktionen vorbereiten
   [obj_units, objscale] = cds_objective_plotdetails(Set, {RobotOptRes.Structure});
   if length(Set.optimization.objective) > 1 % Mehrkriterielle Optimierung
