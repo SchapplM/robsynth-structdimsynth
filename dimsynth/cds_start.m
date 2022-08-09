@@ -466,7 +466,7 @@ if Set.general.computing_cluster
     jobdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
       'dimsynth', 'cluster_jobs', computation_name);
     mkdirs(fullfile(jobdir, 'results')); % Unterordner notwendig für Cluster-Transfer-Toolbox
-    targetfile = fullfile(jobdir, [computation_name,'.m']);
+    targetfile = fullfile(jobdir, 'dimsynth_start.m'); % Benutze nicht Namen der Optimierung als Dateiname, da Matlab nur bis 64 Zeichen unterstützt
     Set_cluster = Set;
     Set_cluster.optimization.optname = [Set.optimization.optname, suffix]; % sonst wird bei Zerlegung mehrfach der gleiche Name benutzt.
     Set_cluster.general.noprogressfigure = true; % Fortschritts-Bild des PSO auf Cluster nicht notwendig
@@ -553,8 +553,8 @@ if Set.general.computing_cluster
       'nodes', 1, ... Nur einen Knoten pro Job (Synthese profitiert nich von mehr Knoten, dafür mehr parallele Jobs)
       ... % Nur so viele Kerne beantragen, wie auch benötigt werden ("ppn")
       'ppn', ppn, ... % 32 ist max. auf Cluster
-      'mem', 16+2*ppn, ... % mit 30GB kam es öfter mal zu Speicherfehlern
-      'matFileName', [computation_name, '.m'], ...
+      'mem', 16+2*ppn, ... % Hergeleitet aus MaxRSS-Wert aus diversen Job-Status-Emails
+      'matFileName', 'dimsynth_start.m', ...
       'locUploadFolder', jobdir, ...
       'time',comptime_est/3600), ... % Angabe in h
       dependstruct); % Mögliche Abhängigkeiten (optional)
@@ -565,10 +565,12 @@ if Set.general.computing_cluster
     if Set.general.only_finish_aborted
       continue % In diesem Fall war der Zweck des Aufrufs schon das Aufräum-Skript
     end
-    % Neues Skript vorbereiten (im gleichen Ordner)
+    % Neues Skript vorbereiten (in neuem Ordner)
+    jobdir2 = [jobdir, '_finish'];
+    copyfile(jobdir, jobdir2); % damit wird m- und mat-Datei direkt übernommen
     computation_name2 = [computation_name,'_finish'];
-    targetfile2 = fullfile(jobdir, [computation_name2,'.m']);
-    copyfile(targetfile,targetfile2);
+    targetfile2 = fullfile(jobdir2, 'dimsynth_finish.m');
+    movefile(fullfile(jobdir2, 'dimsynth_start.m'), targetfile2);
     f = strrep(fileread(targetfile2), '% Set.general.only_finish_aborted', ...
       'Set.general.only_finish_aborted');
     fid  = fopen(targetfile2,'w'); fprintf(fid,'%s',f); fclose(fid);
@@ -581,8 +583,8 @@ if Set.general.computing_cluster
       'nodes', 1, ...
       'ppn', min(length(I1_kk:I2_kk),Set.general.computing_cluster_cores), ... % gleiche Anzahl wie oben
       'mem', 16+2*ppn, ... % gleiche Zahl wie oben (da beim Finish-Job die Fitness-Funktion auch einmal ausgeführt wird)
-      'matFileName', [computation_name2, '.m'], ...
-      'locUploadFolder', jobdir, ...
+      'matFileName', 'dimsynth_finish.m', ...
+      'locUploadFolder', jobdir2, ...
       'time',2), ... % % Geht schnell. Veranschlage 2h. Evtl. länger wegen ParPool-Synchronisation.
       struct('afterany', jobIDs(1,kk), ... % egal welchen Status der Produktiv-Job hatte: Immer Abschluss-Job hinterher durchführen (Bei Code-Fehler und Abbruch aus Matlab endet der Job mit "ok").
       'waittime_max', 3600)); % eine Stunde lang versuchen (falls Cluster voll)
