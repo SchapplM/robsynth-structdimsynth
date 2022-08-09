@@ -96,6 +96,7 @@ if RobData.Type ~= 0
 end
 
 %% Animation
+if any(strcmp(figname, {'robvisu', 'animation'}))
 if strcmp(figname, 'robvisu')
   % Die Roboter-Visualisierung ist größtenteils identisch zur Animation.
   % Nur dass nicht animiert wird, sondern dass das erste Standbild genommen
@@ -114,6 +115,10 @@ end
 if ~traj_available && n_qvalid < 10
   Set.general.save_animation_file_extensions = unique(['gif', ...
     Set.general.save_animation_file_extensions]);
+end
+if n_qvalid == 0
+  fprintf('Keine Roboter-Visualisierung möglich (keine einzige valide IK-Lösung)\n');
+  return
 end
 % Hole Erklärungstext zum Fitness-Wert aus Tabelle
 iRobTab = strcmp(ResTab.Name,Name) & ResTab.LfdNr==RNr;
@@ -205,16 +210,6 @@ for kk = 1:length(Set.general.animation_styles)
     I_anim = knnsearch( Traj_0.t , t_Vid ); % Berechne Indizes in Traj.-Zeitstempeln
     Traj_X = X;
   end
-  if isempty(I_anim) || isempty(RobotOptDetails.Traj_Q)
-    % Speichere Zwischenstand zum Debuggen eines Fehlers, der 2022-08
-    % aufgetreten ist. TODO: Lösche diese Abfrage, sobald korrigiert.
-    resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
-      'tmp', sprintf('%d_%s', RNr, Name));
-    filename = 'vis_results_figures_error_Traj_Q_I_anim.mat';
-    save(fullfile(resdir, filename));
-    error(['Logik-Fehler bei Speicherung Vorbereitung des Videos. ', ...
-      'Status-Abbild: %s'], fullfile(resdir, filename));
-  end
   if RobData.Type == 0 % Seriell
     s_plot = struct( 'straight', 1);
   else % Parallel
@@ -259,6 +254,7 @@ for kk = 1:length(Set.general.animation_styles)
   end
   if settings.delete_figure, delete(fhdl); end
 end
+end % if figname...
 %% Kinematik-Bild
 if strcmp(figname, 'jointtraj') && traj_available
   if settings.figure_invisible, fhdl = figure_invisible();
