@@ -124,7 +124,8 @@ RobData = struct('Name', RobName, 'Number', RobNr, 'ParetoNumber', PNr, ...
   'Type', RobotOptRes.Structure.Type);
 %% Berechne fehlende Größen
 fitness_recalc_necessary = true;
-if any(strcmp(SelStr(Selection), {'Pareto', 'Parameter'}))
+if any(strcmp(SelStr(Selection), {'Pareto', 'Parameter', ...
+    'Pareto Einfluss DesOpt', 'Pareto DesOpt'})) % Namen konsistent mit `SelStr`
   % Neuberechnung der Fitness-Funktion für diese Bilder nicht notwendig.
   fitness_recalc_necessary = false;
 end
@@ -217,39 +218,37 @@ t2=tic();
 if strcmp(SelStr(Selection), 'Visualisierung')
   cds_vis_results_figures('robvisu', Set, Traj, RobData, ResTab, ...
     RobotOptRes, RobotOptDetails);
-end
-if strcmp(SelStr(Selection), 'Parameter')
+elseif strcmp(SelStr(Selection), 'Parameter')
   cds_vis_results_figures('optpar', Set, Traj, RobData, ResTab, ...
     RobotOptRes, RobotOptDetails);
-end
-if strcmp(SelStr(Selection), 'Kinematik')
+elseif strcmp(SelStr(Selection), 'Kinematik')
   cds_vis_results_figures('jointtraj', Set, Traj, RobData, ResTab, ...
     RobotOptRes, RobotOptDetails);
-end
-if strcmp(SelStr(Selection), 'Animation')
+elseif strcmp(SelStr(Selection), 'Animation')
   if isempty(Set.general.animation_styles)
     Set.general.animation_styles = {'3D'};
   end
   cds_vis_results_figures('animation', Set, Traj, RobData, ResTab, ...
     RobotOptRes, RobotOptDetails);
-end
-if strcmp(SelStr(Selection), 'Dynamik')
+elseif strcmp(SelStr(Selection), 'Dynamik')
   cds_vis_results_figures('dynamics', Set, Traj, RobData, ResTab, ...
     RobotOptRes, RobotOptDetails);
-end
-if strcmp(SelStr(Selection), 'Dynamikparameter')
+elseif strcmp(SelStr(Selection), 'Dynamikparameter')
   cds_vis_results_figures('dynparvisu', Set, Traj, RobData, ResTab, ...
     RobotOptRes, RobotOptDetails);
-end
-if strcmp(SelStr(Selection), 'Feder-Ruhelage')
+elseif strcmp(SelStr(Selection), 'Feder-Ruhelage')
   cds_vis_results_figures('springrestpos', Set, Traj, RobData, ResTab, ...
     RobotOptRes, RobotOptDetails);
-end
-if strcmp(SelStr(Selection), 'Pareto')
+elseif strcmp(SelStr(Selection), 'Pareto')
   cds_vis_results_figures('pareto', Set, Traj, RobData, ResTab, ...
     RobotOptRes, RobotOptDetails, PSO_Detail_Data);
-end
-if strcmp(SelStr(Selection), 'Redundanzkarte')
+elseif strcmp(SelStr(Selection), 'Pareto Einfluss DesOpt')
+  cds_vis_results_figures('pareto_dimsynth_desopt', Set, Traj, RobData, ResTab, ...
+    RobotOptRes, RobotOptDetails, PSO_Detail_Data);
+elseif strcmp(SelStr(Selection), 'Pareto DesOpt')
+  cds_vis_results_figures('pareto_desopt', Set, Traj, RobData, ResTab, ...
+    RobotOptRes, RobotOptDetails, PSO_Detail_Data);
+elseif strcmp(SelStr(Selection), 'Redundanzkarte')
   task_red = R.Type == 0 && sum(R.I_EE_Task) < R.NJ || ... % Seriell: Redundant wenn mehr Gelenke als Aufgaben-FG
              R.Type == 2 && sum(R.I_EE_Task) < sum(R.I_EE); % Parallel: Redundant wenn mehr Plattform-FG als Aufgaben-FG
   if ~task_red
@@ -366,6 +365,8 @@ if strcmp(SelStr(Selection), 'Redundanzkarte')
   cds_debug_taskred_perfmap(Set, Structure, d.H_all, d.s_ref, d.s_tref(:), ...
     d.phiz_range, d2.X2(:,6), h1, struct('wn', wn(I_wn_traj), 'i_ar', 0, ...
     'critnames', {fields(R.idx_ikpos_wn)'}));
+else
+  error('Fall %s nicht vorgesehen. Versionsfehler?', SelStr{Selection});
 end
 fprintf(['Bilder gezeichnet. Dauer: %1.1fs zur Vorbereitung, %1.1fs zum ', ...
   'Zeichnen. Speicherort: %s\n'], toc(t1)-toc(t2), toc(t2), fullfile( ...

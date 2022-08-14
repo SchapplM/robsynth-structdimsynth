@@ -8,6 +8,8 @@
 %   * animation - Animation des Roboters
 %   * jointtraj - Gelenkwinkel-Trajektorie über die Zeit
 %   * pareto - Pareto-Diagramm für alle Individuen dieses Roboters
+%   * pareto_dimsynth_desopt - Pareto-Diagramm zusätzlich mit Vergleich mit/ohne Entwurfsoptimierung
+%   * pareto_desopt - Pareto-Diagramm für den Fortschritt der Entwurfsoptimierung für ein Partikel
 %   * dynamics - Antriebskräfte (und Plattform-Kräfte bei PKM)
 %   * dynparvisu - Visualisierung der Dynamikparameter
 %   * optpar - Optimierungsparameter über die Pareto-Front
@@ -40,7 +42,7 @@ function fhdl = cds_vis_results_figures(figname, Set, Traj, RobData, ...
 %% Initialisierung
 assert(isa(figname, 'char'), 'Eingabe figname muss char sein');
 fignames_allowed = {'robvisu', 'robvisuanim', 'animation', 'jointtraj', ...
-  'pareto', 'dynamics', 'dynparvisu', 'optpar', 'springrestpos'};
+  'pareto', 'pareto_dimsynth_desopt', 'pareto_desopt', 'dynamics', 'dynparvisu', 'optpar', 'springrestpos'};
 assert(any(strcmp(fignames_allowed, figname)), ['Eingabe figname (''%s'') muss ', ...
   'eines dieser der Werte sein: %s'], figname, disp_array(fignames_allowed, '%s'));
 
@@ -318,7 +320,7 @@ if strcmp(figname, 'jointtraj') && traj_available
 end
 
 %% Pareto-Fronten für die Zielkriterien
-if strcmp(figname, 'pareto')
+if any(strcmp(figname, {'pareto', 'pareto_dimsynth_desopt', 'pareto_desopt'}))
   if isempty(PSO_Detail_Data)
     error(['Variable PSO_Detail_Data wurde nicht gespeichert. Daher kein ', ...
       'detailliertes Pareto-Diagramm möglich']);
@@ -333,33 +335,33 @@ if strcmp(figname, 'pareto')
   if length(Set.optimization.objective) > 1 % Mehrkriterielle Optimierung
     % Gehe alle Kombinationen von zwei Zielkriterien durch (falls mehr als
     % zwei gewählt).
-    objcomb = allcomb(1:length(Set.optimization.objective), 1:length(Set.optimization.objective));
-    objcomb(objcomb(:,1)==objcomb(:,2),:) = [];
-    objcomb(objcomb(:,1)>objcomb(:,2),:) = [];
+    objcomb2D = allcomb(1:length(Set.optimization.objective), 1:length(Set.optimization.objective));
+    objcomb2D(objcomb2D(:,1)==objcomb2D(:,2),:) = [];
+    objcomb2D(objcomb2D(:,1)>objcomb2D(:,2),:) = [];
     for pffig = 1 % Zwei Bilder: Physikalische Werte (1) und normierte Werte (2; deaktiviert)
-    if settings.figure_invisible, fhdl = figure_invisible();
-    else,                         fhdl = figure(); end
+    if settings.figure_invisible, fhdl2D = figure_invisible();
+    else,                         fhdl2D = figure(); end
     clf;hold all;
-    set(fhdl, 'Name', sprintf('Rob%d_Pareto', RNr), ...
+    set(fhdl2D, 'Name', sprintf('Rob%d_Pareto', RNr), ...
       'NumberTitle', 'off', 'color','w');
-    axhdl = NaN(size(objcomb,1),1);
-    sprows = floor(sqrt(size(objcomb,1)));
-    spcols = ceil(size(objcomb,1)/sprows);
-    for kk = 1:size(objcomb,1)
-      kk1 = objcomb(kk,1); kk2 = objcomb(kk,2);
+    axhdl2D = NaN(size(objcomb2D,1),1);
+    sprows = floor(sqrt(size(objcomb2D,1)));
+    spcols = ceil(size(objcomb2D,1)/sprows);
+    for kk = 1:size(objcomb2D,1)
+      kk1 = objcomb2D(kk,1); kk2 = objcomb2D(kk,2);
       ngen = size(PSO_Detail_Data.fval,3);
       nswarm = size(PSO_Detail_Data.fval,1);
       F1=reshape(PSO_Detail_Data.fval(:,kk1,:), ngen, nswarm);
       F2=reshape(PSO_Detail_Data.fval(:,kk2,:), ngen, nswarm);
       P1=reshape(PSO_Detail_Data.physval(:,kk1,:), ngen, nswarm);
       P2=reshape(PSO_Detail_Data.physval(:,kk2,:), ngen, nswarm);
-      leghdl = NaN(10,1);
-      axhdl(kk) = subplot(sprows,spcols,kk); hold on;
+      leghdl2D = NaN(10,1);
+      axhdl2D(kk) = subplot(sprows,spcols,kk); hold on;
       % Nicht-dominierende Partikel aus dem Verlauf der Optimierung
       markers = {'rv', 'ro', 'y^', 'gv', 'go', 'c^', 'cv', 'bo', 'b^'};
       % Teile den Verlauf in 9 Teile ein und zeichne die Partikel jeder
       % Phase mit den entsprechenden Markern
-      legtext = cell(10,1);
+      legtext2D = cell(10,1);
       for jj = 1:9
         mingen_jj = floor(ngen/9*(jj-1))+1;
         maxgen_jj = floor(ngen/9*(jj));
@@ -371,33 +373,33 @@ if strcmp(figname, 'pareto')
         I_iO = F1v_sel < 1e3;
         if ~any(I_iO), continue; end
         if pffig == 1 % Bild mit physikalischen Werten
-          leghdl(jj)=plot(objscale(kk1)*P1v_sel(I_iO), objscale(kk2)*P2v_sel(I_iO), markers{jj});
+          leghdl2D(jj)=plot(objscale(kk1)*P1v_sel(I_iO), objscale(kk2)*P2v_sel(I_iO), markers{jj});
         else
-          leghdl(jj)=plot(F1v_sel(I_iO), F2v_sel(I_iO), markers{jj});
+          leghdl2D(jj)=plot(F1v_sel(I_iO), F2v_sel(I_iO), markers{jj});
         end
-        legtext{jj} = sprintf('$%d \\le i_{\\mathrm{gen}} \\le %d$', mingen_jj, maxgen_jj);
+        legtext2D{jj} = sprintf('$%d \\le i_{\\mathrm{gen}} \\le %d$', mingen_jj, maxgen_jj);
       end
       % Pareto-Front einzeichnen
-      legtext{10} = 'Pareto-Front';
+      legtext2D{10} = 'Pareto-Front';
       if pffig == 1 % Bild mit physikalischen Werten
-        leghdl(10)=plot(objscale(kk1)*RobotOptRes.physval_pareto(:,kk1), ...
+        leghdl2D(10)=plot(objscale(kk1)*RobotOptRes.physval_pareto(:,kk1), ...
              objscale(kk2)*RobotOptRes.physval_pareto(:,kk2), 'm*');
         xlabel(sprintf('Zielf. %d (%s) in %s', kk1, Set.optimization.objective{kk1}, obj_units{kk1}));
         ylabel(sprintf('Zielf. %d (%s) in %s', kk2, Set.optimization.objective{kk2}, obj_units{kk2}));
       else % Bild mit normierten Zielfunktionswerten
-        leghdl(10)=plot(RobotOptRes.fval_pareto(:,kk1), ...
+        leghdl2D(10)=plot(RobotOptRes.fval_pareto(:,kk1), ...
              RobotOptRes.fval_pareto(:,kk2), 'm*');
         xlabel(sprintf('Zielf. %d (%s) (normiert)', kk1, Set.optimization.objective{kk1}));
-        ylabel(sprintf('Zielf. %d (%s)(normiert)', kk2, Set.optimization.objective{kk2}));
+        ylabel(sprintf('Zielf. %d (%s) (normiert)', kk2, Set.optimization.objective{kk2}));
       end
-      if any(~isnan(leghdl))
-        legend(leghdl(~isnan(leghdl)), legtext(~isnan(leghdl)), 'interpreter', 'latex');
+      if any(~isnan(leghdl2D))
+        legend(leghdl2D(~isnan(leghdl2D)), legtext2D(~isnan(leghdl2D)), 'interpreter', 'latex');
       end
       grid on;
     end
     % Prüfe ob ein Wertebereich sehr stark unausgeglichen ist (z.B. wenn die
     % Konditionszahl als Kriterium bis unendlich geht). Dann logarithmisch.
-    for ah = axhdl(:)'
+    for ah = axhdl2D(:)'
       linhdl = get(ah, 'children');
       for kk = 1:3 % x,y,z
         dataminmax = [NaN, NaN];
@@ -417,27 +419,31 @@ if strcmp(figname, 'pareto')
       sgtitle(sprintf('Rob. %d: Pareto-Fronten für mehrkrit. Opt. (Normierte Werte)', RNr));
       name_suffix = 'fval';
     end
-    saveas(fhdl,     fullfile(resrobdir, sprintf('Rob%d_%s_Pareto2D_%s.fig', RNr, Name, name_suffix)));
-    export_fig(fhdl, fullfile(resrobdir, sprintf('Rob%d_%s_Pareto2D_%s.png', RNr, Name, name_suffix)));
-    if settings.delete_figure, delete(fhdl); end
+    if strcmp(figname, 'pareto')
+      saveas(fhdl2D,     fullfile(resrobdir, sprintf('Rob%d_%s_Pareto2D_%s.fig', RNr, Name, name_suffix)));
+      export_fig(fhdl2D, fullfile(resrobdir, sprintf('Rob%d_%s_Pareto2D_%s.png', RNr, Name, name_suffix)));
+    end
+    if settings.delete_figure && strcmp(figname, 'pareto')
+      delete(fhdl2D);
+    end
     end
   end
   %% (3D)-Pareto-Fronten für die Zielkriterien
   if length(Set.optimization.objective) > 2
-    objcomb = allcomb(1:length(Set.optimization.objective), 1:length(Set.optimization.objective), ...
+    objcomb3D = allcomb(1:length(Set.optimization.objective), 1:length(Set.optimization.objective), ...
       1:length(Set.optimization.objective));
-    objcomb(objcomb(:,1)==objcomb(:,2) | objcomb(:,2)==objcomb(:,3),:) = [];
-    objcomb(objcomb(:,1)>objcomb(:,2),:) = [];
-    objcomb(objcomb(:,2)>objcomb(:,3),:) = [];
-    if settings.figure_invisible, fhdl = figure_invisible();
-    else,                         fhdl = figure(); end
+    objcomb3D(objcomb3D(:,1)==objcomb3D(:,2) | objcomb3D(:,2)==objcomb3D(:,3),:) = [];
+    objcomb3D(objcomb3D(:,1)>objcomb3D(:,2),:) = [];
+    objcomb3D(objcomb3D(:,2)>objcomb3D(:,3),:) = [];
+    if settings.figure_invisible, fhdl3D = figure_invisible();
+    else,                         fhdl3D = figure(); end
     clf;hold all;
-    set(fhdl, 'Name', sprintf('Rob%d_Pareto3D', RNr), ...
+    set(fhdl3D, 'Name', sprintf('Rob%d_Pareto3D', RNr), ...
       'NumberTitle', 'off', 'color','w');
-    sprows = floor(sqrt(size(objcomb,1)));
-    spcols = ceil(size(objcomb,1)/sprows);
-    for kk = 1:size(objcomb,1)
-      kk1 = objcomb(kk,1); kk2 = objcomb(kk,2); kk3 = objcomb(kk,3);
+    sprows = floor(sqrt(size(objcomb3D,1)));
+    spcols = ceil(size(objcomb3D,1)/sprows);
+    for kk = 1:size(objcomb3D,1)
+      kk1 = objcomb3D(kk,1); kk2 = objcomb3D(kk,2); kk3 = objcomb3D(kk,3);
       subplot(sprows,spcols,kk);
       plot3(objscale(kk1)*RobotOptRes.physval_pareto(:,kk1), ...
             objscale(kk2)*RobotOptRes.physval_pareto(:,kk2), ...
@@ -448,11 +454,210 @@ if strcmp(figname, 'pareto')
       grid on;
     end
     sgtitle(sprintf('Rob. %d: Pareto-Fronten (3D) für mehrkrit. Opt.', RNr));
-    saveas(fhdl,     fullfile(resrobdir, sprintf('Rob%d_%s_Pareto3D.fig', RNr, Name)));
-    export_fig(fhdl, fullfile(resrobdir, sprintf('Rob%d_%s_Pareto3D.png', RNr, Name)));
-    if settings.delete_figure, delete(fhdl); end
+    if strcmp(figname, 'pareto')
+      saveas(fhdl3D,     fullfile(resrobdir, sprintf('Rob%d_%s_Pareto3D.fig', RNr, Name)));
+      export_fig(fhdl3D, fullfile(resrobdir, sprintf('Rob%d_%s_Pareto3D.png', RNr, Name)));
+    end
+    if settings.delete_figure && strcmp(figname, 'pareto')
+      delete(fhdl3D);
+    end
   end
 
+end
+
+%% Pareto-Diagramm für Einfluss der Entwurfsoptimierung auf Maßsynthese
+if strcmp(figname, 'pareto_dimsynth_desopt')
+  % Trage die gespeicherten Daten aus der Entwurfsoptimierung in das
+  % gleiche Bild ein, das oben mit Schalter 'pareto' erstellt wurde.
+  % Lade die in der Entwurfsoptimierung gespeicherten Daten
+  % Siehe cds_dimsynth_desopt und Set.general.debug_desopt
+  resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+    'tmp', sprintf('%d_%s', RNr, Name)); % Siehe Ende von cds_dimsynth_desopt
+  matfiles = dir(fullfile(resdir, 'Gen*_Ind*_Konfig*_desopt_dbg.mat'));
+  n_obj = length(Set.optimization.objective);
+  pdo_data = struct('physval', NaN(length(matfiles), n_obj)); % "pdo" = "physval design optimization"
+  pdo_data.physval_default = pdo_data.physval;
+  pdo_data.fval = NaN(length(matfiles), 1);
+  for i = 1:length(matfiles)
+    % Abgleich der gespeicherten Daten von Maßsynthese und Entwurfsopt.
+    d_i = load(fullfile(resdir, matfiles(i).name));
+    % Hole aus den gespeicherten Zwischenwerten der Entwurfsoptimierung den
+    % Funktionswert der Maßsynthese für das Ergebnis-Partikel der Entw.Opt.
+    [k_gen, k_ind] = cds_load_particle_details(struct('fval', ... % Funktion ...
+      d_i.PSO_Detail_Data.pval), d_i.p_val); % ... erwartet fval als Eintrag, daher Umbenennung
+    d_i_fval_main = d_i.PSO_Detail_Data.fval_main(k_ind, :, k_gen)';
+    [tokens, ~] = regexp(matfiles(i).name, 'Gen(\d+)_Ind(\d+)_Konfig(\d+)_.*', 'tokens', 'match');
+    i_gen = str2double(tokens{1}{1});
+    i_ind = str2double(tokens{1}{2});
+    if ~all(d_i.p_val==PSO_Detail_Data.desopt_pval(i_ind,:,i_gen)')
+      % fprintf('Datei %s: Parameter nicht gefunden\n', matfiles(i).name);
+      continue % vermutlich nicht-optimale Konfiguration, daher nicht gespeichert
+    end
+    % Werte für die Maßsynthese
+    fval_pareto_i = PSO_Detail_Data.fval(i_ind,:,i_gen)';
+    physval_pareto_i = PSO_Detail_Data.physval(i_ind,:,i_gen)';
+    % Die Zielfunktion muss identisch sein (siehe cds_dimsynth_desopt_fitness)
+    % (soweit sie in der Entwurfsoptimierung neu berechnet wurde).
+    I_f = abs(d_i_fval_main - fval_pareto_i) < 1e-9;
+    if ~any(I_f)
+      warning('Zielfunktionswert aus Entwurfsoptimierung nicht gefunden. Datei %s', matfiles(i).name);
+      continue
+    end
+    % Trage in Entwurfsoptimierung (neu) berechnete Werte ein. Manche
+    % sind dort NaN, falls dort nicht berechnet.
+    physval_pareto_i_default = physval_pareto_i;
+    physval_pareto_i_default(I_f) = d_i.physval_main_default;
+    % Eintragen in Datenstruktur zum späteren Plotten
+    pdo_data.physval_default(i,:) = physval_pareto_i_default;
+    pdo_data.physval(i,:) = physval_pareto_i;
+    pdo_data.fval(i) = d_i.fval;
+  end % i = 1:length(matfiles)
+  if all(isnan(pdo_data.physval(:)))
+    warning('Keine Ergebnis-Daten aus Entwurfsoptimierung vorliegend. Kein Bild "pareto_dimsynth_desopt" möglich');
+    if settings.delete_figure
+      delete(fhdl2D);
+    end
+    return
+  end
+  % Einzeichnen der Punkte in den oben erstellten Plot aller
+  % Pareto-Partikel
+  set(fhdl2D, 'Name', sprintf('Rob%d_ParetoDesOpt', RNr));
+  nlegorig = length(leghdl2D); % Zum Anhängen an die Legende
+  leghdl2D(10) = NaN; % Legendeneintrag für vorherige Pareto-Front-Marker löschen
+  for kk = 1:size(objcomb2D,1)
+    kk1 = objcomb2D(kk,1); kk2 = objcomb2D(kk,2);
+    % Verbindung von jedem Punkt zu dem Standardwert ohne Entwurfsopt.
+    for i = 1:size(pdo_data.physval,1)
+      plot(axhdl2D,objscale(kk1)*[pdo_data.physval(i,kk1);pdo_data.physval_default(i,kk1)], ...
+                   objscale(kk2)*[pdo_data.physval(i,kk2);pdo_data.physval_default(i,kk2)], 'k-');
+    end
+    % Marker für Standard-Werte der Entwurfsoptimierung
+    leghdl2D(nlegorig+1) = plot(axhdl2D, objscale(kk1)*...
+      pdo_data.physval_default(:,kk1), objscale(kk2)*pdo_data.physval_default(:,kk2), 'kx');
+    legtext2D{nlegorig+1} = 'ohne Entw.Opt.';
+    % Ohne Entwurfsoptimerung sind einige Partikel ungültig (z.B. bei NB-
+    % Verletzung).
+    n_valid_wo_desopt = sum(all(~isnan(pdo_data.physval_default),2)); % abgeschlossene DesOpt.
+    n_desopt_all = sum(~isnan(pdo_data.fval)); % begonnene Entw.Opt. NaN hier sind ignorierte Konfigurationen.
+    % Pareto-Front als Linie einzeichnen (zwei Fälle, mit/ohne EO)
+    legtext2D{nlegorig+1} = [legtext2D{nlegorig+1}, sprintf(' (%d/%d i.O.)', ...
+      n_valid_wo_desopt, n_desopt_all)];
+    % Bestimme Pareto-Front aus den Standardwerten der Entwurfsoptimierung
+    Ipfdef = find(~pareto_dominance(pdo_data.physval_default) & ...
+                  ~any(isnan(pdo_data.physval_default), 2));
+    if ~isempty(Ipfdef)
+      [~,I_sort] = sort(pdo_data.physval_default(Ipfdef,kk1));
+      Ipdf = Ipfdef(I_sort);
+      leghdl2D(nlegorig+2) = plot(axhdl2D, objscale(kk1)*pdo_data.physval_default(Ipdf,kk1), ...
+        objscale(kk2)*pdo_data.physval_default(Ipdf,kk2), 'r-+', 'LineWidth', 2);
+    else
+      leghdl2D(nlegorig+2) = NaN;
+    end
+    legtext2D{nlegorig+2} = 'PF ohne EO';
+    % Pareto-Front mit Entwurfsoptimierung (Nochmal mit anderer Formatierung).
+    leghdl2D(nlegorig+3) = plot(axhdl2D, objscale(kk1)*RobotOptRes.physval_pareto(:,kk1), ...
+      objscale(kk2)*RobotOptRes.physval_pareto(:,kk2), 'm-*', 'LineWidth', 2);
+    legtext2D{nlegorig+3} = 'PF mit EO';
+    legend(leghdl2D(~isnan(leghdl2D)), legtext2D(~isnan(leghdl2D)));
+  end
+  sgtitle(sprintf('Rob. %d: Pareto-Fronten (2D): Vergleich Entwurfsopt.', RNr));
+  name_suffix = 'phys'; % Für fval statt phys nicht implementiert.
+  saveas(fhdl2D,     fullfile(resrobdir, sprintf('Rob%d_%s_Pareto2D_DimSynth_DesOpt_%s.fig', RNr, Name, name_suffix)));
+  export_fig(fhdl2D, fullfile(resrobdir, sprintf('Rob%d_%s_Pareto2D_DimSynth_DesOpt_%s.png', RNr, Name, name_suffix)));
+  if settings.delete_figure
+    delete(fhdl2D);
+  end
+end
+
+%% Pareto-Diagramm für Entwurfsoptimierung
+% Erzeugt eine Punktewolke und die Pareto-Front für eine einzelne Entwurfs-
+% optimierung (also für ein einzelnes Partikel der Maßsynthese).
+if strcmp(figname, 'pareto_desopt')
+  if isempty(RobotOptRes.physval_pareto)
+    physval = RobotOptRes.physval;
+  else
+    physval = RobotOptRes.physval_pareto(PNr,:)';
+  end
+  % Lade Ergebnisdatei für Entwurfsoptimierung für gefordertes Partikel
+  % Wird in cds_dimsynth_desopt mit Set.general.debug_desopt erzeugt.
+  [j_gen, j_ind] = cds_load_particle_details(PSO_Detail_Data, fval);
+  resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+    'tmp', sprintf('%d_%s', RNr, Name)); % Siehe Ende von cds_dimsynth_desopt
+  matfiles = dir(fullfile(resdir, sprintf(['Gen%02d_Ind%02d_Konfig*', ...
+    '_desopt_dbg.mat'], j_gen, j_ind)));
+  load_success = false;
+  for i = 1:length(matfiles)
+    % Suche das angeklickte Partikel in den Daten der Entwurfsoptimierung
+    d_i = load(fullfile(resdir, matfiles(i).name));
+    [k_gen, k_ind] = cds_load_particle_details(struct('fval', ... % Funktion ...
+      d_i.PSO_Detail_Data.pval), d_i.p_val); % ... erwartet fval als Eintrag, daher Umbenennung
+    d_i_fval_main = d_i.PSO_Detail_Data.fval_main(k_ind, :, k_gen)';
+    [tokens, ~] = regexp(matfiles(i).name, 'Gen(\d+)_Ind(\d+)_Konfig(\d+)_.*', 'tokens', 'match');
+    i_gen = str2double(tokens{1}{1});
+    i_ind = str2double(tokens{1}{2});
+    if ~all(d_i.p_val==PSO_Detail_Data.desopt_pval(i_ind,:,i_gen)')
+      % fprintf('Datei %s: Parameter nicht gefunden\n', matfiles(i).name);
+      continue % vermutlich nicht-optimale Konfiguration, daher nicht gespeichert
+    end
+    % Werte für die Maßsynthese
+    fval_pareto_i = PSO_Detail_Data.fval(i_ind,:,i_gen)';
+    % Die Zielfunktion muss identisch sein (siehe cds_dimsynth_desopt_fitness)
+    % (soweit sie in der Entwurfsoptimierung neu berechnet wurde).
+    I_f = abs(d_i_fval_main - fval_pareto_i) < 1e-9;
+    if ~any(I_f)
+      continue % geladene Datei kann nicht stimmen (falsche Konfiguration)
+    end
+    load_success = true;
+    break;
+  end
+  if ~load_success
+    warning('Ergebnis-Daten der Entwurfsoptimierung für Partikel nicht in %s gefunden', resdir);
+    if settings.delete_figure
+      delete(fhdl2D);
+    end
+    return
+  end
+  % Leere oben gezeichnetes Bild wieder (Pareto-Bild Maßsynthese hier egal)
+  for ax = axhdl2D, delete(get(ax,'children')); end
+  % Zeichne neue Punktewolke für alle Partikel der Entwurfsoptimierung ein
+  for kk = 1:size(objcomb2D,1)
+    kk1 = objcomb2D(kk,1); kk2 = objcomb2D(kk,2);
+    physval_all = NaN(length(d_i.PSO_Detail_Data.physval(:)),2);
+    % Trage ursprünglichen Wert aus der Maßsynthese ein
+    physval_all(:,[1 2]) = repmat(physval([kk1,kk2])',size(physval_all,1),1);
+    % Trage berechnete Werte aus der Zielfunktion der Entwurfsoptimierung ein
+    if I_f(kk1)
+      physval_all(:,kk1) = reshape(squeeze( ...
+        d_i.PSO_Detail_Data.physval_main(:,kk1,:)),size(physval_all,1),1);
+    end
+    if I_f(kk2)
+      physval_all(:,kk2) = reshape(squeeze( ...
+        d_i.PSO_Detail_Data.physval_main(:,kk2,:)),size(physval_all,1),1);
+    end
+    if ~any(I_f([kk1,kk2])) % falls bei 3 Kriterien 2 gewählt sind und keins davon in EntwOpt berechnet wird
+      % Zielfunktion gar nicht in Entwurfsoptimierung gefunden. Überspringe
+      continue; % Kann bei 3D-Plots passieren
+    end
+    plot(axhdl2D, objscale(kk1)*physval_all(:,kk1), ...
+                  objscale(kk2)*physval_all(:,kk2), 'k+');
+    physval_default = physval_all(1,:)';
+    physval_default(I_f) = d_i.physval_main_default(I_f);
+    plot(axhdl2D, objscale(kk1)*physval_default(kk1), ...
+                  objscale(kk2)*physval_default(kk2), 'mx', 'MarkerSize', 12);
+    defaultstr = 'Ohne DesOpt';
+    if any(isnan(physval_default))
+      defaultstr = [defaultstr, ' (n.i.O.)']; %#ok<AGROW>
+    end
+    plot(axhdl2D, objscale(kk1)*physval(kk1), ...
+                  objscale(kk2)*physval(kk2), 'rs', 'MarkerSize', 12);
+    legend({'PSO Design Optimization', defaultstr, 'DimSynth'});
+  end % kk = 1:size(objcomb2D,1)
+  name_suffix = 'phys';
+  saveas(fhdl2D,     fullfile(resrobdir, sprintf('Rob%d_%s_P%d_Pareto2D_DesOpt_%s.fig', RNr, Name, PNr, name_suffix)));
+  export_fig(fhdl2D, fullfile(resrobdir, sprintf('Rob%d_%s_P%d_Pareto2D_DesOpt_%s.png', RNr, Name, PNr, name_suffix)));
+  if settings.delete_figure
+    delete(fhdl2D);
+  end
 end
 %% Rechne die Dynamik neu nach
 if strcmp(figname, 'dynamics') && traj_available
@@ -730,7 +935,18 @@ if strcmp(figname, 'springrestpos')
   % Trajektorie erzeugen.
   q_start = RobotOptDetails.Traj_Q(1,:)'; q_end = q_start;
   for i = 1:R.NLEG
-    q_start([false(R.I1J_LEG(i)-1,1);R.Leg(i).MDH.sigma==0]) = R.Leg(i).DesPar.joint_stiffness_qref(R.Leg(i).MDH.sigma==0);
+    I_actrevolute_opt = R.Leg(1).MDH.mu ~= 1 & R.Leg(1).DesPar.joint_type==0 & ...
+      Set.optimization.joint_stiffness_active_revolute ~= 0;
+    I_passrevolute_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==0 & ...
+      Set.optimization.joint_stiffness_passive_revolute ~= 0;
+    I_passuniversal_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==2 & ...
+      Set.optimization.joint_stiffness_passive_universal ~= 0;
+    q_start([false(R.I1J_LEG(i)-1,1);I_actrevolute_opt]) = ...
+      R.Leg(i).DesPar.joint_stiffness_qref(I_actrevolute_opt);
+    q_start([false(R.I1J_LEG(i)-1,1);I_passrevolute_opt]) = ...
+      R.Leg(i).DesPar.joint_stiffness_qref(I_passrevolute_opt);
+    q_start([false(R.I1J_LEG(i)-1,1);I_passuniversal_opt]) = ...
+      R.Leg(i).DesPar.joint_stiffness_qref(I_passuniversal_opt);
   end
   [Q_ges,~,~,T_ges] = traj_trapez2_multipoint([q_start';q_end'], 1, 0.05, 0.01, 0.005, 0);
   % Video auf Länge 10s bringen

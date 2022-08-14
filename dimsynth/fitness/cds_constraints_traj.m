@@ -1283,7 +1283,9 @@ if R.Type == 2
   % kann man nicht für alle Beinketten die gleichen Parameter wählen.
   % Trifft auch zu, wenn die Feder-Ruhelagen nicht optimiert, sondern nur
   % mittig gewählt werden
-  if Set.optimization.joint_stiffness_passive_revolute
+  if (Set.optimization.joint_stiffness_active_revolute ~= 0 || ...
+      Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
+      Set.optimization.joint_stiffness_passive_universal ~= 0)
     I_symlim(R.MDH.sigma==0&R.I_qa==0) = true;
   end
 end

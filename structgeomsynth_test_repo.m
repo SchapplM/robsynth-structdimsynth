@@ -28,6 +28,7 @@ cds_example_collisioncheck; close all;
 cds_example_installationspace; close all;
 cds_example_desopt_linkstrength; close all;
 cds_example_desopt_test; close all;
+cds_example_taskred_desopt; close all;
 test_cds_obj_dependencies; close all;
 cds_example_external_force; close all;
 %% Ende

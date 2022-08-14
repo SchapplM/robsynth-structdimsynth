@@ -42,6 +42,7 @@ general = struct( ...
   'debug_taskred_perfmap', 0, ...% Redundanzkarte (Rasterung des redundanten FG über Trajektorie). 0=aus, 1=nur Summe, 2=Details (eine Karte für jedes Leistungsmerkmal getrennt)
   'debug_taskred_fig', false, ... % Diverse weitere Plots zur Aufgabenredundanz
   'debug_dynprog_files', false, ... % Speichert alle Zwischenzustände der Dynamischen Programmierung ab. Für Produktiv-Betrieb zu große Datenmenge.
+  'debug_desopt', false, ... % Speichere das komplette Ergebnis der Entwurfsoptimierung ab für spätere Auswertungen
   'save_robot_details_plot_fitness_file_extensions', {''}, ... % Speichern des durch vorherige Einstellung erstellten Bildes
   'save_animation_file_extensions', {{'mp4'}}, ... % Format, in denen die Animationen gespeichert werden
   'animation_styles', {{'stick'}}, ... % Visualisierungsarten im Video: stick,3D,collision; bei mehr als einem: Syntax {{'1.','2.'}}
@@ -178,7 +179,7 @@ optimization = struct( ...
   'joint_limits_symmetric_prismatic', true, ... % Wähle die Gelenkgrenzen bei Schubgelenken symmetrisch (für Führungsschienen)
   'check_jointrange_points', true, ... % Prüfung der Gelenkwinkelspannweite bereits bei den Eckpunkten (Möglichkeit für falsch-positive Ausschlüsse)
   'prismatic_cylinder_allow_overlength', false, ... % Bei Schubzylindern darf der Zylinder nicht durch das vorherige Gelenk gehen. Ist konstruktiv ungünstig.
-  'desopt_vars', {{}}, ... % Variablen für eigene Optimierung der Entwurfsparameter. Möglich: "linkstrength", "joint_stiffness_qref"
+  'desopt_vars', {{}}, ... % Variablen für eigene Optimierung der Entwurfsparameter. Möglich: "linkstrength", "joint_stiffness_qref", "joint_stiffness"
   'safety_link_yieldstrength', 1, ... % Sicherheitsfaktor für Streckgrenze der Segmente als Nebenbedingung. Berechnung gesteuert über constraint_obj(6)
   'constraint_collisions', false, ... Schalter für Kollisionsprüfung
   'single_point_constraint_check', false, ... % Prüfe einige Nebenbedingungen für jeden Arbeitsraum-Eckpunkt. Schnellere Prüfungen, aber voraussichtlich schlechtere Konvergenz
@@ -189,8 +190,15 @@ optimization = struct( ...
   'obj_limit_physval', 0, ... % Grenze für den physikalischen Wert zum Beenden
   'NumIndividuals', 50, ... % Anzahl der Partikel im PSO
   'MaxIter', 10, ... % Anzahl der Iterationen im PSO (zusätzlich zur initialen)
+  'abort_pareto_front_size', inf, ... % Mit dem Wert kann die Optimierung vorzeitig bei ausreichend gefüllter Pareto-Front abgebrochen werden
+  'desopt_NumIndividuals', NaN, ... % Anzahl der PSO-Partikel bei der Entwurfsoptimierung. NaN ist Standard-Wert (abhängig von Anzahl der Variablen)
+  'desopt_MaxIter', NaN, ... % Anzahl der PSO-Generationen bei der Entwurfsoptimierung.
+  'desopt_use_obj_limit', true, ... % Nutze Option obj_limit auch in cds_dimsynth_desopt_fitness.m. Zum Debuggen deaktivieren.
   'static_force_only', false, ... % Betrachte nur statische Kraft, keine Dynamik (egal ob Geschwindigkeit/Beschleunigung gegeben)
-  'joint_stiffness_passive_revolute', 0, ... % Zur Annahme von Drehfedern in den Gelenken. Ist Sonderfall für Festkörpergelenke.
+  'joint_stiffness_passive_revolute', 0, ... % Zur Annahme von Drehfedern in den Gelenken. Ist Sonderfall für Festkörpergelenke. NaN, falls Steifigkeit optimiert wird.
+  'joint_stiffness_active_revolute', 0, ... % Das gleiche für aktive Drehgelenke
+  'joint_stiffness_passive_universal', 0, ... % Gleiche Annahme für Kardangelenke (Sonderfall für MHI-Kryo-PKM)
+  'joint_stiffness_max', 100, ... % Falls die Gelenksteifigkeit optimiert wird, ist dies der maximale Wert (in Nm/rad). 100Nm/rad) sind 1.7Nm/Grad
   'nolinkmass', false, ... % Setze die Masse der Robotersegmente auf Null.
   'noplatformmass', false, ... % Setze die Masse der PKM-Plattform auf Null.
   'ElectricCoupling', true, ... % Kopplung der Achsen für Energieberechnung. TODO

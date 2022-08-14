@@ -49,13 +49,21 @@ end
 vartypes = Structure.desopt_ptypes(Structure.desopt_ptypes~=1);
 options_desopt = optimoptions('particleswarm');
 options_desopt.Display = 'off';
-options_desopt.MaxIter = 5;
-options_desopt.MaxStallIterations = 1; % Oft ist das Optimum der Startwert
-nvars = length(vartypes); % Variablen: Wandstärke, Durchmesser der Segmente, Ruhelage von Gelenkfedern
-NumIndividuals = 10*nvars;
 
+options_desopt.MaxStallIterations = 2; % Oft ist das Optimum der Startwert. Nicht sehr lange nach besseren Lösungen suchen.
+nvars = length(vartypes); % Variablen: Wandstärke, Durchmesser der Segmente, Ruhelage von Gelenkfedern
+if isnan(Set.optimization.desopt_NumIndividuals)
+  NumIndividuals = 10*nvars;
+else
+  NumIndividuals = Set.optimization.desopt_NumIndividuals;
+end
+if isnan(Set.optimization.desopt_MaxIter)
+  options_desopt.MaxIter = 5;
+else
+  options_desopt.MaxIter = Set.optimization.desopt_MaxIter;
+end
 varlim = [];
-if any(vartypes == 2)
+if any(vartypes == 2) % Dimensionierung der Segmente
   % Allgemeine Einstellungen (werden für serielle Roboter beibehalten)
   varlim_ls = [ 5e-3, 150e-3; ... % Grenzen für Wandstärke
                80e-3, 600e-3];  % Grenze für Durchmesser
@@ -66,9 +74,15 @@ if any(vartypes == 2)
   end
   varlim = [varlim; varlim_ls];
 end
-if any(vartypes == 3)
+if any(vartypes == 3) % Einbaulage von Gelenkfedern
   % Annahme: Roboter ist symmetrische PKM.
-  I_joints = R.Leg(1).MDH.sigma==0;
+  I_actrevolute_opt = R.Leg(1).MDH.mu ~= 1 & R.Leg(1).DesPar.joint_type==0 & ...
+    Set.optimization.joint_stiffness_active_revolute ~= 0;
+  I_passrevolute_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==0 & ...
+    Set.optimization.joint_stiffness_passive_revolute ~= 0;
+  I_passuniversal_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==2 & ...
+    Set.optimization.joint_stiffness_passive_universal ~= 0;
+  I_joints = I_actrevolute_opt | I_passrevolute_opt | I_passuniversal_opt;
   % Bestimme die Grenzen der Gelenkkoordinaten der Beinketten. Fasse die
   % Gelenke jeder Beinkette zusammen, da eine symmetrische Anordnung für
   % die Feder-Mittelstellungen gesucht wird.
@@ -94,13 +108,28 @@ if any(vartypes == 3)
                             varlim_js_from_traj(:,2)-rangelim+1e-3, ...
                             varlim_js_from_traj(:,1)+rangelim-1e-3];
   % Bestimme die Ober- und Untergrenze aus den beiden Fällen
-  varlim_js = minmax2([varlim_js_from_traj, varlim_from_jointrange]);
+  varlim_js_off = minmax2([varlim_js_from_traj, varlim_from_jointrange]);
+  varlim = [varlim; varlim_js_off]; % in Grenzen für PSO eintragen
+end
+if any(vartypes == 4) % Steifigkeit von Gelenkfedern
+  I_actrevolute_opt = R.Leg(1).MDH.mu ~= 1 & R.Leg(1).DesPar.joint_type==0 & ...
+    isnan(Set.optimization.joint_stiffness_active_revolute);
+  I_passrevolute_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==0 & ...
+    isnan(Set.optimization.joint_stiffness_passive_revolute);
+  I_passuniversal_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==2 & ...
+    isnan(Set.optimization.joint_stiffness_passive_universal);
+  I_joints = I_actrevolute_opt | I_passrevolute_opt | I_passuniversal_opt;
+  % Maximale sinnvolle Gelenksteifigkeit einstellen. Für alle Gelenke gleich.
+  varlim_js = repmat([0, Set.optimization.joint_stiffness_max], sum(I_joints), 1);
   varlim = [varlim; varlim_js]; % in Grenzen für PSO eintragen
 end
+assert(size(varlim,1)==nvars, 'Dimension von varlim passt nicht zu nvars');
 % Erzeuge zufällige Startpopulation
 options_desopt.SwarmSize = NumIndividuals;
 InitPop = repmat(varlim(:,1)', NumIndividuals,1) + rand(NumIndividuals, nvars) .* ...
                         repmat(varlim(:,2)'-varlim(:,1)',NumIndividuals,1);
+% Standardwert für Optimierungsparameter immer zum Vergleich rechnen
+InitPop(end,:) = Structure.desopt_pdefault;
 % Wähle nur plausible Anfangswerte
 if any(vartypes == 2)
   IIls = find(vartypes==2);
@@ -123,9 +152,9 @@ if any(vartypes == 3)
   end
   % Eine weitere plausible Lösung liegt am Rand (dann maximaler Effekt der
   % Feder zur Gravitationskompensation)
-  allcombinput = cell(1,size(varlim_js,1)); % Definiere die Eingabe als Cell
+  allcombinput = cell(1,size(varlim_js_off,1)); % Definiere die Eingabe als Cell
   for k = 1:length(allcombinput)
-    allcombinput{k} = varlim_js(k,:)';
+    allcombinput{k} = varlim_js_off(k,:)';
   end
   InitPop_js_border = allcomb(allcombinput{:});
   % Begrenze die Anzahl dieser Grenz-Partikel
@@ -144,6 +173,9 @@ end
 options_desopt.InitialSwarmMatrix = InitPop;
 % Erstelle die Fitness-Funktion und führe sie einmal zu testzwecken aus
 clear cds_dimsynth_desopt_fitness % Für persistente Variablen von vorheriger Iteration in Maßsynthese
+fval_main_dummy = NaN(length(Set.optimization.objective), 1);
+cds_desopt_save_particle_details(0, 0, zeros(nvars,1), 0, fval_main_dummy, fval_main_dummy, 'reset', ... % Zurücksetzen der ...
+  struct('comptime', NaN([options_desopt.MaxIter+1, NumIndividuals]))); % ... Detail-Speicherfunktion
 fitnessfcn_desopt=@(p_desopt)cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn, Structure, p_desopt(:));
 t2 = tic();
 [fval_test, physval_test, abort_fitnesscalc] = fitnessfcn_desopt(InitPop(1,:)');
@@ -239,10 +271,12 @@ end
 % Debug:
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt2.mat'));
 %% Optimierung der Entwurfsparameter durchführen
+cds_desopt_save_particle_details(0, 0, zeros(nvars,1), 0, fval_main_dummy, fval_main_dummy, 'reset', ...
+  struct('comptime', NaN([options_desopt.MaxIter+1, NumIndividuals])));
 if ~avoid_optimization
   cds_log(3,sprintf(['[desopt] Führe Entwurfsoptimierung durch. Dauer für ', ...
     'eine Zielfunktionsauswertung: %1.1fms. Max. Dauer für Optimierung: ', ...
-    '%1.1fs (%d Iterationen, %d Individuen)'], 1e3*T2, NumIndividuals*...
+    '%1.1fs (%d+1 Iterationen, %d Individuen)'], 1e3*T2, NumIndividuals*...
     (options_desopt.MaxIter+1)*T2, options_desopt.MaxIter, NumIndividuals));
   clear cds_dimsynth_desopt_fitness % für persistente Variable
   [p_val,fval,~,output] = particleswarm(fitnessfcn_desopt,nvars,varlim(:,1),varlim(:,2),options_desopt);
@@ -267,8 +301,14 @@ I_bordersol = any(repmat(p_val(:),1,2) == varlim,2); % Prüfe, ob Endergebnis ei
 if any(I_bordersol)
   detailstring = [detailstring, sprintf('. Lösung bei %d/%d Par. an Grenze', sum(I_bordersol), length(I_bordersol))];
 end
-cds_log(3,sprintf('[desopt] Entwurfsoptimierung durchgeführt. Dauer: %1.1fs. %s. %d Iterationen, %d Funktionsauswertungen.', ...
-    toc(t1), detailstring, output.iterations, output.funccount));
+detailstring = [detailstring, sprintf('. Ergebnis: ')];
+for i = 1:length(p_val)
+  detailstring = [detailstring, sprintf('(%s: %1.1f)', Structure.desopt_pnames{i}, p_val(i))]; %#ok<AGROW>
+  if i < length(p_val), detailstring = [detailstring, ', ']; end %#ok<AGROW>
+end
+cds_log(3,sprintf(['[desopt] Entwurfsoptimierung durchgeführt. %d Iter', ...
+  'ationen, %d Funktionsauswertungen. Dauer: %1.1fs. %s.'], ...
+    output.iterations, output.funccount, toc(t1), detailstring));
 % Debug: Fitness-Funktion mit bestem Ergebnis nochmal aufrufen. Mit Bildern
 % Set.general.plot_details_in_desopt = 1e3;
 % Set.general.plot_details_in_fitness = 1e3;
@@ -280,30 +320,106 @@ if any(vartypes == 2)
 end
 if any(vartypes == 3)
   for i = 1:R.NLEG
-    R.Leg(i).DesPar.joint_stiffness_qref(R.Leg(i).MDH.sigma==0) = p_val(vartypes==3);
+    I_actrevolute_opt = R.Leg(i).MDH.mu ~= 1 & R.Leg(i).DesPar.joint_type==0 & ...
+      Set.optimization.joint_stiffness_active_revolute ~= 0;
+    I_passrevolute_opt = R.Leg(i).MDH.mu == 1 & R.Leg(i).DesPar.joint_type==0 & ...
+      Set.optimization.joint_stiffness_passive_revolute ~= 0;
+    I_passuniversal_opt = R.Leg(i).MDH.mu == 1 & R.Leg(i).DesPar.joint_type==2 & ...
+      Set.optimization.joint_stiffness_passive_universal ~= 0;
+    I_update = I_actrevolute_opt | I_passrevolute_opt | I_passuniversal_opt;
+    R.Leg(i).DesPar.joint_stiffness_qref(I_update) = p_val(vartypes==3);
   end
+end
+if any(vartypes == 4)
+  for i = 1:R.NLEG
+    I_actrevolute_opt = R.Leg(i).MDH.mu ~= 1 & R.Leg(i).DesPar.joint_type==0 & ...
+      isnan(Set.optimization.joint_stiffness_active_revolute);
+    I_passrevolute_opt = R.Leg(i).MDH.mu == 1 & R.Leg(i).DesPar.joint_type==0 & ...
+      isnan(Set.optimization.joint_stiffness_passive_revolute);
+    I_passuniversal_opt = R.Leg(i).MDH.mu == 1 & R.Leg(i).DesPar.joint_type==2 & ...
+      isnan(Set.optimization.joint_stiffness_passive_universal);
+    I_update = I_actrevolute_opt | I_passrevolute_opt | I_passuniversal_opt;
+    R.Leg(i).DesPar.joint_stiffness(I_update) = p_val(vartypes==4);
+  end
+end
+
+% Speichere die Zwischenergebnisse ab (falls notwendig für die Auswertung)
+if Set.general.debug_desopt
+  [currgen,currind,~,resdir] = cds_get_new_figure_filenumber(Set, Structure, '');
+  name_matfile = sprintf('Gen%02d_Ind%02d_Konfig%d_desopt_dbg.mat', currgen, ...
+    currind, Structure.config_index);
+  % Extrahiere Detail-Daten aus den einzelnen PSO-Partikeln
+  PSO_Detail_Data = cds_desopt_save_particle_details(0, 0, NaN, 0, fval_main_dummy, fval_main_dummy, 'output');
+  % Nehme die Standard-Werte aus dem letzten Aufruf aus der Initial- 
+  % Population (siehe InitPop).
+  fval_main_default = PSO_Detail_Data.fval_main(1,:,end);
+  physval_main_default = PSO_Detail_Data.physval_main(1,:,end);
+  save(fullfile(resdir, name_matfile), 'PSO_Detail_Data', 'fval', 'p_val', ...
+    'fval_main_default', 'physval_main_default');
 end
 return
 %% Debug
 
-% Zeichne Verlauf der Fitness-Funktion
-np1 = 8; np2 = 8; %#ok<UNRCH>
-fval_grid = NaN(np1,np2);
-p1_grid = linspace(varlim(1,1), varlim(1,2), np1)
-p2_grid = linspace(varlim(2,1), varlim(2,2), np2)
-for i = 1:np1
-  for j = 1:np2
-    p_ij = [p1_grid(i); p2_grid(j)];
-    fval_grid(i,j) = fitnessfcn_desopt(p_ij);
-  end
+% Rufe Fitness-Funktion mit bestem Partikel auf (zum Plotten von
+% zusätzlichen Debug-Bildern).
+Set_tmp = Set;
+Set_tmp.general.plot_details_in_desopt = 1e10;
+cds_dimsynth_desopt_fitness(R, Set_tmp, Traj_0, Q, QD, QDD, Jinv_ges, ...
+  data_dyn, Structure, p_val);
+
+% Zeichne Fitness-Fortschritt über Iteration des PSO
+figure(9);clf;
+axhdl = subplot(2,1,1);
+plot(PSO_Detail_Data.fval, 'kx');
+set(axhdl, 'yscale', 'log');
+grid on;
+ylabel('Alle Fitness-Werte (log)');
+subplot(2,1,2);
+plot(min(PSO_Detail_Data.fval,[],2), 'kx-');
+ylabel('Bester Fitness-Wert (linear)');
+xlabel('Generation');
+grid on;
+linkxaxes
+sgtitle('Konvergenz der Fitness-Werte über die Optimierung');
+
+% Zeichne Ausnutzung des Parameterraums
+pval_stack_norm = NaN(size(PSO_Detail_Data.pval,1)*size(PSO_Detail_Data.pval,3), ...
+  size(PSO_Detail_Data.pval,2));
+pval_stack = pval_stack_norm;
+for i = 1:size(PSO_Detail_Data.pval,2)
+  pval_stack(:,i) = reshape(squeeze(PSO_Detail_Data.pval(:,i,:)), size(pval_stack,1),1);
+  pval_stack_norm(:,i) = (pval_stack(:,i)-varlim(i,1))./... % untere Grenze abziehen
+    repmat(varlim(i,2)-varlim(i,1),size(pval_stack,1),1); % auf 1 normieren
 end
-fval_grid(fval_grid==1e8) = NaN; % Damit unzulässiger Bereich im Plot leer bleibt
-figure(10);clf;
-hold on;
-surf(1e3*p1_grid, 1e3*p2_grid, fval_grid, 'FaceAlpha',0.7);
-xlabel('p1 (Wandstärke) in mm');
-ylabel('p2 (Durchmesser) in mm');
-zlabel('Zielfunktion Entwurfsoptimierung');
-hdl=plot3(1e3*p_val(1), 1e3*p_val(2), fval, 'ro', 'MarkerSize', 8);
-legend(hdl, {'Optimum'});
-view(3)
+figure(8);clf;
+plot(pval_stack_norm', 'x-');
+xlabel('Optimierungsparameter');
+set(gca, 'xtick', 1:length(p_val));
+set(gca, 'xticklabel', Structure.desopt_pnames);
+ylabel('Parameter Wert (normiert)');
+title('Ausnutzung des möglichen Parameterraums');
+
+% Zeichne Verlauf der Fitness-Funktion (für den Fall der
+% Entwurfsoptimierung der Segmentdimensionierung
+if all(vartypes == 2) && nvars == 2
+  np1 = 8; np2 = 8;
+  fval_grid = NaN(np1,np2);
+  p1_grid = linspace(varlim(1,1), varlim(1,2), np1)
+  p2_grid = linspace(varlim(2,1), varlim(2,2), np2)
+  for i = 1:np1
+    for j = 1:np2
+      p_ij = [p1_grid(i); p2_grid(j)];
+      fval_grid(i,j) = fitnessfcn_desopt(p_ij);
+    end
+  end
+  fval_grid(fval_grid==1e8) = NaN; % Damit unzulässiger Bereich im Plot leer bleibt
+  figure(10);clf;
+  hold on;
+  surf(1e3*p1_grid, 1e3*p2_grid, fval_grid, 'FaceAlpha',0.7);
+  xlabel('p1 (Wandstärke) in mm');
+  ylabel('p2 (Durchmesser) in mm');
+  zlabel('Zielfunktion Entwurfsoptimierung');
+  hdl=plot3(1e3*p_val(1), 1e3*p_val(2), fval, 'ro', 'MarkerSize', 8);
+  legend(hdl, {'Optimum'});
+  view(3)
+end

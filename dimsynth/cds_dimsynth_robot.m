@@ -220,7 +220,7 @@ for i = 1:NLEG
   R_init.qDlim(R_init.MDH.sigma==1,:) = repmat([-1,1]*... % Schubgelenk
     Set.optimization.max_velocity_active_prismatic, sum(R_init.MDH.sigma==1), 1);
   if Structure.Type == 2 % Paralleler Roboter
-    I_passrevolute = R_init.MDH.mu == 1 & R_init.MDH.sigma==0;
+    I_passrevolute =  R_init.MDH.mu == 1 & R_init.MDH.sigma==0;
     I_passuniversal = R_init.MDH.mu == 1 & R_init.DesPar.joint_type==2;
     I_passspherical = R_init.MDH.mu == 1 & R_init.DesPar.joint_type==3;
     R_init.qDlim(I_passrevolute,:) = repmat([-1,1]*... % Drehgelenk
@@ -332,81 +332,24 @@ end
 % end
 
 % Gelenk-Steifigkeit einsetzen (Sonderfall für Starrkörpergelenke)
-if R.Type ~= 0 && Set.optimization.joint_stiffness_passive_revolute
+if R.Type ~= 0 && (Set.optimization.joint_stiffness_active_revolute > 0 || ...
+                   Set.optimization.joint_stiffness_passive_revolute > 0 || ...
+                   Set.optimization.joint_stiffness_passive_universal > 0)
   for k = 1:R.NLEG
     % Ruhelage der Feder muss erst später eingestellt werden (nach IK)
     % Federsteifigkeit auf vorgegebenen Wert setzen.
-    R.Leg(k).DesPar.joint_stiffness(R.Leg(k).MDH.sigma==0) = ...
+    I_actrevolute =   R.Leg(k).MDH.mu ~= 1 & R.Leg(k).DesPar.joint_type==0;
+    I_passrevolute =  R.Leg(k).MDH.mu == 1 & R.Leg(k).DesPar.joint_type==0;
+    I_passuniversal = R.Leg(k).MDH.mu == 1 & R.Leg(k).DesPar.joint_type==2;
+    R.Leg(k).DesPar.joint_stiffness(I_actrevolute) = ...
+      Set.optimization.joint_stiffness_active_revolute;
+    R.Leg(k).DesPar.joint_stiffness(I_passrevolute) = ...
       Set.optimization.joint_stiffness_passive_revolute;
+    R.Leg(k).DesPar.joint_stiffness(I_passuniversal) = ...
+      Set.optimization.joint_stiffness_passive_universal;
   end
 end
-%% Umfang der Berechnungen prüfen: Schnittkraft / Regressorform / Dynamik
-% Schalter zum Berechnen der inversen Dynamik bezogen auf Antriebe
-calc_dyn_act = false;
-% Schalter zur Berechnung der Antriebskräfte für Gelenkelastizitäten
-calc_spring_act = false;
-% Schalter zum Berechnen der vollständigen Schnittkräfte. Die Zusammensetzung
-% (Dynamik/Federkraft, direkt oder Regressor) wird passend gewählt.
-calc_cut = false;
-% Schalter zur Berechnung der Regressorform der Dynamik; [SchapplerTapOrt2019]
-calc_dyn_reg = false;
-% Schalter zur Berechnung der Regressorform für Gelenkelastizität
-calc_spring_reg = false;
 
-if ~isempty(intersect(Set.optimization.objective, {'energy', 'actforce'}))
-  calc_dyn_act = true; % Antriebskraft für Zielfunktion benötigt
-  if Set.optimization.joint_stiffness_passive_revolute
-    calc_spring_act = true;
-  end
-end
-if any(Set.optimization.constraint_obj(2:3)) % Energie oder Antriebskraft
-  calc_dyn_act = true; % Antriebskraft für Nebenbedingung benötigt
-  if Set.optimization.joint_stiffness_passive_revolute
-    calc_spring_act = true;
-  end
-end
-if any(strcmp(Set.optimization.desopt_vars, 'linkstrength'))
-  calc_dyn_reg = true; % Entwurfsoptimierung schneller mit Regressor
-end
-if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref'))
-  calc_spring_reg = true; % Entwurfsoptimierung schneller mit Regressor
-end
-if Set.optimization.constraint_obj(6) > 0 || ... % Schnittkraft als Nebenbedingung ...
-    any(strcmp(Set.optimization.objective, {'materialstress'})) % ... oder Zielfunktion
-  calc_cut = true;
-end
-if Structure.Type == 2 && calc_cut
-  calc_dyn_act = true;
-  if Set.optimization.joint_stiffness_passive_revolute
-    calc_spring_act = true;
-  end
-end
-Structure.calc_dyn_act = calc_dyn_act;
-Structure.calc_dyn_reg = calc_dyn_reg;
-Structure.calc_cut = calc_cut;
-Structure.calc_spring_reg = calc_spring_reg;
-Structure.calc_spring_act = calc_spring_act;
-%% Art der Dynamikparameter in der Roboter-Klasse einstellen
-if Structure.Type == 2 % Parallel
-  if calc_cut % Benutze Inertialparameter-Dynamik, weil auch Schnitt- ...
-    R.DynPar.mode = 3; % ... kräfte in Regressorform berechnet werden
-  else % Benutze Minimalparameter-Dynamikfunktionen für die PKM
-    R.DynPar.mode = 4;
-  end
-end
-for i = 1:NLEG % Das Gleiche für die seriellen Beinketten ...
-  if Structure.Type == 0
-    R_init = R; % ... oder den seriellen Roboter
-  else
-    R_init = R.Leg(i);
-  end
-  % Dynamikparameter setzen
-  if calc_cut
-    R_init.DynPar.mode = 3;
-  else
-    R_init.DynPar.mode = 4;
-  end
-end
 %% Optimierungsparameter festlegen
 nvars = 0; vartypes = []; varlim = [];
 
@@ -1861,8 +1804,9 @@ end
 %% Parameter der Entwurfsoptimierung festlegen
 % Dies enthält alle Parameter, die zusätzlich gespeichert werden sollen.
 % Typen von Parametern in der Entwurfsoptimierung: 1=Gelenk-Offset, 
-% 2=Segmentstärke, 3=Nullstellung von Gelenkfedern
+% 2=Segmentstärke, 3=Nullstellung von Gelenkfedern, 4=Gelenk-Steifigkeit
 desopt_ptypes = [];
+desopt_pnames = {};
 if Structure.desopt_prismaticoffset
   % Gelenk-Offsets. Siehe cds_desopt_prismaticoffset.m
   if Structure.Type == 0 % Serieller Roboter
@@ -1871,16 +1815,26 @@ if Structure.desopt_prismaticoffset
     desopt_nvars_po = sum(R.Leg(1).MDH.sigma==1);
   end
   desopt_ptypes = [desopt_ptypes; 1*ones(desopt_nvars_po, 1)];
+  desopt_pnames = [desopt_pnames, [cellfun(@(s)sprintf(...
+    'prismaticoffset %d',s),num2cell(1:desopt_nvars_po), 'UniformOutput',false)]];
 end
 
 if any(strcmp(Set.optimization.desopt_vars, 'linkstrength'))
   % Siehe cds_dimsynth_desopt
   desopt_nvars_ls = 2; % Annahme: Alle Segmente gleich.
   desopt_ptypes = [desopt_ptypes; 2*ones(desopt_nvars_ls, 1)];
+  desopt_pnames = [desopt_pnames, {'linkmaterialstrength', 'linkdiameter'}];
 end
 
 if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref'))
-  if ~Set.optimization.joint_stiffness_passive_revolute
+  if ~any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness')) && ... % keine Optimierung der Steifigkeit
+      (Set.optimization.joint_stiffness_active_revolute == 0 && ... % und konstante Steifigkeit sind zu Null gesetzt
+      Set.optimization.joint_stiffness_passive_revolute == 0 && ...
+      Set.optimization.joint_stiffness_passive_universal == 0) || ...
+    any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness')) && ... % Steifigkeiten werden optimiert
+     (~isnan(Set.optimization.joint_stiffness_active_revolute) && ... % aber keine Komponente wird dafür gewählt
+     ~isnan(Set.optimization.joint_stiffness_passive_revolute) && ...
+     ~isnan(Set.optimization.joint_stiffness_passive_universal))
     error(['Nullstellung der Gelenksteifigkeit soll optimiert werden, ', ...
       'aber es ist keine Steifigkeit definiert']);
   end
@@ -1888,17 +1842,152 @@ if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref'))
   if Structure.Type == 0 % Serieller Roboter
     error('Gelenkfedern für serielle Roboter noch nicht implementiert');
   else % symmetrische PKM
-    desopt_nvars_js = sum(R.Leg(1).MDH.sigma==0);
+    I_actrevolute_opt =  R.Leg(1).MDH.mu ~= 1 & R.Leg(1).DesPar.joint_type==0 & ...
+      Set.optimization.joint_stiffness_active_revolute ~= 0;
+    I_passrevolute_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==0 & ...
+      Set.optimization.joint_stiffness_passive_revolute ~= 0;
+    I_passuniversal_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==2 & ...
+      Set.optimization.joint_stiffness_passive_universal ~= 0;
+    desopt_nvars_js = sum(I_actrevolute_opt|I_passrevolute_opt|I_passuniversal_opt);
+    if desopt_nvars_js == 0 % Die Struktur des Roboters erlaubt keine Feder-Optimierung mit den gewählten Einstellungen
+      cds_log(1, sprintf(['[dimsynth] Anzahl der zu optimierenden Variablen ', ...
+        'für "joint_stiffness_qref" ist Null. Entferne "joint_stiffness_qref" aus Entwurfsoptimierung.']));
+      Set.optimization.desopt_vars = Set.optimization.desopt_vars(...
+        ~strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref'));
+    end
   end
   desopt_ptypes = [desopt_ptypes; 3*ones(desopt_nvars_js, 1)];
+  desopt_pnames = [desopt_pnames, [cellfun(@(s)sprintf(...
+    'jointstiffness_qref %d',s),num2cell(1:desopt_nvars_js), 'UniformOutput',false)]];
 end
-Structure.desopt_ptypes = desopt_ptypes;
-
+if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness'))
+  % Siehe cds_dimsynth_desopt
+  if Structure.Type == 0 % Serieller Roboter
+    error('Gelenkfedern für serielle Roboter noch nicht implementiert');
+  else % symmetrische PKM
+    I_actrevolute_opt = R.Leg(1).MDH.mu ~= 1 & R.Leg(1).DesPar.joint_type==0 & ...
+      isnan(Set.optimization.joint_stiffness_active_revolute);
+    I_passrevolute_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==0 & ...
+      isnan(Set.optimization.joint_stiffness_passive_revolute);
+    I_passuniversal_opt = R.Leg(1).MDH.mu == 1 & R.Leg(1).DesPar.joint_type==2 & ...
+      isnan(Set.optimization.joint_stiffness_passive_universal);
+    desopt_nvars_js = sum(I_actrevolute_opt|I_passrevolute_opt|I_passuniversal_opt);
+    if desopt_nvars_js == 0 % s.o.: Die Struktur hat keine entsprechenden Gelenke
+      cds_log(1, sprintf(['[dimsynth] Anzahl der zu optimierenden Variablen ', ...
+        'für "joint_stiffness" ist Null. Entferne "joint_stiffness" aus Entwurfsoptimierung.']));
+      Set.optimization.desopt_vars = Set.optimization.desopt_vars(...
+        ~strcmp(Set.optimization.desopt_vars, 'joint_stiffness'));
+    end
+  end
+  desopt_ptypes = [desopt_ptypes; 4*ones(desopt_nvars_js, 1)];
+  desopt_pnames = [desopt_pnames, [cellfun(@(s)sprintf(...
+    'jointstiffness %d',s),num2cell(1:desopt_nvars_js), 'UniformOutput',false)]];
+end
 % Belege die Dynamik-Parameter mit Platzhalter-Werten. Wichtig, damit die
 % Plots in jedem Fall ordentlich ausehen. Wird später überschrieben.
 % Wenn immer vor Trajektorien-Berechnung abgebrochen wird, sind die Werte
 % sonst nicht gesetzt.
 cds_dimsynth_design(R, zeros(2,R.NJ), Set, Structure);
+% Bestimme den Standard-Parametervektor der Entwurfsoptimierung, den man
+% ohne Optimierung nehmen würde
+desopt_pdefault = NaN(length(desopt_ptypes),1);
+desopt_pdefault(desopt_ptypes==4) = 0; % Keine Federsteifigkeit
+desopt_pdefault(desopt_ptypes==3) = 0; % Feder-Ruhelage dann egal
+desopt_pdefault(desopt_ptypes==1) = 0; % Kein Schubgelenk-Offset
+% Trage die Segment-Parameter aus der Roboterklasse ein. Wird in cds_dimsynth_design gesetzt 
+if any(desopt_ptypes==2)
+  if R.Type == 0 % Seriell
+    desopt_pdefault(desopt_ptypes==2) = R.DesPar.seg_par(1,:);
+  else % PKM
+    desopt_pdefault(desopt_ptypes==2) = R.Leg(1).DesPar.seg_par(1,:);
+  end
+end
+assert(all(~isnan(desopt_pdefault)), 'Fehler bei Belegung von desopt_pdefault');
+Structure.desopt_ptypes = desopt_ptypes;
+Structure.desopt_pnames = desopt_pnames;
+Structure.desopt_pdefault = desopt_pdefault;
+
+%% Umfang der Berechnungen prüfen: Schnittkraft / Regressorform / Dynamik
+% Lege fest, ob mit der direkten Form oder der Regressorform gerechnet
+% wird. Muss hier geprüft werden, nachdem die Entwurfsoptimierung geklärt
+% wurde.
+% Schalter zum Berechnen der inversen Dynamik bezogen auf Antriebe
+calc_dyn_act = false;
+% Schalter zur Berechnung der Antriebskräfte für Gelenkelastizitäten
+calc_spring_act = false;
+% Schalter zum Berechnen der vollständigen Schnittkräfte. Die Zusammensetzung
+% (Dynamik/Federkraft, direkt oder Regressor) wird passend gewählt.
+calc_cut = false;
+% Schalter zur Berechnung der Regressorform der Dynamik; [SchapplerTapOrt2019]
+calc_dyn_reg = false;
+% Schalter zur Berechnung der Regressorform für Gelenkelastizität
+calc_spring_reg = false;
+
+if ~isempty(intersect(Set.optimization.objective, {'energy', 'actforce'}))
+  calc_dyn_act = true; % Antriebskraft für Zielfunktion benötigt
+  if (Set.optimization.joint_stiffness_active_revolute ~= 0 || ...
+      Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
+      Set.optimization.joint_stiffness_passive_universal ~= 0)
+    calc_spring_act = true;
+  end
+end
+if any(Set.optimization.constraint_obj(2:3)) % Energie oder Antriebskraft
+  calc_dyn_act = true; % Antriebskraft für Nebenbedingung benötigt
+  if (Set.optimization.joint_stiffness_active_revolute ~= 0 || ...
+      Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
+      Set.optimization.joint_stiffness_passive_universal ~= 0)
+    calc_spring_act = true;
+  end
+end
+if any(strcmp(Set.optimization.desopt_vars, 'linkstrength'))
+  calc_dyn_reg = true; % Entwurfsoptimierung schneller mit Regressor
+end
+if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref')) || ...
+    any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness'))
+  calc_spring_reg = true; % Entwurfsoptimierung schneller mit Regressor
+end
+if Set.optimization.constraint_obj(6) > 0 || ... % Schnittkraft als Nebenbedingung ...
+    any(strcmp(Set.optimization.objective, {'materialstress'})) % ... oder Zielfunktion
+  calc_cut = true;
+end
+if Structure.Type == 2 && calc_cut
+  calc_dyn_act = true;
+  if Set.optimization.joint_stiffness_active_revolute ~= 0 || ...
+     Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
+     Set.optimization.joint_stiffness_passive_universal ~= 0
+    calc_spring_act = true;
+  end
+end
+Structure.calc_dyn_act = calc_dyn_act;
+Structure.calc_dyn_reg = calc_dyn_reg;
+Structure.calc_cut = calc_cut;
+Structure.calc_spring_reg = calc_spring_reg;
+Structure.calc_spring_act = calc_spring_act;
+
+
+%% Art der Dynamikparameter in der Roboter-Klasse einstellen
+if Structure.Type == 2 % Parallel
+  if calc_cut % Benutze Inertialparameter-Dynamik, weil auch Schnitt- ...
+    R.DynPar.mode = 3; % ... kräfte in Regressorform berechnet werden
+  else % Benutze Minimalparameter-Dynamikfunktionen für die PKM
+    R.DynPar.mode = 4;
+  end
+end
+for i = 1:NLEG % Das Gleiche für die seriellen Beinketten ...
+  if Structure.Type == 0
+    R_init = R; % ... oder den seriellen Roboter
+  else
+    R_init = R.Leg(i);
+  end
+  % Dynamikparameter setzen
+  if calc_cut
+    R_init.DynPar.mode = 3;
+  else
+    R_init.DynPar.mode = 4;
+  end
+end
+
+%% Vorzeitiges Ende prüfen
 if nargin == 4 && init_only
   % Keine Optimierung durchführen. Damit kann nachträglich die
   % initialisierte Roboterklasse basierend auf Ergebnissen der Maßsynthese
@@ -1978,10 +2067,15 @@ elseif length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
       'maxvel', 5, 'u_mut', 1/nvars); % [SierraCoe2005] S. 4
     options = struct('fun', fitnessfcn_vec, 'nVar', nvars, ...
       'var_min', varlim(:,1), 'var_max', varlim(:,2));
+    mopso_outputfuns = {};
     if Set.general.matfile_verbosity > 2 || Set.general.isoncluster
-      mopso_outputfun = @(MS)cds_save_all_results_mopso(MS,Set,Structure);
-      options.OutputFcn = {mopso_outputfun};
+      mopso_outputfuns = {@(MS)cds_save_all_results_mopso(MS,Set,Structure)};
     end
+    if ~isinf(Set.optimization.abort_pareto_front_size)
+      outputfun = @(MS)cds_check_abortparetosize_mopso(MS,Set);
+      mopso_outputfuns = [mopso_outputfuns(:)', {outputfun}];
+    end
+    options.OutputFcn = mopso_outputfuns;
   elseif strcmp(Set.optimization.algorithm, 'gamultiobj')
     options = optimoptions('gamultiobj');
     options.MaxGenerations = Set.optimization.MaxIter;
@@ -2361,7 +2455,9 @@ Structure_tmp = Structure; % Eingabe um Berechnung der Antriebskräfte zu erzwin
 Structure_tmp.calc_dyn_act = true;
 Structure_tmp.calc_cut = true; % ... und der Schnittkräfte
 Structure_tmp.calc_dyn_reg = false;
-if Set.optimization.joint_stiffness_passive_revolute
+if Set.optimization.joint_stiffness_active_revolute ~= 0 || ...
+    Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
+    Set.optimization.joint_stiffness_passive_universal ~= 0
   Structure_tmp.calc_spring_act = true;
   Structure_tmp.calc_spring_reg = false;
 end

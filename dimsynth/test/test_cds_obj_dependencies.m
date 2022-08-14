@@ -101,7 +101,9 @@ for i = 1:size(M,1)
     continue
   end
   if Structure.calc_dyn_act && ~Structure.calc_spring_act && ...
-      Set.optimization.joint_stiffness_passive_revolute
+      (Set.optimization.joint_stiffness_active_revolute ~= 0 || ...
+       Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
+       Set.optimization.joint_stiffness_passive_universal ~= 0)
     % Wenn die Dynamik berechnet wird und bei vorhandener Federsteifigkeit
     % der Effekt nicht berücksichtigt wird, ist das Ergebnis nicht plausibel
     continue

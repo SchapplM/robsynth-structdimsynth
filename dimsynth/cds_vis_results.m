@@ -31,6 +31,7 @@
 %   Zeitauswertung, Kondition, Materialbelastung)
 % * 2D-Pareto-Front (nur bei mehrkriterieller Optimierung) ('pareto')
 % * 3D-Pareto-Front (nur falls 3 oder mehr Kriterien) ('pareto')
+% * Pareto-Diagramm der Entwurfsoptimierung ('pareto')
 % * Dynamik-Komponenten in Plattform-KS
 % Bilder für alle Roboter:
 % * Pareto-Front mit physikalischen Werten und normierten Werten der Zielf.
@@ -52,8 +53,7 @@ vis_settings = struct(...
   'figure_invisible', false, ...
   'delete_figure', false);
 if Set.general.isoncluster
-  % Auf Cluster. Lösche die Bilder sofort, damit weniger Speicher benötigt
-  % wird.
+  % Auf Cluster. Schließe die Bilder sofort, damit weniger Speicher benötigt wird.
   vis_settings.delete_figure = true;
 else
   % Auf lokalem Rechner. Erzeuge die Bilder immer zuerst unsichtbar, damit
@@ -334,6 +334,16 @@ parfor (i = 1:length_Structures_parfor, parfor_numworkers)
     cds_vis_results_figures('pareto', Set, Traj, RobData, ...
       ResTab, RobotOptRes, RobotOptDetails, PSO_Detail_Data, vis_settings);
   end
+  if any(strcmp(Set.general.eval_figures, 'pareto_desopt')) && ...
+     length(Set.optimization.objective) > 1
+    cds_vis_results_figures('pareto_desopt', Set, Traj, RobData, ...
+      ResTab, RobotOptRes, RobotOptDetails, PSO_Detail_Data, vis_settings);
+  end
+  if any(strcmp(Set.general.eval_figures, 'pareto_dimsynth_desopt')) && ...
+     length(Set.optimization.objective) > 1
+    cds_vis_results_figures('pareto_dimsynth_desopt', Set, Traj, RobData, ...
+      ResTab, RobotOptRes, RobotOptDetails, PSO_Detail_Data, vis_settings);
+  end
   fprintf('%d/%d: Restliche Bilder für %s gespeichert. Dauer: %1.1fs\n', ...
     i, length_Structures, Name, toc(t1));
   %% Finalisierung
@@ -610,7 +620,12 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   if task_red
     menuitems = [menuitems, 'Redundanzkarte']; %#ok<AGROW>
   end
-  if Set.optimization.joint_stiffness_passive_revolute
+  if Set.general.debug_desopt
+    menuitems = [menuitems, {'Pareto DesOpt', 'Pareto Einfluss DesOpt'}]; %#ok<AGROW>
+  end
+  if Set.optimization.joint_stiffness_active_revolute ~= 0 || ...
+     Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
+     Set.optimization.joint_stiffness_passive_universal ~= 0
     menuitems = [menuitems, 'Feder-Ruhelage']; %#ok<AGROW>
   end
   uicontrol('Style', 'popupmenu', ...
