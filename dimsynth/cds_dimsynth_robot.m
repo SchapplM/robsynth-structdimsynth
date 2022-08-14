@@ -349,80 +349,7 @@ if R.Type ~= 0 && (Set.optimization.joint_stiffness_active_revolute > 0 || ...
       Set.optimization.joint_stiffness_passive_universal;
   end
 end
-%% Umfang der Berechnungen prüfen: Schnittkraft / Regressorform / Dynamik
-% Schalter zum Berechnen der inversen Dynamik bezogen auf Antriebe
-calc_dyn_act = false;
-% Schalter zur Berechnung der Antriebskräfte für Gelenkelastizitäten
-calc_spring_act = false;
-% Schalter zum Berechnen der vollständigen Schnittkräfte. Die Zusammensetzung
-% (Dynamik/Federkraft, direkt oder Regressor) wird passend gewählt.
-calc_cut = false;
-% Schalter zur Berechnung der Regressorform der Dynamik; [SchapplerTapOrt2019]
-calc_dyn_reg = false;
-% Schalter zur Berechnung der Regressorform für Gelenkelastizität
-calc_spring_reg = false;
 
-if ~isempty(intersect(Set.optimization.objective, {'energy', 'actforce'}))
-  calc_dyn_act = true; % Antriebskraft für Zielfunktion benötigt
-  if (Set.optimization.joint_stiffness_active_revolute ~= 0 || ...
-      Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
-      Set.optimization.joint_stiffness_passive_universal ~= 0)
-    calc_spring_act = true;
-  end
-end
-if any(Set.optimization.constraint_obj(2:3)) % Energie oder Antriebskraft
-  calc_dyn_act = true; % Antriebskraft für Nebenbedingung benötigt
-  if (Set.optimization.joint_stiffness_active_revolute ~= 0 || ...
-      Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
-      Set.optimization.joint_stiffness_passive_universal ~= 0)
-    calc_spring_act = true;
-  end
-end
-if any(strcmp(Set.optimization.desopt_vars, 'linkstrength'))
-  calc_dyn_reg = true; % Entwurfsoptimierung schneller mit Regressor
-end
-if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref')) || ...
-    any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness'))
-  calc_spring_reg = true; % Entwurfsoptimierung schneller mit Regressor
-end
-if Set.optimization.constraint_obj(6) > 0 || ... % Schnittkraft als Nebenbedingung ...
-    any(strcmp(Set.optimization.objective, {'materialstress'})) % ... oder Zielfunktion
-  calc_cut = true;
-end
-if Structure.Type == 2 && calc_cut
-  calc_dyn_act = true;
-  if Set.optimization.joint_stiffness_active_revolute ~= 0 || ...
-     Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
-     Set.optimization.joint_stiffness_passive_universal ~= 0
-    calc_spring_act = true;
-  end
-end
-Structure.calc_dyn_act = calc_dyn_act;
-Structure.calc_dyn_reg = calc_dyn_reg;
-Structure.calc_cut = calc_cut;
-Structure.calc_spring_reg = calc_spring_reg;
-Structure.calc_spring_act = calc_spring_act;
-%% Art der Dynamikparameter in der Roboter-Klasse einstellen
-if Structure.Type == 2 % Parallel
-  if calc_cut % Benutze Inertialparameter-Dynamik, weil auch Schnitt- ...
-    R.DynPar.mode = 3; % ... kräfte in Regressorform berechnet werden
-  else % Benutze Minimalparameter-Dynamikfunktionen für die PKM
-    R.DynPar.mode = 4;
-  end
-end
-for i = 1:NLEG % Das Gleiche für die seriellen Beinketten ...
-  if Structure.Type == 0
-    R_init = R; % ... oder den seriellen Roboter
-  else
-    R_init = R.Leg(i);
-  end
-  % Dynamikparameter setzen
-  if calc_cut
-    R_init.DynPar.mode = 3;
-  else
-    R_init.DynPar.mode = 4;
-  end
-end
 %% Optimierungsparameter festlegen
 nvars = 0; vartypes = []; varlim = [];
 
@@ -1980,6 +1907,87 @@ Structure.desopt_ptypes = desopt_ptypes;
 Structure.desopt_pnames = desopt_pnames;
 Structure.desopt_pdefault = desopt_pdefault;
 
+%% Umfang der Berechnungen prüfen: Schnittkraft / Regressorform / Dynamik
+% Lege fest, ob mit der direkten Form oder der Regressorform gerechnet
+% wird. Muss hier geprüft werden, nachdem die Entwurfsoptimierung geklärt
+% wurde.
+% Schalter zum Berechnen der inversen Dynamik bezogen auf Antriebe
+calc_dyn_act = false;
+% Schalter zur Berechnung der Antriebskräfte für Gelenkelastizitäten
+calc_spring_act = false;
+% Schalter zum Berechnen der vollständigen Schnittkräfte. Die Zusammensetzung
+% (Dynamik/Federkraft, direkt oder Regressor) wird passend gewählt.
+calc_cut = false;
+% Schalter zur Berechnung der Regressorform der Dynamik; [SchapplerTapOrt2019]
+calc_dyn_reg = false;
+% Schalter zur Berechnung der Regressorform für Gelenkelastizität
+calc_spring_reg = false;
+
+if ~isempty(intersect(Set.optimization.objective, {'energy', 'actforce'}))
+  calc_dyn_act = true; % Antriebskraft für Zielfunktion benötigt
+  if (Set.optimization.joint_stiffness_active_revolute ~= 0 || ...
+      Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
+      Set.optimization.joint_stiffness_passive_universal ~= 0)
+    calc_spring_act = true;
+  end
+end
+if any(Set.optimization.constraint_obj(2:3)) % Energie oder Antriebskraft
+  calc_dyn_act = true; % Antriebskraft für Nebenbedingung benötigt
+  if (Set.optimization.joint_stiffness_active_revolute ~= 0 || ...
+      Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
+      Set.optimization.joint_stiffness_passive_universal ~= 0)
+    calc_spring_act = true;
+  end
+end
+if any(strcmp(Set.optimization.desopt_vars, 'linkstrength'))
+  calc_dyn_reg = true; % Entwurfsoptimierung schneller mit Regressor
+end
+if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref')) || ...
+    any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness'))
+  calc_spring_reg = true; % Entwurfsoptimierung schneller mit Regressor
+end
+if Set.optimization.constraint_obj(6) > 0 || ... % Schnittkraft als Nebenbedingung ...
+    any(strcmp(Set.optimization.objective, {'materialstress'})) % ... oder Zielfunktion
+  calc_cut = true;
+end
+if Structure.Type == 2 && calc_cut
+  calc_dyn_act = true;
+  if Set.optimization.joint_stiffness_active_revolute ~= 0 || ...
+     Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
+     Set.optimization.joint_stiffness_passive_universal ~= 0
+    calc_spring_act = true;
+  end
+end
+Structure.calc_dyn_act = calc_dyn_act;
+Structure.calc_dyn_reg = calc_dyn_reg;
+Structure.calc_cut = calc_cut;
+Structure.calc_spring_reg = calc_spring_reg;
+Structure.calc_spring_act = calc_spring_act;
+
+
+%% Art der Dynamikparameter in der Roboter-Klasse einstellen
+if Structure.Type == 2 % Parallel
+  if calc_cut % Benutze Inertialparameter-Dynamik, weil auch Schnitt- ...
+    R.DynPar.mode = 3; % ... kräfte in Regressorform berechnet werden
+  else % Benutze Minimalparameter-Dynamikfunktionen für die PKM
+    R.DynPar.mode = 4;
+  end
+end
+for i = 1:NLEG % Das Gleiche für die seriellen Beinketten ...
+  if Structure.Type == 0
+    R_init = R; % ... oder den seriellen Roboter
+  else
+    R_init = R.Leg(i);
+  end
+  % Dynamikparameter setzen
+  if calc_cut
+    R_init.DynPar.mode = 3;
+  else
+    R_init.DynPar.mode = 4;
+  end
+end
+
+%% Vorzeitiges Ende prüfen
 if nargin == 4 && init_only
   % Keine Optimierung durchführen. Damit kann nachträglich die
   % initialisierte Roboterklasse basierend auf Ergebnissen der Maßsynthese
