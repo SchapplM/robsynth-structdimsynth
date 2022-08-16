@@ -482,8 +482,14 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       % Die Jacobi (bzgl. Antriebe), und die IK-Jacobi nehmen.
       % Die IK-Jacobi kann schlecht sein, bei guter Antriebs-Jacobi.
       s4.wn = zeros(R.idx_ik_length.wnpos,1);
-      s4.wn(R.idx_ikpos_wn.ikjac_cond) = 1;
-      s4.wn(R.idx_ikpos_wn.jac_cond) = 1;
+      if strcmp(Set.optimization.objective_ik, 'default') || ...
+         strcmp(Set.optimization.objective_ik, 'ikjac_cond')
+        s4.wn(R.idx_ikpos_wn.ikjac_cond) = 1;
+      end
+      if strcmp(Set.optimization.objective_ik, 'default') || ...
+         strcmp(Set.optimization.objective_ik, 'jac_cond')
+        s4.wn(R.idx_ikpos_wn.jac_cond) = 1;
+      end
       % Versuche die Gelenkwinkelgrenzen einzuhalten, wenn explizit gefordert
       if Set.optimization.fix_joint_limits
         s4.wn(R.idx_ikpos_wn.qlim_hyp) = 1;

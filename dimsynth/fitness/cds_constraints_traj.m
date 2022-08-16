@@ -171,12 +171,18 @@ if R.Type == 2 % PKM
   s.debug = Set.general.debug_calc;
 end
 
-% IK-Jacobi (Aufgaben-FG)
-s.wn(R.idx_iktraj_wnP.ikjac_cond) = 1; % P-Anteil Konditionszahl (IK-Jacobi)
-s.wn(R.idx_iktraj_wnD.ikjac_cond) = 0.1; % D-Anteil Konditionszahl (IK-Jacobi)
-% Jacobi (analytischbei PKM, geometrisch bei seriell).
-s.wn(R.idx_iktraj_wnP.jac_cond) = 1; % P-Anteil Konditionszahl (Jacobi)
-s.wn(R.idx_iktraj_wnD.jac_cond) = 0.1; % D-Anteil Konditionszahl (Jacobi)
+if strcmp(Set.optimization.objective_ik, 'default') || ...
+   strcmp(Set.optimization.objective_ik, 'ikjac_cond')
+  % IK-Jacobi (Aufgaben-FG)
+  s.wn(R.idx_iktraj_wnP.ikjac_cond) = 1; % P-Anteil Konditionszahl (IK-Jacobi)
+  s.wn(R.idx_iktraj_wnD.ikjac_cond) = 0.1; % D-Anteil Konditionszahl (IK-Jacobi)
+end
+if strcmp(Set.optimization.objective_ik, 'default') || ...
+   strcmp(Set.optimization.objective_ik, 'jac_cond')
+  % Jacobi (analytischbei PKM, geometrisch bei seriell).
+  s.wn(R.idx_iktraj_wnP.jac_cond) = 1; % P-Anteil Konditionszahl (Jacobi)
+  s.wn(R.idx_iktraj_wnD.jac_cond) = 0.1; % D-Anteil Konditionszahl (Jacobi)
+end
 % Versuche die Gelenkwinkelgrenzen einzuhalten, wenn explizit gefordert
 if Set.optimization.fix_joint_limits
   s.wn(R.idx_iktraj_wnP.qlim_hyp) = 1;

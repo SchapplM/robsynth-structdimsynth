@@ -103,6 +103,9 @@ if isa(Set.optimization.objective, 'char')
   % Einheitliches Format für Ein- und Mehrkriteriell.
   Set.optimization.objective = {Set.optimization.objective};
 end
+if isa(Set.optimization.objective_ik, 'char')
+  Set.optimization.objective_ik = {Set.optimization.objective_ik};
+end
 if Set.task.profile == 0 && any(strcmp(Set.optimization.objective, 'energy'))
   error('Energieberechnung ohne Zeitverlauf der Trajektorie nicht sinnvoll');
 end
@@ -190,6 +193,10 @@ end
 if length(union(Set.optimization.desopt_vars, {'joint_stiffness_qref', ...
     'joint_stiffness', 'linkstrength'})) ~= 3
   error('Unerwarteter Wert in Set.optimization.desopt_vars');
+end
+if length(intersect(Set.optimization.objective_ik, {'default', 'none', ...
+    'ikjac_cond', 'jac_cond'})) ~= length(Set.optimization.objective_ik)
+  error('Set.optimization.objective_ik enthält unerwarteten Wert');
 end
 if ~isempty(intersect(Set.general.eval_figures, {'pareto_desopt', ...
     'pareto_dimsynth_desopt'})) && ~Set.general.debug_desopt
