@@ -653,10 +653,11 @@ wn_all(i_ar,:) = s.wn(:)'; %#ok<SAGROW>
 
 %% Dynamische Programmierung für optimale Trajektorie bei Aufgabenredundanz
 if Structure.task_red && Set.general.taskred_dynprog && ...
-    i_ar == 1 % nur einmal die DP berechnen (NB werden im ersten Lauf schon geprüft)
+    (i_ar == 1 || ...% nur einmal die DP berechnen (NB werden im ersten Lauf schon geprüft)
+     i_ar == 2 && fval_all(2, 1) > 1e3) % beim ersten Mal kein Erfolg. Mache nochmal mit feinerer Diskretisierung
   if Set.general.matfile_verbosity > 2
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
-      'cds_constraints_traj_before_dynprog.mat'));
+      sprintf('cds_constraints_traj_before_dynprog_i_ar%d.mat', i_ar)));
   end
   % Bestimme die Grenzen der Optimierungsvariable in der DP eher
   % großzügiger als in der normalen Nullraumbewegung, da die Bewegung
@@ -687,8 +688,18 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     ... % Annahme: Abbremsen der Aufgabe am Ende mit max. Beschleunigung
     ... % Für diese Zeit am Ende gibt es keine Nullraumbewegung
     'Tv', T_dec_dp/2, ...
-    'debug_dir', fullfile(resdir,[name_prefix_ardbg, '_dynprog']), ...
+    'debug_dir', fullfile(resdir,sprintf('%s_dynprog_it%d', name_prefix_ardbg, i_ar)), ...
     'continue_saved_state', true); % Debuggen: Falls mehrfach gleicher Aufruf
+  if i_ar == 2, s_dp.n_phi = 12; end % feinere Schrittweite
+  % Aktiviere immer die Nebenbedingungen, die später zum Abbruch führen
+  % TODO: Funktioniert aktuell noch nicht, falls sie nicht mit `wn` aktiviert werden
+  if Set.optimization.constraint_collisions
+    s_dp.abort_thresh_h(R.idx_iktraj_hn.coll_hyp) = inf;
+    % Keine Vergrößerung der Kollisionskörper mehr, da sonst vorzeitiger
+    % Abbruch
+    s_dp.settings_ik.collbodies_thresh = 1.0;
+    s_dp.settings_ik.collision_thresh = 1.5; % Versuche auszuweichen, wenn in kritischer Nähe
+  end
   if dbg_dynprog_log, s_dp.verbose = 1; end
   if dbg_dynprog_fig, s_dp.verbose = 2; end
   if Set.general.debug_dynprog_files
@@ -702,7 +713,7 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     Structure.config_index, Structure.config_number, sum(Traj_0.IE~=0), s_dp.n_phi));
   t1 = tic();
   % Dynamische Programmierung berechnen oder Ergebnis laden (für Debuggen)
-  matfile_dp=fullfile(resdir,sprintf('%s_%s.mat',name_prefix_ardbg,'dynprog'));
+  matfile_dp=fullfile(resdir,sprintf('%s_%s_i_ar%d.mat',name_prefix_ardbg,'dynprog', i_ar));
   if dbg_load_dp && Set.general.debug_dynprog_files && exist(matfile_dp, 'file')
     load(matfile_dp, 'XL', 'DPstats', 'TrajDetailDP');
   else
@@ -875,7 +886,7 @@ if Structure.task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_
   X2(1:Stats.iter,6) = denormalize_angle_traj(X2(1:Stats.iter,6));
   X2phizTraj = [X2(:,6), XD2(:,6), XDD2(:,6)];
   % Speichern der Werte zum Rekonstruieren
-  if i_m == 1,     X2phizTraj_gp1 = X2phizTraj;
+  if i_m == 1 && any(ikloop==3),     X2phizTraj_gp1 = X2phizTraj;
   elseif i_m == 2, X2phizTraj_dp =  X2phizTraj;
   else,            X2phizTraj_gp =  X2phizTraj;
   end
