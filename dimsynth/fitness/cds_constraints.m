@@ -143,12 +143,12 @@ s = struct('Phit_tol', 1e-9, 'Phir_tol', 1e-9, ...
   'rng_seed', 0); % damit die Ergebnisse exakt reproduzierbar werden.
 if Set.task.profile ~= 0 % Normale Trajektorie mit stetigem Zeitverlauf
   % Nur Berechnung der Eckpunkte zur Prüfung.
-  s.retry_limit = 20+Set.optimization.pos_ik_tryhard_num;
+  s.retry_limit = max(20+Set.optimization.pos_ik_tryhard_num, 0);
 else % Nur Eckpunkte
   % Eckpunkte haben keinen direkten Bezug zueinander und bilden die
   % Trajektorie. Da keine Traj. berechnet wird, kann hier mehr Aufwand
   % betrieben werden (besonders bei seriellen Robotern auch notwendig).
-  s.retry_limit = 50+Set.optimization.pos_ik_tryhard_num;
+  s.retry_limit = max(50+Set.optimization.pos_ik_tryhard_num, 0);
   s.n_max = 5000;
 end
 condJ = NaN(size(Traj_0.XE,1), 1); % Gesamt-Jacobi (Antriebe-EE)
@@ -177,7 +177,7 @@ if R.Type == 2 % zusätzliche IK-Konfigurationen für PKM
 else
   n_ikcomb = 0; % Für serielle Roboter nicht relevant.
 end
-n_jic = 30+Set.optimization.pos_ik_tryhard_num+n_ikcomb;
+n_jic = max(30+Set.optimization.pos_ik_tryhard_num+n_ikcomb, 1);
 fval_jic = NaN(1,n_jic);
 calctimes_jic = NaN(2,n_jic);
 constrvioltext_jic = cell(n_jic,1);
@@ -235,7 +235,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     % zufällige Neuversuche gemacht). Andere Anfangswerte sind zwecklos.
     break;
   end
-  if jic <= (n_jic-n_ikcomb)/3
+  if jic <= (n_jic-n_ikcomb)/3 || n_jic == 1
     % Benutze Zufallswerte von oben (nicht überschreiben wie in anderen
     % Fällen)
   elseif jic > (n_jic-n_ikcomb)/3 && jic < 2*(n_jic-n_ikcomb)/3 % zwischen ein Drittel und zwei Drittel der regulären Versuche
@@ -251,9 +251,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     % vorliegen. Falls nicht, konnte die eine Beinkette nie erfolgreich
     % berechnet werden, es liegen aber Zahlenwerte des Versuchs für die
     % ersten Beinketten vor. Dann bringen Neu-Kombinationen auch nichts.
-    if any(any( squeeze(isnan(Q_jic(1,R.I1J_LEG(2):end,:))), 2 )), break; end
+    if ~any(all(squeeze(~isnan(Q_jic(1,R.I1J_LEG(2):end,:)))', 2 )), break; end
     if jic == n_jic-n_ikcomb+1 && R.Type == 2
-      % Bestimme alle Kombinationen der Gelenkkoordinaten der Beinketten
+      % Bestimme alle Kombinationen der Gelenkkoordinaten der Beinketten.
       Q_configperm1 = NaN(0,size(Q_jic,2));
       % alle Kombinationen der einzelnen Beinketten durchgehen
       nj = zeros(1,R.NLEG); % Anzahl der Kombinationen für jede Beinkette
@@ -279,6 +279,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
             dist_pt1(i,j) = sum(abs(dist_qi_q1));
           end
         end % i
+        dist_pt1(isnan(dist_pt1)) = -inf; % deaktivieren der NaN-Einträge für Sortierung
         % Indizes gemäß Abstand zum ersten sortieren. Hilft bei Aufgaben-
         % redundanz, wenn unendlich viele Konfigurationen möglich sind.
         [~,Idesc(1:nj(j),j)] = sort(dist_pt1(1:nj(j),j), 'desc');
@@ -296,7 +297,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       if size(Idesc,1)>2 && ~isnan(Idesc(3,1))
         % Nehme absichtlich einen anderen Wert, wenn Konfigurationen
         % doppelt sind. Sonst werden diese erneut berechnet ohne Mehrwert.
-        Q_configperm_idx(all(diff(Q_configperm_idx')==0),1) = Idesc(2);
+        Q_configperm_idx(all(diff(Q_configperm_idx')==0),1) = Idesc(2,1);
       end
       Q_configperm3 = NaN(size(Q_configperm_idx,1), size(Q_configperm1,2));
       for ii = 1:size(Q_configperm3,1)
