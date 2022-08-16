@@ -718,8 +718,11 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     toc(t1), DPstats.nt_ik, DPstats.nt_ik/length(Traj_0.t), ...
     DPstats.n_statechange_succ, DPstats.n_statechange_total));
   if ~isempty(s_dp.debug_dir) && isfolder(s_dp.debug_dir) % Zip-Archiv aus den DP-Zwischenergebnissen
-    zip([s_dp.debug_dir,'.zip'], s_dp.debug_dir);
+    zipfilename = fullfile(tmpDirFcn(),'dp.zip'); % Temporär nicht neben Zielordner anlegen
+    zip(zipfilename, s_dp.debug_dir); % (unter Windows damit Probleme)
+    movefile(zipfilename, [s_dp.debug_dir,'.zip']);
     rmdir(s_dp.debug_dir, 's');
+    rmdir(fileparts(zipfilename), 's');
   end
   Q_dp = TrajDetailDP.Q;
   QD_dp = TrajDetailDP.QD;
