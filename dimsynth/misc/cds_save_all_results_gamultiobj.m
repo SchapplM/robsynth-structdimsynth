@@ -68,6 +68,7 @@ if state.Generation > 5 && save_success % nur löschen, falls neues Speichern er
   filename_previous = sprintf('GAMO_Gen%02d_AllInd.mat', state.Generation-5);
   delete(fullfile(resdir, filename_previous));
 end
-
-cds_log(1,sprintf('[output] Zwischenergebnisse gespeichert: %s', ...
-  fullfile(resdir, filename)));
+if save_success
+  cds_log(1,sprintf('[output] Zwischenergebnisse gespeichert: %s', ...
+    fullfile(resdir, filename)));
+end
