@@ -208,7 +208,7 @@ end
 % Externe Kräfte berücksichtigen. Kräfte greifen in Richtung der
 % EE-Koordinaten an und wirken daher entgegen der Richtung der Antriebe:
 % M*xDD + C + G = F_m + F_ext
-if any(Traj_0.Fext(:))
+if isfield(Traj_0, 'Fext') && any(Traj_0.Fext(:))
   if R.Type == 0, I_qa = R.MDH.mu == 1;
   else,           I_qa = R.I_qa;
   end
