@@ -29,11 +29,21 @@
 function [p_neu, Structure_neu_mod] = cds_parameters_update(Structure_alt, Structure_neu, p_alt)
 
 Structure_neu_mod = Structure_neu;
+
+% Umbenennung eines Parameters nachvollziehen
+Structure_alt.varnames(strcmp(Structure_alt.varnames,'platform_morph')) = ...
+  {'platform_morph_pairdist'}; 
+
 % Parameter vergleichen
 [~, Iparam, ~] = intersect(Structure_neu.varnames, Structure_alt.varnames, ...
   'stable');
-% Unterschied der Parameter:
-setxor(Structure_alt.varnames, Structure_neu.varnames);
+
+if length(Iparam) ~= length(p_alt)
+  % Unterschied der Parameter:
+  disp('Unterschiedliche Parameter:');
+  disp(setxor(Structure_alt.varnames, Structure_neu.varnames));
+  error('Zuordnung der Parameter nicht möglich');
+end
 
 % Entferne Optimierungsvariablen, die neu hinzugekommen sind (zwischen der
 % Version, mit der der Versuch erstellt wurde und der aktuellen Version)
