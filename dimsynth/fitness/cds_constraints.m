@@ -181,6 +181,7 @@ n_jic = max(30+Set.optimization.pos_ik_tryhard_num+n_ikcomb, 1);
 fval_jic = NaN(1,n_jic);
 calctimes_jic = NaN(2,n_jic);
 constrvioltext_jic = cell(n_jic,1);
+constrvioltext2_jic = cell(n_jic,1);
 bestcolldist_jic = NaN(1,n_jic);
 bestinstspcdist_jic = NaN(1,n_jic);
 % IK-Statistik (für Aufgabenredundanz). Absolute Verbesserung von
@@ -345,6 +346,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   end
   fval_jic(jic) = NaN; % Muss später im Ablauf überschrieben werden
   constrvioltext_jic{jic} = ''; % hier zurücksetzen. Berechne Nebenbedingungen ab hier neu.
+  constrvioltext2_jic{jic} = '';
   % IK für alle Eckpunkte
   for i = 1:size(Traj_0.XE,1)
     if Set.task.profile ~= 0 % Trajektorie wird in cds_constraints_traj berechnet
@@ -793,11 +795,13 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         % Damit werden für alle noch folgenden Punkte die Ergebnisse des
         % nicht-optimierten Aufrufs genommen (kann Bewertung in Maßsynthese
         % leicht verzerren, ist aber tolerierbar).
+        constrvioltext2_jic{jic} = sprintf('Abbruch nach Punkt %d wegen Kollision in IK', i);
         break; 
       end
       % Gleiche Betrachtung bei Bauraumprüfung. Ausgabe wird nur belegt, wenn
       % Kennzahl auch geprüft wird
       if Stats.instspc_mindst(1+Stats.iter,:) > 0
+        constrvioltext2_jic{jic} = sprintf('Abbruch nach Punkt %d wegen Bauraumverletzung in IK', i);
         break;
       end
       % Neue Werte aus der IK wurden nicht verworfen. Schreibe Konditionszahl
@@ -1275,6 +1279,10 @@ if Set.general.debug_calc && Structure.task_red
     cds_log(3, sprintf(['[constraints] Keine Veränderung durch Aufgaben', ...
       'redundanz (%d Konfigurationen)'], size(Q_jic_old,3)));
   end
+end
+% Text vervollständigen aus beiden Variablen
+for i = find(~strcmp(constrvioltext2_jic, ''))'
+  constrvioltext_jic{i} = sprintf('%s %s', constrvioltext_jic{i}, constrvioltext2_jic{i});
 end
 %% IK-Konfigurationen für Eckpunkte auswerten. Nehme besten.
 [fval, jic_best] = min(fval_jic);
