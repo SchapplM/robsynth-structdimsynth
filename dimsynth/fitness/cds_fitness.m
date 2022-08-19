@@ -969,14 +969,20 @@ function save_generation(Set, Structure, i_gen)
 % Prüfe, ob die Optimierung bald abgebrochen wird und ob die Generation vor-
 % zeitig gespeichert werden sollte. Hilfreich, falls eine Generation lange
 % dauert und sonst zu viele Daten verloren gehen würden bei Cluster-Timeout.
+persistent t_lastsave; % Zeitpunkt des letzten Speicherns hierüber
+if isempty(t_lastsave), t_lastsave = 0; end % Initialisierung
 if ~Set.general.isoncluster, return; end % nur auf Cluster machen
 t_end_plan = Set.general.computing_cluster_start_time + ... % Rechne in Tagen
   Set.general.computing_cluster_max_time/(24*3600); % geplante Endzeit
-if now() < t_end_plan - 5/(24*60) % 5min vor max. Zeitpunkt in Tagen
+if now() < t_end_plan - 15/(24*60) % 15min vor max. Zeitpunkt in Tagen
   return % Das Planmäßige Ende ist noch zu lange entfernt. Nicht speichern
 end
 if now() > t_end_plan + 10/(24*60) 
   % Annahme: Mehr als 10min nach Ende entspricht Offline-Auswertung
+  return
+end
+if now() < t_lastsave + 4/(24*60) 
+  % Letztes Speichern ist erst vier Minuten her.
   return
 end
 if strcmp(Set.optimization.algorithm, 'mopso')
@@ -987,4 +993,5 @@ elseif strcmp(Set.optimization.algorithm, 'gamultiobj')
 elseif strcmp(Set.optimization.algorithm, 'pso')
   cds_save_all_results_pso(struct('iteration', i_gen),'iter', Set, Structure);
 end
+t_lastsave = now();
 end
