@@ -390,6 +390,13 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     I_acttype(:,1:2) = 0; % Spezifisches Diagramm Dreh-/Schub weglassen
     I_acttype(:,4) = true; % allgemeines Diagramm ist bereits richtig
   end
+  % n.i.O.-Strukturen direkt hier aussortieren
+  for k = 1:length(Structures)
+    II = ResTab.LfdNr==Structures{k}.Number;
+    if ~any(II) || ResTab.Fval_Opt(II) > 1e3
+      I_acttype(k,:) = false;
+    end
+  end
   % Schleife über Zusammenfassung der Gestell-/Plattform-Varianten
   for pfvar = 1:2 % 1=alle Roboter, 2=Varianten mit gleichem Marker zusammengefasst
   % Schleife über verschiedene Aktuierungstypen (Dreh/Schub/Mischung)
