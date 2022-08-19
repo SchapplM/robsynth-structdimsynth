@@ -334,13 +334,15 @@ if i_ar == 2 && fval > 6e3 && fval < 7e3
   % berücksichtigt. Eine weitere Reduktion ist nicht möglich.
 end
 if i_ar == 2 && any(fval_ar <= 1e3)
-  if any(strcmp(Set.optimization.objective, 'colldist'))
+  if any(strcmp(Set.optimization.objective, 'colldist')) || ...
+      strcmp(Set.optimization.objective_ik, 'coll_par')
     % Wenn Kollisionsabstände ein Zielkriterium sind, optimiere diese hier permanent
     s.wn(R.idx_iktraj_wnP.coll_par) = 0.1; % P-Anteil Kollisionsvermeidung (quadratisch)
     s.wn(R.idx_iktraj_wnD.coll_par) = 0.01; % D-Anteil Kollisionsvermeidung (quadratisch)
   end
   if any(strcmp(Set.optimization.objective, 'footprint')) || ...
-     any(strcmp(Set.optimization.objective, 'installspace'))
+     any(strcmp(Set.optimization.objective, 'installspace')) || ...
+      strcmp(Set.optimization.objective_ik, 'instspc_par')
     % Wenn der Bauraum ein Zielkriterium ist, optimiere den Abstand zu den
     % Bauraumgrenzen permanent.
     s.wn(R.idx_iktraj_wnP.instspc_par) = 0.1; % P-Anteil Bauraumeinhaltung (quadratisch)

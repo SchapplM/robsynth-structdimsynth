@@ -106,6 +106,9 @@ end
 if isa(Set.optimization.objective_ik, 'char')
   Set.optimization.objective_ik = {Set.optimization.objective_ik};
 end
+if length(Set.optimization.objective_ik) > 1
+  error('Nur eine Zielfunktion in Set.optimization.objective_ik möglich');
+end
 if Set.task.profile == 0 && any(strcmp(Set.optimization.objective, 'energy'))
   error('Energieberechnung ohne Zeitverlauf der Trajektorie nicht sinnvoll');
 end
