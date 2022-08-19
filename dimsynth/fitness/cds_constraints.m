@@ -217,6 +217,12 @@ if Set.optimization.constraint_obj(4) ~= 0 % Grenze für Jacobi-Matrix für Abbr
   % Jacobi-Matrix des Roboters (bezogen auf Antriebe und Arbeitsraum-FG)
   cond_thresh_jac = Set.optimization.constraint_obj(4);
 end
+if strcmp(Set.optimization.objective_ik, 'jac_cond')
+  cond_thresh_jac = 1; % immer aktiv
+end
+if strcmp(Set.optimization.objective_ik, 'ikjac_cond')
+  cond_thresh_ikjac = 1; % immer aktiv
+end
 % Bestimme zufällige Anfangswerte für Gelenkkonfigurationen.
 % Benutze Gleichverteilung und kein Latin Hypercube (dauert zu lange).
 Q0_lhs = repmat(qlim_norm(:,1), 1, n_jic) + ...

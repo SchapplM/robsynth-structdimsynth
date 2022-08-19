@@ -163,6 +163,12 @@ if Set.optimization.constraint_obj(4) ~= 0 % Grenze für Jacobi-Matrix für Abbr
   % Jacobi bzgl. Antriebe/Gesamtkoordinaten maßgeblich für Systemeigenschaft
   cond_thresh_jac = Set.optimization.constraint_obj(4)/4;
 end
+if strcmp(Set.optimization.objective_ik, 'jac_cond')
+  cond_thresh_jac = 1; % immer aktiv
+end
+if strcmp(Set.optimization.objective_ik, 'ikjac_cond')
+  cond_thresh_ikjac = 1; % immer aktiv
+end
 s.cond_thresh_ikjac = cond_thresh_ikjac;
 s.cond_thresh_jac = cond_thresh_jac; % Für Seriell und PKM
 % Gewichtung Nullraumoptimierung: Zusammstellung je nach Aufgabe
