@@ -404,6 +404,14 @@ if i_ar == 2 && Set.optimization.constraint_collisions && s.wn(R.idx_iktraj_wnP.
   % Ausnahmefälle stark an Grenze)
   s.collbodies_thresh = 1.25; % 25% größere Kollisionskörper für Aktivierung (statt 50%)
 end
+if strcmp(Set.optimization.objective_ik, 'none')
+  % Deaktiviere alle nicht-hyperbolischen Zielkriterien
+  s.wn([R.idx_iktraj_wnP.ikjac_cond, R.idx_iktraj_wnD.ikjac_cond, ...
+        R.idx_iktraj_wnP.jac_cond, R.idx_iktraj_wnD.jac_cond, ...
+        R.idx_iktraj_wnP.qlim_par, R.idx_iktraj_wnD.qlim_par, ...
+        R.idx_iktraj_wnP.coll_par, R.idx_iktraj_wnD.coll_par, ...
+        R.idx_iktraj_wnP.instspc_par, R.idx_iktraj_wnD.instspc_par]) = 0;
+end
 if any(strcmp(Set.optimization.objective, 'condition')) && any(fval_ar <= 1e3)
   % Die Jacobi-Matrix soll optimiert werden. Setze den Schwellwert zur
   % Aktivierung dieser Kennzahl auf "immer".
