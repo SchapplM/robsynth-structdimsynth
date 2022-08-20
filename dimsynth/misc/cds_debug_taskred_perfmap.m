@@ -37,7 +37,7 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref, ...
+function fighdl = cds_debug_taskred_perfmap(Set, Structure, H_all, s_ref, s_tref, ...
   phiz_range, phiz_traj, h_traj, s_in)
 %% Initialisierung
 if any(diff(s_ref<0)) || any(diff(phiz_range)<0) % Prüfe für Stützstellen
@@ -310,7 +310,7 @@ for ysign = [-1, +1]
 end
 % Legende erst hier einzeichnen. Sonst werden spätere Objekte auch
 % eingetragen.
-legend(hdl(I_hdl), legtxt(I_hdl), 'Location', 'South', 'Orientation', 'horizontal');
+legend(hdl(I_hdl), legtxt(I_hdl), 'Location', 'South', 'Orientation', 'horizontal', 'interpreter','none');
 set(fighdl, 'color','w'); grid on;
 drawnow();
 
@@ -350,7 +350,7 @@ line_format_publication(linhdl_tmp_h(:,2), trajlineformat, s.TrajLegendText);
 xlabel('Normalized trajectory progress s (per point of support)', 'interpreter', 'none');
 ylabel(sprintf('Performance criterion for trajectory IK: %s', wnstr), 'interpreter', 'none');
 set(fighdl2, 'color','w');
-legend(leghdl_h, s.TrajLegendText);
+legend(leghdl_h, s.TrajLegendText, 'interpreter', 'none');
 grid on;
 sgtitle(titlestr, 'interpreter', 'none');
 
