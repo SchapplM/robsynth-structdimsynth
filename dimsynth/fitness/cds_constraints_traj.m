@@ -927,7 +927,8 @@ if Structure.task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_
 end
 
 %% Prüfe Erfolg der Trajektorien-IK
-if Stats.iter == 0
+if Stats.iter == 0 && ...
+    ~(all(Structure.q0_traj == q)) % wenn der Startwert erzwungen wurde, muss die Einzelpunkt-IK nicht erfolgreich dafür gewesen sein
   % TODO: Mögliche Ursachen: Andere Schwellwerte bei Kollision und Abbruch
   % aus diesem Grund. Sollte eigentlich nicht auftreten
   cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Bereits bei erster ', ...
