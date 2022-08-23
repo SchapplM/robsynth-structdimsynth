@@ -163,6 +163,12 @@ if Set.optimization.constraint_obj(4) ~= 0 % Grenze für Jacobi-Matrix für Abbr
   % Jacobi bzgl. Antriebe/Gesamtkoordinaten maßgeblich für Systemeigenschaft
   cond_thresh_jac = Set.optimization.constraint_obj(4)/4;
 end
+if strcmp(Set.optimization.objective_ik, 'jac_cond')
+  cond_thresh_jac = 1; % immer aktiv
+end
+if strcmp(Set.optimization.objective_ik, 'ikjac_cond')
+  cond_thresh_ikjac = 1; % immer aktiv
+end
 s.cond_thresh_ikjac = cond_thresh_ikjac;
 s.cond_thresh_jac = cond_thresh_jac; % Für Seriell und PKM
 % Gewichtung Nullraumoptimierung: Zusammstellung je nach Aufgabe
@@ -171,12 +177,18 @@ if R.Type == 2 % PKM
   s.debug = Set.general.debug_calc;
 end
 
-% IK-Jacobi (Aufgaben-FG)
-s.wn(R.idx_iktraj_wnP.ikjac_cond) = 1; % P-Anteil Konditionszahl (IK-Jacobi)
-s.wn(R.idx_iktraj_wnD.ikjac_cond) = 0.1; % D-Anteil Konditionszahl (IK-Jacobi)
-% Jacobi (analytischbei PKM, geometrisch bei seriell).
-s.wn(R.idx_iktraj_wnP.jac_cond) = 1; % P-Anteil Konditionszahl (Jacobi)
-s.wn(R.idx_iktraj_wnD.jac_cond) = 0.1; % D-Anteil Konditionszahl (Jacobi)
+if strcmp(Set.optimization.objective_ik, 'default') || ...
+   strcmp(Set.optimization.objective_ik, 'ikjac_cond')
+  % IK-Jacobi (Aufgaben-FG)
+  s.wn(R.idx_iktraj_wnP.ikjac_cond) = 1; % P-Anteil Konditionszahl (IK-Jacobi)
+  s.wn(R.idx_iktraj_wnD.ikjac_cond) = 0.1; % D-Anteil Konditionszahl (IK-Jacobi)
+end
+if strcmp(Set.optimization.objective_ik, 'default') || ...
+   strcmp(Set.optimization.objective_ik, 'jac_cond')
+  % Jacobi (analytischbei PKM, geometrisch bei seriell).
+  s.wn(R.idx_iktraj_wnP.jac_cond) = 1; % P-Anteil Konditionszahl (Jacobi)
+  s.wn(R.idx_iktraj_wnD.jac_cond) = 0.1; % D-Anteil Konditionszahl (Jacobi)
+end
 % Versuche die Gelenkwinkelgrenzen einzuhalten, wenn explizit gefordert
 if Set.optimization.fix_joint_limits
   s.wn(R.idx_iktraj_wnP.qlim_hyp) = 1;
@@ -328,13 +340,15 @@ if i_ar == 2 && fval > 6e3 && fval < 7e3
   % berücksichtigt. Eine weitere Reduktion ist nicht möglich.
 end
 if i_ar == 2 && any(fval_ar <= 1e3)
-  if any(strcmp(Set.optimization.objective, 'colldist'))
+  if any(strcmp(Set.optimization.objective, 'colldist')) || ...
+      strcmp(Set.optimization.objective_ik, 'coll_par')
     % Wenn Kollisionsabstände ein Zielkriterium sind, optimiere diese hier permanent
     s.wn(R.idx_iktraj_wnP.coll_par) = 0.1; % P-Anteil Kollisionsvermeidung (quadratisch)
     s.wn(R.idx_iktraj_wnD.coll_par) = 0.01; % D-Anteil Kollisionsvermeidung (quadratisch)
   end
   if any(strcmp(Set.optimization.objective, 'footprint')) || ...
-     any(strcmp(Set.optimization.objective, 'installspace'))
+     any(strcmp(Set.optimization.objective, 'installspace')) || ...
+      strcmp(Set.optimization.objective_ik, 'instspc_par')
     % Wenn der Bauraum ein Zielkriterium ist, optimiere den Abstand zu den
     % Bauraumgrenzen permanent.
     s.wn(R.idx_iktraj_wnP.instspc_par) = 0.1; % P-Anteil Bauraumeinhaltung (quadratisch)
@@ -389,6 +403,14 @@ if i_ar == 2 && Set.optimization.constraint_collisions && s.wn(R.idx_iktraj_wnP.
   % Aktivierungsbereich für Kollisionsvermeidung verkleinern (nur für
   % Ausnahmefälle stark an Grenze)
   s.collbodies_thresh = 1.25; % 25% größere Kollisionskörper für Aktivierung (statt 50%)
+end
+if strcmp(Set.optimization.objective_ik, 'none')
+  % Deaktiviere alle nicht-hyperbolischen Zielkriterien
+  s.wn([R.idx_iktraj_wnP.ikjac_cond, R.idx_iktraj_wnD.ikjac_cond, ...
+        R.idx_iktraj_wnP.jac_cond, R.idx_iktraj_wnD.jac_cond, ...
+        R.idx_iktraj_wnP.qlim_par, R.idx_iktraj_wnD.qlim_par, ...
+        R.idx_iktraj_wnP.coll_par, R.idx_iktraj_wnD.coll_par, ...
+        R.idx_iktraj_wnP.instspc_par, R.idx_iktraj_wnD.instspc_par]) = 0;
 end
 if any(strcmp(Set.optimization.objective, 'condition')) && any(fval_ar <= 1e3)
   % Die Jacobi-Matrix soll optimiert werden. Setze den Schwellwert zur
@@ -647,10 +669,11 @@ wn_all(i_ar,:) = s.wn(:)'; %#ok<SAGROW>
 
 %% Dynamische Programmierung für optimale Trajektorie bei Aufgabenredundanz
 if Structure.task_red && Set.general.taskred_dynprog && ...
-    i_ar == 1 % nur einmal die DP berechnen (NB werden im ersten Lauf schon geprüft)
+    (i_ar == 1 || ...% nur einmal die DP berechnen (NB werden im ersten Lauf schon geprüft)
+     i_ar == 2 && fval_all(2, 1) > 1e3) % beim ersten Mal kein Erfolg. Mache nochmal mit feinerer Diskretisierung
   if Set.general.matfile_verbosity > 2
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
-      'cds_constraints_traj_before_dynprog.mat'));
+      sprintf('cds_constraints_traj_before_dynprog_i_ar%d.mat', i_ar)));
   end
   % Bestimme die Grenzen der Optimierungsvariable in der DP eher
   % großzügiger als in der normalen Nullraumbewegung, da die Bewegung
@@ -681,8 +704,18 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     ... % Annahme: Abbremsen der Aufgabe am Ende mit max. Beschleunigung
     ... % Für diese Zeit am Ende gibt es keine Nullraumbewegung
     'Tv', T_dec_dp/2, ...
-    'debug_dir', fullfile(resdir,[name_prefix_ardbg, '_dynprog']), ...
+    'debug_dir', fullfile(resdir,sprintf('%s_dynprog_it%d', name_prefix_ardbg, i_ar)), ...
     'continue_saved_state', true); % Debuggen: Falls mehrfach gleicher Aufruf
+  if i_ar == 2, s_dp.n_phi = 12; end % feinere Schrittweite
+  % Aktiviere immer die Nebenbedingungen, die später zum Abbruch führen
+  % TODO: Funktioniert aktuell noch nicht, falls sie nicht mit `wn` aktiviert werden
+  if Set.optimization.constraint_collisions
+    s_dp.abort_thresh_h(R.idx_iktraj_hn.coll_hyp) = inf;
+    % Keine Vergrößerung der Kollisionskörper mehr, da sonst vorzeitiger
+    % Abbruch
+    s_dp.settings_ik.collbodies_thresh = 1.0;
+    s_dp.settings_ik.collision_thresh = 1.5; % Versuche auszuweichen, wenn in kritischer Nähe
+  end
   if dbg_dynprog_log, s_dp.verbose = 1; end
   if dbg_dynprog_fig, s_dp.verbose = 2; end
   if Set.general.debug_dynprog_files
@@ -696,7 +729,7 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     Structure.config_index, Structure.config_number, sum(Traj_0.IE~=0), s_dp.n_phi));
   t1 = tic();
   % Dynamische Programmierung berechnen oder Ergebnis laden (für Debuggen)
-  matfile_dp=fullfile(resdir,sprintf('%s_%s.mat',name_prefix_ardbg,'dynprog'));
+  matfile_dp=fullfile(resdir,sprintf('%s_%s_i_ar%d.mat',name_prefix_ardbg,'dynprog', i_ar));
   if dbg_load_dp && Set.general.debug_dynprog_files && exist(matfile_dp, 'file')
     load(matfile_dp, 'XL', 'DPstats', 'TrajDetailDP');
   else
@@ -712,8 +745,11 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     toc(t1), DPstats.nt_ik, DPstats.nt_ik/length(Traj_0.t), ...
     DPstats.n_statechange_succ, DPstats.n_statechange_total));
   if ~isempty(s_dp.debug_dir) && isfolder(s_dp.debug_dir) % Zip-Archiv aus den DP-Zwischenergebnissen
-    zip([s_dp.debug_dir,'.zip'], s_dp.debug_dir);
+    zipfilename = fullfile(tmpDirFcn(),'dp.zip'); % Temporär nicht neben Zielordner anlegen
+    zip(zipfilename, s_dp.debug_dir); % (unter Windows damit Probleme)
+    movefile(zipfilename, [s_dp.debug_dir,'.zip']);
     rmdir(s_dp.debug_dir, 's');
+    rmdir(fileparts(zipfilename), 's');
   end
   Q_dp = TrajDetailDP.Q;
   QD_dp = TrajDetailDP.QD;
@@ -866,7 +902,7 @@ if Structure.task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_
   X2(1:Stats.iter,6) = denormalize_angle_traj(X2(1:Stats.iter,6));
   X2phizTraj = [X2(:,6), XD2(:,6), XDD2(:,6)];
   % Speichern der Werte zum Rekonstruieren
-  if i_m == 1,     X2phizTraj_gp1 = X2phizTraj;
+  if i_m == 1 && any(ikloop==3),     X2phizTraj_gp1 = X2phizTraj;
   elseif i_m == 2, X2phizTraj_dp =  X2phizTraj;
   else,            X2phizTraj_gp =  X2phizTraj;
   end
@@ -891,7 +927,8 @@ if Structure.task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_
 end
 
 %% Prüfe Erfolg der Trajektorien-IK
-if Stats.iter == 0
+if Stats.iter == 0 && ...
+    ~(all(Structure.q0_traj == q)) % wenn der Startwert erzwungen wurde, muss die Einzelpunkt-IK nicht erfolgreich dafür gewesen sein
   % TODO: Mögliche Ursachen: Andere Schwellwerte bei Kollision und Abbruch
   % aus diesem Grund. Sollte eigentlich nicht auftreten
   cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Bereits bei erster ', ...

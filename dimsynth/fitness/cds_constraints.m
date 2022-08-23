@@ -143,12 +143,12 @@ s = struct('Phit_tol', 1e-9, 'Phir_tol', 1e-9, ...
   'rng_seed', 0); % damit die Ergebnisse exakt reproduzierbar werden.
 if Set.task.profile ~= 0 % Normale Trajektorie mit stetigem Zeitverlauf
   % Nur Berechnung der Eckpunkte zur Prüfung.
-  s.retry_limit = 20+Set.optimization.pos_ik_tryhard_num;
+  s.retry_limit = max(20+Set.optimization.pos_ik_tryhard_num, 0);
 else % Nur Eckpunkte
   % Eckpunkte haben keinen direkten Bezug zueinander und bilden die
   % Trajektorie. Da keine Traj. berechnet wird, kann hier mehr Aufwand
   % betrieben werden (besonders bei seriellen Robotern auch notwendig).
-  s.retry_limit = 50+Set.optimization.pos_ik_tryhard_num;
+  s.retry_limit = max(50+Set.optimization.pos_ik_tryhard_num, 0);
   s.n_max = 5000;
 end
 condJ = NaN(size(Traj_0.XE,1), 1); % Gesamt-Jacobi (Antriebe-EE)
@@ -177,10 +177,11 @@ if R.Type == 2 % zusätzliche IK-Konfigurationen für PKM
 else
   n_ikcomb = 0; % Für serielle Roboter nicht relevant.
 end
-n_jic = 30+Set.optimization.pos_ik_tryhard_num+n_ikcomb;
+n_jic = max(30+Set.optimization.pos_ik_tryhard_num+n_ikcomb, 1);
 fval_jic = NaN(1,n_jic);
 calctimes_jic = NaN(2,n_jic);
 constrvioltext_jic = cell(n_jic,1);
+constrvioltext2_jic = cell(n_jic,1);
 bestcolldist_jic = NaN(1,n_jic);
 bestinstspcdist_jic = NaN(1,n_jic);
 % IK-Statistik (für Aufgabenredundanz). Absolute Verbesserung von
@@ -216,6 +217,12 @@ if Set.optimization.constraint_obj(4) ~= 0 % Grenze für Jacobi-Matrix für Abbr
   % Jacobi-Matrix des Roboters (bezogen auf Antriebe und Arbeitsraum-FG)
   cond_thresh_jac = Set.optimization.constraint_obj(4);
 end
+if strcmp(Set.optimization.objective_ik, 'jac_cond')
+  cond_thresh_jac = 1; % immer aktiv
+end
+if strcmp(Set.optimization.objective_ik, 'ikjac_cond')
+  cond_thresh_ikjac = 1; % immer aktiv
+end
 % Bestimme zufällige Anfangswerte für Gelenkkonfigurationen.
 % Benutze Gleichverteilung und kein Latin Hypercube (dauert zu lange).
 Q0_lhs = repmat(qlim_norm(:,1), 1, n_jic) + ...
@@ -235,7 +242,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     % zufällige Neuversuche gemacht). Andere Anfangswerte sind zwecklos.
     break;
   end
-  if jic <= (n_jic-n_ikcomb)/3
+  if jic <= (n_jic-n_ikcomb)/3 || n_jic == 1
     % Benutze Zufallswerte von oben (nicht überschreiben wie in anderen
     % Fällen)
   elseif jic > (n_jic-n_ikcomb)/3 && jic < 2*(n_jic-n_ikcomb)/3 % zwischen ein Drittel und zwei Drittel der regulären Versuche
@@ -251,9 +258,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     % vorliegen. Falls nicht, konnte die eine Beinkette nie erfolgreich
     % berechnet werden, es liegen aber Zahlenwerte des Versuchs für die
     % ersten Beinketten vor. Dann bringen Neu-Kombinationen auch nichts.
-    if any(any( squeeze(isnan(Q_jic(1,R.I1J_LEG(2):end,:))), 2 )), break; end
+    if ~any(all(squeeze(~isnan(Q_jic(1,R.I1J_LEG(2):end,:)))', 2 )), break; end
     if jic == n_jic-n_ikcomb+1 && R.Type == 2
-      % Bestimme alle Kombinationen der Gelenkkoordinaten der Beinketten
+      % Bestimme alle Kombinationen der Gelenkkoordinaten der Beinketten.
       Q_configperm1 = NaN(0,size(Q_jic,2));
       % alle Kombinationen der einzelnen Beinketten durchgehen
       nj = zeros(1,R.NLEG); % Anzahl der Kombinationen für jede Beinkette
@@ -279,6 +286,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
             dist_pt1(i,j) = sum(abs(dist_qi_q1));
           end
         end % i
+        dist_pt1(isnan(dist_pt1)) = -inf; % deaktivieren der NaN-Einträge für Sortierung
         % Indizes gemäß Abstand zum ersten sortieren. Hilft bei Aufgaben-
         % redundanz, wenn unendlich viele Konfigurationen möglich sind.
         [~,Idesc(1:nj(j),j)] = sort(dist_pt1(1:nj(j),j), 'desc');
@@ -296,7 +304,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       if size(Idesc,1)>2 && ~isnan(Idesc(3,1))
         % Nehme absichtlich einen anderen Wert, wenn Konfigurationen
         % doppelt sind. Sonst werden diese erneut berechnet ohne Mehrwert.
-        Q_configperm_idx(all(diff(Q_configperm_idx')==0),1) = Idesc(2);
+        Q_configperm_idx(all(diff(Q_configperm_idx')==0),1) = Idesc(2,1);
       end
       Q_configperm3 = NaN(size(Q_configperm_idx,1), size(Q_configperm1,2));
       for ii = 1:size(Q_configperm3,1)
@@ -344,6 +352,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   end
   fval_jic(jic) = NaN; % Muss später im Ablauf überschrieben werden
   constrvioltext_jic{jic} = ''; % hier zurücksetzen. Berechne Nebenbedingungen ab hier neu.
+  constrvioltext2_jic{jic} = '';
   % IK für alle Eckpunkte
   for i = 1:size(Traj_0.XE,1)
     if Set.task.profile ~= 0 % Trajektorie wird in cds_constraints_traj berechnet
@@ -481,8 +490,14 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       % Die Jacobi (bzgl. Antriebe), und die IK-Jacobi nehmen.
       % Die IK-Jacobi kann schlecht sein, bei guter Antriebs-Jacobi.
       s4.wn = zeros(R.idx_ik_length.wnpos,1);
-      s4.wn(R.idx_ikpos_wn.ikjac_cond) = 1;
-      s4.wn(R.idx_ikpos_wn.jac_cond) = 1;
+      if strcmp(Set.optimization.objective_ik, 'default') || ...
+         strcmp(Set.optimization.objective_ik, 'ikjac_cond')
+        s4.wn(R.idx_ikpos_wn.ikjac_cond) = 1;
+      end
+      if strcmp(Set.optimization.objective_ik, 'default') || ...
+         strcmp(Set.optimization.objective_ik, 'jac_cond')
+        s4.wn(R.idx_ikpos_wn.jac_cond) = 1;
+      end
       % Versuche die Gelenkwinkelgrenzen einzuhalten, wenn explizit gefordert
       if Set.optimization.fix_joint_limits
         s4.wn(R.idx_ikpos_wn.qlim_hyp) = 1;
@@ -786,11 +801,13 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         % Damit werden für alle noch folgenden Punkte die Ergebnisse des
         % nicht-optimierten Aufrufs genommen (kann Bewertung in Maßsynthese
         % leicht verzerren, ist aber tolerierbar).
+        constrvioltext2_jic{jic} = sprintf('Abbruch nach Punkt %d wegen Kollision in IK', i);
         break; 
       end
       % Gleiche Betrachtung bei Bauraumprüfung. Ausgabe wird nur belegt, wenn
       % Kennzahl auch geprüft wird
       if Stats.instspc_mindst(1+Stats.iter,:) > 0
+        constrvioltext2_jic{jic} = sprintf('Abbruch nach Punkt %d wegen Bauraumverletzung in IK', i);
         break;
       end
       % Neue Werte aus der IK wurden nicht verworfen. Schreibe Konditionszahl
@@ -1268,6 +1285,10 @@ if Set.general.debug_calc && Structure.task_red
     cds_log(3, sprintf(['[constraints] Keine Veränderung durch Aufgaben', ...
       'redundanz (%d Konfigurationen)'], size(Q_jic_old,3)));
   end
+end
+% Text vervollständigen aus beiden Variablen
+for i = find(~strcmp(constrvioltext2_jic, ''))'
+  constrvioltext_jic{i} = sprintf('%s %s', constrvioltext_jic{i}, constrvioltext2_jic{i});
 end
 %% IK-Konfigurationen für Eckpunkte auswerten. Nehme besten.
 [fval, jic_best] = min(fval_jic);

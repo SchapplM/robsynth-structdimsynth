@@ -70,6 +70,7 @@ if optimValues.iteration > 5 && save_success % nur löschen, falls neues Speiche
   filename_previous = sprintf('PSO_Gen%02d_AllInd.mat', optimValues.iteration-5);
   delete(fullfile(resdir, filename_previous));
 end
-
-cds_log(1,sprintf('[output] Zwischenergebnisse gespeichert: %s', ...
-  fullfile(resdir, filename)));
+if save_success
+  cds_log(1,sprintf('[output] Zwischenergebnisse gespeichert: %s', ...
+    fullfile(resdir, filename)));
+end

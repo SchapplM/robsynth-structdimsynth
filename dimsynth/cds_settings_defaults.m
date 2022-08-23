@@ -129,6 +129,7 @@ optimization = struct( ...
   'obj_jointrange', ... % Zusatzeinstellungen für die Zielfunktion "jointrange"
     struct( 'only_revolute', true, ... % Minimiere nur Wertebereich von Drehgelenken
             'only_passive', true), ... % Minimiere nur Wertebereich passiver Gelenke
+  'objective_ik', {{'default'}}, ... % Zielgröße für IK bei Redundanz. Möglich: default (Einstellung anhand der Kriterien der Maßsynthese), ikjac_cond, jac_cond, coll_par, instspc_par, none (keine Optimierung, nur geringste Beschleunigung)
   'constraint_obj', zeros(6,1), ... % Nebenbedingungen, 1=Mass, 2=Energy, 3=Actforce, 4=Condition, 5=Stiffness, 6=MaterialStress; Eintrag entspricht physikalischem Wert
   'condition_limit_sing', 1e5, ... % Wenn die Konditionszahl (der IK-Jacobi) schlechter ist, wird sofort abgebrochen. Schwellwert für Singularität. Deaktivieren durch setzen auf inf.
   'condition_limit_sing_act', inf, ... % Wenn die Konditionszahl (der PKM-Jacobi) schlechter ist, wird sofort abgebrochen. Schwellwert für Singularität. Deaktivieren durch setzen auf inf.
@@ -185,7 +186,12 @@ optimization = struct( ...
   'single_point_constraint_check', false, ... % Prüfe einige Nebenbedingungen für jeden Arbeitsraum-Eckpunkt. Schnellere Prüfungen, aber voraussichtlich schlechtere Konvergenz
   'collshape_base', {{'default'}}, ... % Form der Kollisionskörper für die PKM-Basis: default, star, ring, joint. Siehe cds_update_collbodies.m; mehrere möglich.
   'collshape_platform', {{'default'}}, ... % Form der Kollisionskörper für die PKM-Plattform default, star, ring, sphere. Siehe cds_update_collbodies.m; mehrere möglich.
-  'pos_ik_tryhard_num', 0, ... % Anzahl der Versuche für die Positions-IK erhöhen (für Reproduktion der Ergebnisse bei anderer Zufallszahlen-Grundlage). Dient auch als Schalter für IK-Einstellungen mit Fokus auf Reproduzierbarkeit
+  ... % Anzahl der Versuche für die Positions-IK erhöhen (für Reproduktion 
+  ... % der Ergebnisse bei anderer Zufallszahlen-Grundlage). Dient auch als 
+  ... % Schalter für IK-Einstellungen mit Fokus auf Reproduzierbarkeit. 
+  ... % Kann auch negativ gewählt werden, um die Zahl der Versuche zu 
+  ... % reduzieren (damit es schneller geht bei nachträglicher Auswertung)
+  'pos_ik_tryhard_num', 0, ... 
   'obj_limit', 0, ... % Grenze des Fitness-Wertes zum Beenden der Simulation
   'obj_limit_physval', 0, ... % Grenze für den physikalischen Wert zum Beenden
   'NumIndividuals', 50, ... % Anzahl der Partikel im PSO

@@ -238,11 +238,12 @@ if Structure.Type ~= 0 % PKM
   if any(strcmp(collshape_base, 'joint'))
     % Nur Gestellgelenke als Kugel, damit eine Kollision anderer Beinketten
     % damit verhindert wird.
-    collbodies_robot.link = [collbodies_robot.link; uint8(zeros(NLEG,2))]; % PKM-Basis
-    T_base_stack = [R.Leg(:).T_W_0]; % Alle Beinketten-Basis-KS als Trafo spaltenweise
-    collbodies_robot.type = [collbodies_robot.type; repmat(uint8(15),NLEG,1)]; % Kugel
+    collbodies_robot.link = [collbodies_robot.link; ... % Beinketten-Basis
+      uint8([R.I1L_LEG(I1)-(I1-1), R.I1L_LEG(I1)-(I1-1)])];
+%     T_base_stack = [R.Leg(:).T_W_0]; % Alle Beinketten-Basis-KS als Trafo spaltenweise
+    collbodies_robot.type = [collbodies_robot.type; repmat(uint8(16),NLEG,1)]; % Kugel im Basis-KS der Beinketten
     collbodies_robot.params = [collbodies_robot.params; ... % Koordinaten der Gestell-Koppelgelenke eintragen
-      [T_base_stack(1:3,4:4:end)', repmat(0.05, NLEG, 1), NaN(NLEG, 6)]]; % Geringer Radius 50mm
+      [zeros(NLEG,3), repmat(0.05, NLEG, 1), NaN(NLEG, 6)]]; % Geringer Radius 50mm
   end
   
   % Kollisionsobjekte für die Plattform

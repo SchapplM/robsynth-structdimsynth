@@ -60,6 +60,9 @@ end
 RNr = RobData.Number;
 PNr = RobData.ParetoNumber;
 R = RobotOptDetails.R;
+if ~isfield(Traj, 'Fext')
+  Traj.Fext = zeros(size(Traj.X,1),6);
+end
 Traj_0 = cds_transform_traj(R, Traj);
 Name = RobData.Name;
 resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);

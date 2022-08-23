@@ -174,6 +174,8 @@ if fitness_recalc_necessary
     % redundant zu Speicherung in qref. Führt Traj.-IK aus, auch wenn Pos.-
     % IK bei Umklappen der Konfiguration scheitert.
     Structure.q0_traj = q0;
+    % Deaktiviere ausgiebige Positions-IK zur Zeitersparnis
+    Set.optimization.pos_ik_tryhard_num = -200;
   else
     % Alternative Berechnung (erfordert Laden der Detail-Daten).
     % Hier ist die Reproduktion der Zielfunktion besser möglich, da Anfangs-
