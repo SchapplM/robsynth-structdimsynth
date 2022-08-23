@@ -1214,12 +1214,16 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   fval_jic(jic) = 1e3; % Bis hier hin gekommen. Also erfolgreich.
   calctimes_jic(i_ar,jic) = toc(t1);
   end % i_ar-Schleife über IK ohne/mit zusätzlicher Optimierung
-  if fval_jic(jic) == 1e3 && ...% Nur die erste Konfiguration belassen. Geht schneller.
-      all(abs(Q_jic(1,:,jic)' - Structure.q0_traj) < 1e-6) % Nur, falls Anfangswert schon gegeben
-    % Bei der nachträglichen Auswertung soll es schneller gehen und die
-    % alternativen Konfigurationen werden voraussichtlich sowieso nicht
-    % besser sein.
-    break;
+  if fval_jic(jic) == 1e3% Nur die erste gefundene Konfiguration belassen. Geht schneller.
+    if all(abs(Q_jic(1,:,jic)' - Structure.q0_traj) < 1e-6) % Nur, falls Anfangswert schon gegeben
+      % Bei der nachträglichen Auswertung soll es schneller gehen und die
+      % alternativen Konfigurationen werden voraussichtlich sowieso nicht
+      % besser sein.
+      break;
+    elseif Set.optimization.pos_ik_abort_on_success
+      % Es soll nur eine IK-Konfiguration gefunden werden
+      break;
+    end
   end
   if i_ar == 2 && fval_jic(jic) < fval_jic_old(jic)
     fval_jic(jic) = fval_jic_old(jic);
