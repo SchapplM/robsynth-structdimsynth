@@ -104,7 +104,7 @@ else % PKM
   % Trajektorie. Dieses Maß wird durch die Trajektorie bestimmt.
   % TODO: Funktioniert noch nicht bei Aufgabenredundanz.
   dist_exc_tot = NaN(size(Traj_0.XE,1),R.NLEG);
-  T_P_P_E = R.T_P_E;
+  T_P_E = R.T_P_E;
   for i = 1:R.NLEG
     % Transformationen für die Beinkette i
     T_0_0i = R.Leg(i).T_W_0;
@@ -114,8 +114,8 @@ else % PKM
       T_0_Ej = R.x2t(Traj_0.XE(j,:)');
       % Position des Plattform-Koppelpunktes der Beinkette i für den
       % Bahnpunkt j (und die dafür vorgesehene Orientierung)
-      rh_0i_0i_Bij = invtr(T_0_0i)*T_0_Ej*invtr(T_P_P_E)*[r_P_P_Bi;1];
-      dist_j = norm(rh_0i_0i_Bij);
+      rh_0i_0i_Bij = invtr(T_0_0i)*T_0_Ej*invtr(T_P_E)*[r_P_P_Bi;1];
+      dist_j = norm(rh_0i_0i_Bij(1:3));
       dist_exc_tot(j,i) = l_max_leg-dist_j;
     end
   end
