@@ -131,19 +131,29 @@ Traj_0_E = cds_transform_traj(R, struct('XE', Traj_W.XE));
 % IK nicht mehr reproduzierbar ist (z.B. durch Code-Änderung)
 if all(~isnan(Structure.q0_traj)) && Set.task.profile ~= 0 % nur, falls es auch eine Trajektorie gibt
   % Prüfe, ob diese vorgegebene Werte auch von alleine gefunden wurden.
-  if ~any(all(abs(Q0-repmat(Structure.q0_traj',size(Q0,1),1))<1e-6,2))
+  I_match = all(abs(Q0-repmat(Structure.q0_traj',size(Q0,1),1))<1e-6,2);
+  if ~any(I_match)
     cds_log(-1,sprintf(['[fitness] Vorgegebene Werte aus q0_traj wurden nicht ', ...
       'in den %d IK-Konfigurationen gefunden.'], size(Q0,1)));
     % Damit wird die Traj.-IK immer geprüft, auch wenn die Einzelpunkt-IK
     % nicht erfolgreich gewesen sein sollte
     fval_constr = 1e3;
-    Q0 = [Q0; Structure.q0_traj'];
+    Q0 = [Structure.q0_traj'; Q0]; % Prüfe vorgegebenen Wert zuerst.
     % Erzeuge Platzhalter-Werte für spätere Rechnungen
     QE_iIKC(:,:,size(QE_iIKC,3)+1) = repmat(Structure.q0_traj', size(QE_iIKC,1), 1);
-  elseif fval_constr > 1e3
-    cds_log(-1,sprintf(['[fitness] Vorgegebene Werte aus q0_traj erzeugen ', ...
-      'unzulässige Lösung in Positions-IK. Benutze trotzdem.']));
-    fval_constr = 1e3;
+  else
+    % Der Wert wurde ungefähr erreicht. Ersetze durch den genau exakten
+    % Wert, damit es nicht zu numerischen Abweichungen kommen kann.
+    II_match = find(I_match, 1, 'first');
+    Q0(II_match,:) = Structure.q0_traj';
+    % Setze die Reihenfolge so, dass der gesuchte Wert zuerst kommt. Dann
+    % direkter Abbruch möglich über obj_limit.
+    Q0 = [Q0(II_match,:); Q0(~I_match,:)];
+    if fval_constr > 1e3
+      cds_log(-1,sprintf(['[fitness] Vorgegebene Werte aus q0_traj erzeugen ', ...
+        'unzulässige Lösung in Positions-IK. Benutze trotzdem.']));
+      fval_constr = 1e3;
+    end
   end
 end
 
