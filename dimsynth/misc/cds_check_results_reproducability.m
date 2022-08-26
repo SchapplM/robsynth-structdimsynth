@@ -31,6 +31,8 @@ s = struct( ...
   'fval_check_lim', [0, inf], ... % untere und obere Grenzen für die Prüfung der Funktionswerte
   'eval_plots', {{}}, ... % Liste von Plots, die für jedes Partikel erstellt werden. Siehe Eingabe figname in cds_vis_results_figures.
   'results_dir', '', ... % Alternatives Verzeichnis zum Laden der Ergebnisse
+  'isoncluster', false, ... % Falls auf Cluster, muss der parpool-Zugriff geschützt werden
+  'parcomp_maxworkers', 1, ... % Maximale Anzahl an Parallelinstanzen. Standardmäßig ohne Parfor
   'only_merge_tables', false, ... % Aufruf nur zum Zusammenführen bestehender Tabellen für einzelne Roboter
   'only_use_stored_q0', true, ... % Versuche nicht mit neuen Zufallswerten die Gelenkwinkel neu zu generieren, sondern nehme die gespeicherten.
   'only_from_pareto_front', true); % bei false werden alle Partikel geprüft, bei true nur die besten
@@ -121,12 +123,13 @@ if s.update_template_functions
     end
   end
 end
-Pool = gcp('nocreate');
-if isempty(Pool)
-  parfor_numworkers = 0;
-else
-  parfor_numworkers = Pool.NumWorkers;
-end
+% Starten des ParPools über Wrapper-Funktion
+Set_dummy = struct('general', struct('isoncluster', s.isoncluster, ...
+  'parcomp_maxworkers', s.parcomp_maxworkers));
+cds_log(); % Log-Funktion zurücksetzen
+parfor_numworkers = cds_start_parpool(Set_dummy);
+% Alle Roboter durchgehen (Aufteilung so, dass Roboter nicht auf mehrere
+% parfor-Iterationen verteilt werden.
 parfor (i = 1:length(RobNames), parfor_numworkers)
   if parfor_numworkers > 0
     set(0, 'defaultfigureposition', [1 1 1920 1080]);
@@ -139,6 +142,7 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
   % Durchläufe mit dem gleichen Roboter gemacht worden sein. Dann nehme alle.
   RobNr_all = find(strcmp(RobName,Structures_Names));
   for RobNr = RobNr_all(:)'
+  csvfilename = ''; % Initialisierung für Parfor-Warnung
   Structure = Structures{RobNr};
   resfile1 = fullfile(resdir_opt, sprintf('Rob%d_%s_Endergebnis.mat', ...
     RobNr, RobName));
@@ -233,11 +237,12 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
     end
     fprintf('Reproduktion Rob. %d Partikel Nr. %d/%d (Gen. %d, Ind. %d):\n', ...
       RobNr, jj, length(I), k_gen, k_ind);
-    % clear cds_fitness % Persistente Variablen löschen (falls nicht in parfor)
     if ~s.only_use_stored_q0
+      cds_fitness(); % Persistente Variablen löschen (falls nicht in parfor)
       [f2_jj, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure_jj,p_jj,p_desopt_jj);
     else
       f2_jj = inf(length(f_jj), 1);
+      Q = []; QD = []; QDD = []; TAU = []; % für parfor-Warnung.
     end
     test_f2_abs = f_jj - f2_jj;
     test_f2_rel = test_f2_abs ./ f_jj;

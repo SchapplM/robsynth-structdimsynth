@@ -12,6 +12,10 @@
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
 function parfor_numworkers = cds_start_parpool(Set)
+if Set.general.parcomp_maxworkers <= 1
+  parfor_numworkers = 0;
+  return;
+end
 if Set.general.isoncluster % auf Cluster möglicher Zugriffskonflikt für ParPool
   parpool_writelock('lock', 180, true); % Synchronisationsmittel für ParPool
 end
