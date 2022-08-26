@@ -42,12 +42,10 @@ Descr_Row = {'', '', '', '', '', '', '', 'Zielfunktion der Optimierung', '', ...
 ResTab = [ResTab; Descr_Row];
 % Skalierungsfaktoren der Leistungsmerkmale in der Tabelle konsistent zu
 % cds_objective_plotdetails und Reihenfolge aus cds_dimsynth_robot
-physval_unitmult = ones(17,1);
-physval_unitmult(9) = 1e6; % Positionsfehler (in µm)
-physval_unitmult(10) = 180/pi; % Gelenkbereich (in Grad)
-physval_unitmult(11) = 180/pi; % Gelenkgrenze (in Grad)
-physval_unitmult(13) = 1e3; % Beinkettenlänge (in mm)
-physval_unitmult(16) = 1e3; % Kollisionsabstand (in mm)
+Set_tmp = Set;
+defstruct = cds_definitions();
+Set_tmp.optimization.objective = defstruct.obj_names_all;
+[~, physval_unitmult] = cds_objective_plotdetails(Set_tmp);
 % Seriell-Roboter-Datenbank für PKM-Namensgenerierung
 serrob_list = load(fullfile(fileparts(which('serroblib_path_init.m')), ...
   'serrob_list.mat'), 'Names', 'AdditionalInfo');
@@ -149,10 +147,34 @@ for i = 1:length(Structures)
     datestr(tmp1.RobotOptRes.timestamps_start_end(1),'dd.mm.yyyy HH:MM:SS'), ...
     datestr(tmp1.RobotOptRes.timestamps_start_end(2),'dd.mm.yyyy HH:MM:SS'), ...
     tmp1.RobotOptRes.timestamps_start_end(3), f, fval_text};
-  % Hole andere Zielfunktionen aus den Ergebnissen
-  for ii = 1:length(tmp1.RobotOptRes.fval_obj_all)
-    Row_i = [Row_i, {tmp1.RobotOptRes.fval_obj_all(ii), physval_unitmult(ii)*...
-      tmp1.RobotOptRes.physval_obj_all(ii)}]; %#ok<AGROW>
+  % Hole andere Zielfunktionen aus den Ergebnissen. TODO: Code kann
+  % vereinfacht werden, wenn keine alten Daten mehr damit verarbeitet
+  % werden müssen.
+  if length(physval_unitmult) == length(tmp1.RobotOptRes.fval_obj_all)
+    for ii = 1:length(tmp1.RobotOptRes.fval_obj_all)
+      Row_i = [Row_i, {tmp1.RobotOptRes.fval_obj_all(ii), physval_unitmult(ii)*...
+        tmp1.RobotOptRes.physval_obj_all(ii)}]; %#ok<AGROW>
+    end
+  else
+    warning('Dimension von fval_obj_all aus Ergebnis ist nicht konsistent mit Toolbox-Version.');
+    if isfield(tmp1.RobotOptRes, 'obj_names_all')
+      % Trage die Zielkriterien ein, die vorhanden sind. Der Rest wird NaN
+      for ii = 1:length(physval_unitmult)
+        I_inres = strcmp(defstruct.obj_names_all{ii}, tmp1.RobotOptRes.obj_names_all);
+        if ~any(I_inres) % Zielkriterium war nicht in Optimierung drin. Vermutlich alte Version dort.
+          warning('Zielkriterium %s nicht in Ergebnisse gefunden.', defstruct.obj_names_all{ii});
+          Row_i = [Row_i, {NaN, NaN}]; %#ok<AGROW>
+        else
+          Row_i = [Row_i, {tmp1.RobotOptRes.fval_obj_all(I_inres), physval_unitmult(I_inres)*...
+            tmp1.RobotOptRes.physval_obj_all(I_inres)}]; %#ok<AGROW>
+        end
+      end
+    else
+      % Keine Zuordnung aktuell bestimmbar. Setze alles auf NaN.
+      for ii = 1:length(physval_unitmult)
+        Row_i = [Row_i, {NaN, NaN}]; %#ok<AGROW>
+      end
+    end
   end
   % Zusätzliche Nennung der Steifigkeit (Nachgiebigkeit nicht so
   % aussagekräftig). Steifigkeit ist letzter Eintrag.

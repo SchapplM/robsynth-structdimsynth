@@ -2588,11 +2588,9 @@ end
 I_fobj_set = Set.optimization.constraint_obj ~= 0;
 % Die Reihenfolge der Zielfunktionen insgesamt und die der Zielfunktionen
 % als Grenze sind unterschiedlich. Finde Indizes der einen in den anderen.
-objconstr_names_all = {'mass', 'energy', 'actforce', 'condition', ...
-  'stiffness', 'materialstress'};
-obj_names_all = {'mass', 'energy', 'power', 'actforce', 'materialstress', 'condition', ...
-  'manipulability', 'minjacsingval', 'positionerror', 'jointrange', 'jointlimit', ...
-  'actvelo','chainlength', 'installspace', 'footprint', 'colldist', 'stiffness'}; % konsistent zu fval_obj_all und physval_obj_all
+ds = cds_definitions();
+objconstr_names_all = ds.objconstr_names_all;
+obj_names_all = ds.obj_names_all;
 I_constr = zeros(length(objconstr_names_all),1);
 for i = 1:length(objconstr_names_all)
   I_constr(i) = find(strcmp(objconstr_names_all{i}, obj_names_all));
@@ -2693,6 +2691,7 @@ RobotOptRes = struct( ...
   'fval', fval, ... % Zielfunktionswert (nach dem optimiert wurde)
   'fval_obj_all', fval_obj_all, ... % Werte aller möglicher einzelner Zielf.
   'physval_obj_all', physval_obj_all, ... % Physikalische Werte aller Zielf.
+  'obj_names_all', {obj_names_all}, ... % Damit sind die obigen Werte nachträglich interpretierbar
   'p_val', p_val, ... % Parametervektor der Optimierung
   'desopt_pval', desopt_pval, ... % Entwurfsparameter zum Ergebnis
   'fval_pareto', fval_pareto, ... % Alle Fitness-Werte der Pareto-Front
