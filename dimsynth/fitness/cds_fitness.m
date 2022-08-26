@@ -389,7 +389,7 @@ for iIKC = 1:size(Q0,1)
   % Bereits hier, damit Ergebnis-Visualisierung konsistent ist.
   update_joint_limits(R, Set, Q, true, 0);
   massparam_set = false; % Marker, ob Masseparameter gesetzt wurden
-  if ~isempty(intersect(Set.optimization.objective, {'energy', 'mass', ...
+  if ~isempty(intersect(Set.optimization.objective, {'energy', 'power', 'mass', ...
       'actforce', 'stiffness', 'materialstress'})) || ... % Für Zielfunktion benötigt
       Set.optimization.constraint_obj(3) ~= 0 % Für Nebenbedingung benötigt
     % Dynamik-Parameter aktualisieren. Keine Nutzung der Ausgabe der Funktion
@@ -499,7 +499,7 @@ for iIKC = 1:size(Q0,1)
     % Dynamik nochmal mit Regressorform mit neuen Dynamikparameter berechnen
     data_dyn2 = cds_obj_dependencies_regmult(R, data_dyn, Q);
   end
-  if ~isempty(intersect(Set.optimization.objective, {'energy', 'actforce'})) || ...  % Für Zielf. benötigt
+  if ~isempty(intersect(Set.optimization.objective, {'energy', 'power', 'actforce'})) || ...  % Für Zielf. benötigt
       Set.optimization.constraint_obj(3) ~= 0 % Für NB benötigt
     TAU = data_dyn2.TAU;
     TAU_IKC(:,:,iIKC) = TAU; % Zum Debuggen
@@ -606,6 +606,12 @@ for iIKC = 1:size(Q0,1)
     fval_IKC(iIKC,strcmp(Set.optimization.objective, 'energy')) = fval_en;
     physval_IKC(iIKC,strcmp(Set.optimization.objective, 'energy')) = physval_en;
     fval_debugtext = [fval_debugtext, ' ', fval_debugtext_en]; %#ok<AGROW>
+  end
+  if any(strcmp(Set.optimization.objective, 'power'))
+    [fval_pwr,fval_debugtext_pwr, ~, physval_pwr] = cds_obj_power(R, TAU, QD);
+    fval_IKC(iIKC,strcmp(Set.optimization.objective, 'power')) = fval_pwr;
+    physval_IKC(iIKC,strcmp(Set.optimization.objective, 'power')) = physval_pwr;
+    fval_debugtext = [fval_debugtext, ' ', fval_debugtext_pwr]; %#ok<AGROW>
   end
   if massparam_set
     % Berechne in jedem Fall die Gesamtmasse, sobald das möglich ist (geht sehr 

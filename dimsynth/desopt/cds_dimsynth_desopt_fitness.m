@@ -270,6 +270,16 @@ if any(strcmp(Set.optimization.objective, 'energy')) && ...
     fval_debugtext = fval_debugtext_energy;
   end
 end
+if any(strcmp(Set.optimization.objective, 'power')) && ...
+    (fval==0 || Set.general.debug_desopt)
+  [fval_power,fval_debugtext_power,~,physval_pwr] = cds_obj_power(R, data_dyn.TAU, QD);
+  fval_main(strcmp(Set.optimization.objective, 'power')) = fval_power;
+  physval_main(strcmp(Set.optimization.objective, 'power')) = physval_pwr;
+  if fval == 0
+    fval = fval_power;
+    fval_debugtext = fval_debugtext_power;
+  end
+end
 if any(strcmp(Set.optimization.objective, 'actforce')) && ...
     (fval==0 || Set.general.debug_desopt)
   if Set.optimization.constraint_obj(3) % Vermeide doppelten Aufruf der Funktion

@@ -1923,7 +1923,7 @@ calc_dyn_reg = false;
 % Schalter zur Berechnung der Regressorform für Gelenkelastizität
 calc_spring_reg = false;
 
-if ~isempty(intersect(Set.optimization.objective, {'energy', 'actforce'}))
+if ~isempty(intersect(Set.optimization.objective, {'energy', 'power', 'actforce'}))
   calc_dyn_act = true; % Antriebskraft für Zielfunktion benötigt
   if (Set.optimization.joint_stiffness_active_revolute ~= 0 || ...
       Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
@@ -2483,6 +2483,7 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act')) && ~
   % Einzelne Zielfunktionen aufrufen
   [fval_mass,~, ~, physval_mass] = cds_obj_mass(R);
   [fval_energy,~, ~, physval_energy] = cds_obj_energy(R, Set, Structure, Traj_0, data_dyn.TAU, QD);
+  [fval_power,~, ~, physval_power] = cds_obj_power(R, data_dyn.TAU, QD);
   [fval_actforce,~, ~, physval_actforce] = cds_obj_actforce(data_dyn.TAU);
   [fval_ms, ~, ~, physval_ms] = cds_obj_materialstress(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
   [fval_cond,~, ~, physval_cond] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
@@ -2506,14 +2507,14 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act')) && ~
     [fval_stiff,~, ~, physval_stiff] = cds_obj_stiffness(R, Set, Q);
   end
   % Reihenfolge siehe Variable Set.optimization.constraint_obj aus cds_settings_defaults
-  fval_obj_all = [fval_mass; fval_energy; fval_actforce; fval_ms; fval_cond; ...
+  fval_obj_all = [fval_mass; fval_energy; fval_power; fval_actforce; fval_ms; fval_cond; ...
     fval_mani; fval_msv; fval_pe; fval_jrange; fval_jlimit; fval_actvelo; fval_chainlength; ...
     fval_instspc; fval_footprint; fval_colldist; fval_stiff];
-  physval_obj_all = [physval_mass; physval_energy; physval_actforce; ...
+  physval_obj_all = [physval_mass; physval_energy; physval_power; physval_actforce; ...
     physval_ms; physval_cond; physval_mani; physval_msv; physval_pe; ...
     physval_jrange; physval_jlimit; physval_actvelo; physval_chainlength; ...
     physval_instspc; physval_footprint; physval_colldist; physval_stiff];
-  if length(fval_obj_all)~=16 || length(physval_obj_all)~=16
+  if length(fval_obj_all)~=17 || length(physval_obj_all)~=17
     % Dimension ist falsch, wenn eine Zielfunktion nicht skalar ist (z.B. leer)
     cds_log(-1, sprintf(['[dimsynth] Dimension der Zielfunktionen falsch ', ...
       'berechnet. dim(fval_obj_all)=%d, dim(physval_obj_all)=%d'], ...
@@ -2578,8 +2579,8 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act')) && ~
 else
   % Keine Berechnung der Leistungsmerkmale möglich, da keine zulässige Lösung
   % gefunden wurde.
-  fval_obj_all = NaN(16,1);
-  physval_obj_all = NaN(16,1);
+  fval_obj_all = NaN(17,1);
+  physval_obj_all = NaN(17,1);
   physval_cond = inf;
 end
 % Prüfe auf Plausibilität, ob die Optimierungsziele erreicht wurden. Neben-
@@ -2589,7 +2590,7 @@ I_fobj_set = Set.optimization.constraint_obj ~= 0;
 % als Grenze sind unterschiedlich. Finde Indizes der einen in den anderen.
 objconstr_names_all = {'mass', 'energy', 'actforce', 'condition', ...
   'stiffness', 'materialstress'};
-obj_names_all = {'mass', 'energy', 'actforce', 'materialstress', 'condition', ...
+obj_names_all = {'mass', 'energy', 'power', 'actforce', 'materialstress', 'condition', ...
   'manipulability', 'minjacsingval', 'positionerror', 'jointrange', 'jointlimit', ...
   'actvelo','chainlength', 'installspace', 'footprint', 'colldist', 'stiffness'}; % konsistent zu fval_obj_all und physval_obj_all
 I_constr = zeros(length(objconstr_names_all),1);

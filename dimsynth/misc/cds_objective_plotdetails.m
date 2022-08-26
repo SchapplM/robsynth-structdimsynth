@@ -42,6 +42,8 @@ for jj = 1:length(Set.optimization.objective)
     obj_units{jj} = 'units of cond(J)';
   elseif strcmp(Set.optimization.objective{jj}, 'energy')
     obj_units{jj} = 'J';
+  elseif strcmp(Set.optimization.objective{jj}, 'power')
+    obj_units{jj} = 'W';
   elseif strcmp(Set.optimization.objective{jj}, 'actforce')
     if strcmp(acttype, 'prismatic')
       obj_units{jj} = 'N';
