@@ -93,9 +93,9 @@ else
 end
   
 RobNames = unique(RobNames);
-ReproStatsTab_empty = cell2table(cell(0,9), 'VariableNames', ...
-  {'RobNr', 'Name', 'Partikel', 'ResOpt', 'ResRepro', 'ErrMax_Rel', ...
-  'ErrMax_Rel_q0set', 'WithDetails', 'Status'});
+ReproStatsTab_empty = cell2table(cell(0,10), 'VariableNames', ...
+  {'RobNr', 'Name', 'Partikel', 'ResOpt', 'ResRepro', 'ResRepro_q0set', ...
+  'ErrMax_Rel', 'ErrMax_Rel_q0set', 'WithDetails', 'Status'});
 
 %% Einstellungen zum Zusammenfassen der Tabellen
 s_merge = struct('resdir_opt', resdir_opt, 'Structures', {Structures}, 'repro_names', {{}});
@@ -237,14 +237,16 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
     end
     fprintf('Reproduktion Rob. %d Partikel Nr. %d/%d (Gen. %d, Ind. %d):\n', ...
       RobNr, jj, length(I), k_gen, k_ind);
+    f3_jj = NaN(length(f_jj), 1); % Initialisierung zum Eintragen in Tabelle
     if ~s.only_use_stored_q0
       cds_fitness(); % Persistente Variablen löschen (falls nicht in parfor)
       [f2_jj, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure_jj,p_jj,p_desopt_jj);
+      test_f2_abs = f_jj - f2_jj;
     else
-      f2_jj = inf(length(f_jj), 1);
-      Q = []; QD = []; QDD = []; TAU = []; % für parfor-Warnung.
+      f2_jj = NaN(length(f_jj), 1);
+      Q = []; QD = []; QDD = []; TAU = []; % für parfor-Warnung
+      test_f2_abs = NaN(size(f2_jj));
     end
-    test_f2_abs = f_jj - f2_jj;
     test_f2_rel = test_f2_abs ./ f_jj;
     test_f3_rel = NaN(size(test_f2_rel)); % Initialisierung
     rescode = 0; % Kein Fehler
@@ -273,6 +275,7 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
       Set_tmp.optimization.obj_limit = 1e3*ones(length(Set.optimization.objective),1);
       cds_fitness(); % Variablen zurücksetzen, damit obj_limit unabhängig ausgewertet wird
       [f3_jj, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set_tmp,Traj,Structure_jj,p_jj,p_desopt_jj);
+      err_rel_repro
       if isempty(Q)
         warning('Logik-Fehler. Zurückgegebenes Q ist leer')
       elseif any(abs(Q(1,:)'-q0)>1e-6)
@@ -281,7 +284,7 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
       test_f3_abs = f_jj - f3_jj;
       test_f3_rel = test_f3_abs ./ f_jj;
       rescode = NaN; %#ok<NASGU> % Muss überschrieben werden
-      if all(abs(f_jj) < 1e3) && any(abs(f2_jj) > 1e3) % vorher i.O., beim 2. mal n.i.O.
+      if all(abs(f_jj) < 1e3) && (any(abs(f2_jj) > 1e3) || any(isnan(f2_jj))) % vorher i.O., beim 2. mal n.i.O.
         if all(~isnan(f3_jj)) && all(abs(f3_jj) < 1e3)
           if ~s.only_use_stored_q0
             rescode = 2;
@@ -330,7 +333,7 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
     end
     % Auswertungs-Tabelle für den Roboter schreiben
     details_available = ~isempty(PSO_Detail_Data);
-    ReproStatsTab_Rob = [ReproStatsTab_Rob; {i, RobName, jj, f_jj(1), f2_jj(1), ...
+    ReproStatsTab_Rob = [ReproStatsTab_Rob; {i, RobName, jj, f_jj(1), f2_jj(1), f3_jj(1), ...
       max(abs(test_f2_rel)), max(abs(test_f3_rel)), details_available, rescode}]; %#ok<AGROW>
     csvfilename = fullfile(resdir_opt, sprintf('Rob%d_%s', RobNr, RobName), ...
       sprintf('Rob%d_%s_reproducability_stats%s.csv', RobNr, RobName, repro_name));
