@@ -55,8 +55,8 @@ if ~init_only && ~Set.general.only_finish_aborted
   resdir_rob = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
     sprintf('Rob%d_%s', Structure.Number, Structure.Name));
   mkdirs(resdir_rob); % Ergebnis-Ordner für diesen Roboter erstellen
-  cds_log(1, sprintf('[dimsynth] Start der Maßsynthese für %s',  ...
-    Structure.Name), 'init', Set, Structure);
+  cds_log(1, sprintf('[dimsynth] Start der Maßsynthese für %s (Opt. %s)',  ...
+    Structure.Name, Set.optimization.optname), 'init', Set, Structure);
 end
 % Zurücksetzen der Detail-Speicherfunktion
 clear cds_save_particle_details;
