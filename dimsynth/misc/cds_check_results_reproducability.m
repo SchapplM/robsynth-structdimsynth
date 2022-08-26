@@ -30,6 +30,7 @@ s = struct( ...
   'figure_invisible', true, ... % Unsichtbar erzeugen zum Speichern ohne Fokus-Klau
   'eval_plots', {{}}, ... % Liste von Plots, die für jedes Partikel erstellt werden. Siehe Eingabe figname in cds_vis_results_figures.
   'results_dir', '', ... % Alternatives Verzeichnis zum Laden der Ergebnisse
+  'only_merge_tables', false, ...
   'only_from_pareto_front', true); % bei false werden alle Partikel geprüft, bei true nur die besten
 if nargin < 3
   s_in = s;
@@ -54,6 +55,10 @@ else
   end
 end
 assert(isa(s.eval_plots, 'cell'), 'Eingabefeld eval_plots muss cell array sein');
+% Eindeutigen Namen für diesen Durchlauf des Versuchs der Reproduktion.
+% Es kann auf verschiedenen Rechnern ein unterschiedliches Ergebnis
+% rauskommen, je nach CPU-Architektur (für Zufallszahlen) oder Programmversion
+repro_name = ['_', datestr(now,'yyyymmdd_HHMMSS'), '_', getComputerName()];
 
 %% Optimierung laden
 if ~exist(resdir_opt, 'file')
@@ -87,7 +92,14 @@ RobNames = unique(RobNames);
 ReproStatsTab_empty = cell2table(cell(0,9), 'VariableNames', ...
   {'RobNr', 'Name', 'Partikel', 'ResOpt', 'ResRepro', 'ErrMax_Rel', ...
   'ErrMax_Rel_q0set', 'WithDetails', 'Status'});
-ReproStatsTab = ReproStatsTab_empty;
+
+%% Einstellungen zum Zusammenfassen der Tabellen
+s_merge = struct('resdir_opt', resdir_opt, 'Structures', {Structures}, 'repro_names', {{}});
+if s.only_merge_tables
+  merge_tables(s_merge);
+  return;
+end
+
 %% Roboter auswerten und Nachrechnen der Fitness-Funktion
 if s.update_template_functions
   for i = 1:length(RobNames)
@@ -227,13 +239,7 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
         % Zusätzlich eintragen als Referenz-Winkel, damit es in Eckpunkt-
         % Prüfung auch genutzt wird, auch wenn es nicht von alleine
         % gefunden wird.
-        if R.Type == 0 % Seriell
-          R.qref = q0;
-        else
-          for iii = 1:R.NLEG
-            R.Leg(iii).qref = q0(R.I1J_LEG(iii):R.I2J_LEG(iii));
-          end
-        end
+        R.update_qref(q0);
       end
       [f3_jj, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set_tmp,Traj,Structure_jj,p_jj,p_desopt_jj);
       test_f3_abs = f_jj - f3_jj;
@@ -287,12 +293,54 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
     ReproStatsTab_Rob = [ReproStatsTab_Rob; {i, RobName, jj, f_jj(1), f2_jj(1), ...
       max(abs(test_f2_rel)), max(abs(test_f3_rel)), details_available, rescode}]; %#ok<AGROW>
     writetable(ReproStatsTab_Rob, fullfile(resdir_opt, sprintf('Rob%d_%s', RobNr, RobName), ...
-      sprintf('Rob%d_%s_reproducability_stats.csv', RobNr, RobName)), 'Delimiter', ';');
-%     % In Gesamt-Tabelle anhängen und diese auch schreiben. Dadurch viele
-%     % Schreibzugriffe auf die Datei, aber auch bei Abbruch gefüllt.
-%     % Das funktioniert nicht in der parfor-Schleife
-%     ReproStatsTab = [ReproStatsTab; ReproStatsTab_Rob]; %#ok<AGROW>
-%     writetable(ReproStatsTab, fullfile(resdir_opt, 'reproducability_stats.csv'), 'Delimiter', ';');
+      sprintf('Rob%d_%s_reproducability_stats%s.csv', RobNr, RobName, repro_name)), 'Delimiter', ';');
   end
   end
+end
+% Alle Tabellen zusammenführen
+s_merge.repro_names = {repro_name};
+merge_tables(s_merge);
+end
+
+function merge_tables(s_merge)
+% Zusammenfassen der Tabellen für jeden Roboter einzeln
+% Bestimme alle verschiedenen durchgeführten Reproduzierbarkeits-Studien
+if isempty(s_merge.repro_names)
+  repro_names = {};
+  for i = 1:length(s_merge.Structures)
+    csvres = dir(fullfile(s_merge.resdir_opt, sprintf('Rob%d_%s', i, ...
+      s_merge.Structures{i}.Name), '*_reproducability_stats*.csv'));
+    for j = 1:length(csvres)
+      [tokens, ~] = regexp(csvres(j).name, '_reproducability_stats([\w]*).csv', 'tokens', 'match'); % 
+      if isempty(repro_names)
+        repro_names = tokens{1}(1);
+      elseif ~isempty(strcmp(repro_names, tokens{1}{1}))
+        repro_names = [repro_names, tokens{1}{1}]; %#ok<AGROW> 
+      end
+    end
+  end
+else
+  repro_names = s_merge.repro_names;
+end
+% Erzeuge für jede Reproduktions-Auswertung eine Zusammenfassung
+ReproStatsTab = [];
+for k = 1:length(repro_names)
+  repro_name = repro_names{k};
+  for i = 1:length(s_merge.Structures)
+    csvfilename = fullfile(s_merge.resdir_opt, sprintf('Rob%d_%s', i, s_merge.Structures{i}.Name), ...
+      sprintf('Rob%d_%s_reproducability_stats%s.csv', i, s_merge.Structures{i}.Name, repro_name));
+    if ~exist(csvfilename, 'file'), continue; end
+    ReproStatsTab_Rob = readtable(csvfilename, 'Delimiter', ';');
+    if isempty(ReproStatsTab)
+      ReproStatsTab = ReproStatsTab_Rob;
+    else
+      ReproStatsTab = [ReproStatsTab; ReproStatsTab_Rob]; %#ok<AGROW> 
+    end
+  end
+  % Speichere die Gesamt-Tabelle für alle Roboter einer Repro-Auswertung
+  csvfilename_all = fullfile(s_merge.resdir_opt, sprintf( ...
+    'reproducability_stats%s.csv', repro_name));
+  writetable(ReproStatsTab, csvfilename_all, 'Delimiter', ';');
+  fprintf('Tabelle mit Reproduktions-Informationen geschrieben: %s\n', csvfilename_all);
+end
 end
