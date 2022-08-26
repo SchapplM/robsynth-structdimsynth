@@ -137,7 +137,7 @@ else % Parallel
 end
 if fitness_recalc_necessary
   % Berechne die Fitness-Funktionen
-  clear cds_save_particle_details cds_fitness cds_log
+  cds_save_particle_details(); cds_fitness(); cds_log(); % zurücksetzen
   p = RobotOptRes.p_val_pareto(PNr,:)';
   p_desopt = RobotOptRes.desopt_pval_pareto(PNr,:)';
   if any(isnan(p_desopt))

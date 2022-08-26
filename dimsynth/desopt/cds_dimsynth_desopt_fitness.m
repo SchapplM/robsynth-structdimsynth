@@ -46,6 +46,11 @@
 
 function [fval, physval_desopt, abort_fitnesscalc_retval] = cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn_reg, Structure, p_desopt)
 t1 = tic();
+persistent abort_fitnesscalc
+if nargin == 0
+  abort_fitnesscalc = [];
+  return;
+end
 % Debug:
 if Set.general.matfile_verbosity > 3
   repopath = fileparts(which('structgeomsynth_path_init.m'));
@@ -60,7 +65,6 @@ fval_debugtext = '';
 fval_main = NaN(length(Set.optimization.objective),1);
 physval_main = NaN(length(Set.optimization.objective),1);
 % Abbruch prüfen
-persistent abort_fitnesscalc
 abort_fitnesscalc_retval = false;
 if isempty(abort_fitnesscalc)
   abort_fitnesscalc = false;

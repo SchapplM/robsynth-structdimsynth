@@ -44,7 +44,7 @@ if ~Set.general.only_finish_aborted
 else
   msg = sprintf('Schließe die abgebrochene Maßsynthese %s ab.', Set.optimization.optname);
 end
-clear cds_log
+cds_log(); % persistente Variablen zurücksetzen
 fpfile = cds_log(1, msg, 'init', Set, struct('Number', 0));
 % Fingerabdruck der relevanten Repos in Log-Datei speichern
 if ~isempty(fpfile) % (nur wenn Log-Datei erstellt wird, nicht bei Hochladen)

@@ -41,6 +41,12 @@
 
 function [fval, physval, Q_out, QD_out, QDD_out, TAU_out, JP_out, Jinv_out, X6Traj_out] = ...
   cds_fitness(R, Set, Traj_W, Structure, p, desopt_pval)
+% Prüfe Zurücksetzen der persistenten Variable
+persistent abort_fitnesscalc
+if nargin == 0
+  abort_fitnesscalc = [];
+  return;
+end
 repopath = fileparts(which('structgeomsynth_path_init.m'));
 rng(0); % Für Wiederholbarkeit der Versuche: Zufallszahlen-Initialisierung
 
@@ -98,7 +104,6 @@ end
 %% Abbruch prüfen
 % Prüfe, ob Berechnung schon abgebrochen werden kann, weil ein anderes
 % Partikel erfolgreich berechnet wurde. Dauert sonst eine ganze Generation.
-persistent abort_fitnesscalc
 if isempty(abort_fitnesscalc)
   abort_fitnesscalc = false;
 elseif abort_fitnesscalc

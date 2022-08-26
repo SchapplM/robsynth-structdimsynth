@@ -30,6 +30,11 @@ function lfp = cds_log(level, msg, option, Set, Structure)
 %% Initialisierung
 persistent logfilepath
 persistent loglevel
+if nargin == 0
+  logfilepath = [];
+  loglevel = [];
+  return
+end
 % Initialisierung durch Funktionsaufruf
 if nargin > 2 && any(strcmp(option, {'init', 'amend'}))
   % Initialisiere die persistenten Variablen
