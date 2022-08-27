@@ -88,6 +88,12 @@ mininstspcdist_all = NaN(3,1);
 % Speicherung der Trajektorie mit aktualisierter EE-Drehung bei Aufg.-Red.
 Traj_0 = Traj_0_in;
 X2 = NaN(size(Traj_0.X)); XD2 = NaN(size(Traj_0.X)); XDD2 = NaN(size(Traj_0.X));
+% Falls Orientierung konstant gelassen wird: Überschreiben
+if Structure.task_red && strcmp(Set.optimization.objective_ik, 'constant')
+  x2 = R.fkineEE2_traj(q')';
+  Traj_0.X(:,6) = x2(6);
+  Traj_0.XD(:,6) = 0; Traj_0.XDD(:,6) = 0;
+end
 constrvioltext_alt = '';
 % Speicherung für Linien in Redundanzkarte
 PM_phiz_plot = [];
@@ -99,7 +105,7 @@ name_prefix_ardbg = sprintf('Gen%02d_Ind%02d_Konfig%d', currgen, ...
   currind, Structure.config_index);
 % Schleife über mehrere mögliche Nebenbedingungen der inversen Kinematik
 fval_ar = NaN(1,2);
-if Structure.task_red
+if Structure.task_red && ~strcmp(Set.optimization.objective_ik, 'constant')
   ar_loop = 1:3; % Aufgabenredundanz liegt vor. Zusätzliche Schleife. Dritte Schleife ist nur zur Prüfung.
 else
   ar_loop = 1; % Keine Aufgabenredundanz. Nichts zu berechnen.
