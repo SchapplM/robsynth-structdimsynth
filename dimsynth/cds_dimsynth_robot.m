@@ -142,11 +142,7 @@ end
 % mit parroblib_writelock notwendig, da bereits zu Beginn geprüft.
 R.fill_fcn_handles(Set.general.use_mex, true);
 % Aufgaben-FG des Roboters setzen
-if Structure.Type == 0 % Seriell
-  R.I_EE_Task = Set.task.DoF;
-else % Parallel
-  R.update_EE_FG(R.I_EE, Set.task.DoF);
-end
+R.update_EE_FG(R.I_EE, Set.task.DoF);
 if all(Set.task.DoF == [1 1 1 1 1 0])
   Set.task.pointing_task = true;
 end
