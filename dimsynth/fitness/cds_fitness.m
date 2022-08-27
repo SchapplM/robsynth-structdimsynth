@@ -265,20 +265,20 @@ for iIKC = 1:size(Q0,1)
   if ~Set.optimization.fix_joint_limits
     qlim_range = qlim(:,2)-qlim(:,1);
     qlim_neu = qlim; % Für Dreh- und Schubgelenke separat. Berücksichtige 2pi-Periodizität
+    % Naiver Mittelwert: Für Schubgelenke korrekt
     qlim_neu(R.MDH.sigma==1,:) = repmat(mean(QE_iIKC(:,R.MDH.sigma==1,iIKC),1)',1,2)+...
       [-qlim_range(R.MDH.sigma==1), qlim_range(R.MDH.sigma==1)]/2;
-    % TODO: Zentrieren um ersten Schritt. Sonst hier Normalisierung in
-    % Grenzen und keine Normalisierung in Winkeln
-    qlim_neu(R.MDH.sigma==0,:) = repmat(meanangle(QE_iIKC(:,R.MDH.sigma==0,iIKC),1)',1,2)+...
+    % Mittelwert der Winkel, zunächst normalisiert um pi
+    qErot_mean = meanangle(QE_iIKC(:,R.MDH.sigma==0,iIKC),1)';
+    % Zentrieren um ersten Schritt. Sonst kann q0 außerhalb liegen, obwohl
+    % es eigentlich der korrekte Bereich ist.
+    qErot_meannorm = normalizeAngle(qErot_mean, QE_iIKC(1,R.MDH.sigma==0,iIKC)');
+    % Einträge für Drehgelenke überschreiben
+    qlim_neu(R.MDH.sigma==0,:) = repmat(qErot_meannorm,1,2)+...
       [-qlim_range(R.MDH.sigma==0), qlim_range(R.MDH.sigma==0)]/2;
-    qlim_neu(R.MDH.sigma==1) = qlim(R.MDH.sigma==1); % Schubgelenke zurücksetzen
     % Gelenkgrenzen von oben wieder erneut einsetzen. Notwendig, da Grenzen
     % in Traj.-IK berücksichtigt werden. Unten wird der Wert aktualisiert
-    if R.Type == 0 % Seriell
-      R.qlim = qlim_neu;
-    else % PKM
-      for i = 1:R.NLEG, R.Leg(i).qlim = qlim_neu(R.I1J_LEG(i):R.I2J_LEG(i),:); end
-    end
+    R.update_qlim(qlim_neu);
   end
   if any(Q0(iIKC,:)' < qlim_neu(:,1) | Q0(iIKC,:)' > qlim_neu(:,2))
     cds_log(-1, '[cds_fitness] Anfangswert für Gelenkwinkel außerhalb der Grenzen. Für Traj. ungünstig.');
