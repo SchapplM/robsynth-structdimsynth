@@ -1406,3 +1406,10 @@ else % Gebe alle gültigen Lösungen aus
   end
 end
 Stats_constraints = struct('bestcolldist', bestcolldist_jic, 'bestinstspcdist', bestinstspcdist_jic);
+% Änderungen an Roboter-Klasse rückgängig machen. Zurücksetzen der
+% Aufgaben-FG funktioniert oben nur, wenn IK auch erfolreich ist.
+if strcmp(Set.optimization.objective_ik, 'constant') && Structure.task_red
+  if ~all(R.I_EE_Task == Set.task.DoF)
+    R.update_EE_FG(R.I_EE, Set.task.DoF);
+  end
+end
