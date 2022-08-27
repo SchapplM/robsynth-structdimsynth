@@ -93,6 +93,7 @@ if Structure.task_red && strcmp(Set.optimization.objective_ik, 'constant')
   x2 = R.fkineEE2_traj(q')';
   Traj_0.X(:,6) = x2(6);
   Traj_0.XD(:,6) = 0; Traj_0.XDD(:,6) = 0;
+  R.update_EE_FG(R.I_EE, [R.I_EE_Task(1:5), 1]); % Auf nicht-redundant setzen
 end
 constrvioltext_alt = '';
 % Speicherung für Linien in Redundanzkarte
@@ -105,7 +106,7 @@ name_prefix_ardbg = sprintf('Gen%02d_Ind%02d_Konfig%d', currgen, ...
   currind, Structure.config_index);
 % Schleife über mehrere mögliche Nebenbedingungen der inversen Kinematik
 fval_ar = NaN(1,2);
-if Structure.task_red && ~strcmp(Set.optimization.objective_ik, 'constant')
+if Structure.task_red 
   ar_loop = 1:3; % Aufgabenredundanz liegt vor. Zusätzliche Schleife. Dritte Schleife ist nur zur Prüfung.
 else
   ar_loop = 1; % Keine Aufgabenredundanz. Nichts zu berechnen.
@@ -1795,4 +1796,11 @@ if R.Type == 2 && any(isnan(Jinv_ges(:))) && fval == 1e3
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
     'cds_constraints_traj_jacobi_nan_error_final.mat'));  
   error('Prüfung der Nebenbedingungen nicht vollständig');
+end
+% Änderungen an Roboter-Klasse rückgängig machen. Zurücksetzen der
+% Aufgaben-FG funktioniert oben nur, wenn IK auch erfolreich ist.
+if strcmp(Set.optimization.objective_ik, 'constant') && Structure.task_red
+  if ~all(R.I_EE_Task == Set.task.DoF)
+    R.update_EE_FG(R.I_EE, Set.task.DoF);
+  end
 end

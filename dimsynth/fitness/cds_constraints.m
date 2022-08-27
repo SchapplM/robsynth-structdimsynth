@@ -373,7 +373,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       % noch frei, danach dann verschiedene Bereiche)
       if i == 1 && jic > 1
         % Für jede Konfiguration wird eine andere EE-Drehung gefordert
-        delta_phiz_range1 = linspace(0, pi, floor(n_jic/2));
+        delta_phiz_range1 = linspace(0, pi, ceil(n_jic/2)+1);
         delta_phiz_range2 = [delta_phiz_range1,-fliplr(delta_phiz_range1)];
         delta_phiz_range2 = delta_phiz_range2(delta_phiz_range2~=0);
         delta_phiz = delta_phiz_range2(jic-1);
