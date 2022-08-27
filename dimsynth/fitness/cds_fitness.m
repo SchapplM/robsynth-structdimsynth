@@ -136,10 +136,12 @@ Traj_0_E = cds_transform_traj(R, struct('XE', Traj_W.XE));
 % IK nicht mehr reproduzierbar ist (z.B. durch Code-Änderung)
 if all(~isnan(Structure.q0_traj)) && Set.task.profile ~= 0 % nur, falls es auch eine Trajektorie gibt
   % Prüfe, ob diese vorgegebene Werte auch von alleine gefunden wurden.
-  I_match = all(abs(Q0-repmat(Structure.q0_traj',size(Q0,1),1))<1e-6,2);
+  Q0_err = Q0-repmat(Structure.q0_traj',size(Q0,1),1);
+  Q0_err(:,R.MDH.sigma==0) = angleDiff(Q0(:,R.MDH.sigma==0), repmat(Structure.q0_traj(R.MDH.sigma==0)',size(Q0,1),1));
+  I_match = all(abs(Q0_err)<1e-6,2);
   if ~any(I_match)
     cds_log(-1,sprintf(['[fitness] Vorgegebene Werte aus q0_traj wurden nicht ', ...
-      'in den %d IK-Konfigurationen gefunden.'], size(Q0,1)));
+      'in den %d IK-Konfigurationen gefunden. Max. Diff. %1.1e'], size(Q0,1), min(max(abs(Q0_err),[],2))));
     % Damit wird die Traj.-IK immer geprüft, auch wenn die Einzelpunkt-IK
     % nicht erfolgreich gewesen sein sollte
     fval_constr = 1e3;
