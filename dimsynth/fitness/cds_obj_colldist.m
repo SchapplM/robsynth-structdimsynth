@@ -19,14 +19,17 @@
 % 
 % Ausgabe:
 % fval [1x1]
-%   Zielfunktionswert, der im PSO-Algorithmus minimiert wird
+%   Zielfunktionswert, der im PSO-Algorithmus minimiert wird. Benutze den
+%   Kehrwert des Kollisionsabstandes
 % fval_debugtext [char]
 %   Zeile mit Hinweistext, der bei PSO nach Fitness-Berechnung ausgegeben wird
 % debug_info [cell]
 %   Zusatz-Informationen, die im Debug-Bild des Roboters angezeigt werden
 % f_colldist [1x1]
 %   Physikalischer Wert, der dem Zielfunktionswert zugrunde liegt
-%   Hier: Geringster Abstand zweier Kollisionskörper
+%   Hier: Geringster Abstand zweier Kollisionskörper (negativer gezählt,
+%   damit bester Wert am weitesten links im Pareto-Diagramm ist).
+%   Also: negativ=Keine Kollision; positiv=Kollision
 % 
 % Siehe auch: cds_constr_collisions_self.m
 
@@ -63,10 +66,18 @@ else
   [min2colldist, IItmin] = min(mincolldist); % Zeitschritt für kleinsten Abstand von allen
 end
 
-% Kennzahl berechnen
-f_colldist = min2colldist;
-f_colldist_norm = 2/pi*atan((f_colldist)/0.1); % Normierung auf 0 bis 1; 1m ist 0.94
-fval = 1e3*f_colldist_norm; % Normiert auf 0 bis 1e3
+% Kennzahl berechnen: Werte von oben sind positiv, wenn keine Kollision
+% vorliegt. Daher negativ zählen und unten Kehrwert bilden.
+f_colldist = -min2colldist;
+if min2colldist > 0 % keine Kollision
+  f_colldist2 = 1/min2colldist;
+  f_colldist_norm = 2/pi*atan(f_colldist2/10); % Normierung auf 0 bis 1; 1m ist 0.06; 0.1m ist 0.5
+  fval = 1e2*f_colldist_norm; % Normiert auf 0 bis 1e2. über 1e2 ist reserviert für Kollision
+else % Kollision
+  f_colldist2 = -min2colldist; % je größer der Betrag desto tiefer in Kollision
+  f_colldist_norm = 2/pi*atan(f_colldist2*10); % 0.2m Eindringung entspricht 0.7; 0.1m entspricht 0.5; 1mm entspricht 0.0064
+  fval = 1e2*(1+9*f_colldist_norm); % normiere auf 1e2 bis 1e3
+end
 fval_debugtext = sprintf('Kollisionsabstand %1.1fmm.', 1e3*min2colldist);
 
 %% Debug
