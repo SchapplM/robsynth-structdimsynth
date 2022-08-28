@@ -651,6 +651,13 @@ if i_ar == 3
       'erneute IK-Berechnung (%1.3e->%1.3e, delta: %1.3e). Vorher: %s'], ...
       fval_ar(1), fval_ar(2), fval_ar(2)-fval_ar(1), constrvioltext_alt)]; %#ok<AGROW>
   end
+  % Änderungen an Roboter-Klasse rückgängig machen. Zurücksetzen der
+  % Aufgaben-FG funktioniert oben nur, wenn IK auch erfolreich ist.
+  if strcmp(Set.optimization.objective_ik, 'constant') && Structure.task_red
+    if ~all(R.I_EE_Task == Set.task.DoF)
+      R.update_EE_FG(R.I_EE, Set.task.DoF);
+    end
+  end
   return
 end
 if i_ar == 2
