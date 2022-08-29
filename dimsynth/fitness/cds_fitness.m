@@ -41,6 +41,12 @@
 
 function [fval, physval, Q_out, QD_out, QDD_out, TAU_out, JP_out, Jinv_out, X6Traj_out] = ...
   cds_fitness(R, Set, Traj_W, Structure, p, desopt_pval)
+% Prüfe Zurücksetzen der persistenten Variable
+persistent abort_fitnesscalc
+if nargin == 0
+  abort_fitnesscalc = [];
+  return;
+end
 repopath = fileparts(which('structgeomsynth_path_init.m'));
 rng(0); % Für Wiederholbarkeit der Versuche: Zufallszahlen-Initialisierung
 
@@ -98,7 +104,6 @@ end
 %% Abbruch prüfen
 % Prüfe, ob Berechnung schon abgebrochen werden kann, weil ein anderes
 % Partikel erfolgreich berechnet wurde. Dauert sonst eine ganze Generation.
-persistent abort_fitnesscalc
 if isempty(abort_fitnesscalc)
   abort_fitnesscalc = false;
 elseif abort_fitnesscalc
@@ -131,19 +136,31 @@ Traj_0_E = cds_transform_traj(R, struct('XE', Traj_W.XE));
 % IK nicht mehr reproduzierbar ist (z.B. durch Code-Änderung)
 if all(~isnan(Structure.q0_traj)) && Set.task.profile ~= 0 % nur, falls es auch eine Trajektorie gibt
   % Prüfe, ob diese vorgegebene Werte auch von alleine gefunden wurden.
-  if ~any(all(abs(Q0-repmat(Structure.q0_traj',size(Q0,1),1))<1e-6,2))
+  Q0_err = Q0-repmat(Structure.q0_traj',size(Q0,1),1);
+  Q0_err(:,R.MDH.sigma==0) = angleDiff(Q0(:,R.MDH.sigma==0), repmat(Structure.q0_traj(R.MDH.sigma==0)',size(Q0,1),1));
+  I_match = all(abs(Q0_err)<1e-6,2);
+  if ~any(I_match)
     cds_log(-1,sprintf(['[fitness] Vorgegebene Werte aus q0_traj wurden nicht ', ...
-      'in den %d IK-Konfigurationen gefunden.'], size(Q0,1)));
+      'in den %d IK-Konfigurationen gefunden. Max. Diff. %1.1e'], size(Q0,1), min(max(abs(Q0_err),[],2))));
     % Damit wird die Traj.-IK immer geprüft, auch wenn die Einzelpunkt-IK
     % nicht erfolgreich gewesen sein sollte
     fval_constr = 1e3;
-    Q0 = [Q0; Structure.q0_traj'];
+    Q0 = [Structure.q0_traj'; Q0]; % Prüfe vorgegebenen Wert zuerst.
     % Erzeuge Platzhalter-Werte für spätere Rechnungen
     QE_iIKC(:,:,size(QE_iIKC,3)+1) = repmat(Structure.q0_traj', size(QE_iIKC,1), 1);
-  elseif fval_constr > 1e3
-    cds_log(-1,sprintf(['[fitness] Vorgegebene Werte aus q0_traj erzeugen ', ...
-      'unzulässige Lösung in Positions-IK. Benutze trotzdem.']));
-    fval_constr = 1e3;
+  else
+    % Der Wert wurde ungefähr erreicht. Ersetze durch den genau exakten
+    % Wert, damit es nicht zu numerischen Abweichungen kommen kann.
+    II_match = find(I_match, 1, 'first');
+    Q0(II_match,:) = Structure.q0_traj';
+    % Setze die Reihenfolge so, dass der gesuchte Wert zuerst kommt. Dann
+    % direkter Abbruch möglich über obj_limit.
+    Q0 = [Q0(II_match,:); Q0(~I_match,:)];
+    if fval_constr > 1e3
+      cds_log(-1,sprintf(['[fitness] Vorgegebene Werte aus q0_traj erzeugen ', ...
+        'unzulässige Lösung in Positions-IK. Benutze trotzdem.']));
+      fval_constr = 1e3;
+    end
   end
 end
 
@@ -248,20 +265,20 @@ for iIKC = 1:size(Q0,1)
   if ~Set.optimization.fix_joint_limits
     qlim_range = qlim(:,2)-qlim(:,1);
     qlim_neu = qlim; % Für Dreh- und Schubgelenke separat. Berücksichtige 2pi-Periodizität
+    % Naiver Mittelwert: Für Schubgelenke korrekt
     qlim_neu(R.MDH.sigma==1,:) = repmat(mean(QE_iIKC(:,R.MDH.sigma==1,iIKC),1)',1,2)+...
       [-qlim_range(R.MDH.sigma==1), qlim_range(R.MDH.sigma==1)]/2;
-    % TODO: Zentrieren um ersten Schritt. Sonst hier Normalisierung in
-    % Grenzen und keine Normalisierung in Winkeln
-    qlim_neu(R.MDH.sigma==0,:) = repmat(meanangle(QE_iIKC(:,R.MDH.sigma==0,iIKC),1)',1,2)+...
+    % Mittelwert der Winkel, zunächst normalisiert um pi
+    qErot_mean = meanangle(QE_iIKC(:,R.MDH.sigma==0,iIKC),1)';
+    % Zentrieren um ersten Schritt. Sonst kann q0 außerhalb liegen, obwohl
+    % es eigentlich der korrekte Bereich ist.
+    qErot_meannorm = normalizeAngle(qErot_mean, QE_iIKC(1,R.MDH.sigma==0,iIKC)');
+    % Einträge für Drehgelenke überschreiben
+    qlim_neu(R.MDH.sigma==0,:) = repmat(qErot_meannorm,1,2)+...
       [-qlim_range(R.MDH.sigma==0), qlim_range(R.MDH.sigma==0)]/2;
-    qlim_neu(R.MDH.sigma==1) = qlim(R.MDH.sigma==1); % Schubgelenke zurücksetzen
     % Gelenkgrenzen von oben wieder erneut einsetzen. Notwendig, da Grenzen
     % in Traj.-IK berücksichtigt werden. Unten wird der Wert aktualisiert
-    if R.Type == 0 % Seriell
-      R.qlim = qlim_neu;
-    else % PKM
-      for i = 1:R.NLEG, R.Leg(i).qlim = qlim_neu(R.I1J_LEG(i):R.I2J_LEG(i),:); end
-    end
+    R.update_qlim(qlim_neu);
   end
   if any(Q0(iIKC,:)' < qlim_neu(:,1) | Q0(iIKC,:)' > qlim_neu(:,2))
     cds_log(-1, '[cds_fitness] Anfangswert für Gelenkwinkel außerhalb der Grenzen. Für Traj. ungünstig.');

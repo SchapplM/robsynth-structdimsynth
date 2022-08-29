@@ -42,12 +42,16 @@
 
 function [PSO_Detail_Data_output, i_gen, i_ind] = cds_save_particle_details( ...
   Set, R, comptime, fval, pval, physval, constraint_obj_val, desopt_pval, option, PSO_Detail_Data_in)
+% Variable zum Speichern der Ergebnisse
+persistent PSO_Detail_Data
+if nargin == 0
+  PSO_Detail_Data = [];
+  return
+end
 assert(~isnan(comptime), 'Rechenzeit darf nicht NaN sein');
 assert(~any(isnan(fval)), 'fval darf nicht NaN sein');
 
 i_gen = 0; i_ind = 0;
-% Variable zum Speichern der Ergebnisse
-persistent PSO_Detail_Data
 PSO_Detail_Data_output = [];
 % Eingabe verarbeiten
 if nargin < 9

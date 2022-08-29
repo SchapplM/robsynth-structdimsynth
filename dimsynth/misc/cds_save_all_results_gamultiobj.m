@@ -23,10 +23,14 @@
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
 function [state,options,optchanged] = cds_save_all_results_gamultiobj(options, state, flag, Set, Structure)
+persistent time_lastsave
+if nargin == 0
+  time_lastsave = [];
+  return;
+end
 
 optchanged = false; % Zuweisung der Ausgabe zuerst
 
-persistent time_lastsave
 if isempty(time_lastsave)
   time_lastsave = 0;
 elseif time_lastsave > now() - 5/(24*60)

@@ -28,8 +28,13 @@ function cds_check_results_reproducability(OptName, RobName, s_in)
 s = struct( ...
   'update_template_functions', false, ... % Aktualisieren die Matlab-Funktionen
   'figure_invisible', true, ... % Unsichtbar erzeugen zum Speichern ohne Fokus-Klau
+  'fval_check_lim', [0, inf], ... % untere und obere Grenzen für die Prüfung der Funktionswerte
   'eval_plots', {{}}, ... % Liste von Plots, die für jedes Partikel erstellt werden. Siehe Eingabe figname in cds_vis_results_figures.
   'results_dir', '', ... % Alternatives Verzeichnis zum Laden der Ergebnisse
+  'isoncluster', false, ... % Falls auf Cluster, muss der parpool-Zugriff geschützt werden
+  'parcomp_maxworkers', 1, ... % Maximale Anzahl an Parallelinstanzen. Standardmäßig ohne Parfor
+  'only_merge_tables', false, ... % Aufruf nur zum Zusammenführen bestehender Tabellen für einzelne Roboter
+  'only_use_stored_q0', true, ... % Versuche nicht mit neuen Zufallswerten die Gelenkwinkel neu zu generieren, sondern nehme die gespeicherten.
   'only_from_pareto_front', true); % bei false werden alle Partikel geprüft, bei true nur die besten
 if nargin < 3
   s_in = s;
@@ -54,6 +59,10 @@ else
   end
 end
 assert(isa(s.eval_plots, 'cell'), 'Eingabefeld eval_plots muss cell array sein');
+% Eindeutigen Namen für diesen Durchlauf des Versuchs der Reproduktion.
+% Es kann auf verschiedenen Rechnern ein unterschiedliches Ergebnis
+% rauskommen, je nach CPU-Architektur (für Zufallszahlen) oder Programmversion
+repro_name = ['_', datestr(now,'yyyymmdd_HHMMSS'), '_', getComputerName()];
 
 %% Optimierung laden
 if ~exist(resdir_opt, 'file')
@@ -84,10 +93,17 @@ else
 end
   
 RobNames = unique(RobNames);
-ReproStatsTab_empty = cell2table(cell(0,9), 'VariableNames', ...
-  {'RobNr', 'Name', 'Partikel', 'ResOpt', 'ResRepro', 'ErrMax_Rel', ...
-  'ErrMax_Rel_q0set', 'WithDetails', 'Status'});
-ReproStatsTab = ReproStatsTab_empty;
+ReproStatsTab_empty = cell2table(cell(0,10), 'VariableNames', ...
+  {'RobNr', 'Name', 'Partikel', 'ResOpt', 'ResRepro', 'ResRepro_q0set', ...
+  'ErrMax_Rel', 'ErrMax_Rel_q0set', 'WithDetails', 'Status'});
+
+%% Einstellungen zum Zusammenfassen der Tabellen
+s_merge = struct('resdir_opt', resdir_opt, 'Structures', {Structures}, 'repro_names', {{}});
+if s.only_merge_tables
+  merge_tables(s_merge);
+  return;
+end
+
 %% Roboter auswerten und Nachrechnen der Fitness-Funktion
 if s.update_template_functions
   for i = 1:length(RobNames)
@@ -107,12 +123,13 @@ if s.update_template_functions
     end
   end
 end
-Pool = gcp('nocreate');
-if isempty(Pool)
-  parfor_numworkers = 0;
-else
-  parfor_numworkers = Pool.NumWorkers;
-end
+% Starten des ParPools über Wrapper-Funktion
+Set_dummy = struct('general', struct('isoncluster', s.isoncluster, ...
+  'parcomp_maxworkers', s.parcomp_maxworkers));
+cds_log(); % Log-Funktion zurücksetzen
+parfor_numworkers = cds_start_parpool(Set_dummy);
+% Alle Roboter durchgehen (Aufteilung so, dass Roboter nicht auf mehrere
+% parfor-Iterationen verteilt werden.
 parfor (i = 1:length(RobNames), parfor_numworkers)
   if parfor_numworkers > 0
     set(0, 'defaultfigureposition', [1 1 1920 1080]);
@@ -125,6 +142,7 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
   % Durchläufe mit dem gleichen Roboter gemacht worden sein. Dann nehme alle.
   RobNr_all = find(strcmp(RobName,Structures_Names));
   for RobNr = RobNr_all(:)'
+  csvfilename = ''; % Initialisierung für Parfor-Warnung
   Structure = Structures{RobNr};
   resfile1 = fullfile(resdir_opt, sprintf('Rob%d_%s_Endergebnis.mat', ...
     RobNr, RobName));
@@ -136,6 +154,20 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
   end
   d1 = load(resfile1, 'RobotOptRes');
   RobotOptRes = d1.RobotOptRes;
+  % Prüfe Filter zum vorzeitigen Überspringen aufgrund der Funktionswerte
+  % Dann muss die nächste Datei nicht geladen werden
+  if s.only_from_pareto_front 
+    if ~isempty(RobotOptRes.fval_pareto) % mehrkriteriell
+      I_inlim = RobotOptRes.fval_pareto > s.fval_check_lim(1) & ...
+                RobotOptRes.fval_pareto < s.fval_check_lim(2);
+    else % einkriteriell
+      I_inlim = RobotOptRes.fval > s.fval_check_lim(1) & ...
+                RobotOptRes.fval < s.fval_check_lim(2);
+    end
+    if ~any(all(I_inlim,2))
+      continue
+    end
+  end
   if exist(resfile2, 'file')
     d2 = load(resfile2, 'PSO_Detail_Data');
     PSO_Detail_Data = d2.PSO_Detail_Data;
@@ -184,6 +216,7 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
   for jj = I(:)'
     p_jj = pval_all(jj,:)';
     f_jj = fval_all(jj,:)';
+    if any(f_jj < s.fval_check_lim(1)) || any(f_jj > s.fval_check_lim(2)), continue; end
     p_desopt_jj = p_desopt_all(jj,:)';
     Structure_jj = Structure;
     if any(isnan(p_desopt_jj))
@@ -196,7 +229,6 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
       Structure_jj.calc_spring_reg = false;
       Structure_jj.calc_dyn_reg = false;
     end
-    % TODO: Berücksichtige Structure_jj.q0_traj, falls nicht reproduzierbar.
     [k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, f_jj);
     if ~isempty(PSO_Detail_Data) && isfield(PSO_Detail_Data, 'q0_ik')
       q0 = PSO_Detail_Data.q0_ik(k_ind,:,k_gen)';
@@ -205,44 +237,61 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
     end
     fprintf('Reproduktion Rob. %d Partikel Nr. %d/%d (Gen. %d, Ind. %d):\n', ...
       RobNr, jj, length(I), k_gen, k_ind);
-    % clear cds_fitness % Persistente Variablen löschen (falls nicht in parfor)
-    [f2_jj, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure_jj,p_jj,p_desopt_jj);
-    test_f2_abs = f_jj - f2_jj;
+    f3_jj = NaN(length(f_jj), 1); % Initialisierung zum Eintragen in Tabelle
+    if ~s.only_use_stored_q0
+      cds_fitness(); % Persistente Variablen löschen (falls nicht in parfor)
+      [f2_jj, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure_jj,p_jj,p_desopt_jj);
+      test_f2_abs = f_jj - f2_jj;
+    else
+      f2_jj = NaN(length(f_jj), 1);
+      Q = []; QD = []; QDD = []; TAU = []; % für parfor-Warnung
+      test_f2_abs = NaN(size(f2_jj));
+    end
     test_f2_rel = test_f2_abs ./ f_jj;
     test_f3_rel = NaN(size(test_f2_rel)); % Initialisierung
     rescode = 0; % Kein Fehler
     if any(abs(test_f2_rel) > 1e-2) % Fehler 1%
-      warning(['Fitness-Wert zu Partikel Nr. %d (Gen. %d, Ind. %d) nicht ohne q0 ', ...
-        'reproduzierbar. In Optimierung (%s): [%s]. Neu: [%s]. Diff.: [%s]%%'], ...
-        jj, k_gen, k_ind, disp_array(Set.optimization.objective), ...
-        disp_array(f_jj', '%1.3e'), disp_array(f2_jj', '%1.3e'), ...
-        disp_array(1e2*test_f2_rel', '%1.2f'));
+      if ~s.only_use_stored_q0
+        warning(['Fitness-Wert zu Partikel Nr. %d (Gen. %d, Ind. %d) nicht ohne q0 ', ...
+          'reproduzierbar. In Optimierung (%s): [%s]. Neu: [%s]. Diff.: [%s]%%'], ...
+          jj, k_gen, k_ind, disp_array(Set.optimization.objective), ...
+          disp_array(f_jj', '%1.3e'), disp_array(f2_jj', '%1.3e'), ...
+          disp_array(1e2*test_f2_rel', '%1.2f'));
+      end
       % Versuche erneut mit vorgegebenen Gelenkwinkeln aus den
-      % Detail-Ergebnissen und zusätzlich höherer Anzahl Versuche
+      % Detail-Ergebnissen (ohne zusätzlich höherer Anzahl Versuche)
       Set_tmp = Set;
-      Set_tmp.optimization.pos_ik_tryhard_num = 100;
+      Set_tmp.optimization.pos_ik_tryhard_num = -200; % nur auf q0 aufbauen
       if ~isempty(q0)
         % Trage Gelenkwinkel ein, damit Trajektorien-Prüfung erzwungen wird
         Structure_jj.q0_traj = q0;
         % Zusätzlich eintragen als Referenz-Winkel, damit es in Eckpunkt-
         % Prüfung auch genutzt wird, auch wenn es nicht von alleine
         % gefunden wird.
-        if R.Type == 0 % Seriell
-          R.qref = q0;
-        else
-          for iii = 1:R.NLEG
-            R.Leg(iii).qref = q0(R.I1J_LEG(iii):R.I2J_LEG(iii));
-          end
-        end
+        R.update_qref(q0);
       end
+      % Breche Optimierung nach dem Prüfen der ersten i.O.-Konfiguration
+      % ab. Das sollte q0 sein. Sonst Fehler mit Reproduzierbarkeit.
+      Set_tmp.optimization.obj_limit = 1e3*ones(length(Set.optimization.objective),1);
+      cds_fitness(); % Variablen zurücksetzen, damit obj_limit unabhängig ausgewertet wird
       [f3_jj, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set_tmp,Traj,Structure_jj,p_jj,p_desopt_jj);
+      err_rel_repro
+      if isempty(Q)
+        warning('Logik-Fehler. Zurückgegebenes Q ist leer')
+      elseif any(abs(Q(1,:)'-q0)>1e-6)
+        warning('Es wurde nicht der gespeicherte Anfangswert gewählt, sondern ein anderer.');
+      end
       test_f3_abs = f_jj - f3_jj;
       test_f3_rel = test_f3_abs ./ f_jj;
       rescode = NaN; %#ok<NASGU> % Muss überschrieben werden
-      if all(abs(f_jj) < 1e3) && any(abs(f2_jj) > 1e3) % vorher i.O., beim 2. mal n.i.O.
+      if all(abs(f_jj) < 1e3) && (any(abs(f2_jj) > 1e3) || any(isnan(f2_jj))) % vorher i.O., beim 2. mal n.i.O.
         if all(~isnan(f3_jj)) && all(abs(f3_jj) < 1e3)
-          rescode = 2;
-          warning('Vorher i.O., jetzt nur bei Vorgabe von q0 auch i.O., sonst n.i.O.');
+          if ~s.only_use_stored_q0
+            rescode = 2;
+            warning('Vorher i.O., jetzt nur bei Vorgabe von q0 auch i.O., sonst n.i.O.');
+          else
+            rescode = 0; % Kein Fehler. Besser kann es mit dieser Einstellung nicht werden
+          end
         elseif all(~isnan(f3_jj)) 
           rescode = 3;
           warning('Vorher i.O., jetzt mit und ohne q0 n.i.O.');
@@ -284,15 +333,59 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
     end
     % Auswertungs-Tabelle für den Roboter schreiben
     details_available = ~isempty(PSO_Detail_Data);
-    ReproStatsTab_Rob = [ReproStatsTab_Rob; {i, RobName, jj, f_jj(1), f2_jj(1), ...
+    ReproStatsTab_Rob = [ReproStatsTab_Rob; {i, RobName, jj, f_jj(1), f2_jj(1), f3_jj(1), ...
       max(abs(test_f2_rel)), max(abs(test_f3_rel)), details_available, rescode}]; %#ok<AGROW>
-    writetable(ReproStatsTab_Rob, fullfile(resdir_opt, sprintf('Rob%d_%s', RobNr, RobName), ...
-      sprintf('Rob%d_%s_reproducability_stats.csv', RobNr, RobName)), 'Delimiter', ';');
-%     % In Gesamt-Tabelle anhängen und diese auch schreiben. Dadurch viele
-%     % Schreibzugriffe auf die Datei, aber auch bei Abbruch gefüllt.
-%     % Das funktioniert nicht in der parfor-Schleife
-%     ReproStatsTab = [ReproStatsTab; ReproStatsTab_Rob]; %#ok<AGROW>
-%     writetable(ReproStatsTab, fullfile(resdir_opt, 'reproducability_stats.csv'), 'Delimiter', ';');
+    csvfilename = fullfile(resdir_opt, sprintf('Rob%d_%s', RobNr, RobName), ...
+      sprintf('Rob%d_%s_reproducability_stats%s.csv', RobNr, RobName, repro_name));
+    writetable(ReproStatsTab_Rob, csvfilename, 'Delimiter', ';');
   end
+  fprintf('Tabelle für Rob %d geschrieben: %s\n', RobNr, csvfilename);
   end
+end
+% Alle Tabellen zusammenführen
+s_merge.repro_names = {repro_name};
+merge_tables(s_merge);
+end
+
+function merge_tables(s_merge)
+% Zusammenfassen der Tabellen für jeden Roboter einzeln
+% Bestimme alle verschiedenen durchgeführten Reproduzierbarkeits-Studien
+if isempty(s_merge.repro_names)
+  repro_names = {};
+  for i = 1:length(s_merge.Structures)
+    csvres = dir(fullfile(s_merge.resdir_opt, sprintf('Rob%d_%s', i, ...
+      s_merge.Structures{i}.Name), '*_reproducability_stats*.csv'));
+    for j = 1:length(csvres)
+      [tokens, ~] = regexp(csvres(j).name, '_reproducability_stats([\w]*).csv', 'tokens', 'match'); % 
+      if isempty(repro_names)
+        repro_names = tokens{1}(1);
+      elseif ~isempty(strcmp(repro_names, tokens{1}{1}))
+        repro_names = [repro_names, tokens{1}{1}]; %#ok<AGROW> 
+      end
+    end
+  end
+else
+  repro_names = s_merge.repro_names;
+end
+% Erzeuge für jede Reproduktions-Auswertung eine Zusammenfassung
+ReproStatsTab = [];
+for k = 1:length(repro_names)
+  repro_name = repro_names{k};
+  for i = 1:length(s_merge.Structures)
+    csvfilename = fullfile(s_merge.resdir_opt, sprintf('Rob%d_%s', i, s_merge.Structures{i}.Name), ...
+      sprintf('Rob%d_%s_reproducability_stats%s.csv', i, s_merge.Structures{i}.Name, repro_name));
+    if ~exist(csvfilename, 'file'), continue; end
+    ReproStatsTab_Rob = readtable(csvfilename, 'Delimiter', ';');
+    if isempty(ReproStatsTab)
+      ReproStatsTab = ReproStatsTab_Rob;
+    else
+      ReproStatsTab = [ReproStatsTab; ReproStatsTab_Rob]; %#ok<AGROW> 
+    end
+  end
+  % Speichere die Gesamt-Tabelle für alle Roboter einer Repro-Auswertung
+  csvfilename_all = fullfile(s_merge.resdir_opt, sprintf( ...
+    'reproducability_stats%s.csv', repro_name));
+  writetable(ReproStatsTab, csvfilename_all, 'Delimiter', ';');
+  fprintf('Tabelle mit Reproduktions-Informationen geschrieben: %s\n', csvfilename_all);
+end
 end

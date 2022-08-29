@@ -93,6 +93,9 @@ opts = detectImportOptions(restabfile,'NumHeaderLines',2);
 opts.VariableNamesLine = 1;
 opts.VariableDescriptionsLine = 2;
 ResTab = readtable(restabfile, opts);
+if isempty(ResTab) % Scheinbar keine Ergebnisse
+  return
+end
 
 length_Structures = length(Structures);
 % Prüfe, ob überhaupt roboterspezifische Plots erzeugt werden sollen

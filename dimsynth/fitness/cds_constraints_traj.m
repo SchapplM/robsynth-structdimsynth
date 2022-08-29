@@ -1001,9 +1001,11 @@ if ~isinf(Set.optimization.condition_limit_sing_act) && R.Type == 2
 end
 %% Singularität prüfen (bezogen auf IK-Jacobi-Matrix)
 if ~isinf(Set.optimization.condition_limit_sing) && Stats.errorcode == 3 && ...
-    any(Stats.h(:,1+R.idx_iktraj_hn.jac_cond) > 0)
+    any(Stats.h(:,1+R.idx_iktraj_hn.jac_cond) > s.abort_thresh_h(R.idx_iktraj_hn.jac_cond))
   % Führt bereits in Traj.-IK zum Abbruch. Prüfe, ob dies die Ursache war
-  constrvioltext_m{i_m} = sprintf('Roboter ist singulär (Konditionszahl IK-Jacobi).');
+  constrvioltext_m{i_m} = sprintf(['Roboter ist singulär (Konditionszahl IK-', ...
+    'Jacobi). %1.1e > %1.1e. Abbruch bei iter=%d'], Stats.h(1+Stats.iter,...
+    1+R.idx_iktraj_hn.jac_cond), s.abort_thresh_h(R.idx_iktraj_hn.jac_cond), Stats.iter);
   fval_all(i_m, i_ar)  = 1e4*(5); % zunächst kein eigener Wertebereich
   continue
 end
@@ -1662,6 +1664,9 @@ if Set.optimization.constraint_collisions
     fval_all(i_m, i_ar)  = fval_coll_traj; % Normierung auf 3e3 bis 4e3 -> bereits in Funktion
     constrvioltext_m{i_m} = sprintf('Kollision in %d/%d Traj.-Punkten.', ...
       sum(any(coll_traj,2)), size(coll_traj,1));
+    if Stats.errorcode == 3 % Damit früher Abbruch im Log erkennbar ist
+      constrvioltext_m{i_m} = [constrvioltext_m{i_m}, sprintf(' IK-Abbruch bei iter=%d.', Stats.iter)];
+    end
 %     if Stats.errorcode ~= 3 % Auskommentiert, da IK-Funktion nicht dafür implementiert.
 %       cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Kollision ', ...
 %         'nicht in Traj.-IK erkannt, danach aber schon.'], Structure.config_index, Structure.config_number));

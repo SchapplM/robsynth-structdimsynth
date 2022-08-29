@@ -50,7 +50,7 @@ if Set.general.only_finish_aborted && exist(resultfile, 'file')
 end
 %% Initialisierung
 % Log-Datei initialisieren
-clear cds_log % Falls Durchlauf direkt hiervor und jetzt mit only_finish_aborted
+cds_log(); % Falls Durchlauf direkt hiervor und jetzt mit only_finish_aborted
 if ~init_only && ~Set.general.only_finish_aborted
   resdir_rob = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
     sprintf('Rob%d_%s', Structure.Number, Structure.Name));
@@ -59,7 +59,7 @@ if ~init_only && ~Set.general.only_finish_aborted
     Structure.Name, Set.optimization.optname), 'init', Set, Structure);
 end
 % Zurücksetzen der Detail-Speicherfunktion
-clear cds_save_particle_details;
+cds_save_particle_details();
 % Anpassung der eingegebenen Struktur-Variable an Aktualisierungen
 if ~isfield(Structure, 'RobName'), Structure.RobName = ''; end  
 %% Referenzlänge ermitteln
@@ -142,11 +142,7 @@ end
 % mit parroblib_writelock notwendig, da bereits zu Beginn geprüft.
 R.fill_fcn_handles(Set.general.use_mex, true);
 % Aufgaben-FG des Roboters setzen
-if Structure.Type == 0 % Seriell
-  R.I_EE_Task = Set.task.DoF;
-else % Parallel
-  R.update_EE_FG(R.I_EE, Set.task.DoF);
-end
+R.update_EE_FG(R.I_EE, Set.task.DoF);
 if all(Set.task.DoF == [1 1 1 1 1 0])
   Set.task.pointing_task = true;
 end
@@ -2021,7 +2017,7 @@ if ~Set.general.only_finish_aborted
 end
 %% Fitness-Funktion initialisieren (Strukturunabhängig)
 % Zurücksetzen der gespeicherten Werte (aus vorheriger Maßsynthese)
-clear cds_fitness
+cds_fitness();
 % Initialisierung der Speicher-Funktion (damit testweises Ausführen funk- 
 % tioniert; sonst teilw. Fehler im Debug-Modus durch Zugriff auf Variablen)
 cds_save_particle_details(Set, R, 0, zeros(length(Set.optimization.objective),1), ...
@@ -2042,7 +2038,7 @@ if false % Debug: Fitness-Funktion testweise ausführen
     zeros(size(f_test)), zeros(length(Set.optimization.constraint_obj),1), ...
     zeros(length(Structure.desopt_ptypes),1), 'reset');
   % Zurücksetzen der gespeicherten Werte der Fitness-Funktion
-  clear cds_fitness
+  cds_fitness();
 end
 %% PSO-Aufruf starten
 cds_log(3, sprintf('[dimsynth] Starte Optimierung mit %d Parametern: %s', ...
@@ -2307,7 +2303,7 @@ for i = 1:max_retry
   % Eigentlich darf sich das Ergebnis aber nicht ändern (wegen der
   % Zufallszahlen-Initialisierung in cds_fitness). Es kann rundungsbedingte
   % Aenderungen des Ergebnisses geben.
-  clear cds_fitness % persistente Variable in fitnessfcn löschen (falls Grenzwert erreicht wurde wird sonst inf zurückgegeben)
+  cds_fitness(); % persistente Variable in fitnessfcn löschen (falls Grenzwert erreicht wurde wird sonst inf zurückgegeben)
   % Aufruf nicht über anonmye Funktion, sondern vollständig, damit Param.
   % der Entwurfsoptimierung übergeben werden können.
   [fval_test, ~, Q, QD, QDD, TAU, JP, ~, X6Traj] = cds_fitness(R, Set, Traj, Structure_tmp, p_val, desopt_pval);

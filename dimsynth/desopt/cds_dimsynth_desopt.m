@@ -172,7 +172,7 @@ if any(vartypes == 3)
 end
 options_desopt.InitialSwarmMatrix = InitPop;
 % Erstelle die Fitness-Funktion und führe sie einmal zu testzwecken aus
-clear cds_dimsynth_desopt_fitness % Für persistente Variablen von vorheriger Iteration in Maßsynthese
+cds_dimsynth_desopt_fitness(); % Für persistente Variablen von vorheriger Iteration in Maßsynthese
 fval_main_dummy = NaN(length(Set.optimization.objective), 1);
 cds_desopt_save_particle_details(0, 0, zeros(nvars,1), 0, fval_main_dummy, fval_main_dummy, 'reset', ... % Zurücksetzen der ...
   struct('comptime', NaN([options_desopt.MaxIter+1, NumIndividuals]))); % ... Detail-Speicherfunktion
@@ -205,7 +205,7 @@ elseif all(vartypes == 2) % Nur Segmentstärke wird optimiert
     p_val_opt = InitPop(1,:)';
     detailstring = 'Schwächste Segmentdimensionierung erfüllt bereits die Nebenbedingungen';
   end
-  clear cds_dimsynth_desopt_fitness % für persistente Variable
+  cds_dimsynth_desopt_fitness(); % für persistente Variable
   fval_maxpar = fitnessfcn_desopt(InitPop(2,:)');
   if fval_minpar > 1e4 && fval_maxpar > 1e4
     % Sowohl die schwächstmögliche, als auch die stärkstmögliche
@@ -251,7 +251,7 @@ elseif all(vartypes == 3) % Nur Gelenkfeder-Ruhelagen werden optimiert
       'Ruhelage stark überschritten (Faktor %1.1f)'], physval_test);
   end
 elseif any(vartypes == 2) && any(vartypes == 3) % Gemeinsame Optimierung
-  clear cds_dimsynth_desopt_fitness % für persistente Variable
+  cds_dimsynth_desopt_fitness(); % für persistente Variable
   fval_minpar = fval_test;
   fval_maxpar = fitnessfcn_desopt(InitPop(2,:)');
   if fval_minpar > 1e4 && fval_maxpar > 1e4
@@ -278,7 +278,7 @@ if ~avoid_optimization
     'eine Zielfunktionsauswertung: %1.1fms. Max. Dauer für Optimierung: ', ...
     '%1.1fs (%d+1 Iterationen, %d Individuen)'], 1e3*T2, NumIndividuals*...
     (options_desopt.MaxIter+1)*T2, options_desopt.MaxIter, NumIndividuals));
-  clear cds_dimsynth_desopt_fitness % für persistente Variable
+  cds_dimsynth_desopt_fitness(); % für persistente Variable
   [p_val,fval,~,output] = particleswarm(fitnessfcn_desopt,nvars,varlim(:,1),varlim(:,2),options_desopt);
   p_val = p_val(:);
   if fval < 1000
