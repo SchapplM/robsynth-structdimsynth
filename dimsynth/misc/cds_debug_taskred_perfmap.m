@@ -83,7 +83,8 @@ wn_plot = s.wn;
 if all(isnan(s.wn))
   wn_plot(:) = 0;
 end
-assert(length(s.TrajLegendText) == size(phiz_traj,2), ['Jeder Trajektorie aus', ...
+assert(isa(s.TrajLegendText, 'cell'), 'Eintrag TrajLegendText muss cell-Array sein');
+assert(length(s.TrajLegendText) == size(phiz_traj,2), ['Jeder Trajektorie aus ', ...
   'phiz_traj muss ein Legendeneintrag in s.TrajLegendText zugeordnet sein']);
 condsat_limit = s.condsat_limit;
 colorlimit = s.colorlimit;

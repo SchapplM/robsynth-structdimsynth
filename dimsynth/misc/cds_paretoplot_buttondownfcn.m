@@ -344,29 +344,55 @@ elseif strcmp(SelStr(Selection), 'Redundanzkarte')
   if n_iOmat == 0
     fprintf(['Keine vorab generierten Daten zur Redundanzkarte in %d mat-', ...
       'Dateien gefunden. Nächster Wert für Gelenkwinkel mit Abstand %1.2e. ', ...
-      'Neuberechnung der Karte.\n'], bestqdist, length(matcand));
-    % Bild neu generieren
+      'Neuberechnung der Karte.\n'], length(matcand), bestqdist);
+    resdir_rob = fullfile(Set.optimization.resdir, OptName, sprintf('Rob%d_%s', RobNr, RobName));
+    filename_perfmap = fullfile(resdir_rob, sprintf('Rob%d_%s_P%d_TaskRed_PerfMap.mat', RobNr, RobName, PNr));
     d2 = struct('X2', X2);
-    [d.H_all, ~, d.s_ref, d.s_tref, d.phiz_range] = R.perfmap_taskred_ik( ...
-      Traj_0.X(1:nt_red,:), Traj_0.IE(Traj_0.IE~=0), struct( ...
-      'q0', Q(1,:)', 'I_EE_red', Set.task.DoF, 'map_phistart', d.X2(1,end), ...
-      ... % nur grobe Diskretisierung für die Karte (geht schneller)
-      'mapres_thresh_eepos', 10e-3, 'mapres_thresh_eerot', 5*pi/180, ...
-      'mapres_thresh_pathcoordres', 0.2, 'mapres_redcoord_dist_deg', 5, ...
-      'maplim_phi', [-1, +1]*210*pi/180, ... % 210° statt 180° als Grenze
-      'verbose', true));
-    wn = zeros(20,1); % Platzhalter-Variable
+    if ~exist(filename_perfmap, 'file')
+      % Bild neu generieren
+      [d.H_all, ~, d.s_ref, d.s_tref, d.phiz_range] = R.perfmap_taskred_ik( ...
+        Traj_0.X(1:nt_red,:), Traj_0.IE(Traj_0.IE~=0), struct( ...
+        'q0', Q(1,:)', 'I_EE_red', Set.task.DoF, 'map_phistart', d2.X2(1,end), ...
+        ... % nur grobe Diskretisierung für die Karte (geht schneller)
+        'mapres_thresh_eepos', 10e-3, 'mapres_thresh_eerot', 5*pi/180, ...
+        'mapres_thresh_pathcoordres', 0.2, 'mapres_redcoord_dist_deg', 5, ...
+        'maplim_phi', [-1, +1]*210*pi/180, ... % 210° statt 180° als Grenze
+        'verbose', true));
+      save(filename_perfmap, '-struct', 'd');
+    else
+      d = load(filename_perfmap);
+      fprintf('Redundanzkarte aus Datei geladen: %s\n', filename_perfmap);
+    end
+    wn = zeros(R.idx_ik_length.wntraj,1);
+    % Wähle alle hyperbolischen Kriterien und die Konditionszahl, damit es
+    % irgend eine Redundanzkarte gibt
+    wn(R.idx_iktraj_wnP.jac_cond) = 1;
+    wn([R.idx_iktraj_wnP.coll_hyp, R.idx_iktraj_wnP.instspc_hyp]) = 1;
     h1 = NaN(size(d2.X2,1),1);
   end
   % Rechne die IK-Kriterien von Traj.- zu Pos.-IK um. Siehe cds_constraints_traj
   i=0; I_wn_traj = zeros(R.idx_ik_length.wnpos,1);
-  for f = fields(RS.idx_ikpos_wn)'
+  for f = fields(R.idx_ikpos_wn)'
     i=i+1; I_wn_traj(i) = R.idx_iktraj_wnP.(f{1});
   end
+  % Aktuellen Inhalt des tmp-Verzeichnisses zum späteren Abgleich
+  [~,~,~,resdir_tmp] = cds_get_new_figure_filenumber(Set, Structure, '');
+  filelist_old = dir(fullfile(resdir_tmp, '*.*'));
   % Bild zeichnen
   cds_debug_taskred_perfmap(Set, Structure, d.H_all, d.s_ref, d.s_tref(:), ...
     d.phiz_range, d2.X2(:,6), h1, struct('wn', wn(I_wn_traj), 'i_ar', 0, ...
-    'critnames', {fields(R.idx_ikpos_wn)'}));
+    'critnames', {fields(R.idx_ikpos_wn)'}, 'TrajLegendText', {{'trajectory'}}, ...
+    'ignore_h0', false, ... % auch bei leerer Gewichtung zeichnen (Nebenbedingungen unabhängig davon)
+    'name_prefix_ardbg', sprintf('Rob%d_%s_P%d', RobNr, RobName, PNr)));
+  % Erzeugte Bilder von tmp-Verzeichnis zu Ergebnis-Verzeichnis verschieben
+  % (Speicherort ist in obiger Funktion schon festgelegt)
+  filelist_new = dir(fullfile(resdir_tmp, '*.*'));
+  for i = 1:length(filelist_new)
+    if any(strcmp(filelist_new(i).name, {filelist_old(:).name}))
+      continue
+    end
+    movefile(fullfile(resdir_tmp, filelist_new(i).name), fullfile(resdir_rob, filelist_new(i).name));
+  end
 else
   error('Fall %s nicht vorgesehen. Versionsfehler?', SelStr{Selection});
 end
