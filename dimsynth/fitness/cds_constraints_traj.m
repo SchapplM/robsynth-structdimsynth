@@ -302,8 +302,6 @@ if Structure.task_red && Set.general.debug_taskred_perfmap
       'TrajLegendText', {TrajLegendText},  'ignore_h0', false, ...
       'deactivate_time_figure', true, ... % Bild nicht wirklich brauchbar
       'critnames', {critnames}, 'constrvioltext', constrvioltext));
-    % Falls beim Debuggen die Aufgaben-Indizes zurückgesetzt wurden
-    R.update_EE_FG(R.I_EE, Set.task.DoF);
   end
 else
   H_all = []; s_ref = []; s_tref = []; phiz_range = [];
@@ -670,11 +668,15 @@ if i_ar == 2
   Stats_alt = Stats; 
   Jinv_ges_alt = Jinv_ges;
   JP_alt = JP;
+  if strcmp(Set.optimization.objective_ik, 'constant')
+    continue % Eine Iteration reicht. `ar_loop` kann nicht oben schon angepasst werden, sonst geht die Redundanzkarte nicht
+  end
 end
 % Entfernen des dritten Euler-Winkels aus der Trajektorie (wird sonst
 % als Referenz benutzt und dann Kopplung zwischen Iterationen der Traj.-IK)
 % Wird nach IK-Berechnung wieder eingetragen
-if Structure.task_red % Nur bei Redundanz relevant (Nebenbedingungen)
+if Structure.task_red && ... % Nur bei Redundanz relevant (Nebenbedingungen)
+    ~strcmp(Set.optimization.objective_ik, 'constant') % Referenz wird oben gesetzt
   Traj_0.X(:,6) = 0; % wird ignoriert (xlim ist nicht aktiv als Kriterium)
   Traj_0.XD(:,6) = 0; % Wird für Dämpfung benötigt
   Traj_0.XDD(:,6) = 0; % wird ignoriert
