@@ -885,11 +885,7 @@ X2(:) = NaN; XD2(:) = NaN; XDD2(:) = NaN;
 % Wert ist, der für die Neuberechnung gebraucht wird. Ansonsten ist die
 % Reproduzierbarkeit durch die rng-Initialisierung der mex-Funktionen
 % gefährdet.
-if R.Type == 0 % Seriell
-  R.qref = Q(1,:)';
-else
-  for i = 1:R.NLEG, R.Leg(i).qref = Q(1,R.I1J_LEG(i):R.I2J_LEG(i))'; end
-end
+R.update_qref(Q(1,:)');
 %% Endeffektor-Bewegung neu für 3T2R-Roboter berechnen
 % Der letzte Euler-Winkel ist nicht definiert und kann beliebige Werte einnehmen.
 % Muss schon berechnet werden, bevor der Abbruch der Trajektorie geprüft
