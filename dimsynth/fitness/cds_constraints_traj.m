@@ -82,7 +82,7 @@ QD_alt = [];
 QDD_alt = [];
 Jinv_ges_alt = [];
 JP_alt = [];
-wn_all = [];
+wn_all = NaN(2,R.idx_ik_length.wntraj);
 mincolldist_all = NaN(3,1);
 mininstspcdist_all = NaN(3,1);
 % Speicherung der Trajektorie mit aktualisierter EE-Drehung bei Aufg.-Red.
@@ -425,7 +425,7 @@ if any(strcmp(Set.optimization.objective, 'condition')) && any(fval_ar <= 1e3)
 end
 if i_ar == 3
   Q_change = Q - Q_alt;
-  if all(abs(Q_change(:)) < 1e-6)
+  if all(abs(Q_change(:)) < 1e-6) && ~strcmp(Set.optimization.objective_ik, 'constant')
     cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d Ergebnis der IK unverändert, ', ...
       'trotz erneuter Durchführung mit anderer Gewichtung. Vorher: [%s], ', ...
       'nachher: [%s]'], Structure.config_index, Structure.config_number, disp_array(wn_alt', '%1.1f'), disp_array(s.wn', '%1.1f')));
@@ -621,6 +621,9 @@ if i_ar == 3
     Traj_0.X(:,6) = X2phizTraj_alt(:,1);
     Traj_0.XD(:,6) = X2phizTraj_alt(:,2);
     Traj_0.XDD(:,6) = X2phizTraj_alt(:,3);
+  elseif fval_ar(1) == fval_ar(2) && fval_ar(1) && strcmp(Set.optimization.objective_ik, 'constant')
+    % Es wird nur eine Iteration gemacht (konstante Orientierung). Daher
+    % keine Log-Ausgabe notwendig.
   elseif fval_ar(1) == fval_ar(2) && fval_ar(1) ~= 1e3
     % Ergebnisse identisch, obwohl es n.i.O. ist. Deutet auf Logik-Fehler
     % oder unverstandene Einstellungen
