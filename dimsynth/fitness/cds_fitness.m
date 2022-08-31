@@ -279,6 +279,8 @@ for iIKC = 1:size(Q0,1)
     % Gelenkgrenzen von oben wieder erneut einsetzen. Notwendig, da Grenzen
     % in Traj.-IK berücksichtigt werden. Unten wird der Wert aktualisiert
     R.update_qlim(qlim_neu);
+  else
+    qlim_neu = qlim; % Variable einheitlich definieren
   end
   if any(Q0(iIKC,:)' < qlim_neu(:,1) | Q0(iIKC,:)' > qlim_neu(:,2))
     cds_log(-1, '[cds_fitness] Anfangswert für Gelenkwinkel außerhalb der Grenzen. Für Traj. ungünstig.');
