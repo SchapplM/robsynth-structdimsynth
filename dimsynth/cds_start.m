@@ -289,10 +289,18 @@ if Set.task.profile ~= 0 % Trajektorie prüfen
   corrX = diag(corr(X_numint, Traj.X));
   corrX(all(abs(X_numint-Traj.X)<1e-6)) = 1;
   assert(all(corrX>0.98), 'eingegebene Trajektorie ist nicht konsistent (X-XD)');
+  testX = X_numint - Traj.X; % Korrelation reicht nicht, falls Skalierungsfehler
+  if any(abs(testX(:))>1e-2)
+    warning('Abweichung zwischen int(XD) und X zu groß: [%s]', disp_array(max(abs(testX)), '%1.1e'));
+  end
   XD_numint = repmat(Traj.XD(1,:),size(Traj.XD,1),1)+cumtrapz(Traj.t, Traj.XDD);
   corrXD = diag(corr(XD_numint, Traj.XD));
   corrXD(all(abs(Traj.XD)<1e-3)) = 1;
   assert(all(corrXD>0.98), 'eingegebene Trajektorie ist nicht konsistent (XD-XDD)');
+  testXD = XD_numint - Traj.XD;
+  if any(abs(testXD(:))>1e-2)
+    warning('Abweichung zwischen int(XDD) und XD zu groß: [%s]', disp_array(max(abs(testXD)), '%1.1f'));
+  end
 else % Kein Trajektorienprofil gegeben. Prüfe Datenformat
   % Trajektorie in X muss identisch zu der in XE sein (für Implementierung)
   assert(all(size(Traj.X)==size(Traj.XE)), 'Für profile=0 muss Traj.X und Traj.XE gleich sein (Dimension)');
