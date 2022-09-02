@@ -45,8 +45,11 @@ end
 
 %% Optimierungsalgorithmus vorbereiten
 % Wähle die Variablen der Entwurfsoptimierung aus (siehe
-% cds_dimsynth_robot)
+% cds_dimsynth_robot). Schubgelenk-Offset (Nr. 1) wird vorher schon optimiert.
 vartypes = Structure.desopt_ptypes(Structure.desopt_ptypes~=1);
+pdefault = Structure.desopt_pdefault(Structure.desopt_ptypes~=1);
+pnames = Structure.desopt_pnames(Structure.desopt_ptypes~=1);
+% Optionen vorbereiten
 options_desopt = optimoptions('particleswarm');
 options_desopt.Display = 'off';
 
@@ -129,7 +132,7 @@ options_desopt.SwarmSize = NumIndividuals;
 InitPop = repmat(varlim(:,1)', NumIndividuals,1) + rand(NumIndividuals, nvars) .* ...
                         repmat(varlim(:,2)'-varlim(:,1)',NumIndividuals,1);
 % Standardwert für Optimierungsparameter immer zum Vergleich rechnen
-InitPop(end,:) = Structure.desopt_pdefault;
+InitPop(end,:) = pdefault;
 % Wähle nur plausible Anfangswerte
 if any(vartypes == 2)
   IIls = find(vartypes==2);
@@ -303,7 +306,7 @@ if any(I_bordersol)
 end
 detailstring = [detailstring, sprintf('. Ergebnis: ')];
 for i = 1:length(p_val)
-  detailstring = [detailstring, sprintf('(%s: %1.1f)', Structure.desopt_pnames{i}, p_val(i))]; %#ok<AGROW>
+  detailstring = [detailstring, sprintf('(%s: %1.1f)', pnames{i}, p_val(i))]; %#ok<AGROW>
   if i < length(p_val), detailstring = [detailstring, ', ']; end %#ok<AGROW>
 end
 cds_log(3,sprintf(['[desopt] Entwurfsoptimierung durchgeführt. %d Iter', ...
@@ -395,7 +398,7 @@ figure(8);clf;
 plot(pval_stack_norm', 'x-');
 xlabel('Optimierungsparameter');
 set(gca, 'xtick', 1:length(p_val));
-set(gca, 'xticklabel', Structure.desopt_pnames);
+set(gca, 'xticklabel', pnames);
 ylabel('Parameter Wert (normiert)');
 title('Ausnutzung des möglichen Parameterraums');
 
