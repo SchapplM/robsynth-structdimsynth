@@ -332,7 +332,7 @@ if fval == 0 % Anfangswert für fval oder bestmöglicher Wert überhaupt
   % hält. Keine Zielfunktion definiert, die jetzt noch profitieren würde.
   abort_fitnesscalc = true;
   abort_fitnesscalc_retval = true;
-  abort_logtext = ' Nebenbedingung erfüllt. Keine Zielfunktion für Entwurfsoptimierung.';
+  abort_logtext = 'Nebenbedingung erfüllt. Keine Zielfunktion für Entwurfsoptimierung.';
 end
 % Prüfe, ob in Entwurfsoptimierung berechnete Zielfunktionen ihre Grenze
 % erreicht haben. Kinematik-bezogene Zielfunktionen werden hier nicht
@@ -344,10 +344,11 @@ if Set.optimization.desopt_use_obj_limit && fval <= 1000 && ( ...
   % hiernach beendet werden.
   abort_fitnesscalc = true;
   abort_fitnesscalc_retval = true;
-  abort_logtext = ' Abbruchgrenze für Zielfunktion erreicht.';
+  abort_logtext = 'Abbruchgrenze für Zielfunktion erreicht.';
 end
 if fval <= 1000
   physval = physval_main(fval_main==fval); % Benutze nicht physval_desopt, da anders definiert.
+  if isempty(physval), physval = NaN; end % ZF-Wert wurde nicht berechnet (fval=0)
   [~, i_gen, i_ind] = cds_desopt_save_particle_details(toc(t1), fval, ...
     p_desopt, physval, fval_main, physval_main);
   cds_log(4,sprintf(['[desopt/fitness] G=%d;I=%d. DesOpt-Fitness-Evaluation ', ...
