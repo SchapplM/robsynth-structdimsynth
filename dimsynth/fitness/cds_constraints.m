@@ -366,6 +366,38 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         s.retry_limit = 15;
       end
     end
+    % Sonderfall: Aufgabenredundanz mit konstanter Orientierung über alle
+    % Punkte. Dafür hier diese Orientierung einstellen
+    if strcmp(Set.optimization.objective_ik, 'constant') && Structure.task_red
+      % Setze unterschiedliche Werte für xlim hier ein (erste Konfig. ist
+      % noch frei, danach dann verschiedene Bereiche)
+      if i == 1 && jic > 1
+        % Für jede Konfiguration wird eine andere EE-Drehung gefordert
+        delta_phiz_range1 = linspace(0, pi, ceil(n_jic/2)+1);
+        delta_phiz_range2 = [delta_phiz_range1,-fliplr(delta_phiz_range1)];
+        delta_phiz_range2 = delta_phiz_range2(delta_phiz_range2~=0);
+        delta_phiz = delta_phiz_range2(jic-1);
+      else % erste Konfiguration: Wert wird sowieso ignoriert
+        delta_phiz = 0;
+      end
+      if i > 1
+        if i == 2 % Nur einmal machen, gilt dann für alle i>1
+          R.update_EE_FG(R.I_EE, [R.I_EE_Task(1:5), 1]); % Damit deaktivieren der Aufgabenredundanz in IK
+          % Plattform-Drehung für ersten Bahnpunkt und erste Konfiguration.
+          % Muss erfolgreich sein, sonst würde es keine folgenden geben.
+          x2_objikconst = R.fkineEE2_traj(QE(1,:))';
+        end
+        % Ändere die Soll-Eckpunkte für die konstante Orientierung
+        Traj_0.XE(:,6) = x2_objikconst(6) + delta_phiz;
+      else
+        % Wieder zurücksetzen für nächste Konfiguration: AR aktivieren
+        R.update_EE_FG(R.I_EE, [R.I_EE_Task(1:5), 0]);
+        % Grenzen für xlim einstellen: In diesem Toleranzbereich sollte
+        % sich das Ergebnis befinden
+        R.xlim = [NaN(5,2); pi/(n_jic/2) * [-1 1]];
+      end
+    end
+    
     if i_ar == 1 % IK ohne Optimierung von Nebenbedingungen
       Stats = struct('coll', false); %#ok<NASGU> % Platzhalter-Variable
       if R.Type == 0 % Seriell
@@ -505,7 +537,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       end
       % Setze die Einstellungen und Nebenbedingungen so, dass sich das
       % Ergebnis bestmöglich verändert.
-      if fval_jic_old(jic) == 1e3 && i>1
+      if fval_jic_old(jic) == 1e3 && i>1 && ...
+          ~strcmp(Set.optimization.objective_ik, 'constant') % hier Neuberechnung notwendig
         % Wenn vorher alle Punkte in Ordnung waren, muss nur noch der erste
         % Punkt optimiert werden. Für die hierauf folgende Trajektorie
         % haben die anderen Punkte sowieso keine Bedeutung.
@@ -620,6 +653,23 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           s4.collbodies_thresh = 1.25;
         end
       end
+      if any(strcmp(Set.optimization.objective_ik, {'none', 'constant'}))
+        % Deaktiviere alle nicht-hyperbolischen Zielkriterien
+        s4.wn([R.idx_ikpos_wn.ikjac_cond, R.idx_ikpos_wn.jac_cond, ...
+              R.idx_ikpos_wn.qlim_par, R.idx_ikpos_wn.coll_par, ...
+              R.idx_ikpos_wn.instspc_par]) = 0;
+      end
+      if strcmp(Set.optimization.objective_ik, 'constant')
+        % Es werden mit den IK-Konfigurationen verschiedene konstante
+        % Orientierungen ausprobiert.
+        if i == 1
+          s4.wn(R.idx_ikpos_wn.xlim_par) = 1;
+        else
+          % Für folgende Punkte ist keine Nullraumbewegung möglich
+          s4.wn(:) = 0;
+        end
+      end
+      
       % IK für Nullraumbewegung durchführen
       if R.Type == 0
         [q, Phi, Tc_stack, Stats] = R.invkin2(R.x2tr(Traj_0.XE(i,:)'), q0_arik, s4);
@@ -779,6 +829,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         end
         linkxaxes
         set(FigARDbg,'color','w');
+        sgtitle(sprintf('jic=%d, i_ar=%d, i=%d', jic, i_ar, i), 'interpreter', 'none');
         [currgen,currind,~,resdir] = cds_get_new_figure_filenumber(Set, Structure, '');
         name_prefix_ardbg = sprintf('Gen%02d_Ind%02d_Konfig%d_Pt%d', currgen, ...
           currind, jic, i);
@@ -834,7 +885,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       q(R.MDH.sigma==0) = normalizeAngle(q(R.MDH.sigma==0), ...
         QE(1, R.MDH.sigma==0)'); % Bezugswinkel erste Punkt
     end
-    Phi_E(i,:) = Phi;
+    % Beim Fall objective_ik=constant wechselt die Dimenion. Daher hier
+    % pauschal abschneiden
+    Phi_E(i,:) = Phi(1:size(Phi_E,2));
     QE(i,:) = q;
     if any(abs(Phi(:)) > 1e-2) || any(isnan(Phi))
       constrvioltext_jic{jic} = sprintf('Keine IK-Konvergenz');
@@ -1353,3 +1406,10 @@ else % Gebe alle gültigen Lösungen aus
   end
 end
 Stats_constraints = struct('bestcolldist', bestcolldist_jic, 'bestinstspcdist', bestinstspcdist_jic);
+% Änderungen an Roboter-Klasse rückgängig machen. Zurücksetzen der
+% Aufgaben-FG funktioniert oben nur, wenn IK auch erfolreich ist.
+if strcmp(Set.optimization.objective_ik, 'constant') && Structure.task_red
+  if ~all(R.I_EE_Task == Set.task.DoF)
+    R.update_EE_FG(R.I_EE, Set.task.DoF);
+  end
+end

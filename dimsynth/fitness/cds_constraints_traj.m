@@ -82,12 +82,19 @@ QD_alt = [];
 QDD_alt = [];
 Jinv_ges_alt = [];
 JP_alt = [];
-wn_all = [];
+wn_all = NaN(2,R.idx_ik_length.wntraj);
 mincolldist_all = NaN(3,1);
 mininstspcdist_all = NaN(3,1);
 % Speicherung der Trajektorie mit aktualisierter EE-Drehung bei Aufg.-Red.
 Traj_0 = Traj_0_in;
 X2 = NaN(size(Traj_0.X)); XD2 = NaN(size(Traj_0.X)); XDD2 = NaN(size(Traj_0.X));
+% Falls Orientierung konstant gelassen wird: Überschreiben
+if Structure.task_red && strcmp(Set.optimization.objective_ik, 'constant')
+  x2 = R.fkineEE2_traj(q')';
+  Traj_0.X(:,6) = x2(6);
+  Traj_0.XD(:,6) = 0; Traj_0.XDD(:,6) = 0;
+  R.update_EE_FG(R.I_EE, [R.I_EE_Task(1:5), 1]); % Auf nicht-redundant setzen
+end
 constrvioltext_alt = '';
 % Speicherung für Linien in Redundanzkarte
 PM_phiz_plot = [];
@@ -99,7 +106,7 @@ name_prefix_ardbg = sprintf('Gen%02d_Ind%02d_Konfig%d', currgen, ...
   currind, Structure.config_index);
 % Schleife über mehrere mögliche Nebenbedingungen der inversen Kinematik
 fval_ar = NaN(1,2);
-if Structure.task_red
+if Structure.task_red 
   ar_loop = 1:3; % Aufgabenredundanz liegt vor. Zusätzliche Schleife. Dritte Schleife ist nur zur Prüfung.
 else
   ar_loop = 1; % Keine Aufgabenredundanz. Nichts zu berechnen.
@@ -295,8 +302,6 @@ if Structure.task_red && Set.general.debug_taskred_perfmap
       'TrajLegendText', {TrajLegendText},  'ignore_h0', false, ...
       'deactivate_time_figure', true, ... % Bild nicht wirklich brauchbar
       'critnames', {critnames}, 'constrvioltext', constrvioltext));
-    % Falls beim Debuggen die Aufgaben-Indizes zurückgesetzt wurden
-    R.update_EE_FG(R.I_EE, Set.task.DoF);
   end
 else
   H_all = []; s_ref = []; s_tref = []; phiz_range = [];
@@ -420,7 +425,7 @@ if any(strcmp(Set.optimization.objective, 'condition')) && any(fval_ar <= 1e3)
 end
 if i_ar == 3
   Q_change = Q - Q_alt;
-  if all(abs(Q_change(:)) < 1e-6)
+  if all(abs(Q_change(:)) < 1e-6) && ~strcmp(Set.optimization.objective_ik, 'constant')
     cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d Ergebnis der IK unverändert, ', ...
       'trotz erneuter Durchführung mit anderer Gewichtung. Vorher: [%s], ', ...
       'nachher: [%s]'], Structure.config_index, Structure.config_number, disp_array(wn_alt', '%1.1f'), disp_array(s.wn', '%1.1f')));
@@ -616,6 +621,9 @@ if i_ar == 3
     Traj_0.X(:,6) = X2phizTraj_alt(:,1);
     Traj_0.XD(:,6) = X2phizTraj_alt(:,2);
     Traj_0.XDD(:,6) = X2phizTraj_alt(:,3);
+  elseif fval_ar(1) == fval_ar(2) && fval_ar(1) && strcmp(Set.optimization.objective_ik, 'constant')
+    % Es wird nur eine Iteration gemacht (konstante Orientierung). Daher
+    % keine Log-Ausgabe notwendig.
   elseif fval_ar(1) == fval_ar(2) && fval_ar(1) ~= 1e3
     % Ergebnisse identisch, obwohl es n.i.O. ist. Deutet auf Logik-Fehler
     % oder unverstandene Einstellungen
@@ -644,6 +652,13 @@ if i_ar == 3
       'erneute IK-Berechnung (%1.3e->%1.3e, delta: %1.3e). Vorher: %s'], ...
       fval_ar(1), fval_ar(2), fval_ar(2)-fval_ar(1), constrvioltext_alt)]; %#ok<AGROW>
   end
+  % Änderungen an Roboter-Klasse rückgängig machen. Zurücksetzen der
+  % Aufgaben-FG funktioniert oben nur, wenn IK auch erfolreich ist.
+  if strcmp(Set.optimization.objective_ik, 'constant') && Structure.task_red
+    if ~all(R.I_EE_Task == Set.task.DoF)
+      R.update_EE_FG(R.I_EE, Set.task.DoF);
+    end
+  end
   return
 end
 if i_ar == 2
@@ -656,11 +671,15 @@ if i_ar == 2
   Stats_alt = Stats; 
   Jinv_ges_alt = Jinv_ges;
   JP_alt = JP;
+  if strcmp(Set.optimization.objective_ik, 'constant')
+    continue % Eine Iteration reicht. `ar_loop` kann nicht oben schon angepasst werden, sonst geht die Redundanzkarte nicht
+  end
 end
 % Entfernen des dritten Euler-Winkels aus der Trajektorie (wird sonst
 % als Referenz benutzt und dann Kopplung zwischen Iterationen der Traj.-IK)
 % Wird nach IK-Berechnung wieder eingetragen
-if Structure.task_red % Nur bei Redundanz relevant (Nebenbedingungen)
+if Structure.task_red && ... % Nur bei Redundanz relevant (Nebenbedingungen)
+    ~strcmp(Set.optimization.objective_ik, 'constant') % Referenz wird oben gesetzt
   Traj_0.X(:,6) = 0; % wird ignoriert (xlim ist nicht aktiv als Kriterium)
   Traj_0.XD(:,6) = 0; % Wird für Dämpfung benötigt
   Traj_0.XDD(:,6) = 0; % wird ignoriert
@@ -1789,4 +1808,11 @@ if R.Type == 2 && any(isnan(Jinv_ges(:))) && fval == 1e3
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
     'cds_constraints_traj_jacobi_nan_error_final.mat'));  
   error('Prüfung der Nebenbedingungen nicht vollständig');
+end
+% Änderungen an Roboter-Klasse rückgängig machen. Zurücksetzen der
+% Aufgaben-FG funktioniert oben nur, wenn IK auch erfolreich ist.
+if strcmp(Set.optimization.objective_ik, 'constant') && Structure.task_red
+  if ~all(R.I_EE_Task == Set.task.DoF)
+    R.update_EE_FG(R.I_EE, Set.task.DoF);
+  end
 end
