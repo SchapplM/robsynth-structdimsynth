@@ -116,7 +116,7 @@ If_ges_Zus = zeros(R_pkin.NL,6);
 m_ges_Zus(end) = Set.task.payload.m;
 r_E_E_S = Set.task.payload.rS; % Schwerpunkt bzgl. EE-KS
 % Trägheitstensor auslesen (Fallunterscheidung für Bezugspunkt)
-if isfield(Set.task, 'If') && ~any(isnan(Set.task.If)) % Bezogen auf EE-KS
+if isfield(Set.task.payload, 'If') && ~any(isnan(Set.task.payload.If)) % Bezogen auf EE-KS
   I_E = inertiavector2matrix(Set.task.payload.If');
 else % Bezogen auf Schwerpunkt
   I_E = inertiavector2matrix(Set.task.payload.Ic');
@@ -129,7 +129,7 @@ else
   r_P_P_S = R.T_P_E(1:3,4) + R.T_P_E(1:3,1:3) * r_E_E_S;
   I_P = R.T_P_E(1:3,1:3)' * I_E * R.T_P_E(1:3,1:3);
 end
-if isfield(Set.task, 'If') && ~any(isnan(Set.task.If)) % Bezogen auf EE-KS
+if isfield(Set.task.payload, 'If') && ~any(isnan(Set.task.payload.If)) % Bezogen auf EE-KS
   mrS_ges_Zus(end,:) = r_P_P_S * Set.task.payload.m;
   If_ges_Zus(end,:) = inertiamatrix2vector(I_P);
 else
