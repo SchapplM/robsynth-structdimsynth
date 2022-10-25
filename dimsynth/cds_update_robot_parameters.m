@@ -125,15 +125,24 @@ end
 %% EE-Verschiebung
 if any(Structure.vartypes == 3) % Set.optimization.ee_translation
   p_eepos = p(Structure.vartypes == 3);
+  % Auswahl der zu optimierenden Komponenten (konsistent mit dimsynth_robot.m)
+  ee_transl_dof = Set.task.DoF(1:3);
+  if any(~isnan(Set.optimization.ee_translation_fixed))
+    r_N_E_neu = Set.optimization.ee_translation_fixed(:);
+    ee_transl_dof(~isnan(Set.optimization.ee_translation_fixed)) = 0;
+  else
+    r_N_E_neu = zeros(3,1);
+  end
+
   % Koordinaten auswählen (bezogen auf KS N, nicht KS E).
   % Stellt für planare serielle Roboter einen Unterschied dar
   if Structure.R_N_E_isset && R.Type == 0
     % hier nicht R.T_N_E(1:3,1:3)' benutzen, da die Rotation dann nicht passt
-    task_transl_DoF_rotE = Structure.R_N_E' * double(Set.task.DoF(1:3)');
+    task_transl_DoF_rotE = Structure.R_N_E' * double(ee_transl_dof');
   else
-    task_transl_DoF_rotE = double(Set.task.DoF(1:3)');
+    task_transl_DoF_rotE = double(ee_transl_dof');
   end
-  r_N_E_neu = zeros(3,1);
+  
   % EE-Versatz skaliert mit Roboter-Skalierungsfaktor
   r_N_E_neu(abs(task_transl_DoF_rotE(:))>1e-10) = p_eepos .* scale;
   p_phys(Structure.vartypes == 3) = r_N_E_neu(abs(task_transl_DoF_rotE(:))>1e-10);
