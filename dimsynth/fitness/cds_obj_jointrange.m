@@ -51,8 +51,14 @@ I_sel = true(R.NJ,1); % Nehme alle Gelenke
 if Set.optimization.obj_jointrange.only_revolute
   I_sel(I_prismatic) = false; % Schubgelenke deaktivieren
 end
+if Set.optimization.obj_jointrange.only_prismatic
+  I_sel(~I_prismatic) = false; % Drehgelenke deaktivieren
+end
 if Set.optimization.obj_jointrange.only_passive
   I_sel(I_active) = false; % aktive deaktivieren
+end
+if Set.optimization.obj_jointrange.only_active
+  I_sel(~I_active) = false; % passive deaktivieren
 end
 II_sel = find(I_sel);
 if ~any(I_sel)
