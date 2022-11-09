@@ -115,6 +115,11 @@ end
 EE_FG_Mask = [1 1 1 1 1 1]; % Die FG müssen genauso auch vom Roboter erfüllt werden (0 darf nicht auch 1 sein)
 serroblibpath=fileparts(which('serroblib_path_init.m'));
 parroblibpath=fileparts(which('parroblib_path_init.m'));
+assert(~isempty(serroblibpath), 'Seriell-Roboter-Datenbank ist nicht im Pfad initialisiert');
+assert(~isempty(parroblibpath), 'Parallel-Roboter-Datenbank ist nicht im Pfad initialisiert');
+if settings.comp_cluster
+  assert(~isempty(which('jobStart.m')), 'Cluster-Repo ist nicht im Pfad initialisiert');
+end
 %% Alle PKM generieren
 fprintf('Beginne Schleife über %d verschiedene EE-FG\n', length(settings.EE_FG_Nr));
 for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
@@ -847,14 +852,12 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       % Kerne und 12h Reserve für allgemeine Aufgaben, z.B. Warten. Eher zu 
       % große Einschätzung der Rechenzeit.
       fprintf('Starte die Berechnung der Struktursynthese auf dem Rechencluster: %s\n', computation_name);
-      addpath(cluster_repo_path);
       jobid = jobStart(struct('name', computation_name, ...
         ... % Nur so viele Kerne beantragen, wie auch benötigt werden ("ppn")
         'ppn', min(length(Whitelist_PKM),12), ... % 12 Kerne ermöglicht Lauf auf fast allen Cluster-Nodes
         'matFileName', [computation_name, '.m'], ...
         'locUploadFolder', jobdir, ...
         'time', 12+length(Whitelist_PKM)*0.5/min(length(Whitelist_PKM),12))); % Zeit in h. Schätze 30min pro PKM im Durchschnitt
-      rmpath_genpath(cluster_repo_path, false);
       % Starte auch einen Abschluss-Job. Ist notwendig, falls bei Timeout
       % vorzeitig abgebrochen wird. Siehe cds_start.m
       Set.general.computing_cluster = true;
