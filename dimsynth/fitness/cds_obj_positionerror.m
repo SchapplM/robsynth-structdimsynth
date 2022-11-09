@@ -44,6 +44,25 @@ debug_info = {};
 delta_rev = 7 * 1/3600 * pi/180;
 % https://www.heidenhain.de/de_DE/produkte/laengenmessgeraete/gekapselte-laengenmessgeraete/fuer-universelle-applikationen/
 delta_pris = 10e-6; % 10 Mikrometer
+
+% Benutze angepasste Genauigkeitswerte, je nachdem, wie groß der
+% Wertebereich der Gelenke ist. Annahme: Bei einer sehr großen
+% Verfahrbewegung kann keine Mikrometergenauigkeit erreicht werden
+% TODO: Hier noch Anpassen.
+if all(R.MDH.sigma(R.I_qa) == 1) % Alle Antriebe sind Schubantriebe
+  % Spannweite der Schubantriebe
+  qa_span = diff(minmax2(Q(:,R.I_qa)')');
+  % Da symmetrischer Roboter aufgebaut wird, zählt die größte Spannweite
+  % der Antriebe
+  qa_span_max = max(qa_span);
+  if qa_span_max > 0.100 % Verfahrweg mehr als 100mm
+    delta_pris = 10e-6; % 10µm
+  else
+    % Annahme: Feinere Bewegung möglich, da Bereich klein
+    delta_pris = 1e-6;
+  end
+end
+
 if R.Type == 0 % Seriell
   delta_qa = NaN(R.NQJ,1);
   delta_qa(R.MDH.sigma==0) = delta_rev;
