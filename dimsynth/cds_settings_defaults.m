@@ -127,8 +127,10 @@ optimization = struct( ...
    ... % manipulability, minjacsingval, positionerror, actvelo, chainlength,
    ... % installspace, footprint, colldist. Auch mehrere gleichzeitig möglich.
   'obj_jointrange', ... % Zusatzeinstellungen für die Zielfunktion "jointrange"
-    struct( 'only_revolute', true, ... % Minimiere nur Wertebereich von Drehgelenken
-            'only_passive', true), ... % Minimiere nur Wertebereich passiver Gelenke
+    struct( 'only_revolute', false, ... % Minimiere nur Wertebereich von Drehgelenken
+            'only_prismatic', false, ... % Minimiere nur Wertebereich von Schubgelenken
+            'only_active', false, ... % Minimiere nur Wertebereich aktiver Gelenke
+            'only_passive', false), ... % Minimiere nur Wertebereich passiver Gelenke
   ... Zielgröße für IK bei Redundanz. Möglich:
   ...  * default (Einstellung anhand der Kriterien der Maßsynthese), 
   ...  * ikjac_cond, jac_cond, coll_par, instspc_par, (siehe invkin-Funktionen)

@@ -118,6 +118,16 @@ end
 if Set.optimization.nolinkmass && any(strcmp(Set.optimization.objective, 'stiffness'))
   error('Berechnung der Steifigkeit zusammen mit nolinkmass aktuell nicht möglich');
 end
+only_opts = [Set.optimization.obj_jointrange.only_prismatic; ...
+             Set.optimization.obj_jointrange.only_revolute];
+if sum(only_opts) > 1
+  error('Es dürfen nicht mehr als eine Option vom Typ only_prismatic in Set.optimization.obj_jointrange gleichzeitig aktiv sein.');
+end
+only_opts = [Set.optimization.obj_jointrange.only_active; ...
+             Set.optimization.obj_jointrange.only_passive];
+if sum(only_opts) > 1
+  error('Es dürfen nicht mehr als eine Option vom Typ only_active in Set.optimization.obj_jointrange gleichzeitig aktiv sein.');
+end
 % Prüfe Plausibilität von Abbruchbedingungen und Wahl mehrkriterieller Ziele
 if length(Set.optimization.obj_limit_physval) == 1 && length(Set.optimization.objective) > 1 && ...
     Set.optimization.obj_limit_physval == 0 % nur, falls Null nicht bereits überschrieben wurde
