@@ -111,7 +111,6 @@ for i = 1:size(EE_FG_ges,1)
   end
 end
 %% Initialisierung
-
 EE_FG_Mask = [1 1 1 1 1 1]; % Die FG müssen genauso auch vom Roboter erfüllt werden (0 darf nicht auch 1 sein)
 serroblibpath=fileparts(which('serroblib_path_init.m'));
 parroblibpath=fileparts(which('parroblib_path_init.m'));
@@ -120,6 +119,8 @@ assert(~isempty(parroblibpath), 'Parallel-Roboter-Datenbank ist nicht im Pfad in
 if settings.comp_cluster
   assert(~isempty(which('jobStart.m')), 'Cluster-Repo ist nicht im Pfad initialisiert');
 end
+% Abhängigkeiten der Cluster-Jobs in Struktur sammeln
+depstruct = struct('afterok', [], 'afternotok', [], 'afterany', []);
 %% Alle PKM generieren
 fprintf('Beginne Schleife über %d verschiedene EE-FG\n', length(settings.EE_FG_Nr));
 for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
@@ -140,6 +141,11 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
   if ~isempty(synthrestable_var)
     synthrestable = [synthrestable; synthrestable_var]; %#ok<AGROW>
   end
+  % Merker, ob Kompilieren serieller Ketten gestartet wurde. Wenn ja, dann
+  % hier Job-IDs. Betrifft nur Cluster (s.u.)
+  serrob_compile_jobId = [];
+  % Alle seriellen Beinketten, die bisher für die Kompilierung gestartet wurden
+  LegChainListMexUpload = {};
   fprintf('Prüfe PKM mit %s Plattform-FG\n', EE_FG_Name);
   % Bestimme Möglichkeiten für Koppelpunkte
   [Cpl1_grid,Cpl2_grid] = ndgrid(settings.base_couplings,settings.plf_couplings);
@@ -258,7 +264,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     fprintf('G%dP%d: Beginne Schleife über %d (prinzipiell) mögliche Beinketten-Kinematiken\n', ...
       Coupling(1), Coupling(2), length(II));
     
-    Whitelist_PKM = {}; Whitelist_Leg = {};
+    Whitelist_PKM = {}; Whitelist_Leg = {}; LegChainList_Coupling = {};
     tlm_iFKloop = tic(); % zur Speicherung des Zeitpunkts der letzten Meldung
     % Sperre csv-Dateien während des Hinzufügens. Dieser Abschnitt ist
     % kritisch für parallel arbeitende weitere Instanzen der Synthese
@@ -451,9 +457,12 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         end
         Whitelist_PKM = [Whitelist_PKM;{Name}]; %#ok<AGROW>
         [~, ~, ~, ~, ~, ~, ~, ~, PName_Leg_tmp] = parroblib_load_robot(Name,0);
-        Whitelist_Leg = [Whitelist_Leg, PName_Leg_tmp];
-      end
-    end
+        Whitelist_Leg = [Whitelist_Leg, PName_Leg_tmp]; %#ok<AGROW>
+      end % for jj (actuation)
+      % Merke die Beinkette vor. Bei mehreren Koppelgelenken mehrfache
+      % Eintragung. Daher Doppelte wieder entfernen.
+      LegChainList_Coupling = unique([LegChainList_Coupling, SName]);
+    end % for iFK (serielle Kette)
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
       sprintf('parroblib_add_robots_symact_%s_0.mat', EE_FG_Name)));
     % Aktualisiere die mat-Dateien (werden für die Maßsynthese benötigt)
@@ -791,12 +800,61 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     elseif settings.comp_cluster
       fprintf(['Vorhandener Ergebnis-Ordner ist nicht passend. Starte ', ...
         'Struktursynthese auf Cluster\n']);
-      % Führe die Maßsynthese für die Struktursynthese auf dem Cluster durch.
-      % Bereite eine Einstellungs-Datei vor
-      cluster_repo_path = fileparts(which('cluster_transfer_toolbox_path_init.m'));
       % Eindeutige Bezeichnung für diesen Versuchslauf
       computation_name = sprintf('structsynth_par_%s_G%dP%d_%s_%s%s', EE_FG_Name, ...
         Coupling(1), Coupling(2),  datestr(now,'yyyymmdd_HHMMSS'), genstr, varstr);
+      % Kompiliere zuerst die Funktionen der geforderten Beinketten. Sonst
+      % teilweise Zugriffskonflikte. Nur die kompilieren, die nocht fehlen.
+      % Berücksichtige andere Iterationen der Struktursynthese aus diesem
+      % Durchlauf.
+      % Zuerst: Ketten bestimmen, die noch nicht kompiliert wurden
+      I_missing = true(length(LegChainList_Coupling),1);
+      for lll = 1:length(LegChainList_Coupling)
+        if any(contains(LegChainListMexUpload, LegChainList_Coupling{lll}))
+          I_missing(lll) = false;
+        end
+      end
+      legchain_compilelist = LegChainList_Coupling(I_missing);
+      if ~isempty(legchain_compilelist)
+        computation_name_compile = [computation_name, '_compile_serrob'];
+        jobdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+          'struktsynth_par', 'cluster_jobs', computation_name_compile);
+        mkdirs(jobdir);
+        % Speichere die noch nicht kompilierten Beinketten als mat-Datei
+        save(fullfile(jobdir, 'compilelist.mat'), 'legchain_compilelist');
+        targetfile = fullfile(jobdir, 'compile_serrob.m');
+        chf_compile = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+          'dimsynth', 'dimsynth_cluster_header.m');
+        if ~exist(chf_compile, 'file')
+          error('Datei %s muss aus Vorlage erzeugt werden', chf_compile);
+        end
+        copyfile(chf_compile, targetfile);
+        fid = fopen(targetfile, 'a');
+        fprintf(fid, 'tmp=load(''compilelist.mat''); \nlegchain_compilelist=tmp.legchain_compilelist;\n');
+%         fprintf(fid, 'parpool_writelock(''lock'', 180, true);\n');
+%         fprintf(fid, 'Pool = gcp(''nocreate'');\n');
+%         fprintf(fid, 'parpool_writelock(''free'', 0, true);\n');
+        fprintf(fid, 'fprintf(''Starte Funktions-Aktualisierung für %%d serielle Roboter\\n'', length(legchain_compilelist));\n');
+        fprintf(fid, 'for i = 1:length(legchain_compilelist)\n');
+        fprintf(fid, 'fprintf(''Beginne Funktions-Aktualisierung für %%s\\n'', legchain_compilelist{i});\n');
+        fprintf(fid, 'serroblib_writelock(''lock'', legchain_compilelist{i}, [], 2*60, 0);\n');
+        fprintf(fid, 'serroblib_update_template_functions(legchain_compilelist(i));\n');
+        fprintf(fid, 'serroblib_writelock(''free'', legchain_compilelist{i}, [], 0, 0);\n');
+        fprintf(fid, 'end\n');
+        fclose(fid);
+        serrob_compile_jobId = [serrob_compile_jobId, jobStart(struct( ...
+          'name', computation_name_compile, ...
+          ... % Nur so viele Nodes beantragen, wie auch benötigt werden ("ppn")
+          'ppn', 1, ... % Es gibt Dateizugriffsprobleme auf dem Cluster ("Datei nicht gefunden"). Daher nicht parallel kompilieren, auch wenn es lange dauert.
+          'matFileName', 'compile_serrob.m', ...
+          'locUploadFolder', jobdir, ...
+          'time',6), depstruct)]; %#ok<AGROW> 
+        LegChainListMexUpload = unique([LegChainListMexUpload, LegChainList_Coupling]);
+        % Folgenden Struktursynthese-Job erst nach Kompilierung starten
+        depstruct = struct('afterok', serrob_compile_jobId, 'afternotok', [], 'afterany', []);
+      end
+      % Führe die Maßsynthese für die Struktursynthese auf dem Cluster durch.
+      % Bereite eine Einstellungs-Datei vor
       jobdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
         'struktsynth_par', 'cluster_jobs', computation_name);
       mkdirs(fullfile(jobdir, 'results')); % Unterordner notwendig für Cluster-Dateisynchronisation
@@ -817,8 +875,8 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       settings_cluster.parcomp_mexcompile = true;
       save(fullfile(jobdir, [computation_name,'.mat']), 'settings_cluster');
       % Matlab-Skript erzeugen
-      chf = fullfile(clean_absolute_path(fullfile(jobdir,'..','..')), ...
-        'structsynth_cluster_header.m');
+      chf = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+        'struktsynth_par', 'structsynth_cluster_header.m');
       if ~exist(chf, 'file')
         error('Datei %s muss aus Vorlage erzeugt werden', chf);
       end
@@ -857,7 +915,8 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         'ppn', min(length(Whitelist_PKM),12), ... % 12 Kerne ermöglicht Lauf auf fast allen Cluster-Nodes
         'matFileName', [computation_name, '.m'], ...
         'locUploadFolder', jobdir, ...
-        'time', 12+length(Whitelist_PKM)*0.5/min(length(Whitelist_PKM),12))); % Zeit in h. Schätze 30min pro PKM im Durchschnitt
+        'time', 12+length(Whitelist_PKM)*0.5/min(length(Whitelist_PKM),12)), ... % Zeit in h. Schätze 30min pro PKM im Durchschnitt
+        depstruct); % Erst anfangen, wenn Funktionen für serielle Beinketten kompiliert wurden.
       % Starte auch einen Abschluss-Job. Ist notwendig, falls bei Timeout
       % vorzeitig abgebrochen wird. Siehe cds_start.m
       Set.general.computing_cluster = true;
@@ -994,6 +1053,10 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         % Initialisiere den Roboter und prüfe, ob die Plattformgelenk- 
         % Ausrichtung identisch mit anderer Methode ist
         tmpset.Set.general.use_mex = false; % Sonst dauert es zu lange.
+        % Zuerst die Vorlagen-Funktionen für die seriellen Beinketten.
+        % Dadurch kann die Schreibsperre hier sichergestellt werden.
+        % Sonst Schreibkonflikte, da auf die SerRobLib parallel zugegriffen
+        % wird
         % Aktualisiere die M-Funktionen. Annahme: Synthese auf Cluster,
         % Auswertung lokal, also Funktionen noch nicht initialisiert.
         parroblib_update_template_functions({Name}, false, true); % ohne mex
