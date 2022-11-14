@@ -100,7 +100,13 @@ for i = 1:length(tmpdirsrob)
 end
 
 %% Alle möglichen Ergebnis-Dateien durchgehen
-I_RobMatch = contains(initpop_matlist, ['_', RobName, '_']);
+if any(strcmp(Set.optimization.objective,'valid_act')) && Structure.Type==2
+  % PKM-Struktursynthese: Suchbegriff enthält nicht die Aktuierung
+  RobFilter  = ['_', RobName, 'A']; % Aktuierung hinzufügen, damit passend
+else % Normale Maßsynthese. Begrenze Suchbegriff, damit nicht gierig zu viel gefunden wird
+  RobFilter  = ['_', RobName, '_'];
+end
+I_RobMatch = contains(initpop_matlist, RobFilter);
 for i = find(I_RobMatch)'% Unterordner durchgehen.
   dirname_i = fileparts(initpop_matlist{i});
   sflist = dir(fullfile(dirname_i, '*_settings.mat'));
