@@ -1025,6 +1025,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       % verschiedene Fälle für freie Winkelparameter untersucht werden.
       fval_jjj = []; % Zielfunktionswert der Ergebnisse für diese PKM in der Ergebnisliste
       angles_jjj = {}; % gespeicherte Werte für freie alpha- und theta-Parameter (wird variiert)
+      parallelity_jjj = [];
       for jj = 1:size(ResData,1)
         if strcmp(ResData.Name{jj},Name)
           fval_jjj = [fval_jjj, ResData.Fval_Opt(jj)]; %#ok<AGROW>
@@ -1033,6 +1034,21 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
             angles_jjj = {Structure_jj.angles_values};
           else
             angles_jjj = [angles_jjj, Structure_jj.angles_values]; %#ok<AGROW>
+          end
+          if ResData.Fval_Opt(jj) < 1e3 % Auswertung der Beingelenk-Parallelität
+            % siehe cds_joint_parallelity
+            parallelityfile = fullfile(resmaindir, sprintf( ...
+              'Rob%d_%s_joint_parallelity.txt', ResData.LfdNr(jj), ResData.Name{jj}));
+            if ~exist(parallelityfile, 'file')
+              warning('Datei %s existiert nicht', parallelityfile);
+            else
+              parallelity_jjj = [parallelity_jjj; readmatrix(parallelityfile)]; %#ok<AGROW> 
+            end
+            parallelityerrorfile = fullfile(resmaindir, sprintf( ...
+              'Rob%d_%s_joint_parallelity_error_legs.txt', ResData.LfdNr(jj), ResData.Name{jj}));
+            if exist(parallelityerrorfile, 'file') %TODO: Fehlerbehandlung, falls der Fall mal vorkommt
+              error('Fehler bei Bestimmung der Beingelenk-Parallelität. Datei %s existiert.', parallelityerrorfile);
+            end
           end
         elseif isempty(fval_jjj) && jj == size(ResData,1)
           warning('Ergebnis zu %s nicht in Tabelle gefunden', Name);
@@ -1062,6 +1078,13 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           continue
         else
           error('Keine Ergebnisse zu %s gefunden. Darf nicht passieren.', Name);
+        end
+      end
+      %% Parallelität der Gelenke prüfen
+      if size(parallelity_jjj,1) > 1
+        test_parellelilty = repmat(parallelity_jjj, size(parallelity_jjj,1), 1) - parallelity_jjj;
+        if any(test_parellelilty(:)) % TODO: Fehlerbehandlung, falls Fall mal auftritt
+          error('Parallelität der Gelenkachsen ändert sich je nach Winkel. Fall nicht vorgesehen');
         end
       end
       %% Daten für freien Winkelparameter bestimmen
@@ -1197,6 +1220,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           fprintf('Rangdefizit der Jacobi für Beispiel-Punkte ist %1.0f\n', min(fval_jjj)/100);
           parroblib_change_properties(Name, 'rankloss', sprintf('%1.0f', min(fval_jjj)/100));
           parroblib_change_properties(Name, 'values_angles', structparamstr);
+          parroblib_change_properties(Name, 'joint_parallelity', parallelity_jjj);
           rescode = 0;
           num_rankloss = num_rankloss + 1;
         elseif min(fval_jjj) > 1e10
@@ -1234,6 +1258,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         fprintf('%d/%d: PKM %s hat laut Maßsynthese vollen Laufgrad\n', jjj, length(Structures_Names), Name);
         parroblib_change_properties(Name, 'rankloss', '0');
         parroblib_change_properties(Name, 'values_angles', structparamstr);
+        parroblib_change_properties(Name, 'joint_parallelity', parallelity_jjj);
         rescode = 0;
         rank_success = 1;
         num_fullmobility = num_fullmobility + 1;
@@ -1251,7 +1276,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           error('Löschen der PKM %s nicht erfolgreich', Name);
         end
       end
-    end
+    end % for jjj (Structues_Names)
     % Aktualisiere die mat-Dateien (neue Information zu Rangverlust/neue PKM)
     parroblib_gen_bitarrays(logical(EE_FG));
     parroblib_writelock('free', 'csv', logical(EE_FG), 0, true);
