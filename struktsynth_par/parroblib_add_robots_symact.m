@@ -143,7 +143,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
   end
   % Merker, ob Kompilieren serieller Ketten gestartet wurde. Wenn ja, dann
   % hier Job-IDs. Betrifft nur Cluster (s.u.). Das gleiche für PKM
-  serrob_compile_jobId = []; parrrob_compile_jobId = [];
+  serrob_compile_jobId = []; parrob_compile_jobId = [];
   % Alle seriellen Beinketten, die bisher für die Kompilierung gestartet wurden
   LegChainListMexUpload = {};
   fprintf('Prüfe PKM mit %s Plattform-FG\n', EE_FG_Name);
@@ -602,6 +602,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.optimization.max_range_passive_universal = inf;
     Set.optimization.max_range_passive_spherical = inf;
     Set.optimization.max_range_prismatic = inf;
+    Set.optimization.InitPopFromGlobalIndex = true; % Sonst sehr lange Wartezeit am Anfang der Synthese
     Set.general.matfile_verbosity = 0;
     Set.general.nosummary = true; % Keine Bilder erstellen.
     Set.structures.mounting_parallel = 'floor'; % Sieht plausibler aus auf Bildern.
@@ -858,19 +859,31 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       % dann gelöscht werden. Es erfolgt zunächst keine Prüfung, ob PKM
       % doppelt kompiliert werden (da die Funktionen unabhängig von der
       % GP-Nummer sind.
-      pkm_compilelist = Whitelist_PKM;
+      pkm_list_noGP = Whitelist_PKM;
+      for kkk = 1:length(pkm_list_noGP)
+        [~, ~, ~, ~, ~, ~, ~, ~, pkm_list_noGP{kkk}, ~] = parroblib_load_robot(Whitelist_PKM{kkk}, 0);
+      end
+      [~, III] = unique(pkm_list_noGP);
+      pkm_compilelist = Whitelist_PKM(III);
+      pkm_compilelist = pkm_compilelist(randperm(numel(pkm_compilelist)));
       computation_name_compile = [computation_name, '_compile_parrob'];
       jobdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
         'struktsynth_par', 'cluster_jobs', computation_name_compile);
       mkdirs(jobdir);
       save(fullfile(jobdir, 'compilelist.mat'), 'pkm_compilelist', 'EE_FG');
-      targetfile = fullfile(jobdir, 'compile_parrrob.m');
+      targetfile = fullfile(jobdir, 'compile_parrob.m');
       copyfile(chf_compile, targetfile);
       fid = fopen(targetfile, 'a');
       fprintf(fid, 'tmp=load(''compilelist.mat''); \npkm_compilelist=tmp.pkm_compilelist;EE_FG=logical(tmp.EE_FG);\n');
+      fprintf(fid, 'repopath=fileparts(which(''parroblib_path_init.m''));\n');
+      fprintf(fid, 'EEstr = sprintf(''%%dT%%dR'', sum(EE_FG(1:3)), sum(EE_FG(4:6)));\n');
+      fprintf(fid, 'acttabfile=fullfile(repopath, [''sym_'', EEstr], [''sym_'',EEstr,''_list_act.mat'']);\n');
+      fprintf(fid, 'tmp = load(acttabfile);\n');
+      fprintf(fid, 'ActTab = tmp.ActTab;\n');
       fprintf(fid, 'fprintf(''Starte Funktions-Aktualisierung für %%d PKM\\n'', length(pkm_compilelist));\n');
       fprintf(fid, 'for i = 1:length(pkm_compilelist)\n');
       fprintf(fid, 'fprintf(''Beginne Funktions-Aktualisierung für %%s\\n'', pkm_compilelist{i});\n');
+      fprintf(fid, 'if ~any(contains(ActTab.Name, pkm_compilelist{i})), fprintf(''Nicht in Datenbank\\n''); continue; end\n');
       fprintf(fid, 'parroblib_writelock(''lock'', pkm_compilelist{i}, EE_FG, 2*60, 0);\n');
       fprintf(fid, 'RP=parroblib_create_robot_class(pkm_compilelist{i},0,0);\n');
       fprintf(fid, 'RP.fill_fcn_handles(true, true);\n');
@@ -878,13 +891,13 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       fprintf(fid, 'parroblib_writelock(''free'', pkm_compilelist{i}, EE_FG, 0, 0);\n');
       fprintf(fid, 'end\n');
       fclose(fid);
-      parrrob_compile_jobId = [parrrob_compile_jobId, jobStart(struct( ...
+      parrob_compile_jobId = [parrob_compile_jobId, jobStart(struct( ...
         'name', computation_name_compile, ...
         'ppn', 1, ... % Es gibt Dateizugriffsprobleme auf dem Cluster ("Datei nicht gefunden"). Daher nicht parallel kompilieren, auch wenn es lange dauert.
         'matFileName', 'compile_parrob.m', ...
         'locUploadFolder', jobdir, ...
         'time',6), depstruct)]; %#ok<AGROW> 
-      depstruct.afterok = [depstruct.afterok, parrrob_compile_jobId];
+      depstruct.afterok = [depstruct.afterok, parrob_compile_jobId];
 
       %% Führe die Maßsynthese für die Struktursynthese auf dem Cluster durch.
       % Bereite eine Einstellungs-Datei vor
