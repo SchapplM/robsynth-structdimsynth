@@ -938,26 +938,38 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     if isempty(ResData)
       fprintf('Keine Ergebnisse vorhanden. Entferne PKM wieder bei Abschluss\n')
       ResData = ResData_headers; % So Übernahme der Überschriften für leere Tabelle.
+      ResData = ResData([],:); % Darf keine Zeilen enthalten, sonst unten Fehler
     else
       ResData.Properties.VariableNames = ResData_headers.Properties.VariableNames;
     end
     settingsfile = fullfile(resmaindir, [Set.optimization.optname, ...
         '_settings.mat']);
-    tmpset = load(settingsfile);
-
-    % Stelle die Liste der Roboter zusammen. Ist nicht identisch mit Dateiliste,
-    % da PKM mehrfach geprüft werden können.
-    Structures_Names = cell(1,length(Structures));
-    for jjj = 1:length(Structures)
-      Structures_Names{jjj} = Structures{jjj}.Name;
+    num_results = 0;
+    if ~exist(settingsfile, 'file')
+      warning('Datei %s existiert nicht. Fehler bei Cluster-Berechnung?.', settingsfile);
+      tmpset = struct('Structures', {{}}); % Dummy
+    else
+      tmpset = load(settingsfile);
+      % Stelle die Liste der Roboter zusammen. Ist nicht identisch mit Dateiliste,
+      % da PKM mehrfach geprüft werden können.
+      Structures_Names = cell(1,length(Structures));
+      for jjj = 1:length(Structures)
+        Structures_Names{jjj} = Structures{jjj}.Name;
+      end
+      Structures_Names = unique(Structures_Names); % Eindeutige Liste der Strukturen erzeugen
+      % Sortiere die Liste absteigend, damit zuerst hohe Aktuierungs-
+      % nummern gelöscht werden. Andernfalls gibt es Logik-Probleme in der DB
+      Structures_Names = fliplr(sort(Structures_Names)); %#ok<FLPST>
+      num_results = length(Structures_Names);
     end
-    Structures_Names = unique(Structures_Names); % Eindeutige Liste der Strukturen erzeugen
-    % Sortiere die Liste absteigend, damit zuerst hohe Aktuierungs-
-    % nummern gelöscht werden. Andernfalls gibt es Logik-Probleme in der DB
-    Structures_Names = fliplr(sort(Structures_Names)); %#ok<FLPST>
-    fprintf('Verarbeite die %d Ergebnisse der Struktursynthese (%d PKM)\n', ...
-      sum(~isnan(ResData.LfdNr)), length(Structures_Names));
-
+    if num_results == 0
+      % Trage alle vorher ermittelten PKM als Pseudo-Ergebnisliste ein, um
+      % sie danach zu löschen
+      Structures_Names = fliplr(sort(Whitelist_PKM(:)')); %#ok<FLPST,TRSRT> 
+    else
+      fprintf('Verarbeite die %d Ergebnisse der Struktursynthese (%d PKM)\n', ...
+        sum(~isnan(ResData.LfdNr)), num_results);
+    end
     parroblib_writelock('lock', 'csv', logical(EE_FG), 30*60, true); % Sperre beim Ändern der csv
     for jjj = 1:length(Structures_Names) % Alle eindeutigen Strukturen durchgehen
       %% Ergebnisse für diese PKM laden
@@ -980,13 +992,27 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           warning('Ergebnis zu %s nicht in Tabelle gefunden', Name);
           continue; % kann im Offline-Modus passieren, falls unvollständige Ergebnisse geladen werden.
         end
-      end
+      end % for jj
       if length(fval_jjj) ~= length(angles_jjj)
         error('Variablen fval_jjj und angles_jjj sind nicht konsistent');
       end
       if isempty(fval_jjj)
         if settings.offline
-          warning('Keine Ergebnisse zu %s gefunden. Vermutlich unvollständiger Durchlauf geladen', Name);
+          if num_results > 0 % sonst ist die Warnung nicht sinnvoll
+            warning('Keine Ergebnisse zu %s gefunden. Vermutlich unvollständiger Durchlauf geladen', Name);
+          end
+          % Lösche PKM wieder, falls Aktuierung unbestimmt war
+          acttabfile=fullfile(parroblibpath, ['sym_', EE_FG_Name], ['sym_',EE_FG_Name,'_list_act.mat']);
+          tmp = load(acttabfile); % siehe parroblib_gen_bitarrays
+          ActTab = tmp.ActTab;
+          RL_jjj = ActTab.Rankloss_Platform(strcmp(ActTab.Name, Name));
+          if isnan(RL_jjj)
+            success = parroblib_remove_robot(Name);
+            if ~success
+              error('Fehler beim Löschen von %s', Name);
+            end
+            fprintf('PKM %s wurde wieder aus der Datenbank gelöscht.\n', Name);
+          end
           continue
         else
           error('Keine Ergebnisse zu %s gefunden. Darf nicht passieren.', Name);
