@@ -16,6 +16,7 @@ settings_default = struct( ...
   'check_missing', true, ... % Falls true: Prüfe auch nicht existierende Roboter
   'check_rankdef_existing', true, ... % Falls true: Prüfe existierende Roboter, deren Rang vorher als zu niedrig festgestellt wurde (zusätzlich zu anderen Optionen notwendig)
   'check_resstatus', 1:6, ... % Filter für PKM, die einen bestimmten Status in synthesis_result_lists/xTyR.csv haben
+  'check_only_missing_joint_parallelity', false, ... % Filter für PKM, bei denen die Angabe der Beingelenk-Parallelität fehlt (für Roboternamen wichtig)
   'resstatus_downgrade_possible', true, ... % Bei erneuter Durchführung können auch PKM entfernt werden
   'lfdNr_min', 1, ... % Auslassen der ersten "x" kinematischer Strukturen (zum Debuggen)
   ... % Prüfung ausgewählter Beinketten (zum Debuggen):
@@ -142,6 +143,10 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
   if ~isempty(synthrestable_var)
     synthrestable = [synthrestable; synthrestable_var]; %#ok<AGROW>
   end
+  % Aktuellen Stand der Kinematik-Datenbank öffnen
+  kintabmatfile = fullfile(parroblibpath, ['sym_', EE_FG_Name], ['sym_',EE_FG_Name,'_list_kin.mat']);
+  tmp = load(kintabmatfile); % erfordert parroblib_gen_bitarrays
+  KinTab = tmp.KinTab;
   % Merker, ob Kompilieren serieller Ketten gestartet wurde. Wenn ja, dann
   % hier Job-IDs. Betrifft nur Cluster (s.u.). Das gleiche für PKM
   serrob_compile_jobId = []; parrob_compile_jobId = [];
@@ -278,6 +283,8 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     for iFK = II' % Schleife über serielle Führungsketten
       ii_kin = ii_kin + 1;
       SName = l.Names_Ndof{iFK};
+      PName = sprintf('P%d%s', N_Legs, SName(3:end));
+      PNameGP = sprintf('%sG%dP%d', PName, Coupling(1), Coupling(2));
       SName_TechJoint = fliplr(regexprep(num2str(l.AdditionalInfo(iFK,7)), ...
         {'1','2','3','4','5'}, {'R','P','C','U','S'}));
       if toc(tlm_iFKloop) > 10 % nach 10s neue Meldung ausgeben
@@ -302,13 +309,23 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         if isempty(i_restab)
           Status_restab = 6; % Werte als "nicht geprüft"
         elseif length(i_restab) > 1
-          error('Doppelter Eintrag in CSV-Tabelle für %sG%dP%d', PName, Coupling(1), Coupling(2));
+          error('Doppelter Eintrag in CSV-Tabelle für %s', PNameGP);
         else
           Status_restab = table2array(synthrestable(i_restab,5));
         end
         % Vergleichen von Liste zu prüfender Status-Werte
         if ~any(Status_restab == settings.check_resstatus)
           continue
+        end
+      end
+      if settings.check_only_missing_joint_parallelity
+        I = strcmp(KinTab.Name, PNameGP);
+        if sum(I) == 1
+          if ~all(isnan(KinTab.Gelenkgruppen{I}))
+            fprintf('Kinematik %s ist bereits mit Gelenkgruppen [%s] in Datenbank. Überspringe.\n', ...
+              PNameGP, disp_array(KinTab.Gelenkgruppen{I}, '%d'));
+            continue
+          end
         end
       end
 
@@ -361,7 +378,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       end
       
       N_LegDoF = str2double(SName(2));% Beinkette FHG
-      PName = sprintf('P%d%s', N_Legs, SName(3:end));
+      
 
 
       fprintf('Kinematik %d/%d: %s, %s\n', ii_kin, length(II), PName, SName);
@@ -1233,7 +1250,9 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           fprintf('Rangdefizit der Jacobi für Beispiel-Punkte ist %1.0f\n', min(fval_jjj)/100);
           parroblib_change_properties(Name, 'rankloss', sprintf('%1.0f', min(fval_jjj)/100));
           parroblib_change_properties(Name, 'values_angles', structparamstr);
-          parroblib_change_properties(Name, 'joint_parallelity', parallelity_jjj(1,:));
+          if size(parallelity_jjj,1) > 0
+            parroblib_change_properties(Name, 'joint_parallelity', parallelity_jjj(1,:));
+          end
           rescode = 0;
           num_rankloss = num_rankloss + 1;
         elseif min(fval_jjj) > 1e10
@@ -1271,7 +1290,9 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         fprintf('%d/%d: PKM %s hat laut Maßsynthese vollen Laufgrad\n', jjj, length(Structures_Names), Name);
         parroblib_change_properties(Name, 'rankloss', '0');
         parroblib_change_properties(Name, 'values_angles', structparamstr);
-        parroblib_change_properties(Name, 'joint_parallelity', parallelity_jjj(1,:));
+        if size(parallelity_jjj,1) > 0
+          parroblib_change_properties(Name, 'joint_parallelity', parallelity_jjj(1,:));
+        end
         rescode = 0;
         rank_success = 1;
         num_fullmobility = num_fullmobility + 1;
