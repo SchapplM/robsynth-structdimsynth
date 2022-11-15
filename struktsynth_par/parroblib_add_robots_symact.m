@@ -16,6 +16,7 @@ settings_default = struct( ...
   'check_missing', true, ... % Falls true: Prüfe auch nicht existierende Roboter
   'check_rankdef_existing', true, ... % Falls true: Prüfe existierende Roboter, deren Rang vorher als zu niedrig festgestellt wurde (zusätzlich zu anderen Optionen notwendig)
   'check_resstatus', 1:6, ... % Filter für PKM, die einen bestimmten Status in synthesis_result_lists/xTyR.csv haben
+  'resstatus_downgrade_possible', true, ... % Bei erneuter Durchführung können auch PKM entfernt werden
   'lfdNr_min', 1, ... % Auslassen der ersten "x" kinematischer Strukturen (zum Debuggen)
   ... % Prüfung ausgewählter Beinketten (zum Debuggen):
   'whitelist_SerialKin', {''}, ... % z.B. 'S6RRPRRR14V2', 'S6RRPRRR14V3' 'S6RRRRRR10V3' 'S6PRRRRR6V2'
@@ -1020,6 +1021,18 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     for jjj = 1:length(Structures_Names) % Alle eindeutigen Strukturen durchgehen
       %% Ergebnisse für diese PKM laden
       Name = Structures_Names{jjj};
+      % Erneut die Filter-Listen prüfen. Sonst keine nachträgliche
+      % Filterung möglich, wenn heruntergeladene Ergebnisse aus dem Cluster
+      % mehr Roboter enthalten.
+      [~, LEG_Names_array, ~, Coupling_jjj] = parroblib_load_robot(Name, 0);
+      if ~isempty(settings.whitelist_SerialKin) && ...
+          ~any(strcmp(settings.whitelist_SerialKin, LEG_Names_array{1}))
+        continue
+      end
+      if isempty(settings.base_couplings == Coupling_jjj(1)) || ...
+          isempty(settings.plf_couplings == Coupling_jjj(2))
+        continue
+      end
       % Prüfe ob Struktur in der Ergebnisliste enthalten ist. Jede Struktur
       % kann mehrfach in der Ergebnisliste enthalten sein, wenn
       % verschiedene Fälle für freie Winkelparameter untersucht werden.
@@ -1082,7 +1095,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       end
       %% Parallelität der Gelenke prüfen
       if size(parallelity_jjj,1) > 1
-        test_parellelilty = repmat(parallelity_jjj, size(parallelity_jjj,1), 1) - parallelity_jjj;
+        test_parellelilty = repmat(parallelity_jjj(1,:), size(parallelity_jjj,1), 1) - parallelity_jjj;
         if any(test_parellelilty(:)) % TODO: Fehlerbehandlung, falls Fall mal auftritt
           error('Parallelität der Gelenkachsen ändert sich je nach Winkel. Fall nicht vorgesehen');
         end
@@ -1220,7 +1233,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           fprintf('Rangdefizit der Jacobi für Beispiel-Punkte ist %1.0f\n', min(fval_jjj)/100);
           parroblib_change_properties(Name, 'rankloss', sprintf('%1.0f', min(fval_jjj)/100));
           parroblib_change_properties(Name, 'values_angles', structparamstr);
-          parroblib_change_properties(Name, 'joint_parallelity', parallelity_jjj);
+          parroblib_change_properties(Name, 'joint_parallelity', parallelity_jjj(1,:));
           rescode = 0;
           num_rankloss = num_rankloss + 1;
         elseif min(fval_jjj) > 1e10
@@ -1258,7 +1271,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         fprintf('%d/%d: PKM %s hat laut Maßsynthese vollen Laufgrad\n', jjj, length(Structures_Names), Name);
         parroblib_change_properties(Name, 'rankloss', '0');
         parroblib_change_properties(Name, 'values_angles', structparamstr);
-        parroblib_change_properties(Name, 'joint_parallelity', parallelity_jjj);
+        parroblib_change_properties(Name, 'joint_parallelity', parallelity_jjj(1,:));
         rescode = 0;
         rank_success = 1;
         num_fullmobility = num_fullmobility + 1;
@@ -1266,14 +1279,37 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         % Anzahl der i.O.-Aktuierungen für csv-Tab. nicht gezählt werden.
         parroblib_gen_bitarrays(logical(EE_FG));
       end
-      parroblib_update_csv(LEG_Names_array{1}, Coupling, logical(EE_FG), rescode, rank_success);
+      % Prüfe vor dem Aktualisieren/Löschen, ob das erlaubt ist
+      update_db_allowed = true;
+      if ~settings.resstatus_downgrade_possible
+        % Prüfe vorherigen Wert in der CSV-Liste
+        I_name = strcmp(table2cell(synthrestable(:,1)), LEG_Names_array{1});
+        I_coupl = table2array(synthrestable(:,3))==Coupling(1) & ...
+                  table2array(synthrestable(:,4))==Coupling(2);
+        i_restab = find(I_name & I_coupl);
+        % aktuellen Status feststellen
+        if isempty(i_restab)
+          error('Kein Eintrag in CSV-Tabelle für %sG%dP%d', PName, Coupling(1), Coupling(2));
+        elseif length(i_restab) > 1
+          error('Doppelter Eintrag in CSV-Tabelle für %sG%dP%d', PName, Coupling(1), Coupling(2));
+        else
+          Status_restab = table2array(synthrestable(i_restab,5));
+        end
+        if Status_restab == 0 && rescode > 0
+          warning('Eintrag %d in CSV-Synthese-Tabelle ist besser als gefundener neuer Eintrag %d. Keine Aktualisierung in Datenbank.', Status_restab, rescode);
+          update_db_allowed = false;
+        end
+      end
       row = {EE_FG_Name, Coupling(1), Coupling(2), Name, rescode, rank_success, remove};
       ResTab = [ResTab; row]; %#ok<AGROW> 
-      if remove && ~settings.isoncluster % Auf Cluster würde das Löschen parallele Instanzen stören.
-        fprintf('Entferne PKM %s wieder aus der Datenbank (Name wird wieder frei)\n', Name);
-        remsuccess = parroblib_remove_robot(Name);
-        if ~remsuccess
-          error('Löschen der PKM %s nicht erfolgreich', Name);
+      if update_db_allowed
+        parroblib_update_csv(LEG_Names_array{1}, Coupling, logical(EE_FG), rescode, rank_success);
+        if remove && ~settings.isoncluster % Auf Cluster würde das Löschen parallele Instanzen stören.
+          fprintf('Entferne PKM %s wieder aus der Datenbank (Name wird wieder frei)\n', Name);
+          remsuccess = parroblib_remove_robot(Name);
+          if ~remsuccess
+            error('Löschen der PKM %s nicht erfolgreich', Name);
+          end
         end
       end
     end % for jjj (Structues_Names)
