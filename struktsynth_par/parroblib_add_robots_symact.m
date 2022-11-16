@@ -31,6 +31,7 @@ settings_default = struct( ...
   'ignore_check_leg_dof', false, ... % Plausibilitätsregeln aus parrob_structsynth_check_leg_dof können ignoriert werden
   'allow_passive_prismatic', false, ... % Technisch sinnvoll. Zum Testen auf true setzen (z.B. für 2T0R und 2T1R PKM)
   'comp_cluster', false, ... % Rechne auf PBS-Rechen-Cluster. Parallel-Instanz für G-/P-Kombis
+  'compile_job_on_cluster', true, ... % Separater Job auf Cluster zum kompilieren der Mex-Funktionen
   'clustercomp_if_res_olderthan', 2, ... % Falls in den letzten zwei Tagen bereits ein vollständiger Durchlauf gemacht wurde, dann nicht nochmal auf dem Cluster rechnen. Deaktivieren durch Null-Setzen
   'isoncluster', false, ... % Marker um festzustellen, dass gerade auf Cluster parallel gerechnet wird
   'dryrun', false, ... % Falls true: Nur Anzeige, was gemacht werden würde
@@ -807,7 +808,6 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     %% LUIS-Cluster vorbereiten
     if settings.comp_cluster && offline_result_complete && ...
         reslist_age(I) < settings.clustercomp_if_res_olderthan && ...
-        reslist_rationomatch(I) == 0.0 && ...
         reslist_nummatch(I) == length(Whitelist_PKM)
       % Prüfe Bedingungen, bei denen nicht auf dem Cluster gerechnet werden
       % soll, weil die Ergebnisse lokal schon vorliegen. Kann gemacht
@@ -815,7 +815,6 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       % schon erfolgreich war.
       fprintf(['Das bereits vorhandene Ergebnis ist vollständig und aktuell. ', ...
         'Keine Neuberechnung auf dem Cluster.\n']);
-      continue % Nachfolgendes muss nicht gemacht werden
     elseif settings.comp_cluster
       fprintf(['Vorhandener Ergebnis-Ordner ist nicht passend. Starte ', ...
         'Struktursynthese auf Cluster\n']);
@@ -839,7 +838,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       if ~exist(chf_compile, 'file')
         error('Datei %s muss aus Vorlage erzeugt werden', chf_compile);
       end
-      if ~isempty(legchain_compilelist)
+      if ~isempty(legchain_compilelist) && settings.compile_job_on_cluster
         computation_name_compile = [computation_name, '_compile_serrob'];
         jobdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
           'struktsynth_par', 'cluster_jobs', computation_name_compile);
@@ -877,46 +876,47 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       % dann gelöscht werden. Es erfolgt zunächst keine Prüfung, ob PKM
       % doppelt kompiliert werden (da die Funktionen unabhängig von der
       % GP-Nummer sind.
-      pkm_list_noGP = Whitelist_PKM;
-      for kkk = 1:length(pkm_list_noGP)
-        [~, ~, ~, ~, ~, ~, ~, ~, pkm_list_noGP{kkk}, ~] = parroblib_load_robot(Whitelist_PKM{kkk}, 0);
+      if settings.compile_job_on_cluster
+        pkm_list_noGP = Whitelist_PKM;
+        for kkk = 1:length(pkm_list_noGP)
+          [~, ~, ~, ~, ~, ~, ~, ~, pkm_list_noGP{kkk}, ~] = parroblib_load_robot(Whitelist_PKM{kkk}, 0);
+        end
+        [~, III] = unique(pkm_list_noGP);
+        pkm_compilelist = Whitelist_PKM(III);
+        pkm_compilelist = pkm_compilelist(randperm(numel(pkm_compilelist)));
+        computation_name_compile = [computation_name, '_compile_parrob'];
+        jobdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+          'struktsynth_par', 'cluster_jobs', computation_name_compile);
+        mkdirs(jobdir);
+        save(fullfile(jobdir, 'compilelist.mat'), 'pkm_compilelist', 'EE_FG');
+        targetfile = fullfile(jobdir, 'compile_parrob.m');
+        copyfile(chf_compile, targetfile);
+        fid = fopen(targetfile, 'a');
+        fprintf(fid, 'tmp=load(''compilelist.mat''); \npkm_compilelist=tmp.pkm_compilelist;EE_FG=logical(tmp.EE_FG);\n');
+        fprintf(fid, 'repopath=fileparts(which(''parroblib_path_init.m''));\n');
+        fprintf(fid, 'EEstr = sprintf(''%%dT%%dR'', sum(EE_FG(1:3)), sum(EE_FG(4:6)));\n');
+        fprintf(fid, 'acttabfile=fullfile(repopath, [''sym_'', EEstr], [''sym_'',EEstr,''_list_act.mat'']);\n');
+        fprintf(fid, 'tmp = load(acttabfile);\n');
+        fprintf(fid, 'ActTab = tmp.ActTab;\n');
+        fprintf(fid, 'fprintf(''Starte Funktions-Aktualisierung für %%d PKM\\n'', length(pkm_compilelist));\n');
+        fprintf(fid, 'for i = 1:length(pkm_compilelist)\n');
+        fprintf(fid, 'fprintf(''Beginne Funktions-Aktualisierung für %%s\\n'', pkm_compilelist{i});\n');
+        fprintf(fid, 'if ~any(contains(ActTab.Name, pkm_compilelist{i})), fprintf(''Nicht in Datenbank\\n''); continue; end\n');
+        fprintf(fid, 'parroblib_writelock(''lock'', pkm_compilelist{i}, EE_FG, 2*60, 0);\n');
+        fprintf(fid, 'RP=parroblib_create_robot_class(pkm_compilelist{i},0,0);\n');
+        fprintf(fid, 'RP.fill_fcn_handles(true, true);\n');
+        fprintf(fid, 'parroblib_update_template_functions(pkm_compilelist(i));\n');
+        fprintf(fid, 'parroblib_writelock(''free'', pkm_compilelist{i}, EE_FG, 0, 0);\n');
+        fprintf(fid, 'end\n');
+        fclose(fid);
+        parrob_compile_jobId = [parrob_compile_jobId, jobStart(struct( ...
+          'name', computation_name_compile, ...
+          'ppn', 1, ... % Es gibt Dateizugriffsprobleme auf dem Cluster ("Datei nicht gefunden"). Daher nicht parallel kompilieren, auch wenn es lange dauert.
+          'matFileName', 'compile_parrob.m', ...
+          'locUploadFolder', jobdir, ...
+          'time',6), depstruct)]; %#ok<AGROW> 
+        depstruct.afterok = [depstruct.afterok, parrob_compile_jobId];
       end
-      [~, III] = unique(pkm_list_noGP);
-      pkm_compilelist = Whitelist_PKM(III);
-      pkm_compilelist = pkm_compilelist(randperm(numel(pkm_compilelist)));
-      computation_name_compile = [computation_name, '_compile_parrob'];
-      jobdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
-        'struktsynth_par', 'cluster_jobs', computation_name_compile);
-      mkdirs(jobdir);
-      save(fullfile(jobdir, 'compilelist.mat'), 'pkm_compilelist', 'EE_FG');
-      targetfile = fullfile(jobdir, 'compile_parrob.m');
-      copyfile(chf_compile, targetfile);
-      fid = fopen(targetfile, 'a');
-      fprintf(fid, 'tmp=load(''compilelist.mat''); \npkm_compilelist=tmp.pkm_compilelist;EE_FG=logical(tmp.EE_FG);\n');
-      fprintf(fid, 'repopath=fileparts(which(''parroblib_path_init.m''));\n');
-      fprintf(fid, 'EEstr = sprintf(''%%dT%%dR'', sum(EE_FG(1:3)), sum(EE_FG(4:6)));\n');
-      fprintf(fid, 'acttabfile=fullfile(repopath, [''sym_'', EEstr], [''sym_'',EEstr,''_list_act.mat'']);\n');
-      fprintf(fid, 'tmp = load(acttabfile);\n');
-      fprintf(fid, 'ActTab = tmp.ActTab;\n');
-      fprintf(fid, 'fprintf(''Starte Funktions-Aktualisierung für %%d PKM\\n'', length(pkm_compilelist));\n');
-      fprintf(fid, 'for i = 1:length(pkm_compilelist)\n');
-      fprintf(fid, 'fprintf(''Beginne Funktions-Aktualisierung für %%s\\n'', pkm_compilelist{i});\n');
-      fprintf(fid, 'if ~any(contains(ActTab.Name, pkm_compilelist{i})), fprintf(''Nicht in Datenbank\\n''); continue; end\n');
-      fprintf(fid, 'parroblib_writelock(''lock'', pkm_compilelist{i}, EE_FG, 2*60, 0);\n');
-      fprintf(fid, 'RP=parroblib_create_robot_class(pkm_compilelist{i},0,0);\n');
-      fprintf(fid, 'RP.fill_fcn_handles(true, true);\n');
-      fprintf(fid, 'parroblib_update_template_functions(pkm_compilelist(i));\n');
-      fprintf(fid, 'parroblib_writelock(''free'', pkm_compilelist{i}, EE_FG, 0, 0);\n');
-      fprintf(fid, 'end\n');
-      fclose(fid);
-      parrob_compile_jobId = [parrob_compile_jobId, jobStart(struct( ...
-        'name', computation_name_compile, ...
-        'ppn', 1, ... % Es gibt Dateizugriffsprobleme auf dem Cluster ("Datei nicht gefunden"). Daher nicht parallel kompilieren, auch wenn es lange dauert.
-        'matFileName', 'compile_parrob.m', ...
-        'locUploadFolder', jobdir, ...
-        'time',6), depstruct)]; %#ok<AGROW> 
-      depstruct.afterok = [depstruct.afterok, parrob_compile_jobId];
-
       %% Führe die Maßsynthese für die Struktursynthese auf dem Cluster durch.
       % Bereite eine Einstellungs-Datei vor
       jobdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
@@ -990,7 +990,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       pause(2); % Für Sekunden-Zeitstempel im Ordernamen auf Cluster
       cds_start(Set, Traj);
       continue % Nachfolgendes muss nicht gemacht werden
-    end
+    end % Cluster-Berechnung
     
     %% Nachverarbeitung der Ergebnis-Liste
     % CSV-Tabelle laden (obiges Laden derselben Datei wird nicht bei 
@@ -1038,16 +1038,9 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     for jjj = 1:length(Structures_Names) % Alle eindeutigen Strukturen durchgehen
       %% Ergebnisse für diese PKM laden
       Name = Structures_Names{jjj};
-      % Erneut die Filter-Listen prüfen. Sonst keine nachträgliche
-      % Filterung möglich, wenn heruntergeladene Ergebnisse aus dem Cluster
-      % mehr Roboter enthalten.
-      [~, LEG_Names_array, ~, Coupling_jjj] = parroblib_load_robot(Name, 0);
-      if ~isempty(settings.whitelist_SerialKin) && ...
-          ~any(strcmp(settings.whitelist_SerialKin, LEG_Names_array{1}))
-        continue
-      end
-      if isempty(settings.base_couplings == Coupling_jjj(1)) || ...
-          isempty(settings.plf_couplings == Coupling_jjj(2))
+      % Erneut die Filter-Liste prüfen. Cluster-Ergebnisse können mehr oder
+      % teilweise andere PKM enthalten, als hier geprüft werden soll.
+      if ~any(strcmp(Whitelist_PKM, Name))
         continue
       end
       % Prüfe ob Struktur in der Ergebnisliste enthalten ist. Jede Struktur
@@ -1110,13 +1103,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           error('Keine Ergebnisse zu %s gefunden. Darf nicht passieren.', Name);
         end
       end
-      %% Parallelität der Gelenke prüfen
-      if size(parallelity_jjj,1) > 1
-        test_parellelilty = repmat(parallelity_jjj(1,:), size(parallelity_jjj,1), 1) - parallelity_jjj;
-        if any(test_parellelilty(:)) % TODO: Fehlerbehandlung, falls Fall mal auftritt
-          error('Parallelität der Gelenkachsen ändert sich je nach Winkel. Fall nicht vorgesehen');
-        end
-      end
+
       %% Daten für freien Winkelparameter bestimmen
       [angles_jjj_u, I] = unique(angles_jjj);
       if length(angles_jjj_u) ~= length(angles_jjj)
@@ -1147,6 +1134,24 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           if iii < length(angles_jjj_valid), structparamstr_orig=[structparamstr_orig,',']; end %#ok<AGROW>
         end
         fprintf('Freie Winkelparameter kombiniert: "%s" -> "%s"\n', structparamstr_orig, structparamstr);
+      end
+      %% Parallelität der Gelenke prüfen
+      if size(parallelity_jjj,1) > 1
+        test_parellelilty = repmat(parallelity_jjj(1,:), size(parallelity_jjj,1), 1) - parallelity_jjj;
+        if any(test_parellelilty(:))
+          % Prüfe, ob der zusammengefasste freie Winkel einem der
+          % vorherigen Fälle entsprechen und wähle die parallelen Gelenk
+          % von diesem Fall aus
+          I = strcmp(structparamstr, angles_jjj_valid); % Annahme: Passen zusammen
+          if sum(I) == 1
+            parallelity_jjj = parallelity_jjj(I,:);
+          else
+            parallelity_jjj = [];
+            save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+              sprintf('parroblib_add_robots_symact_%s_parallelity_changes.mat', Name)));
+            warning('Parallelität der Gelenkachsen ändert sich je nach Winkel. Fall nicht vorgesehen');
+          end
+        end
       end
       %% Prüfe auf Koppelgelenk-Isomorphismen
       plf_isomorph_found = 0; % Nummer für Isomorphismus
