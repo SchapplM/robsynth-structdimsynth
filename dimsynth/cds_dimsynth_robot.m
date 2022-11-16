@@ -128,6 +128,8 @@ elseif Structure.Type == 2 % Parallel
     p_platform(2) = 0.5*p_platform(1); % Paar-Abstand halb so groß wie Radius
   elseif Structure.Coupling(2) == 8
     p_platform(2) = 0; % Kein Offset-Winkel für Gelenkachsen
+  elseif Structure.Coupling(2) == 9
+    p_platform(2) = 0; % Keine Neigung (identisch zu P3)
   end
   % Bei paralleler Rechnung der Struktursynthese auf Cluster Konflikte vermeiden
   parroblib_writelock('check', 'csv', logical(Set.task.DoF), 5*60, false);
@@ -785,6 +787,15 @@ if Structure.Type == 2 && Set.optimization.platform_morphology
     vartypes = [vartypes; 9];
     varlim = [varlim; [-pi,pi]]; % Offset für Gelenkrichtung auf Plattform
     varnames = {varnames{:}, 'platform_morph_axoffset'}; %#ok<CCAT>
+  elseif R.DesPar.platform_method == 9
+    nvars = nvars + 1;
+    vartypes = [vartypes; 9];
+    if any(strcmp(Set.optimization.objective, 'valid_act'))
+      varlim = [varlim; [5, 45]*pi/180]; % 5° Abstand von der rein radialen Ausrichtung, die identisch zu P3 ist
+    else
+      varlim = [varlim; [-pi/4,pi/4]]; % Neigungswinkel der Gelenkachsen in die Mitte
+    end
+    varnames = {varnames{:}, 'platform_morph_axtiltangle'}; %#ok<CCAT>
   else
     error('Parameter "platform_morphology" für Plattform-Methode %d nicht implementiert', R.DesPar.platform_method);
   end

@@ -452,7 +452,6 @@ end
 %% Berechnung auf PBS-Cluster vorbereiten und durchführen
 if Set.general.computing_cluster
   % Bereite eine Einstellungs-Datei vor
-  cluster_repo_path = fileparts(which('cluster_transfer_toolbox_path_init.m'));
   % Erzeuge Liste aller oben zur Optimierung gefundener Roboter
   Names = {};
   for k = 1:length(Structures)
@@ -567,8 +566,7 @@ if Set.general.computing_cluster
     fprintf(fid, 'parpool_writelock(''free'', 0, true);\n');
     fclose(fid);
 
-    % Matlab-Skript auf Cluster starten.
-    addpath(cluster_repo_path);
+    % Matlab-Skript auf Cluster starten (Toolbox muss im Pfad sein).
     ppn = min(length(I1_kk:I2_kk),Set.general.computing_cluster_cores);
     dependstruct = Set.general.cluster_dependjobs;
     dependstruct.waittime_max = 3600; % eine Stunde lang versuchen (falls Cluster voll)
