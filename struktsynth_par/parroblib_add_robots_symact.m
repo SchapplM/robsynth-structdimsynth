@@ -849,12 +849,9 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         copyfile(chf_compile, targetfile);
         fid = fopen(targetfile, 'a');
         fprintf(fid, 'tmp=load(''compilelist.mat''); \nlegchain_compilelist=tmp.legchain_compilelist;\n');
-%         fprintf(fid, 'parpool_writelock(''lock'', 180, true);\n');
-%         fprintf(fid, 'Pool = gcp(''nocreate'');\n');
-%         fprintf(fid, 'parpool_writelock(''free'', 0, true);\n');
         fprintf(fid, 'fprintf(''Starte Funktions-Aktualisierung für %%d serielle Roboter\\n'', length(legchain_compilelist));\n');
         fprintf(fid, 'for i = 1:length(legchain_compilelist)\n');
-        fprintf(fid, 'fprintf(''Beginne Funktions-Aktualisierung für %%s\\n'', legchain_compilelist{i});\n');
+        fprintf(fid, 'fprintf(''Beginne Funktions-Aktualisierung %%d/%%d für %%s\\n'', i, length(legchain_compilelist), legchain_compilelist{i});\n');
         fprintf(fid, 'serroblib_writelock(''lock'', legchain_compilelist{i}, [], 2*60, 0);\n');
         fprintf(fid, 'serroblib_update_template_functions(legchain_compilelist(i));\n');
         fprintf(fid, 'serroblib_writelock(''free'', legchain_compilelist{i}, [], 0, 0);\n');
@@ -866,7 +863,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           'ppn', 1, ... % Es gibt Dateizugriffsprobleme auf dem Cluster ("Datei nicht gefunden"). Daher nicht parallel kompilieren, auch wenn es lange dauert.
           'matFileName', 'compile_serrob.m', ...
           'locUploadFolder', jobdir, ...
-          'time',6), depstruct)]; %#ok<AGROW> 
+          'time',12), depstruct)]; %#ok<AGROW> 
         LegChainListMexUpload = unique([LegChainListMexUpload, LegChainList_Coupling]);
         % Folgenden Struktursynthese-Job erst nach Kompilierung starten
         depstruct = struct('afterok', serrob_compile_jobId, 'afternotok', [], 'afterany', []);
@@ -898,9 +895,12 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         fprintf(fid, 'acttabfile=fullfile(repopath, [''sym_'', EEstr], [''sym_'',EEstr,''_list_act.mat'']);\n');
         fprintf(fid, 'tmp = load(acttabfile);\n');
         fprintf(fid, 'ActTab = tmp.ActTab;\n');
+        fprintf(fid, 'parpool_writelock(''lock'', 180, true);\n');
+        fprintf(fid, 'Pool = gcp(''nocreate'');\n');
+        fprintf(fid, 'parpool_writelock(''free'', 0, true);\n');
         fprintf(fid, 'fprintf(''Starte Funktions-Aktualisierung für %%d PKM\\n'', length(pkm_compilelist));\n');
-        fprintf(fid, 'for i = 1:length(pkm_compilelist)\n');
-        fprintf(fid, 'fprintf(''Beginne Funktions-Aktualisierung für %%s\\n'', pkm_compilelist{i});\n');
+        fprintf(fid, 'parfor i = 1:length(pkm_compilelist)\n');
+        fprintf(fid, 'fprintf(''Beginne Funktions-Aktualisierung %%d/%%d für %%s\\n'', i, length(pkm_compilelist), pkm_compilelist{i});\n');
         fprintf(fid, 'if ~any(contains(ActTab.Name, pkm_compilelist{i})), fprintf(''Nicht in Datenbank\\n''); continue; end\n');
         fprintf(fid, 'parroblib_writelock(''lock'', pkm_compilelist{i}, EE_FG, 2*60, 0);\n');
         fprintf(fid, 'RP=parroblib_create_robot_class(pkm_compilelist{i},0,0);\n');
@@ -911,11 +911,13 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         fclose(fid);
         parrob_compile_jobId = [parrob_compile_jobId, jobStart(struct( ...
           'name', computation_name_compile, ...
-          'ppn', 1, ... % Es gibt Dateizugriffsprobleme auf dem Cluster ("Datei nicht gefunden"). Daher nicht parallel kompilieren, auch wenn es lange dauert.
+          'ppn', 12, ... % Paralleles Kompilieren ausprobieren
           'matFileName', 'compile_parrob.m', ...
           'locUploadFolder', jobdir, ...
-          'time',6), depstruct)]; %#ok<AGROW> 
-        depstruct.afterok = [depstruct.afterok, parrob_compile_jobId];
+          'time',24), depstruct)]; %#ok<AGROW> 
+        % Wenn zentraler Kompilier-Job abbricht wird stattdessen wieder
+        % dezentral kompiliert. Mögliche Ursache ist, dass es zu lange dauert.
+        depstruct.afterany = [depstruct.afterany, parrob_compile_jobId];
       end
       %% Führe die Maßsynthese für die Struktursynthese auf dem Cluster durch.
       % Bereite eine Einstellungs-Datei vor
