@@ -34,6 +34,7 @@ settings_default = struct( ...
   'compile_job_on_cluster', true, ... % Separater Job auf Cluster zum kompilieren der Mex-Funktionen
   'clustercomp_if_res_olderthan', 2, ... % Falls in den letzten zwei Tagen bereits ein vollständiger Durchlauf gemacht wurde, dann nicht nochmal auf dem Cluster rechnen. Deaktivieren durch Null-Setzen
   'isoncluster', false, ... % Marker um festzustellen, dass gerade auf Cluster parallel gerechnet wird
+  'optname', '', ... % Name, den die Optimierung auf dem Cluster haben soll (muss einheitlich sein)
   'dryrun', false, ... % Falls true: Nur Anzeige, was gemacht werden würde
   'offline', false, ... % Falls true: Keine Optimierung durchführen, stattdessen letztes passendes Ergebnis laden
   ... % ... dieser Modus kann genutzt werden, wenn die Optimierung korrekt durchgeführt wurde, aber die Nachverarbeitung fehlerhaft war
@@ -576,9 +577,16 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     % cds_show_task(Traj, Set.task);
     Set.optimization.objective = 'valid_act';
     rs = ['a':'z', 'A':'Z', '0':'9'];
-    Set.optimization.optname = sprintf('add_robots_sym_%s_G%dP%d_tmp_%s_%s%s_%s', ...
-      EE_FG_Name, Coupling(1), Coupling(2), datestr(now,'yyyymmdd_HHMMSS'), ...
-      genstr, varstr, rs(randi([1 length(rs)], 5, 1))); % zufällige String anhängen, falls Sekundengleicher Start einer Optimierung
+    if ~isempty(settings.optname)
+      % Name für die Berechnung auf dem Cluster wurde bereits beim Start
+      % vorgegeben und darf auf dem Cluster nicht mehr geändert werden.
+      % Sonst geht der Finish-Job nicht.
+      Set.optimization.optname = settings.optname;
+    else
+      Set.optimization.optname = sprintf('add_robots_sym_%s_G%dP%d_tmp_%s_%s%s_%s', ...
+        EE_FG_Name, Coupling(1), Coupling(2), datestr(now,'yyyymmdd_HHMMSS'), ...
+        genstr, varstr, rs(randi([1 length(rs)], 5, 1))); % zufällige String anhängen, falls Sekundengleicher Start einer Optimierung
+    end
     Set.optimization.NumIndividuals = 200;
     Set.optimization.MaxIter = 50;
     Set.optimization.ee_rotation = false;
@@ -933,6 +941,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       settings_cluster.offline = false; % sonst versucht die Cluster-Instanz bestehende Ergebnisse zu laden
       settings_cluster.dryrun = false;
       settings_cluster.isoncluster = true;
+      settings_cluster.optname = Set.optimization.optname;
       % Struktursynthese auf dem Cluster parallel rechnen
       settings_cluster.parcomp_structsynth = true;
       % Parallele mex-Kompilierung immer auf dem Cluster. Voraussetzung:
