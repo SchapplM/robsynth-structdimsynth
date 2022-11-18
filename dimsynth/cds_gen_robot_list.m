@@ -7,11 +7,13 @@
 % Ausgabe:
 % Structures
 %   Liste aller Roboterstrukturen
+% Structures_Names
+%   Namen der Strukturen als Cell-Array
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function Structures = cds_gen_robot_list(Set)
+function [Structures, Structures_Names] = cds_gen_robot_list(Set)
 %% Debug:
 if Set.general.matfile_verbosity > 0
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_gen_robot_list1.mat'));
@@ -611,5 +613,11 @@ if ~isempty(Set.structures.repeatlist)
       warning(['Roboter %s soll mehrfach optimiert werden, ist aber gar ', ...
         'nicht in ursprünglicher Lister der Roboter enthalten.'], Name_i);
     end
+  end
+end
+if nargout == 2
+  Structures_Names = cell(length(Structures), 1);
+  for i = 1:length(Structures)
+    Structures_Names{i} = Structures{i}.Name;
   end
 end
