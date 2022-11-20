@@ -33,6 +33,7 @@ settings_default = struct( ...
   'comp_cluster', false, ... % Rechne auf PBS-Rechen-Cluster. Parallel-Instanz für G-/P-Kombis
   'compile_job_on_cluster', true, ... % Separater Job auf Cluster zum kompilieren der Mex-Funktionen
   'clustercomp_if_res_olderthan', 2, ... % Falls in den letzten zwei Tagen bereits ein vollständiger Durchlauf gemacht wurde, dann nicht nochmal auf dem Cluster rechnen. Deaktivieren durch Null-Setzen
+  'clusterjobdepend', [], ...% Start-Abhängigkeit für alle Cluster-Jobs (z.B. Index-Erstellung der Datenbank
   'isoncluster', false, ... % Marker um festzustellen, dass gerade auf Cluster parallel gerechnet wird
   'optname', '', ... % Name, den die Optimierung auf dem Cluster haben soll (muss einheitlich sein)
   'dryrun', false, ... % Falls true: Nur Anzeige, was gemacht werden würde
@@ -124,7 +125,7 @@ if settings.comp_cluster
   assert(~isempty(which('jobStart.m')), 'Cluster-Repo ist nicht im Pfad initialisiert');
 end
 % Abhängigkeiten der Cluster-Jobs in Struktur sammeln
-depstruct = struct('afterok', [], 'afternotok', [], 'afterany', []);
+depstruct = struct('afterok', settings.clusterjobdepend, 'afternotok', [], 'afterany', []);
 %% Alle PKM generieren
 fprintf('Beginne Schleife über %d verschiedene EE-FG\n', length(settings.EE_FG_Nr));
 for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
@@ -754,7 +755,8 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           ResData_i.Properties.VariableNames = ResData_i_headers.Properties.VariableNames;
           Structures = cell(1,size(ResData_i,1));
           for i = 1:size(ResData_i,1)
-            Structures{ResData_i.LfdNr(i)} = struct('Name', ResData_i.Name{i}, 'Type', 2);
+            % Benutze nicht die laufende Nummer, falls Lücken in den Daten sind
+            Structures{i} = struct('Name', ResData_i.Name{i}, 'Type', 2);
           end
         else
           roblist = dir(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
