@@ -723,6 +723,36 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
             warning('Ergebnis-Ordner "%s" passt nicht ins Datums-Namensschema. Überspringe.', reslist(i).name);
             continue
           end
+          % Prüfe, ob die Einstellungsdatei mit der Tabelle übereinstimmt
+          settingsfile=fullfile(reslist(i).folder, reslist(i).name, ...
+            sprintf('%s_settings.mat', reslist(i).name));
+          if exist(settingsfile, 'file')
+            try
+              tmpset = load(settingsfile, 'Structures');
+            catch err
+              warning('Fehler beim Laden von Einstellungsdatei für %s. Beschädigte Daten? %s', reslist(i).name, err.message);
+              continue;
+            end
+            Structures_Names_i = cell(length(tmpset.Structures),1);
+            for lll = 1:length(tmpset.Structures)
+              Structures_Names_i{lll} = tmpset.Structures{lll}.Name;
+            end
+            % Alle Ergebnisse müssen auch in der Einstellungsdatei sein.
+            % Sonst ist es ein inkonsistenter Datensatz.
+            if ~isempty(intersect(setxor(Structures_Names_i, ...
+                reslist_pkm_names), Structures_Names_i))
+              warning('Ergebnisse in %s passen nicht zu Einstellungsdatei', reslist(i).name);
+              continue
+            end
+            % Folgender Fall darf nicht vorkommen, außer die Einstellungen
+            % werden durch Programm-/Benutzerfehler neu überschrieben.
+            if exist(csvfile, 'file') && length(tmpset.Structures) < max(ResData_i.LfdNr)
+              warning(['Inkonsistente Daten für %s (weniger Strukturen in ', ...
+                'Einstellung/Eingabe als Ergebnisse in Tabelle/Ausgabe)'], reslist(i).name);
+              continue
+            end
+          end
+
           date_i = datenum([datestr_match{1}{1}, ' ', datestr_match{1}{2}], 'yyyymmdd HHMMSS');
           reslist_age(i) = now() - date_i; % Alter in Tagen
           reslist_nummatch(i) = sum(Whitelist_PKM_match); % Anzahl der Treffer
@@ -753,10 +783,13 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         if use_csv
           ResData_i_headers = readtable(csvfile, 'ReadVariableNames', true);
           ResData_i.Properties.VariableNames = ResData_i_headers.Properties.VariableNames;
-          Structures = cell(1,size(ResData_i,1));
+          Structures = cell(1,max(ResData_i.LfdNr),1);
           for i = 1:size(ResData_i,1)
-            % Benutze nicht die laufende Nummer, falls Lücken in den Daten sind
-            Structures{i} = struct('Name', ResData_i.Name{i}, 'Type', 2);
+            if isnan(ResData_i.LfdNr(i))
+              warning('Datei %s scheint beschädigt zu sein', csvfile);
+              continue
+            end
+            Structures{ResData_i.LfdNr(i)} = struct('Name', ResData_i.Name{i}, 'Type', 2);
           end
         else
           roblist = dir(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
@@ -798,6 +831,8 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           if length(tmpset.Structures) == length(Structures)
             offline_result_complete = true;
             complstr = [complstr,'Der Durchlauf ist vollständig.']; %#ok<AGROW>
+          elseif length(tmpset.Structures) < max(ResData_i.LfdNr)
+            complstr = [complstr,'Einstellungsdatei und Ergebnisliste nicht konsistent']; %#ok<AGROW>
           else
             complstr = [complstr,'Der Durchlauf ist nicht vollständig.']; %#ok<AGROW>
           end
@@ -1031,9 +1066,14 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       % da PKM mehrfach geprüft werden können.
       Structures_Names = cell(1,length(Structures));
       for jjj = 1:length(Structures)
+        if isempty(Structures{jjj}) % falls Daten lückenhaft
+          Structures_Names{jjj}='missing'; 
+          continue; 
+        end
         Structures_Names{jjj} = Structures{jjj}.Name;
       end
       Structures_Names = unique(Structures_Names); % Eindeutige Liste der Strukturen erzeugen
+      Structures_Names = Structures_Names(~strcmp(Structures_Names, 'missing'));
       % Sortiere die Liste absteigend, damit zuerst hohe Aktuierungs-
       % nummern gelöscht werden. Andernfalls gibt es Logik-Probleme in der DB
       Structures_Names = fliplr(sort(Structures_Names)); %#ok<FLPST>
@@ -1065,7 +1105,15 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       for jj = 1:size(ResData,1)
         if strcmp(ResData.Name{jj},Name)
           fval_jjj = [fval_jjj, ResData.Fval_Opt(jj)]; %#ok<AGROW>
+          if length(tmpset.Structures) < jj
+            warning('Struktur-Variable hat die falsche Dimension. Datenfehler?')
+            continue
+          end
           Structure_jj = tmpset.Structures{ResData.LfdNr(jj)};
+          if ~strcmp(Name, Structure_jj.Name)
+            warning('Struktur-Variable nicht konsistente Einträge. Datenfehler?')
+            continue
+          end
           if isempty(angles_jjj) % Syntax-Fehler vermeiden bei leerem char als erstem
             angles_jjj = {Structure_jj.angles_values};
           else
