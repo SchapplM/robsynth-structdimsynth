@@ -14,6 +14,10 @@
 % Q
 %   Gelenkwinkel-Trajektorie für Ergebnis der Maßsynthese
 % 
+% Ausgabe:
+% pgroups
+%   Parallele Gruppen innerhalb der Beinketten (mit ganzen Zahlen)
+% 
 % Speichert Datei:
 % ...joint_parallelity.txt
 %   Nummern für Parallelität der Gelenkachsen der Beinketten.
@@ -22,21 +26,33 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2022-11
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function cds_joint_parallelity(R, Set, Structure, Q)
+function pgroups = cds_joint_parallelity(R, Set, Structure, Q)
 if Set.general.matfile_verbosity > 2
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
     'cds_get_joint_parallelity.mat'));
 end
 %% Parallelität der Gelenke anzeigen (anhand der Gelenk-Trajektorie).
-NLegJ = size(Q,2) / R.NLEG;
-pgroups_legs = NaN(R.NLEG, NLegJ);
-for iLeg = 1:R.NLEG
+if R.Type == 0
+  NLegJ = R.NJ;
+  NLEG = 1;
+else
+  NLegJ = size(Q,2) / R.NLEG;
+  NLEG = R.NLEG;
+end
+pgroups_legs = NaN(NLEG, NLegJ);
+for iLeg = 1:NLEG
+  if R.Type == 0
+    R_i = R;
+  else
+    R_i = R.Leg(iLeg);
+  end
+  
   % Direkte Kinematik für alle Zeitschritte berechnen
   Zges = NaN(size(Q,1), 3*NLegJ); % Alle z-Achsen speichern zum späteren Vergleich
   pgroups_all = zeros(size(Q,1), NLegJ);
-  sigma_leg = R.Leg(1).MDH.sigma;
+  sigma_leg = R_i.MDH.sigma;
   for k = 1:size(Q,1)
-    Tc = R.Leg(1).fkine(Q(k,1:NLegJ)');
+    Tc = R_i.fkine(Q(k,1:NLegJ)');
     for kk = 1:NLegJ
       Zges(k,(kk-1)*3+1:kk*3) = Tc(1:3,3,1+kk);
     end
@@ -90,18 +106,22 @@ for iLeg = 1:R.NLEG
 end
 %% Prüfen der Ergebnisse
 legs_error = false;
-for iLeg = 1:R.NLEG
-  if ~all(pgroups_legs(iLeg,:) == pgroups)
-    cds_log(-1, sprintf(['[joint_parallelity] Parallelität der Gelenke ', ...
-      'in den verschiedenen Beinketten nicht gleich (Kette %d vs %d)'], iLeg, R.NLEG));
-    legs_error = true;
+if R.Type == 2
+  for iLeg = 1:R.NLEG
+    if ~all(pgroups_legs(iLeg,:) == pgroups)
+      cds_log(-1, sprintf(['[joint_parallelity] Parallelität der Gelenke ', ...
+        'in den verschiedenen Beinketten nicht gleich (Kette %d vs %d)'], iLeg, R.NLEG));
+      legs_error = true;
+    end
+  end
+  if legs_error % Die Datei markiert, dass es einen Fehler gab.
+    writematrix(pgroups_legs, fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+      sprintf('Rob%d_%s_joint_parallelity_error_legs.txt', Structure.Number, Structure.Name)));
   end
 end
-if legs_error % Die Datei markiert, dass es einen Fehler gab.
-  writematrix(pgroups_legs, fullfile(Set.optimization.resdir, Set.optimization.optname, ...
-    sprintf('Rob%d_%s_joint_parallelity_error_legs.txt', Structure.Number, Structure.Name)));
-end
 %% Abspeichern der Parallelität
-writematrix(pgroups, fullfile(Set.optimization.resdir, Set.optimization.optname, ...
-  sprintf('Rob%d_%s_joint_parallelity.txt', Structure.Number, Structure.Name)));
-cds_log(1, sprintf('[joint_parallelity] Parallelität der Beinketten exportiert: [%s]', disp_array(pgroups, '%d')));
+if R.Type == 2 % Nur bei PKM auch speichern
+  writematrix(pgroups, fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+    sprintf('Rob%d_%s_joint_parallelity.txt', Structure.Number, Structure.Name)));
+  cds_log(1, sprintf('[joint_parallelity] Parallelität der Beinketten exportiert: [%s]', disp_array(pgroups, '%d')));
+end
