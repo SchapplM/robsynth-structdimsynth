@@ -2725,6 +2725,9 @@ save(resultfile, 'RobotOptRes');
 save(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
   sprintf('Rob%d_%s_Details.mat', Structure.Number, Structure.Name)), ...
   'RobotOptDetails', 'PSO_Detail_Data');
+if any(strcmp(Set.optimization.objective, 'valid_act')) && any(fval < 1e3)
+    cds_joint_parallelity(R, Set, Structure, Q); % Speichern der Gelenkparallelität für Struktursynthese
+end
 % Log-Datei komprimieren und Textdatei löschen
 if exist(lfp, 'file')
   gzip(lfp); delete(lfp);

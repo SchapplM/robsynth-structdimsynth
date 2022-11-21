@@ -35,10 +35,14 @@ end
 
 % Zielfunktion ist der Rang. Bei vollem Rang "funktioniert" der Roboter
 % und der entsprechende Schwellwert wird unterschritten
-% Berechne Rang der Jacobi nur für ersten Bahnpunkt. Annahme: Keine
-% Singularität, da Trajektorie und IK lösbar ist.
+% Berechne Rang der Jacobi für alle Bahnpunkte und wähle den Bahnpunkt mit
+% dem besten Rang. Annahme: Wenn an einem Punkt voller Laufgrad möglich
+% ist, ist es strukturell möglich. Bei Singularitäten in der Trajektorie
+% wird fälschlicherweise ein allgemeiner Rangdefizit angenommen. 
+% Wird ausgeglichen durch mehrmalige Prüfung.
 n_qa = sum(R.I_qa);
-for i = 1
+rankJ_traj = NaN(size(Jinvges,1), 1);
+for i = 1:size(Jinvges,1)
   % Vollständige inverse Jacobi-Matrix aus Ergebnissen der Traj.-IK holen
   Jinv_IK = reshape(Jinvges(i,:), R.NJ, sum(R.I_EE));
   % Reduktion auf aktive Gelenke (vorher auch passive Gelenke enthalten)
@@ -54,9 +58,9 @@ for i = 1
   % voller Rang gewertet. Schlechtere Matrizen werden als Rangverlust
   % gewertet.
   tol = 5e10*max(size(Jinv_task)) * eps(norm(Jinv_task)); % ca. 1e-4 bei "normaler" Matrix mit Werten ungefähr 0 bis 1
-  rankJ = rank(Jinv_task, tol);
+  rankJ_traj(i) = rank(Jinv_task, tol);
 end
-RD = sum(R.I_EE) - rankJ; % Rangdefizit
+RD = sum(R.I_EE) - max(rankJ_traj); % Rangdefizit
 if RD == 0
   fval = 10; % Reicht zum aufhören
 else

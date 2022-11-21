@@ -71,14 +71,15 @@ for i = 1:length(optdirs)
       tmpfiles_available(j) = true;
     end
   end
-  if ~any(~complete & tmpfiles_available)
+  tf_file = fullfile(respath,optdirs(i).name,[optdirs(i).name,'_results_table.csv']);
+  if any(complete) && ~exist(tf_file, 'file')
+    fprintf('%s: Ergebnis-Tabelle existiert nicht: %s\n', optdirs(i).name, tf_file);
+  elseif ~any(~complete & tmpfiles_available)
     % Es gibt keine Wiederherstellungsdateien, die helfen würden
     fprintf('%s: Keine Wiederherstellungsdateien\n', optdirs(i).name);
     continue
   end
   %% Schließe die Optimierung erneut ab
-  fprintf('Optimierung %s ist unfertig. Schließe vorläufiges Ergebnis ab\n', ...
-    optdirs(i).name);
   Set_tmp = cds_settings_update(sd.Set, 1);
   Set_tmp.computing_cluster = false; % Abschluss muss immer lokal gemacht werden bezogen auf System, das dieses Skript hier ausführt
   Set_tmp.general.only_finish_aborted = true;
@@ -89,5 +90,14 @@ for i = 1:length(optdirs)
   % TODO: Eigentlich gibt es dafür schon eine Logik in cds_start, die
   % aber scheinbar nicht funktioniert.
   Set_tmp.optimization.resdir = respath;
-  cds_start(Set_tmp, sd.Traj);
+  if any(~complete & tmpfiles_available)
+    fprintf('Optimierung %s ist unfertig. Schließe vorläufiges Ergebnis ab\n', ...
+      optdirs(i).name);
+    cds_start(Set_tmp, sd.Traj); % erzeugt auch die Tabelle neu
+  elseif any(complete) && ~exist(tf_file, 'file')
+    % nur Tabelle neu erzeugen
+    Set_tmp.general.only_finish_aborted = false;
+    Set_tmp.general.regenerate_summary_only = true;
+    cds_start(Set_tmp, sd.Traj);
+  end
 end

@@ -231,6 +231,13 @@ if length(Set.optimization.objective) == 1 && ... % ist immer einkriteriell
     any(strcmp(Set.optimization.objective, {'valid_act', 'valid_kin'}))
   Set.optimization.condition_limit_sing = inf; % Überschreibe Standardwert
 end
+% Einige eher kosmetische Einstellungen sollten bei Struktursynthese
+% deaktiviert bleiben
+if length(Set.optimization.objective) == 1 && ... % ist immer einkriteriell
+    any(strcmp(Set.optimization.objective, {'valid_act', 'valid_kin'}))
+  Set.optimization.prismatic_cylinder_allow_overlength = false;
+  Set.optimization.joint_limits_symmetric_prismatic = false;
+end
 assert(isa(Set.task.DoF, 'logical') && all(size(Set.task.DoF)==[1 6]), ...
   'Set.task.DoF muss 1x6 logical sein');
 if ~isempty(Traj.X) && any(abs(Traj.X(1,:)-Traj.XE(1,:))>1e-6)

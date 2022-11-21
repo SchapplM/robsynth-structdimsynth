@@ -570,11 +570,30 @@ for iIKC = 1:size(Q0,1)
   if any(strcmp(Set.optimization.objective, 'valid_act'))
     [fval_va,fval_debugtext_va, debug_info] = cds_obj_valid_act(R, Set, Jinv_ges);
     if fval_va < 1e3 % Wenn einmal der Freiheitsgrad festgestellt wurde, reicht das
-      if ~abort_fitnesscalc % Folgende Meldung nur einmal anzeigen.
-        cds_log(2,sprintf(['[fitness] Der PKM-Laufgrad wurde festgestellt. ', ...
-          'Hiernach Abbruch der Optimierung.']));
+      % Prüfe, wie oft schon dieses Ergebnis vorlag
+      PSO_Detail_Data = cds_save_particle_details([], [], 0, 0, NaN, NaN, NaN, NaN, 'output');
+      if ~isempty(PSO_Detail_Data)
+        fval_hist = PSO_Detail_Data.fval(:,1,:);
+        % Prüfe, wie oft bereits ein Rangdefizit erkannt wurde
+        I_va_rd = fval_hist > 10 & fval_hist < 1e3;
+      else
+        I_va_rd = 0;
       end
-      abort_fitnesscalc = true;
+      if sum(I_va_rd(:)) > 7 % mehrmals unabhängig voneinander feststellen (mit anderen Parametern). 
+        % Annahme: Dann liegt es nicht an der Singularität einer
+        % bestimmten Pose
+        if ~abort_fitnesscalc % Meldung nur einmal zeigen
+          cds_log(2,sprintf(['[fitness] Der PKM-Laufgrad mit Rangdefizit wurde ', ...
+            ' mehrmals festgestellt. Hiernach Abbruch der Optimierung.']));
+        end
+        abort_fitnesscalc = true;
+      elseif fval_va == 10 % Voller Laufgrad muss nur einmal erkannt werden
+        if ~abort_fitnesscalc
+          cds_log(2,sprintf(['[fitness] Der PKM-Laufgrad mit vollem Rang wurde ', ...
+            ' festgestellt. Hiernach Abbruch der Optimierung.']));
+        end
+        abort_fitnesscalc = true;
+      end
     end
     fval_IKC(iIKC,strcmp(Set.optimization.objective, 'valid_act')) = fval_va;
     physval_IKC(iIKC,strcmp(Set.optimization.objective, 'valid_act')) = NaN; % nicht definiert.
