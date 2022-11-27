@@ -325,8 +325,17 @@ end
 %% Pareto-Fronten für die Zielkriterien
 if any(strcmp(figname, {'pareto', 'pareto_dimsynth_desopt', 'pareto_desopt'}))
   if isempty(PSO_Detail_Data)
-    error(['Variable PSO_Detail_Data wurde nicht gespeichert. Daher kein ', ...
+    warning(['Variable PSO_Detail_Data wurde nicht gespeichert. Daher kein ', ...
       'detailliertes Pareto-Diagramm möglich']);
+  end
+  if isempty(PSO_Detail_Data) && strcmp(figname, {'pareto'})
+    % Benutze die Ergebnis-Datei, um zumindest die einfache Pareto-Front zu
+    % zeichnen
+    PSO_Detail_Data = struct('physval', RobotOptRes.physval_pareto, ...
+      'fval', RobotOptRes.fval_pareto);
+  end
+  if isempty(PSO_Detail_Data)
+    return; % Warnung bereits oben
   end
   if any(fval > 1e3)
     fprintf(['Keine erfolgreiche Lösung in Maßsynthese. Kein Pareto-', ...
