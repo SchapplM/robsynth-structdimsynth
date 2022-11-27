@@ -250,7 +250,7 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
     test_f2_rel = test_f2_abs ./ f_jj;
     test_f3_rel = NaN(size(test_f2_rel)); % Initialisierung
     rescode = 0; % Kein Fehler
-    if any(abs(test_f2_rel) > 1e-2) % Fehler 1%
+    if any(abs(test_f2_rel) > 1e-2) || s.only_use_stored_q0 % Fehler 1%
       if ~s.only_use_stored_q0
         warning(['Fitness-Wert zu Partikel Nr. %d (Gen. %d, Ind. %d) nicht ohne q0 ', ...
           'reproduzierbar. In Optimierung (%s): [%s]. Neu: [%s]. Diff.: [%s]%%'], ...
@@ -275,7 +275,6 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
       Set_tmp.optimization.obj_limit = 1e3*ones(length(Set.optimization.objective),1);
       cds_fitness(); % Variablen zurücksetzen, damit obj_limit unabhängig ausgewertet wird
       [f3_jj, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set_tmp,Traj,Structure_jj,p_jj,p_desopt_jj);
-      err_rel_repro
       if isempty(Q)
         warning('Logik-Fehler. Zurückgegebenes Q ist leer')
       elseif any(abs(Q(1,:)'-q0)>1e-6)
@@ -325,6 +324,7 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
       ResTab = readtable(restabfile, opts);
       Set_tmp = Set;
       Set_tmp.optimization.resdir = resdir; % Verzeichnis des Clusters überschreiben
+      Set_tmp.optimization.optname = OptName;
       for kk = 1:length(s.eval_plots)
         cds_vis_results_figures(s.eval_plots{kk}, Set_tmp, Traj, RobData, ResTab, ...
           RobotOptRes, RobotOptDetails, [], struct('figure_invisible', ...
