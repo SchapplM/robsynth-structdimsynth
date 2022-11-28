@@ -337,6 +337,7 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
       max(abs(test_f2_rel)), max(abs(test_f3_rel)), details_available, rescode}]; %#ok<AGROW>
     csvfilename = fullfile(resdir_opt, sprintf('Rob%d_%s', RobNr, RobName), ...
       sprintf('Rob%d_%s_reproducability_stats%s.csv', RobNr, RobName, repro_name));
+    mkdirs(fileparts(csvfilename)); % Falls Ordner nicht existiert.
     writetable(ReproStatsTab_Rob, csvfilename, 'Delimiter', ';');
   end
   fprintf('Tabelle für Rob %d geschrieben: %s\n', RobNr, csvfilename);
@@ -381,6 +382,10 @@ for k = 1:length(repro_names)
     else
       ReproStatsTab = [ReproStatsTab; ReproStatsTab_Rob]; %#ok<AGROW> 
     end
+  end
+  if isempty(ReproStatsTab)
+    fprintf('Keine Tabelle mit Reproduktions-Informationen zu schreiben\n')
+    continue
   end
   % Speichere die Gesamt-Tabelle für alle Roboter einer Repro-Auswertung
   csvfilename_all = fullfile(s_merge.resdir_opt, sprintf( ...
