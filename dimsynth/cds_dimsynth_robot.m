@@ -1793,6 +1793,7 @@ if ~isempty(Set.task.installspace.type)
     'collbodies_instspc.link muss so viele Zeilen wie type haben');
   assert(size(collbodies_instspc.params,1)==size(collbodies_instspc.type,1), ...
     'collbodies_instspc.params muss so viele Zeilen wie type haben');
+  
   % Entferne Bauraumprüfungen von statischen Objekten aus der Roboterklasse
   % Diese können mit der IK nicht verbessert werden (z.B. Führungsschienen)
   % Dazu Nummer der Kollisionskörper aus Prüf-Liste holen
@@ -1814,6 +1815,12 @@ if ~isempty(Set.task.installspace.type)
     'muss 1 Spalte haben']);
   assert(size(R.collbodies_instspc.link,1)==size(collbodies_instspc.type,1), ...
     'R.collbodies_instspc.link muss so viele Zeilen wie lokale Variable haben');
+  % Folgender Fall könnte besser durch Entfernung der Körper gelöst werden, wird aber später ausgeglichen.
+%   for i = 1:max(R.collchecks_instspc(:))
+%     if ~any(R.collchecks_instspc(:) == i)
+%       warning('Es gibt keine Bauraumprüfung für Objekt %d', i);
+%     end
+%   end
 end
 
 %% Parameter der Entwurfsoptimierung festlegen

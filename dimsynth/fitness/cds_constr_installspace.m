@@ -67,6 +67,10 @@ for i = 1:n_cb_robot
   % Indizes aller Kollisionsprüfungen mit diesem Roboter-Objekt i
   % (Roboter-Objekte sind immer die letzten Kollisionsobjekte (s.o.)
   I = collchecks(:,1) == n_cb_instspc+i;
+  if ~any(I) % Keine Prüfung vorgesehen ...
+    ininstallspace_all(i) = true; % ... Also setze auf "im Bauraum"
+    continue; 
+  end
   % Kollisionsergebnis für alle Bauraum-Prüfungen für dieses Roboter-Objekt
   collstate_i = coll(:,I);
   % Wenn Objekt i in irgendeinem Bauraum-Objekt (any-Prüfung) und das für
