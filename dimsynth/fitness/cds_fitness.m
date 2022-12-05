@@ -102,6 +102,12 @@ else
   desopt_pval = NaN(length(Structure.desopt_ptypes),1);
 end
 %% Abbruch prüfen
+% Prüfe Abbruch aufgrund überschrittener Rechenzeit
+t_end_plan = Set.optimization.start_time + ... % Rechne in Tagen
+  Set.optimization.max_time/(24*3600); % geplante Endzeit
+if t_end_plan < now()
+  abort_fitnesscalc = true;
+end
 % Prüfe, ob Berechnung schon abgebrochen werden kann, weil ein anderes
 % Partikel erfolgreich berechnet wurde. Dauert sonst eine ganze Generation.
 if isempty(abort_fitnesscalc)

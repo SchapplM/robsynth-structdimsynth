@@ -204,6 +204,8 @@ optimization = struct( ...
   'obj_limit_physval', 0, ... % Grenze für den physikalischen Wert zum Beenden
   'NumIndividuals', 50, ... % Anzahl der Partikel im PSO
   'MaxIter', 10, ... % Anzahl der Iterationen im PSO (zusätzlich zur initialen)
+  'max_time', inf, ... % Zeit für die Optimierung eines Roboters, in Sekunden
+  'start_time', NaN, ... % Start-Zeit für Optimierung eines konkreten Roboters. Im Format von Funktion now()
   'abort_pareto_front_size', inf, ... % Mit dem Wert kann die Optimierung vorzeitig bei ausreichend gefüllter Pareto-Front abgebrochen werden
   'desopt_NumIndividuals', NaN, ... % Anzahl der PSO-Partikel bei der Entwurfsoptimierung. NaN ist Standard-Wert (abhängig von Anzahl der Variablen)
   'desopt_MaxIter', NaN, ... % Anzahl der PSO-Generationen bei der Entwurfsoptimierung.

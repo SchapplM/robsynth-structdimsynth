@@ -25,7 +25,7 @@ if nargin < 4
   init_only = false;
 end
 t1 = tic();
-t_start = now(); % Anfangs-Zeitstempel der Optimierung dieses Roboters
+Set.optimization.start_time = now(); % Anfangs-Zeitstempel der Optimierung dieses Roboters
 %% Debug: 
 if Set.general.matfile_verbosity > 0
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot1.mat'));
@@ -2680,8 +2680,10 @@ if isempty(lfp) % Aufruf mit Set.general.only_finish_aborted. Log nicht initiali
   lfp = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
     robstr, sprintf('%s.log', robstr));
 end
+t_start = Set.optimization.start_time;
 if Set.general.only_finish_aborted
   % Zeitstempel von Start und Ende der Optimierung aus Log-Datei auslesen
+  % und Wert von oben überschreiben
   if exist(lfp, 'file') % Findet alle Datums-Zeit-Stempel in eckigen Klammern (sollten nur am Zeilenanfang stehen)
     matches = regexp(fileread(lfp), '\[(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)\]', 'match');
     t_start = datenum(matches{1});
