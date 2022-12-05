@@ -585,8 +585,11 @@ if Set.general.computing_cluster
 
     % Matlab-Skript auf Cluster starten (Toolbox muss im Pfad sein).
     ppn = min(length(I1_kk:I2_kk),Set.general.computing_cluster_cores);
-    dependstruct = Set.general.cluster_dependjobs;
-    dependstruct.waittime_max = 3600; % eine Stunde lang versuchen (falls Cluster voll)
+    startsettings = Set.general.cluster_dependjobs;
+    % zwei Tage lang in 5min-Abständen versuchen (falls Cluster voll und
+    % die Jobs nach und nach erst gestartet werden dürfen 
+    startsettings.waittime_max = 3600*24*2; %  2 Tage
+    startsettings.retry_interval = 60*5; % 5 Minuten
     jobIDs(1,kk) = jobStart(struct( ...
       'name', computation_name, ...
       'nodes', 1, ... Nur einen Knoten pro Job (Synthese profitiert nich von mehr Knoten, dafür mehr parallele Jobs)
@@ -596,7 +599,7 @@ if Set.general.computing_cluster
       'matFileName', 'dimsynth_start.m', ...
       'locUploadFolder', jobdir, ...
       'time',comptime_est/3600), ... % Angabe in h
-      dependstruct); % Mögliche Abhängigkeiten (optional)
+      startsettings); % Mögliche Abhängigkeiten (optional)
     assert(jobIDs(1,kk)~=0, 'Fehler beim Starten des Produktiv-Jobs auf Cluster');
     % Zusätzlich direkt das Aufräum-Skript starten. Es ist davon auszugehen, 
     % dass der Job vorzeitig abgebrochen wird, da die Rechenzeit unterschätzt
