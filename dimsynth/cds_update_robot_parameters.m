@@ -164,8 +164,8 @@ if Set.optimization.ee_rotation && any(Structure.vartypes == 4)
   elseif sum(Set.task.DoF(4:6)) == 2
     % 3T2R. Nehme an, dass die EE-Transformation mit XYZ-Notation
     % durchgeführt wird. Daher keine Drehung um die letzte z-Achse
-    phi_N_E = Set.optimization.ee_rotation_fixed(:); % NaN für optimierte Werte
-    phi_N_E(isnan(phi_N_E)) = p_eerot;
+    phi_N_E = Set.optimization.ee_rotation_fixed(1:2)'; % NaN für optimierte Werte
+    phi_N_E(isnan(phi_N_E(1:2))) = p_eerot;
     phi_N_E(3) = 0;
     if Structure.R_N_E_isset % Berücksichtige Drehung z.B. für Deckenmontage
       phi_N_E = r2eulxyz(Structure.R_N_E*eulxyz2r(phi_N_E));
