@@ -311,6 +311,14 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
         warning('Wert nicht genau reproduzierbar');
       end
     end
+    % Auswertungs-Tabelle für den Roboter schreiben
+    details_available = ~isempty(PSO_Detail_Data);
+    ReproStatsTab_Rob = [ReproStatsTab_Rob; {i, RobName, jj, f_jj(1), f2_jj(1), f3_jj(1), ...
+      max(abs(test_f2_rel)), max(abs(test_f3_rel)), details_available, rescode}]; %#ok<AGROW>
+    csvfilename = fullfile(resdir_opt, sprintf('Rob%d_%s', RobNr, RobName), ...
+      sprintf('Rob%d_%s_reproducability_stats%s.csv', RobNr, RobName, repro_name));
+    mkdirs(fileparts(csvfilename)); % Falls Ordner nicht existiert.
+    writetable(ReproStatsTab_Rob, csvfilename, 'Delimiter', ';');
     % Erstelle Auswertungsbilder für jeden Roboter
     if any(rescode == [0 1 2])
       RobData = struct('Name', RobName, 'Number', RobNr, 'ParetoNumber', jj, ...
@@ -331,14 +339,6 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
           s.figure_invisible, 'delete_figure', s.figure_invisible));
       end
     end
-    % Auswertungs-Tabelle für den Roboter schreiben
-    details_available = ~isempty(PSO_Detail_Data);
-    ReproStatsTab_Rob = [ReproStatsTab_Rob; {i, RobName, jj, f_jj(1), f2_jj(1), f3_jj(1), ...
-      max(abs(test_f2_rel)), max(abs(test_f3_rel)), details_available, rescode}]; %#ok<AGROW>
-    csvfilename = fullfile(resdir_opt, sprintf('Rob%d_%s', RobNr, RobName), ...
-      sprintf('Rob%d_%s_reproducability_stats%s.csv', RobNr, RobName, repro_name));
-    mkdirs(fileparts(csvfilename)); % Falls Ordner nicht existiert.
-    writetable(ReproStatsTab_Rob, csvfilename, 'Delimiter', ';');
   end
   fprintf('Tabelle für Rob %d geschrieben: %s\n', RobNr, csvfilename);
   end
