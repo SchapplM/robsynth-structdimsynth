@@ -102,12 +102,6 @@ else
   desopt_pval = NaN(length(Structure.desopt_ptypes),1);
 end
 %% Abbruch prüfen
-% Prüfe Abbruch aufgrund überschrittener Rechenzeit
-t_end_plan = Set.optimization.start_time + ... % Rechne in Tagen
-  Set.optimization.max_time/(24*3600); % geplante Endzeit
-if t_end_plan < now()
-  abort_fitnesscalc = true;
-end
 % Prüfe, ob Berechnung schon abgebrochen werden kann, weil ein anderes
 % Partikel erfolgreich berechnet wurde. Dauert sonst eine ganze Generation.
 if isempty(abort_fitnesscalc)
@@ -116,6 +110,15 @@ elseif abort_fitnesscalc
   fval(:) = Inf;
   cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, desopt_pval);
   return;
+end
+% Prüfe Abbruch aufgrund überschrittener Rechenzeit. Nach obiger Prüfung,
+% damit einmaliger Aufruf von cds_fitness ohne Löschung der Variable max_time weiterhin möglich ist.
+t_end_plan = Set.optimization.start_time + ... % Rechne in Tagen
+  Set.optimization.max_time/(24*3600); % geplante Endzeit
+if t_end_plan < now()
+   cds_log(2,sprintf('[fitness] Zeit-Grenze (%1.1fh ab %s) überschritten. Abbruch.', ...
+     Set.optimization.max_time/3600, datestr(Set.optimization.start_time, 'YYYY-mm-dd HH:MM:SS')));
+  abort_fitnesscalc = true;
 end
 %% Parameter prüfen
 if p(1) == 0
