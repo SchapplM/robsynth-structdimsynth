@@ -290,6 +290,20 @@ for kkk = 1:size(EE_FG_allowed,1)
       end
       continue
     end
+    if PNames_Akt{j}(3) == 'P' && ~any(Coupling(1) == Set.structures.parrob_basejointfilter_prismatic)
+      if verblevel > 3 || IsInWhiteList
+        fprintf( '%s hat nicht die gewünschte Gestell-Koppelgelenk-Variante (%s) für ein Schubgelenk. Ignoriere.\n', ...
+          PNames_Akt{j}, disp_array(Set.structures.parrob_basejointfilter_prismatic,'%d') );
+      end
+      continue
+    end
+    if PNames_Akt{j}(3) == 'R' && ~any(Coupling(1) == Set.structures.parrob_basejointfilter_revolute)
+      if verblevel > 3 || IsInWhiteList
+        fprintf( '%s hat nicht die gewünschte Gestell-Koppelgelenk-Variante (%s) für ein Drehgelenk. Ignoriere.\n', ...
+          PNames_Akt{j}, disp_array(Set.structures.parrob_basejointfilter_revolute,'%d') );
+      end
+      continue
+    end
     if ~any(Coupling(2) == Set.structures.parrob_platformjointfilter)
       if verblevel > 3 || IsInWhiteList
         fprintf( '%s hat nicht die gewünschte Plattform-Koppelgelenk-Variante (%s). Ignoriere.\n', ...
