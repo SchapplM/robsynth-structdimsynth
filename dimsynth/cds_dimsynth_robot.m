@@ -888,7 +888,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         % Füge die Führungsschiene der Linearachse als Körper hinzu.
         % Wird als Kapsel durch Anfang und Ende gekennzeichnet.
         % Bilde die MDH-Transformation nach. Das führt zu min-max für q
-        cbi_par = [T_qmin(1:3,4)', T_qmax(1:3,4)', 20e-3]; % Radius 20mm
+        cbi_par = [T_qmin(1:3,4)', T_qmax(1:3,4)', Set.optimization.collision_bodies_size/2]; % Radius
         % Falls eine Führungsschiene existiert, muss immer der Offset- 
         % Parameter zum nachfolgenden Segment optimiert werden, da die
         % Schiene als Kollisionskörper mit den nachfolgenden Segmenten
@@ -899,7 +899,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         % innere Zylinder muss so lang sein wie der Hub).
         T_grozyl_start = T_qmin * transl([0;0;-(R_cc.qlim(i,2)-R_cc.qlim(i,1))]);
         T_grozyl_end = T_qmax;
-        cbi_par = [T_grozyl_start(1:3,4)', T_grozyl_end(1:3,4)', 20e-3];
+        cbi_par = [T_grozyl_start(1:3,4)', T_grozyl_end(1:3,4)', Set.optimization.collision_bodies_size/2];
       else
         error('Fall %d für Schubgelenk nicht vorgesehen', R_cc.DesPar.joint_type(i));
       end
@@ -941,17 +941,17 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         % Definiere einen Ersatzkörper dafür
         collbodies.link =   [collbodies.link; [uint8(i),uint8(i-1)]];
         collbodies.type =   [collbodies.type; uint8(6)]; % Kapsel, direkte Verbindung
-        % Wähle Kapseln mit Radius 20mm. R.DesPar.seg_par ist noch nicht belegt
+        % Wähle Kapseln mit z.B. Radius 20mm. R.DesPar.seg_par ist noch nicht belegt
         % (passiert erst in Entwurfsoptimierung).
-        collbodies.params = [collbodies.params; 20e-3, NaN(1,9)];
+        collbodies.params = [collbodies.params; Set.optimization.collision_bodies_size/2, NaN(1,9)];
       end
     end
     % Trage eine EE-Transformation ein: Kapsel von letzten Roboter-Segment
-    % zu TCP. Direkte Verbindung.
+    % zu TCP. Direkte Verbindung. Dünner als Segment-Verbindungen
     if Structure.Type == 0 && Set.optimization.ee_translation
       collbodies.link =   [collbodies.link; [uint8(R_cc.NJ+1),uint8(R_cc.NJ)]];
       collbodies.type =   [collbodies.type; uint8(6)]; % Kapsel, direkte Verbindung
-      collbodies.params = [collbodies.params; 10e-3, NaN(1,9)]; % Radius 10mm
+      collbodies.params = [collbodies.params; Set.optimization.collision_bodies_size/4, NaN(1,9)]; % Radius 10mm
     end
     R_cc.collbodies = collbodies;
     % Trage die Kollisionsprüfungen ein

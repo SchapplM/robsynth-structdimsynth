@@ -192,6 +192,7 @@ optimization = struct( ...
   'desopt_vars', {{}}, ... % Variablen für eigene Optimierung der Entwurfsparameter. Möglich: "linkstrength", "joint_stiffness_qref", "joint_stiffness"
   'safety_link_yieldstrength', 1, ... % Sicherheitsfaktor für Streckgrenze der Segmente als Nebenbedingung. Berechnung gesteuert über constraint_obj(6)
   'constraint_collisions', false, ... Schalter für Kollisionsprüfung
+  'collision_bodies_size', 40e-3, ... % Durchmesser der Kollisionskörper (meistens Kapseln)
   'single_point_constraint_check', false, ... % Prüfe einige Nebenbedingungen für jeden Arbeitsraum-Eckpunkt. Schnellere Prüfungen, aber voraussichtlich schlechtere Konvergenz
   'collshape_base', {{'default'}}, ... % Form der Kollisionskörper für die PKM-Basis: default, star, ring, joint. Siehe cds_update_collbodies.m; mehrere möglich.
   'collshape_platform', {{'default'}}, ... % Form der Kollisionskörper für die PKM-Plattform default, star, ring, sphere. Siehe cds_update_collbodies.m; mehrere möglich.

@@ -100,13 +100,13 @@ if update_collbodies
         % Füge die Führungsschiene der Linearachse als Körper hinzu.
         % Wird als Kapsel durch Anfang und Ende gekennzeichnet.
         % Bilde die MDH-Transformation nach. Das führt zu min-max für q
-        cbi_par = [T_qmin(1:3,4)', T_qmax(1:3,4)', 20e-3]; % Radius 20mm
+        cbi_par = [T_qmin(1:3,4)', T_qmax(1:3,4)', Set.optimization.collision_bodies_size/2]; % Radius
       elseif R_cc.DesPar.joint_type(i) == 5 % Hubzylinder
         % Der äußere Zylinder muss so lang sein wie der innere (bzw. der
         % innere Zylinder muss so lang sein wie der Hub).
         T_grozyl_start = T_qmin * transl([0;0;-(q_minmax_k(i,2)-q_minmax_k(i,1))]);
         T_grozyl_end = T_qmax;
-        cbi_par = [T_grozyl_start(1:3,4)', T_grozyl_end(1:3,4)', 20e-3];
+        cbi_par = [T_grozyl_start(1:3,4)', T_grozyl_end(1:3,4)', Set.optimization.collision_bodies_size/2];
       else
         error('Fall %d für Schubgelenk nicht vorgesehen', R_cc.DesPar.joint_type(i));
       end
