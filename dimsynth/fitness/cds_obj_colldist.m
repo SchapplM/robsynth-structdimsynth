@@ -105,7 +105,10 @@ fval_debugtext = sprintf('Kollisionsabstand %1.1fmm.', 1e3*min2colldist);
 % Debug: Bester Fall
 % [mincolldist, I_mcd] = min(colldist,[],2);
 % [min2colldist, IImin] = max(mincolldist);
-
+% Set_tmp = Set;
+% Set_tmp.general.plot_details_in_fitness = inf;
+% [fval, coll, colldepth_abs] = cds_constr_collisions_self(R, Traj_0.X, ...
+%   Set_tmp, Structure, JP, Q, [1 2]);
 %% Debug-Plot
 if Set.general.plot_robot_in_fitness < 0 && 1e4*fval > abs(Set.general.plot_robot_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
    Set.general.plot_robot_in_fitness > 0 && 1e4*fval < abs(Set.general.plot_robot_in_fitness) % Gütefunktion ist besser als Schwellwert: Zeichne
