@@ -285,9 +285,8 @@ if isnan(Set.general.cluster_maxrobotspernode)
   Set.general.cluster_maxrobotspernode = Set.general.computing_cluster_cores;
 end
 assert(isa(Set.general.cluster_dependjobs, 'struct'), 'cluster_dependjobs muss Struktur sein');
-assert(isfield(Set.general.cluster_dependjobs, 'afterok'), 'cluster_dependjobs muss Feld afterok haben');
-assert(isfield(Set.general.cluster_dependjobs, 'afternotok'), 'cluster_dependjobs muss Feld afternotok haben');
-assert(isfield(Set.general.cluster_dependjobs, 'afterany'), 'cluster_dependjobs muss Feld afterany haben');
+assert(~isempty(intersect(fields(Set.general.cluster_dependjobs), ...
+  {'afterok', 'afternotok', 'afterany'})), 'cluster_dependjobs muss min. ein Feld afterok, afternotok oder afterany haben');
 if Set.optimization.InitPopRatioOldResults == 0
   % Es wird kein Index alter Ergebnisse benötigt
   Set.optimization.InitPopFromGlobalIndex = false;
