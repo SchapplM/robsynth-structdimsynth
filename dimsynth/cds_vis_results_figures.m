@@ -240,6 +240,13 @@ for kk = 1:length(Set.general.animation_styles)
   else
     error('Modus %s für Animation nicht definiert', anim_mode);
   end
+  % Skaliere die Gelenk-Größe entsprechend der Roboter-Größe.
+  if R.Type == 0 % Seriell
+    LrefRob = R.reach();
+  else
+    LrefRob = R.Leg(1).reach();
+  end
+  s_plot.jointsize = [LrefRob/60, LrefRob/110];
   if strcmp(figname, 'animation')
     R.anim( RobotOptDetails.Traj_Q(I_anim,:), Traj_X(I_anim,:), s_anim, s_plot);
   else
