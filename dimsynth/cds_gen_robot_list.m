@@ -388,9 +388,10 @@ for kkk = 1:size(EE_FG_allowed,1)
       if ~any(length(SName_TechJoint) == structset.num_tech_joints)
         NumTechJointsDontMatch = true;
       end
-      % Ignoriere PKM-Beinketten, die in der Mitte ein Kugelgelenk haben
-      % (ist nicht sinnvoll konstruierbar)
-      if any(SName_TechJoint(2:end-1) == 'S')
+      % Ignoriere PKM-Beinketten, die das Kugelgelenk nicht am Ende haben
+      % (ist in der Mitte nicht sinnvoll konstruierbar und an der Basis mit
+      % zu geringem Bewegungsraum).
+      if any(SName_TechJoint(1:end-1) == 'S')
         SphericalJointInChain = true;
       end
       % Prüfe, ob die Beinkette nur manuell in die Seriellkinematik-Daten-
@@ -499,7 +500,7 @@ for kkk = 1:size(EE_FG_allowed,1)
     end
     if ~SkipRobot && SphericalJointInChain
       if verblevel > 3 || IsInWhiteList
-        fprintf('%s hat ein Kugelgelenk in der Mitte der Beinkette (%s)', ...
+        fprintf('%s hat ein Kugelgelenk am Anfang oder in der Mitte der Beinkette (%s)', ...
           PNames_Akt{j}, SName_TechJoint);
       end
       SkipRobot = true;
