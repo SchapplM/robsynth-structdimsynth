@@ -704,6 +704,12 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
   % Zeit zum Abbremsen der Nullraumbewegung (Dynamische Prog. Rast-zu-Rast)
   % Auch als Beschleunigungszeit für Aufgabenbewegung angenommen.
   T_dec_dp = dp_xDlim(6,2) / dp_xDDlim(6,2);
+  I_EE_Task_before_dp = R.I_EE_Task;
+  if strcmp(Set.general.taskred_dynprog_mode, 'discrete')
+    R.update_EE_FG(R.I_EE, [R.I_EE_Task(1:5), 1]);
+  else % Kontinuierlich: Benutze Nullraumoptimierung in Zwischenschritten
+    R.update_EE_FG(R.I_EE, [R.I_EE_Task(1:5), 0]); % 3T2R/2T0*R/3T0*R
+  end
   s_dp = struct(...
     'wn', P_wn_traj*s.wn, ...
     'settings_ik', s, ...
@@ -725,6 +731,10 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     'Tv', T_dec_dp/2, ...
     'debug_dir', fullfile(resdir,sprintf('%s_dynprog_it%d', name_prefix_ardbg, i_ar)), ...
     'continue_saved_state', true); % Debuggen: Falls mehrfach gleicher Aufruf
+  if strcmp(Set.optimization.objective_ik, 'constant')
+    s_dp.overlap = false; % Bei konstanter Orientierung nicht sinnvoll
+    s_dp.stageopt_posik = true; % Optimierung auf der Stufe mit Positions-IK
+  end
   if i_ar == 2, s_dp.n_phi = 12; end % feinere Schrittweite
   % Aktiviere immer die Nebenbedingungen, die später zum Abbruch führen
   % TODO: Funktioniert aktuell noch nicht, falls sie nicht mit `wn` aktiviert werden
@@ -758,6 +768,7 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
       save(matfile_dp, 'XL', 'DPstats', 'TrajDetailDP');
     end
   end
+  R.update_EE_FG(R.I_EE, I_EE_Task_before_dp); % Eventuelle Änderung rückgängig machen
   cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: %1.1fs für DP. ', ...
     'Insgesamt %d IK-Zeitschritte (%1.1f x Traj.) berechnet. %d/%d erfolg', ...
     'reiche Übergänge'], Structure.config_index, Structure.config_number, ...
@@ -789,9 +800,16 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     if Traj_0.IE(ii) == 0, break; end % Eckpunkt nicht mehr Traj. zugeordnet
     i1 = Traj_0.IE(ii);
     i2 = Traj_0.IE(ii+1);
-    [Traj_0.X(i1:i2,6),Traj_0.XD(i1:i2,6),Traj_0.XDD(i1:i2,6)] = ...
-      trapveltraj(XL(ii:ii+1,6)', i2-i1+1,...
-      'EndTime',Traj_0.t(i2)-Traj_0.t(i1), 'Acceleration', R.xDDlim(6,2));
+    if isnan(XL(ii+1,6)), break; end % Keine Vorgaben mehr. Traj. ungültig.
+    if abs(diff(XL(ii:ii+1,6)')) < 1e-12 % Funktion gibt Fehler bei gleichem Start/Ziel aus
+      Traj_0.X(i1:i2,6) = XL(ii,6);
+      Traj_0.XD(i1:i2,6) = 0;
+      Traj_0.XDD(i1:i2,6) = 0;
+    else
+      [Traj_0.X(i1:i2,6),Traj_0.XD(i1:i2,6),Traj_0.XDD(i1:i2,6)] = ...
+        trapveltraj(XL(ii:ii+1,6)', i2-i1+1,...
+        'EndTime',Traj_0.t(i2)-Traj_0.t(i1), 'Acceleration', R.xDDlim(6,2));
+    end
   end
   s_ikdp = s;
   % Nicht die kürzeste Norm nehmen, sondern die Bewegungsrichtung, die
@@ -832,7 +850,11 @@ elseif Set.general.taskred_dynprog
   if Set.general.taskred_dynprog_and_gradproj
     ikloop = 1:3;
   else
-    ikloop = 1:2;
+    if strcmp(Set.optimization.objective_ik, 'constant')
+      ikloop = 2; % nur dynamische Programmierung (Grad-Proj.-IK ist identisch bei konstanter Ori.)
+    else
+      ikloop = 1:2; % Erst DP, dann GradProj. mit Vorgabe aus DP.
+    end
   end
 else
   error('Logik-Fehler. Fall nicht möglich.');
