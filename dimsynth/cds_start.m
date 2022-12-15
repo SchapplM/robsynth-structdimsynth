@@ -465,6 +465,15 @@ if Set.optimization.InitPopRatioOldResults > 0
 else
   Set.optimization.result_dirs_for_init_pop = {};
 end
+I_keep = true(length(Set.optimization.result_dirs_for_init_pop), 1);
+for i = 1:length(Set.optimization.result_dirs_for_init_pop)
+  I_keep(i) = exist(Set.optimization.result_dirs_for_init_pop{i}, 'file');
+end
+if ~all(I_keep)
+  warning('Verzeichnis aus result_dirs_for_init_pop existiert nicht: {%s}', ...
+    disp_array(Set.optimization.result_dirs_for_init_pop(~I_keep), '%s'));
+  Set.optimization.result_dirs_for_init_pop = Set.optimization.result_dirs_for_init_pop(I_keep);
+end
 %% Berechnung auf PBS-Cluster vorbereiten und durchführen
 if Set.general.computing_cluster
   % Bereite eine Einstellungs-Datei vor
