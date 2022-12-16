@@ -70,7 +70,7 @@ function [fval,Q,QD,QDD,Jinv_ges,JP,constrvioltext, Traj_0] = cds_constraints_tr
 % Debug-Einstellungen für diese Funktion:
 dbg_load_perfmap = false; % Redundanzkarte nicht neu berechnen
 dbg_load_dp = false; % Dynamische Programmierung nicht neu berechnen
-dbg_dynprog_log = false;
+dbg_dynprog_log = true;
 dbg_dynprog_fig = false;
 % Initialisierung
 fval = NaN; % Ausgabevariable
@@ -763,8 +763,14 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
   if dbg_load_dp && Set.general.debug_dynprog_files && exist(matfile_dp, 'file')
     load(matfile_dp, 'XL', 'DPstats', 'TrajDetailDP');
   else
-    [XL, DPstats, TrajDetailDP] = R.dynprog_taskred_ik(Traj_0.X, Traj_0.XD, ...
-      Traj_0.XDD, Traj_0.t, q, s_dp);
+    try
+      [XL, DPstats, TrajDetailDP] = R.dynprog_taskred_ik(Traj_0.X, Traj_0.XD, ...
+        Traj_0.XDD, Traj_0.t, q, s_dp);
+    catch err
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+        sprintf('cds_constraints_traj_dynprog_fail.mat')));
+      error('Fehler in dynamischer Programmierung: %s', err.message);
+    end
     if Set.general.debug_dynprog_files
       save(matfile_dp, 'XL', 'DPstats', 'TrajDetailDP');
     end
