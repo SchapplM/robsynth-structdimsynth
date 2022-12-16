@@ -70,7 +70,7 @@ function [fval,Q,QD,QDD,Jinv_ges,JP,constrvioltext, Traj_0] = cds_constraints_tr
 % Debug-Einstellungen für diese Funktion:
 dbg_load_perfmap = false; % Redundanzkarte nicht neu berechnen
 dbg_load_dp = false; % Dynamische Programmierung nicht neu berechnen
-dbg_dynprog_log = true;
+dbg_dynprog_log = false;
 dbg_dynprog_fig = false;
 % Initialisierung
 fval = NaN; % Ausgabevariable
@@ -85,6 +85,11 @@ JP_alt = [];
 wn_all = NaN(2,R.idx_ik_length.wntraj);
 mincolldist_all = NaN(3,1);
 mininstspcdist_all = NaN(3,1);
+if R.Type == 0 % Seriell
+  qlim = R.qlim;
+else % PKM
+  qlim = cat(1,R.Leg(:).qlim);
+end
 % Speicherung der Trajektorie mit aktualisierter EE-Drehung bei Aufg.-Red.
 Traj_0 = Traj_0_in;
 X2 = NaN(size(Traj_0.X)); XD2 = NaN(size(Traj_0.X)); XDD2 = NaN(size(Traj_0.X));
@@ -210,10 +215,16 @@ if nargin >= 6
   % verschlechtert wird. Dann ist das Kriterium im besten Fall nicht aktiv
   % und führt zu Schwingungen der IK.
   s.installspace_thresh = 0.7*min(Stats_constraints.bestinstspcdist(:));
+  if isnan(s.installspace_thresh)
+    s = rmfield(s, 'installspace_thresh'); % Lasse Standard-Wert aus Funktion
+  end
   % Ausgegebene Kollisionsabstände sind negativ, wenn es keine Koll. gibt.
   s.collision_thresh = -0.7*min(Stats_constraints.bestcolldist(:));
   if s.collision_thresh <= 0
     s.collision_thresh = NaN;
+  end
+  if isnan(s.collision_thresh)
+    s = rmfield(s, 'collision_thresh'); % Lasse Standard-Wert aus Funktion
   end
 end
 %% Debug vorherige Iteration: Karte der Leistungsmerkmale für Aufgabenredundanz zeichnen
@@ -722,7 +733,7 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     ... % 360°. Falls Startpose am Rand liegt den Suchbereich etwas aufweiten
     'phi_min', min(-pi, x0(6)-pi/4), 'phi_max', max(pi, x0(6)+pi/4), ...
     'n_phi', 6, ... % 60°-Schritte bei 360° Wertebereich
-    'overlap', true, ... % doppelte Anzahl, aber versetzt. Dadurch freiere Bewegung 
+    'overlap', true, ... % doppelte Anzahl, aber versetzt. Dadurch freiere Bewegung. Wird ignoriert, falls diskrete Optimierung
     'stageopt_posik', true, ... % Auf der Stufe Optimierung durchführen
     ... % Zeit für Abbremsvorgang (nur des Nullraums, vor dem Abbremsen der Aufgabe)
     ... % Kompromiss aus mehr Zeit für Verfahrbewegung und etwas Spielraum für Ausschwingvorgang
@@ -732,10 +743,6 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     'Tv', T_dec_dp/2, ...
     'debug_dir', fullfile(resdir,sprintf('%s_dynprog_it%d', name_prefix_ardbg, i_ar)), ...
     'continue_saved_state', true); % Debuggen: Falls mehrfach gleicher Aufruf
-  if strcmp(Set.optimization.objective_ik, 'constant')
-    s_dp.overlap = false; % Bei konstanter Orientierung nicht sinnvoll
-    s_dp.stageopt_posik = true; % Optimierung auf der Stufe mit Positions-IK
-  end
   if i_ar == 2, s_dp.n_phi = 12; end % feinere Schrittweite
   % Aktiviere immer die Nebenbedingungen, die später zum Abbruch führen
   % TODO: Funktioniert aktuell noch nicht, falls sie nicht mit `wn` aktiviert werden
@@ -857,7 +864,8 @@ elseif Set.general.taskred_dynprog
   if Set.general.taskred_dynprog_and_gradproj
     ikloop = 1:3;
   else
-    if strcmp(Set.optimization.objective_ik, 'constant')
+    if strcmp(Set.optimization.objective_ik, 'constant') || ...
+        Set.general.taskred_dynprog_only
       ikloop = 2; % nur dynamische Programmierung (Grad-Proj.-IK ist identisch bei konstanter Ori.)
     else
       ikloop = 1:2; % Erst DP, dann GradProj. mit Vorgabe aus DP.
@@ -879,12 +887,10 @@ if i_m == 1 || i_m == 3 % Gradientenprojektion
     s_trajik = s_ikdp; % aufbauend auf Ergebnis der DynProg
   end
   if R.Type == 0 % Seriell
-    qlim = R.qlim;
     [Q_gp, QD_gp, QDD_gp, PHI_gp, JP_gp, Stats_gp] = ...
       R.invkin2_traj( Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s_trajik);
     Jinv_ges_gp = NaN; % Platzhalter für gleichartige Funktionsaufrufe. Speicherung nicht sinnvoll für seriell.
   else % PKM
-    qlim = cat(1,R.Leg(:).qlim);
     [Q_gp, QD_gp, QDD_gp, PHI_gp, Jinv_ges_gp, ~, JP_gp, Stats_gp] = ...
       R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s_trajik);
   end
@@ -1737,7 +1743,7 @@ if ~isempty(Set.task.installspace.type)
     mininstspcdist_all(i_ar) = f_constrinstspc_traj;
     if fval_instspc_traj > 0
       fval_all(i_m, i_ar)  = fval_instspc_traj; % Normierung auf 2e3 bis 3e3 -> bereits in Funktion
-      constrvioltext_m{i_m} = sprintf(['Verletzung des zulässigen Bauraums in Traj.', ...
+      constrvioltext_m{i_m} = sprintf(['Verletzung des zulässigen Bauraums in Traj. ', ...
         'Schlimmstenfalls %1.1f mm draußen.'], 1e3*f_constrinstspc_traj);
       continue
     end

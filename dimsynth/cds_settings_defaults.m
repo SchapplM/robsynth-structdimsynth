@@ -39,6 +39,7 @@ general = struct( ...
   'taskred_dynprog', false, ... % Benutze im Fall von Redundanz die dynamische Programmierung
   'taskred_dynprog_mode', 'discrete', ... % Redundanzauflösung in DP. Möglichkeiten: 'discrete', 'continuous'
   'taskred_dynprog_and_gradproj', true, ... % Benutze zusätzlich noch die normale IK-Funktion ohne DP
+  'taskred_dynprog_only', false, ... % Keine Gradientenprojektion aufbauend auf DynProg-Trajektorie
   ... % Debug-Einstellungen um gezielt einige Bilder und Untersuchungen zu aktivieren
   'debug_taskred_perfmap', 0, ...% Redundanzkarte (Rasterung des redundanten FG über Trajektorie). 0=aus, 1=nur Summe, 2=Details (eine Karte für jedes Leistungsmerkmal getrennt)
   'debug_taskred_fig', false, ... % Diverse weitere Plots zur Aufgabenredundanz
