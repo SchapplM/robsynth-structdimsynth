@@ -33,6 +33,7 @@ s = struct( ...
   'results_dir', '', ... % Alternatives Verzeichnis zum Laden der Ergebnisse
   'isoncluster', false, ... % Falls auf Cluster, muss der parpool-Zugriff geschützt werden
   'parcomp_maxworkers', 1, ... % Maximale Anzahl an Parallelinstanzen. Standardmäßig ohne Parfor
+  'Set_mod', struct(), ... % Einstellungs-Struktur aus cds_settings_defaults zum Feld-weise Überschreiben der geladenen Einstellungen.
   'only_merge_tables', false, ... % Aufruf nur zum Zusammenführen bestehender Tabellen für einzelne Roboter
   'only_use_stored_q0', true, ... % Versuche nicht mit neuen Zufallswerten die Gelenkwinkel neu zu generieren, sondern nehme die gespeicherten.
   'only_from_pareto_front', true); % bei false werden alle Partikel geprüft, bei true nur die besten
@@ -78,6 +79,14 @@ d3 = load(setfile, 'Set', 'Structures', 'Traj');
 Structures = d3.Structures;
 Set = cds_settings_update(d3.Set);
 Set.general.isoncluster = false; % Falls auf Cluster durchgeführt, jetzt Einstellungen für lokale Auswertung
+% Überschreibe die Einstellungen
+for f = fields(s.Set_mod)'
+  assert(isa(s.Set_mod.(f{1}), 'struct'), 'Eingabe s.Set_mod muss wiederum Struktur sein');
+  for g = fields(s.Set_mod.(f{1}))'
+    assert(isfield(Set.(f{1}), g{1}), sprintf('Eingabe s.Set_mod.%s hat Feld %s, aber nicht Struktur Set', f{1}, g{1}));
+    Set.(f{1}).(g{1}) = s.Set_mod.(f{1}).(g{1});
+  end
+end
 Traj = d3.Traj;
 
 Structures_Names = cell(1,length(Structures));
