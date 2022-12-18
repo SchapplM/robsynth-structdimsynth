@@ -87,6 +87,9 @@ for f = fields(s.Set_mod)'
     Set.(f{1}).(g{1}) = s.Set_mod.(f{1}).(g{1});
   end
 end
+Set.optimization.resdir = resdir; % Verzeichnis des Clusters überschreiben
+Set.optimization.optname = OptName;
+
 Traj = d3.Traj;
 
 Structures_Names = cell(1,length(Structures));
@@ -347,11 +350,8 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
       opts.VariableNamesLine = 1;
       opts.VariableDescriptionsLine = 2;
       ResTab = readtable(restabfile, opts);
-      Set_tmp = Set;
-      Set_tmp.optimization.resdir = resdir; % Verzeichnis des Clusters überschreiben
-      Set_tmp.optimization.optname = OptName;
       for kk = 1:length(s.eval_plots)
-        cds_vis_results_figures(s.eval_plots{kk}, Set_tmp, Traj, RobData, ResTab, ...
+        cds_vis_results_figures(s.eval_plots{kk}, Set, Traj, RobData, ResTab, ...
           RobotOptRes, RobotOptDetails, [], struct('figure_invisible', ...
           s.figure_invisible, 'delete_figure', s.figure_invisible));
       end
