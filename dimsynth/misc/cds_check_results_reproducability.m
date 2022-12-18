@@ -102,9 +102,13 @@ else
 end
   
 RobNames = unique(RobNames);
-ReproStatsTab_empty = cell2table(cell(0,10), 'VariableNames', ...
-  {'RobNr', 'Name', 'Partikel', 'ResOpt', 'ResRepro', 'ResRepro_q0set', ...
-  'ErrMax_Rel', 'ErrMax_Rel_q0set', 'WithDetails', 'Status'});
+vn = {'RobNr', 'Name', 'Partikel'};
+for i = 1:length(Set.optimization.objective)
+  vn = [vn, sprintf('physval_%s', Set.optimization.objective{i})]; %#ok<AGROW> 
+end
+vn = [vn, 'ResOpt', 'ResRepro', 'ResRepro_q0set', ...
+  'ErrMax_Rel', 'ErrMax_Rel_q0set', 'WithDetails', 'Status'];
+ReproStatsTab_empty = cell2table(cell(0,length(vn)), 'VariableNames', vn);
 
 %% Einstellungen zum Zusammenfassen der Tabellen
 s_merge = struct('resdir_opt', resdir_opt, 'Structures', {Structures}, 'repro_names', {{}});
@@ -203,10 +207,12 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
     if ~isempty(RobotOptRes.fval_pareto) % Mehrkriteriell
       pval_all = RobotOptRes.p_val_pareto;
       fval_all = RobotOptRes.fval_pareto;
+      physval_all = RobotOptRes.fval_pareto;
       p_desopt_all = RobotOptRes.desopt_pval_pareto;
     else % Einkriteriell
       pval_all = RobotOptRes.p_val(:)';
       fval_all = RobotOptRes.fval;
+      physval_all = RobotOptRes.fval;
       p_desopt_all = RobotOptRes.desopt_pval(:)';
     end
     if isempty(PSO_Detail_Data)
@@ -225,6 +231,7 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
   for jj = I(:)'
     p_jj = pval_all(jj,:)';
     f_jj = fval_all(jj,:)';
+    fphys_jj = physval_all(jj,:)';
     if any(f_jj < s.fval_check_lim(1)) || any(f_jj > s.fval_check_lim(2)), continue; end
     p_desopt_jj = p_desopt_all(jj,:)';
     Structure_jj = Structure;
@@ -322,8 +329,9 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
     end
     % Auswertungs-Tabelle für den Roboter schreiben
     details_available = ~isempty(PSO_Detail_Data);
-    ReproStatsTab_Rob = [ReproStatsTab_Rob; {i, RobName, jj, f_jj(1), f2_jj(1), f3_jj(1), ...
-      max(abs(test_f2_rel)), max(abs(test_f3_rel)), details_available, rescode}]; %#ok<AGROW>
+    ReproStatsTab_Rob = [ReproStatsTab_Rob; [i, RobName, jj, ...
+      num2cell(fphys_jj'), f_jj(1), f2_jj(1), f3_jj(1), ...
+      max(abs(test_f2_rel)), max(abs(test_f3_rel)), details_available, rescode]]; %#ok<AGROW>
     csvfilename = fullfile(resdir_opt, sprintf('Rob%d_%s', RobNr, RobName), ...
       sprintf('Rob%d_%s_reproducability_stats%s.csv', RobNr, RobName, repro_name));
     mkdirs(fileparts(csvfilename)); % Falls Ordner nicht existiert.
