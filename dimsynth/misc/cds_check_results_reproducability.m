@@ -82,6 +82,7 @@ Set.general.isoncluster = false; % Falls auf Cluster durchgeführt, jetzt Einste
 % Überschreibe die Einstellungen
 for f = fields(s.Set_mod)'
   assert(isa(s.Set_mod.(f{1}), 'struct'), 'Eingabe s.Set_mod muss wiederum Struktur sein');
+  assert(length(s.Set_mod.(f{1}))==1, sprintf('Eingabe s.Set_mod.%s muss 1x1 Struktur sein', f{1}));
   for g = fields(s.Set_mod.(f{1}))'
     assert(isfield(Set.(f{1}), g{1}), sprintf('Eingabe s.Set_mod.%s hat Feld %s, aber nicht Struktur Set', f{1}, g{1}));
     Set.(f{1}).(g{1}) = s.Set_mod.(f{1}).(g{1});
@@ -191,6 +192,10 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
     PSO_Detail_Data = [];
   end
   %% Fitness-Wert nachrechnen
+  % tmp-Ordner erstellen, da bei manchen Debug-Schaltern die Existenz des
+  % Ordners vorausgesetzt wird
+  [~,~,~,resdir] = cds_get_new_figure_filenumber(Set, Structure, '');
+  mkdirs(resdir);
   if ~isempty(PSO_Detail_Data) && ~s.only_from_pareto_front
     % Detail-Ergebnisse verfügbar. Rechne alle Partikel nach.
     ngen = size(PSO_Detail_Data.pval,3);
