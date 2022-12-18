@@ -153,12 +153,24 @@ if all(~isnan(Structure.q0_traj)) && Set.task.profile ~= 0 % nur, falls es auch 
   if ~any(I_match)
     cds_log(-1,sprintf(['[fitness] Vorgegebene Werte aus q0_traj wurden nicht ', ...
       'in den %d IK-Konfigurationen gefunden. Max. Diff. %1.1e'], size(Q0,1), min(max(abs(Q0_err),[],2))));
-    % Damit wird die Traj.-IK immer geprüft, auch wenn die Einzelpunkt-IK
-    % nicht erfolgreich gewesen sein sollte
-    fval_constr = 1e3;
-    Q0 = [Structure.q0_traj'; Q0]; % Prüfe vorgegebenen Wert zuerst.
-    % Erzeuge Platzhalter-Werte für spätere Rechnungen
-    QE_iIKC(:,:,size(QE_iIKC,3)+1) = repmat(Structure.q0_traj', size(QE_iIKC,1), 1);
+    % Prüfe, ob der vorgegebene Wert die IK löst. Wenn nicht, treten
+    % nachfolgend Fehler in der IK auf (z.B. Dynamische Programmierung)
+    if R.Type == 0
+      Phi_test = R.constr2(Structure.q0_traj, Traj_0_E.XE(1,:)', true);
+    else
+      [~,Phi_test] = R.constr3(Structure.q0_traj, Traj_0_E.XE(1,:)');
+    end
+    if any(abs(Phi_test) > 1e-8)
+      cds_log(-1,sprintf(['[fitness] Vorgegebene Werte aus q0_traj lösen ', ...
+        'nicht die Kinematik (max err %1.1e). Nicht verwenden.'], max(abs(Phi_test))));
+    else
+      % Damit wird die Traj.-IK immer geprüft, auch wenn die Einzelpunkt-IK
+      % nicht erfolgreich gewesen sein sollte
+      fval_constr = 1e3;
+      Q0 = [Structure.q0_traj'; Q0]; % Prüfe vorgegebenen Wert zuerst.
+      % Erzeuge Platzhalter-Werte für spätere Rechnungen
+      QE_iIKC(:,:,size(QE_iIKC,3)+1) = repmat(Structure.q0_traj', size(QE_iIKC,1), 1);
+    end
   else
     % Der Wert wurde ungefähr erreicht. Ersetze durch den genau exakten
     % Wert, damit es nicht zu numerischen Abweichungen kommen kann.
