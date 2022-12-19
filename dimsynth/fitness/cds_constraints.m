@@ -56,9 +56,11 @@ Q0 = NaN(1,R.NJ);
 QE_all = Q0;
 Stats_constraints = struct('bestcolldist', [], 'bestinstspcdist', []);
 %% Geometrie auf Plausibilität prüfen (1)
+if R.Type == 0, Lchain = R.reach();
+else,           Lchain = R.Leg(1).reach(); end
 if R.Type == 0 % Seriell
   % Prüfe, ob alle Eckpunkte der Trajektorie im Arbeitsraum des Roboters liegen
-  dist_max = R.reach();
+  dist_max = Lchain;
   dist_exc_tot = NaN(size(Traj_0.XE,1),1);
   for i = 1:size(Traj_0.XE,1)
     dist_i = norm(Traj_0.XE(i,1:3));
@@ -82,7 +84,7 @@ else % PKM
   % gewünschten Trajektorie
   d_base = 2*R.DesPar.base_par(1);
   d_platf = 2*R.DesPar.platform_par(1);
-  l_max_leg = R.Leg(1).reach(); % Annahme: Symmetrischer Roboter; alle Beine max. gleich lang
+  l_max_leg = Lchain; % Annahme: Symmetrischer Roboter; alle Beine max. gleich lang
 
   l_legtooshort = abs(d_base - d_platf)/2 - l_max_leg; % Fehlende Länge jedes Beins (in Meter)
   if l_legtooshort > 0
@@ -267,24 +269,38 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       indvec = cell(1,R.NLEG); % Vektor mit Indizes zum Bilden der PKM-Kombinationen
       dist_pt1 = NaN(size(Q_jic,3), R.NLEG);
       Idesc = dist_pt1;
+      Il = 3; % Indizes für drei Koordinaten der PKM-Basis
       for j = 1:R.NLEG
         Ij = R.I1J_LEG(j):R.I2J_LEG(j); % Index für Beinketten-Gelenke
         nj(j) = 0;
+        % Indizes für die Gelenkpunkte der Beinkette. Konfigurationen nur
+        % zählen, wenn die Gelenkpunkte unterschiedlich sind
+        Il = Il(end) + (1:3*(length(Ij)+1)); % Siehe ParRob/invkin_traj z.B.
         for i = 1:size(Q_jic,3) % Über alle Neuversuche der IK (vorher berechnet)
-          if any(isnan(Q_jic(1,Ij,i))), continue; end
-          test_exist = repmat(Q_jic(1,Ij,i), size(Q_configperm1,1), 1) - Q_configperm1(:,Ij);
-          if isempty(test_exist) || ~any(all( abs(test_exist) < 1e-6, 2 ))
-            % Neue Konfiguration für diese Beinkette gefunden. Hinzufügen.
-            nj(j) = nj(j) + 1;
-            Q_configperm1(nj(j),Ij) = Q_jic(1,Ij,i);
-            % Bestimme den Abstand zur ersten gefundenen Beinkette als
-            % Betragssumme aller Gelenkwinkeldifferenzen (ohne
-            % Schubgelenke). Annahme: Entspricht am ehesten den
-            % Umklapplagen)
-            Ijrev = Ij(R.Leg(j).MDH.sigma==0);
-            dist_qi_q1 = angleDiff(Q_configperm1(1, Ijrev),Q_configperm1(nj(j), Ijrev));
-            dist_pt1(i,j) = sum(abs(dist_qi_q1));
+          if any(isnan(Q_jic(1,Ij,i))), continue; end % keine gültige Konfiguration
+          test_existQ = repmat(Q_jic(1,Ij,i), size(Q_configperm1,1), 1) - Q_configperm1(:,Ij);
+          if ~isempty(test_existQ) && any(all( abs(test_existQ) < 1e-6, 2 ))
+            % Diese Gelenkwinkel-Konfiguration gibt es schon. Nicht mehr
+            % als Grundlage für Permutationen benutzen
+            continue
           end
+          test_existJP = repmat(JP_jic(i, Il), i-1, 1) - JP_jic(1:i-1, Il);
+          if ~isempty(test_existJP) && any(all( abs(test_existJP/Lchain) < 5e-2, 2 ))
+            % Die Gelenkpositionen dieser Konfiguration i sind identisch zu
+            % einer bereits geprüften. Daher diese Gelenk-Konfiguration
+            % nicht betrachten
+            continue
+          end
+          % Neue Konfiguration für diese Beinkette gefunden. Hinzufügen.
+          nj(j) = nj(j) + 1;
+          Q_configperm1(nj(j),Ij) = Q_jic(1,Ij,i);
+          % Bestimme den Abstand zur ersten gefundenen Beinkette als
+          % Betragssumme aller Gelenkwinkeldifferenzen (ohne
+          % Schubgelenke). Annahme: Entspricht am ehesten den
+          % Umklapplagen)
+          Ijrev = Ij(R.Leg(j).MDH.sigma==0);
+          dist_qi_q1 = angleDiff(Q_configperm1(1, Ijrev),Q_configperm1(nj(j), Ijrev));
+          dist_pt1(i,j) = sum(abs(dist_qi_q1));
         end % i
         dist_pt1(isnan(dist_pt1)) = -inf; % deaktivieren der NaN-Einträge für Sortierung
         % Indizes gemäß Abstand zum ersten sortieren. Hilft bei Aufgaben-
@@ -937,7 +953,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       % Prüfe, ob sich die Konfiguration hinsichtlich der Positionen unter-
       % scheidet (z.B. Ellenbogen-Wechsel) oder ob es nur geänderte Winkel sind
       test_JP_vs_all_prev = repmat(JPE(1,:), jic-1, 1) - JP_jic(1:jic-1,:);
-      if any(all(abs(test_JP_vs_all_prev)<1e-6,2))
+      % Werte Abweichung relativ zur Länge der kinematischen Kette aus
+      if any(all(abs(test_JP_vs_all_prev)/Lchain < 5e-2,2)) % Abweichung eines Gelenkpunktes um 5% der Beinkettenlänge wird noch als gleich gewertet
         fval_jic(jic) = Inf; % damit jic-Iteration nicht weiter gemacht wird und doppelte Konfiguration nicht in Liste aufgenommen wird.
         constrvioltext_jic{jic} = sprintf('Erste Gelenkpunkte identisch zu vorherigem Versuch');
         break; % Ein ähnliches IK-Ergebnis für den ersten Eckpunkt gibt es schon. Nicht weiter rechnen.
@@ -1388,9 +1405,14 @@ else % Gebe alle gültigen Lösungen aus
   % Debug: Zeige die verschiedenen Lösungen an
   if Set.general.plot_details_in_fitness < 0 && 1e4*fval >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
      Set.general.plot_details_in_fitness > 0 && 1e4*fval <= abs(Set.general.plot_details_in_fitness)
+    % Debug: Prüfe, welche EE-Drehung die Lösungen haben
+    X0 = NaN(size(Q0, 1), 6);
+    for i = 1:size(Q0, 1)
+      X0(i,:) = R.fkineEE2_traj(Q0(i,:))';
+    end
     change_current_figure(2000);clf;
     for k = 1:length(I_iO)
-      subplot(floor(ceil(length(I_iO))), ceil(sqrt(length(I_iO))), k);
+      subplot(floor(ceil(sqrt(length(I_iO)))), ceil(sqrt(length(I_iO))), k);
       view(3); axis auto; hold on; grid on;
       plotmode = 1; % Strichzeichnung
       if R.Type == 0 % Seriell
@@ -1401,7 +1423,7 @@ else % Gebe alle gültigen Lösungen aus
           'straight', 1, 'mode', plotmode);
         R.plot( Q0(k,:)', Traj_0.XE(1,:)', s_plot);
       end
-      title(sprintf('Konfiguration %d', k));
+      title(sprintf('Konfiguration %d (phiz=%1.1f°)', k, 180/pi*X0(i,6)));
     end
   end
 end

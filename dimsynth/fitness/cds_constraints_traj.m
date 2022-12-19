@@ -62,16 +62,16 @@
 function [fval,Q,QD,QDD,Jinv_ges,JP,constrvioltext, Traj_0] = cds_constraints_traj( ...
   R, Traj_0_in, q, Set, Structure, Stats_constraints)
 % Debug
-% save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_0.mat'));
+save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_0.mat'));
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_0.mat')); nargin=6;
 % Set.general.taskred_dynprog_and_gradproj = true;
 % Set.general.debug_taskred_fig = true;
 % Set.general.debug_dynprog_files = true;
 % Debug-Einstellungen für diese Funktion:
-dbg_load_perfmap = false; % Redundanzkarte nicht neu berechnen
+dbg_load_perfmap = true; % Redundanzkarte nicht neu berechnen
 dbg_load_dp = false; % Dynamische Programmierung nicht neu berechnen
-dbg_dynprog_log = false;
-dbg_dynprog_fig = false;
+dbg_dynprog_log = true;
+dbg_dynprog_fig = true;
 % Initialisierung
 fval = NaN; % Ausgabevariable
 fval_all = NaN(3,2); % Zielfunktion für verschiedene Durchläufe
