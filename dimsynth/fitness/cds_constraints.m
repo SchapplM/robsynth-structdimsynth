@@ -964,9 +964,10 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       q(R.MDH.sigma==0) = normalizeAngle(q(R.MDH.sigma==0), ...
         QE(1, R.MDH.sigma==0)'); % Bezugswinkel erste Punkt
     end
-    % Beim Fall objective_ik=constant wechselt die Dimenion. Daher hier
-    % pauschal abschneiden
-    Phi_E(i,:) = Phi(1:size(Phi_E,2));
+    % Beim Fall objective_ik=constant wechselt die Dimension. Daher hier
+    % pauschal abschneiden ohne weitere Prüflogik
+    n_phi = min(length(Phi), size(Phi_E,2));
+    Phi_E(i,1:n_phi) = Phi(1:n_phi);
     QE(i,:) = q;
     if any(abs(Phi(:)) > 1e-2) || any(isnan(Phi))
       constrvioltext_jic{jic} = sprintf('Keine IK-Konvergenz');
