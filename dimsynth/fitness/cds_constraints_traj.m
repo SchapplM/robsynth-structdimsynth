@@ -62,16 +62,16 @@
 function [fval,Q,QD,QDD,Jinv_ges,JP,constrvioltext, Traj_0] = cds_constraints_traj( ...
   R, Traj_0_in, q, Set, Structure, Stats_constraints)
 % Debug
-save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_0.mat'));
+% save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_0.mat'));
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_0.mat')); nargin=6;
 % Set.general.taskred_dynprog_and_gradproj = true;
 % Set.general.debug_taskred_fig = true;
 % Set.general.debug_dynprog_files = true;
 % Debug-Einstellungen für diese Funktion:
-dbg_load_perfmap = true; % Redundanzkarte nicht neu berechnen
+dbg_load_perfmap = false; % Redundanzkarte nicht neu berechnen
 dbg_load_dp = false; % Dynamische Programmierung nicht neu berechnen
-dbg_dynprog_log = true;
-dbg_dynprog_fig = true;
+dbg_dynprog_log = false;
+dbg_dynprog_fig = false;
 % Initialisierung
 fval = NaN; % Ausgabevariable
 fval_all = NaN(3,2); % Zielfunktion für verschiedene Durchläufe
@@ -732,7 +732,7 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     'verbose', 0, 'IE', Traj_0.IE(Traj_0.IE~=0), ...
     ... % 360°. Falls Startpose am Rand liegt den Suchbereich etwas aufweiten
     'phi_min', min(-pi, x0(6)-pi/4), 'phi_max', max(pi, x0(6)+pi/4), ...
-    'n_phi', 6, ... % 60°-Schritte bei 360° Wertebereich
+    'n_phi', Set.general.taskred_dynprog_numstates(i_ar), ... % Bsp. 6 bedeutet 60°-Schritte bei 360° Wertebereich
     'overlap', true, ... % doppelte Anzahl, aber versetzt. Dadurch freiere Bewegung. Wird ignoriert, falls diskrete Optimierung
     'stageopt_posik', true, ... % Auf der Stufe Optimierung durchführen
     ... % Zeit für Abbremsvorgang (nur des Nullraums, vor dem Abbremsen der Aufgabe)
@@ -743,7 +743,6 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     'Tv', T_dec_dp/2, ...
     'debug_dir', fullfile(resdir,sprintf('%s_dynprog_it%d', name_prefix_ardbg, i_ar)), ...
     'continue_saved_state', true); % Debuggen: Falls mehrfach gleicher Aufruf
-  if i_ar == 2, s_dp.n_phi = 12; end % feinere Schrittweite
   % Aktiviere immer die Nebenbedingungen, die später zum Abbruch führen
   % TODO: Funktioniert aktuell noch nicht, falls sie nicht mit `wn` aktiviert werden
   if Set.optimization.constraint_collisions
