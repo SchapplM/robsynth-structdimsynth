@@ -255,6 +255,7 @@ Q0_lhs = repmat(qlim_norm(:,1), 1, n_jic) + ...
   rand(R.NJ, n_jic) .* repmat(qlim_norm(:,2)-qlim_norm(:,1), 1, n_jic);
 for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   Phi_E(:) = NaN; QE(:) = NaN; % erneut initialisieren wegen jic-Schleife.
+  condJ(:) = NaN;
   if jic == 1 && all(~isnan(qref)) && any(qref~=0) % nehme Referenz-Pose (kann erfolgreiche gespeicherte Pose bei erneutem Aufruf enthalten)
     q0 = qref; % Wenn hier nur Nullen stehen, werden diese ignoriert.
   else
@@ -414,8 +415,12 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   fval_jic(jic) = NaN; % Muss später im Ablauf überschrieben werden
   constrvioltext_jic{jic} = ''; % hier zurücksetzen. Berechne Nebenbedingungen ab hier neu.
   constrvioltext2_jic{jic} = '';
+  I_TrajCheck = 1:size(Traj_0.XE,1);
+  if any(jic == I_jic5_phizkomb)
+    I_TrajCheck = 1; % nur den ersten Punkt prüfen
+  end
   % IK für alle Eckpunkte
-  for i = 1:size(Traj_0.XE,1)
+  for i = I_TrajCheck
     if Set.task.profile ~= 0 % Trajektorie wird in cds_constraints_traj berechnet
       if i == 1 % erster berechneter Wert und Startpunkt der Trajektorie
       elseif i == 2 % zweiter berechneter Wert
@@ -1070,6 +1075,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     calctimes_jic(i_ar,jic) = toc(t1);
     continue;
   end
+  Phi_E(I_TrajCheck(end)+1:end,:) = 0; % nicht betrachtete Punkte deaktivieren für Prüfung
   Phi_E(isnan(Phi_E)) = 1e6;
   if (any(abs(Phi_E(:)) > 1e-2) || ... % Die Toleranz beim IK-Verfahren ist etwas größer
       any(abs(Phi_E(1,:))>1e-8)) && ... % Startpunkt für Traj. Hat feine Toleranz, sonst missverständliche Ergebnisse. Konsistent mit Toleranz oben.
@@ -1107,9 +1113,11 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     % Bei Parallel-IK ist die Konditionszahl nicht bestimmt. Rechne Jacobi
     % und Kondition neu aus
     if R.Type == 2
-      for ii = find(isnan(condJ))'
-        Jinv_ii = R.jacobi_qa_x(QE(ii,:)', Traj_0.XE(ii,:)');
-        condJ(ii) = cond(Jinv_ii);
+      for ii = I_TrajCheck
+        if isnan(condJ(ii))
+          Jinv_ii = R.jacobi_qa_x(QE(ii,:)', Traj_0.XE(ii,:)');
+          condJ(ii) = cond(Jinv_ii);
+        end
       end
     end
     n_condexc = sum(condJ(:) > Set.optimization.constraint_obj(4));
