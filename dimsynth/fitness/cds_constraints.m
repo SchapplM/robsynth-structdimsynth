@@ -1360,6 +1360,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       % Bei der nachträglichen Auswertung soll es schneller gehen und die
       % alternativen Konfigurationen werden voraussichtlich sowieso nicht
       % besser sein.
+      constrvioltext_jic{jic} = 'i.O. (Abbruch hiernach, da q0_traj gefunden)';
       break;
     elseif Set.optimization.pos_ik_abort_on_success
       % Es soll nur eine IK-Konfiguration gefunden werden

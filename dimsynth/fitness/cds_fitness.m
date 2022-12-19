@@ -158,7 +158,7 @@ if all(~isnan(Structure.q0_traj)) && Set.task.profile ~= 0 % nur, falls es auch 
     if R.Type == 0
       Phi_test = R.constr2(Structure.q0_traj, Traj_0_E.XE(1,:)', true);
     else
-      [~,Phi_test] = R.constr3(Structure.q0_traj, Traj_0_E.XE(1,:)');
+      Phi_test = R.constr3(Structure.q0_traj, Traj_0_E.XE(1,:)');
     end
     if any(abs(Phi_test) > 1e-8)
       cds_log(-1,sprintf(['[fitness] Vorgegebene Werte aus q0_traj lösen ', ...
