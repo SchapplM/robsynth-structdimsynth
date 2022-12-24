@@ -181,7 +181,7 @@ else
 end
 % Bestimme die Index-Bereiche für die Zählvariable jic
 I_jic1 = 1:max(30+Set.optimization.pos_ik_tryhard_num, 1);
-if any(R.MDH.sigma==1) % Bei Schubgelenken explizit Wertebereiche vorgeben
+if any(R.MDH.sigma==1) && length(I_jic1) > 2 % Bei Schubgelenken explizit Wertebereiche vorgeben
   % zwischen ein Drittel und zwei Drittel der regulären Versuche
   I_jic2_Pleft = I_jic1(I_jic1 < length(I_jic1)*2/3 & I_jic1 >= length(I_jic1)*1/3);
   % Letztes Drittel der regulären Versuche
@@ -202,6 +202,9 @@ end
 I_jicmax = max([I_jicmax,I_jic4_ikcomb]);
 I_jic5_phizkomb = I_jicmax+(1:n_phizkomb);
 n_jic = max([I_jicmax, I_jic5_phizkomb]);
+% nochmalige Begrenzung bei Vorgabe durch Einstellung von negativer Zahl
+% (dient dazu, bei Reproduktion nur eine Konfiguration zu prüfen)
+n_jic = max(n_jic+Set.optimization.pos_ik_tryhard_num, 1);
 
 fval_jic = NaN(1,n_jic);
 calctimes_jic = NaN(2,n_jic);
