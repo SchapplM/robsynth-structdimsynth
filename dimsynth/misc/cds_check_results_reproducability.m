@@ -215,12 +215,12 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
     if ~isempty(RobotOptRes.fval_pareto) % Mehrkriteriell
       pval_all = RobotOptRes.p_val_pareto;
       fval_all = RobotOptRes.fval_pareto;
-      physval_all = RobotOptRes.fval_pareto;
+      physval_all = RobotOptRes.physval_pareto;
       p_desopt_all = RobotOptRes.desopt_pval_pareto;
     else % Einkriteriell
       pval_all = RobotOptRes.p_val(:)';
       fval_all = RobotOptRes.fval;
-      physval_all = RobotOptRes.fval;
+      physval_all = RobotOptRes.physval;
       p_desopt_all = RobotOptRes.desopt_pval(:)';
     end
     if isempty(PSO_Detail_Data)
