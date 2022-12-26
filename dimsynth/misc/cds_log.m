@@ -88,7 +88,7 @@ end
 %% Schreiben in Konsole
 % Nur in Konsole ausgeben, wenn Nachricht wichtig genug ist
 if level <= loglevel
-  if level > 0
+  if level > -1
     fprintf('%s\n', msg);
   else
     warning(msg);
