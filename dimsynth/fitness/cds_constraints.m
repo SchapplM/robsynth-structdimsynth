@@ -25,7 +25,8 @@
 %   4e5...4.25e5: Schubzylinder geht ... (symmetrisch für PKM)
 %   4.25e5...4.5e5: Schubzylinder geht zu weit nach hinten weg (nach IK erkannt)
 %   4.5e5...5e5: Gestell ist wegen Schubgelenken zu groß (nach IK erkannt)
-%   5e5...6e5: Gelenkwinkelgrenzen (Absolut) in Einzelpunkten
+%   5e5...5.5e5: Plattform-Rotation entspricht nicht den gegebenen Grenzen
+%   5.5e5...6e5: Gelenkwinkelgrenzen (Absolut) in Einzelpunkten
 %   6e5...7e5: Gelenkwinkelgrenzen (Spannweite) in Einzelpunkten
 %   7e5...8e5  Jacobi-Grenzverletzung in Eckpunkten (trotz lösbarer IK)
 %   8e5...9e5  Jacobi-Singularität in Eckpunkten (trotz lösbarer IK)
@@ -474,11 +475,26 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         R.update_EE_FG(R.I_EE, [R.I_EE_Task(1:5), 0]);
       end
     end
-    
+    % Versuche die Plattform-Grenzen einzuhalten
+    % (bereits hier und nicht erst in Aufgabenredundanz-Schritt)
+    s_ser = s; % Jetzt unterschiedliche Einstellungen hier und in PKM-Funktion
+    if Structure.task_red && all(~isinf(Set.optimization.ee_rotation_limit))
+      if R.Type == 0
+        s_ser.wn = zeros(R.idx_ik_length.wnpos,1);
+        s_ser.wn(R.idx_ikpos_wn.xlim_hyp) = 1;
+        R.xlim = [NaN(5,2); ...
+          Traj_0.XE(i,6) - Set.optimization.ee_rotation_limit];
+      else % IK für erste Beinkette ist frei bzgl. EE-Drehung.
+        s_ser.wn = zeros(R.Leg(1).idx_ik_length.wnpos,1); % bzgl. Beinkette
+        s_ser.wn(R.Leg(1).idx_ikpos_wn.xlim_hyp) = 1;
+        R.Leg(1).xlim = [NaN(5,2); ...
+          Traj_0.XE(i,6) - Set.optimization.ee_rotation_limit];
+      end
+    end
     if i_ar == 1 % IK ohne Optimierung von Nebenbedingungen
       Stats = struct('coll', false); %#ok<NASGU> % Platzhalter-Variable
       if R.Type == 0 % Seriell
-        [q, Phi, Tc_stack, Stats] = R.invkin2(R.x2tr(Traj_0.XE(i,:)'), Q0_ik, s);
+        [q, Phi, Tc_stack, Stats] = R.invkin2(R.x2tr(Traj_0.XE(i,:)'), Q0_ik, s_ser);
         nPhi_t = sum(R.I_EE_Task(1:3));
         ik_res_ik2 = all(abs(Phi(1:nPhi_t))<s.Phit_tol) && ...
                      all(abs(Phi(nPhi_t+1:end))<s.Phir_tol);
@@ -500,7 +516,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
            % probieren (siehe Definition der jic-Bereiche für q0 oben)
           Q0_mod(R.I1J_LEG(2):end,end) = NaN;
         end
-        [q, Phi, Tc_stack, Stats] = R.invkin2(Traj_0.XE(i,:)', Q0_mod, s, s_par); % kompilierter Aufruf
+        [q, Phi, Tc_stack, Stats] = R.invkin2(Traj_0.XE(i,:)', Q0_mod, s_ser, s_par); % kompilierter Aufruf
         % Rechne kinematische Zwangsbedingungen nach. Ist für Struktur-
         % synthese sinnvoll, falls die Modellierung unsicher ist.
         if any(strcmp(Set.optimization.objective, 'valid_act')) || Set.general.debug_calc
@@ -612,6 +628,12 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         s4.wn(R.idx_ikpos_wn.qlim_hyp) = 1;
         s4.optimcrit_limits_hyp_deact = 0.95; % Nur am Rand der Grenzen aktiv werden
       end
+      % Versuche die Plattform-Grenzen einzuhalten, wenn explizit gefordert
+      if all(~isinf(Set.optimization.ee_rotation_limit))
+        R.xlim = [NaN(5,2); ... % erneut notwendig, falls XE(6) aktualisiert
+          Traj_0.XE(i,6) - Set.optimization.ee_rotation_limit];
+        s4.wn(R.idx_ikpos_wn.xlim_hyp) = 1;
+      end
       % Setze die Einstellungen und Nebenbedingungen so, dass sich das
       % Ergebnis bestmöglich verändert.
       if fval_jic_old(jic) == 1e3 && i>1 && ...
@@ -620,7 +642,11 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         % Punkt optimiert werden. Für die hierauf folgende Trajektorie
         % haben die anderen Punkte sowieso keine Bedeutung.
         break;
-      elseif fval_jic_old(jic) > 5e5 && fval_jic_old(jic) < 7e5
+      elseif fval_jic_old(jic) > 5e5 && fval_jic_old(jic) < 5.5e5
+        % Ausschlussgrund war eine zu große Plattform-Rotation.
+        % Aktiviere weiteres Kriterium für Einhaltung der Grenzen
+        s4.wn(R.idx_ikpos_wn.xlim_par) = 1;
+      elseif fval_jic_old(jic) > 5.5e5 && fval_jic_old(jic) < 7e5
         % Der vorherige Ausschlussgrund war eine zu große Winkelspannweite.
         % Als IK-Nebenbedingung sollte die Winkelspannweite verkleinert
         % werden
@@ -1207,10 +1233,27 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       [lvmax,Imax] = max(Q_limviolA,[],1);
       [delta_lv_maxrel,Imax2] = max(lvmax-0.5);
       fval_qlimva_E_norm = 2/pi*atan((delta_lv_maxrel)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
-      fval_jic(jic) = 1e5*(5+1*fval_qlimva_E_norm); % Normierung auf 5e5 bis 6e5
+      fval_jic(jic) = 1e5*(5.5+0.5*fval_qlimva_E_norm); % Normierung auf 5.5e5 bis 6e5
       constrvioltext_jic{jic} = sprintf(['Gelenkgrenzverletzung in AR-Eckwerten. ', ...
         'Größte relative Überschreitung: %1.1f%% (Gelenk %d, Eckpunkt %d/%d)'], ...
         100*delta_lv_maxrel, Imax2, Imax(Imax2), size(QE,1));
+      continue;
+    end
+  end
+  %% Prüfe Verletzung der Grenzen der Plattform-Rotation
+  if all(~isinf(Set.optimization.ee_rotation_limit))
+    XE = R.fkineEE2_traj(QE);
+    XE6_norm = (XE(:,6)-Set.optimization.ee_rotation_limit(1))./...
+                diff(Set.optimization.ee_rotation_limit);
+    % Normalisiere auf -0.5...+0.5. Dadurch Erkennung der Verletzung einfacher
+    X6_limviolA = abs(XE6_norm-0.5); % 0 entspricht jetzt der Mitte.
+    if any(X6_limviolA(:) > 0.5)
+      [lvmax, Imax] = max(X6_limviolA,[],1);
+      fval_xlimva_E_norm = 2/pi*atan((lvmax-0.5)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
+      fval_jic(jic) = 1e5*(5+0.5*fval_xlimva_E_norm); % Normierung auf 5e5 bis 5.5e5
+      constrvioltext_jic{jic} = sprintf(['Plattformgrenzverletzung in AR-Eckwerten. ', ...
+        'Größte relative Überschreitung: %1.1f%% (Eckpunkt %d/%d). Winkel %1.1f°'], ...
+        100*(lvmax-0.5), Imax, size(XE,1), 180/pi*XE(Imax,6));
       continue;
     end
   end
