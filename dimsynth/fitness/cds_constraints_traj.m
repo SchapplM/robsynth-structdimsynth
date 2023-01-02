@@ -345,6 +345,12 @@ if i_ar == 2 && fval > 7e3 && fval < 9e3
     % notwendig.
   end
 end
+if all(~isinf(Set.optimization.ee_rotation_limit))
+  % Setze geforderte Grenzen relativ zu Anfangswert x0
+  R.xlim = [NaN(5,2); x0(6) - Set.optimization.ee_rotation_limit];
+  s.wn(R.idx_iktraj_wnP.xlim_hyp) = 0.01;  % P-Anteil hyperbolische Grenzen
+  s.wn(R.idx_iktraj_wnD.xlim_hyp) = 0.001; % D-Anteil hyperbolische Grenzen (Dämpfung)
+end
 if i_ar == 2
   % Dämpfung der Geschwindigkeit, gegen Schwingungen
   s.wn(R.idx_iktraj_wnP.qDlim_par) = 0.7;
@@ -743,6 +749,10 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     'Tv', T_dec_dp/2, ...
     'debug_dir', fullfile(resdir,sprintf('%s_dynprog_it%d', name_prefix_ardbg, i_ar)), ...
     'continue_saved_state', true); % Debuggen: Falls mehrfach gleicher Aufruf
+  if all(~isinf(Set.optimization.ee_rotation_limit))
+    s_dp.phi_min = Set.optimization.ee_rotation_limit(1);
+    s_dp.phi_max = Set.optimization.ee_rotation_limit(2);
+  end
   % Aktiviere immer die Nebenbedingungen, die später zum Abbruch führen
   % TODO: Funktioniert aktuell noch nicht, falls sie nicht mit `wn` aktiviert werden
   if Set.optimization.constraint_collisions
