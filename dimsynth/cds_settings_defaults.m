@@ -207,6 +207,7 @@ optimization = struct( ...
   ... % reduzieren (damit es schneller geht bei nachträglicher Auswertung)
   'pos_ik_tryhard_num', 0, ... 
   'pos_ik_abort_on_success', false, ... % Bei true wird nach einer gefundenen IK-Konfiguration abgebrochen (in cds_constraints)
+  'traj_ik_abort_on_success', false, ... % ... (in cds_constraints_traj)
   'obj_limit', 0, ... % Grenze des Fitness-Wertes zum Beenden der Simulation
   'obj_limit_physval', 0, ... % Grenze für den physikalischen Wert zum Beenden
   'NumIndividuals', 50, ... % Anzahl der Partikel im PSO

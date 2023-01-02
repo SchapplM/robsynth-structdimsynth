@@ -769,6 +769,11 @@ for iIKC = 1:size(Q0,1)
       break;
     end
   end
+  if Set.optimization.traj_ik_abort_on_success && all(fval_IKC(iIKC,:) < 1e3)
+    cds_log(2,sprintf('[fitness] i.O. Konfiguration gefunden. Ignoriere andere.'));
+    fval_IKC(isnan(fval_IKC)) = inf;
+    break;
+  end
 end % Schleife über IK-Konfigurationen
 if Set.general.matfile_verbosity > 2
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_fitness_4.mat'));
