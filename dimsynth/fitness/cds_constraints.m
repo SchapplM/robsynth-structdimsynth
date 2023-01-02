@@ -38,7 +38,7 @@
 %   Gelenkpositionen des Roboters (für PKM auch passive Gelenke)
 %   für alle Eckpunkte im Arbeitsraum und für alle gefundenen
 %   IK-Konfigurationen
-% Q0
+% Q0 (Anz. Konfigurationen x Anz. Gelenke)
 %   Erste Gelenkkonfiguration der Trajektorie (als Startwert für zukünftige
 %   Berechnung der IK)
 % constrvioltext [char]

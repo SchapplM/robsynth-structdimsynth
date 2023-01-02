@@ -170,15 +170,19 @@ if all(~isnan(Structure.q0_traj)) && Set.task.profile ~= 0 % nur, falls es auch 
       Q0 = [Structure.q0_traj'; Q0]; % Prüfe vorgegebenen Wert zuerst.
       % Erzeuge Platzhalter-Werte für spätere Rechnungen
       QE_iIKC(:,:,size(QE_iIKC,3)+1) = repmat(Structure.q0_traj', size(QE_iIKC,1), 1);
+      QE_iIKC = QE_iIKC(:,:,[end,1:end-1]); % Stelle konsistente Reihenfolge zu Q0 wieder her
     end
   else
     % Der Wert wurde ungefähr erreicht. Ersetze durch den genau exakten
     % Wert, damit es nicht zu numerischen Abweichungen kommen kann.
     II_match = find(I_match, 1, 'first');
     Q0(II_match,:) = Structure.q0_traj';
+    QE_iIKC(1,:,II_match) = Structure.q0_traj';
     % Setze die Reihenfolge so, dass der gesuchte Wert zuerst kommt. Dann
     % direkter Abbruch möglich über obj_limit.
     Q0 = [Q0(II_match,:); Q0(~I_match,:)];
+    QE_iIKC = QE_iIKC(:,:,[find(II_match); find(~I_match)]);
+    % Konsistente Reihenfolge
     if fval_constr > 1e3
       cds_log(-1,sprintf(['[fitness] Vorgegebene Werte aus q0_traj erzeugen ', ...
         'unzulässige Lösung in Positions-IK. Benutze trotzdem.']));
@@ -283,6 +287,8 @@ TAU_IKC = NaN(size(Traj_0.X,1), n_actjoint, size(Q0,1));
 
 for iIKC = 1:size(Q0,1)
   %% Gelenkwinkel-Grenzen aktualisieren
+  assert(all(abs(QE_iIKC(1,:,iIKC) - Q0(iIKC,:))<1e-8), ...
+    'Q0 und QE_iIKC passen nicht zusammen'); % Prüfe wegen Umsortierung oben
   % Als Spannweite vorgegebene Gelenkgrenzen neu zentrieren. Benutze dafür
   % alle Eckpunkte aus der Einzelpunkt-IK
   if ~Set.optimization.fix_joint_limits
