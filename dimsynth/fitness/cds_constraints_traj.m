@@ -360,10 +360,10 @@ if all(~isinf(Set.optimization.ee_rotation_limit)) || ...
    all(~isinf(Set.optimization.ee_rotation_limit_rel_traj))
   % Setze geforderte Grenzen relativ zu Anfangswert x0
   if all(~isinf(Set.optimization.ee_rotation_limit))
-    R.xlim = [NaN(5,2); Set.optimization.ee_rotation_limit - x0(6)];
+    s.xlim = [NaN(5,2); Set.optimization.ee_rotation_limit - x0(6)];
   else
     % Relative Grenzen diesmal direkt in Einstellung vorgegeben
-    R.xlim = [NaN(5,2); Set.optimization.ee_rotation_limit_rel_traj];
+    s.xlim = [NaN(5,2); Set.optimization.ee_rotation_limit_rel_traj];
   end
   s.wn(R.idx_iktraj_wnP.xlim_hyp) = 0.01;  % P-Anteil hyperbolische Grenzen
   s.wn(R.idx_iktraj_wnD.xlim_hyp) = 0.001; % D-Anteil hyperbolische Grenzen (Dämpfung)

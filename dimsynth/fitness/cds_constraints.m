@@ -629,9 +629,12 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       end
       % Versuche die Plattform-Grenzen einzuhalten, wenn explizit gefordert
       if all(~isinf(Set.optimization.ee_rotation_limit))
-        R.xlim = [NaN(5,2); ... % erneut notwendig, falls XE(6) aktualisiert
+        xE_i = R.fkineEE2_traj(QE(i,:));
+        Traj_0.XE(i,6) = xE_i(6);
+        s4.xlim = [NaN(5,2); ... % erneut notwendig, falls XE(6) aktualisiert
           Set.optimization.ee_rotation_limit - Traj_0.XE(i,6)];
         s4.wn(R.idx_ikpos_wn.xlim_hyp) = 1;
+        s4.n_max = s4.n_max + 1000; % Mehr Versuche zulassen
       end
       % Setze die Einstellungen und Nebenbedingungen so, dass sich das
       % Ergebnis bestmöglich verändert.
@@ -896,6 +899,10 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           legdhl(3)=plot(Iter(I_Phi_niO), 180/pi*Stats_X(I_Phi_niO,6), 'rx');
         end
         plot(Iter, 180/pi*Stats_X(:,6), 'k-');
+        if all(~isinf(Set.optimization.ee_rotation_limit))
+          plot(Iter([1; end]), Set.optimization.ee_rotation_limit(1)*[1;1]*180/pi, 'k--')
+          plot(Iter([1; end]), Set.optimization.ee_rotation_limit(2)*[1;1]*180/pi, 'k--')
+        end
         legstr = {'Phi<1e-6', 'Phi<1e-3', 'Phi>1e-3'};
         legend(legdhl(~isnan(legdhl)), legstr(~isnan(legdhl)));
         xlabel('Iterationen'); grid on;
@@ -1278,8 +1285,10 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       fval_xlimva_E_norm = 2/pi*atan((lvmax-0.5)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
       fval_jic(jic) = 1e5*(5+0.5*fval_xlimva_E_norm); % Normierung auf 5e5 bis 5.5e5
       constrvioltext_jic{jic} = sprintf(['Plattformgrenzverletzung in AR-Eckwerten. ', ...
-        'Größte relative Überschreitung: %1.1f%% (Eckpunkt %d/%d). Winkel %1.1f°'], ...
-        100*(lvmax-0.5), Imax, size(XE,1), 180/pi*XE(Imax,6));
+        'Größte relative Überschreitung: %1.1f%% (Eckpunkt %d/%d). Winkel %1.1f° ', ...
+        'außerhalb [%1.1f°, %1.1f°]'], 100*(lvmax-0.5), Imax, size(XE,1), ...
+        180/pi*XE(Imax,6), 180/pi*Set.optimization.ee_rotation_limit(1), ...
+        180/pi*Set.optimization.ee_rotation_limit(2));
       continue;
     end
   end
