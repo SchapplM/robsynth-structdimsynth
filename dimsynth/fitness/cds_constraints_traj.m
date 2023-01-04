@@ -85,6 +85,11 @@ JP_alt = [];
 wn_all = NaN(2,R.idx_ik_length.wntraj);
 mincolldist_all = NaN(3,1);
 mininstspcdist_all = NaN(3,1);
+if R.Type == 0 % Seriell
+  qlim = R.qlim;
+else % PKM
+  qlim = cat(1,R.Leg(:).qlim);
+end
 % Speicherung der Trajektorie mit aktualisierter EE-Drehung bei Aufg.-Red.
 Traj_0 = Traj_0_in;
 X2 = NaN(size(Traj_0.X)); XD2 = NaN(size(Traj_0.X)); XDD2 = NaN(size(Traj_0.X));
@@ -210,10 +215,16 @@ if nargin >= 6
   % verschlechtert wird. Dann ist das Kriterium im besten Fall nicht aktiv
   % und führt zu Schwingungen der IK.
   s.installspace_thresh = 0.7*min(Stats_constraints.bestinstspcdist(:));
+  if isnan(s.installspace_thresh)
+    s = rmfield(s, 'installspace_thresh'); % Lasse Standard-Wert aus Funktion
+  end
   % Ausgegebene Kollisionsabstände sind negativ, wenn es keine Koll. gibt.
   s.collision_thresh = -0.7*min(Stats_constraints.bestcolldist(:));
   if s.collision_thresh <= 0
     s.collision_thresh = NaN;
+  end
+  if isnan(s.collision_thresh)
+    s = rmfield(s, 'collision_thresh'); % Lasse Standard-Wert aus Funktion
   end
 end
 %% Debug vorherige Iteration: Karte der Leistungsmerkmale für Aufgabenredundanz zeichnen
@@ -333,6 +344,12 @@ if i_ar == 2 && fval > 7e3 && fval < 9e3
     % TODO: Tritt meistens bei zweiter Iteration auf. Mehr Iterationen
     % notwendig.
   end
+end
+if all(~isinf(Set.optimization.ee_rotation_limit))
+  % Setze geforderte Grenzen relativ zu Anfangswert x0
+  R.xlim = [NaN(5,2); x0(6) - Set.optimization.ee_rotation_limit];
+  s.wn(R.idx_iktraj_wnP.xlim_hyp) = 0.01;  % P-Anteil hyperbolische Grenzen
+  s.wn(R.idx_iktraj_wnD.xlim_hyp) = 0.001; % D-Anteil hyperbolische Grenzen (Dämpfung)
 end
 if i_ar == 2
   % Dämpfung der Geschwindigkeit, gegen Schwingungen
@@ -704,6 +721,12 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
   % Zeit zum Abbremsen der Nullraumbewegung (Dynamische Prog. Rast-zu-Rast)
   % Auch als Beschleunigungszeit für Aufgabenbewegung angenommen.
   T_dec_dp = dp_xDlim(6,2) / dp_xDDlim(6,2);
+  I_EE_Task_before_dp = R.I_EE_Task;
+  if strcmp(Set.general.taskred_dynprog_mode, 'discrete')
+    R.update_EE_FG(R.I_EE, [R.I_EE_Task(1:5), 1]);
+  else % Kontinuierlich: Benutze Nullraumoptimierung in Zwischenschritten
+    R.update_EE_FG(R.I_EE, [R.I_EE_Task(1:5), 0]); % 3T2R/2T0*R/3T0*R
+  end
   s_dp = struct(...
     'wn', P_wn_traj*s.wn, ...
     'settings_ik', s, ...
@@ -715,8 +738,9 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     'verbose', 0, 'IE', Traj_0.IE(Traj_0.IE~=0), ...
     ... % 360°. Falls Startpose am Rand liegt den Suchbereich etwas aufweiten
     'phi_min', min(-pi, x0(6)-pi/4), 'phi_max', max(pi, x0(6)+pi/4), ...
-    'n_phi', 6, ... % 60°-Schritte bei 360° Wertebereich
-    'overlap', true, ... % doppelte Anzahl, aber versetzt. Dadurch freiere Bewegung 
+    'n_phi', Set.general.taskred_dynprog_numstates(i_ar), ... % Bsp. 6 bedeutet 60°-Schritte bei 360° Wertebereich
+    'overlap', true, ... % doppelte Anzahl, aber versetzt. Dadurch freiere Bewegung. Wird ignoriert, falls diskrete Optimierung
+    'stageopt_posik', true, ... % Auf der Stufe Optimierung durchführen
     ... % Zeit für Abbremsvorgang (nur des Nullraums, vor dem Abbremsen der Aufgabe)
     ... % Kompromiss aus mehr Zeit für Verfahrbewegung und etwas Spielraum für Ausschwingvorgang
     'T_dec_ns', 1/4*T_dec_dp, ...
@@ -725,7 +749,10 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     'Tv', T_dec_dp/2, ...
     'debug_dir', fullfile(resdir,sprintf('%s_dynprog_it%d', name_prefix_ardbg, i_ar)), ...
     'continue_saved_state', true); % Debuggen: Falls mehrfach gleicher Aufruf
-  if i_ar == 2, s_dp.n_phi = 12; end % feinere Schrittweite
+  if all(~isinf(Set.optimization.ee_rotation_limit))
+    s_dp.phi_min = Set.optimization.ee_rotation_limit(1);
+    s_dp.phi_max = Set.optimization.ee_rotation_limit(2);
+  end
   % Aktiviere immer die Nebenbedingungen, die später zum Abbruch führen
   % TODO: Funktioniert aktuell noch nicht, falls sie nicht mit `wn` aktiviert werden
   if Set.optimization.constraint_collisions
@@ -752,12 +779,19 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
   if dbg_load_dp && Set.general.debug_dynprog_files && exist(matfile_dp, 'file')
     load(matfile_dp, 'XL', 'DPstats', 'TrajDetailDP');
   else
-    [XL, DPstats, TrajDetailDP] = R.dynprog_taskred_ik(Traj_0.X, Traj_0.XD, ...
-      Traj_0.XDD, Traj_0.t, q, s_dp);
+    try
+      [XL, DPstats, TrajDetailDP] = R.dynprog_taskred_ik(Traj_0.X, Traj_0.XD, ...
+        Traj_0.XDD, Traj_0.t, q, s_dp);
+    catch err
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+        sprintf('cds_constraints_traj_dynprog_fail.mat')));
+      error('Fehler in dynamischer Programmierung: %s', err.message);
+    end
     if Set.general.debug_dynprog_files
       save(matfile_dp, 'XL', 'DPstats', 'TrajDetailDP');
     end
   end
+  R.update_EE_FG(R.I_EE, I_EE_Task_before_dp); % Eventuelle Änderung rückgängig machen
   cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: %1.1fs für DP. ', ...
     'Insgesamt %d IK-Zeitschritte (%1.1f x Traj.) berechnet. %d/%d erfolg', ...
     'reiche Übergänge'], Structure.config_index, Structure.config_number, ...
@@ -789,9 +823,16 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     if Traj_0.IE(ii) == 0, break; end % Eckpunkt nicht mehr Traj. zugeordnet
     i1 = Traj_0.IE(ii);
     i2 = Traj_0.IE(ii+1);
-    [Traj_0.X(i1:i2,6),Traj_0.XD(i1:i2,6),Traj_0.XDD(i1:i2,6)] = ...
-      trapveltraj(XL(ii:ii+1,6)', i2-i1+1,...
-      'EndTime',Traj_0.t(i2)-Traj_0.t(i1), 'Acceleration', R.xDDlim(6,2));
+    if isnan(XL(ii+1,6)), break; end % Keine Vorgaben mehr. Traj. ungültig.
+    if abs(diff(XL(ii:ii+1,6)')) < 1e-12 % Funktion gibt Fehler bei gleichem Start/Ziel aus
+      Traj_0.X(i1:i2,6) = XL(ii,6);
+      Traj_0.XD(i1:i2,6) = 0;
+      Traj_0.XDD(i1:i2,6) = 0;
+    else
+      [Traj_0.X(i1:i2,6),Traj_0.XD(i1:i2,6),Traj_0.XDD(i1:i2,6)] = ...
+        trapveltraj(XL(ii:ii+1,6)', i2-i1+1,...
+        'EndTime',Traj_0.t(i2)-Traj_0.t(i1), 'Acceleration', R.xDDlim(6,2));
+    end
   end
   s_ikdp = s;
   % Nicht die kürzeste Norm nehmen, sondern die Bewegungsrichtung, die
@@ -832,7 +873,12 @@ elseif Set.general.taskred_dynprog
   if Set.general.taskred_dynprog_and_gradproj
     ikloop = 1:3;
   else
-    ikloop = 1:2;
+    if strcmp(Set.optimization.objective_ik, 'constant') || ...
+        Set.general.taskred_dynprog_only
+      ikloop = 2; % nur dynamische Programmierung (Grad-Proj.-IK ist identisch bei konstanter Ori.)
+    else
+      ikloop = 1:2; % Erst DP, dann GradProj. mit Vorgabe aus DP.
+    end
   end
 else
   error('Logik-Fehler. Fall nicht möglich.');
@@ -850,12 +896,10 @@ if i_m == 1 || i_m == 3 % Gradientenprojektion
     s_trajik = s_ikdp; % aufbauend auf Ergebnis der DynProg
   end
   if R.Type == 0 % Seriell
-    qlim = R.qlim;
     [Q_gp, QD_gp, QDD_gp, PHI_gp, JP_gp, Stats_gp] = ...
       R.invkin2_traj( Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s_trajik);
     Jinv_ges_gp = NaN; % Platzhalter für gleichartige Funktionsaufrufe. Speicherung nicht sinnvoll für seriell.
   else % PKM
-    qlim = cat(1,R.Leg(:).qlim);
     [Q_gp, QD_gp, QDD_gp, PHI_gp, Jinv_ges_gp, ~, JP_gp, Stats_gp] = ...
       R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s_trajik);
   end
@@ -1708,7 +1752,7 @@ if ~isempty(Set.task.installspace.type)
     mininstspcdist_all(i_ar) = f_constrinstspc_traj;
     if fval_instspc_traj > 0
       fval_all(i_m, i_ar)  = fval_instspc_traj; % Normierung auf 2e3 bis 3e3 -> bereits in Funktion
-      constrvioltext_m{i_m} = sprintf(['Verletzung des zulässigen Bauraums in Traj.', ...
+      constrvioltext_m{i_m} = sprintf(['Verletzung des zulässigen Bauraums in Traj. ', ...
         'Schlimmstenfalls %1.1f mm draußen.'], 1e3*f_constrinstspc_traj);
       continue
     end

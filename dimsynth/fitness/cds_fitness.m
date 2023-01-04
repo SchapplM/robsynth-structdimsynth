@@ -153,20 +153,36 @@ if all(~isnan(Structure.q0_traj)) && Set.task.profile ~= 0 % nur, falls es auch 
   if ~any(I_match)
     cds_log(-1,sprintf(['[fitness] Vorgegebene Werte aus q0_traj wurden nicht ', ...
       'in den %d IK-Konfigurationen gefunden. Max. Diff. %1.1e'], size(Q0,1), min(max(abs(Q0_err),[],2))));
-    % Damit wird die Traj.-IK immer geprüft, auch wenn die Einzelpunkt-IK
-    % nicht erfolgreich gewesen sein sollte
-    fval_constr = 1e3;
-    Q0 = [Structure.q0_traj'; Q0]; % Prüfe vorgegebenen Wert zuerst.
-    % Erzeuge Platzhalter-Werte für spätere Rechnungen
-    QE_iIKC(:,:,size(QE_iIKC,3)+1) = repmat(Structure.q0_traj', size(QE_iIKC,1), 1);
+    % Prüfe, ob der vorgegebene Wert die IK löst. Wenn nicht, treten
+    % nachfolgend Fehler in der IK auf (z.B. Dynamische Programmierung)
+    if R.Type == 0
+      Phi_test = R.constr2(Structure.q0_traj, Traj_0_E.XE(1,:)', true);
+    else
+      Phi_test = R.constr3(Structure.q0_traj, Traj_0_E.XE(1,:)');
+    end
+    if any(abs(Phi_test) > 1e-8)
+      cds_log(-1,sprintf(['[fitness] Vorgegebene Werte aus q0_traj lösen ', ...
+        'nicht die Kinematik (max err %1.1e). Nicht verwenden.'], max(abs(Phi_test))));
+    else
+      % Damit wird die Traj.-IK immer geprüft, auch wenn die Einzelpunkt-IK
+      % nicht erfolgreich gewesen sein sollte
+      fval_constr = 1e3;
+      Q0 = [Structure.q0_traj'; Q0]; % Prüfe vorgegebenen Wert zuerst.
+      % Erzeuge Platzhalter-Werte für spätere Rechnungen
+      QE_iIKC(:,:,size(QE_iIKC,3)+1) = repmat(Structure.q0_traj', size(QE_iIKC,1), 1);
+      QE_iIKC = QE_iIKC(:,:,[end,1:end-1]); % Stelle konsistente Reihenfolge zu Q0 wieder her
+    end
   else
     % Der Wert wurde ungefähr erreicht. Ersetze durch den genau exakten
     % Wert, damit es nicht zu numerischen Abweichungen kommen kann.
     II_match = find(I_match, 1, 'first');
     Q0(II_match,:) = Structure.q0_traj';
+    QE_iIKC(1,:,II_match) = Structure.q0_traj';
     % Setze die Reihenfolge so, dass der gesuchte Wert zuerst kommt. Dann
     % direkter Abbruch möglich über obj_limit.
     Q0 = [Q0(II_match,:); Q0(~I_match,:)];
+    QE_iIKC = QE_iIKC(:,:,[find(II_match); find(~I_match)]);
+    % Konsistente Reihenfolge
     if fval_constr > 1e3
       cds_log(-1,sprintf(['[fitness] Vorgegebene Werte aus q0_traj erzeugen ', ...
         'unzulässige Lösung in Positions-IK. Benutze trotzdem.']));
@@ -271,6 +287,8 @@ TAU_IKC = NaN(size(Traj_0.X,1), n_actjoint, size(Q0,1));
 
 for iIKC = 1:size(Q0,1)
   %% Gelenkwinkel-Grenzen aktualisieren
+  assert(all(abs(QE_iIKC(1,:,iIKC) - Q0(iIKC,:))<1e-8), ...
+    'Q0 und QE_iIKC passen nicht zusammen'); % Prüfe wegen Umsortierung oben
   % Als Spannweite vorgegebene Gelenkgrenzen neu zentrieren. Benutze dafür
   % alle Eckpunkte aus der Einzelpunkt-IK
   if ~Set.optimization.fix_joint_limits
@@ -750,6 +768,11 @@ for iIKC = 1:size(Q0,1)
       fval_IKC(isnan(fval_IKC)) = inf; % Sonst unten Fehler bei Bestimmung der besten Konfiguration wegen NaN
       break;
     end
+  end
+  if Set.optimization.traj_ik_abort_on_success && all(fval_IKC(iIKC,:) < 1e3)
+    cds_log(2,sprintf('[fitness] i.O. Konfiguration gefunden. Ignoriere andere.'));
+    fval_IKC(isnan(fval_IKC)) = inf;
+    break;
   end
 end % Schleife über IK-Konfigurationen
 if Set.general.matfile_verbosity > 2

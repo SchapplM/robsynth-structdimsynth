@@ -25,7 +25,8 @@
 %   4e5...4.25e5: Schubzylinder geht ... (symmetrisch für PKM)
 %   4.25e5...4.5e5: Schubzylinder geht zu weit nach hinten weg (nach IK erkannt)
 %   4.5e5...5e5: Gestell ist wegen Schubgelenken zu groß (nach IK erkannt)
-%   5e5...6e5: Gelenkwinkelgrenzen (Absolut) in Einzelpunkten
+%   5e5...5.5e5: Plattform-Rotation entspricht nicht den gegebenen Grenzen
+%   5.5e5...6e5: Gelenkwinkelgrenzen (Absolut) in Einzelpunkten
 %   6e5...7e5: Gelenkwinkelgrenzen (Spannweite) in Einzelpunkten
 %   7e5...8e5  Jacobi-Grenzverletzung in Eckpunkten (trotz lösbarer IK)
 %   8e5...9e5  Jacobi-Singularität in Eckpunkten (trotz lösbarer IK)
@@ -37,7 +38,7 @@
 %   Gelenkpositionen des Roboters (für PKM auch passive Gelenke)
 %   für alle Eckpunkte im Arbeitsraum und für alle gefundenen
 %   IK-Konfigurationen
-% Q0
+% Q0 (Anz. Konfigurationen x Anz. Gelenke)
 %   Erste Gelenkkonfiguration der Trajektorie (als Startwert für zukünftige
 %   Berechnung der IK)
 % constrvioltext [char]
@@ -56,9 +57,11 @@ Q0 = NaN(1,R.NJ);
 QE_all = Q0;
 Stats_constraints = struct('bestcolldist', [], 'bestinstspcdist', []);
 %% Geometrie auf Plausibilität prüfen (1)
+if R.Type == 0, Lchain = R.reach();
+else,           Lchain = R.Leg(1).reach(); end
 if R.Type == 0 % Seriell
   % Prüfe, ob alle Eckpunkte der Trajektorie im Arbeitsraum des Roboters liegen
-  dist_max = R.reach();
+  dist_max = Lchain;
   dist_exc_tot = NaN(size(Traj_0.XE,1),1);
   for i = 1:size(Traj_0.XE,1)
     dist_i = norm(Traj_0.XE(i,1:3));
@@ -82,7 +85,7 @@ else % PKM
   % gewünschten Trajektorie
   d_base = 2*R.DesPar.base_par(1);
   d_platf = 2*R.DesPar.platform_par(1);
-  l_max_leg = R.Leg(1).reach(); % Annahme: Symmetrischer Roboter; alle Beine max. gleich lang
+  l_max_leg = Lchain; % Annahme: Symmetrischer Roboter; alle Beine max. gleich lang
 
   l_legtooshort = abs(d_base - d_platf)/2 - l_max_leg; % Fehlende Länge jedes Beins (in Meter)
   if l_legtooshort > 0
@@ -177,7 +180,33 @@ if R.Type == 2 % zusätzliche IK-Konfigurationen für PKM
 else
   n_ikcomb = 0; % Für serielle Roboter nicht relevant.
 end
-n_jic = max(30+Set.optimization.pos_ik_tryhard_num+n_ikcomb, 1);
+% Bestimme die Index-Bereiche für die Zählvariable jic
+I_jic1 = 1:max(30+Set.optimization.pos_ik_tryhard_num, 1);
+if any(R.MDH.sigma==1) && length(I_jic1) > 2 % Bei Schubgelenken explizit Wertebereiche vorgeben
+  % zwischen ein Drittel und zwei Drittel der regulären Versuche
+  I_jic2_Pleft = I_jic1(I_jic1 < length(I_jic1)*2/3 & I_jic1 >= length(I_jic1)*1/3);
+  % Letztes Drittel der regulären Versuche
+  I_jic3_Pright = I_jic1(I_jic1 > I_jic2_Pleft(end));
+  % Aktualisierung der Indizes der Versuche mit Standard-Einstellungen
+  I_jic1 = I_jic1(I_jic1<I_jic2_Pleft(1));
+else
+  I_jic2_Pleft = [];
+  I_jic3_Pright = [];
+end
+I_jicmax = max([I_jic1,I_jic2_Pleft,I_jic3_Pright]);
+I_jic4_ikcomb = I_jicmax+1 : I_jicmax+n_ikcomb;
+if Structure.task_red
+  n_phizkomb = 11; % 30°-Schritte, 11 weitere Bereiche probieren.
+else
+  n_phizkomb = 0;
+end
+I_jicmax = max([I_jicmax,I_jic4_ikcomb]);
+I_jic5_phizkomb = I_jicmax+(1:n_phizkomb);
+n_jic = max([I_jicmax, I_jic5_phizkomb]);
+% nochmalige Begrenzung bei Vorgabe durch Einstellung von negativer Zahl
+% (dient dazu, bei Reproduktion nur eine Konfiguration zu prüfen)
+n_jic = max(n_jic+Set.optimization.pos_ik_tryhard_num, 1);
+
 fval_jic = NaN(1,n_jic);
 calctimes_jic = NaN(2,n_jic);
 constrvioltext_jic = cell(n_jic,1);
@@ -192,6 +221,7 @@ fval_jic_old = fval_jic;
 constrvioltext_jic_old = constrvioltext_jic;
 Q_jic_old = Q_jic;
 JP_jic = NaN(n_jic, size(JPE,2)); % zum späteren Prüfen der IK-Konfigurationen und deren Auswirkungen
+Phiz_jic = NaN(n_jic, 1); % für den ersten Punkt. Zum Vergleichen
 % Wenn Grenzen auf unendlich gesetzt sind, wähle -pi bis pi für Startwert
 qlim_norm = qlim;
 qlim_norm(isinf(qlim_norm)) = sign(qlim_norm(isinf(qlim_norm)))*pi;
@@ -229,6 +259,7 @@ Q0_lhs = repmat(qlim_norm(:,1), 1, n_jic) + ...
   rand(R.NJ, n_jic) .* repmat(qlim_norm(:,2)-qlim_norm(:,1), 1, n_jic);
 for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   Phi_E(:) = NaN; QE(:) = NaN; % erneut initialisieren wegen jic-Schleife.
+  condJ(:) = NaN;
   if jic == 1 && all(~isnan(qref)) && any(qref~=0) % nehme Referenz-Pose (kann erfolgreiche gespeicherte Pose bei erneutem Aufruf enthalten)
     q0 = qref; % Wenn hier nur Nullen stehen, werden diese ignoriert.
   else
@@ -242,24 +273,24 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     % zufällige Neuversuche gemacht). Andere Anfangswerte sind zwecklos.
     break;
   end
-  if jic <= (n_jic-n_ikcomb)/3 || n_jic == 1
+  if any(jic == I_jic1)
     % Benutze Zufallswerte von oben (nicht überschreiben wie in anderen
     % Fällen)
-  elseif jic > (n_jic-n_ikcomb)/3 && jic < 2*(n_jic-n_ikcomb)/3 % zwischen ein Drittel und zwei Drittel der regulären Versuche
+  elseif any(jic == I_jic2_Pleft)
     % Setze die Anfangswerte (für Schubgelenke) ganz weit nach "links"
     q0(R.MDH.sigma==1) = q0(R.MDH.sigma==1) - 0.5*rand(1)*...
       (qlim_norm(R.MDH.sigma==1,2)-qlim_norm(R.MDH.sigma==1,1));
-  elseif jic >= 2*(n_jic-n_ikcomb)/3 && jic <= n_jic-n_ikcomb % Letztes Drittel der regulären Versuche
+  elseif any(jic == I_jic3_Pright)
     % Anfangswerte weit nach rechts
     q0(R.MDH.sigma==1) = q0(R.MDH.sigma==1) + 0.5*rand(1)*...
       (qlim_norm(R.MDH.sigma==1,2)-qlim_norm(R.MDH.sigma==1,1));
-  elseif jic > n_jic-n_ikcomb % Versuche mit Kombinationen der bisherigen gefundenen Konfigurationen (für PKM)
+  elseif any(jic == I_jic4_ikcomb) % Versuche mit Kombinationen der bisherigen gefundenen Konfigurationen (für PKM)
     % Prüfe, ob für die zweite oder folgende Beinkette Werte ungleich NaN
     % vorliegen. Falls nicht, konnte die eine Beinkette nie erfolgreich
     % berechnet werden, es liegen aber Zahlenwerte des Versuchs für die
     % ersten Beinketten vor. Dann bringen Neu-Kombinationen auch nichts.
     if ~any(all(squeeze(~isnan(Q_jic(1,R.I1J_LEG(2):end,:)))', 2 )), break; end
-    if jic == n_jic-n_ikcomb+1 && R.Type == 2
+    if jic == I_jic4_ikcomb(1) && R.Type == 2 % Erste Iteration in diesem Modus
       % Bestimme alle Kombinationen der Gelenkkoordinaten der Beinketten.
       Q_configperm1 = NaN(0,size(Q_jic,2));
       % alle Kombinationen der einzelnen Beinketten durchgehen
@@ -267,24 +298,38 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       indvec = cell(1,R.NLEG); % Vektor mit Indizes zum Bilden der PKM-Kombinationen
       dist_pt1 = NaN(size(Q_jic,3), R.NLEG);
       Idesc = dist_pt1;
+      Il = 3; % Indizes für drei Koordinaten der PKM-Basis
       for j = 1:R.NLEG
         Ij = R.I1J_LEG(j):R.I2J_LEG(j); % Index für Beinketten-Gelenke
         nj(j) = 0;
+        % Indizes für die Gelenkpunkte der Beinkette. Konfigurationen nur
+        % zählen, wenn die Gelenkpunkte unterschiedlich sind
+        Il = Il(end) + (1:3*(length(Ij)+1)); % Siehe ParRob/invkin_traj z.B.
         for i = 1:size(Q_jic,3) % Über alle Neuversuche der IK (vorher berechnet)
-          if any(isnan(Q_jic(1,Ij,i))), continue; end
-          test_exist = repmat(Q_jic(1,Ij,i), size(Q_configperm1,1), 1) - Q_configperm1(:,Ij);
-          if isempty(test_exist) || ~any(all( abs(test_exist) < 1e-6, 2 ))
-            % Neue Konfiguration für diese Beinkette gefunden. Hinzufügen.
-            nj(j) = nj(j) + 1;
-            Q_configperm1(nj(j),Ij) = Q_jic(1,Ij,i);
-            % Bestimme den Abstand zur ersten gefundenen Beinkette als
-            % Betragssumme aller Gelenkwinkeldifferenzen (ohne
-            % Schubgelenke). Annahme: Entspricht am ehesten den
-            % Umklapplagen)
-            Ijrev = Ij(R.Leg(j).MDH.sigma==0);
-            dist_qi_q1 = angleDiff(Q_configperm1(1, Ijrev),Q_configperm1(nj(j), Ijrev));
-            dist_pt1(i,j) = sum(abs(dist_qi_q1));
+          if any(isnan(Q_jic(1,Ij,i))), continue; end % keine gültige Konfiguration
+          test_existQ = repmat(Q_jic(1,Ij,i), size(Q_configperm1,1), 1) - Q_configperm1(:,Ij);
+          if ~isempty(test_existQ) && any(all( abs(test_existQ) < 1e-6, 2 ))
+            % Diese Gelenkwinkel-Konfiguration gibt es schon. Nicht mehr
+            % als Grundlage für Permutationen benutzen
+            continue
           end
+          test_existJP = repmat(JP_jic(i, Il), i-1, 1) - JP_jic(1:i-1, Il);
+          if ~isempty(test_existJP) && any(all( abs(test_existJP/Lchain) < 5e-2, 2 ))
+            % Die Gelenkpositionen dieser Konfiguration i sind identisch zu
+            % einer bereits geprüften. Daher diese Gelenk-Konfiguration
+            % nicht betrachten
+            continue
+          end
+          % Neue Konfiguration für diese Beinkette gefunden. Hinzufügen.
+          nj(j) = nj(j) + 1;
+          Q_configperm1(nj(j),Ij) = Q_jic(1,Ij,i);
+          % Bestimme den Abstand zur ersten gefundenen Beinkette als
+          % Betragssumme aller Gelenkwinkeldifferenzen (ohne
+          % Schubgelenke). Annahme: Entspricht am ehesten den
+          % Umklapplagen)
+          Ijrev = Ij(R.Leg(j).MDH.sigma==0);
+          dist_qi_q1 = angleDiff(Q_configperm1(1, Ijrev),Q_configperm1(nj(j), Ijrev));
+          dist_pt1(i,j) = sum(abs(dist_qi_q1));
         end % i
         dist_pt1(isnan(dist_pt1)) = -inf; % deaktivieren der NaN-Einträge für Sortierung
         % Indizes gemäß Abstand zum ersten sortieren. Hilft bei Aufgaben-
@@ -316,13 +361,34 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       % Entferne doppelte Einträge durch NaN-Setzen (dadurch überspringen)
       Q_configperm3(all(diff(Q_configperm_idx')==0),:) = NaN;
     end
-    if jic-(n_jic-n_ikcomb) > size(Q_configperm3,1), break; end % keine weiteren Kombinationen verfügbar
-    q0 = Q_configperm3(jic-(n_jic-n_ikcomb),:)';
+    if find(jic == I_jic4_ikcomb) > size(Q_configperm3,1)
+      constrvioltext_jic{jic} = 'Keine weitere IK-Konfiguration verfügbar um Kombination zu bilden';
+      fval_jic(jic) = inf;
+      continue;
+    end
+    q0 = Q_configperm3(jic == I_jic4_ikcomb,:)';
     if any(isnan(q0))
       constrvioltext_jic{jic} = 'Gelenkwinkel aus Kombination der Beinketten-IK-Konfigurationen doppelt';
       fval_jic(jic) = inf;
       continue; % NaN als Marker für doppelte q0 gegenüber vorheriger Iteration überspringen
     end
+  elseif any(jic == I_jic5_phizkomb)
+    % Fordere eine bestimmte Rotation des Endeffektors basierend auf einer
+    % bereits funktionierenden Winkel-Konfiguration
+    I_iO = find(fval_jic == 1e3);
+    if isempty(I_iO)
+      constrvioltext_jic{jic} = 'Keine funktionierende Konfiguration als Ausgangspunkt für Vorgabe der Rotation';
+      fval_jic(jic) = inf;
+      continue; % NaN als Marker für doppelte q0 gegenüber vorheriger Iteration überspringen
+    end
+    if jic == I_jic5_phizkomb(1) % nur bei erster Iteration dieses Modus machen
+      q0 = Q_jic(1,:,I_iO(1))';
+      x0 = R.fkineEE2_traj(q0')';
+    end
+    % Ändere die Soll-Eckpunkte für die konstante Orientierung. In
+    % Iteration i_ar=1 wird diese dann eingetragen und bei i_ar=2 verbessert
+    delta_phiz = pi/6*(find(jic==I_jic5_phizkomb));
+    Traj_0.XE(:,6) = normalizeAngle(x0(6) + delta_phiz, 0);
   else
     error('Fall nicht vorgesehen. Logik-Fehler bei Index-Bereichen')
   end % Fälle für Bestimmung von q0
@@ -353,8 +419,12 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   fval_jic(jic) = NaN; % Muss später im Ablauf überschrieben werden
   constrvioltext_jic{jic} = ''; % hier zurücksetzen. Berechne Nebenbedingungen ab hier neu.
   constrvioltext2_jic{jic} = '';
+  I_TrajCheck = 1:size(Traj_0.XE,1);
+  if any(jic == I_jic5_phizkomb)
+    I_TrajCheck = 1; % nur den ersten Punkt prüfen
+  end
   % IK für alle Eckpunkte
-  for i = 1:size(Traj_0.XE,1)
+  for i = I_TrajCheck
     if Set.task.profile ~= 0 % Trajektorie wird in cds_constraints_traj berechnet
       if i == 1 % erster berechneter Wert und Startpunkt der Trajektorie
       elseif i == 2 % zweiter berechneter Wert
@@ -397,11 +467,34 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         R.xlim = [NaN(5,2); pi/(n_jic/2) * [-1 1]];
       end
     end
-    
+    if any(jic == I_jic5_phizkomb)
+      if i_ar == 1 && i == 1 % deaktivieren der Aufgabenredundanz. Konstante Orientierung fordern
+        % Die Orientierung wurde bereits in die Trajektorien-Variable eingetragen
+        R.update_EE_FG(R.I_EE, [R.I_EE_Task(1:5), 1]);
+      else % AR aktivieren (für weitere Eckpunkte wieder frei wählen)
+        R.update_EE_FG(R.I_EE, [R.I_EE_Task(1:5), 0]);
+      end
+    end
+    % Versuche die Plattform-Grenzen einzuhalten
+    % (bereits hier und nicht erst in Aufgabenredundanz-Schritt)
+    s_ser = s; % Jetzt unterschiedliche Einstellungen hier und in PKM-Funktion
+    if Structure.task_red && all(~isinf(Set.optimization.ee_rotation_limit))
+      if R.Type == 0
+        s_ser.wn = zeros(R.idx_ik_length.wnpos,1);
+        s_ser.wn(R.idx_ikpos_wn.xlim_hyp) = 1;
+        R.xlim = [NaN(5,2); ...
+          Traj_0.XE(i,6) - Set.optimization.ee_rotation_limit];
+      else % IK für erste Beinkette ist frei bzgl. EE-Drehung.
+        s_ser.wn = zeros(R.Leg(1).idx_ik_length.wnpos,1); % bzgl. Beinkette
+        s_ser.wn(R.Leg(1).idx_ikpos_wn.xlim_hyp) = 1;
+        R.Leg(1).xlim = [NaN(5,2); ...
+          Traj_0.XE(i,6) - Set.optimization.ee_rotation_limit];
+      end
+    end
     if i_ar == 1 % IK ohne Optimierung von Nebenbedingungen
       Stats = struct('coll', false); %#ok<NASGU> % Platzhalter-Variable
       if R.Type == 0 % Seriell
-        [q, Phi, Tc_stack, Stats] = R.invkin2(R.x2tr(Traj_0.XE(i,:)'), Q0_ik, s);
+        [q, Phi, Tc_stack, Stats] = R.invkin2(R.x2tr(Traj_0.XE(i,:)'), Q0_ik, s_ser);
         nPhi_t = sum(R.I_EE_Task(1:3));
         ik_res_ik2 = all(abs(Phi(1:nPhi_t))<s.Phit_tol) && ...
                      all(abs(Phi(nPhi_t+1:end))<s.Phir_tol);
@@ -416,14 +509,14 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           Q0_mod = [Q0_ik, Q0_ik(:,1)];
           s_par.prefer_q0_over_first_legchain = true; % q0 bevorzugen
         end
-        if jic <= n_jic-n_ikcomb
+        if jic <= n_jic-n_ikcomb-n_phizkomb
            % Für Beinkette 2 Ergebnis von BK 1 nehmen (dabei letzten
            % Anfangswert für BK 2 und folgende verwerfen). Nur, wenn es
            % nicht gerade darum gehen soll, alle Kombinationen auszu-
            % probieren (siehe Definition der jic-Bereiche für q0 oben)
           Q0_mod(R.I1J_LEG(2):end,end) = NaN;
         end
-        [q, Phi, Tc_stack, Stats] = R.invkin2(Traj_0.XE(i,:)', Q0_mod, s, s_par); % kompilierter Aufruf
+        [q, Phi, Tc_stack, Stats] = R.invkin2(Traj_0.XE(i,:)', Q0_mod, s_ser, s_par); % kompilierter Aufruf
         % Rechne kinematische Zwangsbedingungen nach. Ist für Struktur-
         % synthese sinnvoll, falls die Modellierung unsicher ist.
         if any(strcmp(Set.optimization.objective, 'valid_act')) || Set.general.debug_calc
@@ -535,6 +628,12 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         s4.wn(R.idx_ikpos_wn.qlim_hyp) = 1;
         s4.optimcrit_limits_hyp_deact = 0.95; % Nur am Rand der Grenzen aktiv werden
       end
+      % Versuche die Plattform-Grenzen einzuhalten, wenn explizit gefordert
+      if all(~isinf(Set.optimization.ee_rotation_limit))
+        R.xlim = [NaN(5,2); ... % erneut notwendig, falls XE(6) aktualisiert
+          Traj_0.XE(i,6) - Set.optimization.ee_rotation_limit];
+        s4.wn(R.idx_ikpos_wn.xlim_hyp) = 1;
+      end
       % Setze die Einstellungen und Nebenbedingungen so, dass sich das
       % Ergebnis bestmöglich verändert.
       if fval_jic_old(jic) == 1e3 && i>1 && ...
@@ -543,7 +642,11 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         % Punkt optimiert werden. Für die hierauf folgende Trajektorie
         % haben die anderen Punkte sowieso keine Bedeutung.
         break;
-      elseif fval_jic_old(jic) > 5e5 && fval_jic_old(jic) < 7e5
+      elseif fval_jic_old(jic) > 5e5 && fval_jic_old(jic) < 5.5e5
+        % Ausschlussgrund war eine zu große Plattform-Rotation.
+        % Aktiviere weiteres Kriterium für Einhaltung der Grenzen
+        s4.wn(R.idx_ikpos_wn.xlim_par) = 1;
+      elseif fval_jic_old(jic) > 5.5e5 && fval_jic_old(jic) < 7e5
         % Der vorherige Ausschlussgrund war eine zu große Winkelspannweite.
         % Als IK-Nebenbedingung sollte die Winkelspannweite verkleinert
         % werden
@@ -669,7 +772,12 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           s4.wn(:) = 0;
         end
       end
-      
+      % Zusätzlich die Drehung des Endeffektors vorgeben (wichtiger als
+      % andere Kriterien, da im dafür vorgesehenen Modus).
+      if any(jic == I_jic5_phizkomb)
+        s4.wn(R.idx_ikpos_wn.xlim_hyp) = 1;
+        R.xlim = [NaN(5,2); pi/6 * [-1 1]];
+      end
       % IK für Nullraumbewegung durchführen
       if R.Type == 0
         [q, Phi, Tc_stack, Stats] = R.invkin2(R.x2tr(Traj_0.XE(i,:)'), q0_arik, s4);
@@ -885,9 +993,10 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       q(R.MDH.sigma==0) = normalizeAngle(q(R.MDH.sigma==0), ...
         QE(1, R.MDH.sigma==0)'); % Bezugswinkel erste Punkt
     end
-    % Beim Fall objective_ik=constant wechselt die Dimenion. Daher hier
-    % pauschal abschneiden
-    Phi_E(i,:) = Phi(1:size(Phi_E,2));
+    % Beim Fall objective_ik=constant wechselt die Dimension. Daher hier
+    % pauschal abschneiden ohne weitere Prüflogik
+    n_phi = min(length(Phi), size(Phi_E,2));
+    Phi_E(i,1:n_phi) = Phi(1:n_phi);
     QE(i,:) = q;
     if any(abs(Phi(:)) > 1e-2) || any(isnan(Phi))
       constrvioltext_jic{jic} = sprintf('Keine IK-Konvergenz');
@@ -917,6 +1026,11 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         end
       end
     end
+    if Structure.task_red && i == 1 % Speichere die EE-Drehung
+      xE = R.fkineEE2_traj(QE(1,:))';
+      Phiz_jic(jic) = xE(6);
+    end
+
     % Prüfe, ob für die Berechnung der neuen Konfiguration das gleiche
     % rauskommt. Dann könnte man aufhören. Prüfe das für den ersten Eck-
     % punkt. Entspricht der ersten Berechnung.
@@ -934,10 +1048,19 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         constrvioltext_jic{jic} = sprintf('Erste Gelenkwinkel identisch zu vorherigem Versuch');
         break;  % Das IK-Ergebnis für den ersten Eckpunkt gibt es schon. Nicht weiter rechnen.
       end
+      % Prüfe, ob sich die EE-Drehung verändert hat
+      test_phiz = angleDiff(repmat(Phiz_jic(jic), jic-1, 1), Phiz_jic(1:jic-1));
+      test_phiz(isnan(Phiz_jic(1:jic-1))) = 0;
+      I_phizsame = abs(test_phiz) < 1*pi/180; % EE-Drehung darf nur um 1 Grad anders sein
       % Prüfe, ob sich die Konfiguration hinsichtlich der Positionen unter-
       % scheidet (z.B. Ellenbogen-Wechsel) oder ob es nur geänderte Winkel sind
       test_JP_vs_all_prev = repmat(JPE(1,:), jic-1, 1) - JP_jic(1:jic-1,:);
-      if any(all(abs(test_JP_vs_all_prev)<1e-6,2))
+      % Werte Abweichung relativ zur Länge der kinematischen Kette aus
+      % Abweichung eines Gelenkpunktes um 1% der Beinkettenlänge wird noch als gleich gewertet
+      I_JPfail = all(abs(test_JP_vs_all_prev)/Lchain < 1e-2,2);
+      % Erkenne eine andere Gelenkposition nur an, wenn die Plattformdrehung 
+      % ungefähr gleich bleibt. Sonst teilweise große EE-Änderung bei kleiner Gelenkpositionsänderung
+      if any(I_JPfail & I_phizsame)
         fval_jic(jic) = Inf; % damit jic-Iteration nicht weiter gemacht wird und doppelte Konfiguration nicht in Liste aufgenommen wird.
         constrvioltext_jic{jic} = sprintf('Erste Gelenkpunkte identisch zu vorherigem Versuch');
         break; % Ein ähnliches IK-Ergebnis für den ersten Eckpunkt gibt es schon. Nicht weiter rechnen.
@@ -982,6 +1105,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     calctimes_jic(i_ar,jic) = toc(t1);
     continue;
   end
+  Phi_E(I_TrajCheck(end)+1:end,:) = 0; % nicht betrachtete Punkte deaktivieren für Prüfung
   Phi_E(isnan(Phi_E)) = 1e6;
   if (any(abs(Phi_E(:)) > 1e-2) || ... % Die Toleranz beim IK-Verfahren ist etwas größer
       any(abs(Phi_E(1,:))>1e-8)) && ... % Startpunkt für Traj. Hat feine Toleranz, sonst missverständliche Ergebnisse. Konsistent mit Toleranz oben.
@@ -1019,9 +1143,11 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     % Bei Parallel-IK ist die Konditionszahl nicht bestimmt. Rechne Jacobi
     % und Kondition neu aus
     if R.Type == 2
-      for ii = find(isnan(condJ))'
-        Jinv_ii = R.jacobi_qa_x(QE(ii,:)', Traj_0.XE(ii,:)');
-        condJ(ii) = cond(Jinv_ii);
+      for ii = I_TrajCheck
+        if isnan(condJ(ii))
+          Jinv_ii = R.jacobi_qa_x(QE(ii,:)', Traj_0.XE(ii,:)');
+          condJ(ii) = cond(Jinv_ii);
+        end
       end
     end
     n_condexc = sum(condJ(:) > Set.optimization.constraint_obj(4));
@@ -1107,10 +1233,27 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       [lvmax,Imax] = max(Q_limviolA,[],1);
       [delta_lv_maxrel,Imax2] = max(lvmax-0.5);
       fval_qlimva_E_norm = 2/pi*atan((delta_lv_maxrel)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
-      fval_jic(jic) = 1e5*(5+1*fval_qlimva_E_norm); % Normierung auf 5e5 bis 6e5
+      fval_jic(jic) = 1e5*(5.5+0.5*fval_qlimva_E_norm); % Normierung auf 5.5e5 bis 6e5
       constrvioltext_jic{jic} = sprintf(['Gelenkgrenzverletzung in AR-Eckwerten. ', ...
         'Größte relative Überschreitung: %1.1f%% (Gelenk %d, Eckpunkt %d/%d)'], ...
         100*delta_lv_maxrel, Imax2, Imax(Imax2), size(QE,1));
+      continue;
+    end
+  end
+  %% Prüfe Verletzung der Grenzen der Plattform-Rotation
+  if all(~isinf(Set.optimization.ee_rotation_limit))
+    XE = R.fkineEE2_traj(QE);
+    XE6_norm = (XE(:,6)-Set.optimization.ee_rotation_limit(1))./...
+                diff(Set.optimization.ee_rotation_limit);
+    % Normalisiere auf -0.5...+0.5. Dadurch Erkennung der Verletzung einfacher
+    X6_limviolA = abs(XE6_norm-0.5); % 0 entspricht jetzt der Mitte.
+    if any(X6_limviolA(:) > 0.5)
+      [lvmax, Imax] = max(X6_limviolA,[],1);
+      fval_xlimva_E_norm = 2/pi*atan((lvmax-0.5)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
+      fval_jic(jic) = 1e5*(5+0.5*fval_xlimva_E_norm); % Normierung auf 5e5 bis 5.5e5
+      constrvioltext_jic{jic} = sprintf(['Plattformgrenzverletzung in AR-Eckwerten. ', ...
+        'Größte relative Überschreitung: %1.1f%% (Eckpunkt %d/%d). Winkel %1.1f°'], ...
+        100*(lvmax-0.5), Imax, size(XE,1), 180/pi*XE(Imax,6));
       continue;
     end
   end
@@ -1272,6 +1415,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       % Bei der nachträglichen Auswertung soll es schneller gehen und die
       % alternativen Konfigurationen werden voraussichtlich sowieso nicht
       % besser sein.
+      constrvioltext_jic{jic} = 'i.O. (Abbruch hiernach, da q0_traj gefunden)';
       break;
     elseif Set.optimization.pos_ik_abort_on_success
       % Es soll nur eine IK-Konfiguration gefunden werden
@@ -1388,9 +1532,14 @@ else % Gebe alle gültigen Lösungen aus
   % Debug: Zeige die verschiedenen Lösungen an
   if Set.general.plot_details_in_fitness < 0 && 1e4*fval >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
      Set.general.plot_details_in_fitness > 0 && 1e4*fval <= abs(Set.general.plot_details_in_fitness)
+    % Debug: Prüfe, welche EE-Drehung die Lösungen haben
+    X0 = NaN(size(Q0, 1), 6);
+    for i = 1:size(Q0, 1)
+      X0(i,:) = R.fkineEE2_traj(Q0(i,:))';
+    end
     change_current_figure(2000);clf;
     for k = 1:length(I_iO)
-      subplot(floor(ceil(length(I_iO))), ceil(sqrt(length(I_iO))), k);
+      subplot(floor(ceil(sqrt(length(I_iO)))), ceil(sqrt(length(I_iO))), k);
       view(3); axis auto; hold on; grid on;
       plotmode = 1; % Strichzeichnung
       if R.Type == 0 % Seriell
@@ -1401,7 +1550,7 @@ else % Gebe alle gültigen Lösungen aus
           'straight', 1, 'mode', plotmode);
         R.plot( Q0(k,:)', Traj_0.XE(1,:)', s_plot);
       end
-      title(sprintf('Konfiguration %d', k));
+      title(sprintf('Konfiguration %d (phiz=%1.1f°)', k, 180/pi*X0(i,6)));
     end
   end
 end

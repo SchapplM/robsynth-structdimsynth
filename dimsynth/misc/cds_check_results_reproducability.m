@@ -33,6 +33,7 @@ s = struct( ...
   'results_dir', '', ... % Alternatives Verzeichnis zum Laden der Ergebnisse
   'isoncluster', false, ... % Falls auf Cluster, muss der parpool-Zugriff geschützt werden
   'parcomp_maxworkers', 1, ... % Maximale Anzahl an Parallelinstanzen. Standardmäßig ohne Parfor
+  'Set_mod', struct(), ... % Einstellungs-Struktur aus cds_settings_defaults zum Feld-weise Überschreiben der geladenen Einstellungen.
   'only_merge_tables', false, ... % Aufruf nur zum Zusammenführen bestehender Tabellen für einzelne Roboter
   'only_use_stored_q0', true, ... % Versuche nicht mit neuen Zufallswerten die Gelenkwinkel neu zu generieren, sondern nehme die gespeicherten.
   'only_from_pareto_front', true); % bei false werden alle Partikel geprüft, bei true nur die besten
@@ -78,6 +79,18 @@ d3 = load(setfile, 'Set', 'Structures', 'Traj');
 Structures = d3.Structures;
 Set = cds_settings_update(d3.Set);
 Set.general.isoncluster = false; % Falls auf Cluster durchgeführt, jetzt Einstellungen für lokale Auswertung
+% Überschreibe die Einstellungen
+for f = fields(s.Set_mod)'
+  assert(isa(s.Set_mod.(f{1}), 'struct'), 'Eingabe s.Set_mod muss wiederum Struktur sein');
+  assert(length(s.Set_mod.(f{1}))==1, sprintf('Eingabe s.Set_mod.%s muss 1x1 Struktur sein', f{1}));
+  for g = fields(s.Set_mod.(f{1}))'
+    assert(isfield(Set.(f{1}), g{1}), sprintf('Eingabe s.Set_mod.%s hat Feld %s, aber nicht Struktur Set', f{1}, g{1}));
+    Set.(f{1}).(g{1}) = s.Set_mod.(f{1}).(g{1});
+  end
+end
+Set.optimization.resdir = resdir; % Verzeichnis des Clusters überschreiben
+Set.optimization.optname = OptName;
+
 Traj = d3.Traj;
 
 Structures_Names = cell(1,length(Structures));
@@ -93,9 +106,13 @@ else
 end
   
 RobNames = unique(RobNames);
-ReproStatsTab_empty = cell2table(cell(0,10), 'VariableNames', ...
-  {'RobNr', 'Name', 'Partikel', 'ResOpt', 'ResRepro', 'ResRepro_q0set', ...
-  'ErrMax_Rel', 'ErrMax_Rel_q0set', 'WithDetails', 'Status'});
+vn = {'RobNr', 'Name', 'Partikel'};
+for i = 1:length(Set.optimization.objective)
+  vn = [vn, sprintf('physval_%s', Set.optimization.objective{i})]; %#ok<AGROW> 
+end
+vn = [vn, 'ResOpt', 'ResRepro', 'ResRepro_q0set', ...
+  'ErrMax_Rel', 'ErrMax_Rel_q0set', 'WithDetails', 'Status'];
+ReproStatsTab_empty = cell2table(cell(0,length(vn)), 'VariableNames', vn);
 
 %% Einstellungen zum Zusammenfassen der Tabellen
 s_merge = struct('resdir_opt', resdir_opt, 'Structures', {Structures}, 'repro_names', {{}});
@@ -175,6 +192,10 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
     PSO_Detail_Data = [];
   end
   %% Fitness-Wert nachrechnen
+  % tmp-Ordner erstellen, da bei manchen Debug-Schaltern die Existenz des
+  % Ordners vorausgesetzt wird
+  [~,~,~,resdir] = cds_get_new_figure_filenumber(Set, Structure, '');
+  mkdirs(resdir);
   if ~isempty(PSO_Detail_Data) && ~s.only_from_pareto_front
     % Detail-Ergebnisse verfügbar. Rechne alle Partikel nach.
     ngen = size(PSO_Detail_Data.pval,3);
@@ -194,10 +215,12 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
     if ~isempty(RobotOptRes.fval_pareto) % Mehrkriteriell
       pval_all = RobotOptRes.p_val_pareto;
       fval_all = RobotOptRes.fval_pareto;
+      physval_all = RobotOptRes.physval_pareto;
       p_desopt_all = RobotOptRes.desopt_pval_pareto;
     else % Einkriteriell
       pval_all = RobotOptRes.p_val(:)';
       fval_all = RobotOptRes.fval;
+      physval_all = RobotOptRes.physval;
       p_desopt_all = RobotOptRes.desopt_pval(:)';
     end
     if isempty(PSO_Detail_Data)
@@ -216,6 +239,7 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
   for jj = I(:)'
     p_jj = pval_all(jj,:)';
     f_jj = fval_all(jj,:)';
+    fphys_jj = physval_all(jj,:)';
     if any(f_jj < s.fval_check_lim(1)) || any(f_jj > s.fval_check_lim(2)), continue; end
     p_desopt_jj = p_desopt_all(jj,:)';
     Structure_jj = Structure;
@@ -313,8 +337,9 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
     end
     % Auswertungs-Tabelle für den Roboter schreiben
     details_available = ~isempty(PSO_Detail_Data);
-    ReproStatsTab_Rob = [ReproStatsTab_Rob; {i, RobName, jj, f_jj(1), f2_jj(1), f3_jj(1), ...
-      max(abs(test_f2_rel)), max(abs(test_f3_rel)), details_available, rescode}]; %#ok<AGROW>
+    ReproStatsTab_Rob = [ReproStatsTab_Rob; [i, RobName, jj, ...
+      num2cell(fphys_jj'), f_jj(1), f2_jj(1), f3_jj(1), ...
+      max(abs(test_f2_rel)), max(abs(test_f3_rel)), details_available, rescode]]; %#ok<AGROW>
     csvfilename = fullfile(resdir_opt, sprintf('Rob%d_%s', RobNr, RobName), ...
       sprintf('Rob%d_%s_reproducability_stats%s.csv', RobNr, RobName, repro_name));
     mkdirs(fileparts(csvfilename)); % Falls Ordner nicht existiert.
@@ -330,11 +355,8 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
       opts.VariableNamesLine = 1;
       opts.VariableDescriptionsLine = 2;
       ResTab = readtable(restabfile, opts);
-      Set_tmp = Set;
-      Set_tmp.optimization.resdir = resdir; % Verzeichnis des Clusters überschreiben
-      Set_tmp.optimization.optname = OptName;
       for kk = 1:length(s.eval_plots)
-        cds_vis_results_figures(s.eval_plots{kk}, Set_tmp, Traj, RobData, ResTab, ...
+        cds_vis_results_figures(s.eval_plots{kk}, Set, Traj, RobData, ResTab, ...
           RobotOptRes, RobotOptDetails, [], struct('figure_invisible', ...
           s.figure_invisible, 'delete_figure', s.figure_invisible));
       end
