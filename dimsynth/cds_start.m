@@ -255,6 +255,10 @@ if ~isempty(Traj.X) && any(abs(Traj.X(1,:)-Traj.XE(1,:))>1e-6)
     'Traj.X sein: [%s] vs [%s]'], disp_array(Traj.X(1,:), '%1.1f'), ...
     disp_array(Traj.XE(1,:), '%1.1f'));
 end
+if isfield(Set.task.payload, 'If') && any(~isnan(Set.task.payload.If)) && any(~isnan(Set.task.payload.Ic))
+  warning(['In Set.task.payload ist der Trägheitstensor mit Ic und If ', ...
+    'definiert. Sollte nur ein Eintrag sein, damit es nicht widersprüchlich sein kann.'])
+end
 if Set.general.save_evolution_video
   % Für dieses Bild müssen Bilder des Roboters im Verlauf der Optimierung
   % gespeichert werden

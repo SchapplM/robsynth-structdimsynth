@@ -254,7 +254,8 @@ task = struct( ...
   'payload', struct( ... % Zusätzliche Masse
     'm', 3, ... % Masse
     'rS', zeros(3,1), ... % Schwerpunkt, bezogen auf EE-KS (nicht: Plattform-KS)
-    'Ic', zeros(6,1))); % Trägheitstensor bzgl. Schwerpunkt. Reihenfolge xx, yy, zz, xy, xz, yz.
+    'Ic', zeros(6,1), ... % Trägheitstensor bzgl. Schwerpunkt. Reihenfolge xx, yy, zz, xy, xz, yz.
+    'If', NaN(6,1))); % Alternative Darstellung des Trägheitstensors, bezogen auf das EE-KS statt auf den Schwerpunkt.
 task.payload.Ic(1:3) =  2/5 * task.payload.m * (60e-3)^2; % Kugel Radius 60mm
 %% Rückgabe Gesamt-Einstellungen
 settings = struct(...

@@ -115,17 +115,27 @@ mrS_ges_Zus = zeros(R_pkin.NL,3);
 If_ges_Zus = zeros(R_pkin.NL,6);
 m_ges_Zus(end) = Set.task.payload.m;
 r_E_E_S = Set.task.payload.rS; % Schwerpunkt bzgl. EE-KS
+% Trägheitstensor auslesen (Fallunterscheidung für Bezugspunkt)
+if isfield(Set.task.payload, 'If') && ~any(isnan(Set.task.payload.If)) % Bezogen auf EE-KS
+  I_E = inertiavector2matrix(Set.task.payload.If');
+else % Bezogen auf Schwerpunkt
+  I_E = inertiavector2matrix(Set.task.payload.Ic');
+end
 % Trägheitstensor in Plattform-KS rotieren
-Ic_E = inertiavector2matrix(Set.task.payload.Ic');
 if R.Type == 0 % Seriell (Benennung P=N für Konsistenz mit PKM)
   r_P_P_S = R.T_N_E(1:3,4) + R.T_N_E(1:3,1:3) * r_E_E_S;
-  Ic_P = R.T_N_E(1:3,1:3)' * Ic_E * R.T_N_E(1:3,1:3);
+  I_P = R.T_N_E(1:3,1:3)' * I_E * R.T_N_E(1:3,1:3);
 else
   r_P_P_S = R.T_P_E(1:3,4) + R.T_P_E(1:3,1:3) * r_E_E_S;
-  Ic_P = R.T_P_E(1:3,1:3)' * Ic_E * R.T_P_E(1:3,1:3);
+  I_P = R.T_P_E(1:3,1:3)' * I_E * R.T_P_E(1:3,1:3);
 end
-[mrS_ges_Zus(end,:), If_ges_Zus(end,:)] = inertial_parameters_convert_par1_par2( ...
-  r_P_P_S(:)', inertiamatrix2vector(Ic_P), Set.task.payload.m);
+if isfield(Set.task.payload, 'If') && ~any(isnan(Set.task.payload.If)) % Bezogen auf EE-KS
+  mrS_ges_Zus(end,:) = r_P_P_S * Set.task.payload.m;
+  If_ges_Zus(end,:) = inertiamatrix2vector(I_P);
+else
+  [mrS_ges_Zus(end,:), If_ges_Zus(end,:)] = inertial_parameters_convert_par1_par2( ...
+    r_P_P_S(:)', inertiamatrix2vector(I_P), Set.task.payload.m);
+end
 %% Strukturteile
 % Länge von Schubgelenken herausfinden
 q_minmax = NaN(R.NJ, 2);
