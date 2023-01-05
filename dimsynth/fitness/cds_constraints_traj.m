@@ -126,6 +126,7 @@ s = struct( ...
   'normalize', false, ... 
   ... % Einhaltung der Gelenkwinkelgrenzen nicht über NR-Bewegung erzwingen
   'enforce_qlim', false, ...
+  'wn', zeros(R.idx_ik_length.wntraj,1), ... % Gewichtung Nullraumoptimierung: Zusammstellung je nach Aufgabe
   'Phit_tol', 1e-10, 'Phir_tol', 1e-10); % feine Toleranz
 % Interpolations-Stützstellen für relative Maximalgeschwindigkeit der
 % Nullraumbewegung. Dadurch echte Rast-zu-Rast-Bewegung auch im Nullraum.
@@ -179,8 +180,6 @@ if strcmp(Set.optimization.objective_ik, 'ikjac_cond')
 end
 s.cond_thresh_ikjac = cond_thresh_ikjac;
 s.cond_thresh_jac = cond_thresh_jac; % Für Seriell und PKM
-% Gewichtung Nullraumoptimierung: Zusammstellung je nach Aufgabe
-s.wn = zeros(R.idx_ik_length.wntraj,1);
 if R.Type == 2 % PKM
   s.debug = Set.general.debug_calc;
 end
@@ -196,6 +195,13 @@ if strcmp(Set.optimization.objective_ik, 'default') || ...
   % Jacobi (analytischbei PKM, geometrisch bei seriell).
   s.wn(R.idx_iktraj_wnP.jac_cond) = 1; % P-Anteil Konditionszahl (Jacobi)
   s.wn(R.idx_iktraj_wnD.jac_cond) = 0.1; % D-Anteil Konditionszahl (Jacobi)
+end
+if strcmp(Set.optimization.objective_ik, 'poserr_ee')
+  % Konditionszahl weniger aktiv (würde Positionsfehler übersteuern)
+  s.cond_thresh_jac = min(Set.optimization.constraint_obj(4)*2/3, 100*s.cond_thresh_jac);
+  s.wn(R.idx_iktraj_wnP.poserr_ee) = 1; % P-Anteil Positionsfehler
+  s.wn(R.idx_iktraj_wnD.poserr_ee) = 0.2; % D-Anteil Positionsfehler
+  s.abort_thresh_h(R.idx_iktraj_hn.poserr_ee) = inf; % sonst wird das Kriterium in DP nicht berechnet
 end
 % Versuche die Gelenkwinkelgrenzen einzuhalten, wenn explizit gefordert
 if Set.optimization.fix_joint_limits
@@ -285,8 +291,9 @@ if Structure.task_red && Set.general.debug_taskred_perfmap
       for ls = [false, true] % Skalierung des Bildes: Linear und Logarithmisch
         % Wähle Kriterien, die als Nebenbedigung gegen unendlich gehen.
         I_nbkrit = [R.idx_ikpos_wn.qlim_hyp, R.idx_ikpos_wn.ikjac_cond, ...
-                    R.idx_ikpos_wn.jac_cond, R.idx_ikpos_wn.coll_hyp, ...
-                    R.idx_ikpos_wn.instspc_hyp, R.idx_ikpos_wn.xlim_hyp];
+                    R.idx_ikpos_wn.jac_cond, R.idx_ikpos_wn.poserr_ee, ...
+                    R.idx_ikpos_wn.coll_hyp, R.idx_ikpos_wn.instspc_hyp, ...
+                    R.idx_ikpos_wn.xlim_hyp];
         if ls && ~any(wn_test(I_nbkrit))
           continue % kein hyperbolisches Kriterium. Log-Skalierung nicht sinnvoll.
         end
@@ -383,6 +390,14 @@ if i_ar == 2 && any(fval_ar <= 1e3)
     s.wn(R.idx_iktraj_wnP.qlim_hyp) = 1; % P-Anteil Grenzvermeidung (hyperbolisch)
     s.wn(R.idx_iktraj_wnD.qlim_hyp) = 0.2; % D-Anteil Grenzvermeidung (hyperbolisch)
     s.optimcrit_limits_hyp_deact = 0.4; % fast immer aktiv (bis zu 30% zu den Grenzen hin)
+  end
+  if any(strcmp(Set.optimization.objective, 'positionerror'))
+    % Höheren Schwellwert für Aktivierung der Konditionszahl
+    s.cond_thresh_jac = min(Set.optimization.constraint_obj(4)*3/4, 100*s.cond_thresh_jac);
+    % Wenn Positionsfehler ein Zielkriterium ist, optimiere diese hier permanent
+    s.wn(R.idx_iktraj_wnP.poserr_ee) = 1; % P-Anteil Positionsfehler
+    s.wn(R.idx_iktraj_wnD.poserr_ee) = 0.2; % D-Anteil Positionsfehler
+    s.abort_thresh_h(R.idx_iktraj_hn.poserr_ee) = inf; % sonst wird das Kriterium in DP nicht berechnet
   end
 end
 if i_ar == 2 && (any(fval_ar > 3e3 & fval_ar < 4e3) || ... % Ausgabewert für Kollision
@@ -762,6 +777,16 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
   % bereits durch die Variablen-Grenzen sichergestellt.
   s_dp.wn(R.idx_ikpos_wn.xlim_par) = 0;
   s_dp.wn(R.idx_ikpos_wn.xlim_hyp) = 0;
+  % Aktiviere Zielfunktionen direkt in der ersten Iteration, da sonst dort
+  % nur die Konditionszahl optimiert werden müsste. 
+  % TODO: Globale Implementierung mit besserer Abgrenzung GradProj./DP
+  if any(strcmp(Set.optimization.objective, 'positionerror'))
+    % Höheren Schwellwert für Aktivierung der Konditionszahl
+    s_dp.settings_ik.cond_thresh_jac = min(Set.optimization.constraint_obj(4)*3/4, 100*s_dp.settings_ik.cond_thresh_jac);
+    % Wenn Positionsfehler ein Zielkriterium ist, optimiere diese hier permanent
+    s_dp.wn(R.idx_ikpos_wn.poserr_ee) = 1; % P-Anteil Positionsfehler
+    s_dp.settings_ik.abort_thresh_h(R.idx_iktraj_hn.poserr_ee) = inf; % sonst wird das Kriterium in DP nicht berechnet
+  end
   if dbg_dynprog_log, s_dp.verbose = 1; end
   if dbg_dynprog_fig, s_dp.verbose = 2; end
   if Set.general.debug_dynprog_files

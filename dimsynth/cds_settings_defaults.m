@@ -138,7 +138,7 @@ optimization = struct( ...
             'only_passive', false), ... % Minimiere nur Wertebereich passiver Gelenke
   ... Zielgröße für IK bei Redundanz. Möglich:
   ...  * default (Einstellung anhand der Kriterien der Maßsynthese), 
-  ...  * ikjac_cond, jac_cond, coll_par, instspc_par, (siehe invkin-Funktionen)
+  ...  * ikjac_cond, jac_cond, coll_par, instspc_par, poserr_ee (siehe invkin-Funktionen)
   ...  * none (keine Optimierung, nur geringste Beschleunigung), 
   ...  * constant (benutzt eine konstante Orientierung für alle Eckpunkte und für die ganz Trajektorie. Entspricht Fall ohne Redundanz) 
   'objective_ik', {{'default'}}, ... 

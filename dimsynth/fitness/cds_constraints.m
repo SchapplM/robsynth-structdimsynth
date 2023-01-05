@@ -731,6 +731,10 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           s4.wn(R.idx_ikpos_wn.qlim_hyp) = 1; % hyperbolische Grenzen
           s4.optimcrit_limits_hyp_deact = 0.4; % fast immer aktiv (bis zu 30% zu den Grenzen hin)
         end
+        if any(strcmp(Set.optimization.objective, 'positionerror'))
+          % Minimiere den Positionsfehler
+          s4.wn(R.idx_ikpos_wn.poserr_ee) = 1; % hyperbolische Grenzen
+        end
       end
       if i == 1
         % Für den ersten Punkt sollten die Optimierungskriterien konsistent
