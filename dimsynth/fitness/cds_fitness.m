@@ -1048,11 +1048,22 @@ function save_generation(Set, Structure, i_gen)
 % zeitig gespeichert werden sollte. Hilfreich, falls eine Generation lange
 % dauert und sonst zu viele Daten verloren gehen würden bei Cluster-Timeout.
 persistent t_lastsave; % Zeitpunkt des letzten Speicherns hierüber
+persistent t_lastcheck; % Zeitpunkt der letzten Prüfung
 if isempty(t_lastsave), t_lastsave = 0; end % Initialisierung
+if isempty(t_lastcheck), t_lastcheck = 0; end % Initialisierung
 if ~Set.general.isoncluster, return; end % nur auf Cluster machen
+if now() < t_lastcheck + 2/(24*60) 
+  % Letztes Speichern ist erst zwei Minuten her.
+  return
+end
 t_end_plan = Set.general.computing_cluster_start_time + ... % Rechne in Tagen
   Set.general.computing_cluster_max_time/(24*3600); % geplante Endzeit
-if now() < t_end_plan - 15/(24*60) % 15min vor max. Zeitpunkt in Tagen
+% Prüfe, wie lange der Fitness-Aufruf maximal dauerte.
+PSO_Detail_Data = cds_save_particle_details([], [], 0, 0, NaN, NaN, NaN, NaN, 'output');
+T_fitness_max = max(PSO_Detail_Data.comptime(:));
+% Wenn 50% mehr als diese Zeit nur noch verbleibt, speichere
+t_lastcheck = now();
+if now() < t_end_plan - 1.5*T_fitness_max/(24*3600)
   return % Das Planmäßige Ende ist noch zu lange entfernt. Nicht speichern
 end
 if now() > t_end_plan + 10/(24*60) 
