@@ -270,6 +270,28 @@ if Set.task.pointing_task
   R.xDlim = [NaN(5,2); [-1,1]*Set.optimization.max_velocity_ee_rotation];
   R.xDDlim = [NaN(5,2); [-1,1]*Set.optimization.max_acceleration_ee_rotation];
 end
+% Trage Encoder-Fehler ein, die für die Berechnung des Positionsfehlers
+% benutzt werden. Siehe cds_obj_positionerror.
+% Treffe Annahme über die Genauigkeit der angetriebenen Gelenke
+% Nehme Beispielwerte aus Datenblättern (Heidenhein). Die genauen Werte
+% sind nicht so wichtig, da der Vergleich verschiedener Roboter im
+% Vordergrund steht.
+% https://www.heidenhain.de/de_DE/produkte/winkelmessgeraete/winkelmessmodule/baureihe-mrp-2000/
+% Genauigkeit: 7 Winkelsekunden; Umrechnung in Grad und Radiant
+delta_rev = 7 * 1/3600 * pi/180;
+% https://www.heidenhain.de/de_DE/produkte/laengenmessgeraete/gekapselte-laengenmessgeraete/fuer-universelle-applikationen/
+delta_pris = 10e-6; % 10 Mikrometer
+if R.Type == 0 % Seriell
+  delta_qa = NaN(R.NQJ,1);
+  delta_qa(R.MDH.sigma==0) = delta_rev;
+  delta_qa(R.MDH.sigma==1) = delta_pris;
+else
+  delta_qa = NaN(sum(R.I_qa),1);
+  delta_qa(R.MDH.sigma(R.I_qa)==0) = delta_rev;
+  delta_qa(R.MDH.sigma(R.I_qa)==1) = delta_pris;
+end
+R.update_q_poserr(delta_qa);
+
 % Erste Pose der Trajektorie merken (für darauf aufbauende Anpassung der
 % Plattform-Gelenke)
 Structure.xref_W = Traj.X(1,:)';

@@ -35,28 +35,10 @@
 function [fval, fval_debugtext, debug_info, f_poserr] = cds_obj_positionerror(R, Set, Jinvges, Traj_0, Q)
 debug_info = {};
 
-% Treffe Annahme über die Genauigkeit der angetriebenen Gelenke
-% Nehme Beispielwerte aus Datenblättern (Heidenhein). Die genauen Werte
-% sind nicht so wichtig, da der Vergleich verschiedener Roboter im
-% Vordergrund steht.
-% https://www.heidenhain.de/de_DE/produkte/winkelmessgeraete/winkelmessmodule/baureihe-mrp-2000/
-% Genauigkeit: 7 Winkelsekunden; Umrechnung in Grad und Radiant
-delta_rev = 7 * 1/3600 * pi/180;
-% https://www.heidenhain.de/de_DE/produkte/laengenmessgeraete/gekapselte-laengenmessgeraete/fuer-universelle-applikationen/
-delta_pris = 10e-6; % 10 Mikrometer
-if R.Type == 0 % Seriell
-  delta_qa = NaN(R.NQJ,1);
-  delta_qa(R.MDH.sigma==0) = delta_rev;
-  delta_qa(R.MDH.sigma==1) = delta_pris;
-else
-  delta_qa = NaN(sum(R.I_qa),1);
-  delta_qa(R.MDH.sigma(R.I_qa)==0) = delta_rev;
-  delta_qa(R.MDH.sigma(R.I_qa)==1) = delta_pris;
-end
-
 % Berechne Positionsfehler über Trajektorie
 deltapges = NaN(length(Traj_0.t), 1);
 if R.Type == 0 % Seriell
+  delta_qa = R.update_q_poserr();
   % Berechne Manipulierbarkeit für alle Punkte der Bahn
   for i = 1:length(Traj_0.t)
     J_3T = R.jacobit(Q(i,:)'); % nur translatorisch
@@ -65,7 +47,8 @@ if R.Type == 0 % Seriell
     deltapges(i,:) = norm(abs(J_transl)*delta_qa);
   end
 else % PKM
-  % Berechne Manipulierbarkeit für alle Punkte der Bahn
+  [~, delta_qa] = R.update_q_poserr();
+  % Berechne Positionsfehler für alle Punkte der Bahn
   for i = 1:length(Traj_0.t)
     Jinv_IK = reshape(Jinvges(i,:), R.NJ, sum(R.I_EE));
     J = inv(Jinv_IK(R.I_qa,:));
