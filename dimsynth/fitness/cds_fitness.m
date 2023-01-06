@@ -155,8 +155,10 @@ if all(~isnan(Structure.q0_traj)) && Set.task.profile ~= 0 % nur, falls es auch 
       'in den %d IK-Konfigurationen gefunden. Max. Diff. %1.1e'], size(Q0,1), min(max(abs(Q0_err),[],2))));
     % Prüfe, ob der vorgegebene Wert die IK löst. Wenn nicht, treten
     % nachfolgend Fehler in der IK auf (z.B. Dynamische Programmierung)
+    % Ist relevant für den Fall der Aufgabenredundanz (geregelt in Klasse)
     if R.Type == 0
-      Phi_test = R.constr2(Structure.q0_traj, Traj_0_E.XE(1,:)', true);
+      Phi_test = R.constr2(Structure.q0_traj, R.x2tr(Traj_0_E.XE(1,:)'), true);
+      Phi_test = Phi_test(R.I_constr_red);
     else
       Phi_test = R.constr3(Structure.q0_traj, Traj_0_E.XE(1,:)');
     end
