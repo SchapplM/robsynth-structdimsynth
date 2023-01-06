@@ -257,8 +257,7 @@ if fval_constr > 1000 % Nebenbedingungen verletzt.
   return
 end
 % Gelenkgrenzen merken (werden später überschrieben)
-if R.Type == 0, qlim = R.qlim; % Seriell
-else,           qlim = cat(1, R.Leg.qlim); end % PKM
+qlim = R.update_qlim(); % Nur Ausgabe, nichts in Klasse eintragen
 
 %% Trajektorie auf Roboter-Basis umrechnen (wegen Basis-Verschiebung)
 % Erst hier berechnen, da zeitaufwändig bei größeren Trajektorien
@@ -294,22 +293,7 @@ for iIKC = 1:size(Q0,1)
   % Als Spannweite vorgegebene Gelenkgrenzen neu zentrieren. Benutze dafür
   % alle Eckpunkte aus der Einzelpunkt-IK
   if ~Set.optimization.fix_joint_limits
-    qlim_range = qlim(:,2)-qlim(:,1);
-    qlim_neu = qlim; % Für Dreh- und Schubgelenke separat. Berücksichtige 2pi-Periodizität
-    % Naiver Mittelwert: Für Schubgelenke korrekt
-    qlim_neu(R.MDH.sigma==1,:) = repmat(mean(QE_iIKC(:,R.MDH.sigma==1,iIKC),1)',1,2)+...
-      [-qlim_range(R.MDH.sigma==1), qlim_range(R.MDH.sigma==1)]/2;
-    % Mittelwert der Winkel, zunächst normalisiert um pi
-    qErot_mean = meanangle(QE_iIKC(:,R.MDH.sigma==0,iIKC),1)';
-    % Zentrieren um ersten Schritt. Sonst kann q0 außerhalb liegen, obwohl
-    % es eigentlich der korrekte Bereich ist.
-    qErot_meannorm = normalizeAngle(qErot_mean, QE_iIKC(1,R.MDH.sigma==0,iIKC)');
-    % Einträge für Drehgelenke überschreiben
-    qlim_neu(R.MDH.sigma==0,:) = repmat(qErot_meannorm,1,2)+...
-      [-qlim_range(R.MDH.sigma==0), qlim_range(R.MDH.sigma==0)]/2;
-    % Gelenkgrenzen von oben wieder erneut einsetzen. Notwendig, da Grenzen
-    % in Traj.-IK berücksichtigt werden. Unten wird der Wert aktualisiert
-    R.update_qlim(qlim_neu);
+    qlim_neu = update_joint_limits(R, Set, QE_iIKC(:,:,iIKC), false, 0);
   else
     qlim_neu = qlim; % Variable einheitlich definieren
   end
@@ -961,7 +945,7 @@ R.update_qref(Q0(iIKCbest,:)');
 % rundungsbedingte Abweichungen auftreten. Ansonsten dadurch Verletzung
 % der Grenzen möglich.
 if ~Set.optimization.fix_joint_limits
-  update_joint_limits(R, Set, Q_IKC(:,:, iIKCbest), false, 1e-6);
+  update_joint_limits(R, Set, Q_IKC(:,:, iIKCbest), true, 1e-6);
 end
 % Trage Parameter der Entwurfsoptimierung neu in Klasse ein. Falls der
 % letzte Aufruf von constraints_traj nicht der beste war, ist sonst der
@@ -995,9 +979,10 @@ rng('shuffle'); % damit Zufallszahlen in anderen Funktionen zufällig bleiben
 save_generation(Set, Structure, i_gen);
 end % function
 
-function update_joint_limits(R, Set, Q, only_pris, tol)
+function qlim_neu = update_joint_limits(R, Set, Q, limit_pris_to_Q, tol)
 % Funktion zum Aktualisieren der Gelenkgrenzen in der Matlab-Klasse.
-% Schreibt die Min-/Max-Werte der Koordinaten Q als Grenze.
+% Schreibt die Min-/Max-Werte der Schubgelenk-Koordinaten von Q als Grenze.
+% Drehgelenkgrenzen werden mit dem ursprünglichen Bereich neu zentriert
 % Eingabe:
 % R: Matlab-Klasse (Zeiger, wird auch geändert)
 % Set: Einstellungen
@@ -1013,35 +998,49 @@ if Set.optimization.fix_joint_limits
 end
 I_valid = all(~isnan(Q),2);
 if ~any(I_valid), return; end % keine Daten übergeben. Aktualisiere nichts.
-if R.Type == 0 % Seriell
-  if only_pris
+qlim = R.update_qlim(); % Nur Auslesen, nicht in Klasse schreiben
+% Verschiebe die Winkelgrenzen
+qlim_range = qlim(:,2) - qlim(:,1);
+qlim_neu = qlim; % Für Dreh- und Schubgelenke separat. Berücksichtige 2pi-Periodizität
+% Naiver Mittelwert: Für Schubgelenke korrekt
+qlim_neu(R.MDH.sigma==1,:) = repmat(mean(Q(:,R.MDH.sigma==1),1)',1,2)+...
+  [-qlim_range(R.MDH.sigma==1), qlim_range(R.MDH.sigma==1)]/2;
+% Mittelwert der Winkel, zunächst normalisiert um pi
+qErot_mean = meanangle(Q(:,R.MDH.sigma==0),1)';
+% Zentrieren um ersten Schritt. Sonst kann q0 außerhalb liegen, obwohl
+% es eigentlich der korrekte Bereich ist.
+qErot_meannorm = normalizeAngle(qErot_mean, Q(1,R.MDH.sigma==0)');
+% Einträge für Drehgelenke überschreiben
+qlim_neu(R.MDH.sigma==0,:) = repmat(qErot_meannorm,1,2)+...
+  [-qlim_range(R.MDH.sigma==0), qlim_range(R.MDH.sigma==0)]/2;
+% Schubgelenke auf die minimal nötige Grenze reduzieren (für Animationen)
+if limit_pris_to_Q
+  if R.Type == 0 % Seriell
+    % Schubgelenk-Grenzen so setzen, dass Bewegung gerade so möglich ist
     I = R.MDH.sigma==1;
-  else
-    I = true(R.NQJ,1);
-  end
-  R.qlim(I,:) = minmax2(Q(I_valid,I)') + tol*repmat([-1, 1], sum(I), 1);
-else % PKM
-  % Grenzen bei symmetrischer Wahl
-  if Set.optimization.joint_limits_symmetric_prismatic
-    qminmax_legs = reshape(minmax2(Q(I_valid,:)'),R.Leg(1).NJ,2*R.NLEG);
-    qminmax_leg = minmax2(qminmax_legs);
-  end
-  for i = 1:R.NLEG
-    if only_pris
+    qlim_neu(I,:) = minmax2(Q(I_valid,I)') + tol*repmat([-1, 1], sum(I), 1);
+  else % PKM
+    % Grenzen bei symmetrischer Wahl
+    if Set.optimization.joint_limits_symmetric_prismatic
+      qminmax_legs = reshape(minmax2(Q(I_valid,:)'),R.Leg(1).NJ,2*R.NLEG);
+      qminmax_leg = minmax2(qminmax_legs);
+    end
+    for i = 1:R.NLEG
       I = R.Leg(i).MDH.sigma==1;
-    else
-      I = true(R.Leg(i).NQJ,1);
+      if ~Set.optimization.joint_limits_symmetric_prismatic
+        Q_i = Q(:,R.I1J_LEG(i):R.I2J_LEG(i));
+        qminmax_legI = minmax2(Q_i(:,I)');
+      else
+        qminmax_legI = qminmax_leg(I,:);
+      end
+      qlim_i = R.Leg(i).qlim;
+      qlim_i(I,:) = qminmax_legI + tol*repmat([-1, 1], sum(I), 1);
+      qlim_neu(R.I1J_LEG(i):R.I2J_LEG(i),:) = qlim_i;
     end
-    if ~Set.optimization.joint_limits_symmetric_prismatic
-      Q_i = Q(:,R.I1J_LEG(i):R.I2J_LEG(i));
-      qminmax_legI = minmax2(Q_i(:,I)');
-    else
-      qminmax_legI = qminmax_leg(I,:);
-    end
-    R.Leg(i).qlim(I,:) = qminmax_legI + tol*repmat([-1, 1], sum(I), 1);
   end
 end
-end
+R.update_qlim(qlim_neu);
+end % function
 
 function save_generation(Set, Structure, i_gen)
 % Speichere den aktuellen Zwischenstand der Optimierung.
