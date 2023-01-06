@@ -2534,7 +2534,7 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act')) && ~
   [fval_cond,~, ~, physval_cond] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
   [fval_mani,~, ~, physval_mani] = cds_obj_manipulability(R, Set, Jinv_ges, Traj_0, Q);
   [fval_msv,~, ~, physval_msv] = cds_obj_minjacsingval(R, Set, Jinv_ges, Traj_0, Q);
-  [fval_pe,~, ~, physval_pe] = cds_obj_positionerror(R, Set, Jinv_ges, Traj_0, Q);
+  [fval_pe,~, ~, physval_pe] = cds_obj_positionerror(R, Set, Jinv_ges, Q);
   [fval_jrange,~, ~, physval_jrange] = cds_obj_jointrange(R, Set, Structure, Q);
   [fval_jlimit,~, ~, physval_jlimit] = cds_obj_jointlimit(R, Set, Structure, Q);
   [fval_actvelo,~, ~, physval_actvelo] = cds_obj_actvelo(R, QD);

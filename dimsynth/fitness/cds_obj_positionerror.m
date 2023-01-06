@@ -10,8 +10,6 @@
 % Jinvges
 %   Zeilenweise (inverse) Jacobi-Matrizen des Roboters (für PKM). Bezogen
 %   auf vollständige Gelenkgeschwindigkeiten und EE-Geschw.
-% Traj_0
-%   Endeffektor-Trajektorie (bezogen auf Basis-KS)
 % Q
 %   Gelenkpositionen des Roboters (für PKM auch passive Gelenke)
 % 
@@ -32,15 +30,15 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-10
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function [fval, fval_debugtext, debug_info, f_poserr] = cds_obj_positionerror(R, Set, Jinvges, Traj_0, Q)
+function [fval, fval_debugtext, debug_info, f_poserr] = cds_obj_positionerror(R, Set, Jinvges, Q)
 debug_info = {};
 
 % Berechne Positionsfehler über Trajektorie
-deltapges = NaN(length(Traj_0.t), 1);
+deltapges = NaN(size(Q,1), 1);
 if R.Type == 0 % Seriell
   delta_qa = R.update_q_poserr();
   % Berechne Manipulierbarkeit für alle Punkte der Bahn
-  for i = 1:length(Traj_0.t)
+  for i = 1:size(Q,1)
     J_3T = R.jacobit(Q(i,:)'); % nur translatorisch
     J_transl = J_3T(Set.task.DoF(1:3),:);
     % Berechne Positionsfehler (siehe [Rob2LUH])
@@ -49,7 +47,7 @@ if R.Type == 0 % Seriell
 else % PKM
   [~, delta_qa] = R.update_q_poserr();
   % Berechne Positionsfehler für alle Punkte der Bahn
-  for i = 1:length(Traj_0.t)
+  for i = 1:size(Q,1)
     Jinv_IK = reshape(Jinvges(i,:), R.NJ, sum(R.I_EE));
     J = inv(Jinv_IK(R.I_qa,:));
     % Wähle translatorischen Teil der Jacobi aus
