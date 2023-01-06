@@ -85,11 +85,7 @@ JP_alt = [];
 wn_all = NaN(2,R.idx_ik_length.wntraj);
 mincolldist_all = NaN(3,1);
 mininstspcdist_all = NaN(3,1);
-if R.Type == 0 % Seriell
-  qlim = R.qlim;
-else % PKM
-  qlim = cat(1,R.Leg(:).qlim);
-end
+qlim = R.update_qlim();
 % Speicherung der Trajektorie mit aktualisierter EE-Drehung bei Aufg.-Red.
 Traj_0 = Traj_0_in;
 X2 = NaN(size(Traj_0.X)); XD2 = NaN(size(Traj_0.X)); XDD2 = NaN(size(Traj_0.X));

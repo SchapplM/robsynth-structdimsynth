@@ -155,17 +155,15 @@ else % Nur Eckpunkte
   s.n_max = 5000;
 end
 condJ = NaN(size(Traj_0.XE,1), 1); % Gesamt-Jacobi (Antriebe-EE)
+qlim = R.update_qlim();
+qref = R.update_qref();
 if R.Type == 0 % Seriell
-  qlim = R.qlim;
-  qref = R.qref;
   Phi_E = NaN(size(Traj_0.XE,1), sum(Set.task.DoF));
   condJik = NaN(size(Traj_0.XE,1), 1); % IK-Jacobi
   QE = NaN(size(Traj_0.XE,1), R.NQJ);
   % Variable zum Speichern der Gelenkpositionen (für Kollisionserkennung)
   JPE = NaN(size(Traj_0.XE,1), (R.NL+1)*3);
 else % PKM
-  qlim = cat(1,R.Leg(:).qlim);
-  qref = cat(1,R.Leg(:).qref);
   nPhi = R.I2constr_red(end);
   Phi_E = NaN(size(Traj_0.XE,1), nPhi);
   condJik = NaN(size(Traj_0.XE,1), R.NLEG); % Spalten: IK-Jacobi (jede Beinkette einzeln)
@@ -669,12 +667,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           qlim_neu(R.MDH.sigma==0,:) = repmat(mean(QE(1:i,R.MDH.sigma==0),1)',1,2)+...
             [-qlim_range(R.MDH.sigma==0), qlim_range(R.MDH.sigma==0)]/2;
           % qlim_neu(R.MDH.sigma==1,:) = qlim(R.MDH.sigma==1,:); % Schubgelenke zurücksetzen
-          if R.Type == 0 % Seriell
-            R.qlim = qlim_neu;
-          else % PKM
-            for kk = 1:R.NLEG, R.Leg(kk).qlim = qlim_neu(R.I1J_LEG(kk):R.I2J_LEG(kk),:); end
-          end
-          qlim = qlim_neu;
+          qlim = R.update_qlim(qlim_neu);
         end
         % Zwinge den Startwert in die neuen Grenzen (auf 5% innerhalb).
         % Hat oft zur Folge, dass die IK gar nicht mehr konvergiert. Daher
