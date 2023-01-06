@@ -183,7 +183,7 @@ if all(~isnan(Structure.q0_traj)) && Set.task.profile ~= 0 % nur, falls es auch 
     % Setze die Reihenfolge so, dass der gesuchte Wert zuerst kommt. Dann
     % direkter Abbruch möglich über obj_limit.
     Q0 = [Q0(II_match,:); Q0(~I_match,:)];
-    QE_iIKC = QE_iIKC(:,:,[find(II_match); find(~I_match)]);
+    QE_iIKC = QE_iIKC(:,:,[II_match; find(~I_match)]);
     % Konsistente Reihenfolge
     if fval_constr > 1e3
       cds_log(-1,sprintf(['[fitness] Vorgegebene Werte aus q0_traj erzeugen ', ...
