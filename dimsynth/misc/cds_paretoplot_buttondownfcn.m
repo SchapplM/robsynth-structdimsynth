@@ -91,19 +91,29 @@ Set = d3.Set;
 Traj = d3.Traj;
 Structure = d3.Structures{RobNr};
 
+% Optimierungsnamen korrigieren, falls er inkonsistent ist.
+% Ordnername und Optimierungsname müssen gleich sein. Nachträgliche
+% Umbenennung ist mit manchen Skripten schwierig.
+[resdir_tmp, optfolder] = fileparts(resdir_opt);
+if ~strcmp(optfolder, OptName)
+  if strcmp(optfolder, Set.optimization.optname)
+    OptName = Set.optimization.optname;
+  else
+    error(['Der Ordnername der Optimierung heißt lokal anders, als in der ', ...
+      'Datei: %s vs %s. Das gibt Probleme beim Speichern der Bilder. Abbruch. ', ...
+      'Kann geheilt werden, indem Set.optimization.optname in %s korrigiert wird.'], ...
+      optfolder, OptName, setfile);
+  end
+end
+
 % Ergebnistabelle laden
 restabfile = fullfile(resdir_opt, sprintf('%s_results_table.csv', OptName));
 opts = detectImportOptions(restabfile,'NumHeaderLines',2);
 opts.VariableNamesLine = 1;
 opts.VariableDescriptionsLine = 2;
 ResTab = readtable(restabfile, opts);
+
 % Ergebnis-Ordner lokal überschreiben (da neue Bilder gespeichert werden).
-[resdir_tmp, optfolder] = fileparts(resdir_opt);
-if ~strcmp(optfolder, OptName)
-  error(['Der Ordnername der Optimierung heißt lokal anders, als in der ', ...
-    'Datei: %s vs %s. Das gibt Probleme beim Speichern der Bilder. Abbruch.'], ...
-    optfolder, OptName);
-end
 Set.optimization.resdir = resdir_tmp;
 
 % Fehlende Felder in den Einstellungen ergänzen, sonst Fehler in Funktionen
