@@ -2579,6 +2579,21 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act')) && ~
       cds_log(-1, sprintf('[dimsynth] Fehler beim Speichern von mat-Datei: %s', err.message));
     end
   end
+  test_PosErr_abs = PSO_Detail_Data.constraint_obj_val(dd_optind, 7, dd_optgen) - physval_pe;
+  test_PosErr_rel = test_PosErr_abs / physval_pe;
+  if abs(test_PosErr_abs) > 1e-6 && test_PosErr_rel > 1e-3 && ...
+      physval_cond < 1e6 % Abweichung nicht in Singularität bestimmbar
+    cds_log(-1, sprintf(['[dimsynth] Während Optimierung gespeicherter ', ...
+      'Positionsfehler (%1.5e) stimmt nicht mit erneuter Berechnung (%1.5e) ', ...
+      'überein. Differenz %1.5e (%1.2f%%)'], ...
+      PSO_Detail_Data.constraint_obj_val(dd_optind, 7, dd_optgen), ...
+      physval_pe, test_PosErr_abs, 100*test_PosErr_rel));
+    try % Auf Cluster teilweise Probleme beim Dateisystemzugriff
+      save(fullfile(resdir, 'positionerrorreprowarning.mat'));
+    catch err
+      cds_log(-1, sprintf('[dimsynth] Fehler beim Speichern von mat-Datei: %s', err.message));
+    end
+  end
   test_sv = PSO_Detail_Data.constraint_obj_val(dd_optind, 6, dd_optgen) - physval_ms;
   if abs(test_sv) > 1e-5
     cds_log(-1, sprintf(['[dimsynth] Während Optimierung gespeicherte ', ...

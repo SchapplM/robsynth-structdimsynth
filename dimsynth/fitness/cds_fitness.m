@@ -25,7 +25,8 @@
 %   1e3...1e4: Überschreitung dynamischer NB (Antriebskraft)
 %   1e4...1e5: Nebenbedingung für Zielfunktion in Entwurfsopt. überschritten
 %   1e5...1e6: Überschreitung Belastungsgrenze der Segmente (aus cds_dimsynth_desopt_fitness)
-%   1e6...1e7: Überschreitung kinematischer NB (Kondition)
+%   1e6...5e6: Überschreitung kinematischer NB (Positionsfehler)
+%   5e6...1e7: Überschreitung kinematischer NB (Kondition)
 %   1e7...1e9: Siehe cds_constraints_traj. Werte von dort mit Faktor 1e4 multipliziert
 %   1e9...1e13: Siehe cds_constraints. Werte von dort mit Faktor 1e4 multipliziert
 % physval
@@ -407,14 +408,25 @@ for iIKC = 1:size(Q0,1)
     [fval_cond,fval_debugtext_cond, debug_info_cond, Jcond] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
     constraint_obj_val_IKC(4,iIKC) = Jcond;
     if Jcond > Set.optimization.constraint_obj(4)
-      fval_IKC(iIKC,:) = 1e6*(1+9*fval_cond/1e3); % normiert auf 1e6 bis 1e7
+      fval_IKC(iIKC,:) = 1e6*(5+5*fval_cond/1e3); % normiert auf 5e6 bis 1e7
       % debug_info = {sprintf('Kondition %1.1e > %1.1e', Jcond, Set.optimization.constraint_obj(4)); debug_info_cond{1}};
       constrvioltext_IKC{iIKC} = sprintf(['Konditionszahl ist zu schlecht: ', ...
         '%1.1e > %1.1e'], Jcond, Set.optimization.constraint_obj(4));
       continue
     end
   end
-
+  %% Positionsfehler als Nebenbedingung prüfen
+  % Rein kinematische Nebenbedingung. Wird vor Dynamikberechnung bestimmt
+  if Set.optimization.constraint_obj(7) > 0 % NB für Positionsfehler gesetzt
+    [fval_pe, fval_debugtext_pe, debug_info_pe, physval_pe] = cds_obj_positionerror(R, Set, Jinv_ges, Q);
+    constraint_obj_val_IKC(7,iIKC) = physval_pe;
+    if physval_pe > Set.optimization.constraint_obj(7)
+      fval_IKC(iIKC,:) = 1e6*(1+4*fval_pe/1e3); % normiert auf 1e6 bis 5e6
+      constrvioltext_IKC{iIKC} = sprintf(['Positionsfehler ist zu groß: ', ...
+        '%1.1eµm > %1.1eµm'], 1e6*physval_pe, 1e6*Set.optimization.constraint_obj(7));
+      continue
+    end
+  end
   %% Dynamik-Parameter
   % Gelenkgrenzen für Schubgelenke in Roboterklasse neu eintragen.
   % Für Drehgelenke keine Aktualisierung notwendig (wird nicht benutzt).
@@ -731,7 +743,11 @@ for iIKC = 1:size(Q0,1)
     fval_debugtext = [fval_debugtext, ' ', fval_debugtext_msv]; %#ok<AGROW>
   end
   if any(strcmp(Set.optimization.objective, 'positionerror'))
-    [fval_pe, fval_debugtext_pe, debug_info, physval_pe] = cds_obj_positionerror(R, Set, Jinv_ges, Q);
+    if Set.optimization.constraint_obj(7) == 0
+      [fval_pe, fval_debugtext_pe, debug_info, physval_pe] = cds_obj_positionerror(R, Set, Jinv_ges, Q);
+    else % Bereits oben berechnet. Keine Neuberechnung notwendig.
+      debug_info = debug_info_pe;
+    end
     fval_IKC(iIKC,strcmp(Set.optimization.objective, 'positionerror')) = fval_pe;
     physval_IKC(iIKC,strcmp(Set.optimization.objective, 'positionerror')) = physval_pe;
     fval_debugtext = [fval_debugtext, ' ', fval_debugtext_pe]; %#ok<AGROW>

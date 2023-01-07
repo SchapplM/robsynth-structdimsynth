@@ -42,7 +42,13 @@ for iDoF = 1:3
   %% Weitere Einstellungen
   Set.optimization.objective = {'positionerror'};
   Set.optimization.objective_ik = 'poserr_ee';
-  Set.optimization.optname = sprintf('positionerror_ikobj_test_%dT%dR', ...
+  % Der Positionsfehler muss gering sein (mit Standard-Encoder-Genauigkeit
+  % möglich). Sonst vermutlich Singularität
+  Set.optimization.constraint_obj(7) = 0.5e-3; % 500µm
+  % Wähle mittelhohen Grenzwert für Konditionszahl um keine Singularitäten
+  % in Ergebnissen zu haben
+  Set.optimization.constraint_obj(4) = 5e3;
+  Set.optimization.optname = sprintf('positionerror_ikobj_test12_%dT%dR_poslim', ...
     sum(DoF(1:3)), sum(DoF(4:6)));
   Set.optimization.NumIndividuals = 50;
   Set.optimization.MaxIter = 20;
