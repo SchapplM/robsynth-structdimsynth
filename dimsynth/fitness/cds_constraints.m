@@ -481,13 +481,13 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       if R.Type == 0
         s_ser.wn = zeros(R.idx_ik_length.wnpos,1);
         s_ser.wn(R.idx_ikpos_wn.xlim_hyp) = 1;
-        R.xlim = [NaN(5,2); ...
-          Traj_0.XE(i,6) - Set.optimization.ee_rotation_limit];
+        R.xlim = [NaN(5,2); ... % Relative Grenze
+          Set.optimization.ee_rotation_limit - Traj_0.XE(i,6)];
       else % IK für erste Beinkette ist frei bzgl. EE-Drehung.
         s_ser.wn = zeros(R.Leg(1).idx_ik_length.wnpos,1); % bzgl. Beinkette
         s_ser.wn(R.Leg(1).idx_ikpos_wn.xlim_hyp) = 1;
         R.Leg(1).xlim = [NaN(5,2); ...
-          Traj_0.XE(i,6) - Set.optimization.ee_rotation_limit];
+          Set.optimization.ee_rotation_limit - Traj_0.XE(i,6)];
       end
     end
     if i_ar == 1 % IK ohne Optimierung von Nebenbedingungen
@@ -630,7 +630,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       % Versuche die Plattform-Grenzen einzuhalten, wenn explizit gefordert
       if all(~isinf(Set.optimization.ee_rotation_limit))
         R.xlim = [NaN(5,2); ... % erneut notwendig, falls XE(6) aktualisiert
-          Traj_0.XE(i,6) - Set.optimization.ee_rotation_limit];
+          Set.optimization.ee_rotation_limit - Traj_0.XE(i,6)];
         s4.wn(R.idx_ikpos_wn.xlim_hyp) = 1;
       end
       % Setze die Einstellungen und Nebenbedingungen so, dass sich das

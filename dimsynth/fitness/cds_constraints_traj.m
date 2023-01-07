@@ -356,9 +356,15 @@ if i_ar == 2 && fval > 7e3 && fval < 9e3
     % notwendig.
   end
 end
-if all(~isinf(Set.optimization.ee_rotation_limit))
+if all(~isinf(Set.optimization.ee_rotation_limit)) || ...
+   all(~isinf(Set.optimization.ee_rotation_limit_rel_traj))
   % Setze geforderte Grenzen relativ zu Anfangswert x0
-  R.xlim = [NaN(5,2); x0(6) - Set.optimization.ee_rotation_limit];
+  if all(~isinf(Set.optimization.ee_rotation_limit))
+    R.xlim = [NaN(5,2); Set.optimization.ee_rotation_limit - x0(6)];
+  else
+    % Relative Grenzen diesmal direkt in Einstellung vorgegeben
+    R.xlim = [NaN(5,2); Set.optimization.ee_rotation_limit_rel_traj];
+  end
   s.wn(R.idx_iktraj_wnP.xlim_hyp) = 0.01;  % P-Anteil hyperbolische Grenzen
   s.wn(R.idx_iktraj_wnD.xlim_hyp) = 0.001; % D-Anteil hyperbolische Grenzen (Dämpfung)
 end
@@ -774,6 +780,10 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     s_dp.phi_min = Set.optimization.ee_rotation_limit(1);
     s_dp.phi_max = Set.optimization.ee_rotation_limit(2);
   end
+  if all(~isinf(Set.optimization.ee_rotation_limit_rel_traj))
+    s_dp.phi_min = x0(6)+Set.optimization.ee_rotation_limit_rel_traj(1);
+    s_dp.phi_max = x0(6)+Set.optimization.ee_rotation_limit_rel_traj(2);
+  end
   % Aktiviere immer die Nebenbedingungen, die später zum Abbruch führen
   % TODO: Funktioniert aktuell noch nicht, falls sie nicht mit `wn` aktiviert werden
   if Set.optimization.constraint_collisions
@@ -784,7 +794,7 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     s_dp.settings_ik.collision_thresh = 1.5; % Versuche auszuweichen, wenn in kritischer Nähe
   end
   % Deaktiviere das Kriterium xlim_hyp und xlim_par wieder. Werden in DP
-  % bereits durch die Variablen-Grenzen sichergestellt.
+  % bereits durch die Variablen-Grenzen (phi_min/phi_max) sichergestellt.
   s_dp.wn(R.idx_ikpos_wn.xlim_par) = 0;
   s_dp.wn(R.idx_ikpos_wn.xlim_hyp) = 0;
   % Aktiviere Zielfunktionen direkt in der ersten Iteration, da sonst dort
