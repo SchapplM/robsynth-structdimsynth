@@ -28,7 +28,8 @@
 %   5e5...5.5e5: Plattform-Rotation entspricht nicht den gegebenen Grenzen
 %   5.5e5...6e5: Gelenkwinkelgrenzen (Absolut) in Einzelpunkten
 %   6e5...7e5: Gelenkwinkelgrenzen (Spannweite) in Einzelpunkten
-%   7e5...8e5  Jacobi-Grenzverletzung in Eckpunkten (trotz lösbarer IK)
+%   7e5...7.5e5  Positionsfehler in Eckpunkten zu groß (trotz lösbarer IK)
+%   7.5e5...8e5  Jacobi-Grenzverletzung in Eckpunkten (trotz lösbarer IK)
 %   8e5...9e5  Jacobi-Singularität in Eckpunkten (trotz lösbarer IK)
 %   9e5...1e6  IK-Singularität in Eckpunkten (trotz lösbarer IK)
 %   1e6...1e7: IK in Einzelpunkten nicht lösbar
@@ -644,6 +645,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         % Ausschlussgrund war eine zu große Plattform-Rotation.
         % Aktiviere weiteres Kriterium für Einhaltung der Grenzen
         s4.wn(R.idx_ikpos_wn.xlim_par) = 1;
+      elseif fval_jic_old(jic) > 7e5 && fval_jic_old(jic) < 7.5e5
+        % Ausschlussgrund war ein zu großer Positionsfehler.
+        s4.wn(R.idx_ikpos_wn.poserr_ee) = 1;
       elseif fval_jic_old(jic) > 5.5e5 && fval_jic_old(jic) < 7e5
         % Der vorherige Ausschlussgrund war eine zu große Winkelspannweite.
         % Als IK-Nebenbedingung sollte die Winkelspannweite verkleinert
@@ -847,11 +851,15 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
             debug_str = [debug_str, sprintf('; maxcolldepth [mm]: %1.1f -> %1.1f', ...
               1e3*Stats.maxcolldepth(1,1), 1e3*Stats.maxcolldepth(1+Stats.iter,1))]; %#ok<AGROW>
           end
-          cds_log(3, sprintf(['[constraints] Konfig %d/%d, Eckpunkt %d: IK-Berechnung ', ...
-            'mit Aufgabenredundanz hat Nebenoptimierung verschlechtert: ', ...
-            '%1.4e -> %1.4e. wn=[%s]. max(condJik)=%1.2f. coll=%d. %s'], ...
-            jic, n_jic, i, h_opt_pre, h_opt_post, disp_array(s4.wn','%1.1g'), ...
-            max(Stats.condJ(1:1+Stats.iter,1)), Stats.coll, debug_str));
+          if all(Stats.h([1,1+Stats.iter],1+R.idx_ikpos_hn.poserr_ee))
+            debug_str = [debug_str, sprintf('; PosErr: %1.2emm -> %1.2emm', ...
+              1e3*Stats.h(1,1+R.idx_ikpos_hn.poserr_ee), 1e3*Stats.h(1+Stats.iter,1+R.idx_ikpos_hn.poserr_ee))]; %#ok<AGROW>
+          end
+          cds_log(3, sprintf(['[constraints] Konfig %d/%d, Eckpunkt %d: ', ...
+            'IK-Berechnung mit Aufgabenredundanz hat Nebenoptimierung ', ...
+            'verschlechtert (Delta %1.1e): %1.4e -> %1.4e. wn=[%s]. max(condJik)=%1.2f. ', ...
+            'coll=%d. %s'], jic, n_jic, i, h_opt_post-h_opt_pre, h_opt_pre, h_opt_post, ...
+            disp_array(s4.wn','%1.1g'), max(Stats.condJ(1:1+Stats.iter,1)), Stats.coll, debug_str));
         end
         if Set.general.debug_taskred_fig % Zum Debuggen
         if R.Type == 0, I_constr_red = [1 2 3 5 6];
@@ -1158,12 +1166,33 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         'Eckpunkte singulär. max(cond(J))=%1.1e.'], n_condexc2, size(condJ,1), max(condJ(:)));
     else
       % Konditionszahl ist hoch, aber nur "schlechter-Wert-hoch"
-      fval_jic(jic) = 1e5*(7+n_condexc/size(condJ,1)); % Normierung auf 7e5 bis 8e5
+      fval_jic(jic) = 1e5*(7.5+0.5*n_condexc/size(condJ,1)); % Normierung auf 7.5e5 bis 8e5
       constrvioltext_jic{jic} = sprintf(['Jacobi-Konditionszahl für %d/%d ', ...
         'Eckpunkte zu groß. max(cond(J))=%1.1e.'], n_condexc, size(condJ,1), max(condJ(:)));
     end
     calctimes_jic(i_ar,jic) = toc(t1);
     continue;
+  end
+  %% Bestimme den Positionsfehler
+  if Set.optimization.constraint_obj(7) > 0
+    if R.Type == 2
+      Jinvges = NaN(size(QE,1), R.NJ*sum(R.I_EE));
+      for ii = I_TrajCheck
+        [~, Jinv_ii] = R.jacobi_qa_x(QE(ii,:)', Traj_0.XE(ii,:)');
+        Jinvges(ii,:) = Jinv_ii(:);
+      end
+      Jinvges_check = Jinvges(I_TrajCheck,:);
+    else
+      Jinvges_check = []; % Platzhalter für serielle Roboter
+    end
+    [fval_pe, fval_debugtext_pe, ~, physval_pe] = cds_obj_positionerror( ...
+      R, Set, Jinvges_check, QE(I_TrajCheck,:));
+    if physval_pe > Set.optimization.constraint_obj(7)
+      fval_jic(jic) = 1e5*(7+0.5*fval_pe/1e3); % Normierung auf 7e5 bis 7.5e5
+      constrvioltext_jic{jic} = sprintf('Eckpunkte: %s', fval_debugtext_pe);
+      calctimes_jic(i_ar,jic) = toc(t1);
+      continue;
+    end
   end
   %% Bestimme die Spannweite der Gelenkkoordinaten (getrennt Dreh/Schub)
   q_range_E = NaN(1, R.NJ);
