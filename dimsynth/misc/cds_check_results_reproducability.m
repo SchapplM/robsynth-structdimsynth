@@ -202,11 +202,13 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
     nind = size(PSO_Detail_Data.pval,1);
     pval_all = NaN(ngen*nind, size(PSO_Detail_Data.pval,2));
     fval_all = NaN(ngen*nind, size(PSO_Detail_Data.fval,2));
+    physval_all = fval_all;
     p_desopt_all = NaN(ngen*nind, size(PSO_Detail_Data.desopt_pval,2));
     for igen = 1:ngen
       for iind = 1:nind
         pval_all((igen-1)*nind+iind,:) = PSO_Detail_Data.pval(iind,:,igen);
         fval_all((igen-1)*nind+iind,:) = PSO_Detail_Data.fval(iind,:,igen);
+        physval_all((igen-1)*nind+iind,:) = PSO_Detail_Data.physval(iind,:,igen);
         p_desopt_all((igen-1)*nind+iind,:) = PSO_Detail_Data.desopt_pval(iind,:,igen);
       end
     end
