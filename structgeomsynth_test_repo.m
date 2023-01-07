@@ -21,7 +21,7 @@ cds_testcase_3T3R; close all;
 %% Testfälle zum Reproduzieren eines definierten Ergebnisses
 cds_testcase_PKM_G1G4; close all;
 
-%% Diverse weitere Tests
+%% Divcds_testcase_PKM_G1G4; close all;erse weitere Tests
 % Einige andere einzelne Funktionen werden getestet
 cds_example_2T1R_RRR_multiobj; close all;
 cds_example_collisioncheck; close all;
@@ -31,6 +31,7 @@ cds_example_desopt_test; close all;
 cds_example_taskred_desopt; close all;
 test_cds_obj_dependencies; close all;
 cds_example_external_force; close all;
+cds_test_positionerror_ikobjective; close all;
 %% Ende
 clc
 close all

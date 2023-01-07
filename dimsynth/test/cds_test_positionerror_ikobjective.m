@@ -48,7 +48,7 @@ for iDoF = 1:3
   % Wähle mittelhohen Grenzwert für Konditionszahl um keine Singularitäten
   % in Ergebnissen zu haben
   Set.optimization.constraint_obj(4) = 5e3;
-  Set.optimization.optname = sprintf('positionerror_ikobj_test12_%dT%dR_poslim', ...
+  Set.optimization.optname = sprintf('positionerror_ikobj_test_%dT%dR', ...
     sum(DoF(1:3)), sum(DoF(4:6)));
   Set.optimization.NumIndividuals = 50;
   Set.optimization.MaxIter = 20;
@@ -102,7 +102,7 @@ for iDoF = 1:3
     assert(exist(tmpdir_j, 'file'), 'Tmp-Verzeichnis existiert nicht');
     trajdatafiles = dir(fullfile(tmpdir_j, '*_Traj*.mat'));
     perfmapfiles = dir(fullfile(tmpdir_j, '*Konfig*TaskRedPerfMap_Data.mat'));
-    assert(length(perfmapfiles)==1, 'Unerwartete Anzahl an Redundanzkarten-Daten');
+    assert(length(perfmapfiles)==1, sprintf('Unerwartete Anzahl an Redundanzkarten-Daten (%d)', length(perfmapfiles)));
     dpm = load(fullfile(tmpdir_j, perfmapfiles(1).name));
     % Generiere Redundanzkarte nochmal neu, damit auch die Gelenkwinkel aus- 
     % gegeben werden (wird normalerweise nicht gemacht wegen Speicherplatz)
@@ -120,8 +120,10 @@ for iDoF = 1:3
     end
     %% Gehe alle Punkte durch und vergleiche die Kriterien
     Hpos_pm = H_all(:,:,R.idx_ikpos_hn.poserr_ee);
-    fprintf('Neue Redundanzkarte: %d / %d (%d x %d) Einträge ungleich NaN\n', ...
-      sum(~isnan(Hpos_pm(:))), numel(Hpos_pm), size(Hpos_pm, 1), size(Hpos_pm, 2));
+    Hcond = H_all(:,:,end);
+    I_sing = Hcond > 1e6; % Diese Einträge werden nicht untersucht. Abweichung numerisch zu groß und zu anfällig gegen kleine Abweichungen.
+    fprintf('Neue Redundanzkarte: %d / %d (%d x %d) Einträge ungleich NaN. %d Einträge singulär.\n', ...
+      sum(~isnan(Hpos_pm(:))), numel(Hpos_pm), size(Hpos_pm, 1), size(Hpos_pm, 2), sum(I_sing(:)));
     Hpos_err = NaN(size(H_all,1), size(H_all,2)); Hpos_fcn = Hpos_err;
     num_checks = 0;
     for ii = 1:size(H_all,1)
@@ -146,14 +148,37 @@ for iDoF = 1:3
         num_checks = num_checks + 1;
         Hpos_fcn(ii,jj) = hpe_function;
         Hpos_err(ii,jj) = hpe_perfmap-hpe_function;
-%         assert(abs() < 1e-10, ...
-%           'Positionsfehler aus Redundanzkarte weicht von Maßsynthese-Zielfunktion ab');
       end % for jj
     end % for ii
     assert(num_checks ~= 0, 'Keine Prüfung durchgeführt. Logik-Fehler.');
     Hpos_err_rel = Hpos_err ./ Hpos_pm;
-    I_err = abs(Hpos_err_rel) > 5e-2 & abs(Hpos_err) > 1e-6;
+    I_err = abs(Hpos_err_rel) > 5e-2 & abs(Hpos_err) > 1e-6 & ~I_sing;
     if any(I_err(:))
+      % Zeichne die Redundanzkarten mit Positionsfehlern aus beiden
+      % Methoden.
+      wn_pmp = zeros(R.idx_ik_length.wnpos,1);
+      wn_pmp(R.idx_ikpos_wn.poserr_ee) = 1;
+      H_all_pmp = H_all;
+      H_all_pmp(:,:,R.idx_ikpos_hn.poserr_ee) = Hpos_pm;
+      settings_perfmapplot = struct('wn', wn_pmp, 'TrajLegendText', {{}}, ...
+        'i_ar', 0, 'name_prefix_ardbg', '', 'fval', 0, 'logscale', true, ...
+        'critnames', {fields(R.idx_ikpos_wn)'}, 'constrvioltext', '');
+      pmfig_hpm = cds_debug_taskred_perfmap(Set_tmp, Structures{j}, H_all_pmp, s_ref, ...
+        s_tref, phiz_range, NaN(length(s_tref),0), NaN(length(s_tref),0), settings_perfmapplot);
+      set(pmfig_hpm, 'Name', 'PerfMap_from_ik', 'NumberTitle', 'off');
+      sgtitle('Position Error from IK (PerfMap function)');
+      H_all_pmp(:,:,R.idx_ikpos_hn.poserr_ee) = Hpos_fcn;
+      settings_perfmapplot.i_ar = 1; % Damit andere Bildnummer benutzt wird
+      pmfig_fcn = cds_debug_taskred_perfmap(Set_tmp, Structures{j}, H_all_pmp, s_ref, ...
+        s_tref, phiz_range, NaN(length(s_tref),0), NaN(length(s_tref),0), settings_perfmapplot);
+      set(pmfig_fcn, 'Name', 'PerfMap_from_cds', 'NumberTitle', 'off');
+      sgtitle('Position Error from DimSynth Function');
+      H_all_pmp(:,:,R.idx_ikpos_hn.poserr_ee) = Hpos_err;
+      settings_perfmapplot.i_ar = 2;
+      pmfig_err = cds_debug_taskred_perfmap(Set_tmp, Structures{j}, H_all_pmp, s_ref, ...
+        s_tref, phiz_range, NaN(length(s_tref),0), NaN(length(s_tref),0), settings_perfmapplot);
+      set(pmfig_err, 'Name', 'PerfMap_error', 'NumberTitle', 'off');
+      sgtitle('Deviation of Position Error by both Methods');
       error('Abweichung zwischen Positionsfehler aus Redundanzkarte und Maßsynthese-Zielfunktion');
     else
       fprintf(['Rob. %d (%s): Übereinstimmung zwischen Ergebnis aus ', ...
