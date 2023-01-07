@@ -219,8 +219,8 @@ Q_jic = NaN(size(Traj_0.XE,1), R.NJ, n_jic);
 fval_jic_old = fval_jic;
 constrvioltext_jic_old = constrvioltext_jic;
 Q_jic_old = Q_jic;
-JP_jic = NaN(n_jic, size(JPE,2)); % zum späteren Prüfen der IK-Konfigurationen und deren Auswirkungen
-Phiz_jic = NaN(n_jic, 1); % für den ersten Punkt. Zum Vergleichen
+JP_jic = NaN(size(Traj_0.XE,1), size(JPE,2), n_jic); % zum späteren Prüfen der IK-Konfigurationen und deren Auswirkungen
+Phiz_jic = NaN(n_jic, size(Traj_0.XE,1)); % Zum Vergleichen
 % Wenn Grenzen auf unendlich gesetzt sind, wähle -pi bis pi für Startwert
 qlim_norm = qlim;
 qlim_norm(isinf(qlim_norm)) = sign(qlim_norm(isinf(qlim_norm)))*pi;
@@ -312,7 +312,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
             % als Grundlage für Permutationen benutzen
             continue
           end
-          test_existJP = repmat(JP_jic(i, Il), i-1, 1) - JP_jic(1:i-1, Il);
+          test_existJP = repmat(JP_jic(1, Il, i), i-1, 1) - ...
+            reshape(squeeze(JP_jic(1, Il, 1:i-1)), length(Il), i-1)';
           if ~isempty(test_existJP) && any(all( abs(test_existJP/Lchain) < 5e-2, 2 ))
             % Die Gelenkpositionen dieser Konfiguration i sind identisch zu
             % einer bereits geprüften. Daher diese Gelenk-Konfiguration
@@ -1038,44 +1039,72 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         end
       end
     end
-    if Structure.task_red && i == 1 % Speichere die EE-Drehung
+    if Structure.task_red % Speichere die EE-Drehung (für jeden Punkt)
       xE = R.fkineEE2_traj(QE(1,:))';
-      Phiz_jic(jic) = xE(6);
+      Phiz_jic(jic,i) = xE(6);
     end
 
     % Prüfe, ob für die Berechnung der neuen Konfiguration das gleiche
-    % rauskommt. Dann könnte man aufhören. Prüfe das für den ersten Eck-
-    % punkt. Entspricht der ersten Berechnung.
-    if jic > 1 && i == 1
+    % rauskommt. Dann könnte man aufhören. Prüfe das für alle Eckpunkte.
+    if jic > 1
       % Normiere die möglichen Gelenkwinkel für den ersten Punkt um
       % festzustellen, welche eindeutig sind (Dimensionsunabhängig)
-      test_vs_all_prev = repmat(q,1,jic-1)-reshape(squeeze(Q_jic(1,:,1:jic-1)),R.NJ,jic-1);
-      % 2pi-Fehler entfernen
-      test_vs_all_prev(abs(abs(test_vs_all_prev)-2*pi)<1e-1) = 0; % ungenaue IK ausgleichen
+      % Teste die Differenz getrennt für Dreh- und Schubgelenke
+      test_vs_all_prev = NaN(length(q), jic-1);
+      Q_prev = reshape(squeeze(Q_jic(i,:,1:jic-1)),R.NJ,jic-1);
+      test_vs_all_prev(R.MDH.sigma==1,:) = repmat(q(R.MDH.sigma==1),1,jic-1) - ...
+        Q_prev(R.MDH.sigma==1,:); % Schubgelenk
+      test_vs_all_prev(R.MDH.sigma==0,:) = wrapToPi( ... % Drehgelenk
+        repmat(q(R.MDH.sigma==0),1,jic-1) - Q_prev(R.MDH.sigma==0,:) );
       test_vs_all_prev_norm = test_vs_all_prev ./ repmat(qlim_range_norm,1,size(test_vs_all_prev,2));
       % Prüfe ob eine Spalte gleich ist wie die aktuellen Gelenkwinkel.
       % Kriterium: 3% bezogen auf erlaubte Spannweite
-      if any(all(abs(test_vs_all_prev_norm)<3e-2,1))
-        fval_jic(jic) = Inf; % damit jic-Iteration nicht weiter gemacht wird
-        constrvioltext_jic{jic} = sprintf('Erste Gelenkwinkel identisch zu vorherigem Versuch');
-        break;  % Das IK-Ergebnis für den ersten Eckpunkt gibt es schon. Nicht weiter rechnen.
+      I_findq = find(all(abs(test_vs_all_prev_norm)<3e-2),1,'first'); % Gibt die jic-Nummer des Funds an
+      if ~isempty(I_findq)
+        if i == 1
+          fval_jic(jic) = Inf; % damit jic-Iteration nicht weiter gemacht wird
+          constrvioltext_jic{jic} = sprintf('Erste Gelenkwinkel identisch zu vorherigem Versuch %d', I_findq);
+          break;  % Das IK-Ergebnis für den ersten Eckpunkt gibt es schon. Nicht weiter rechnen.
+        else % Folgender Punkt hat auch gleiche Teile mit anderem Punkt
+          % Übernehme die IK-Ergebnisse von der anderen Konfiguration
+          % Annahme: Da hier die gleiche Konfiguration rauskam, kommt
+          % auch bei allen weiteren Punkte das gleiche raus (Anfangswerte)
+          JPE(i+1:end,:) = JP_jic(i+1:end,:,I_findq);
+          QE(i+1:end,:) = Q_jic(i+1:end,:,I_findq);
+          Phi_E(i+1:end,:) = 0; % Tue so, als ob es erfolgreich war
+          condJik(i+1:end,:) = NaN; % Sonst stehen noch die falschen Werte drin
+          condJ(i+1:end,:) = NaN; % Dadurch müssen die Jacobi-Matrizen unten leider neu berechnet werden.
+          break; % Direkt die Gesamtheit aller Punkte weiter unten prüfen
+        end
       end
       % Prüfe, ob sich die EE-Drehung verändert hat
-      test_phiz = angleDiff(repmat(Phiz_jic(jic), jic-1, 1), Phiz_jic(1:jic-1));
-      test_phiz(isnan(Phiz_jic(1:jic-1))) = 0;
-      I_phizsame = abs(test_phiz) < 1*pi/180; % EE-Drehung darf nur um 1 Grad anders sein
+      test_phiz = angleDiff(repmat(Phiz_jic(jic,i), jic-1, 1), Phiz_jic(1:jic-1,i));
+      test_phiz(isnan(Phiz_jic(1:jic-1,i))) = 0;
+      I_phizsame = abs(test_phiz) < 2*pi/180; % EE-Drehung darf um 2 Grad anders sein
       % Prüfe, ob sich die Konfiguration hinsichtlich der Positionen unter-
       % scheidet (z.B. Ellenbogen-Wechsel) oder ob es nur geänderte Winkel sind
-      test_JP_vs_all_prev = repmat(JPE(1,:), jic-1, 1) - JP_jic(1:jic-1,:);
+      test_JP_vs_all_prev = repmat(JPE(i,:), jic-1, 1) - ...
+        reshape(squeeze(JP_jic(i,:,1:jic-1)), size(JPE,2), jic-1)';
       % Werte Abweichung relativ zur Länge der kinematischen Kette aus
-      % Abweichung eines Gelenkpunktes um 1% der Beinkettenlänge wird noch als gleich gewertet
-      I_JPfail = all(abs(test_JP_vs_all_prev)/Lchain < 1e-2,2);
+      % Abweichung eines Gelenkpunktes um 3% der Beinkettenlänge wird noch
+      % als gleich gewertet. Sonst zu viele Lösungen.
+      I_JPfail = all(abs(test_JP_vs_all_prev)/Lchain < 3e-2,2); % Jede Zeile entspricht einem vorherigen Anfangswert jic
       % Erkenne eine andere Gelenkposition nur an, wenn die Plattformdrehung 
       % ungefähr gleich bleibt. Sonst teilweise große EE-Änderung bei kleiner Gelenkpositionsänderung
-      if any(I_JPfail & I_phizsame)
-        fval_jic(jic) = Inf; % damit jic-Iteration nicht weiter gemacht wird und doppelte Konfiguration nicht in Liste aufgenommen wird.
-        constrvioltext_jic{jic} = sprintf('Erste Gelenkpunkte identisch zu vorherigem Versuch');
-        break; % Ein ähnliches IK-Ergebnis für den ersten Eckpunkt gibt es schon. Nicht weiter rechnen.
+      I_findp = find(I_JPfail & I_phizsame,1,'first');
+      if ~isempty(I_findp)
+        if i == 1
+          fval_jic(jic) = Inf; % damit jic-Iteration nicht weiter gemacht wird und doppelte Konfiguration nicht in Liste aufgenommen wird.
+          constrvioltext_jic{jic} = sprintf('Erste Gelenkpunkte identisch zu vorherigem Versuch %d', I_findp);
+          break; % Ein ähnliches IK-Ergebnis für den ersten Eckpunkt gibt es schon. Nicht weiter rechnen.
+        else % s.o.
+          JPE(i+1:end,:) = JP_jic(i+1:end,:,I_findp);
+          QE(i+1:end,:) = Q_jic(i+1:end,:,I_findp);
+          Phi_E(i+1:end,:) = 0; % Tue so, als ob es erfolgreich war
+          condJik(i+1:end,:) = NaN; % Sonst stehen noch die falschen Werte drin
+          condJ(i+1:end,:) = NaN; % Dadurch müssen die Jacobi-Matrizen unten leider neu berechnet werden.
+          break; % Direkt die Gesamtheit aller Punkte weiter unten prüfen
+        end
       end
     end
     %% Vorläufige Prüfung einzelner Abbruchkriterien für einzelne Eckpunkte
@@ -1109,7 +1138,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     continue;
   end
   Q_jic(:,:,jic) = QE; % hier belegen falls früher Abbruch in nächster Prüfung
-  JP_jic(jic,:) = JPE(1,:);
+  JP_jic(:,:,jic) = JPE;
   if fval_jic(jic) < inf
     % Bereits für einzelnen Punkt geprüft und Abbruchgrund gefunden.
     % Höre hier auf. Ansonsten müsste noch die Einträge in QE hinsichtlich
@@ -1147,21 +1176,26 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     continue;
   end
   %% Prüfe die Konditionszahl der Jacobi-Matrix (bezogen auf Antriebe)
+  % Berechne Jacobi-Matrix für PKM, falls notwendig
+  if any(Set.optimization.constraint_obj([4,7]))
+    if R.Type == 2
+      Jinvges = NaN(size(QE,1), R.NJ*sum(R.I_EE));
+      for ii = I_TrajCheck
+        % Bei Parallel-IK ist die Konditionszahl nicht bestimmt. Rechne Jacobi
+        % und Kondition neu aus
+        if isnan(condJ(ii)) || Set.optimization.constraint_obj(7)
+          [~, Jinv_ii] = R.jacobi_qa_x(QE(ii,:)', Traj_0.XE(ii,:)');
+          Jinvges(ii,:) = Jinv_ii(:);
+          condJ(ii) = cond(Jinv_ii);
+        end
+      end
+    end
+  end
   % Wenn die Kondition im Anfangswert oder einem Zwischenpunkt schlecht ist,
   % braucht anschließend keine Trajektorie mehr gerechnet werden
   if Set.optimization.constraint_obj(4) == 0
     n_condexc = 0; % Nebenbedingung für Jacobi ist nicht aktiv
   else
-    % Bei Parallel-IK ist die Konditionszahl nicht bestimmt. Rechne Jacobi
-    % und Kondition neu aus
-    if R.Type == 2
-      for ii = I_TrajCheck
-        if isnan(condJ(ii))
-          Jinv_ii = R.jacobi_qa_x(QE(ii,:)', Traj_0.XE(ii,:)');
-          condJ(ii) = cond(Jinv_ii);
-        end
-      end
-    end
     n_condexc = sum(condJ(:) > Set.optimization.constraint_obj(4));
   end
   n_condexc2 = sum(condJ(:) > Set.optimization.condition_limit_sing_act);
@@ -1183,11 +1217,6 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   %% Bestimme den Positionsfehler
   if Set.optimization.constraint_obj(7) > 0
     if R.Type == 2
-      Jinvges = NaN(size(QE,1), R.NJ*sum(R.I_EE));
-      for ii = I_TrajCheck
-        [~, Jinv_ii] = R.jacobi_qa_x(QE(ii,:)', Traj_0.XE(ii,:)');
-        Jinvges(ii,:) = Jinv_ii(:);
-      end
       Jinvges_check = Jinvges(I_TrajCheck,:);
     else
       Jinvges_check = []; % Platzhalter für serielle Roboter
@@ -1552,7 +1581,8 @@ else % Gebe alle gültigen Lösungen aus
     cds_log(-1, sprintf('[constraints] Doppelte Konfigurationen als Ergebnis. Darf nicht sein'));
   end
   % Prüfe, welche der IK-Konfigurationen andere Gelenk-Positionen zur Folge haben. Nur diese werden genommen.
-  [~,I,~] = unique(round(JP_jic(I_iO,:),5), 'rows', 'first');
+  [~,I,~] = unique(round( reshape(squeeze(JP_jic(1, :, I_iO)), ...
+    size(JP_jic,2), length(I_iO))' ,5), 'rows', 'first');
   % Reduziere die Ergebnisse. Damit werden IK-Konfigurationen verworfen,
   % die nur rechnerisch eine andere Koordinate haben, aber kein Umklappen
   % darstellen
@@ -1575,7 +1605,7 @@ else % Gebe alle gültigen Lösungen aus
     change_current_figure(2000);clf;
     for k = 1:length(I_iO)
       subplot(floor(ceil(sqrt(length(I_iO)))), ceil(sqrt(length(I_iO))), k);
-      view(3); axis auto; hold on; grid on;
+      view([0,90]); axis auto; hold on; grid on;
       plotmode = 1; % Strichzeichnung
       if R.Type == 0 % Seriell
         s_plot = struct( 'ks', [], 'straight', 1, 'mode', plotmode);
@@ -1585,11 +1615,12 @@ else % Gebe alle gültigen Lösungen aus
           'straight', 1, 'mode', plotmode);
         R.plot( Q0(k,:)', Traj_0.XE(1,:)', s_plot);
       end
-      title(sprintf('Konfiguration %d (phiz=%1.1f°)', k, 180/pi*X0(i,6)));
-    end
+      title(sprintf('Konfiguration %d (phiz=%1.1f°)', k, 180/pi*X0(k,6)));
+    end % for k
   end
 end
-Stats_constraints = struct('bestcolldist', bestcolldist_jic, 'bestinstspcdist', bestinstspcdist_jic);
+Stats_constraints = struct('bestcolldist', bestcolldist_jic, ...
+  'bestinstspcdist', bestinstspcdist_jic, 'fval_jic', fval_jic);
 % Änderungen an Roboter-Klasse rückgängig machen. Zurücksetzen der
 % Aufgaben-FG funktioniert oben nur, wenn IK auch erfolreich ist.
 if strcmp(Set.optimization.objective_ik, 'constant') && Structure.task_red
