@@ -50,6 +50,13 @@ if ~isfield(Set.optimization,'max_velocity_passive_spherical')
   Set.optimization.max_velocity_passive_spherical = ...
     Set.optimization.max_velocity_passive_revolute;
 end
+if length(Set.optimization.constraint_obj) < ...
+  length(Set_defaults.optimization.constraint_obj)
+  Set.optimization.constraint_obj = [Set.optimization.constraint_obj; ...
+    zeros(length(Set_defaults.optimization.constraint_obj)-...
+          length(Set.optimization.constraint_obj))];
+  fprintf('Fehlende Einträge in constraint_obj wurden auf Null gesetzt\n');
+end
 %% Automatische Übersetzung anderer Einstellungen
 % Gehe alle Felder der Einstellungen durch und ergänze fehlende
 mainfields = {'optimization', 'structures', 'task', 'general'};
