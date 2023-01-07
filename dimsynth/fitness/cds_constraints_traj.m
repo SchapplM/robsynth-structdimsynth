@@ -22,8 +22,9 @@
 %   Strafterm in der Fitnessfunktion bei Verletzung der Nebenbedingungen
 %   Werte:
 %   1e3: Keine Verletzung der Nebenbedingungen. Alles i.O.
-%   1.0e3...1.1e3: Abbruch aufgrund Überschreitung Konditionszahl-Grenze
-%   1.1e3...2e3: Arbeitsraum-Hindernis-Kollision in Trajektorie
+%   1.0e3...1.1e3: Abbruch aufgrund Überschreitung Positionsfehler-Grenze
+%   1.1e3...1.2e3: Abbruch aufgrund Überschreitung Konditionszahl-Grenze
+%   1.2e3...2e3: Arbeitsraum-Hindernis-Kollision in Trajektorie
 %   2e3...3e3: Bauraumverletzung in Trajektorie
 %   3e3...4e3: Selbstkollision in Trajektorie
 %   4e3...5e3: Konfiguration springt
@@ -126,6 +127,7 @@ s = struct( ...
   'normalize', false, ... 
   ... % Einhaltung der Gelenkwinkelgrenzen nicht über NR-Bewegung erzwingen
   'enforce_qlim', false, ...
+  'wn', zeros(R.idx_ik_length.wntraj,1), ... % Gewichtung Nullraumoptimierung: Zusammstellung je nach Aufgabe
   'Phit_tol', 1e-10, 'Phir_tol', 1e-10); % feine Toleranz
 % Interpolations-Stützstellen für relative Maximalgeschwindigkeit der
 % Nullraumbewegung. Dadurch echte Rast-zu-Rast-Bewegung auch im Nullraum.
@@ -155,6 +157,10 @@ s.abort_thresh_h(R.idx_iktraj_hn.xlim_hyp) = NaN; % nicht für EE-Drehung (falls
 if Set.optimization.constraint_obj(4) ~= 0
   s.abort_thresh_h(R.idx_iktraj_hn.jac_cond) = Set.optimization.constraint_obj(4);
 end
+% Das gleiche für den Positionsfehler
+if Set.optimization.constraint_obj(7) ~= 0
+  s.abort_thresh_h(R.idx_iktraj_hn.poserr_ee) = Set.optimization.constraint_obj(7);
+end
 % Benutze eine Singularitätsvermeidung, die nur in der Nähe von
 % Singularitäten aktiv ist. Wenn die Kondition wesentlich schlechter wird,
 % wird der Roboter am Ende sowieso verworfen. Also nicht so schlimm, falls
@@ -179,8 +185,6 @@ if strcmp(Set.optimization.objective_ik, 'ikjac_cond')
 end
 s.cond_thresh_ikjac = cond_thresh_ikjac;
 s.cond_thresh_jac = cond_thresh_jac; % Für Seriell und PKM
-% Gewichtung Nullraumoptimierung: Zusammstellung je nach Aufgabe
-s.wn = zeros(R.idx_ik_length.wntraj,1);
 if R.Type == 2 % PKM
   s.debug = Set.general.debug_calc;
 end
@@ -196,6 +200,15 @@ if strcmp(Set.optimization.objective_ik, 'default') || ...
   % Jacobi (analytischbei PKM, geometrisch bei seriell).
   s.wn(R.idx_iktraj_wnP.jac_cond) = 1; % P-Anteil Konditionszahl (Jacobi)
   s.wn(R.idx_iktraj_wnD.jac_cond) = 0.1; % D-Anteil Konditionszahl (Jacobi)
+end
+if strcmp(Set.optimization.objective_ik, 'poserr_ee')
+  % Konditionszahl weniger aktiv (würde Positionsfehler übersteuern)
+  s.cond_thresh_jac = min(Set.optimization.constraint_obj(4)*2/3, 100*s.cond_thresh_jac);
+  s.wn(R.idx_iktraj_wnP.poserr_ee) = 1; % P-Anteil Positionsfehler
+  s.wn(R.idx_iktraj_wnD.poserr_ee) = 0.2; % D-Anteil Positionsfehler
+  if isnan(s.abort_thresh_h(R.idx_iktraj_hn.poserr_ee)) % Evtl. ist strengere Grenze oben gesetzt
+    s.abort_thresh_h(R.idx_iktraj_hn.poserr_ee) = inf; % sonst wird das Kriterium in DP nicht berechnet
+  end
 end
 % Versuche die Gelenkwinkelgrenzen einzuhalten, wenn explizit gefordert
 if Set.optimization.fix_joint_limits
@@ -255,19 +268,20 @@ if Structure.task_red && Set.general.debug_taskred_perfmap
     if dbg_load_perfmap && exist(matfile_pm, 'file') % normaler Modus: Hier berechnen
     load(matfile_pm);
     else
-    [H_all, ~, s_ref, s_tref, phiz_range] = R.perfmap_taskred_ik( ...
-      Traj_0.X(1:nt_red,:), Traj_0.IE(Traj_0.IE~=0), struct('settings_ik', s, ...
+    set_perfmap = struct('settings_ik', s, ...
       'q0', q, 'I_EE_red', Set.task.DoF, 'map_phistart', x0(6), ...
       ... % nur grobe Diskretisierung für die Karte (geht schneller)
       'mapres_thresh_eepos', 10e-3, 'mapres_thresh_eerot', 5*pi/180, ...
       'mapres_thresh_pathcoordres', 0.2, 'mapres_redcoord_dist_deg', 5, ...
-      'maplim_phi', perfmap_range_phiz));
+      'maplim_phi', perfmap_range_phiz);
+    [H_all, ~, s_ref, s_tref, phiz_range] = R.perfmap_taskred_ik( ...
+      Traj_0.X(1:nt_red,:), Traj_0.IE(Traj_0.IE~=0), set_perfmap);
     cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: Daten für Diagnose-Bild der Aufgabenredundanz ', ...
       'erstellt. Auflösung: %dx%d. Dauer: %1.0fs'], Structure.config_index, Structure.config_number, length(s_ref), ...
       length(phiz_range), toc(t1)));
     % Speichere die Redundanzkarte (da die Berechnung recht lange dauert)
     save(matfile_pm, 'Structure', 'H_all', 's_ref', 's_tref', ...
-      'phiz_range', 'i_ar', 'q', 'nt_red', 'x0');
+      'phiz_range', 'i_ar', 'q', 'nt_red', 'x0', 'set_perfmap');
     end
   end
   if i_ar > 1 % Redundanzkarte erst zeichnen, wenn Trajektorie zur Verfügung steht
@@ -285,8 +299,9 @@ if Structure.task_red && Set.general.debug_taskred_perfmap
       for ls = [false, true] % Skalierung des Bildes: Linear und Logarithmisch
         % Wähle Kriterien, die als Nebenbedigung gegen unendlich gehen.
         I_nbkrit = [R.idx_ikpos_wn.qlim_hyp, R.idx_ikpos_wn.ikjac_cond, ...
-                    R.idx_ikpos_wn.jac_cond, R.idx_ikpos_wn.coll_hyp, ...
-                    R.idx_ikpos_wn.instspc_hyp, R.idx_ikpos_wn.xlim_hyp];
+                    R.idx_ikpos_wn.jac_cond, R.idx_ikpos_wn.poserr_ee, ...
+                    R.idx_ikpos_wn.coll_hyp, R.idx_ikpos_wn.instspc_hyp, ...
+                    R.idx_ikpos_wn.xlim_hyp];
         if ls && ~any(wn_test(I_nbkrit))
           continue % kein hyperbolisches Kriterium. Log-Skalierung nicht sinnvoll.
         end
@@ -383,6 +398,16 @@ if i_ar == 2 && any(fval_ar <= 1e3)
     s.wn(R.idx_iktraj_wnP.qlim_hyp) = 1; % P-Anteil Grenzvermeidung (hyperbolisch)
     s.wn(R.idx_iktraj_wnD.qlim_hyp) = 0.2; % D-Anteil Grenzvermeidung (hyperbolisch)
     s.optimcrit_limits_hyp_deact = 0.4; % fast immer aktiv (bis zu 30% zu den Grenzen hin)
+  end
+  if any(strcmp(Set.optimization.objective, 'positionerror'))
+    % Höheren Schwellwert für Aktivierung der Konditionszahl
+    s.cond_thresh_jac = min(Set.optimization.constraint_obj(4)*3/4, 100*s.cond_thresh_jac);
+    % Wenn Positionsfehler ein Zielkriterium ist, optimiere diese hier permanent
+    s.wn(R.idx_iktraj_wnP.poserr_ee) = 1; % P-Anteil Positionsfehler
+    s.wn(R.idx_iktraj_wnD.poserr_ee) = 0.2; % D-Anteil Positionsfehler
+    if isnan(s.abort_thresh_h(R.idx_iktraj_hn.poserr_ee))
+      s.abort_thresh_h(R.idx_iktraj_hn.poserr_ee) = inf; % sonst wird das Kriterium in DP nicht berechnet
+    end
   end
 end
 if i_ar == 2 && (any(fval_ar > 3e3 & fval_ar < 4e3) || ... % Ausgabewert für Kollision
@@ -762,6 +787,18 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
   % bereits durch die Variablen-Grenzen sichergestellt.
   s_dp.wn(R.idx_ikpos_wn.xlim_par) = 0;
   s_dp.wn(R.idx_ikpos_wn.xlim_hyp) = 0;
+  % Aktiviere Zielfunktionen direkt in der ersten Iteration, da sonst dort
+  % nur die Konditionszahl optimiert werden müsste. 
+  % TODO: Globale Implementierung mit besserer Abgrenzung GradProj./DP
+  if any(strcmp(Set.optimization.objective, 'positionerror'))
+    % Höheren Schwellwert für Aktivierung der Konditionszahl
+    s_dp.settings_ik.cond_thresh_jac = min(Set.optimization.constraint_obj(4)*3/4, 100*s_dp.settings_ik.cond_thresh_jac);
+    % Wenn Positionsfehler ein Zielkriterium ist, optimiere diese hier permanent
+    s_dp.wn(R.idx_ikpos_wn.poserr_ee) = 1; % P-Anteil Positionsfehler
+    if isnan(s_dp.settings_ik.abort_thresh_h(R.idx_iktraj_hn.poserr_ee))
+      s_dp.settings_ik.abort_thresh_h(R.idx_iktraj_hn.poserr_ee) = inf; % sonst wird das Kriterium in DP nicht berechnet
+    end
+  end
   if dbg_dynprog_log, s_dp.verbose = 1; end
   if dbg_dynprog_fig, s_dp.verbose = 2; end
   if Set.general.debug_dynprog_files
@@ -1771,9 +1808,9 @@ end
 %% Arbeitsraum-Hindernis-Kollisionsprüfung für Trajektorie
 if ~isempty(Set.task.obstacles.type)
   [fval_obstcoll_traj, coll_obst_traj, f_constr_obstcoll_traj] = cds_constr_collisions_ws( ...
-    R, Traj_0.X, Set, Structure, JP, Q, [1.1e3;2e3]);
+    R, Traj_0.X, Set, Structure, JP, Q, [1.2e3;2e3]);
   if fval_obstcoll_traj > 0
-    fval_all(i_m, i_ar)  = fval_obstcoll_traj; % Normierung auf 1.1e3 bis 2e3 -> bereits in Funktion
+    fval_all(i_m, i_ar)  = fval_obstcoll_traj; % Normierung auf 1.2e3 bis 2e3 -> bereits in Funktion
     constrvioltext_m{i_m} = sprintf(['Arbeitsraum-Kollision in %d/%d Traj.-Punkten. ', ...
       'Schlimmstenfalls %1.1f mm in Kollision.'], sum(any(coll_obst_traj,2)), ...
       size(coll_obst_traj,1), f_constr_obstcoll_traj);
@@ -1788,10 +1825,21 @@ end
 if Stats.errorcode == 3 && Stats.h(Stats_iter_h,1+R.idx_iktraj_hn.jac_cond) ...
       >= s.abort_thresh_h(R.idx_iktraj_hn.jac_cond)
   Failratio = 1-Stats.iter/length(Traj_0.t);
-  fval_all(i_m, i_ar) = 1e3 * (1+0.1*Failratio); % 1.0e3 bis 1.1e3
+  fval_all(i_m, i_ar) = 1e3 * (1.1+0.1*Failratio); % 1.1e3 bis 1.2e3
   constrvioltext_m{i_m} = sprintf(['Vorzeitiger Abbruch aufgrund von Über', ...
     'schreitung der Konditionszahl-Grenze %1.1e in Traj.-Iter. %d.'], ...
     s.abort_thresh_h(R.idx_iktraj_hn.jac_cond), Stats_iter_h);
+  continue % damit nicht die Fehlermeldung hierunter ausgelöst wird
+end
+% Das gleiche für Positionsfehler
+if Stats.errorcode == 3 && Stats.h(Stats_iter_h,1+R.idx_iktraj_hn.poserr_ee) ...
+      >= s.abort_thresh_h(R.idx_iktraj_hn.poserr_ee)
+  Failratio = 1-Stats.iter/length(Traj_0.t);
+  fval_all(i_m, i_ar) = 1e3 * (1+0.1*Failratio); % 1.0e3 bis 1.1e3
+  constrvioltext_m{i_m} = sprintf(['Vorzeitiger Abbruch aufgrund von Über', ...
+    'schreitung der Positionsfehler-Grenze %1.1e in Traj.-Iter. %d. Wert: %1.1e'], ...
+    s.abort_thresh_h(R.idx_iktraj_hn.poserr_ee), Stats_iter_h, ...
+    Stats.h(Stats_iter_h,1+R.idx_iktraj_hn.poserr_ee));
   continue % damit nicht die Fehlermeldung hierunter ausgelöst wird
 end
 %% Fertig. Bis hier wurden alle Nebenbedingungen geprüft.

@@ -105,8 +105,10 @@ for i = 1:length(Structures)
   elseif f <= 1e4, fval_text = 'NB-Verl. Zielf.';
   elseif f <= 1e5, fval_text = 'NB-Verl. Zielf. EO';
   elseif f <= 1e6, fval_text = 'Festigkeit Segmente';
+  elseif f <= 5e6, fval_text = 'Kinematik-NB (Pos.-Fehler)';
   elseif f <= 1e7, fval_text = 'Kinematik-NB (Kond.)';
-  elseif f <= 1e4*1.1e3, fval_text = 'Kinematik-NB (Kond.,traj-constr)'; % ab hier aus cds_constraints_traj.m
+  elseif f <= 1e4*1.1e3, fval_text = 'Kinematik-NB (PosErr.,traj-constr)'; % ab hier aus cds_constraints_traj.m
+  elseif f <= 1e4*1.2e3, fval_text = 'Kinematik-NB (Kond.,traj-constr)';
   elseif f <= 1e4*2e3, fval_text = 'AR-Hindernis Traj.';
   elseif f <= 1e4*3e3, fval_text = 'Bauraum-verl. Traj.';
   elseif f <= 1e4*4e3, fval_text = 'Selbstkoll. Traj.';
@@ -134,6 +136,7 @@ for i = 1:length(Structures)
   elseif f <= 1e4*5.5e5, fval_text = 'Plattform-Rotation-Grenze Eckpkt.';
   elseif f <= 1e4*6e5, fval_text = 'Gel.-Pos.-Grenze Eckpkt.';
   elseif f <= 1e4*7e5, fval_text = 'Gel.-Pos.-Spannweite Eckpkt.';
+  elseif f <= 1e4*7.5e5, fval_text = 'Positionsfehler-Grenze Eckpkt.';
   elseif f <= 1e4*8e5, fval_text = 'Jacobi-Schwellwert Eckpkt.';
   elseif f <= 1e4*9e5, fval_text = 'Jacobi-Singularität Eckpkt.';
   elseif f <= 1e4*1e6, fval_text = 'Seriell-Singularität Eckpkt.';
