@@ -645,11 +645,13 @@ if i_ar == 3
     end
   end
   if fval_ar(1) < fval_ar(2)
-    cds_log(3, sprintf(['[constraints_traj] Konfig %d/%d: Ergebnis der ', ...
-      'Traj.-IK hat sich nach Nullraumbewegung verschlechtert: %1.3e -> ', ...
-      '%1.3e ("%s" -> "%s"), delta: %1.3e. %s'], Structure.config_index, ...
-      Structure.config_number, fval_ar(1), fval_ar(2), constrvioltext_alt, ...
-      constrvioltext, fval_ar(2)-fval_ar(1), debug_str));
+    if ~isinf(fval_ar(2))
+      cds_log(3, sprintf(['[constraints_traj] Konfig %d/%d: Ergebnis der ', ...
+        'Traj.-IK hat sich nach Nullraumbewegung verschlechtert: %1.3e -> ', ...
+        '%1.3e ("%s" -> "%s"), delta: %1.3e. %s'], Structure.config_index, ...
+        Structure.config_number, fval_ar(1), fval_ar(2), constrvioltext_alt, ...
+        constrvioltext, fval_ar(2)-fval_ar(1), debug_str));
+    end
     % Anmerkung: Das muss nicht unbedingt ein Fehler sein. Das Verletzen
     % der Geschwindigkeitsgrenzen kann eine Konsequenz sein. Die Hinzunahme
     % eines vorher nicht betrachteten Kriteriums kann eine Verschlechterung
@@ -660,7 +662,11 @@ if i_ar == 3
     Jinv_ges = Jinv_ges_alt;
     JP = JP_alt;
     fval = fval_ar(1);
-    constrvioltext = [constrvioltext_alt, ' Erneute IK-Berechnung ohne Verbesserung'];
+    if ~isinf(fval_ar(2))
+      constrvioltext = [constrvioltext_alt, ' Erneute IK-Berechnung ohne Verbesserung'];
+    else
+      constrvioltext = [constrvioltext_alt, ' Nur einmal berechnet.'];
+    end
     % Trage wieder die alten Werte in die Trajektorien-Variable ein
     Traj_0.X(:,6) = X2phizTraj_alt(:,1);
     Traj_0.XD(:,6) = X2phizTraj_alt(:,2);
@@ -733,7 +739,8 @@ wn_all(i_ar,:) = s.wn(:)'; %#ok<SAGROW>
 %% Dynamische Programmierung für optimale Trajektorie bei Aufgabenredundanz
 if Structure.task_red && Set.general.taskred_dynprog && ...
     (i_ar == 1 || ...% nur einmal die DP berechnen (NB werden im ersten Lauf schon geprüft)
-     i_ar == 2 && fval_all(2, 1) > 1e3) % beim ersten Mal kein Erfolg. Mache nochmal mit feinerer Diskretisierung
+     i_ar == 2 && fval_all(2, 1) > 1e3) && ... % beim ersten Mal kein Erfolg. Mache nochmal mit feinerer Diskretisierung
+     Set.general.taskred_dynprog_numstates(i_ar) > 0 % Dadurch Berechnung einer Iteration unterdrückbar
   if Set.general.matfile_verbosity > 2
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
       sprintf('cds_constraints_traj_before_dynprog_i_ar%d.mat', i_ar)));
@@ -909,6 +916,12 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     % An Stützstellen Toleranzband so breit wie DP-Diskretisierung
     s_ikdp.xlim6_interp(:,2*i+1) = [Traj_0.t(Traj_0.IE(i+1));-delta_phi/2 + 1e-3; delta_phi/2 - 1e-3];
   end
+elseif Set.general.taskred_dynprog_numstates(i_ar) == 0 && i_ar == 2
+  % Platzhalter-Variablen für Programmfluss sonst scheint die Berechnung
+  % doppelt zu sein
+  Stats_dp.iter = 0;
+  Stats_dp.errorcode=99;
+  Q_dp = q'; QD_dp = zeros(size(Q_dp)); QDD_dp = zeros(size(Q_dp));
 end
 % Drei verschiedene Berechnungen für die Trajektorie testen: ikloop
 % (1) Gradientenprojektion (mit Vorgabe aus DynProg)
@@ -1041,6 +1054,11 @@ if Stats.iter == 0 && ...
     'Traj.-Iteration Abbruch, obwohl Einzelpunkt-IK erfolgreich war. ', ...
     'Vermutlich Logik-Fehler. Invkin-Fehlercode %d'], Structure.config_index, ...
     Structure.config_number, Stats.errorcode));
+end
+if Stats.errorcode==99 % Falls die DP-Iteration übersprungen wurde
+  fval_all(i_m, i_ar) = inf;
+  constrvioltext_m{i_m} = 'Nicht berechnet';
+  continue
 end
 % Die Traj.-IK bricht auch bei Verletzung von Nebenbedingungen ab und nicht
 % nur bei ungültiger Konfiguration. Prüfe hier nur den letzteren Fall.

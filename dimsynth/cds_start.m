@@ -242,6 +242,9 @@ if length(Set.optimization.objective) == 1 && ... % ist immer einkriteriell
     any(strcmp(Set.optimization.objective, {'valid_act', 'valid_kin'}))
   Set.optimization.condition_limit_sing = inf; % Überschreibe Standardwert
 end
+assert(~all(Set.general.taskred_dynprog_numstates == 0), ['Es dürfen nicht', ...
+  'alle Einträge in taskred_dynprog_numstates Null sein']);
+
 % Einige eher kosmetische Einstellungen sollten bei Struktursynthese
 % deaktiviert bleiben
 if length(Set.optimization.objective) == 1 && ... % ist immer einkriteriell
