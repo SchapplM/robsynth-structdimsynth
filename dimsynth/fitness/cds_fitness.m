@@ -123,6 +123,8 @@ end
 if t_end_plan < now()
   abort_fitnesscalc = true;
 end
+% Generations- und Individuumsnummer der Optimierung bestimmen
+[~, i_gen, i_ind] = cds_save_particle_details([],[],0,0,NaN,NaN,NaN,NaN,'output');
 %% Parameter prüfen
 if p(1) == 0
   error('Roboterskalierung kann nicht Null werden');
@@ -141,7 +143,11 @@ end
 Traj_0_E = cds_transform_traj(R, struct('XE', Traj_W.XE));
 
 %% Nebenbedingungen prüfen (für Eckpunkte)
+t0 = tic();
 [fval_constr,QE_iIKC, Q0, constrvioltext, Stats_constraints] = cds_constraints(R, Traj_0_E, Set, Structure);
+cds_log(2,sprintf(['[fitness] G=%d;I=%d. Nebenbedingungen für Einzelpunkte ', ...
+  'in %1.2fs geprüft. %d IK-Konfigurationen gefunden. fval_constr=%1.3e. %s'],...
+  i_gen, i_ind, toc(t0), size(Q0,1), fval_constr, constrvioltext));
 % Füge weitere Anfangswerte für die Trajektorien-IK hinzu. Diese werden
 % zusätzlich vorgegeben (bspw. aus vorherigem Ergebnis, das reproduziert
 % werden muss). Wird genutzt, falls aus numerischen Gründen die Einzelpunkt-
@@ -249,7 +255,6 @@ if fval_constr > 1000 % Nebenbedingungen verletzt.
   % Speichere Gelenk-Grenzen. Damit sehen eine hieraus erstellte 3D-Bilder
   % besser aus, weil die Schubgelenk-Führungsschienen ungefähr stimmen.
   update_joint_limits(R, Set, QE_iIKC(:,:,1), true, 0);
-  [~, i_gen, i_ind] = cds_save_particle_details([],[],0,0,NaN,NaN,NaN,NaN,'output');
   cds_log(2,sprintf(['[fitness] G=%d;I=%d. Fitness-Evaluation in %1.2fs. ', ...
     'fval=%1.3e. %s'],i_gen, i_ind, toc(t1), fval(1), constrvioltext));
   cds_fitness_debug_plot_robot(R, Q0(1,:)', Traj_0_E, Traj_W, Set, Structure, p, mean(fval), debug_info);
@@ -307,8 +312,12 @@ for iIKC = 1:size(Q0,1)
   if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
     Structure.config_index = iIKC;
     Structure.config_number = size(Q0,1);
-    [fval_trajconstr,Q,QD,QDD,Jinv_ges,JP,constrvioltext_IKC{iIKC}, Traj_0_corr] = cds_constraints_traj( ...
-      R, Traj_0, Q0(iIKC,:)', Set, Structure, Stats_constraints);
+    t0 = tic();
+    [fval_trajconstr,Q,QD,QDD,Jinv_ges,JP,constrvioltext_IKC{iIKC}, Traj_0_corr] = ...
+      cds_constraints_traj(R, Traj_0, Q0(iIKC,:)', Set, Structure, Stats_constraints);
+    cds_log(2,sprintf(['[fitness] G=%d;I=%d (Konfig %d/%d). Nebenbedingungen ', ...
+      'für Trajektorie in %1.2fs geprüft. fval_constr=%1.3e. %s'], i_gen, ...
+      i_ind, iIKC, size(Q0,1), toc(t0), fval_trajconstr, constrvioltext_IKC{iIKC}));
     % NB-Verletzung in Traj.-IK wird in Ausgabe mit Werten von 1e3 aufwärts
     % angegeben. Umwandlung in Werte von 1e7 aufwärts.
     % Ursache: Nachträgliches Einfügen von weiteren Nebenbedingungen.
@@ -979,7 +988,7 @@ if Structure.desopt_prismaticoffset
   end
 end
 cds_fitness_debug_plot_robot(R, Q_IKC(1,:, iIKCbest)', Traj_0, Traj_W, Set, Structure, p, mean(fval), debug_info);
-[~, i_gen, i_ind] = cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, desopt_pval);
+cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, desopt_pval);
 if all(fval<1e3)
   if length(fval)>1, fvalstr=['[',disp_array(fval', '%1.3e'),']'];
   else,              fvalstr=sprintf('%1.3e', fval); end
