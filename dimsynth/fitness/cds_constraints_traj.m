@@ -807,6 +807,10 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
   % Aktiviere Zielfunktionen direkt in der ersten Iteration, da sonst dort
   % nur die Konditionszahl optimiert werden müsste. 
   % TODO: Globale Implementierung mit besserer Abgrenzung GradProj./DP
+  if strcmp(Set.optimization.objective_ik, 'coll_par') || ...
+      all(s_dp.wn==0) && any(strcmp(Set.optimization.objective, 'colldist'))
+    s_dp.wn(R.idx_ikpos_wn.coll_par) = 1;
+  end
   if any(strcmp(Set.optimization.objective, 'positionerror')) || ...
       all(s_dp.wn==0) && any(strcmp(Set.optimization.objective, 'poserr_ee'))
     % Höheren Schwellwert für Aktivierung der Konditionszahl
@@ -816,10 +820,6 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     if isnan(s_dp.settings_ik.abort_thresh_h(R.idx_iktraj_hn.poserr_ee))
       s_dp.settings_ik.abort_thresh_h(R.idx_iktraj_hn.poserr_ee) = inf; % sonst wird das Kriterium in DP nicht berechnet
     end
-  end
-  if strcmp(Set.optimization.objective_ik, 'coll_par') || ...
-      all(s_dp.wn==0) && any(strcmp(Set.optimization.objective, 'colldist'))
-    s_dp.wn(R.idx_ikpos_wn.coll_par) = 1;
   end
   if all(s_dp.wn == 0) % Für Stufenoptimierung muss es ein Ziel geben.
     cds_log(2, sprintf(['[constraints_traj] DP hat keine Nullraum', ...
