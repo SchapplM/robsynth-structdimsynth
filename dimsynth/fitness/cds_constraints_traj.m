@@ -804,6 +804,9 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
   % bereits durch die Variablen-Grenzen (phi_min/phi_max) sichergestellt.
   s_dp.wn(R.idx_ikpos_wn.xlim_par) = 0;
   s_dp.wn(R.idx_ikpos_wn.xlim_hyp) = 0;
+  if all(s_dp.wn == 0) % Für Stufenoptimierung muss es ein Ziel geben.
+    s_dp.stageopt_posik = false; % TODO: Warum gibt es keins?
+  end
   % Aktiviere Zielfunktionen direkt in der ersten Iteration, da sonst dort
   % nur die Konditionszahl optimiert werden müsste. 
   % TODO: Globale Implementierung mit besserer Abgrenzung GradProj./DP
@@ -1046,6 +1049,11 @@ if Structure.task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_
 end
 
 %% Prüfe Erfolg der Trajektorien-IK
+if Stats.errorcode==99 % Falls die DP-Iteration übersprungen wurde
+  fval_all(i_m, i_ar) = inf;
+  constrvioltext_m{i_m} = 'Nicht berechnet';
+  continue
+end
 if Stats.iter == 0 && ...
     ~(all(Structure.q0_traj == q)) % wenn der Startwert erzwungen wurde, muss die Einzelpunkt-IK nicht erfolgreich dafür gewesen sein
   % TODO: Mögliche Ursachen: Andere Schwellwerte bei Kollision und Abbruch
@@ -1054,11 +1062,6 @@ if Stats.iter == 0 && ...
     'Traj.-Iteration Abbruch, obwohl Einzelpunkt-IK erfolgreich war. ', ...
     'Vermutlich Logik-Fehler. Invkin-Fehlercode %d'], Structure.config_index, ...
     Structure.config_number, Stats.errorcode));
-end
-if Stats.errorcode==99 % Falls die DP-Iteration übersprungen wurde
-  fval_all(i_m, i_ar) = inf;
-  constrvioltext_m{i_m} = 'Nicht berechnet';
-  continue
 end
 % Die Traj.-IK bricht auch bei Verletzung von Nebenbedingungen ab und nicht
 % nur bei ungültiger Konfiguration. Prüfe hier nur den letzteren Fall.
