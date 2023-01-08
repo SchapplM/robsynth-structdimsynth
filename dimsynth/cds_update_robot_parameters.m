@@ -300,8 +300,16 @@ if R_neu.Type == 2 && any(R.DesPar.platform_method == [4 5 6 8 9])
       % Offset-Parameter (Winkel) platform_morph_axoffset für P8. Oder
       % Winkel der konischen Anordnung (P9). Direkte Übernahme.
       p_plfpar(2) = p(Structure.vartypes == 9);
-    else
-      % Paar-Abstand-Parameter platform_morph_pairdist. Skalierung mit Plattform-Größe
+    else % Paar-Abstand-Parameter platform_morph_pairdist. Skalierung mit Plattform-Größe
+      if all(~isnan(Set.optimization.platform_size_limits)) && ...
+          Set.optimization.platform_size_limits(1)==Set.optimization.platform_size_limits(2)
+        % Sonderfall konstanter vorgegebener effektiver Plattform-Radius:
+        % Der Radius des Paar-Mittelpunkts muss so korrigiert werden, dass
+        % der Gesamt-Radius passt.
+        p_plfpar(1) = Set.optimization.platform_size_limits(1) / ...
+          sqrt(1+(p(Structure.vartypes == 9)/2)^2);
+        % Probe (nach nächster Zeile): effektiver Radius: sqrt(p_plfpar(1)^2 + (p_plfpar(2)/2)^2)
+      end
       p_plfpar(2) = p(Structure.vartypes == 9)*p_plfpar(1);
     end
     p_phys(Structure.vartypes == 9) = p_plfpar(2);

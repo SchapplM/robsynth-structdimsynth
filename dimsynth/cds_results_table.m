@@ -143,6 +143,7 @@ for i = 1:length(Structures)
   elseif f <= 1e4*1e7, fval_text = 'Eckpkt.-IK Fehler';
   elseif f <= 1e4*1e8, fval_text = 'Geom. Plausib.-Fehler 2.';
   elseif f <= 1e4*1e9, fval_text = 'Geom. Plausib.-Fehler 1.';
+  elseif f <= 1e14,    fval_text = 'Parameter unplausibel';
   else,                fval_text = 'Nicht definierter Fall';  
   end
   

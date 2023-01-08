@@ -812,6 +812,19 @@ if Structure.Type == 2 && Set.optimization.platform_morphology
     vartypes = [vartypes; 9];
     varlim = [varlim; [0.2,1.7321*2]]; % Gelenkpaarabstand. Relativ zu Plattform-Radius. Grenzfall, siehe oben für Gestell.
     varnames = {varnames{:}, 'platform_morph_pairdist'}; %#ok<CCAT>
+    % Korrigiere den maximalen Radius der Plattform. Beim kleinstmöglichen
+    % Paarabstand erhöht sich bereits der effektive Radius (hälfte von 0.2).
+    if all(~isnan(Set.optimization.platform_size_limits)) && ...
+        any(strcmp(varnames,'platform radius')) % Radius muss optimiert werden
+      % Mache die obere Grenze für den Radius-Parameter entsprechend etwas kleiner
+      varlim(strcmp(varnames,'platform radius'),2) = 1/sqrt(1+.1^2) * ...
+        Set.optimization.platform_size_limits(2);
+      % Verkleinere auch die untere Grenze des Radius-Parameters, damit mit
+      % dem minimalen Paarabstand der gewünschte minimale Plattform-Radius
+      % erreicht wird.
+      varlim(strcmp(varnames,'platform radius'),1) = 1/sqrt(1+.1^2) * ...
+        Set.optimization.platform_size_limits(1);
+    end
   elseif R.DesPar.platform_method == 8
     nvars = nvars + 1;
     vartypes = [vartypes; 9];
