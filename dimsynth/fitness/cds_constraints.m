@@ -164,6 +164,7 @@ if R.Type == 0 % Seriell
   QE = NaN(size(Traj_0.XE,1), R.NQJ);
   % Variable zum Speichern der Gelenkpositionen (für Kollisionserkennung)
   JPE = NaN(size(Traj_0.XE,1), (R.NL+1)*3);
+  Jinv_E = []; % Platzhalter, nicht benötigt
 else % PKM
   nPhi = R.I2constr_red(end);
   Phi_E = NaN(size(Traj_0.XE,1), nPhi);
@@ -173,6 +174,7 @@ else % PKM
   % Dadurch wesentlich schnellerer Durchlauf der PKM-IK
   s_par = struct('abort_firstlegerror', true);
   JPE = NaN(size(Traj_0.XE,1), (R.NL+R.NLEG+1)*3);
+  Jinv_E = NaN(size(QE,1), R.NJ*sum(R.I_EE));
 end
 if R.Type == 2 % zusätzliche IK-Konfigurationen für PKM
   n_ikcomb = 2^R.NLEG; % Annahme zwei Umklapp-Lagen für IK jeder Beinkette
@@ -258,7 +260,7 @@ Q0_lhs = repmat(qlim_norm(:,1), 1, n_jic) + ...
   rand(R.NJ, n_jic) .* repmat(qlim_norm(:,2)-qlim_norm(:,1), 1, n_jic);
 for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   Phi_E(:) = NaN; QE(:) = NaN; % erneut initialisieren wegen jic-Schleife.
-  condJ(:) = NaN;
+  condJ(:) = NaN;  Jinv_E(:) = NaN;
   if jic == 1 && all(~isnan(qref)) && any(qref~=0) % nehme Referenz-Pose (kann erfolgreiche gespeicherte Pose bei erneutem Aufruf enthalten)
     q0 = qref; % Wenn hier nur Nullen stehen, werden diese ignoriert.
   else
@@ -517,6 +519,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           Q0_mod(R.I1J_LEG(2):end,end) = NaN;
         end
         [q, Phi, Tc_stack, Stats] = R.invkin2(Traj_0.XE(i,:)', Q0_mod, s_ser, s_par); % kompilierter Aufruf
+        Jinv_i = NaN(R.NJ, sum(R.I_EE)); % Platzhalter-Variable
         % Rechne kinematische Zwangsbedingungen nach. Ist für Struktur-
         % synthese sinnvoll, falls die Modellierung unsicher ist.
         if any(strcmp(Set.optimization.objective, 'valid_act')) || Set.general.debug_calc
@@ -551,7 +554,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           % direkt NaN. Dafür andere Werte einsetzen.
           q(isnan(q)) = Q0_ik(isnan(q),1);
           Q0_v2 = [q,Q0_ik];
-          [q, Phi, Tc_stack, Stats] = R.invkin4(Traj_0.XE(i,:)', Q0_v2, s);
+          [q, Phi, Tc_stack, Stats, Jinv_i] = R.invkin4(Traj_0.XE(i,:)', Q0_v2, s);
           condJik(i,:) = Stats.condJ(1+Stats.iter,1);
           condJ(i,1) = Stats.condJ(1+Stats.iter,2);
 %           if all(abs(Phi)<s.Phit_tol)
@@ -787,7 +790,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       if R.Type == 0
         [q, Phi, Tc_stack, Stats] = R.invkin2(R.x2tr(Traj_0.XE(i,:)'), q0_arik, s4);
       else
-        [q, Phi, Tc_stack, Stats] = R.invkin4(Traj_0.XE(i,:)', q0_arik, s4);
+        [q, Phi, Tc_stack, Stats, Jinv_i] = R.invkin4(Traj_0.XE(i,:)', q0_arik, s4);
       end
 %       if Stats.iter == 2 % TODO: Unklar, ob das hier schlecht ist
 %         cds_log(4, sprintf(['[constraints] Konfig %d/%d, Eckpunkt %d, Iter. %d: ', ...
@@ -1011,6 +1014,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     n_phi = min(length(Phi), size(Phi_E,2));
     Phi_E(i,1:n_phi) = Phi(1:n_phi);
     QE(i,:) = q;
+    if R.Type == 2
+      Jinv_E(i,:) = Jinv_i(:);
+    end
     if any(abs(Phi(:)) > 1e-2) || any(isnan(Phi))
       constrvioltext_jic{jic} = sprintf('Keine IK-Konvergenz');
       break; % Breche Berechnung ab (zur Beschleunigung der Berechnung)
@@ -1179,14 +1185,16 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   % Berechne Jacobi-Matrix für PKM, falls notwendig
   if any(Set.optimization.constraint_obj([4,7]))
     if R.Type == 2
-      Jinvges = NaN(size(QE,1), R.NJ*sum(R.I_EE));
       for ii = I_TrajCheck
         % Bei Parallel-IK ist die Konditionszahl nicht bestimmt. Rechne Jacobi
         % und Kondition neu aus
         if isnan(condJ(ii)) || Set.optimization.constraint_obj(7)
-          [~, Jinv_ii] = R.jacobi_qa_x(QE(ii,:)', Traj_0.XE(ii,:)');
-          Jinvges(ii,:) = Jinv_ii(:);
-          condJ(ii) = cond(Jinv_ii);
+          if any(isnan(Jinv_E(i,:)))
+            [~, Jinv_ii] = R.jacobi_qa_x(QE(ii,:)', Traj_0.XE(ii,:)');
+            Jinv_E(ii,:) = Jinv_ii(:);
+          end
+          Jinv_ii = reshape(Jinv_E(ii,:), R.NJ, sum(R.I_EE));
+          if isnan(condJ(ii)), condJ(ii) = cond(Jinv_ii(R.I_qa, R.I_EE)); end
         end
       end
     end
@@ -1217,7 +1225,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   %% Bestimme den Positionsfehler
   if Set.optimization.constraint_obj(7) > 0
     if R.Type == 2
-      Jinvges_check = Jinvges(I_TrajCheck,:);
+      Jinvges_check = Jinv_E(I_TrajCheck,:);
     else
       Jinvges_check = []; % Platzhalter für serielle Roboter
     end
