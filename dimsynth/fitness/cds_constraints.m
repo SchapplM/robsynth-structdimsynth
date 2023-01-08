@@ -678,7 +678,13 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           qlim_neu(R.MDH.sigma==0,:) = repmat(mean(QE(1:i,R.MDH.sigma==0),1)',1,2)+...
             [-qlim_range(R.MDH.sigma==0), qlim_range(R.MDH.sigma==0)]/2;
           % qlim_neu(R.MDH.sigma==1,:) = qlim(R.MDH.sigma==1,:); % Schubgelenke zurücksetzen
-          qlim = R.update_qlim(qlim_neu);
+          if all(isnan(qlim_neu(:)))
+            cds_log(-1, '[constraints] qlim soll mit NaN überschrieben werden')
+            save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+              'tmp', 'cds_constraints_qlimnan_error_debug.mat'));
+          else
+            qlim = R.update_qlim(qlim_neu);
+          end
         end
         % Zwinge den Startwert in die neuen Grenzen (auf 5% innerhalb).
         % Hat oft zur Folge, dass die IK gar nicht mehr konvergiert. Daher
