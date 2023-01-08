@@ -238,6 +238,7 @@ end
 
 %% Gestell-Morphologie-Parameter (z.B. Gelenkpaarabstand)
 if R_neu.Type == 2 && Set.optimization.base_morphology && any(Structure.vartypes == 8)
+  p_morph = p(Structure.vartypes == 8);
   % Methoden und Parameter, siehe align_base_coupling
   if any(R.DesPar.base_method == 1:3)
     % Modi haben keine Morphologieparameter
@@ -245,14 +246,25 @@ if R_neu.Type == 2 && Set.optimization.base_morphology && any(Structure.vartypes
     % Nur der Winkel der Kegel-Steigung ist der Morphologieparameter.
     p_basepar(2) = p(Structure.vartypes == 8);
     p_phys(Structure.vartypes == 8) = p_basepar(2);
-  elseif any(R.DesPar.base_method == 5:7)
-    % Parameter ist der Paarabstand. Skaliert mit Robotergröße.
-    p_basepar(2) = p(Structure.vartypes == 8).*p_basepar(1);
-    p_phys(Structure.vartypes == 8) = p_basepar(2);
-  elseif R.DesPar.base_method == 8
-    % Skalierung mit Basis-Radius und Winkel ohne Skalierung
-    p_basepar(2:3) = p(Structure.vartypes == 8).*[p_basepar(1);1];
-    p_phys(Structure.vartypes == 8) = p_basepar(2:3);
+  elseif any(R.DesPar.base_method == 5:8)
+    if all(~isnan(Set.optimization.base_size_limits)) && ...
+        Set.optimization.base_size_limits(1)==Set.optimization.base_size_limits(2)
+      % Sonderfall konstanter vorgegebener effektiver Gestell-Radius:
+      % Der Radius des Paar-Mittelpunkts muss so korrigiert werden, dass
+      % der Gesamt-Radius passt.
+      p_basepar(1) = Set.optimization.base_size_limits(1) / ...
+        sqrt(1+(p_morph(1)/2)^2);
+      % Probe (nach nächster Zeile): effektiver Radius: sqrt(p_basepar(1)^2 + (p_basepar(2)/2)^2)
+    end
+    if any(R.DesPar.base_method == 5:7)
+      % Parameter ist der Paarabstand. Skaliert mit Robotergröße.
+      p_basepar(2) = p_morph.*p_basepar(1);
+      p_phys(Structure.vartypes == 8) = p_basepar(2);
+    else % R.DesPar.base_method == 8
+      % Skalierung mit Basis-Radius und Winkel ohne Skalierung
+      p_basepar(2:3) = p(Structure.vartypes == 8).*[p_basepar(1);1];
+      p_phys(Structure.vartypes == 8) = p_basepar(2:3);
+    end
   end
   changed_base = true;
 end
@@ -277,9 +289,6 @@ if R_neu.Type == 2 && Set.optimization.platform_size && any(Structure.vartypes =
   end
   if p_pfradius == 0
     error('Plattform-Radius darf nicht Null werden');
-  end
-  if ~any(Structure.vartypes == 6)
-    error('Basis-Koppelpunkt muss zusammen mit Plattformkoppelpunkt optimiert werden');
   end
   if all(~isnan(Set.optimization.platform_size_limits))
     % Manuell gesetzte Grenzen: Absolute Größenangaben

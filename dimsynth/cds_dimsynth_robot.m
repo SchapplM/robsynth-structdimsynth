@@ -781,6 +781,20 @@ if Structure.Type == 2 && Set.optimization.base_morphology
     % Dabei ist `l` der halbe Paar-Abstand
     varlim = [varlim; [0.2,1.7321*2]]; % Gelenkpaarabstand. Relativ zu Gestell-Radius.
     varnames = {varnames{:}, 'base_morph_pairdist'}; %#ok<CCAT>
+    % Korrigiere den maximalen Radius des Gestells. Beim kleinstmöglichen
+    % Paarabstand erhöht sich bereits der effektive Radius (hälfte von 0.2).
+    if all(~isnan(Set.optimization.base_size_limits)) && ...
+        any(strcmp(varnames,'base radius')) % Radius muss optimiert werden
+      % Mache die obere Grenze für den Radius-Parameter entsprechend etwas kleiner
+      varlim(strcmp(varnames,'base radius'),2) = 1/sqrt(1+.1^2) * ...
+        Set.optimization.base_size_limits(2);
+      % Verkleinere auch die untere Grenze des Radius-Parameters, damit mit
+      % dem minimalen Paarabstand der gewünschte minimale Gestell-Radius
+      % erreicht wird.
+      varlim(strcmp(varnames,'base radius'),1) = 1/sqrt(1+.1^2) * ...
+        Set.optimization.base_size_limits(1);
+    end
+
   end
   if any(R.DesPar.base_method == [4 8]) % Erste Achse hat eine Steigung gegen die Mitte
     nvars = nvars + 1;

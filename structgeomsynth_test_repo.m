@@ -20,7 +20,7 @@ cds_testcase_3T3R; close all;
 
 %% Testfälle zum Reproduzieren eines definierten Ergebnisses
 cds_testcase_PKM_G1G4; close all;
-cds_test_platformsizelimit_pairwise; close all;
+cds_test_basesize_platformsize_limit_pairjoints; close all;
 
 %% Divcds_testcase_PKM_G1G4; close all;erse weitere Tests
 % Einige andere einzelne Funktionen werden getestet
