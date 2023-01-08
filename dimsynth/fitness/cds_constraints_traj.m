@@ -804,13 +804,11 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
   % bereits durch die Variablen-Grenzen (phi_min/phi_max) sichergestellt.
   s_dp.wn(R.idx_ikpos_wn.xlim_par) = 0;
   s_dp.wn(R.idx_ikpos_wn.xlim_hyp) = 0;
-  if all(s_dp.wn == 0) % Für Stufenoptimierung muss es ein Ziel geben.
-    s_dp.stageopt_posik = false; % TODO: Warum gibt es keins?
-  end
   % Aktiviere Zielfunktionen direkt in der ersten Iteration, da sonst dort
   % nur die Konditionszahl optimiert werden müsste. 
   % TODO: Globale Implementierung mit besserer Abgrenzung GradProj./DP
-  if any(strcmp(Set.optimization.objective, 'positionerror'))
+  if any(strcmp(Set.optimization.objective, 'positionerror')) || ...
+      all(s_dp.wn==0) && any(strcmp(Set.optimization.objective, 'poserr_ee'))
     % Höheren Schwellwert für Aktivierung der Konditionszahl
     s_dp.settings_ik.cond_thresh_jac = min(Set.optimization.constraint_obj(4)*3/4, 100*s_dp.settings_ik.cond_thresh_jac);
     % Wenn Positionsfehler ein Zielkriterium ist, optimiere diese hier permanent
@@ -818,6 +816,15 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     if isnan(s_dp.settings_ik.abort_thresh_h(R.idx_iktraj_hn.poserr_ee))
       s_dp.settings_ik.abort_thresh_h(R.idx_iktraj_hn.poserr_ee) = inf; % sonst wird das Kriterium in DP nicht berechnet
     end
+  end
+  if strcmp(Set.optimization.objective_ik, 'coll_par') || ...
+      all(s_dp.wn==0) && any(strcmp(Set.optimization.objective, 'colldist'))
+    s_dp.wn(R.idx_ikpos_wn.coll_par) = 1;
+  end
+  if all(s_dp.wn == 0) % Für Stufenoptimierung muss es ein Ziel geben.
+    cds_log(2, sprintf(['[constraints_traj] DP hat keine Nullraum', ...
+      'gewichtungen gesetzt. Deaktiviere Stufenoptimierung.']));
+    s_dp.stageopt_posik = false; % TODO: Warum gibt es keins?
   end
   if dbg_dynprog_log, s_dp.verbose = 1; end
   if dbg_dynprog_fig, s_dp.verbose = 2; end
