@@ -44,13 +44,6 @@ Q_limviolA = 2*abs(Q_norm-0.5); % 0 entspricht jetzt der Mitte.
 % Ein Wert von 1 ist genau an Grenze.
 [f_jlim1, iisample] = max(Q_limviolA);
 [f_jlim, iijoint] = max(f_jlim1);
-% Der Wert muss bereits kleiner als 1 sein, da ansonsten vorher ein Fehler
-% aufgeworfen worden wäre
-if f_jlim > 1
-  cds_log(-1, sprintf('[cds_obj_jointlimit] Normierte Gelenkwinkel %1.2f>1. Darf nicht sein.', f_jlim));
-end
-% Nehme das direkt als Fitness-Wert
-fval = 1e3*f_jlim; % Normiert auf 0 bis 1e3
 
 % Stelle lesbare Textausgabe zusammen
 if Structure.Type == 2 % Paralleler Roboter
@@ -63,3 +56,13 @@ end
 fval_debugtext = sprintf(['Kleinster rel. Abstand zur Gelenkgrenze ', ...
   '%1.1f%%. In Gel. %d%s; Schritt %d/%d'], 100*(1-f_jlim), iijoint, ...
   legstr, iisample(iijoint), size(Q,1));
+
+% Der Wert muss bereits kleiner als 1 sein, da ansonsten vorher in den
+% Nebenbedingungen ein Fehler aufgeworfen worden wäre. Beim manuellen
+% Aufruf der Funktion kann der Wert aber überschritten werden.
+if f_jlim > 1
+  cds_log(-1, sprintf('[cds_obj_jointlimit] Normierte Gelenkwinkel %1.2f>1. Darf nicht sein.', f_jlim));
+  f_jlim = 1; % Damit die Berechnung trotzdem noch weitergehen kann. Schlechtestmöglicher Wert
+end
+% Nehme das direkt als Fitness-Wert
+fval = 1e3*f_jlim; % Normiert auf 0 bis 1e3

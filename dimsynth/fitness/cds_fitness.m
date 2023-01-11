@@ -763,6 +763,8 @@ for iIKC = 1:size(Q0,1)
   end
   fval_debugtext_IKC{iIKC} = fval_debugtext;
   if any(fval_IKC(iIKC,:)>1e3)
+    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+      'tmp', 'cds_fitness_obj_notdef_error_debug2.mat'));
     error('Zielfunktion "%s" nicht definiert', Set.optimization.objective{fval_IKC(iIKC,:)>1e3});
   end
   if all(fval_IKC(iIKC,:)' <= Set.optimization.obj_limit) || ...
