@@ -807,7 +807,12 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
   % Aktiviere Zielfunktionen direkt in der ersten Iteration, da sonst dort
   % nur die Konditionszahl optimiert werden müsste. 
   % TODO: Globale Implementierung mit besserer Abgrenzung GradProj./DP
-  if any(strcmp(Set.optimization.objective, 'positionerror'))
+  if strcmp(Set.optimization.objective_ik, 'coll_par') || ...
+      all(s_dp.wn==0) && any(strcmp(Set.optimization.objective, 'colldist'))
+    s_dp.wn(R.idx_ikpos_wn.coll_par) = 1;
+  end
+  if any(strcmp(Set.optimization.objective, 'positionerror')) || ...
+      all(s_dp.wn==0) && any(strcmp(Set.optimization.objective, 'poserr_ee'))
     % Höheren Schwellwert für Aktivierung der Konditionszahl
     s_dp.settings_ik.cond_thresh_jac = min(Set.optimization.constraint_obj(4)*3/4, 100*s_dp.settings_ik.cond_thresh_jac);
     % Wenn Positionsfehler ein Zielkriterium ist, optimiere diese hier permanent
@@ -815,6 +820,11 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     if isnan(s_dp.settings_ik.abort_thresh_h(R.idx_iktraj_hn.poserr_ee))
       s_dp.settings_ik.abort_thresh_h(R.idx_iktraj_hn.poserr_ee) = inf; % sonst wird das Kriterium in DP nicht berechnet
     end
+  end
+  if all(s_dp.wn == 0) % Für Stufenoptimierung muss es ein Ziel geben.
+    cds_log(2, sprintf(['[constraints_traj] DP hat keine Nullraum', ...
+      'gewichtungen gesetzt. Deaktiviere Stufenoptimierung.']));
+    s_dp.stageopt_posik = false; % TODO: Warum gibt es keins?
   end
   if dbg_dynprog_log, s_dp.verbose = 1; end
   if dbg_dynprog_fig, s_dp.verbose = 2; end
@@ -1046,6 +1056,11 @@ if Structure.task_red || all(R.I_EE_Task == [1 1 1 1 1 0]) || Set.general.debug_
 end
 
 %% Prüfe Erfolg der Trajektorien-IK
+if Stats.errorcode==99 % Falls die DP-Iteration übersprungen wurde
+  fval_all(i_m, i_ar) = inf;
+  constrvioltext_m{i_m} = 'Nicht berechnet';
+  continue
+end
 if Stats.iter == 0 && ...
     ~(all(Structure.q0_traj == q)) % wenn der Startwert erzwungen wurde, muss die Einzelpunkt-IK nicht erfolgreich dafür gewesen sein
   % TODO: Mögliche Ursachen: Andere Schwellwerte bei Kollision und Abbruch
@@ -1054,11 +1069,6 @@ if Stats.iter == 0 && ...
     'Traj.-Iteration Abbruch, obwohl Einzelpunkt-IK erfolgreich war. ', ...
     'Vermutlich Logik-Fehler. Invkin-Fehlercode %d'], Structure.config_index, ...
     Structure.config_number, Stats.errorcode));
-end
-if Stats.errorcode==99 % Falls die DP-Iteration übersprungen wurde
-  fval_all(i_m, i_ar) = inf;
-  constrvioltext_m{i_m} = 'Nicht berechnet';
-  continue
 end
 % Die Traj.-IK bricht auch bei Verletzung von Nebenbedingungen ab und nicht
 % nur bei ungültiger Konfiguration. Prüfe hier nur den letzteren Fall.
