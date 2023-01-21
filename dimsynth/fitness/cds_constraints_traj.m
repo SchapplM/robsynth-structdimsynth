@@ -1479,7 +1479,15 @@ if any(I_symlim)
         'cds_constraints_qviolT_all_legs.mat'));
     end
     % Bestimme die größte relative Verletzung der Winkelgrenzen
-    [fval_qlimv_T, I_worst] = min(qlimviol_T(I_qlimviol_T)./(q_range_max(I_qlimviol_T))');
+    try
+      [fval_qlimv_T, I_worst] = min(qlimviol_T(I_qlimviol_T)./(q_range_max(I_qlimviol_T))');
+    catch err
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+        'cds_constraints_qlimviol_T_error.mat'));
+      cds_log(-1, sprintf('[constraints_traj] Fehler bezüglich Gelenkwinkel_Grenzen: %s.', err.message));
+      fval_all(i_m, i_ar) = 8e3;
+      constrvioltext_m{i_m} = 'Fehler';
+    end
     II_qlimviol_T = find(I_qlimviol_T); IIw = II_qlimviol_T(I_worst);
     fval_qlimv_T_norm = 2/pi*atan((-fval_qlimv_T)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
     fval_all(i_m, i_ar)  = 1e3*(7.5+0.5*fval_qlimv_T_norm); % Wert zwischen 7.5e3 und 8e3
