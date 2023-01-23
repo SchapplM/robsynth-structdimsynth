@@ -67,6 +67,15 @@ for mf = mainfields
       Set.(mf{1}).(f{1}) = Set_defaults.(mf{1}).(f{1});
       list_added_mf = [list_added_mf, f{1}]; %#ok<AGROW>
     end
+    if isa(Set.(mf{1}).(f{1}), 'struct')
+      % Gehe auch hier nochmal durch die Felder. Keine weitere Rekursion.
+      for f2 = fields(Set_defaults.(mf{1}).(f{1}))'
+        if ~isfield(Set.(mf{1}).(f{1}), f2{1})
+          Set.(mf{1}).(f{1}).(f2{1}) = Set_defaults.(mf{1}).(f{1}).(f2{1});
+          list_added_mf = [list_added_mf, [f{1},'.',f2{1}]]; %#ok<AGROW>
+        end
+      end
+    end
   end
   if ~isempty(list_added_mf) && verbosity
     fprintf('Folgende Felder in Set.%s wurden auf Standardwerte gesetzt: %s\n', ...
