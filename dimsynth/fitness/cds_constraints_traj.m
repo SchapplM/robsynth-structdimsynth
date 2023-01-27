@@ -786,8 +786,7 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
   if all(~isinf(Set.optimization.ee_rotation_limit))
     s_dp.phi_min = Set.optimization.ee_rotation_limit(1);
     s_dp.phi_max = Set.optimization.ee_rotation_limit(2);
-  end
-  if all(~isinf(Set.optimization.ee_rotation_limit_rel_traj))
+  elseif all(~isinf(Set.optimization.ee_rotation_limit_rel_traj))
     s_dp.phi_min = x0(6)+Set.optimization.ee_rotation_limit_rel_traj(1);
     s_dp.phi_max = x0(6)+Set.optimization.ee_rotation_limit_rel_traj(2);
   end
