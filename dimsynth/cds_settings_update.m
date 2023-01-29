@@ -55,7 +55,9 @@ if length(Set.optimization.constraint_obj) < ...
   Set.optimization.constraint_obj = [Set.optimization.constraint_obj; ...
     zeros(length(Set_defaults.optimization.constraint_obj)-...
           length(Set.optimization.constraint_obj))];
-  fprintf('Fehlende Einträge in constraint_obj wurden auf Null gesetzt\n');
+  if verbosity
+    fprintf('Fehlende Einträge in constraint_obj wurden auf Null gesetzt\n');
+  end
 end
 %% Automatische Übersetzung anderer Einstellungen
 % Gehe alle Felder der Einstellungen durch und ergänze fehlende
