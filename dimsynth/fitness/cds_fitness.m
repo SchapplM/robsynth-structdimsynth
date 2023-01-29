@@ -188,6 +188,12 @@ Traj_0_E = cds_transform_traj(R, struct('XE', Traj_W.XE));
 
 %% Nebenbedingungen prüfen (für Eckpunkte)
 t0 = tic();
+qlim_test = R.update_qlim();
+if all(isnan(qlim_test(:)))
+  cds_log(-1, '[fitness] qlim ist NaN. Darf nicht sein.')
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+    'tmp', 'cds_fitness_qlimnan_error_debug.mat'));
+end
 [fval_constr,QE_iIKC, Q0, constrvioltext, Stats_constraints] = cds_constraints(R, Traj_0_E, Set, Structure);
 cds_log(2,sprintf(['[fitness] G=%d;I=%d. Nebenbedingungen für Einzelpunkte ', ...
   'in %1.2fs geprüft. %d IK-Konfigurationen gefunden. fval_constr=%1.3e. %s'],...
@@ -1109,6 +1115,11 @@ if limit_pris_to_Q
       qlim_neu(R.I1J_LEG(i):R.I2J_LEG(i),:) = qlim_i;
     end
   end
+end
+if all(isnan(qlim_neu(:)))
+  cds_log(-1, '[fitness/update_joint_limits] qlim_neu ist NaN. Darf nicht sein.')
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+    'tmp', 'cds_fitness_qlimnan_error_debug2.mat'));
 end
 R.update_qlim(qlim_neu);
 end % function

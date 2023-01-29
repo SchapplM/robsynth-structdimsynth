@@ -482,6 +482,8 @@ else
   Set.optimization.result_dirs_for_init_pop = {};
 end
 I_keep = true(length(Set.optimization.result_dirs_for_init_pop), 1);
+assert(isa(Set.optimization.result_dirs_for_init_pop, 'cell'), ...
+  'result_dirs_for_init_pop muss cell-Array sein')
 for i = 1:length(Set.optimization.result_dirs_for_init_pop)
   I_keep(i) = exist(Set.optimization.result_dirs_for_init_pop{i}, 'file');
 end

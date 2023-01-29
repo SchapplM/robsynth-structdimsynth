@@ -1471,15 +1471,15 @@ if any(I_symlim)
   qminmax_legs = reshape(minmax2(Q'),R.Leg(1).NJ,2*R.NLEG);
   qminmax_leg = minmax2(qminmax_legs);
   q_range_T_all_legs = repmat(diff(qminmax_leg'), 1, R.NLEG);
-  qlimviol_T = q_range_max' - q_range_T_all_legs;
-  I_qlimviol_T = (qlimviol_T < 0) & I_symlim;
+  qlimviol_T = q_range_max - q_range_T_all_legs';
+  I_qlimviol_T = (qlimviol_T(:) < 0) & I_symlim;
   if any(I_qlimviol_T)
     if Set.general.matfile_verbosity > 2
       save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
         'cds_constraints_qviolT_all_legs.mat'));
     end
     % Bestimme die größte relative Verletzung der Winkelgrenzen
-    [fval_qlimv_T, I_worst] = min(qlimviol_T(I_qlimviol_T)./(q_range_max(I_qlimviol_T))');
+    [fval_qlimv_T, I_worst] = min(qlimviol_T(I_qlimviol_T)./(q_range_max(I_qlimviol_T)));
     II_qlimviol_T = find(I_qlimviol_T); IIw = II_qlimviol_T(I_worst);
     fval_qlimv_T_norm = 2/pi*atan((-fval_qlimv_T)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
     fval_all(i_m, i_ar)  = 1e3*(7.5+0.5*fval_qlimv_T_norm); % Wert zwischen 7.5e3 und 8e3

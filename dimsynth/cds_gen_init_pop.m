@@ -30,6 +30,7 @@ t1 = tic();
 counter_optresults = 0;
 InitPopLoadTmp = [];
 Q_PopTmp = [];
+OptNamesTmp = {};
 ScoreLoad = [];
 resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
 if any(strcmp(Set.optimization.objective,'valid_act')) && Structure.Type==2
@@ -126,8 +127,38 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
       'werden. Fehler: %s'], initpop_matlist{i}, err.message));
     continue
   end
-  if ~isfield(d.RobotOptRes, 'p_val_pareto') || ~isfield(d.RobotOptRes, 'q0')
-    continue % Altes Dateiformat
+  if ~isfield(d.RobotOptRes, 'p_val_pareto') % (Altes Dateiformat. Dieser Code kann irgendwann weg)
+    cds_log(2, sprintf(['[gen_init_pop] Datei übersprungen, da Feld ', ...
+      'p_val_pareto fehlt: %s '], initpop_matlist{i}));
+    continue
+  end
+  if ~isfield(d.RobotOptRes, 'q0') % Altes Dateiformat, aber eventuell korrigierbar (Dieser Code kann irgendwann weg)
+    % Versuche die fehlende Information aus zweiter Datei zu laden
+    file2 = strrep(initpop_matlist{i}, 'Endergebnis', 'Details');
+    if exist(file2, 'file')
+      d2 = load(file2);
+      % Suche die Parameter-Werte in den gespeicherten Zwischenständen, um
+      % die IK-Startkonfiguration zu rekonstruieren.
+      q0_pareto_i = NaN(size(d.RobotOptRes.p_val_pareto, 1), size(d2.PSO_Detail_Data.q0_ik, 2));
+      for k = 1:size(d.RobotOptRes.p_val_pareto, 1)
+        try
+          [k_gen, k_ind] = cds_load_particle_details(struct('fval',d2.PSO_Detail_Data.pval), ...
+            d.RobotOptRes.p_val_pareto(k,:)');
+          q0_pareto_i(k,:) = d2.PSO_Detail_Data.q0_ik(k_ind,:,k_gen);
+        catch err
+          cds_log(-1, sprintf(['[gen_init_pop] In Datei %s keine Rekon', ...
+            'struktion von q0 möglich für Parametersatz %d'], file2, err.message));
+        end
+      end
+    else % Es werden NaN gelassen
+      cds_log(-1, sprintf(['[gen_init_pop] IK-Konfiguration für Datei ', ...
+        '%s nicht rekonstruierbar'], file2));
+    end
+    if ~isempty(d.RobotOptRes.p_val_pareto)
+      d.RobotOptRes.q0_pareto = q0_pareto_i;
+    else
+      d.RobotOptRes.q0 = q0_pareto_i(:);
+    end
   end
   counter_optresults = counter_optresults + 1;
   
@@ -373,6 +404,7 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
   % Hinzufügen zu Liste von Parametern
   InitPopLoadTmp = [InitPopLoadTmp; pval_i(I_param_iO,:)]; %#ok<AGROW>
   Q_PopTmp = [Q_PopTmp; qval_i(I_param_iO,:)]; %#ok<AGROW>
+  OptNamesTmp = [OptNamesTmp(:)', repmat({Set_i.optimization.optname}, 1, sum(I_param_iO))]; %#ok<AGROW> 
   fval_mean_all = mean(fval_i(I_param_iO,:),2);
   ScoreLoad = [ScoreLoad; [score_i-2*floor(log10(fval_mean_all)), ...
     repmat(score_i,size(fval_mean_all,1),1),fval_mean_all]]; %#ok<AGROW>
@@ -399,6 +431,7 @@ if ~isempty(InitPopLoadTmp)
   [~,I] = sort(ScoreLoad(:,1), 'descend');
   InitPopLoadTmp = InitPopLoadTmp(I,:);
   Q_PopTmp = Q_PopTmp(I,:);
+  OptNamesTmp = OptNamesTmp(I);
   ScoreLoad = ScoreLoad(I,:);
   % Lösche Duplikate. Behalte die mit den besten Bewertungen. Prüfe mit
   % Toleranz (geht nur ohne NaN-Werte in Eingabe für uniquetol)
@@ -408,6 +441,7 @@ if ~isempty(InitPopLoadTmp)
   I = sort(I); % für gleichbleibende Reihenfolge der Partikel (unklar ob notwendig)
   InitPopLoadTmp = InitPopLoadTmp(I,:);
   Q_PopTmp = Q_PopTmp(I,:);
+  OptNamesTmp = OptNamesTmp(I);
   ScoreLoad = ScoreLoad(I,:);
   num2 = size(InitPopLoadTmp,1);
   cds_log(1, sprintf(['[gen_init_pop] Insgesamt %d Partikel geladen. ', ...
@@ -427,11 +461,13 @@ if size(InitPopLoadTmp,1) > 0
   InitPopLoadTmpNorm(InitPopLoadTmpNorm>1) = 1;
   InitPopLoadTmpNorm(InitPopLoadTmpNorm<0) = 0;
   % Entferne Duplikate erneut (wegen Rundungsfehler bei Rechenungenauigkeit
-  % möglich)
-  [~,I] = unique(InitPopLoadTmpNorm, 'rows');
+  % möglich). Reihenfolge soll beibehalten werden (-> stable)
+  [~,I] = unique(InitPopLoadTmpNorm, 'rows', 'stable');
   InitPopLoadTmpNorm = InitPopLoadTmpNorm(I,:);
   ScoreLoad = ScoreLoad(I,:);
   Q_PopLoadTmp = Q_PopTmp(I,:);
+  OptNamesLoadTmp = OptNamesTmp(I);
+  ScoreLoad = ScoreLoad(I,:);
   nIndLoad = min(nIndLoad, size(InitPopLoadTmpNorm,1));
   % Indizies der bereits ausgewählten Partikel (in InitPopLoadTmpNorm)
   I_selected = false(size(ScoreLoad,1),1);
@@ -446,12 +482,16 @@ if size(InitPopLoadTmp,1) > 0
   for i = 1:nIndLoad
     % Erlaube insgesamt nur die besten 30% der Bewertungen. Nehme am Anfang
     % nur die besten, am Ende dann bis zu 30%
-    bestscoreratio = 1-0.3*i/nIndLoad;
-    I_score_allowed = ScoreLoad(:,1) > worstscore + bestscoreratio*(bestscore-worstscore);
+    if mod(i,3) ~= 0 % Bezug auf die Bewertung der Partikel
+      bestscoreratio = 1-0.3*i/nIndLoad;
+      I_score_allowed = ScoreLoad(:,1) > worstscore + bestscoreratio*(bestscore-worstscore);
+    else % Bezug auf den Fitness-Wert (bei jedem dritten)
+      I_score_allowed = ScoreLoad(:,3) < 1e3;
+    end
     % Bestimme die Indizes der Partikel, die durchsucht werden. Schließe
     % bereits gewählte aus.
     I_search = I_score_allowed & ~I_selected;
-    if ~any(I_search)
+    if ~any(I_search) % falls keiner gefunden wurde: Prüfe alle
       [~, Isort] = sort(ScoreLoad(:,1), 'descend');
       % Entferne die bereits vorhandenen Partikel. Ansonsten doppelte.
       for k = find(I_selected)'
@@ -474,9 +514,10 @@ if size(InitPopLoadTmp,1) > 0
     % Markiere als bereits gewählt, damit es nicht erneut gewählt wird.
     I_selected(II_search(I_best)) = true;
     cds_log(4, sprintf(['[gen_init_pop] Partikel %d hinzugefügt ', ...
-      '(Bewertung %d, fval %1.1e, gew. Bew. %d). p_norm=[%s]'], II_search(I_best), ...
-      ScoreLoad(II_search(I_best),2), ScoreLoad(II_search(I_best),3), ...
-      ScoreLoad(II_search(I_best),1), disp_array(InitPopLoadNorm(i,:), '%1.3f')));
+      '(Bewertung %d, fval %1.1e, gew. Bew. %d). p_norm=[%s]; aus %s'], ...
+      II_search(I_best), ScoreLoad(II_search(I_best),2), ScoreLoad(II_search(I_best),3), ...
+      ScoreLoad(II_search(I_best),1), disp_array(InitPopLoadNorm(i,:), '%1.3f'), ...
+      OptNamesLoadTmp{II_search(I_best)}));
   end
   % Entferne die Normierung.
   InitPopLoad = repmat(varlim(:,1)',size(InitPopLoadNorm,1),1) + InitPopLoadNorm .* ...
