@@ -783,6 +783,10 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     'Tv', T_dec_dp/2, ...
     'debug_dir', fullfile(resdir,sprintf('%s_dynprog_it%d', name_prefix_ardbg, i_ar)), ...
     'continue_saved_state', true); % Debuggen: Falls mehrfach gleicher Aufruf
+  if R.I_EE_Task(6) == 1 % Keine Nullraumoptimierung in DP.
+    s_dp.T_dec_ns = 0; % Kein Abbremsen der Nullraumbewegung notwendig
+    s_dp.Tv = 0;
+  end
   if all(~isinf(Set.optimization.ee_rotation_limit))
     s_dp.phi_min = Set.optimization.ee_rotation_limit(1);
     s_dp.phi_max = Set.optimization.ee_rotation_limit(2);
