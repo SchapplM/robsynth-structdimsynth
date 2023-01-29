@@ -165,6 +165,14 @@ end
 if ~all(size(Set.optimization.platform_size_limits)==[1 2])
   error('platform_size_limits muss 1x2 sein min/max Radius');
 end
+if all(~isnan(Set.optimization.base_size_limits)) && ...
+    diff(Set.optimization.base_size_limits)==0 && Set.optimization.base_size
+  error('Optimierung von base_size_limits aktiv, aber Grenzen sind gleich');
+end
+if all(~isnan(Set.optimization.platform_size_limits)) && ...
+    diff(Set.optimization.platform_size_limits)==0 && Set.optimization.platform_size
+  error('Optimierung von platform_size aktiv, aber Grenzen sind gleich');
+end
 if ~all(size(Set.optimization.basepos_limits)==[3 2])
   error('basepos_limits muss 3x2 sein (xyz Koordinate, min/max)');
 end
