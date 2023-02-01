@@ -513,9 +513,12 @@ for iIKC = 1:size(Q0,1)
     if ~isempty(Set.optimization.desopt_vars) % Entwurfsoptimierung aktiv.
       % Berechne Dynamik-Funktionen als Regressorform für die Entwurfsopt.
       data_dyn = cds_obj_dependencies(R, Traj_0, Set, Structure, Q, QD, QDD, Jinv_ges);
-
+      t0 = tic();
       [fval_desopt, desopt_pval, vartypes_desopt] = cds_dimsynth_desopt( ...
         R, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn, Set, Structure);
+      cds_log(2,sprintf(['[fitness] G=%d;I=%d (Konfig %d/%d). Entwurfs', ...
+        'optimierung in %1.2fs durchgeführt. fval_desopt=%1.3e. pval=[%s]'], ...
+        i_gen, i_ind, iIKC, size(Q0,1), toc(t0), fval_desopt, disp_array(desopt_pval(:)', '%1.2g')));
       if fval_desopt > 1e5
         warning('Ein Funktionswert > 1e5 ist nicht für Entwurfsoptimierung vorgesehen');
       end

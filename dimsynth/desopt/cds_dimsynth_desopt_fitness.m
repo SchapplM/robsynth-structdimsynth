@@ -411,6 +411,9 @@ if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_detail
         case 1, type = 'P';
         case 2, type = 'U';
         case 3, type = 'S';
+        case 4, type = 'P base';
+        case 5, type = 'P cylinder';
+        otherwise, error('Fall nicht definiert');
       end
       subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i);
       hold on; grid on;
