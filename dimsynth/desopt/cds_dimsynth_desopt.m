@@ -123,7 +123,8 @@ if any(vartypes == 4) % Steifigkeit von Gelenkfedern
     isnan(Set.optimization.joint_stiffness_passive_universal);
   I_joints = I_actrevolute_opt | I_passrevolute_opt | I_passuniversal_opt;
   % Maximale sinnvolle Gelenksteifigkeit einstellen. Für alle Gelenke gleich.
-  varlim_js = repmat([0, Set.optimization.joint_stiffness_max], sum(I_joints), 1);
+  varlim_js = repmat([Set.optimization.joint_stiffness_min, ...
+                      Set.optimization.joint_stiffness_max], sum(I_joints), 1);
   varlim = [varlim; varlim_js]; % in Grenzen für PSO eintragen
 end
 assert(size(varlim,1)==nvars, 'Dimension von varlim passt nicht zu nvars');

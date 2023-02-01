@@ -223,7 +223,8 @@ optimization = struct( ...
   'joint_stiffness_passive_revolute', 0, ... % Zur Annahme von Drehfedern in den Gelenken. Ist Sonderfall für Festkörpergelenke. NaN, falls Steifigkeit optimiert wird.
   'joint_stiffness_active_revolute', 0, ... % Das gleiche für aktive Drehgelenke
   'joint_stiffness_passive_universal', 0, ... % Gleiche Annahme für Kardangelenke (Sonderfall für MHI-Kryo-PKM)
-  'joint_stiffness_max', 100, ... % Falls die Gelenksteifigkeit optimiert wird, ist dies der maximale Wert (in Nm/rad). 100Nm/rad) sind 1.7Nm/Grad
+  'joint_stiffness_min', 0, ... % Falls die Gelenksteifigkeit optimiert wird, ...
+  'joint_stiffness_max', 100, ... % ... ist dies der maximale Wert (in Nm/rad). 100Nm/rad) sind 1.7Nm/Grad
   'nolinkmass', false, ... % Setze die Masse der Robotersegmente auf Null.
   'noplatformmass', false, ... % Setze die Masse der PKM-Plattform auf Null.
   'ElectricCoupling', true, ... % Kopplung der Achsen für Energieberechnung. TODO
