@@ -137,7 +137,7 @@ end
 p_phys = cds_update_robot_parameters(R, Set, Structure, p);
 
 %% Plausibilitätsprüfung der Parameter
-[fval_constrparam, constrvioltext] = cds_constraints_parameters(R, Set, Structure, p_phys);
+[fval_constrparam, constrvioltext] = cds_constraints_parameters(R, Set, Structure, p, p_phys);
 if fval_constrparam > 0
   fval(:) = fval_constrparam;
   cds_log(2,sprintf(['[fitness] G=%d;I=%d. Fitness-Evaluation in %1.2fs. ', ...

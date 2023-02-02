@@ -350,15 +350,22 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
     end
   end
 
-  % Prüfe erlaubte Werte für die Schrägstellung konischer Gelenke
-  if Structure_i.Type == 2 && any(Structure_i.Coupling(1) == [4 8]) && ...
-     Set.structures.min_inclination_conic_base_joint > 0 || ... % Konische Gestellgelenke
-     Structure_i.Type == 2 && any(Structure_i.Coupling(2) == 9) && ...
-     Set.structures.min_inclination_conic_platform_joint > 0 % Konische Plattformgelenke
-    R_tmp = struct('r_0_A_all', 0, 'r_P_B_all', 0); % Platzhalter für Funktionalität
+  % Prüfe erlaubte Werte für Parameter
+  if Structure_i.Type == 2 && any(Structure_i.Coupling(1) == [4 8]) && ...% Konische Gestellgelenke
+     Set.optimization.min_inclination_conic_base_joint > 0 && ...% Einstellung gesetzt
+     (~isfield(Set_i.optimization, 'min_inclination_conic_base_joint')||...% geladene Einstellung nicht so streng
+     Set_i.optimization.min_inclination_conic_base_joint<Set.optimization.min_inclination_conic_base_joint) ...
+     || ...% Konische Plattformgelenke
+     Structure_i.Type == 2 && any(Structure_i.Coupling(2) == 9) && ... % Passende Struktur
+     Set.optimization.min_inclination_conic_platform_joint > 0 && ... % Einstellung gesetzt
+     (~isfield(Set_i.optimization, 'min_inclination_conic_platform_joint') ||... % geladene Einstellung nicht so streng
+     Set_i.optimization.min_inclination_conic_platform_joint<Set.optimization.min_inclination_conic_platform_joint) ...
+     || ... % Mindestabstand der Gelenke ist gefordert und in geladener Einstellung nicht so streng
+     Set.optimization.min_joint_distance > 0 && (~isfield(Set_i.optimization, 'min_joint_distance') ||...
+     Set_i.optimization.min_joint_distance<Set.optimization.min_joint_distance)
     for jjj = 1:size(pval_i,1)
       % Der Winkel wird direkt physikalisch eingesetzt. Alle anderen Parameter sind egal.
-      fval_jjj = cds_constraints_parameters(R_tmp, Set, Structure, pval_i(jjj,:)');
+      fval_jjj = cds_constraints_parameters([], Set, Structure, pval_i(jjj,:)');
       if fval_jjj > 0
         % Belege die Fitness-Werte dieses Partikels neu (hat dann sehr
         % schlechte Chancen, ist aber nicht komplett deaktiviert)

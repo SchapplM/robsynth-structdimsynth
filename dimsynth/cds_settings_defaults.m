@@ -118,8 +118,6 @@ structures = struct( ...
   'max_index_active', 6, ... % Setzt den maximalen Index aktuierter Gelenke fest (nachrrangig gegen vorherige Option); für PKM
   'max_index_active_revolute', 6, ... % wie vorherige, nur bezogen auf Drehgelenke; für PKM
   'max_index_active_prismatic', 6, ... % wie vorherige, nur bezogen auf Schuzbgelenke; für PKM
-  'min_inclination_conic_base_joint', 5*pi/180, ... % Die Neigung konischer Gestellgelenke soll nicht waagerecht oder senkrecht sein können
-  'min_inclination_conic_platform_joint', 5*pi/180, ... % Das gleiche für Plattformgelenke (nur bei konischer Anordnung)
   'mounting_serial', {'floor'}, ... % Montageort für serielle Roboter: floor, ceiling, wall
   'mounting_parallel', {mounting_parallel_default}, ... % ... für PKM (wird entsprechend zur Aufgabe ausgerichtet; Schubgelenke haben Vorzugsrichtung)
   'repeatlist', {{}}, ... % Liste für mehrfache Durchführung eines Roboters. Einträge: {'Name', Anzahl}. Sinnvoll, wenn parallele Berechnung möglich.
@@ -227,6 +225,9 @@ optimization = struct( ...
   'joint_stiffness_passive_universal', 0, ... % Gleiche Annahme für Kardangelenke (Sonderfall für MHI-Kryo-PKM)
   'joint_stiffness_min', 0, ... % Falls die Gelenksteifigkeit optimiert wird, ...
   'joint_stiffness_max', 100, ... % ... ist dies der maximale Wert (in Nm/rad). 100Nm/rad) sind 1.7Nm/Grad
+  'min_inclination_conic_base_joint', 5*pi/180, ... % Die Neigung konischer Gestellgelenke soll nicht waagerecht oder senkrecht sein können
+  'min_inclination_conic_platform_joint', 5*pi/180, ... % Das gleiche für Plattformgelenke (nur bei konischer Anordnung)
+  'min_joint_distance', 0, ... % Minimaler Abstand zwischen zwei Gelenken
   'nolinkmass', false, ... % Setze die Masse der Robotersegmente auf Null.
   'noplatformmass', false, ... % Setze die Masse der PKM-Plattform auf Null.
   'ElectricCoupling', true, ... % Kopplung der Achsen für Energieberechnung. TODO
