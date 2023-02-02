@@ -349,7 +349,24 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
       I_p_file(jjj) = NaN;
     end
   end
-  
+
+  % Prüfe erlaubte Werte für die Schrägstellung konischer Gelenke
+  if Structure_i.Type == 2 && any(Structure_i.Coupling(1) == [4 8]) && ...
+     Set.structures.min_inclination_conic_base_joint > 0 || ... % Konische Gestellgelenke
+     Structure_i.Type == 2 && any(Structure_i.Coupling(2) == 9) && ...
+     Set.structures.min_inclination_conic_platform_joint > 0 % Konische Plattformgelenke
+    R_tmp = struct('r_0_A_all', 0, 'r_P_B_all', 0); % Platzhalter für Funktionalität
+    for jjj = 1:size(pval_i,1)
+      % Der Winkel wird direkt physikalisch eingesetzt. Alle anderen Parameter sind egal.
+      fval_jjj = cds_constraints_parameters(R_tmp, Set, Structure, pval_i(jjj,:)');
+      if fval_jjj > 0
+        % Belege die Fitness-Werte dieses Partikels neu (hat dann sehr
+        % schlechte Chancen, ist aber nicht komplett deaktiviert)
+        fval_i(jjj,:) = fval_jjj;
+      end
+    end
+  end
+
   % Falls Optimierungsparameter in der Datei nicht gesetzt sind, müssen
   % diese zufällig neu gewählt werden. Dafür gibt es Abzug in der
   % Bewertung.
