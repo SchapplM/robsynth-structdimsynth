@@ -26,16 +26,21 @@ numparticles = size(PSO_Detail_Data.fval,1)*maxgen;
 fval_all = NaN(numparticles, size(PSO_Detail_Data.fval,2));
 physval_all = fval_all;
 pval_all = NaN(numparticles, size(PSO_Detail_Data.pval,2));
+q0_all = NaN(numparticles, size(PSO_Detail_Data.q0_ik,2));
 % Alle Kriterien durchgehen und Daten in neues Format bringen
 for kk = 1:size(PSO_Detail_Data.fval,2)
   fval_all(:,kk) = reshape(squeeze(PSO_Detail_Data.fval(:,kk,1:maxgen)), ...
-    size(fval_all,1), 1);
+    numparticles, 1);
   physval_all(:,kk) = reshape(squeeze(PSO_Detail_Data.physval(:,kk,1:maxgen)), ...
-    size(physval_all,1), 1);
+    numparticles, 1);
 end
 for kk = 1:size(PSO_Detail_Data.pval,2)
   pval_all(:,kk) = reshape(squeeze(PSO_Detail_Data.pval(:,kk,1:maxgen)), ...
-    size(pval_all,1), 1);
+    numparticles, 1);
+end
+for kk = 1:size(PSO_Detail_Data.q0_ik,2)
+  q0_all(:,kk) = reshape(squeeze(PSO_Detail_Data.q0_ik(:,kk,1:maxgen)), ...
+    numparticles, 1);
 end
 % Reduziere die Daten bis zum ersten NaN. Ab dort wurde aufgehört zu rechnen
 I_firstnan = find(isnan(fval_all(:,1)), 1, 'first');
@@ -46,4 +51,4 @@ if ~isempty(I_firstnan)
 end
 % Als Struktur ausgeben
 RobotOptRes = struct('fval_all', fval_all, 'physval_all', physval_all, ...
-  'pval_all', pval_all);
+  'pval_all', pval_all, 'q0_all', q0_all);

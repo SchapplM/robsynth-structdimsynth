@@ -132,25 +132,34 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
       'p_val_pareto fehlt: %s '], initpop_matlist{i}));
     continue
   end
+  % Platzhalter für Detail-Datei
+  d2 = [];
+  file2 = strrep(initpop_matlist{i}, 'Endergebnis', 'Details');
   if ~isfield(d.RobotOptRes, 'q0') % Altes Dateiformat, aber eventuell korrigierbar (Dieser Code kann irgendwann weg)
     % Versuche die fehlende Information aus zweiter Datei zu laden
-    file2 = strrep(initpop_matlist{i}, 'Endergebnis', 'Details');
     if exist(file2, 'file')
-      d2 = load(file2);
-      % Suche die Parameter-Werte in den gespeicherten Zwischenständen, um
-      % die IK-Startkonfiguration zu rekonstruieren.
-      q0_pareto_i = NaN(size(d.RobotOptRes.p_val_pareto, 1), size(d2.PSO_Detail_Data.q0_ik, 2));
-      for k = 1:size(d.RobotOptRes.p_val_pareto, 1)
-        try
-          [k_gen, k_ind] = cds_load_particle_details(struct('fval',d2.PSO_Detail_Data.pval), ...
-            d.RobotOptRes.p_val_pareto(k,:)');
-          q0_pareto_i(k,:) = d2.PSO_Detail_Data.q0_ik(k_ind,:,k_gen);
-        catch err
-          cds_log(-1, sprintf(['[gen_init_pop] In Datei %s keine Rekon', ...
-            'struktion von q0 möglich für Parametersatz %d'], file2, err.message));
+      try
+        d2 = load(file2);
+      catch err
+        cds_log(-1, sprintf(['[gen_init_pop] Datei %s konnte nicht geladen ', ...
+          'werden. Fehler: %s. Dann keine Rekonstruktion von q0.'], file2, err.message));
+      end
+      if ~isempty(d2)
+        % Suche die Parameter-Werte in den gespeicherten Zwischenständen, um
+        % die IK-Startkonfiguration zu rekonstruieren.
+        q0_pareto_i = NaN(size(d.RobotOptRes.p_val_pareto, 1), size(d2.PSO_Detail_Data.q0_ik, 2));
+        for k = 1:size(d.RobotOptRes.p_val_pareto, 1)
+          try
+            [k_gen, k_ind] = cds_load_particle_details(struct('fval',d2.PSO_Detail_Data.pval), ...
+              d.RobotOptRes.p_val_pareto(k,:)');
+            q0_pareto_i(k,:) = d2.PSO_Detail_Data.q0_ik(k_ind,:,k_gen);
+          catch err
+            cds_log(-1, sprintf(['[gen_init_pop] In Datei %s keine Rekon', ...
+              'struktion von q0 möglich für Parametersatz %d'], file2, err.message));
+          end
         end
       end
-    else % Es werden NaN gelassen
+    else % Datei existiert nicht. Es werden NaN gelassen
       cds_log(-1, sprintf(['[gen_init_pop] IK-Konfiguration für Datei ', ...
         '%s nicht rekonstruierbar'], file2));
     end
@@ -228,6 +237,24 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
     fval_i = d.RobotOptRes.fval(:)';
     qval_i = d.RobotOptRes.q0(:)';
   end
+  % Laden zusätzlicher Detail-Ergebnisse um die Daten anzureichern
+  if Set.optimization.InitPopFromDetailResults && exist(file2, 'file')
+    try
+      if isempty(d2) % Kann oben schon gelade worden sein
+        d2 = load(file2);
+      end
+    catch err
+      cds_log(-1, sprintf(['[gen_init_pop] Datei %s konnte nicht geladen ', ...
+        'werden. Fehler: %s. Dann keine Detail-Ergebnisse importierbar'], file2, err.message));
+    end
+    if ~isempty(d2)
+      RobotOptRes2_i = cds_convert_pareto_details2front(d2.PSO_Detail_Data);
+      pval_i_file = [pval_i_file; RobotOptRes2_i.pval_all]; %#ok<AGROW> 
+      fval_i = [fval_i; RobotOptRes2_i.fval_all]; %#ok<AGROW> 
+      qval_i = [qval_i; RobotOptRes2_i.q0_all]; %#ok<AGROW> 
+    end
+  end
+
   % Nachverarbeiten von Parametern in der Datei (für Abwärtskompatibilität bei Code-Aktualisierung)
   % Korrigiere den axoffset-Parameter für neue Implementierung; ab 22.04.22
   I_pmao = strcmp(d.RobotOptRes.Structure.varnames, 'platform_morph_axoffset');
