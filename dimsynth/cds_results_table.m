@@ -147,10 +147,16 @@ for i = 1:length(Structures)
   else,                fval_text = 'Nicht definierter Fall';  
   end
   
-  % Allgemeine Daten des Optimierungsergebnisses
-  Row_i = {i, Name, Structure.Type, Beschreibung, ...
-    datestr(tmp1.RobotOptRes.timestamps_start_end(1),'dd.mm.yyyy HH:MM:SS'), ...
-    datestr(tmp1.RobotOptRes.timestamps_start_end(2),'dd.mm.yyyy HH:MM:SS'), ...
+  % Allgemeine Daten des Optimierungsergebnisses:
+  if any(isnan(tmp1.RobotOptRes.timestamps_start_end(1)))
+    datecols = {'', ''};
+  else % Funktion kann in neuen Matlab-Versionen kein NaN mehr abfangen
+    datecols = {
+      datestr(tmp1.RobotOptRes.timestamps_start_end(1),'dd.mm.yyyy HH:MM:SS'), ...
+      datestr(tmp1.RobotOptRes.timestamps_start_end(2),'dd.mm.yyyy HH:MM:SS')
+      };
+  end
+  Row_i = {i, Name, Structure.Type, Beschreibung, datecols{1}, datecols{2},...
     tmp1.RobotOptRes.timestamps_start_end(3), f, fval_text};
   % Hole andere Zielfunktionen aus den Ergebnissen. TODO: Code kann
   % vereinfacht werden, wenn keine alten Daten mehr damit verarbeitet
