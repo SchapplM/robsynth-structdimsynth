@@ -1,4 +1,5 @@
 % Initialisiere den Matlab-ParPool mit Einstellungen aus der Maßsynthese
+% Benutze viele try-catch-Befehle aufgrund von Fehlern auf dem Cluster.
 % 
 % Eingabe:
 % Set
@@ -19,35 +20,48 @@ end
 if Set.general.isoncluster % auf Cluster möglicher Zugriffskonflikt für ParPool
   parpool_writelock('lock', 180, true); % Synchronisationsmittel für ParPool
 end
-Pool = gcp('nocreate');
-if isempty(Pool)
-  try
-    cds_log(1, sprintf('[start_parpool] Starte ParPool mit Ziel parfor_numworkers=%d', ...
-      Set.general.parcomp_maxworkers));
-    Pool=parpool([1,Set.general.parcomp_maxworkers]);
-    parfor_numworkers = Pool.NumWorkers;
-  catch err
-    cds_log(1, sprintf('[start_parpool] Fehler beim Starten des parpool: %s', err.message));
-    parfor_numworkers = 1;
+for i = 1:5 % Versuche mehrfach, den Pool zu starten
+  if i > 1 % Zufällige Wartezeit zur Prävention von Thread-Konflikten
+    pause(5+(5+i)*rand());
   end
-else
-  parfor_numworkers = Pool.NumWorkers;
+  Pool = gcp('nocreate');
+  if isempty(Pool)
+    try
+      cds_log(1, sprintf(['[start_parpool] Starte ParPool mit Ziel ', ...
+        'parfor_numworkers=%d'], Set.general.parcomp_maxworkers));
+      Pool=parpool([1,Set.general.parcomp_maxworkers]);
+      parfor_numworkers = Pool.NumWorkers;
+    catch err
+      cds_log(-1, sprintf('[start_parpool] Fehler beim Starten des parpool: %s', err.message));
+      parfor_numworkers = 1;
+      continue % Nochmal neu versuchen oder Ende der Funktion ohne ParPool
+    end
+  else
+    parfor_numworkers = Pool.NumWorkers;
+  end
+  clear Pool
+  if ~isinf(Set.general.parcomp_maxworkers) && parfor_numworkers ~= Set.general.parcomp_maxworkers
+    cds_log(-1, sprintf(['Die gewünschte Zahl von %d Parallelinstanzen ', ...
+      'konnte nicht erfüllt werden. Es sind jetzt %d.'], ...
+      Set.general.parcomp_maxworkers, parfor_numworkers));
+  end
+  % Warnungen auch in ParPool-Workern unterdrücken
+  if parfor_numworkers > 1 % nur, wenn Pool-Start oben erfolgreich war
+    try
+      parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:singularMatrix');
+      parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:nearlySingularMatrix');
+      parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:illConditionedMatrix');
+      parfevalOnAll(gcp(), @warning, 0, 'off', 'Coder:MATLAB:rankDeficientMatrix');
+      parfevalOnAll(gcp(), @warning, 0, 'off', 'Coder:MATLAB:nearlySingularMatrix');
+      parfevalOnAll(gcp(), @warning, 0, 'off', 'Coder:MATLAB:illConditionedMatrix');
+      % Siehe https://github.com/altmany/export_fig/issues/75
+      parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:prnRenderer:opengl');
+    catch err
+      cds_log(-1, sprintf('[start_parpool] Fehler beim Konfigurieren des parpool: %s', err.message));
+      continue % Nochmal neu versuchen oder Ende der Funktion ohne diese Konfiguration
+    end
+  end
 end
-clear Pool
 if Set.general.isoncluster
   parpool_writelock('free', 0, true);
 end
-if ~isinf(Set.general.parcomp_maxworkers) && parfor_numworkers ~= Set.general.parcomp_maxworkers
-  cds_log(-1, sprintf(['Die gewünschte Zahl von %d Parallelinstanzen ', ...
-    'konnte nicht erfüllt werden. Es sind jetzt %d.'], ...
-    Set.general.parcomp_maxworkers, parfor_numworkers));
-end
-% Warnungen auch in ParPool-Workern unterdrücken
-parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:singularMatrix');
-parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:nearlySingularMatrix');
-parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:illConditionedMatrix');
-parfevalOnAll(gcp(), @warning, 0, 'off', 'Coder:MATLAB:rankDeficientMatrix');
-parfevalOnAll(gcp(), @warning, 0, 'off', 'Coder:MATLAB:nearlySingularMatrix');
-parfevalOnAll(gcp(), @warning, 0, 'off', 'Coder:MATLAB:illConditionedMatrix');
-% Siehe https://github.com/altmany/export_fig/issues/75
-parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:prnRenderer:opengl');
