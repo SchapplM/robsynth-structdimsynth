@@ -70,7 +70,14 @@ for i = 1:length(optdirs)
     if ~isempty(filelist_tmpres)
       tmpfiles_available(j) = true;
     end
+    % Suche nach weiteren tmp-Dateien (konvertiert von cds_gen_init_pop)
+    filelist_tmpres2 = dir(fullfile(respath,optdirs(i).name, sprintf( ...
+      'Rob%d_%s_Endergebnis_Gen*.mat', sd.Structures{j}.Number, sd.Structures{j}.Name)));
+    if ~isempty(filelist_tmpres2)
+      tmpfiles_available(j) = true;
+    end
   end
+
   tf_file = fullfile(respath,optdirs(i).name,[optdirs(i).name,'_results_table.csv']);
   if any(complete) && ~exist(tf_file, 'file')
     fprintf('%s: Ergebnis-Tabelle existiert nicht: %s\n', optdirs(i).name, tf_file);
@@ -84,7 +91,9 @@ for i = 1:length(optdirs)
   Set_tmp.computing_cluster = false; % Abschluss muss immer lokal gemacht werden bezogen auf System, das dieses Skript hier ausführt
   Set_tmp.general.only_finish_aborted = true;
   Set_tmp.general.isoncluster = false;
-%   Set_tmp.general.parcomp_maxworkers = 0; % Bei lokaler Ausführung ohne ParPool
+  % Set_tmp.general.parcomp_maxworkers = 0; % Bei lokaler Ausführung ohne ParPool
+  % Set_tmp.general.compile_missing_functions = false; % lokales Testen, damit es schneller geht
+  % Set_tmp.general.update_template_functions = false; % lokales Testen
   % Überschreibe das Verzeichnis, das in den Einstellungen gesetzt ist.
   % Dadurch auch lokaler Abschluss, wenn vom Cluster heruntergeladen.
   % TODO: Eigentlich gibt es dafür schon eine Logik in cds_start, die

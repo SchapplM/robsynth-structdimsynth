@@ -83,6 +83,7 @@ for i = 1:length(tmpdirsrob)
     if size(tmp.PSO_Detail_Data.fval,2) > 1 % siehe cds_save_particle_details
       RobotOptRes.fval_pareto = tmp.PSO_Detail_Data.fval(:,:,1+igen);
       RobotOptRes.p_val_pareto = tmp.PSO_Detail_Data.pval(:,:,1+igen);
+      RobotOptRes.desopt_pval_pareto = tmp.PSO_Detail_Data.desopt_pval(:,:,1+igen);
       RobotOptRes.q0_pareto = tmp.PSO_Detail_Data.q0_ik(:,:,1+igen);
       RobotOptRes.q0 = RobotOptRes.q0_pareto(1,:)';
       RobotOptRes.fval = RobotOptRes.fval_pareto(1,:)';
