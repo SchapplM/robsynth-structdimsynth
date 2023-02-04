@@ -87,7 +87,7 @@ for i = 1:length(tmpdirsrob)
       RobotOptRes.q0_pareto = tmp.PSO_Detail_Data.q0_ik(:,:,1+igen);
       RobotOptRes.q0 = RobotOptRes.q0_pareto(1,:)';
       RobotOptRes.fval = RobotOptRes.fval_pareto(1,:)';
-      RobotOptRes.timestamps_start_end = datenum(datetime('now'));
+      RobotOptRes.timestamps_start_end = repmat(genfiles(j),1,2); % setze beides auf den Zeitstempel der Datei
     else
       % TODO: Fall noch nicht definiert.
       continue
