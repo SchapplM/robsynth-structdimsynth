@@ -2685,7 +2685,7 @@ if any(fval<1e3) && any(I_viol)
   end
 end
 if any(fval<1e3) && Set.optimization.constraint_obj(6) ~= 0 && ...
-    physval_ms > Set.optimization.constraint_obj(6) 
+    ~result_invalid && physval_ms > Set.optimization.constraint_obj(6) 
   cds_log(-1, sprintf('[dimsynth] Materialbelastungs-Nebenbedingung verletzt trotz Berücksichtigung in Optimierung. Keine Lösung gefunden.'));
   try % Auf Cluster teilweise Probleme beim Dateisystemzugriff
     save(fullfile(resdir, 'strengthconstrwarning.mat'));
@@ -2733,7 +2733,7 @@ desopt_pval = PSO_Detail_Data.desopt_pval(k_ind, :, k_gen)';
 
 %% Speichere die Anfangswerte der IK der Pareto-Front
 % Sind notwendig, um sicher die Ergebnisse reproduzieren zu können
-q0_pareto = NaN(size(fval_pareto,1), size(Q,2));
+q0_pareto = NaN(size(fval_pareto,1), R.NJ);
 for i = 1:size(fval_pareto,1)
   [k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, fval_pareto(i,:)');
   q0_pareto(i,:) = PSO_Detail_Data.q0_ik(k_ind,:,k_gen)';
