@@ -33,6 +33,10 @@ for i = 1:length(optdirs)
     continue % Altes Format oder ungültiges Verzeichnis
   end
   sd = load(sf);
+  if ~isfield(sd, 'Structures')
+    fprintf('%s: Einstellungsdatei hat kein Feld Structures\n', optdirs(i).name);
+    continue % Altes Format oder ungültiges Verzeichnis
+  end
   complete = true(length(sd.Structures),1);
   for j = 1:length(sd.Structures)
     if ~exist(fullfile(respath,optdirs(i).name, sprintf('Rob%d_%s_Endergebnis.mat', ...

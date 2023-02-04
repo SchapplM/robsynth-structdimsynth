@@ -44,11 +44,17 @@ for i = 1:length(optdirs)
   for f1 = fields(Set_del)'
     Set_f1 = Set.(f1{1});
     for f2 = fields(Set_del.(f1{1}))'
-      Set_f1 = rmfield(Set_f1, f2{1});
-      fprintf('Entferne Feld %s.%s aus den Einstellungen\n', f1{1}, f2{1});
+      if isfield(Set_f1, f2{1})
+        Set_f1 = rmfield(Set_f1, f2{1});
+        fprintf('Entferne Feld %s.%s aus den Einstellungen\n', f1{1}, f2{1});
+      else
+        fprintf('Feld %s.%s fehlte bereits in Einstellungen\n', f1{1}, f2{1});
+      end
     end
     Set.(f1{1}) = Set_f1;
   end
-  save(sf, 'Set');
+  % Einstellungs-Struktur neu schreiben (mit allen vorherigen Inhalten)
+  ds.Set = Set;
+  save(sf, '-struct', 'ds');
   fprintf('Datei %s neu gespeichert\n', sf);
 end
