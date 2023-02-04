@@ -374,6 +374,10 @@ else % Deaktiviere Begrenzung der Geschwindigkeit
 end
 if ~isfield(Traj, 'Fext'), Traj.Fext = zeros(length(Traj.t), 6); end
 
+if Set.general.create_template_functions && ~Set.general.check_missing_template_functions
+  Set.general.check_missing_template_functions = true;
+  warning('check_missing_template_functions wurde auf true gesetzt, da create_template_functions gesetzt')
+end
 %% Menge der Roboter laden
 if ~(Set.general.only_finish_aborted && Set.general.isoncluster) && ... % Abschluss auf Cluster
     ~Set.general.regenerate_summary_only || ... % Nur Bilder (ohne Abschluss)
@@ -425,7 +429,10 @@ if Set.general.only_finish_aborted && (Set.general.isoncluster || ...
   Set.general.parcomp_struct = Set_tmp.general.parcomp_struct;
   Set.general.parcomp_maxworkers = Set_tmp.general.parcomp_maxworkers;
   Set.optimization.resdir = Set_tmp.optimization.resdir;
+  Set.general.compile_missing_functions = Set_tmp.general.compile_missing_functions;
   Set.general.create_template_functions = Set_tmp.general.create_template_functions;
+  Set.general.update_template_functions = Set_tmp.general.update_template_functions;
+  Set.general.check_missing_template_functions = Set_tmp.general.check_missing_template_functions;
   cds_log(1, sprintf('Einstellungsdatei %s für Abschluss geladen.', settingsfile));
   % Prüfe, ob der Abschluss noch notwendig ist. Annahme: Ist die Ergebnis-
   % Tabelle einmal erstellt, sind alle einzelnen Roboter abgeschlossen.
@@ -785,27 +792,32 @@ if ~Set.general.regenerate_summary_only
       tplmode = false; % Erzeuge alle Dateien neu (auch wenn schon vorhanden)
     else
       tplmode = true; % Erzeuge nur fehlende Dateien neu (sonst später Fehler)
+      if Set.general.check_missing_template_functions
+        cds_log(1, sprintf('Prüfe Existenz von Funktionsdateien aus Vorlagen für %d Roboter', length(Names)));
+      end
     end
-    III = 1:length(Names); % Zufällige Reihenfolge, damit besser parallelisierbar (Cluster)
-    III = III(randperm(length(III)));
-    for i = III
-      Structure_i = Structures_I{i};
-      if type == 0 % Serieller Roboter
-        serroblib_create_template_functions(Names(i), tplmode, false);
-      else % PKM
-        % Zuerst Funktionen für serielle Beinketten neu generieren.
-        % Eine PKM-Funktion (Beinketten-IK) ist davon abhängig.
-        [~, LEG_Names] = parroblib_load_robot(Names{i}, 0);
-        serroblib_writelock('lock', 'template', 0, 5*60, false);
-        serroblib_create_template_functions(LEG_Names(1), tplmode, false);
-        serroblib_writelock('free', 'template', 0, 5*60, false);
-        % Sperrschutz für PKM-Bibliothek (hauptsächlich für Struktursynthese)
-        parroblib_writelock('check', 'csv', Structure_i.DoF, 5*60, false);
-        % Die Vorlagen-Funktionen können nicht in Parallelinstanzen
-        % gleichzeitig erzeugt werden.
-        parroblib_writelock('lock', 'template', Structure_i.DoF, 5*60, false);
-        parroblib_create_template_functions(Names(i), tplmode, false);
-        parroblib_writelock('free', 'template', Structure_i.DoF, 5*60, false);
+    if Set.general.check_missing_template_functions
+      III = 1:length(Names); % Zufällige Reihenfolge, damit besser parallelisierbar (Cluster)
+      III = III(randperm(length(III)));
+      for i = III
+        Structure_i = Structures_I{i};
+        if type == 0 % Serieller Roboter
+          serroblib_create_template_functions(Names(i), tplmode, false);
+        else % PKM
+          % Zuerst Funktionen für serielle Beinketten neu generieren.
+          % Eine PKM-Funktion (Beinketten-IK) ist davon abhängig.
+          [~, LEG_Names] = parroblib_load_robot(Names{i}, 0);
+          serroblib_writelock('lock', 'template', 0, 5*60, false);
+          serroblib_create_template_functions(LEG_Names(1), tplmode, false);
+          serroblib_writelock('free', 'template', 0, 5*60, false);
+          % Sperrschutz für PKM-Bibliothek (hauptsächlich für Struktursynthese)
+          parroblib_writelock('check', 'csv', Structure_i.DoF, 5*60, false);
+          % Die Vorlagen-Funktionen können nicht in Parallelinstanzen
+          % gleichzeitig erzeugt werden.
+          parroblib_writelock('lock', 'template', Structure_i.DoF, 5*60, false);
+          parroblib_create_template_functions(Names(i), tplmode, false);
+          parroblib_writelock('free', 'template', Structure_i.DoF, 5*60, false);
+        end
       end
     end
     if Set.general.update_template_functions
