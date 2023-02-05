@@ -76,6 +76,10 @@ if ~isempty(fpfile) % (nur wenn Log-Datei erstellt wird, nicht bei Hochladen)
   fclose(fid);
   if ~ispc() % lscpu funktioniert nur unter Linux
     system(sprintf('echo "Rechnung läuft auf: $(whoami)@$(hostname)" >> %s', fpfile));
+    % Cluster-Umgebungsvariablen
+    system(sprintf('echo "Umgebungsvariable HOME: `echo $HOME`" >> %s', fpfile));
+    system(sprintf('echo "Umgebungsvariable TMPDIR: `echo $TMPDIR`" >> %s', fpfile));
+    system(sprintf('echo "Umgebungsvariable JOBID: `echo $JOBID`" >> %s', fpfile));
     system(sprintf('echo "Eigenschaften des Rechners (lscpu):" >> %s', fpfile));
     system(sprintf('lscpu >> %s', fpfile));
   end
