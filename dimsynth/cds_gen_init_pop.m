@@ -546,9 +546,11 @@ if size(InitPopLoadTmp,1) > 0
     if ~any(I_search) % falls keiner gefunden wurde: Prüfe alle
       [~, Isort] = sort(ScoreLoad(:,1), 'descend');
       % Entferne die bereits vorhandenen Partikel. Ansonsten doppelte.
-      for k = find(I_selected)'
-        Isort = Isort(Isort~=k);
-      end
+      % (nicht mehr notwendig, da bereits vorhandene bereits mit -inf ans
+      % Ende gesetzt wurden. Die folgende Prüfung dauert sehr lange bei großen Daten.
+%       for k = find(I_selected)'
+%         Isort = Isort(Isort~=k);
+%       end
       I_search(Isort(1:min(10,length(Isort)))) = true; % Wähle die 10 besten aus
     end
     II_search = find(I_search); % Zähl-Indizes zusätzlich zu Binär-Indizes
@@ -558,9 +560,23 @@ if size(InitPopLoadTmp,1) > 0
     % den aktuellen Mittelwert. Das ist ein vereinfachtes Diversitätsmaß.
     score_div = sum((InitPopLoadTmpNorm(I_search,:) - ...
       repmat(pnorm_mean_i, sum(I_search), 1)).^2,2);
+    if i == 1 % bei erstem Wert
+      % nehme zufällig einen der erlaubten
+      I_best = randi(length(score_div));
+      score_div_best = inf; % Bedeutungsloser Wert, da ohne Bezug
+    elseif all(isnan(score_div))
+      warning('NaN in normierten Parametern. Darf hier nicht auftreten');
+      [score_div_best,I_best] = max(score_div); % größte Diversität (vorherige Standard-Einstellung)
+    else
+      % Wähle zufällig einen derjenigen unter den 10 mit der höchsten
+      % Diversität. So gibt es noch eine weitere Zufallskomponenten. Sonst
+      % wären bei mehrfacher Durchführung alle Startgenerationen gleich.
+      [~,I_sortdiv] = sort(score_div, 'descend');
+      I_best = I_sortdiv( randi(min(length(I_sortdiv), 10)) );
+      score_div_best = score_div(I_best);
+    end
     % Wähle das beste Partikel aus und füge es zur Initialpopulation hinzu.
     % Vereinfachte Annahme: Dadurch wird die Diversität maximal vergrößert.
-    [score_div_best,I_best] = max(score_div); % größte Diversität
     InitPopLoadNorm(i,:) = InitPopLoadTmpNorm(II_search(I_best),:);
     Q_PopLoad(i,:) = Q_PopLoadTmp(II_search(I_best),:);
     % Markiere als bereits gewählt, damit es nicht erneut gewählt wird.
@@ -570,6 +586,9 @@ if size(InitPopLoadTmp,1) > 0
       II_search(I_best), ScoreLoad(II_search(I_best),2), ScoreLoad(II_search(I_best),3), ...
       ScoreLoad(II_search(I_best),1), score_div_best, disp_array(InitPopLoadNorm(i,:), '%1.3f'), ...
       OptNamesLoadTmp{II_search(I_best)}));
+    % Entferne den Wert aus ScoreLoad, damit diese Werte nicht ein weiteres
+    % Mal genutzt werden und keine Filterung gemacht werden muss
+    ScoreLoad(II_search(I_best),1) = -inf;
   end
   % Entferne die Normierung.
   InitPopLoad = repmat(varlim(:,1)',size(InitPopLoadNorm,1),1) + InitPopLoadNorm .* ...
