@@ -7,7 +7,12 @@
 % 
 % Ausgabe:
 % parfor_numworkers
-%   Anzahl der tatsächlich gestarteten ParPool-Worker
+%   Anzahl der tatsächlich gestarteten ParPool-Worker.
+%   * 0: In der parfor-Schleife (als zweites Argument verwendet) wird kein
+%        ParPool benutzt, sondern eine normale for-Schleife
+%   * 1: Wird nicht verwendet. Das wäre eine parfor-Schleife auf einem Kern.
+%        Bringt keinen Vorteil (außer dass Bilder unsichtbar erzeugt werde
+%   * >1: Normale parfor-Schleife mit so vielen Parallelinstanzen
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2022-04
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
@@ -36,7 +41,7 @@ for i = 1:5 % Versuche mehrfach, den Pool zu starten
     catch err
       cds_log(-1, sprintf(['[start_parpool] Fehler beim Starten des parpool ', ...
         '(%1.1fs nach Funktionsaufruf): %s'], err.message, toc(t0)));
-      parfor_numworkers = 1;
+      parfor_numworkers = 0; % Kein parfor benutzen
       continue % Nochmal neu versuchen oder Ende der Funktion ohne ParPool
     end
   else
