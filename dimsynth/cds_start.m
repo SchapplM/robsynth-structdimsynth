@@ -73,6 +73,7 @@ if ~isempty(fpfile) % (nur wenn Log-Datei erstellt wird, nicht bei Hochladen)
     [~,branch]=system('git rev-parse --abbrev-ref HEAD');
     fprintf(fid, '%s: Branch %s, Rev. %s (%s)\n', repo_deps{i}{1}, branch(1:end-1), rev(1:8), revdatum);
   end
+  fprintf(fid, 'Matlab-Konfigurationsverzeichnis: %s\n', prefdir());
   fclose(fid);
   if ~ispc() % lscpu funktioniert nur unter Linux
     system(sprintf('echo "Rechnung läuft auf: $(whoami)@$(hostname)" >> %s', fpfile));
@@ -615,9 +616,7 @@ if Set.general.computing_cluster
     fprintf(fid, '%% Set.general.only_finish_aborted = true;\n');
     fprintf(fid, 'cds_start(Set, Traj);\n');
     % Schließen des ParPools auch in Datei hineinschreiben
-    fprintf(fid, 'parpool_writelock(''lock'', 300, true);\n');
     fprintf(fid, 'delete(gcp(''nocreate''));\n');
-    fprintf(fid, 'parpool_writelock(''free'', 0, true);\n');
     fclose(fid);
 
     % Matlab-Skript auf Cluster starten (Toolbox muss im Pfad sein).

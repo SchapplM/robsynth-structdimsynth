@@ -23,9 +23,6 @@ if Set.general.parcomp_maxworkers <= 1
   return;
 end
 t0 = tic();
-if Set.general.isoncluster % auf Cluster möglicher Zugriffskonflikt für ParPool
-  parpool_writelock('lock', 180, true); % Synchronisationsmittel für ParPool
-end
 for i = 1:5 % Versuche mehrfach, den Pool zu starten
   if i > 1 % Zufällige Wartezeit zur Prävention von Thread-Konflikten
     pause(5+(5+i)*rand());
@@ -72,7 +69,4 @@ for i = 1:5 % Versuche mehrfach, den Pool zu starten
       continue % Nochmal neu versuchen oder Ende der Funktion ohne diese Konfiguration
     end
   end
-end
-if Set.general.isoncluster
-  parpool_writelock('free', 0, true);
 end
