@@ -17,6 +17,7 @@ if Set.general.parcomp_maxworkers <= 1
   parfor_numworkers = 0;
   return;
 end
+t0 = tic();
 if Set.general.isoncluster % auf Cluster möglicher Zugriffskonflikt für ParPool
   parpool_writelock('lock', 180, true); % Synchronisationsmittel für ParPool
 end
@@ -28,11 +29,13 @@ for i = 1:5 % Versuche mehrfach, den Pool zu starten
   if isempty(Pool)
     try
       cds_log(1, sprintf(['[start_parpool] Starte ParPool mit Ziel ', ...
-        'parfor_numworkers=%d'], Set.general.parcomp_maxworkers));
+        'parfor_numworkers=%d. Zeit seit Funktionsaufruf: %1.1fs'], ...
+        Set.general.parcomp_maxworkers, toc(t0)));
       Pool=parpool([1,Set.general.parcomp_maxworkers]);
       parfor_numworkers = Pool.NumWorkers;
     catch err
-      cds_log(-1, sprintf('[start_parpool] Fehler beim Starten des parpool: %s', err.message));
+      cds_log(-1, sprintf(['[start_parpool] Fehler beim Starten des parpool ', ...
+        '(%1.1fs nach Funktionsaufruf): %s'], err.message, toc(t0)));
       parfor_numworkers = 1;
       continue % Nochmal neu versuchen oder Ende der Funktion ohne ParPool
     end
@@ -44,6 +47,9 @@ for i = 1:5 % Versuche mehrfach, den Pool zu starten
     cds_log(-1, sprintf(['Die gewünschte Zahl von %d Parallelinstanzen ', ...
       'konnte nicht erfüllt werden. Es sind jetzt %d.'], ...
       Set.general.parcomp_maxworkers, parfor_numworkers));
+  else
+    cds_log(1, sprintf(['[start_parpool] ParPool wurde gestartet. ', ...
+      'Dauer: %1.1fs. %d parallele Instanzen'], toc(t0), parfor_numworkers));
   end
   % Warnungen auch in ParPool-Workern unterdrücken
   if parfor_numworkers > 1 % nur, wenn Pool-Start oben erfolgreich war

@@ -927,7 +927,10 @@ end
 %% Ergebnisse darstellen
 t1 = tic();
 cds_results_table(Set, Traj, Structures);
+cds_log(1, sprintf('Erstellung der Tabellen abgeschlossen. Dauer: %1.1fs', toc(t1)));
+t2 = tic();
 cds_vis_results(Set, Traj, Structures);
+cds_log(1, sprintf('Ergebnis-Visualisierung abgeschlossen. Dauer: %1.1fs', toc(t2)));
 cds_create_evolution_videos(Set, Traj, Structures);
 lfp = cds_log(1, sprintf(['Ergebnis-Nachverarbeitung von %d Robotern ', ...
   'abgeschlossen. Dauer: %1.1fs'], length(Structures), toc(t1)));
