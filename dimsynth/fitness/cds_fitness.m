@@ -1105,7 +1105,11 @@ if isempty(t_lastsave), t_lastsave = 0; end % Initialisierung
 if isempty(t_lastcheck), t_lastcheck = 0; end % Initialisierung
 if ~Set.general.isoncluster, return; end % nur auf Cluster machen
 if now() < t_lastcheck + 2/(24*60) 
-  % Letztes Speichern ist erst zwei Minuten her.
+  % Letzte Prüfung ist erst zwei Minuten her.
+  return
+end
+if now() < t_lastsave + 4/(24*60) 
+  % Letztes Speichern ist erst vier Minuten her.
   return
 end
 t_end_plan = Set.general.computing_cluster_start_time + ... % Rechne in Tagen
@@ -1113,17 +1117,14 @@ t_end_plan = Set.general.computing_cluster_start_time + ... % Rechne in Tagen
 % Prüfe, wie lange der Fitness-Aufruf maximal dauerte.
 PSO_Detail_Data = cds_save_particle_details([], [], 0, 0, NaN, NaN, NaN, NaN, 'output');
 T_fitness_max = max(PSO_Detail_Data.comptime(:));
-% Wenn 50% mehr als diese Zeit nur noch verbleibt, speichere
+% Wenn 50% mehr als diese Zeit nur noch verbleibt, speichere. Mindestens
+% aber 5min vor Ende einmal speichern, falls Fitness-Aufruf schnell geht
 t_lastcheck = now();
-if now() < t_end_plan - 1.5*T_fitness_max/(24*3600)
+if now() < t_end_plan - max(1.5*T_fitness_max, 5*60)/(24*3600)
   return % Das Planmäßige Ende ist noch zu lange entfernt. Nicht speichern
 end
 if now() > t_end_plan + 10/(24*60) 
   % Annahme: Mehr als 10min nach Ende entspricht Offline-Auswertung
-  return
-end
-if now() < t_lastsave + 4/(24*60) 
-  % Letztes Speichern ist erst vier Minuten her.
   return
 end
 if strcmp(Set.optimization.algorithm, 'mopso')
