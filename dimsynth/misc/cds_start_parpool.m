@@ -69,4 +69,5 @@ for i = 1:5 % Versuche mehrfach, den Pool zu starten
       continue % Nochmal neu versuchen oder Ende der Funktion ohne diese Konfiguration
     end
   end
+  break; % Bis hier gekommen. Also erfolgreich gestartet.
 end
