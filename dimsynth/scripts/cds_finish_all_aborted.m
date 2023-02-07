@@ -99,6 +99,10 @@ for i = 1:length(optdirs)
   % Set_tmp.general.compile_missing_functions = false; % lokales Testen, damit es schneller geht
   % Set_tmp.general.update_template_functions = false; % lokales Testen
   % Set_tmp.general.check_missing_template_functions = false; % damit schneller
+  % Testweise keine Bilder und Videos erzeugen
+  % Set_tmp.general.eval_figures = {};
+  % Set_tmp.general.animation_styles = {};
+  % Set_tmp.general.save_animation_file_extensions = {};
   % Überschreibe das Verzeichnis, das in den Einstellungen gesetzt ist.
   % Dadurch auch lokaler Abschluss, wenn vom Cluster heruntergeladen.
   % TODO: Eigentlich gibt es dafür schon eine Logik in cds_start, die
