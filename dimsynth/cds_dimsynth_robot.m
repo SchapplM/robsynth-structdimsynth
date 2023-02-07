@@ -2898,7 +2898,7 @@ if ~isempty(filelist_tmpres) % Fall 1: "normale" Daten im tmp-Ordner
   end
 elseif ~isempty(filelist_tmpres2) % Fall 2: Bereits von cds_gen_init_pop nachverarbeitet.
   i_gen = 1; % Trage die Generationsnummer so in die PSO-Detail-Daten ein
-  for ii = fliplr(I_dateasc)
+  for ii = I_dateasc
     try
       file_load = filelist_tmpres2(ii);
       d_tmp = load(fullfile(file_load.folder, file_load.name));
@@ -2916,10 +2916,9 @@ elseif ~isempty(filelist_tmpres2) % Fall 2: Bereits von cds_gen_init_pop nachver
       d = struct('PSO_Detail_Data', PSO_Detail_Data);
     end
     if strcmp(Set.optimization.algorithm, 'mopso')
-      if i_gen == 1 % bei erster erfolgreich gelader Datei Pareto-Front der letzten Generation
-        d.REP.pos_fit = d_tmp.RobotOptRes.fval_pareto;
-        d.REP.pos = d_tmp.RobotOptRes.p_val_pareto;
-      end
+      % Überschreibe Pareto-Front immer wieder, damit es automatisch die letzte lesbare Datei ist
+      d.REP.pos_fit = d_tmp.RobotOptRes.fval_pareto;
+      d.REP.pos = d_tmp.RobotOptRes.p_val_pareto;
     elseif strcmp(Set.optimization.algorithm, 'gamultiobj')
       warning('gamultiobj hier noch nicht implementiert');
     end
@@ -2927,6 +2926,7 @@ elseif ~isempty(filelist_tmpres2) % Fall 2: Bereits von cds_gen_init_pop nachver
     % die Werte ein. Annahme: Benutze die vorletzte Generation.
     d.PSO_Detail_Data.pval(:,:,i_gen) =  d_tmp.RobotOptRes.p_val_pareto;
     d.PSO_Detail_Data.fval(:,:,i_gen) =  d_tmp.RobotOptRes.fval_pareto;
+    d.PSO_Detail_Data.comptime(i_gen,:) = 0; % Setze Rechenzeit auf Null (nicht bestimmbar). Genutzt für Bestimmung der Generation
     if isfield(d_tmp.RobotOptRes, 'desopt_pval_pareto') % Prüfung zur Kompatibilität für Daten älter als 03.02.2023
       d.PSO_Detail_Data.desopt_pval(:,:,i_gen) = d_tmp.RobotOptRes.desopt_pval_pareto;
     end

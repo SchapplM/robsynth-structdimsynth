@@ -81,10 +81,11 @@ for i = 1:length(tmpdirsrob)
     igen = str2double(ttt{1}{1});
     RobotOptRes = struct('Structure', Structure); % Annahme: Gleiche Einstellungen der Optimierung
     if size(tmp.PSO_Detail_Data.fval,2) > 1 % siehe cds_save_particle_details
-      RobotOptRes.fval_pareto = tmp.PSO_Detail_Data.fval(:,:,1+igen);
-      RobotOptRes.p_val_pareto = tmp.PSO_Detail_Data.pval(:,:,1+igen);
-      RobotOptRes.desopt_pval_pareto = tmp.PSO_Detail_Data.desopt_pval(:,:,1+igen);
-      RobotOptRes.q0_pareto = tmp.PSO_Detail_Data.q0_ik(:,:,1+igen);
+      I_dom = pareto_dominance(tmp.PSO_Detail_Data.fval(:,:,1+igen)); % Sonst später Warnungen, da keine valide Pareto-Front
+      RobotOptRes.fval_pareto = tmp.PSO_Detail_Data.fval(~I_dom,:,1+igen);
+      RobotOptRes.p_val_pareto = tmp.PSO_Detail_Data.pval(~I_dom,:,1+igen);
+      RobotOptRes.desopt_pval_pareto = tmp.PSO_Detail_Data.desopt_pval(~I_dom,:,1+igen);
+      RobotOptRes.q0_pareto = tmp.PSO_Detail_Data.q0_ik(~I_dom,:,1+igen);
       RobotOptRes.q0 = RobotOptRes.q0_pareto(1,:)';
       RobotOptRes.fval = RobotOptRes.fval_pareto(1,:)';
       RobotOptRes.timestamps_start_end = repmat(genfiles(j),1,2); % setze beides auf den Zeitstempel der Datei
