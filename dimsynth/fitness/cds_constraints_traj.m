@@ -1455,6 +1455,10 @@ if R.Type == 2
   if Set.optimization.joint_limits_symmetric_prismatic
     I_symlim(R.MDH.sigma==1) = true;
   end
+  % Auch für Drehgelenke (bzw. Kardan/Kugel)
+  if Set.optimization.joint_limits_symmetric_revolute
+    I_symlim(R.MDH.sigma==0) = true;
+  end
   % Dadurch wird eine Optimierung der Gelenkfeder-Ruhelagen ermöglicht. Sonst 
   % kann man nicht für alle Beinketten die gleichen Parameter wählen.
   % Trifft auch zu, wenn die Feder-Ruhelagen nicht optimiert, sondern nur

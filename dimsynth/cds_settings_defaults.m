@@ -193,6 +193,7 @@ optimization = struct( ...
   'ee_rotation_limit', [-inf, inf], ... % Grenzen für die EE-Drehung bei Vorliegen von Aufgabenredundanz
   'ee_rotation_limit_rel_traj', [-inf, inf], ... % relative Grenzen für EE-Drehung in Trajektorie (bzgl. Start-Drehung aus Positions-IK)
   'joint_limits_symmetric_prismatic', true, ... % Wähle die Gelenkgrenzen bei Schubgelenken symmetrisch (für Führungsschienen)
+  'joint_limits_symmetric_revolute', false, ... % Auch für Drehgelenke wählen. Sinnvoll, wenn Auslegung für Dreh-/Kardan-/Kugelgelenk genau symmetrisch sein soll.
   'check_jointrange_points', true, ... % Prüfung der Gelenkwinkelspannweite bereits bei den Eckpunkten (Möglichkeit für falsch-positive Ausschlüsse)
   'prismatic_cylinder_allow_overlength', false, ... % Bei Schubzylindern darf der Zylinder nicht durch das vorherige Gelenk gehen. Ist konstruktiv ungünstig.
   'desopt_vars', {{}}, ... % Variablen für eigene Optimierung der Entwurfsparameter. Möglich: "linkstrength", "joint_stiffness_qref", "joint_stiffness"
