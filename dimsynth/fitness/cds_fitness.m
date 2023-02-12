@@ -310,8 +310,11 @@ TAU_IKC = NaN(size(Traj_0.X,1), n_actjoint, size(Q0,1));
 
 for iIKC = 1:size(Q0,1)
   %% Gelenkwinkel-Grenzen aktualisieren
-  assert(all(abs(QE_iIKC(1,:,iIKC) - Q0(iIKC,:))<1e-8), ...
-    'Q0 und QE_iIKC passen nicht zusammen'); % Prüfe wegen Umsortierung oben
+  if ~all(abs(QE_iIKC(1,:,iIKC) - Q0(iIKC,:))<1e-8)
+    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+      'tmp', 'cds_fitness_q0_qE_error.mat'));
+    error('Q0 und QE_iIKC passen nicht zusammen'); % Prüfe wegen Umsortierung oben
+  end
   % Als Spannweite vorgegebene Gelenkgrenzen neu zentrieren. Benutze dafür
   % alle Eckpunkte aus der Einzelpunkt-IK
   if ~Set.optimization.fix_joint_limits
