@@ -163,7 +163,7 @@ end
 [fval_constr,QE_iIKC, Q0, constrvioltext, Stats_constraints] = cds_constraints(R, Traj_0_E, Set, Structure);
 cds_log(2,sprintf(['[fitness] G=%d;I=%d. Nebenbedingungen für Einzelpunkte ', ...
   'in %1.2fs geprüft. %d IK-Konfigurationen gefunden. fval_constr=%1.3e. %s'],...
-  i_gen, i_ind, toc(t0), size(Q0,1), fval_constr, constrvioltext));
+  i_gen, i_ind, toc(t0), size(Q0,1)-sum(any(isnan(Q0),2)), fval_constr, constrvioltext));
 % Füge weitere Anfangswerte für die Trajektorien-IK hinzu. Diese werden
 % zusätzlich vorgegeben (bspw. aus vorherigem Ergebnis, das reproduziert
 % werden muss). Wird genutzt, falls aus numerischen Gründen die Einzelpunkt-
@@ -174,8 +174,13 @@ if all(~isnan(Structure.q0_traj)) && Set.task.profile ~= 0 % nur, falls es auch 
   Q0_err(:,R.MDH.sigma==0) = angleDiff(Q0(:,R.MDH.sigma==0), repmat(Structure.q0_traj(R.MDH.sigma==0)',size(Q0,1),1));
   I_match = all(abs(Q0_err)<1e-6,2);
   if ~any(I_match)
-    cds_log(-1,sprintf(['[fitness] Vorgegebene Werte aus q0_traj wurden nicht ', ...
-      'in den %d IK-Konfigurationen gefunden. Max. Diff. %1.1e'], size(Q0,1), min(max(abs(Q0_err),[],2))));
+    if any(isnan(Q0_err(:)))
+      cds_log(-1,['[fitness] Vorher gab es keine IK-Lösung. q0_traj löst ', ...
+        'die IK aber. Dürfte eigentlich nicht sein. Lösung nicht reproduzierbar.']);
+    else
+      cds_log(-1,sprintf(['[fitness] Vorgegebene Werte aus q0_traj wurden nicht ', ...
+        'in den %d IK-Konfigurationen gefunden. Max. Diff. %1.1e'], size(Q0,1), min(max(abs(Q0_err),[],2))));
+    end
     % Prüfe, ob der vorgegebene Wert die IK löst. Wenn nicht, treten
     % nachfolgend Fehler in der IK auf (z.B. Dynamische Programmierung)
     % Ist relevant für den Fall der Aufgabenredundanz (geregelt in Klasse)
@@ -189,13 +194,19 @@ if all(~isnan(Structure.q0_traj)) && Set.task.profile ~= 0 % nur, falls es auch 
       cds_log(-1,sprintf(['[fitness] Vorgegebene Werte aus q0_traj lösen ', ...
         'nicht die Kinematik (max err %1.1e). Nicht verwenden.'], max(abs(Phi_test))));
     else
+      % Füge vorgegebene Startkonfiguration hinzu
+      if ~any(isnan(Q0)) && fval_constr < 1e6 % IK-Lösung gefunden
+        Q0 = [Structure.q0_traj'; Q0]; % Prüfe vorgegebenen Wert zuerst.
+        % Erzeuge Platzhalter-Werte für spätere Rechnungen
+        QE_iIKC(:,:,size(QE_iIKC,3)+1) = repmat(Structure.q0_traj', size(QE_iIKC,1), 1);
+        QE_iIKC = QE_iIKC(:,:,[end,1:end-1]); % Stelle konsistente Reihenfolge zu Q0 wieder her
+      else % Es wurde keine IK-Lösung gefunden (sichtbar durch NaN). Nehme nur die q0_traj
+        Q0 = Structure.q0_traj';
+        QE_iIKC = [Structure.q0_traj'; NaN(size(QE_iIKC,1)-1, size(QE_iIKC,2))];
+      end
       % Damit wird die Traj.-IK immer geprüft, auch wenn die Einzelpunkt-IK
       % nicht erfolgreich gewesen sein sollte
       fval_constr = 1e3;
-      Q0 = [Structure.q0_traj'; Q0]; % Prüfe vorgegebenen Wert zuerst.
-      % Erzeuge Platzhalter-Werte für spätere Rechnungen
-      QE_iIKC(:,:,size(QE_iIKC,3)+1) = repmat(Structure.q0_traj', size(QE_iIKC,1), 1);
-      QE_iIKC = QE_iIKC(:,:,[end,1:end-1]); % Stelle konsistente Reihenfolge zu Q0 wieder her
     end
   else
     % Der Wert wurde ungefähr erreicht. Ersetze durch den genau exakten
@@ -310,14 +321,14 @@ TAU_IKC = NaN(size(Traj_0.X,1), n_actjoint, size(Q0,1));
 
 for iIKC = 1:size(Q0,1)
   %% Gelenkwinkel-Grenzen aktualisieren
-  if ~all(abs(QE_iIKC(1,:,iIKC) - Q0(iIKC,:))<1e-8)
+  if ~all(abs(QE_iIKC(1,:,iIKC) - Q0(iIKC,:))<1e-8) % NaN gibt auch Fehler.
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
       'tmp', 'cds_fitness_q0_qE_error.mat'));
     error('Q0 und QE_iIKC passen nicht zusammen'); % Prüfe wegen Umsortierung oben
   end
   % Als Spannweite vorgegebene Gelenkgrenzen neu zentrieren. Benutze dafür
   % alle Eckpunkte aus der Einzelpunkt-IK
-  if ~Set.optimization.fix_joint_limits
+  if ~Set.optimization.fix_joint_limits && ~any(any(isnan(QE_iIKC(:,:,iIKC))))
     qlim_neu = update_joint_limits(R, Set, QE_iIKC(:,:,iIKC), false, 0);
   else
     qlim_neu = qlim; % Variable einheitlich definieren
