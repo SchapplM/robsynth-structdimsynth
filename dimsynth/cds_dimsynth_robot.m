@@ -2182,7 +2182,7 @@ elseif length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
     % Keine Durchführung der Optimierung. Lade Daten der unfertigen
     % Optimierung und speichere sie so ab, als ob die Optimierung
     % durchgeführt wurde.
-    d = load_checkpoint_file(Set, resdir);
+    d = load_checkpoint_file(Set, Structure, resdir);
     if isempty(d), return; end
     PSO_Detail_Data = d.PSO_Detail_Data;
     if strcmp(Set.optimization.algorithm, 'mopso')
@@ -2262,7 +2262,7 @@ else % Einkriteriell: PSO
       output.iterations, output.funccount, output.message));
     p_val = p_val(:); % stehender Vektor
   else % Lade Ergebnis einer unfertigen Optimierung
-    d = load_checkpoint_file(Set, resdir);
+    d = load_checkpoint_file(Set, Structure, resdir);
     if isempty(d), return; end
     p_val = d.optimValues.bestx(:);
     fval = d.optimValues.bestfval;
@@ -2685,7 +2685,7 @@ if any(fval<1e3) && any(I_viol)
   end
 end
 if any(fval<1e3) && Set.optimization.constraint_obj(6) ~= 0 && ...
-    physval_ms > Set.optimization.constraint_obj(6) 
+    ~result_invalid && physval_ms > Set.optimization.constraint_obj(6) 
   cds_log(-1, sprintf('[dimsynth] Materialbelastungs-Nebenbedingung verletzt trotz Berücksichtigung in Optimierung. Keine Lösung gefunden.'));
   try % Auf Cluster teilweise Probleme beim Dateisystemzugriff
     save(fullfile(resdir, 'strengthconstrwarning.mat'));
@@ -2733,7 +2733,7 @@ desopt_pval = PSO_Detail_Data.desopt_pval(k_ind, :, k_gen)';
 
 %% Speichere die Anfangswerte der IK der Pareto-Front
 % Sind notwendig, um sicher die Ergebnisse reproduzieren zu können
-q0_pareto = NaN(size(fval_pareto,1), size(Q,2));
+q0_pareto = NaN(size(fval_pareto,1), R.NJ);
 for i = 1:size(fval_pareto,1)
   [k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, fval_pareto(i,:)');
   q0_pareto(i,:) = PSO_Detail_Data.q0_ik(k_ind,:,k_gen)';
@@ -2815,22 +2815,28 @@ else
   warning(['[dimsynth] Log-Datei %s existiert nicht (mehr). Kein ', ...
     'zippen+löschen mehr notwendig.'], lfp);
 end
-% Lösche temporäre Ergebnisse. Nicht mehr benötigt, da Endergebnis da.
+% Lösche temporäre Ergebnisse. Nicht mehr benötigt, da Endergebnis jetzt da.
 filelist_tmpres = [dir(fullfile(resdir, '*PSO_Gen*_AllInd.mat')); ...
   dir(fullfile(resdir, '*GAMO_Gen*_AllInd.mat'));];
 for i = 1:length(filelist_tmpres)
   delete(fullfile(resdir, filelist_tmpres(i).name));
 end
+filelist_tmpres2 = dir(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+  sprintf('Rob%d_%s_Endergebnis_Gen*.mat', Structure.Number, Structure.Name)));
+for i = 1:length(filelist_tmpres2)
+  delete(fullfile(filelist_tmpres2(i).folder, filelist_tmpres2(i).name));
+end
 end
 
 
-function d = load_checkpoint_file(Set, resdir)
+function d = load_checkpoint_file(Set, Structure, resdir)
 % Lade Daten zu letzter erfolgreicher Generation der Optimierung
 % Eingabe:
 %   Set, resdir: Siehe Definition bei Aufruf der Funktion
 % Ausgabe:
 %   d: Inhalt der Sicherungs-Datei
 d = [];
+% Prüfe die Checkpoint-Zwischenstände im tmp-Ordner
 if strcmp(Set.optimization.algorithm, 'mopso')
   filelist_tmpres = dir(fullfile(resdir, 'MOPSO_Gen*_AllInd.mat'));
 elseif strcmp(Set.optimization.algorithm, 'gamultiobj')
@@ -2840,33 +2846,97 @@ elseif strcmp(Set.optimization.algorithm, 'pso')
 else
   error('Algorithmus %s nicht definiert', Set.optimization.algorithm);
 end
+% Prüfe die Zwischenstände im Hauptordner. Werden automatisch aus den tmp-
+% Dateien angelegt, sobald cds_gen_init_pop erneut aufgerufen wird. In
+% einem seltenen Fehlerfall (Neustart des ParPools) werden die tmp-Dateien
+% gelöscht und nur diese verbleiben.
 if isempty(filelist_tmpres)
-  cds_log(1, sprintf(['[dimsynth] Laden des letzten abgebrochenen Durch', ...
-    'laufs wurde angefordert. Aber keine Daten in %s vorliegend. Ende.'], resdir));
-  return
-end
-% Bestimme die Reihenfolge der Checkpoint-Dateien. Normalerweise
-% chronologisch, aber nochmal Prüfung anhand der Gen.-Nummer.
-[tmp,~] = regexp({filelist_tmpres.name},'_Gen(\d+)_','tokens','match');
-filelist_gen = cellfun(@str2double, cellfun(@(v)v{1},tmp) );
-[~,I_genasc] = sort(filelist_gen);
-
-for ii = fliplr(I_genasc)
-  try
-    d = load(fullfile(resdir, filelist_tmpres(ii).name));
+  filelist_tmpres2 = dir(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+    sprintf('Rob%d_%s_Endergebnis_Gen*.mat', Structure.Number, Structure.Name)));
+  if isempty(filelist_tmpres2)
     cds_log(1, sprintf(['[dimsynth] Laden des letzten abgebrochenen Durch', ...
-      'laufs aus gespeicherten Daten erfolgreich aus %s.'], ...
-      fullfile(resdir,filelist_tmpres(ii).name)));
-    break;
-  catch err
-    cds_log(-1, sprintf(['[dimsynth] Fehler beim Laden von Wiederauf', ...
-      'nahme-Datei: %s.'], err.message));
-    continue
+      'laufs wurde angefordert. Aber keine Daten in %s vorliegend. Ende.'], resdir));
+    return
   end
+else
+  filelist_tmpres2 = [];
+end
+% Bestimme die Reihenfolge der Checkpoint-Dateien anhand des Datums.
+if ~isempty(filelist_tmpres)
+  [tmp,~] = regexp({filelist_tmpres.name},'_Gen(\d+)_','tokens','match');
+  filelist_date = [filelist_tmpres.datenum];
+elseif ~isempty(filelist_tmpres2) % Anderes Dateischema
+  [tmp,~] = regexp({filelist_tmpres2.name},'_Gen(\d+).','tokens','match');
+  % Bestimme Datum anhand des Zeitstempels in der Datei
+  filelist_date = NaN(1,length(filelist_tmpres2));
+  for ii = 1:length(filelist_tmpres2)
+    try
+      d = load(fullfile(filelist_tmpres2(ii).folder, filelist_tmpres2(ii).name));
+      filelist_date(ii) = d.RobotOptRes.timestamps_start_end(end);
+    catch
+      continue
+    end
+  end
+end
+filelist_gen = cellfun(@str2double, cellfun(@(v)v{1},tmp) ); % Generationsnummer
+[~,I_dateasc] = sort(filelist_date); % Sortiere nach Datum
+% Lade die Daten
+if ~isempty(filelist_tmpres) % Fall 1: "normale" Daten im tmp-Ordner
+  for ii = fliplr(I_dateasc)
+    try
+      file_load = filelist_tmpres(ii);
+      d = load(fullfile(file_load.folder, file_load.name));
+      cds_log(1, sprintf(['[dimsynth] Laden des letzten abgebrochenen Durch', ...
+        'laufs aus gespeicherten tmp-Daten erfolgreich aus %s.'], ...
+        fullfile(file_load.folder, file_load.name)));
+      break;
+    catch err
+      cds_log(-1, sprintf(['[dimsynth] Fehler beim Laden von Wiederauf', ...
+        'nahme-Datei: %s.'], err.message));
+      continue
+    end
+  end
+elseif ~isempty(filelist_tmpres2) % Fall 2: Bereits von cds_gen_init_pop nachverarbeitet.
+  i_gen = 1; % Trage die Generationsnummer so in die PSO-Detail-Daten ein
+  for ii = I_dateasc
+    try
+      file_load = filelist_tmpres2(ii);
+      d_tmp = load(fullfile(file_load.folder, file_load.name));
+      cds_log(1, sprintf(['[dimsynth] Laden des abgebrochenen Durch', ...
+        'laufs von Gen. %d aus gespeicherten konvertierten tmp-Daten erfolgreich aus %s.'], ...
+        filelist_gen(ii), fullfile(file_load.folder, file_load.name)));
+    catch err
+      cds_log(-1, sprintf(['[dimsynth] Fehler beim Laden von Wiederauf', ...
+        'nahme-Datei: %s.'], err.message));
+      continue
+    end
+    % Rekonstruiere das erwartete Datenformat
+    if i_gen == 1
+      PSO_Detail_Data = cds_save_particle_details(Set, [], 0, 0, NaN, NaN, NaN, NaN, 'output');
+      d = struct('PSO_Detail_Data', PSO_Detail_Data);
+    end
+    if strcmp(Set.optimization.algorithm, 'mopso')
+      % Überschreibe Pareto-Front immer wieder, damit es automatisch die letzte lesbare Datei ist
+      d.REP.pos_fit = d_tmp.RobotOptRes.fval_pareto;
+      d.REP.pos = d_tmp.RobotOptRes.p_val_pareto;
+    elseif strcmp(Set.optimization.algorithm, 'gamultiobj')
+      warning('gamultiobj hier noch nicht implementiert');
+    end
+    % Trage basierend auf der oben schon mit NaN initialisierten Struktur
+    % die Werte ein. Annahme: Benutze die vorletzte Generation.
+    d.PSO_Detail_Data.pval(:,:,i_gen) =  d_tmp.RobotOptRes.p_val_pareto;
+    d.PSO_Detail_Data.fval(:,:,i_gen) =  d_tmp.RobotOptRes.fval_pareto;
+    d.PSO_Detail_Data.comptime(i_gen,:) = 0; % Setze Rechenzeit auf Null (nicht bestimmbar). Genutzt für Bestimmung der Generation
+    if isfield(d_tmp.RobotOptRes, 'desopt_pval_pareto') % Prüfung zur Kompatibilität für Daten älter als 03.02.2023
+      d.PSO_Detail_Data.desopt_pval(:,:,i_gen) = d_tmp.RobotOptRes.desopt_pval_pareto;
+    end
+    d.PSO_Detail_Data.q0_ik(:,:,i_gen) = d_tmp.RobotOptRes.q0_pareto;
+    i_gen = i_gen + 1;
+  end % for ii
 end
 if isempty(d)
   cds_log(-1, sprintf(['[dimsynth] Keine der %d Wiederaufnahme-Dateien ', ...
-    'erfolgreich geladen.'], length(I_genasc)));
+    'erfolgreich geladen.'], length(I_dateasc)));
   return
 end
 end

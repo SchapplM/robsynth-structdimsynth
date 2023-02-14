@@ -85,6 +85,7 @@ general = struct( ...
   'compile_missing_functions', true, ... % Bei Start alle mex-Funktionen kompilieren
   'create_template_functions', false, ... % Erzeuge Funktionen neu aus Vorlagen-Dateien (immer)
   'update_template_functions', true, ... % Prüfe die Vorlagen-Dateien (Aktualisierung, falls veraltet)
+  'check_missing_template_functions', true, ... % Prüfe auf fehlende Vorlagen-Dateien
   'use_mex', true);
 
 %% Einstellungen zur Auswahl der verwendeten Strukturen

@@ -73,9 +73,14 @@ if ~isempty(fpfile) % (nur wenn Log-Datei erstellt wird, nicht bei Hochladen)
     [~,branch]=system('git rev-parse --abbrev-ref HEAD');
     fprintf(fid, '%s: Branch %s, Rev. %s (%s)\n', repo_deps{i}{1}, branch(1:end-1), rev(1:8), revdatum);
   end
+  fprintf(fid, 'Matlab-Konfigurationsverzeichnis: %s\n', prefdir());
   fclose(fid);
   if ~ispc() % lscpu funktioniert nur unter Linux
     system(sprintf('echo "Rechnung läuft auf: $(whoami)@$(hostname)" >> %s', fpfile));
+    % Cluster-Umgebungsvariablen
+    system(sprintf('echo "Umgebungsvariable HOME: `echo $HOME`" >> %s', fpfile));
+    system(sprintf('echo "Umgebungsvariable TMPDIR: `echo $TMPDIR`" >> %s', fpfile));
+    system(sprintf('echo "Umgebungsvariable JOBID: `echo $JOBID`" >> %s', fpfile));
     system(sprintf('echo "Eigenschaften des Rechners (lscpu):" >> %s', fpfile));
     system(sprintf('lscpu >> %s', fpfile));
   end
@@ -374,6 +379,10 @@ else % Deaktiviere Begrenzung der Geschwindigkeit
 end
 if ~isfield(Traj, 'Fext'), Traj.Fext = zeros(length(Traj.t), 6); end
 
+if Set.general.create_template_functions && ~Set.general.check_missing_template_functions
+  Set.general.check_missing_template_functions = true;
+  warning('check_missing_template_functions wurde auf true gesetzt, da create_template_functions gesetzt')
+end
 %% Menge der Roboter laden
 if ~(Set.general.only_finish_aborted && Set.general.isoncluster) && ... % Abschluss auf Cluster
     ~Set.general.regenerate_summary_only || ... % Nur Bilder (ohne Abschluss)
@@ -425,7 +434,10 @@ if Set.general.only_finish_aborted && (Set.general.isoncluster || ...
   Set.general.parcomp_struct = Set_tmp.general.parcomp_struct;
   Set.general.parcomp_maxworkers = Set_tmp.general.parcomp_maxworkers;
   Set.optimization.resdir = Set_tmp.optimization.resdir;
+  Set.general.compile_missing_functions = Set_tmp.general.compile_missing_functions;
   Set.general.create_template_functions = Set_tmp.general.create_template_functions;
+  Set.general.update_template_functions = Set_tmp.general.update_template_functions;
+  Set.general.check_missing_template_functions = Set_tmp.general.check_missing_template_functions;
   cds_log(1, sprintf('Einstellungsdatei %s für Abschluss geladen.', settingsfile));
   % Prüfe, ob der Abschluss noch notwendig ist. Annahme: Ist die Ergebnis-
   % Tabelle einmal erstellt, sind alle einzelnen Roboter abgeschlossen.
@@ -604,9 +616,7 @@ if Set.general.computing_cluster
     fprintf(fid, '%% Set.general.only_finish_aborted = true;\n');
     fprintf(fid, 'cds_start(Set, Traj);\n');
     % Schließen des ParPools auch in Datei hineinschreiben
-    fprintf(fid, 'parpool_writelock(''lock'', 300, true);\n');
     fprintf(fid, 'delete(gcp(''nocreate''));\n');
-    fprintf(fid, 'parpool_writelock(''free'', 0, true);\n');
     fclose(fid);
 
     % Matlab-Skript auf Cluster starten (Toolbox muss im Pfad sein).
@@ -621,7 +631,7 @@ if Set.general.computing_cluster
       'nodes', 1, ... Nur einen Knoten pro Job (Synthese profitiert nich von mehr Knoten, dafür mehr parallele Jobs)
       ... % Nur so viele Kerne beantragen, wie auch benötigt werden ("ppn")
       'ppn', ppn, ... % 32 ist max. auf Cluster
-      'mem', ceil(16+2.5*ppn), ... % Hergeleitet aus MaxRSS-Wert aus diversen Job-Status-Emails
+      'mem', ceil(16+3.5*ppn), ... % Hergeleitet aus MaxRSS-Wert aus diversen Job-Status-Emails. 1GB Aufschlag aufgrund erneuter Speicher-Probleme
       'matFileName', 'dimsynth_start.m', ...
       'locUploadFolder', jobdir, ...
       'time',comptime_est/3600), ... % Angabe in h
@@ -651,7 +661,7 @@ if Set.general.computing_cluster
       'name', computation_name2, ...
       'nodes', 1, ...
       'ppn', min(length(I1_kk:I2_kk),Set.general.computing_cluster_cores), ... % gleiche Anzahl wie oben
-      'mem', ceil(16+2.5*ppn), ... % gleiche Zahl wie oben (da beim Finish-Job die Fitness-Funktion auch einmal ausgeführt wird)
+      'mem', ceil(16+3.5*ppn), ... % gleiche Zahl wie oben (da beim Finish-Job die Fitness-Funktion auch einmal ausgeführt wird)
       'matFileName', 'dimsynth_finish.m', ...
       'locUploadFolder', jobdir2, ...
       'time',2), ... % % Geht schnell. Veranschlage 2h. Evtl. länger wegen ParPool-Synchronisation.
@@ -785,27 +795,32 @@ if ~Set.general.regenerate_summary_only
       tplmode = false; % Erzeuge alle Dateien neu (auch wenn schon vorhanden)
     else
       tplmode = true; % Erzeuge nur fehlende Dateien neu (sonst später Fehler)
+      if Set.general.check_missing_template_functions
+        cds_log(1, sprintf('Prüfe Existenz von Funktionsdateien aus Vorlagen für %d Roboter', length(Names)));
+      end
     end
-    III = 1:length(Names); % Zufällige Reihenfolge, damit besser parallelisierbar (Cluster)
-    III = III(randperm(length(III)));
-    for i = III
-      Structure_i = Structures_I{i};
-      if type == 0 % Serieller Roboter
-        serroblib_create_template_functions(Names(i), tplmode, false);
-      else % PKM
-        % Zuerst Funktionen für serielle Beinketten neu generieren.
-        % Eine PKM-Funktion (Beinketten-IK) ist davon abhängig.
-        [~, LEG_Names] = parroblib_load_robot(Names{i}, 0);
-        serroblib_writelock('lock', 'template', 0, 5*60, false);
-        serroblib_create_template_functions(LEG_Names(1), tplmode, false);
-        serroblib_writelock('free', 'template', 0, 5*60, false);
-        % Sperrschutz für PKM-Bibliothek (hauptsächlich für Struktursynthese)
-        parroblib_writelock('check', 'csv', Structure_i.DoF, 5*60, false);
-        % Die Vorlagen-Funktionen können nicht in Parallelinstanzen
-        % gleichzeitig erzeugt werden.
-        parroblib_writelock('lock', 'template', Structure_i.DoF, 5*60, false);
-        parroblib_create_template_functions(Names(i), tplmode, false);
-        parroblib_writelock('free', 'template', Structure_i.DoF, 5*60, false);
+    if Set.general.check_missing_template_functions
+      III = 1:length(Names); % Zufällige Reihenfolge, damit besser parallelisierbar (Cluster)
+      III = III(randperm(length(III)));
+      for i = III
+        Structure_i = Structures_I{i};
+        if type == 0 % Serieller Roboter
+          serroblib_create_template_functions(Names(i), tplmode, false);
+        else % PKM
+          % Zuerst Funktionen für serielle Beinketten neu generieren.
+          % Eine PKM-Funktion (Beinketten-IK) ist davon abhängig.
+          [~, LEG_Names] = parroblib_load_robot(Names{i}, 0);
+          serroblib_writelock('lock', 'template', 0, 5*60, false);
+          serroblib_create_template_functions(LEG_Names(1), tplmode, false);
+          serroblib_writelock('free', 'template', 0, 5*60, false);
+          % Sperrschutz für PKM-Bibliothek (hauptsächlich für Struktursynthese)
+          parroblib_writelock('check', 'csv', Structure_i.DoF, 5*60, false);
+          % Die Vorlagen-Funktionen können nicht in Parallelinstanzen
+          % gleichzeitig erzeugt werden.
+          parroblib_writelock('lock', 'template', Structure_i.DoF, 5*60, false);
+          parroblib_create_template_functions(Names(i), tplmode, false);
+          parroblib_writelock('free', 'template', Structure_i.DoF, 5*60, false);
+        end
       end
     end
     if Set.general.update_template_functions
@@ -915,7 +930,10 @@ end
 %% Ergebnisse darstellen
 t1 = tic();
 cds_results_table(Set, Traj, Structures);
+cds_log(1, sprintf('Erstellung der Tabellen abgeschlossen. Dauer: %1.1fs', toc(t1)));
+t2 = tic();
 cds_vis_results(Set, Traj, Structures);
+cds_log(1, sprintf('Ergebnis-Visualisierung abgeschlossen. Dauer: %1.1fs', toc(t2)));
 cds_create_evolution_videos(Set, Traj, Structures);
 lfp = cds_log(1, sprintf(['Ergebnis-Nachverarbeitung von %d Robotern ', ...
   'abgeschlossen. Dauer: %1.1fs'], length(Structures), toc(t1)));

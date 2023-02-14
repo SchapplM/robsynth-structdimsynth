@@ -81,12 +81,14 @@ for i = 1:length(tmpdirsrob)
     igen = str2double(ttt{1}{1});
     RobotOptRes = struct('Structure', Structure); % Annahme: Gleiche Einstellungen der Optimierung
     if size(tmp.PSO_Detail_Data.fval,2) > 1 % siehe cds_save_particle_details
-      RobotOptRes.fval_pareto = tmp.PSO_Detail_Data.fval(:,:,1+igen);
-      RobotOptRes.p_val_pareto = tmp.PSO_Detail_Data.pval(:,:,1+igen);
-      RobotOptRes.q0_pareto = tmp.PSO_Detail_Data.q0_ik(:,:,1+igen);
+      I_dom = pareto_dominance(tmp.PSO_Detail_Data.fval(:,:,1+igen)); % Sonst später Warnungen, da keine valide Pareto-Front
+      RobotOptRes.fval_pareto = tmp.PSO_Detail_Data.fval(~I_dom,:,1+igen);
+      RobotOptRes.p_val_pareto = tmp.PSO_Detail_Data.pval(~I_dom,:,1+igen);
+      RobotOptRes.desopt_pval_pareto = tmp.PSO_Detail_Data.desopt_pval(~I_dom,:,1+igen);
+      RobotOptRes.q0_pareto = tmp.PSO_Detail_Data.q0_ik(~I_dom,:,1+igen);
       RobotOptRes.q0 = RobotOptRes.q0_pareto(1,:)';
       RobotOptRes.fval = RobotOptRes.fval_pareto(1,:)';
-      RobotOptRes.timestamps_start_end = datenum(datetime('now'));
+      RobotOptRes.timestamps_start_end = repmat(genfiles(j),1,2); % setze beides auf den Zeitstempel der Datei
     else
       % TODO: Fall noch nicht definiert.
       continue
@@ -545,9 +547,11 @@ if size(InitPopLoadTmp,1) > 0
     if ~any(I_search) % falls keiner gefunden wurde: Prüfe alle
       [~, Isort] = sort(ScoreLoad(:,1), 'descend');
       % Entferne die bereits vorhandenen Partikel. Ansonsten doppelte.
-      for k = find(I_selected)'
-        Isort = Isort(Isort~=k);
-      end
+      % (nicht mehr notwendig, da bereits vorhandene bereits mit -inf ans
+      % Ende gesetzt wurden. Die folgende Prüfung dauert sehr lange bei großen Daten.
+%       for k = find(I_selected)'
+%         Isort = Isort(Isort~=k);
+%       end
       I_search(Isort(1:min(10,length(Isort)))) = true; % Wähle die 10 besten aus
     end
     II_search = find(I_search); % Zähl-Indizes zusätzlich zu Binär-Indizes
@@ -557,18 +561,35 @@ if size(InitPopLoadTmp,1) > 0
     % den aktuellen Mittelwert. Das ist ein vereinfachtes Diversitätsmaß.
     score_div = sum((InitPopLoadTmpNorm(I_search,:) - ...
       repmat(pnorm_mean_i, sum(I_search), 1)).^2,2);
+    if i == 1 % bei erstem Wert
+      % nehme zufällig einen der erlaubten
+      I_best = randi(length(score_div));
+      score_div_best = inf; % Bedeutungsloser Wert, da ohne Bezug
+    elseif all(isnan(score_div))
+      warning('NaN in normierten Parametern. Darf hier nicht auftreten');
+      [score_div_best,I_best] = max(score_div); % größte Diversität (vorherige Standard-Einstellung)
+    else
+      % Wähle zufällig einen derjenigen unter den 10 mit der höchsten
+      % Diversität. So gibt es noch eine weitere Zufallskomponenten. Sonst
+      % wären bei mehrfacher Durchführung alle Startgenerationen gleich.
+      [~,I_sortdiv] = sort(score_div, 'descend');
+      I_best = I_sortdiv( randi(min(length(I_sortdiv), 10)) );
+      score_div_best = score_div(I_best);
+    end
     % Wähle das beste Partikel aus und füge es zur Initialpopulation hinzu.
     % Vereinfachte Annahme: Dadurch wird die Diversität maximal vergrößert.
-    [~,I_best] = min(score_div);
     InitPopLoadNorm(i,:) = InitPopLoadTmpNorm(II_search(I_best),:);
     Q_PopLoad(i,:) = Q_PopLoadTmp(II_search(I_best),:);
     % Markiere als bereits gewählt, damit es nicht erneut gewählt wird.
     I_selected(II_search(I_best)) = true;
     cds_log(4, sprintf(['[gen_init_pop] Partikel %d hinzugefügt ', ...
-      '(Bewertung %d, fval %1.1e, gew. Bew. %d). p_norm=[%s]; aus %s'], ...
+      '(Bewertung %d, fval %1.1e, gew. Bew. %d, divers=%1.2f). p_norm=[%s]; aus %s'], ...
       II_search(I_best), ScoreLoad(II_search(I_best),2), ScoreLoad(II_search(I_best),3), ...
-      ScoreLoad(II_search(I_best),1), disp_array(InitPopLoadNorm(i,:), '%1.3f'), ...
+      ScoreLoad(II_search(I_best),1), score_div_best, disp_array(InitPopLoadNorm(i,:), '%1.3f'), ...
       OptNamesLoadTmp{II_search(I_best)}));
+    % Entferne den Wert aus ScoreLoad, damit diese Werte nicht ein weiteres
+    % Mal genutzt werden und keine Filterung gemacht werden muss
+    ScoreLoad(II_search(I_best),1) = -inf;
   end
   % Entferne die Normierung.
   InitPopLoad = repmat(varlim(:,1)',size(InitPopLoadNorm,1),1) + InitPopLoadNorm .* ...
