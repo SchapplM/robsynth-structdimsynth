@@ -29,7 +29,7 @@
 %   5e6...1e7: Überschreitung kinematischer NB (Kondition)
 %   1e7...1e9: Siehe cds_constraints_traj. Werte von dort mit Faktor 1e4 multipliziert
 %   1e9...1e13: Siehe cds_constraints. Werte von dort mit Faktor 1e4 multipliziert
-%   1e13...1e14: Parameter unplausibel (Gestell oder Plattformradius)
+%   1e13...1e14: Siehe cds_constraints_parameters (Parameter unplausibel)
 % physval
 %   Physikalische Werte, die den Werten aus fval entsprechen
 % Q_out, QD_out, QDD_out
@@ -134,50 +134,16 @@ end
 %% Parameter aktualisieren
 % Keine Verwendung der Ausgabe: Parameter werden direkt in ursprüngliche
 % Funktion geschrieben; R.pkin ist vor/nach dem Aufruf unterschiedlich
-cds_update_robot_parameters(R, Set, Structure, p);
+p_phys = cds_update_robot_parameters(R, Set, Structure, p);
 
-%% Plausibilitätsprüfung der Parameter 
-% Prüfe effektiven Radius für paarweise Gestell-Gelenke
-if R.Type == 2 && any(R.DesPar.base_method == [5 6 7 8]) && ... % PKM, Gestell paarweise
-    all(~isnan(Set.optimization.base_size_limits)) && ... % Gestell-Grenzen gegeben
-    any(Structure.vartypes == 8) && ... % Morphologie wird optimiert
-    Set.optimization.base_size_limits(1)~=Set.optimization.base_size_limits(2) % Grenzen nicht gleich
-  r_eff = norm(R.r_0_A_all(:,1)); % Effektiver Radius (Abstand des Gelenks zur Mitte)
-  r_eff_exc_rel = (r_eff - Set.optimization.base_size_limits(1)) / ...
-    (Set.optimization.base_size_limits(2)-Set.optimization.base_size_limits(1));
-  if r_eff_exc_rel > 1 % obere Grenze überschritten durch zu großen Paarabstand
-    fval(:) = 1e13 * (5 + 5 * 2/pi*atan(r_eff_exc_rel-1)); % normiere auf 5e13 bis 1e14
-    cds_log(2,sprintf(['[fitness] G=%d;I=%d. Fitness-Evaluation in %1.2fs. ', ...
-      'fval=%1.3e. Gestell-Paarabstand ist um %1.1f%% zu groß. Effektiver Basis-', ...
-      'Radius damit %1.1fmm (erlaubt: %1.1fmm ... %1.1fmm)'], i_gen, i_ind, ...
-      toc(t1), fval(1), 100*(r_eff_exc_rel-1), 1e3*r_eff, 1e3*Set.optimization.base_size_limits(1), ...
-      1e3*Set.optimization.base_size_limits(2)));
-    cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, desopt_pval);
-    return
-  elseif r_eff_exc_rel < 0
-    error('Logik-Fehler. Untere Grenze für Gestell-Radius wurde unterschritten');
-  end
-end
-% Prüfe effektiven Radius für paarweise Plattform-Gelenke
-if R.Type == 2 && any(R.DesPar.platform_method == [4 5 6]) && ... % PKM, Plattform paarweise
-    all(~isnan(Set.optimization.platform_size_limits)) && ... % Plattform-Grenzen gegeben
-    any(Structure.vartypes == 9) && ... % Morphologie wird optimiert
-    Set.optimization.platform_size_limits(1)~=Set.optimization.platform_size_limits(2) % Grenzen nicht gleich
-  r_eff = norm(R.r_P_B_all(:,1)); % Effektiver Radius (Abstand des Gelenks zur Mitte)
-  r_eff_exc_rel = (r_eff - Set.optimization.platform_size_limits(1)) / ...
-    (Set.optimization.platform_size_limits(2)-Set.optimization.platform_size_limits(1));
-  if r_eff_exc_rel > 1 % obere Grenze überschritten durch zu großen Paarabstand
-    fval(:) = 1e13 * (1 + 4 * 2/pi*atan(r_eff_exc_rel-1)); % normiere auf 1e13 bis 5e13
-    cds_log(2,sprintf(['[fitness] G=%d;I=%d. Fitness-Evaluation in %1.2fs. ', ...
-      'fval=%1.3e. Plattform-Paarabstand ist um %1.1f%% zu groß. Effektiver Plattform-', ...
-      'Radius damit %1.1fmm (erlaubt: %1.1fmm ... %1.1fmm)'], i_gen, i_ind, ...
-      toc(t1), fval(1), 100*(r_eff_exc_rel-1), 1e3*r_eff, 1e3*Set.optimization.platform_size_limits(1), ...
-      1e3*Set.optimization.platform_size_limits(2)));
-    cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, desopt_pval);
-    return
-  elseif r_eff_exc_rel < 0
-    error('Logik-Fehler. Untere Grenze für Plattform-Radius wurde unterschritten');
-  end
+%% Plausibilitätsprüfung der Parameter
+[fval_constrparam, constrvioltext] = cds_constraints_parameters(R, Set, Structure, p, p_phys);
+if fval_constrparam > 0
+  fval(:) = fval_constrparam;
+  cds_log(2,sprintf(['[fitness] G=%d;I=%d. Fitness-Evaluation in %1.2fs. ', ...
+    'fval=%1.3e. %s'], i_gen, i_ind, toc(t1), fval_constrparam, constrvioltext));
+  cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, desopt_pval);
+  return
 end
 %% Trajektorien-Struktur bezüglich der Eckpunkte anpassen
 % Komplette Trajektorie wird erst weiter unten gebraucht. Rechenzeit sparen

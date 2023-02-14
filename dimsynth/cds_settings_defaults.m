@@ -225,11 +225,15 @@ optimization = struct( ...
   'joint_stiffness_passive_universal', 0, ... % Gleiche Annahme für Kardangelenke (Sonderfall für MHI-Kryo-PKM)
   'joint_stiffness_min', 0, ... % Falls die Gelenksteifigkeit optimiert wird, ...
   'joint_stiffness_max', 100, ... % ... ist dies der maximale Wert (in Nm/rad). 100Nm/rad) sind 1.7Nm/Grad
+  'min_inclination_conic_base_joint', 5*pi/180, ... % Die Neigung konischer Gestellgelenke soll nicht waagerecht oder senkrecht sein können
+  'min_inclination_conic_platform_joint', 5*pi/180, ... % Das gleiche für Plattformgelenke (nur bei konischer Anordnung)
+  'min_joint_distance', 0, ... % Minimaler Abstand zwischen zwei Gelenken
   'nolinkmass', false, ... % Setze die Masse der Robotersegmente auf Null.
   'noplatformmass', false, ... % Setze die Masse der PKM-Plattform auf Null.
   'ElectricCoupling', true, ... % Kopplung der Achsen für Energieberechnung. TODO
   'InitPopRatioOldResults', 0.50, ... % Diesen Anteil der Initialpopulation aus bisherigen Ergebnissen generieren
   'InitPopFromGlobalIndex', false, ... % Benutze Index-Datei (index.mat) im Ergebnis-Order zum Laden alter Ergebnisse (deutlich schneller auf Cluster). Muss mit cds_gen_init_pop_index erstellt werden.
+  'InitPopFromDetailResults', false, ... % Lade auch die Detail-Ergebnisse und benutze auch die nicht Pareto-optimalen Ergebnisse als mögliche Startwerte
   'result_dirs_for_init_pop', {{}}, ... % Zusätzliche Verzeichnisse zum Laden der Initialpopulation
   'resdir', fullfile(fileparts(which('structgeomsynth_path_init.m')), 'results'), ...
   'optname', 'unnamed');

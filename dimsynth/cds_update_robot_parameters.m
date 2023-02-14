@@ -4,7 +4,7 @@
 % Eingabe:
 % R
 %   Roboter-Klasse (SerRob oder ParRob) mit allen Eigenschaften des zu
-%   optimierenden Roboters
+%   optimierenden Roboters. Falls leer, werden Parameter umgerechnet.
 % Set
 %   Einstellungen des Optimierungsalgorithmus
 % Structure
@@ -16,13 +16,17 @@
 % Ausgabe:
 % p_phys
 %   Parameter ohne Skalierung, so wie sie physikalisch eingetragen werden
+% R_neu
+%   Roboter-Klasse (neu erzeugt, falls Eingabe R leer war)
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function p_phys = cds_update_robot_parameters(R, Set, Structure, p)
-
+function [p_phys, R_neu] = cds_update_robot_parameters(R, Set, Structure, p)
 R_neu = R; % ohne copy-Befehl: Parameter werden direkt in Eingang geschrieben
+if isempty(R_neu)
+  R_neu = ParRob(Structure.Name);
+end
 scale = p(1);
 p_phys = NaN(length(p),1);
 %% Parameter prüfen
@@ -36,13 +40,13 @@ end
 %% Gelenkgrenzen
 % Müssen neu hineingeschrieben werden, da die Variable im späteren Verlauf
 % der Optimierung überschrieben wird (z.B. zwecks Plotten)
-if R_neu.Type == 0
+if Structure.Type == 0
   R_neu.qlim = Structure.qlim;
   % Schubgelenkgrenzen mit Skalierungsfaktor setzen. Ansonsten passt die
   % Proportion zwischen Segmentlängen und Schubgelenkslängen nicht
   R_neu.qlim(R_neu.MDH.sigma==1,:) = scale * Structure.qlim(R_neu.MDH.sigma==1,:);
 else
-  for i = 1:R.NLEG
+  for i = 1:R_neu.NLEG
     R_neu.Leg(i).qlim = Structure.qlim(R_neu.I1J_LEG(i):R_neu.I2J_LEG(i),:);
     % Skalierungsfaktor, damit Verhältnis zwischen Plattformgröße und Bein-
     % längen bei Schubgelenken noch stimmt
@@ -51,9 +55,9 @@ else
 end
 
 %% Strukturparameter der Kinematik
-if R_neu.Type == 0 || R_neu.Type == 2
+if Structure.Type == 0 || Structure.Type == 2
   % Relevante Parameter sind die, die auch in Opt.Var. sind.
-  if R_neu.Type == 0 % Seriell
+  if Structure.Type == 0 % Seriell
     R_pkin = R_neu;
   else  % Parallel
     R_pkin = R_neu.Leg(1);
@@ -77,7 +81,7 @@ if R_neu.Type == 0 || R_neu.Type == 2
       p_phys(Ipkin(j)) = pkin_optvar(j)*scale;
     end
   end
-  if R_neu.Type == 0, R_neu.update_mdh(pkin_voll);  % Seriell
+  if Structure.Type == 0, R_neu.update_mdh(pkin_voll);  % Seriell
   else,               R_neu.update_mdh_legs(pkin_voll); end % Parallel
 else
   error('Noch nicht implementiert');
@@ -89,7 +93,7 @@ if Set.optimization.movebase
   % Die Parameter sind entweder relativ zur Aufgabe oder absolut definiert.
   p_basepos = p(Structure.vartypes == 2);
   I_bp = find(Structure.vartypes == 2);
-  r_W_0_neu = R.T_W_0(1:3,4);
+  r_W_0_neu = R_neu.T_W_0(1:3,4);
   if Structure.Type == 0, mounting = Set.structures.mounting_serial;
   else, mounting = Set.structures.mounting_parallel;
   end
@@ -136,8 +140,8 @@ if any(Structure.vartypes == 3) % Set.optimization.ee_translation
 
   % Koordinaten auswählen (bezogen auf KS N, nicht KS E).
   % Stellt für planare serielle Roboter einen Unterschied dar
-  if Structure.R_N_E_isset && R.Type == 0
-    % hier nicht R.T_N_E(1:3,1:3)' benutzen, da die Rotation dann nicht passt
+  if Structure.R_N_E_isset && Structure.Type == 0
+    % hier nicht R_neu.T_N_E(1:3,1:3)' benutzen, da die Rotation dann nicht passt
     task_transl_DoF_rotE = Structure.R_N_E' * double(ee_transl_dof');
   else
     task_transl_DoF_rotE = double(ee_transl_dof');
@@ -178,7 +182,7 @@ if Set.optimization.ee_rotation && any(Structure.vartypes == 4)
       phi_N_E = r2eulxyz(Structure.R_N_E*eulxyz2r(phi_N_E));
     end
   end
-  R.update_EE([], phi_N_E);
+  R_neu.update_EE([], phi_N_E);
 end
 
 %% Basis-Rotation (um die z-Achse nach der Drehung in Boden-/Deckenmontage)
@@ -190,8 +194,8 @@ if Set.optimization.rotate_base && any(Structure.vartypes == 5)
   else
     phi_W_0 = [0;0;p_baserot];
   end
-  R.update_base([], phi_W_0);
-  if all(R.Type == 2) && (all(R.I_EE == [1 1 1 0 0 0]) || all(R.I_EE == [1 1 0 0 0 0]))
+  R_neu.update_base([], phi_W_0);
+  if all(Structure.Type == 2) && (all(R_neu.I_EE == [1 1 1 0 0 0]) || all(R_neu.I_EE == [1 1 0 0 0 0]))
     % Bei 3T0R-PKM kann die Basis nicht einfach gedreht werden. Dann ist
     % das EE-KS verdreht gegenüber der Aufgabe. Daher muss das EE-KS um den 
     % Winkel der Basis-Drehung zurückgedreht werden. Annahme: z-Achsen von
@@ -203,21 +207,21 @@ if Set.optimization.rotate_base && any(Structure.vartypes == 5)
         phi_N_E = zeros(3,1);
       end
     end
-    R.update_EE([], phi_N_E+[0;0;p_baserot]);
+    R_neu.update_EE([], phi_N_E+[0;0;p_baserot]);
   end
   changed_basepose = true;
 end
-if changed_basepose && R.Type == 2
+if changed_basepose && Structure.Type == 2
   % Aktualisiere die Referenzpose der Plattform (notwendig für
   % Aktualisierung der Plattform-Gestellgelenke Nr. 7)
-  R.xref = R.t2x(R.T_0_W * R.x2t(Structure.xref_W));
+  R_neu.xref = R_neu.t2x(R_neu.T_0_W * R_neu.x2t(Structure.xref_W));
 end
 %% Basis-Koppelpunkt Positionsparameter (z.B. Gestell-Radius)
-if R_neu.Type == 2
-  p_basepar = R.DesPar.base_par;
+if Structure.Type == 2
+  p_basepar = R_neu.DesPar.base_par;
   changed_base = false;
 end
-if R_neu.Type == 2 && Set.optimization.base_size && any(Structure.vartypes == 6)
+if Structure.Type == 2 && Set.optimization.base_size && any(Structure.vartypes == 6)
   p_baseradius = p(Structure.vartypes == 6);
   if length(p_baseradius) ~= 1
     error('Mehr als ein Fußpunkt-Positionsparameter nicht vorgesehen');
@@ -237,16 +241,16 @@ if R_neu.Type == 2 && Set.optimization.base_size && any(Structure.vartypes == 6)
 end
 
 %% Gestell-Morphologie-Parameter (z.B. Gelenkpaarabstand)
-if R_neu.Type == 2 && Set.optimization.base_morphology && any(Structure.vartypes == 8)
+if Structure.Type == 2 && Set.optimization.base_morphology && any(Structure.vartypes == 8)
   p_morph = p(Structure.vartypes == 8);
   % Methoden und Parameter, siehe align_base_coupling
-  if any(R.DesPar.base_method == 1:3)
+  if any(Structure.Coupling(1) == 1:3)
     % Modi haben keine Morphologieparameter
-  elseif R.DesPar.base_method == 4
+  elseif Structure.Coupling(1) == 4
     % Nur der Winkel der Kegel-Steigung ist der Morphologieparameter.
     p_basepar(2) = p(Structure.vartypes == 8);
     p_phys(Structure.vartypes == 8) = p_basepar(2);
-  elseif any(R.DesPar.base_method == 5:8)
+  elseif any(Structure.Coupling(1) == 5:8)
     if all(~isnan(Set.optimization.base_size_limits)) && ...
         Set.optimization.base_size_limits(1)==Set.optimization.base_size_limits(2)
       % Sonderfall konstanter vorgegebener effektiver Gestell-Radius:
@@ -256,11 +260,11 @@ if R_neu.Type == 2 && Set.optimization.base_morphology && any(Structure.vartypes
         sqrt(1+(p_morph(1)/2)^2);
       % Probe (nach nächster Zeile): effektiver Radius: sqrt(p_basepar(1)^2 + (p_basepar(2)/2)^2)
     end
-    if any(R.DesPar.base_method == 5:7)
+    if any(Structure.Coupling(1) == 5:7)
       % Parameter ist der Paarabstand. Skaliert mit Robotergröße.
       p_basepar(2) = p_morph.*p_basepar(1);
       p_phys(Structure.vartypes == 8) = p_basepar(2);
-    else % R.DesPar.base_method == 8
+    else % Structure.Coupling(1) == 8
       % Skalierung mit Basis-Radius und Winkel ohne Skalierung
       p_basepar(2:3) = p(Structure.vartypes == 8).*[p_basepar(1);1];
       p_phys(Structure.vartypes == 8) = p_basepar(2:3);
@@ -269,20 +273,20 @@ if R_neu.Type == 2 && Set.optimization.base_morphology && any(Structure.vartypes
   changed_base = true;
 end
 
-if R_neu.Type == 2 && changed_base
-  R_neu.align_base_coupling(R.DesPar.base_method, p_basepar);
-  if R.DesPar.base_method == 4 || R.DesPar.base_method == 8 % Kegel, Pyramide
+if Structure.Type == 2 && changed_base
+  R_neu.align_base_coupling(Structure.Coupling(1), p_basepar);
+  if Structure.Coupling(1) == 4 || Structure.Coupling(1) == 8 % Kegel, Pyramide
     % Falls schräge Anordnung kann sich der Winkel ändern. Sonst bleibt er
     % konstant (wie in Initialisierung bereits gesetzt).
-    R.update_gravity(); % Die Gravitations-Vektoren im Beinketten-Basis-KS aktualisieren
+    R_neu.update_gravity(); % Die Gravitations-Vektoren im Beinketten-Basis-KS aktualisieren
   end
 end
 %% Plattform-Koppelpunkt Positionsparameter (z.B. Plattform-Radius)
-if R_neu.Type == 2
-  p_plfpar = R.DesPar.platform_par(1:end-1);
+if Structure.Type == 2
+  p_plfpar = R_neu.DesPar.platform_par(1:end-1);
   changed_plf = false;
 end
-if R_neu.Type == 2 && Set.optimization.platform_size && any(Structure.vartypes == 7)
+if Structure.Type == 2 && Set.optimization.platform_size && any(Structure.vartypes == 7)
   p_pfradius = p(Structure.vartypes == 7);
   if length(p_pfradius) ~= 1
     error('Mehr als ein Plattform-Positionsparameter nicht vorgesehen');
@@ -303,9 +307,9 @@ end
 
 %% Plattform-Morphologie-Parameter (z.B. Gelenkpaarabstand)
 % Methoden und Parameter, siehe align_platform_coupling
-if R_neu.Type == 2 && any(R.DesPar.platform_method == [4 5 6 8 9])
+if Structure.Type == 2 && any(Structure.Coupling(2) == [4 5 6 8 9])
   if Set.optimization.platform_morphology && any(Structure.vartypes == 9) 
-    if any(R.DesPar.platform_method == [8 9])
+    if any(Structure.Coupling(2) == [8 9])
       % Offset-Parameter (Winkel) platform_morph_axoffset für P8. Oder
       % Winkel der konischen Anordnung (P9). Direkte Übernahme.
       p_plfpar(2) = p(Structure.vartypes == 9);
@@ -323,18 +327,18 @@ if R_neu.Type == 2 && any(R.DesPar.platform_method == [4 5 6 8 9])
     end
     p_phys(Structure.vartypes == 9) = p_plfpar(2);
     changed_plf = true;
-  elseif any(R.DesPar.platform_method == [4 5 6])
+  elseif any(Structure.Coupling(2) == [4 5 6])
     % Aktualisiere die Proportionen (gleicher Wert wie in cds_dimsynth_robot). 
     % Sonst würde sich mit der Größe die Proportion ändern).
     p_plfpar(2) = 0.5*p_plfpar(1);
   end
-elseif R_neu.Type == 2 && R.DesPar.platform_method == 7 && changed_basepose
+elseif Structure.Type == 2 && Structure.Coupling(2) == 7 && changed_basepose
   % Die veränderte Basis-Position des Roboters erfordert eine Aktuali-
   % sierung der Koppelgelenk-Ausrichtung (da diese per IK bestimmt wird)
   changed_plf = true;
 end
-if R_neu.Type == 2 && changed_plf
-  R_neu.align_platform_coupling(R.DesPar.platform_method, p_plfpar);
+if Structure.Type == 2 && changed_plf
+  R_neu.align_platform_coupling(Structure.Coupling(2), p_plfpar);
 end
 
 %% Vorab festgelegte Gelenkwinkel für bestimmte Parameter
@@ -346,10 +350,6 @@ if isfield(Structure, 'dict_param_q')
   % Belege die Referenzpose des Roboters mit diesen Werten. Dadurch IK-Startwert
   if any(I) && sum(I) == 1
     qref = Structure.dict_param_q.q(I,:)';
-    if R.Type == 0 % Seriell
-      R.qref = qref;
-    else % Parallel
-      for i = 1:R.NLEG, R.Leg(i).qref = qref(R.I1J_LEG(i):R.I2J_LEG(i)); end
-    end
+    R_neu.update_qref(qref);
   end
 end

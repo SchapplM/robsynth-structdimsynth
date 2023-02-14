@@ -847,11 +847,7 @@ if Structure.Type == 2 && Set.optimization.platform_morphology
   elseif R.DesPar.platform_method == 9
     nvars = nvars + 1;
     vartypes = [vartypes; 9];
-    if any(strcmp(Set.optimization.objective, 'valid_act'))
-      varlim = [varlim; [5, 45]*pi/180]; % 5° Abstand von der rein radialen Ausrichtung, die identisch zu P3 ist
-    else
-      varlim = [varlim; [-pi/4,pi/4]]; % Neigungswinkel der Gelenkachsen in die Mitte
-    end
+    varlim = [varlim; [-pi/2,pi/2]]; % Neigungswinkel der Gelenkachsen in die Mitte
     varnames = {varnames{:}, 'platform_morph_axtiltangle'}; %#ok<CCAT>
   else
     error('Parameter "platform_morphology" für Plattform-Methode %d nicht implementiert', R.DesPar.platform_method);

@@ -12,6 +12,8 @@
 % Ausgabe:
 % Set
 %   Aktualisierte Einstellungsstruktur an die aktuelle Version des Programms
+% 
+% Siehe auch: cds_settings_defaults.m
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2021-02
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
@@ -58,6 +60,14 @@ if length(Set.optimization.constraint_obj) < ...
   if verbosity
     fprintf('Fehlende Einträge in constraint_obj wurden auf Null gesetzt\n');
   end
+end
+% Ersetze einige Felder zur Struktur-Filterung, die vor der Implementierung
+% nicht dem aktuellen Standardwert entsprachen
+if ~isfield(Set.optimization,'min_inclination_conic_base_joint')
+  Set.optimization.min_inclination_conic_base_joint = 0;
+end
+if ~isfield(Set.optimization,'min_inclination_conic_platform_joint')
+  Set.optimization.min_inclination_conic_platform_joint = 0;
 end
 %% Automatische Übersetzung anderer Einstellungen
 % Gehe alle Felder der Einstellungen durch und ergänze fehlende
