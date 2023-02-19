@@ -112,9 +112,10 @@ end
 I_RobMatch = contains(initpop_matlist, RobFilter);
 for i = find(I_RobMatch)'% Unterordner durchgehen.
   dirname_i = fileparts(initpop_matlist{i});
-  sflist = dir(fullfile(dirname_i, '*_settings.mat'));
-  if length(sflist) > 1
-    continue % Mehr als eine Einstellungsdatei. Ungültig.
+  [~,optname_tmp] = fileparts(dirname_i);
+  setfile_i = fullfile(dirname_i, [optname_tmp,'_settings.mat']);
+  if ~exist(setfile_i, 'file') % Keine Einstellungsdatei. Ungültig.
+    continue % wenn es mehr als eine gibt
   end
   % fprintf('Daten für Roboter %s gefunden (%s)\n', RobName, dirname_i);
   % Gehe alle Ergebnisdateien zu dem Roboternamen durch. Es kann mehrere
@@ -182,21 +183,14 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
     continue % Ergebnis nicht verwertbar.
   end
   % Einstellungen laden
-  if ~isempty(sflist)
-    try
-      settings_i = load(fullfile(dirname_i, sflist(1).name));
-    catch err
-      cds_log(-1, sprintf(['[gen_init_pop] Datei %s konnte nicht geladen ', ...
-        'werden. Fehler: %s'], sflist(1).name, err.message));
-      continue
-    end
-    Set_i = settings_i.Set;
-  else
-    if ~isfield(d, 'Set')
-      continue % Altes Dateiformat
-    end
-    Set_i = d.Set; % Altes Format
+  try
+    settings_i = load(setfile_i);
+  catch err
+    cds_log(-1, sprintf(['[gen_init_pop] Datei %s konnte nicht geladen ', ...
+      'werden. Fehler: %s'], setfile_i, err.message));
+    continue
   end
+  Set_i = settings_i.Set;
   % Aktualisiere mittlerweile geänderte Einstellungen.
   Structure_i.varnames(strcmp(Structure_i.varnames,'platform_morph')) = ...
     {'platform_morph_pairdist'}; % Optimierungsvariable wurde umbenannt.
