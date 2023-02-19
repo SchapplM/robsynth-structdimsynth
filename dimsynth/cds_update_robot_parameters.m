@@ -25,7 +25,13 @@
 function [p_phys, R_neu] = cds_update_robot_parameters(R, Set, Structure, p)
 R_neu = R; % ohne copy-Befehl: Parameter werden direkt in Eingang geschrieben
 if isempty(R_neu)
-  R_neu = ParRob(Structure.Name);
+  if Structure.Type == 0
+    R_neu = SerRob();
+  else
+    R_neu = ParRob(Structure.Name);
+    R_neu.NLEG = 0;
+    R_neu.Leg = SerRob();
+  end
 end
 scale = p(1);
 p_phys = NaN(length(p),1);
@@ -81,8 +87,10 @@ if Structure.Type == 0 || Structure.Type == 2
       p_phys(Ipkin(j)) = pkin_optvar(j)*scale;
     end
   end
-  if Structure.Type == 0, R_neu.update_mdh(pkin_voll);  % Seriell
-  else,               R_neu.update_mdh_legs(pkin_voll); end % Parallel
+  if ~isempty(R)
+    if Structure.Type == 0, R_neu.update_mdh(pkin_voll);  % Seriell
+    else,               R_neu.update_mdh_legs(pkin_voll); end % Parallel
+  end
 else
   error('Noch nicht implementiert');
 end
@@ -273,7 +281,7 @@ if Structure.Type == 2 && Set.optimization.base_morphology && any(Structure.vart
   changed_base = true;
 end
 
-if Structure.Type == 2 && changed_base
+if Structure.Type == 2 && changed_base && ~isempty(R)
   R_neu.align_base_coupling(Structure.Coupling(1), p_basepar);
   if Structure.Coupling(1) == 4 || Structure.Coupling(1) == 8 % Kegel, Pyramide
     % Falls schräge Anordnung kann sich der Winkel ändern. Sonst bleibt er
@@ -337,7 +345,7 @@ elseif Structure.Type == 2 && Structure.Coupling(2) == 7 && changed_basepose
   % sierung der Koppelgelenk-Ausrichtung (da diese per IK bestimmt wird)
   changed_plf = true;
 end
-if Structure.Type == 2 && changed_plf
+if Structure.Type == 2 && changed_plf && ~isempty(R)
   R_neu.align_platform_coupling(Structure.Coupling(2), p_plfpar);
 end
 

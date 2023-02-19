@@ -364,10 +364,21 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
      Set_i.optimization.min_inclination_conic_platform_joint<Set.optimization.min_inclination_conic_platform_joint) ...
      || ... % Mindestabstand der Gelenke ist gefordert und in geladener Einstellung nicht so streng
      Set.optimization.min_joint_distance > 0 && (~isfield(Set_i.optimization, 'min_joint_distance') ||...
-     Set_i.optimization.min_joint_distance<Set.optimization.min_joint_distance)
+     Set_i.optimization.min_joint_distance<Set.optimization.min_joint_distance) ...
+     || ... % Gestell-Durchmesser ist gefordert (für Paarweise Anordnung anders)
+     Structure.Type == 2 && any(Structure.Coupling(1) == [5 6 7 8]) && ...
+     all(~isnan(Set.optimization.base_size_limits)) && ... % Gestell-Grenzen gegeben
+     any(Structure.vartypes == 8) && ... % Morphologie wird optimiert
+     Set.optimization.base_size_limits(1)~=Set.optimization.base_size_limits(2) ...% Grenzen nicht gleich
+     || ... % Plattform-Durchmesser ist gefordert (für Paarweise Anordnung anders)
+     Structure.Type == 2 && any(Structure.Coupling(2) == [4 5 6]) && ... % PKM, Plattform paarweise
+     all(~isnan(Set.optimization.platform_size_limits)) && ... % Plattform-Grenzen gegeben
+     any(Structure.vartypes == 9) && ... % Morphologie wird optimiert
+     Set.optimization.platform_size_limits(1)~=Set.optimization.platform_size_limits(2) % Grenzen nicht gleich
     for jjj = 1:size(pval_i,1)
+      p_phys_jjj=cds_update_robot_parameters([], Set, Structure, pval_i(jjj,:)');
       % Der Winkel wird direkt physikalisch eingesetzt. Alle anderen Parameter sind egal.
-      fval_jjj = cds_constraints_parameters([], Set, Structure, pval_i(jjj,:)');
+      fval_jjj = cds_constraints_parameters([], Set, Structure, pval_i(jjj,:)', p_phys_jjj);
       if fval_jjj > 0
         % Belege die Fitness-Werte dieses Partikels neu (hat dann sehr
         % schlechte Chancen, ist aber nicht komplett deaktiviert)
