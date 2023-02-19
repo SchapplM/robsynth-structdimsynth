@@ -95,7 +95,7 @@ colldepth_t = sum(colldepth_rel,2);
 %   fprintf('Prüfung %d: Koll.-Körper %d vs %d (Rob.-Seg. %d vs %d)\n', kk, collchecks(kk,1), ...
 %     collchecks(kk,2), collbodies.link(collchecks(kk,1),1), collbodies.link(collchecks(kk,2),1));
 % end
-
+plotscale = 1; % Skalierung der Kollisionskörper im Plot (für Sichtbarkeit)
 % Bild zeichnen
 fhdl = change_current_figure(867); clf; hold all
 view(3); axis auto; grid on;
@@ -123,7 +123,7 @@ for i = 1:size(collbodies.link,1)
   ii1 = jj1+1;
   pts = JP(j,[3*(ii1-1)+1:3*ii1, 3*(ii2-1)+1:3*ii2]); % bezogen auf Basis-KS
   if collbodies.type(i) == 6 % Kapsel zum vorherigen KS
-    r = collbodies.params(i,1)*3; % Vergrößere den Radius für den Plot
+    r = collbodies.params(i,1)*plotscale;
     if all(pts(1:3) == pts(4:6))
       warning('Kollisionskörper %d/%d hat Länge Null. Verbindet Körper %d und %d.', ...
         i, size(collbodies.link,1), jj1, jj2);
@@ -131,7 +131,7 @@ for i = 1:size(collbodies.link,1)
   elseif collbodies.type(i) == 16 % Kugel im Ursprung des Körper-KS
     r = collbodies.params(i,1); % Keine Vergrößerung für Plot
   elseif collbodies.type(i) == 13 % Kapsel mit 2 angegebenen Punkten im Basis-KS
-    r = collbodies.params(i,7)*3; % Vergrößerung für Plot
+    r = collbodies.params(i,7)*plotscale;
     pts = collbodies.params(i,1:6);
   elseif collbodies.type(i) == 15 % Kugel mit angegebenem Punkt im Basis-KS
     r = collbodies.params(i,4); % Keine Vergrößerung für Plot
