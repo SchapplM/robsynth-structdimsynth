@@ -221,8 +221,8 @@ elseif all(vartypes == 2) % Nur Segmentstärke wird optimiert
     p_val_opt = InitPop(2,:)';
     detailstring = 'Materialspannung auch bei stärkster Segmentdimensionierung überschritten';
   end
-  if Set.optimization.constraint_obj(6) == 0 && ...
-    (strcmp(Set.optimization.objective, 'stiffness') || Set.optimization.constraint_obj(5) == 0)
+  if Set.optimization.constraint_obj(6) == 0 && ... % TODO: Logik überarbeiten (andere Zielfunktionen berücksichtigen)
+    (all(strcmp(Set.optimization.objective, 'stiffness')) || Set.optimization.constraint_obj(5) == 0)
     % Optimierung der Steifigkeit ohne Prüfung der Materialstärke. Die
     % stärkste Segmentauslegung könnte das Optimum darstellen.
     % Die Grenze der Masse wird betrachtet, da sie als Nebenbedingung bei
