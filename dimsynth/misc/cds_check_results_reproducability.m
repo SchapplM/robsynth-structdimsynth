@@ -29,6 +29,7 @@ s = struct( ...
   'update_template_functions', false, ... % Aktualisieren die Matlab-Funktionen
   'figure_invisible', true, ... % Unsichtbar erzeugen zum Speichern ohne Fokus-Klau
   'fval_check_lim', [0, inf], ... % untere und obere Grenzen für die Prüfung der Funktionswerte
+  'num_particles', inf, ... % Anzahl der zu prüfenden Partikel pro Roboter
   'eval_plots', {{}}, ... % Liste von Plots, die für jedes Partikel erstellt werden. Siehe Eingabe figname in cds_vis_results_figures.
   'results_dir', '', ... % Alternatives Verzeichnis zum Laden der Ergebnisse
   'isoncluster', false, ... % Falls auf Cluster, muss der parpool-Zugriff geschützt werden
@@ -363,6 +364,7 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
           s.figure_invisible, 'delete_figure', s.figure_invisible));
       end
     end
+    if jj >= s.num_particles, break; end
   end
   fprintf('Tabelle für Rob %d geschrieben: %s\n', RobNr, csvfilename);
   end
