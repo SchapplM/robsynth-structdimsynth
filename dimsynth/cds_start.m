@@ -220,6 +220,9 @@ if length(union(Set.optimization.desopt_vars, {'joint_stiffness_qref', ...
     'joint_stiffness', 'linkstrength'})) ~= 3
   error('Unerwarteter Wert in Set.optimization.desopt_vars');
 end
+if Set.optimization.constraint_collisions_desopt && ~Set.optimization.constraint_collisions
+  error('constraint_collisions_desopt=1, aber constraint_collisions=0. Unlogisch.')
+end
 if length(intersect(Set.optimization.objective_ik, {'default', 'none', 'constant', ...
     'ikjac_cond', 'jac_cond', 'coll_par', 'instspc_par', 'poserr_ee'})) ~= ...
     length(Set.optimization.objective_ik)

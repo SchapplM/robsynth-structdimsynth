@@ -114,6 +114,10 @@ if update_collbodies
       % (Stator-Teile der Schubgelenke sind immer am Anfang der Liste)
       R_cc.collbodies.params(cbidx,:) = [cbi_par, NaN(1,3)];
     end
+    % Aktualisiere Kollisionskörper der Segmente (für alle). Betrifft nicht
+    % die Plattform- und Gestell-Körper, da diese hiernach gesetzt werden.
+    I_update_link = R_cc.collbodies.type == 6 & all(R_cc.collbodies.link ~= 0,2);
+    R_cc.collbodies.params(I_update_link,1) = Set.optimization.collision_bodies_size;
   end
 end
 %% 
