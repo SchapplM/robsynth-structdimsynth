@@ -212,8 +212,20 @@ elseif all(vartypes == 2) % Nur Segmentstärke wird optimiert
     p_val_opt = InitPop(1,:)';
     detailstring = 'Schwächste Segmentdimensionierung erfüllt bereits die Nebenbedingungen';
   end
+  % Erneuter Aufruf der Fitness-Funktion mit maximaler Dimensionierung 
+  % ohne Kollisionsprüfung
+  Set_tmp = Set;
+  Set_tmp.optimization.constraint_collisions_desopt = false;
   cds_dimsynth_desopt_fitness(); % für persistente Variable
-  fval_maxpar = fitnessfcn_desopt(InitPop(2,:)');
+  fval_maxpar = cds_dimsynth_desopt_fitness(R, Set_tmp, Traj_0, Q, QD, QDD, ...
+    JP, Jinv_ges, data_dyn, Structure, InitPop(2,:)');
+  if fval_maxpar>1e7
+    % Wenn die maximale Dimensionierung eine Kollision verursacht ist keine
+    % Aussage möglich (Schwellwert 1e7). Wird aber nicht geprüft und darf nicht auftreten.
+    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+      'cds_dimsynth_desopt_collcheckerror.mat'));
+    error('Logik-Fehler. Kollision oder unplausibel als Ergebnis');
+  end
   if fval_minpar > 1e4 && fval_maxpar > 1e4
     % Sowohl die schwächstmögliche, als auch die stärkstmögliche
     % Dimensionierung verletzen die Materialspannung. Annahme, dass eine
@@ -310,7 +322,7 @@ if any(I_bordersol)
 end
 detailstring = [detailstring, sprintf('. Ergebnis: ')];
 for i = 1:length(p_val)
-  detailstring = [detailstring, sprintf('(%s: %1.1f)', pnames{i}, p_val(i))]; %#ok<AGROW>
+  detailstring = [detailstring, sprintf('(%s: %1.3f)', pnames{i}, p_val(i))]; %#ok<AGROW>
   if i < length(p_val), detailstring = [detailstring, ', ']; end %#ok<AGROW>
 end
 cds_log(3,sprintf(['[desopt] Entwurfsoptimierung durchgeführt. %d/%d Iter', ...
