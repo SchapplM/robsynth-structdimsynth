@@ -203,7 +203,7 @@ if fval_test == 0 || abort_fitnesscalc
 elseif all(vartypes == 2) % Nur Segmentstärke wird optimiert
   fval_minpar = fval_test; % Aufruf oben mit InitPop(1,:) entspricht schwächstem Wert
   if Set.optimization.constraint_obj(6) > 0 && fval_minpar<1e3 && ...
-    ~strcmp(Set.optimization.objective, 'stiffness') && Set.optimization.constraint_obj(5) == 0
+    ~all(strcmp(Set.optimization.objective, 'stiffness')) && Set.optimization.constraint_obj(5) == 0
     % Das schwächste Segment erfüllt alle Nebenbedingungen. Das Ergebnis muss
     % damit optimal sein (alle Zielfunktionen wollen Materialstärke minimieren)
     % Die Steifigkeit wird nicht betrachtet
