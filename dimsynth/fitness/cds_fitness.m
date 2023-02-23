@@ -195,7 +195,7 @@ if all(~isnan(Structure.q0_traj)) && Set.task.profile ~= 0 % nur, falls es auch 
         'nicht die Kinematik (max err %1.1e). Nicht verwenden.'], max(abs(Phi_test))));
     else
       % Füge vorgegebene Startkonfiguration hinzu
-      if ~any(isnan(Q0)) && fval_constr < 1e6 % IK-Lösung gefunden
+      if fval_constr < 1e6 && ~any(isnan(Q0(:))) % IK-Lösung gefunden
         Q0 = [Structure.q0_traj'; Q0]; % Prüfe vorgegebenen Wert zuerst.
         % Erzeuge Platzhalter-Werte für spätere Rechnungen
         QE_iIKC(:,:,size(QE_iIKC,3)+1) = repmat(Structure.q0_traj', size(QE_iIKC,1), 1);
