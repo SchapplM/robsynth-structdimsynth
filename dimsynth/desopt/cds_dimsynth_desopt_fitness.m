@@ -116,9 +116,8 @@ if Set.optimization.constraint_collisions_desopt
       end
     else
       % Durchmesser ist in einem unbekannten Bereich. Neu berechnen.
-      Set_tmp = Set; % Eintragen des neuen Sicherheitsabstandes
-      Set_tmp.optimization.collision_bodies_size = p_ls(2) * 2;
-      Structure.collbodies_robot = cds_update_collbodies(R, Set_tmp, Structure, Q);
+      Set.optimization.collision_bodies_size = p_ls(2) * 2; % Eintragen des neuen Sicherheitsabstandes
+      Structure.collbodies_robot = cds_update_collbodies(R, Set, Structure, Q);
       [fval, coll_traj] = cds_constr_collisions_self(R, Traj_0.X, ...
         Set, Structure, JP, Q, [1e7; 1e8]);
       if fval == 0 % Gut-Fall mit größerem Durchmesser als vorher

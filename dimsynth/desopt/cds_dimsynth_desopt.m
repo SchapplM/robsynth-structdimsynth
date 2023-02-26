@@ -334,8 +334,15 @@ cds_log(3,sprintf(['[desopt] Entwurfsoptimierung durchgeführt. %d/%d Iter', ...
 % cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn, Structure, p_val(:))
 %% Ausgabe
 % Belege die Robotereigenschaften mit dem Ergebnis der Optimierung
-if any(vartypes == 2)
-  cds_dimsynth_design(R, Q, Set, Structure, p_val(vartypes==2));
+if any(vartypes == 2) % Optimierung der Segmente: Masse und Kollisionsobjekt
+  p_linkstrength = p_val(vartypes==2);
+  cds_dimsynth_design(R, Q, Set, Structure, p_linkstrength);
+  if Set.optimization.constraint_collisions_desopt % muss konsistent mit cds_dimsynth_desopt_fitness sein
+    Set.optimization.collision_bodies_size = p_linkstrength(2) * 2;
+    % Struktur-Variable wird hier nicht gebraucht, aber Kollisionsobjekte
+    % werden auch in der Roboter-Klasse (R) gespeichert.
+    Structure.collbodies_robot = cds_update_collbodies(R, Set, Structure, Q);
+  end
 end
 if any(vartypes == 3)
   for i = 1:R.NLEG

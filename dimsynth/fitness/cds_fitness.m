@@ -489,6 +489,10 @@ for iIKC = 1:size(Q0,1)
       % Ergebnis bereits vorgegeben (nachträgliche Auswertung)
       p_linkstrength = desopt_pval(Structure.desopt_ptypes==2);
       cds_dimsynth_design(R, Q, Set, Structure, p_linkstrength);
+      if Set.optimization.constraint_collisions_desopt % muss konsistent mit cds_dimsynth_desopt_fitness sein
+        Set.optimization.collision_bodies_size = p_linkstrength(2) * 2;
+        Structure.collbodies_robot = cds_update_collbodies(R, Set, Structure, Q);
+      end
     end
     if ~isempty(Set.optimization.desopt_vars) % Entwurfsoptimierung aktiv.
       % Berechne Dynamik-Funktionen als Regressorform für die Entwurfsopt.
@@ -503,8 +507,13 @@ for iIKC = 1:size(Q0,1)
         warning('Ein Funktionswert > 1e5 ist nicht für Entwurfsoptimierung vorgesehen');
       end
       if any(strcmp(Set.optimization.desopt_vars, 'linkstrength'))
+        p_linkstrength = desopt_pval(vartypes_desopt==2);
         % Speichere die Parameter der Segmentstärke (jedes Segment gleich)
-        desopt_pval_IKC(iIKC,Structure.desopt_ptypes==2) = desopt_pval(vartypes_desopt==2);
+        desopt_pval_IKC(iIKC,Structure.desopt_ptypes==2) = p_linkstrength;
+        if Set.optimization.constraint_collisions_desopt % muss konsistent mit cds_dimsynth_desopt_fitness sein
+          Set.optimization.collision_bodies_size = p_linkstrength(2) * 2;
+          Structure.collbodies_robot = cds_update_collbodies(R, Set, Structure, Q);
+        end
       end
       if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref'))
         % Speichere die Parameter der Gelenkfeder-Ruhelage (jede Beinkette
