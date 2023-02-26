@@ -44,7 +44,6 @@ for i = 1:5 % Versuche mehrfach, den Pool zu starten
   else
     parfor_numworkers = Pool.NumWorkers;
   end
-  clear Pool
   if ~isinf(Set.general.parcomp_maxworkers) && parfor_numworkers ~= Set.general.parcomp_maxworkers
     cds_log(-1, sprintf(['Die gewünschte Zahl von %d Parallelinstanzen ', ...
       'konnte nicht erfüllt werden. Es sind jetzt %d.'], ...
