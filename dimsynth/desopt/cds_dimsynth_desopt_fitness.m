@@ -82,7 +82,7 @@ elseif abort_fitnesscalc
   return;
 end
 vartypes = Structure.desopt_ptypes(Structure.desopt_ptypes~=1);
-p_ls = p_desopt(vartypes==2);
+p_ls = p_desopt(vartypes==2); % Wandstärke und Durchmesser
 p_jsoff = p_desopt(vartypes==3);
 p_js = p_desopt(vartypes==4);
 
@@ -97,8 +97,10 @@ end
 %% Selbstkollisionen prüfen
 if Set.optimization.constraint_collisions_desopt
   if isempty(data_last_collchecks)
-    % Annahme: Der Kollisions-Prüf-Radius ist doppelt so groß wie der reale
-    data_last_collchecks = [[Set.optimization.collision_bodies_size / 2, 0]; [inf, inf]];
+    % Die Selbstkollision wurde vorher (in cds_constraints_traj) mit dem
+    % Wert aus collision_bodies_size durchgeführt. 
+    data_last_collchecks = [[Set.optimization.collision_bodies_size - ...
+      Set.optimization.collision_bodies_safety_distance * 2, 0]; [inf, inf]];
   end
   if any(vartypes==2) && fval == 0
     if p_ls(2) < data_last_collchecks(1,1)
@@ -116,7 +118,8 @@ if Set.optimization.constraint_collisions_desopt
       end
     else
       % Durchmesser ist in einem unbekannten Bereich. Neu berechnen.
-      Set.optimization.collision_bodies_size = p_ls(2) * 2; % Eintragen des neuen Sicherheitsabstandes
+      Set.optimization.collision_bodies_size = p_ls(2) + ... % Eintragen des neuen Sicherheitsabstandes
+        Set.optimization.collision_bodies_safety_distance * 2; 
       Structure.collbodies_robot = cds_update_collbodies(R, Set, Structure, Q);
       [fval, coll_traj] = cds_constr_collisions_self(R, Traj_0.X, ...
         Set, Structure, JP, Q, [1e7; 1e8]);

@@ -202,6 +202,7 @@ optimization = struct( ...
   'constraint_collisions', false, ... Kollisionsprüfung
   'constraint_collisions_desopt', false, ... % Kollisionsprüfung in Entwurfsoptimierung (mit Änderung der Segmentdurchmesser)
   'collision_bodies_size', 40e-3, ... % Durchmesser der Kollisionskörper (meistens Kapseln)
+  'collision_bodies_safety_distance', 10e-3, ... % Zusätzlicher Sicherheitsabstand um die Segmente (entspricht zusätzlichem Radius, für constraint_collisions_desopt)
   'single_point_constraint_check', false, ... % Prüfe einige Nebenbedingungen für jeden Arbeitsraum-Eckpunkt. Schnellere Prüfungen, aber voraussichtlich schlechtere Konvergenz
   'collshape_base', {{'default'}}, ... % Form der Kollisionskörper für die PKM-Basis: default, star, ring, joint. Siehe cds_update_collbodies.m; mehrere möglich.
   'collshape_platform', {{'default'}}, ... % Form der Kollisionskörper für die PKM-Plattform default, star, ring, sphere. Siehe cds_update_collbodies.m; mehrere möglich.

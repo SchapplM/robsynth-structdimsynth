@@ -490,7 +490,8 @@ for iIKC = 1:size(Q0,1)
       p_linkstrength = desopt_pval(Structure.desopt_ptypes==2);
       cds_dimsynth_design(R, Q, Set, Structure, p_linkstrength);
       if Set.optimization.constraint_collisions_desopt % muss konsistent mit cds_dimsynth_desopt_fitness sein
-        Set.optimization.collision_bodies_size = p_linkstrength(2) * 2;
+        Set.optimization.collision_bodies_size = p_linkstrength(2) + ...
+          Set.optimization.collision_bodies_safety_distance * 2;
         Structure.collbodies_robot = cds_update_collbodies(R, Set, Structure, Q);
       end
     end
@@ -511,7 +512,8 @@ for iIKC = 1:size(Q0,1)
         % Speichere die Parameter der Segmentstärke (jedes Segment gleich)
         desopt_pval_IKC(iIKC,Structure.desopt_ptypes==2) = p_linkstrength;
         if Set.optimization.constraint_collisions_desopt % muss konsistent mit cds_dimsynth_desopt_fitness sein
-          Set.optimization.collision_bodies_size = p_linkstrength(2) * 2;
+          Set.optimization.collision_bodies_size = p_linkstrength(2) + ...
+            Set.optimization.collision_bodies_safety_distance * 2;
           Structure.collbodies_robot = cds_update_collbodies(R, Set, Structure, Q);
         end
       end

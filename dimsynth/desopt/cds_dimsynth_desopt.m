@@ -338,7 +338,8 @@ if any(vartypes == 2) % Optimierung der Segmente: Masse und Kollisionsobjekt
   p_linkstrength = p_val(vartypes==2);
   cds_dimsynth_design(R, Q, Set, Structure, p_linkstrength);
   if Set.optimization.constraint_collisions_desopt % muss konsistent mit cds_dimsynth_desopt_fitness sein
-    Set.optimization.collision_bodies_size = p_linkstrength(2) * 2;
+    Set.optimization.collision_bodies_size = p_linkstrength(2) + ...
+      Set.optimization.collision_bodies_safety_distance * 2; 
     % Struktur-Variable wird hier nicht gebraucht, aber Kollisionsobjekte
     % werden auch in der Roboter-Klasse (R) gespeichert.
     Structure.collbodies_robot = cds_update_collbodies(R, Set, Structure, Q);
