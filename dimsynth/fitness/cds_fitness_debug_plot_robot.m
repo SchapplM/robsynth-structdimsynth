@@ -31,8 +31,10 @@ if Set.general.plot_robot_in_fitness < 0 && fval >= abs(Set.general.plot_robot_i
 else 
   return
 end
-if isempty(q) || any(isnan(q))
+if isempty(q)
   q = zeros(R.NJ,1);
+elseif any(isnan(q))
+  q(isnan(q)) = 0;
 end
 if isempty(Traj_0)
   Traj_0 = cds_transform_traj(R, Traj_W);
@@ -48,8 +50,11 @@ xlabel('x in m');ylabel('y in m');zlabel('z in m');
 if ~isempty(Traj_W) && isfield(Traj_W, 'X')
   plot3(Traj_W.X(:,1), Traj_W.X(:,2),Traj_W.X(:,3), 'k-');
 end
-% plotmode = 1; % Strichzeichnung
-plotmode = 4; % Entwurfsparameter
+if fval > 1e9 % keine vernünftigen Parametergrenzen ableitbar
+  plotmode = 1; % Strichzeichnung
+else
+  plotmode = 4; % Entwurfsparameter
+end
 if R.Type == 0 % Seriell
   s_plot = struct( 'ks', 1:R.NJ+2, 'straight', 1, 'mode', plotmode);
   R.plot( q, s_plot);
