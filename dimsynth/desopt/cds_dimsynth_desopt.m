@@ -71,13 +71,15 @@ end
 varlim = [];
 if any(vartypes == 2) % Dimensionierung der Segmente
   % Allgemeine Einstellungen (werden für serielle Roboter beibehalten)
-  varlim_ls = [ 5e-3, 150e-3; ... % Grenzen für Wandstärke
+  varlim_ls = [ 5e-3, 150e-3; ... % Grenzen für Wandstärke (entspricht Radius)
                80e-3, 600e-3];  % Grenze für Durchmesser
   if R.Type ~= 0 % Parallel
      % Bei PKM geringere Durchmesser (Aufteilung auf Beine, aber auch mehr
-     % interne Verspannung)
-    varlim_ls = ceil(1e3*varlim_ls/R.NLEG/2)*1e-3; % Aufrunden auf ganze Millimeter
+     % interne Verspannung für 2x Max.-Wert). Runden auf ganze Millimeter
+    varlim_ls(:,1) = floor(1e3*varlim_ls(:,1)/R.NLEG*1)*1e-3; % Minimalwert
+    varlim_ls(:,2) = ceil(1e3*varlim_ls(:,2)/R.NLEG*2)*1e-3; % Maximalwert
   end
+  varlim_ls(1,2) = varlim_ls(2,2)/2; % Vollmaterial ist Maximum für Wandstärke
   varlim = [varlim; varlim_ls];
 end
 if any(vartypes == 3) % Einbaulage von Gelenkfedern
@@ -144,8 +146,8 @@ if any(vartypes == 2)
   InitPop(I_unplaus,IIls(1)) = InitPop(I_unplaus,IIls(2))/2; % Setze auf Vollmaterial
   % Setze minimale und maximale Werte direkt ein (da diese oft das Optimum
   % darstellen, wenn keine einschränkenden Nebenbedingungen gesetzt sind)
-  InitPop(1,IIls) = varlim(IIls,1); % kleinste Werte
-  InitPop(2,IIls) = varlim(IIls,2); % größte Werte
+  InitPop(1,IIls) = varlim(IIls,1); % schwächste Dimensionierung (kleinste Werte)
+  InitPop(2,IIls) = varlim(IIls,2); % größte Dimensionierung
 end
 if any(vartypes == 3)
   % Setze die mittlere Gelenkstellung als ein Wert ein. Es wird erwartet,
