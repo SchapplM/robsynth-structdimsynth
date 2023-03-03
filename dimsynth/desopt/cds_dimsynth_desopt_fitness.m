@@ -133,6 +133,27 @@ if Set.optimization.constraint_collisions_desopt
     end
   end
 end
+%% Materialspannung prüfen
+% Wenn bei einem vorherigen Versuch bereits eine stärkere Dimensionierung
+% nicht ausreichte, wird eine schwächere Dimensionierung auch fehlschlagen.
+% Annahme: Beitrag der Segmentstärke zur Festigkeit ist größer als ihr
+% Beitrag zur Erhöhung der Masse und damit erforderlicher Kräfte
+if all(vartypes==2) && fval == 0
+  % Extrahiere Detail-Daten aus den einzelnen PSO-Partikeln
+  PSO_Detail_Data = cds_desopt_save_particle_details(0, 0, NaN, 0, fval, fval, 'output');
+  I_morestrength = squeeze(PSO_Detail_Data.pval(:,1,:) >= p_ls(1))';
+  I_morediam = squeeze(PSO_Detail_Data.pval(:,2,:) >= p_ls(2))';
+  I_stronger = I_morestrength & I_morediam;
+  if any(I_stronger(:))
+    fval_stronger = PSO_Detail_Data.fval(I_stronger);
+    if all(fval_stronger(:) > 1e5)
+      % Keine Aussage möglich, da anderer Ausschlussgrund (Kollision)
+    elseif ~any(fval_stronger(:) < 1e4)
+      constrvioltext = sprintf('Stärkere Dimensionierung verletzt bereits Belastungsgrenze.');
+      fval = 1e5; % Dieses Partikel wird damit nicht in dieser Abfrage beim nächsten Partikel gezählt
+    end
+  end
+end
 %% Dynamikparameter aktualisieren
 if any(vartypes==2) && fval == 0
   cds_dimsynth_design(R, Q, Set, Structure, p_ls);
