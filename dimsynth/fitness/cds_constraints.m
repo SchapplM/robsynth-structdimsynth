@@ -58,18 +58,20 @@ Q0 = NaN(1,R.NJ);
 QE_all = Q0;
 Stats_constraints = struct('bestcolldist', [], 'bestinstspcdist', []);
 %% Geometrie auf Plausibilität prüfen (1)
-% Grenzen für Schubgelenke temporär auf doppelte Werte setzen, damit
+% Grenzen für Schubgelenke temporär auf große Werte setzen, damit
 % der Maximalwert und nicht die halbe Spannweite betrachtet wird.
-% Siehe cds_dimsynth_robot.
-qlim = R.update_qlim();
-if ~Set.optimization.fix_joint_limits && any(R.MDH.sigma==1)
+% Für Funktionen weiter unten wird für Schubgelenke die Spannweite aus qlim
+% benutzt und der Maximalwert neu anhand der IK-Ergebnisse gesetzt.
+% Siehe cds_dimsynth_robot. Sollte damit konsistent sein.
+qlim = R.update_qlim(); % Wurde in cds_dimsynth_robot gesetzt.
+if ~isnan(Set.optimization.max_range_prismatic) && any(R.MDH.sigma==1)
   qlim_tmp = qlim;
-  qlim_tmp(R.MDH.sigma==1) = 2*qlim_tmp(R.MDH.sigma==1);
+  qlim_tmp(R.MDH.sigma==1) = 5*Structure.Lref;
   R.update_qlim(qlim_tmp);
 end
 if R.Type == 0, Lchain = R.reach(); % Berechne maximale Länge der Beinkette
 else,           Lchain = R.Leg(1).reach(); end
-if ~Set.optimization.fix_joint_limits && any(R.MDH.sigma==1)
+if ~isnan(Set.optimization.max_range_prismatic) && any(R.MDH.sigma==1)
   R.update_qlim(qlim); % Rückgängig machen (Grenzen werden aber sowieso später angepasst)
 end
 if R.Type == 0 % Seriell
