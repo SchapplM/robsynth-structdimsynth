@@ -312,6 +312,31 @@ for i = 0:maxnum_parts % Ordner 0 kommt nicht aus Optimierung sondern von oben
       error('Modus %s nicht definiert', settings.mode);
     end
   end
+  % Kopiere die Log-Dateien
+  logfiles_i = dir(fullfile(resdir, dirname_i,'*.log*'));
+  mkdirs(fullfile(resdir_ges, 'tmp', 'logs'));
+  for j = 1:length(logfiles_i)
+    [tokens, ~] = regexp(logfiles_i(j).name, '(.*).(log.*)', 'tokens', 'match');
+    if isempty(tokens)
+      warning('Muster konnte in Datei %s nicht gefunden werden', logfiles_i(j).name);
+      continue
+    end
+    filename_new = sprintf('%s_p%d.%s', tokens{1}{1}, i, tokens{1}{2});
+    sourcefile = fullfile(resdir, dirname_i, logfiles_i(j).name);
+    targetfile = fullfile(resdir_ges, 'tmp', 'logs', filename_new);
+    if strcmp(settings.mode, 'copy')
+      copyfile(sourcefile, targetfile);
+    elseif strcmp(settings.mode, 'move')
+      movefile(sourcefile, targetfile);
+    elseif strcmp(settings.mode, 'symlink')
+      if ~isunix()
+        error('Symbolische Verknüpfung nur unter Linux möglich');
+      end
+      system(sprintf('ln -s "%s" "%s"', sourcefile, targetfile));
+    else
+      error('Modus %s nicht definiert', settings.mode);
+    end
+  end
   fprintf('%s: Teil-Ergebnis %d/%d kopiert.\n', optname, i, length(optdirs));
   numdirs_processed = numdirs_processed + 1;
 end
