@@ -77,6 +77,7 @@ if any(vartypes == 2) % Dimensionierung der Segmente
      % Bei PKM geringere Durchmesser (Aufteilung auf Beine, aber auch mehr
      % interne Verspannung für 2x Max.-Wert). Runden auf ganze Millimeter
     varlim_ls(:,1) = floor(1e3*varlim_ls(:,1)/R.NLEG*1)*1e-3; % Minimalwert
+    varlim_ls(1,1) = max([varlim_ls(1,1), 1e-3], [], 2); % min. 1mm Wandstärke (wird manchmal gerundet)
     varlim_ls(:,2) = ceil(1e3*varlim_ls(:,2)/R.NLEG*2)*1e-3; % Maximalwert
   end
   varlim_ls(1,2) = varlim_ls(2,2)/2; % Vollmaterial ist Maximum für Wandstärke
