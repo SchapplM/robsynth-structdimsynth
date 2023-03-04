@@ -477,8 +477,10 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           error('Dieser Fall darf nicht eintreten. Nicht-logische Eingabe');
         end
         Whitelist_PKM = [Whitelist_PKM;{Name}]; %#ok<AGROW>
-        [~, ~, ~, ~, ~, ~, ~, ~, PName_Leg_tmp] = parroblib_load_robot(Name,0);
-        Whitelist_Leg = [Whitelist_Leg, PName_Leg_tmp]; %#ok<AGROW>
+        if ~settings.dryrun % Liste nur bei Produktiv-Lauf notwendig
+          [~, ~, ~, ~, ~, ~, ~, ~, PName_Leg_tmp] = parroblib_load_robot(Name,0);
+          Whitelist_Leg = [Whitelist_Leg, PName_Leg_tmp]; %#ok<AGROW>
+        end
       end % for jj (actuation)
       % Merke die Beinkette vor. Bei mehreren Koppelgelenken mehrfache
       % Eintragung. Daher Doppelte wieder entfernen.
@@ -643,6 +645,10 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.general.parcomp_struct = settings.parcomp_structsynth;
     Set.general.use_mex = settings.use_mex;
     Set.general.compile_missing_functions = true; % wurde schon weiter oben gemacht. Mache nochmal, da es manchmal nicht funktioniert (unklare Gründe, womöglich Synchronisationsprobleme der parallelen Ausführung)
+    if ~Set.general.computing_cluster % Füge den Ergebnisordner aus der Projektablage hinzu
+      Set.optimization.result_dirs_for_init_pop = {fullfile(fileparts( which(...
+        'robsynth_projektablage_path.m')), '03_Entwicklung', 'Struktursynthese', 'Ergebnisordner_Optimierung')};
+    end
     offline_result_complete = false;
     if ~settings.offline && ~settings.comp_cluster
       fprintf(['Starte Prüfung des Laufgrads der PKM mit Maßsynthese für ', ...
