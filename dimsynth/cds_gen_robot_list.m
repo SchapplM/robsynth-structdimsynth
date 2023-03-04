@@ -394,6 +394,24 @@ for kkk = 1:size(EE_FG_allowed,1)
       if any(SName_TechJoint(1:end-1) == 'S')
         SphericalJointInChain = true;
       end
+      % Ignoriere PKM-Beinketten, die bei Schubzylindern einen Hebel vom
+      % Zylinder auf die vorherigen und folgenden Gelenke haben (optional)
+      UnwantedCylinderLever = false;
+      if Set.structures.prismatic_cylinder_no_lever
+        [~, csvbits] = serroblib_bits2csvline(SerRob_DB_all.BitArrays_Ndof(ilc,:));
+        PS = serroblib_bits2paramstruct(NLegDoF, csvbits);
+        % Erkenne an welcher Stelle ein Schubgelenk liegt (Annahme:
+        % Zylinder, falls nicht am Gestell). Finde zugehörige a-/d-Param.
+        % Siehe: cds_dimsynth_robot (Code für prismatic_cylinder_no_lever)
+        I_cyl = find(PS.sigma == 1 & [0; ones(NLegDoF-1,1)]);
+        for ii_cyl = I_cyl' % kann mehrere Gelenke geben
+          if isnan(PS.a(ii_cyl)) || ii_cyl < NLegDoF && ...
+              ( isnan(PS.a(ii_cyl+1)) || isnan(PS.d(ii_cyl+1)) )
+            UnwantedCylinderLever = true;
+            break;
+          end
+        end
+      end
       % Prüfe, ob die Beinkette nur manuell in die Seriellkinematik-Daten-
       % bank eingetragen wurde und das nicht erwünscht ist
       if structset.onlylegchain_from_synthesis
@@ -505,7 +523,13 @@ for kkk = 1:size(EE_FG_allowed,1)
       end
       SkipRobot = true;
     end
-    
+    if ~SkipRobot && UnwantedCylinderLever
+      if verblevel > 3 || IsInWhiteList
+        fprintf('%s hat einen Hebel auf einen Schubzylinder in der Beinkette (%s)', ...
+          PNames_Akt{j}, SName_TechJoint);
+      end
+      SkipRobot = true;
+    end
     if ~SkipRobot && WrongLegChainOrigin
       if verblevel > 3 || IsInWhiteList
         fprintf('%s hat keine Beinkette aus %s-PKM-Synthese (%s).', ...

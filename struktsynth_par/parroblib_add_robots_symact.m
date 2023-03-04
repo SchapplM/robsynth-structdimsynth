@@ -638,6 +638,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.general.matfile_verbosity = 0;
     Set.general.nosummary = true; % Keine Bilder erstellen.
     Set.structures.mounting_parallel = 'floor'; % Sieht plausibler aus auf Bildern.
+    Set.structures.prismatic_cylinder_no_lever = false; % allgemeine Parametrierung. Für den fall ohne Hebel gibt es eigene Beinketten-Varianten.
     Set.structures.whitelist = Whitelist_PKM; % nur diese PKM untersuchen
     Set.structures.use_serial = false; % nur PKM (keine seriellen)
     Set.structures.use_parallel_rankdef = 6*settings.check_rankdef_existing;

@@ -115,6 +115,7 @@ structures = struct( ...
   'parrob_basejointfilter_prismatic', 1:10, ... % ... im Fall eines Schubgelenks am Gestell (überstimmt vorherige)
   'parrob_basejointfilter_revolute', 1:10, ... % ... im Fall eines Drehgelenks am Gestell
   'parrob_platformjointfilter', 1:9, ... % Vorgabe zum Gestell-Koppelgelenktyp einer PKM
+  'prismatic_cylinder_no_lever', true, ... % Bei Hubzylindern (in PKM) darf kein zusätzlicher Heben wirken. Direkte Verbindung der Gelenke
   'nopassiveprismatic', true, ... % Schubgelenke dürfen nicht passiv sein
   'activenotlastjoint', true, ... % Verhindert ein aktives Plattform-Koppelgelenk
   'max_index_active', 6, ... % Setzt den maximalen Index aktuierter Gelenke fest (nachrrangig gegen vorherige Option); für PKM
