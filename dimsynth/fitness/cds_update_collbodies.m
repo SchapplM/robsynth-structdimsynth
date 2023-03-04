@@ -114,6 +114,10 @@ if update_collbodies
       % (Stator-Teile der Schubgelenke sind immer am Anfang der Liste)
       R_cc.collbodies.params(cbidx,:) = [cbi_par, NaN(1,3)];
     end
+    % Aktualisiere Kollisionskörper der Segmente (für alle). Betrifft nicht
+    % die Plattform- und Gestell-Körper, da diese hiernach gesetzt werden.
+    I_update_link = R_cc.collbodies.type == 6 & all(R_cc.collbodies.link ~= 0,2);
+    R_cc.collbodies.params(I_update_link,1) = Set.optimization.collision_bodies_size;
   end
 end
 %% 
@@ -239,7 +243,7 @@ if Structure.Type ~= 0 % PKM
     % Nur Gestellgelenke als Kugel, damit eine Kollision anderer Beinketten
     % damit verhindert wird.
     collbodies_robot.link = [collbodies_robot.link; ... % Beinketten-Basis
-      uint8([R.I1L_LEG(I1)-(I1-1), R.I1L_LEG(I1)-(I1-1)])];
+      uint8(repmat(R.I1L_LEG(I1)-(I1-1), 1, 2))];
 %     T_base_stack = [R.Leg(:).T_W_0]; % Alle Beinketten-Basis-KS als Trafo spaltenweise
     collbodies_robot.type = [collbodies_robot.type; repmat(uint8(16),NLEG,1)]; % Kugel im Basis-KS der Beinketten
     collbodies_robot.params = [collbodies_robot.params; ... % Koordinaten der Gestell-Koppelgelenke eintragen

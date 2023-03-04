@@ -7,6 +7,9 @@
 %   Roboter-Trajektorie (EE) bezogen auf Basis-KS des Roboters
 % Q, QD, QDD
 %   Gelenkwinkel-Trajektorie
+% JP
+%   Gelenkpositionen aller Gelenke des Roboters
+%   (Zeilen: Zeitschritte der Trajektorie)
 % Jinvges
 %   Zeilenweise (inverse) Jacobi-Matrizen des Roboters (für PKM). Bezogen
 %   auf vollständige Gelenkgeschwindigkeiten und Plattform-Geschw. (in
@@ -33,7 +36,7 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function [fval, p_val, vartypes] = cds_dimsynth_desopt(R, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn, Set, Structure)
+function [fval, p_val, vartypes] = cds_dimsynth_desopt(R, Traj_0, Q, QD, QDD, JP, Jinv_ges, data_dyn, Set, Structure)
 t1 = tic();
 if Set.general.matfile_verbosity > 2
 save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt1.mat'));
@@ -68,13 +71,16 @@ end
 varlim = [];
 if any(vartypes == 2) % Dimensionierung der Segmente
   % Allgemeine Einstellungen (werden für serielle Roboter beibehalten)
-  varlim_ls = [ 5e-3, 150e-3; ... % Grenzen für Wandstärke
+  varlim_ls = [ 5e-3, 150e-3; ... % Grenzen für Wandstärke (entspricht Radius)
                80e-3, 600e-3];  % Grenze für Durchmesser
   if R.Type ~= 0 % Parallel
      % Bei PKM geringere Durchmesser (Aufteilung auf Beine, aber auch mehr
-     % interne Verspannung)
-    varlim_ls = ceil(1e3*varlim_ls/R.NLEG/2)*1e-3; % Aufrunden auf ganze Millimeter
+     % interne Verspannung für 2x Max.-Wert). Runden auf ganze Millimeter
+    varlim_ls(:,1) = floor(1e3*varlim_ls(:,1)/R.NLEG*1)*1e-3; % Minimalwert
+    varlim_ls(1,1) = max([varlim_ls(1,1), 1e-3], [], 2); % min. 1mm Wandstärke (wird manchmal gerundet)
+    varlim_ls(:,2) = ceil(1e3*varlim_ls(:,2)/R.NLEG*2)*1e-3; % Maximalwert
   end
+  varlim_ls(1,2) = varlim_ls(2,2)/2; % Vollmaterial ist Maximum für Wandstärke
   varlim = [varlim; varlim_ls];
 end
 if any(vartypes == 3) % Einbaulage von Gelenkfedern
@@ -141,8 +147,8 @@ if any(vartypes == 2)
   InitPop(I_unplaus,IIls(1)) = InitPop(I_unplaus,IIls(2))/2; % Setze auf Vollmaterial
   % Setze minimale und maximale Werte direkt ein (da diese oft das Optimum
   % darstellen, wenn keine einschränkenden Nebenbedingungen gesetzt sind)
-  InitPop(1,IIls) = varlim(IIls,1); % kleinste Werte
-  InitPop(2,IIls) = varlim(IIls,2); % größte Werte
+  InitPop(1,IIls) = varlim(IIls,1); % schwächste Dimensionierung (kleinste Werte)
+  InitPop(2,IIls) = varlim(IIls,2); % größte Dimensionierung
 end
 if any(vartypes == 3)
   % Setze die mittlere Gelenkstellung als ein Wert ein. Es wird erwartet,
@@ -180,7 +186,7 @@ cds_dimsynth_desopt_fitness(); % Für persistente Variablen von vorheriger Itera
 fval_main_dummy = NaN(length(Set.optimization.objective), 1);
 cds_desopt_save_particle_details(0, 0, zeros(nvars,1), 0, fval_main_dummy, fval_main_dummy, 'reset', ... % Zurücksetzen der ...
   struct('comptime', NaN([options_desopt.MaxIter+1, NumIndividuals]))); % ... Detail-Speicherfunktion
-fitnessfcn_desopt=@(p_desopt)cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn, Structure, p_desopt(:));
+fitnessfcn_desopt=@(p_desopt)cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, JP, Jinv_ges, data_dyn, Structure, p_desopt(:));
 t2 = tic();
 [fval_test, physval_test, abort_fitnesscalc] = fitnessfcn_desopt(InitPop(1,:)');
 T2 = toc(t2);
@@ -200,7 +206,7 @@ if fval_test == 0 || abort_fitnesscalc
 elseif all(vartypes == 2) % Nur Segmentstärke wird optimiert
   fval_minpar = fval_test; % Aufruf oben mit InitPop(1,:) entspricht schwächstem Wert
   if Set.optimization.constraint_obj(6) > 0 && fval_minpar<1e3 && ...
-    ~strcmp(Set.optimization.objective, 'stiffness') && Set.optimization.constraint_obj(5) == 0
+    ~all(strcmp(Set.optimization.objective, 'stiffness')) && Set.optimization.constraint_obj(5) == 0
     % Das schwächste Segment erfüllt alle Nebenbedingungen. Das Ergebnis muss
     % damit optimal sein (alle Zielfunktionen wollen Materialstärke minimieren)
     % Die Steifigkeit wird nicht betrachtet
@@ -209,8 +215,20 @@ elseif all(vartypes == 2) % Nur Segmentstärke wird optimiert
     p_val_opt = InitPop(1,:)';
     detailstring = 'Schwächste Segmentdimensionierung erfüllt bereits die Nebenbedingungen';
   end
+  % Erneuter Aufruf der Fitness-Funktion mit maximaler Dimensionierung 
+  % ohne Kollisionsprüfung
+  Set_tmp = Set;
+  Set_tmp.optimization.constraint_collisions_desopt = false;
   cds_dimsynth_desopt_fitness(); % für persistente Variable
-  fval_maxpar = fitnessfcn_desopt(InitPop(2,:)');
+  fval_maxpar = cds_dimsynth_desopt_fitness(R, Set_tmp, Traj_0, Q, QD, QDD, ...
+    JP, Jinv_ges, data_dyn, Structure, InitPop(2,:)');
+  if fval_maxpar>1e7
+    % Wenn die maximale Dimensionierung eine Kollision verursacht ist keine
+    % Aussage möglich (Schwellwert 1e7). Wird aber nicht geprüft und darf nicht auftreten.
+    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+      'cds_dimsynth_desopt_collcheckerror.mat'));
+    error('Logik-Fehler. Kollision oder unplausibel als Ergebnis');
+  end
   if fval_minpar > 1e4 && fval_maxpar > 1e4
     % Sowohl die schwächstmögliche, als auch die stärkstmögliche
     % Dimensionierung verletzen die Materialspannung. Annahme, dass eine
@@ -221,8 +239,8 @@ elseif all(vartypes == 2) % Nur Segmentstärke wird optimiert
     p_val_opt = InitPop(2,:)';
     detailstring = 'Materialspannung auch bei stärkster Segmentdimensionierung überschritten';
   end
-  if Set.optimization.constraint_obj(6) == 0 && ...
-    (strcmp(Set.optimization.objective, 'stiffness') || Set.optimization.constraint_obj(5) == 0)
+  if Set.optimization.constraint_obj(6) == 0 && ... % TODO: Logik überarbeiten (andere Zielfunktionen berücksichtigen)
+    (all(strcmp(Set.optimization.objective, 'stiffness')) || Set.optimization.constraint_obj(5) == 0)
     % Optimierung der Steifigkeit ohne Prüfung der Materialstärke. Die
     % stärkste Segmentauslegung könnte das Optimum darstellen.
     % Die Grenze der Masse wird betrachtet, da sie als Nebenbedingung bei
@@ -307,7 +325,7 @@ if any(I_bordersol)
 end
 detailstring = [detailstring, sprintf('. Ergebnis: ')];
 for i = 1:length(p_val)
-  detailstring = [detailstring, sprintf('(%s: %1.1f)', pnames{i}, p_val(i))]; %#ok<AGROW>
+  detailstring = [detailstring, sprintf('(%s: %1.3f)', pnames{i}, p_val(i))]; %#ok<AGROW>
   if i < length(p_val), detailstring = [detailstring, ', ']; end %#ok<AGROW>
 end
 cds_log(3,sprintf(['[desopt] Entwurfsoptimierung durchgeführt. %d/%d Iter', ...
@@ -319,8 +337,16 @@ cds_log(3,sprintf(['[desopt] Entwurfsoptimierung durchgeführt. %d/%d Iter', ...
 % cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn, Structure, p_val(:))
 %% Ausgabe
 % Belege die Robotereigenschaften mit dem Ergebnis der Optimierung
-if any(vartypes == 2)
-  cds_dimsynth_design(R, Q, Set, Structure, p_val(vartypes==2));
+if any(vartypes == 2) % Optimierung der Segmente: Masse und Kollisionsobjekt
+  p_linkstrength = p_val(vartypes==2);
+  cds_dimsynth_design(R, Q, Set, Structure, p_linkstrength);
+  if Set.optimization.constraint_collisions_desopt % muss konsistent mit cds_dimsynth_desopt_fitness sein
+    Set.optimization.collision_bodies_size = p_linkstrength(2) + ...
+      Set.optimization.collision_bodies_safety_distance * 2; 
+    % Struktur-Variable wird hier nicht gebraucht, aber Kollisionsobjekte
+    % werden auch in der Roboter-Klasse (R) gespeichert.
+    Structure.collbodies_robot = cds_update_collbodies(R, Set, Structure, Q);
+  end
 end
 if any(vartypes == 3)
   for i = 1:R.NLEG
@@ -363,12 +389,14 @@ if Set.general.debug_desopt
 end
 return
 %% Debug
-
+if ~exist('PSO_Detail_Data', 'var')
+  warning('Code aus Set.general.debug_desopt muss ausgeführt werden');
+end
 % Rufe Fitness-Funktion mit bestem Partikel auf (zum Plotten von
 % zusätzlichen Debug-Bildern).
 Set_tmp = Set;
 Set_tmp.general.plot_details_in_desopt = 1e10;
-cds_dimsynth_desopt_fitness(R, Set_tmp, Traj_0, Q, QD, QDD, Jinv_ges, ...
+cds_dimsynth_desopt_fitness(R, Set_tmp, Traj_0, Q, QD, QDD, JP, Jinv_ges, ...
   data_dyn, Structure, p_val);
 
 % Zeichne Fitness-Fortschritt über Iteration des PSO
@@ -390,7 +418,8 @@ sgtitle('Konvergenz der Fitness-Werte über die Optimierung');
 pval_stack_norm = NaN(size(PSO_Detail_Data.pval,1)*size(PSO_Detail_Data.pval,3), ...
   size(PSO_Detail_Data.pval,2));
 pval_stack = pval_stack_norm;
-for i = 1:size(PSO_Detail_Data.pval,2)
+fval_stack = reshape(PSO_Detail_Data.fval',size(pval_stack,1),1);
+for i = 1:size(PSO_Detail_Data.pval,2) % Parameter durchgehen
   pval_stack(:,i) = reshape(squeeze(PSO_Detail_Data.pval(:,i,:)), size(pval_stack,1),1);
   pval_stack_norm(:,i) = (pval_stack(:,i)-varlim(i,1))./... % untere Grenze abziehen
     repmat(varlim(i,2)-varlim(i,1),size(pval_stack,1),1); % auf 1 normieren
@@ -408,22 +437,26 @@ title('Ausnutzung des möglichen Parameterraums');
 if all(vartypes == 2) && nvars == 2
   np1 = 8; np2 = 8;
   fval_grid = NaN(np1,np2);
-  p1_grid = linspace(varlim(1,1), varlim(1,2), np1)
-  p2_grid = linspace(varlim(2,1), varlim(2,2), np2)
+  [p1_grid, p2_grid] = ndgrid(linspace(varlim(1,1), varlim(1,2), np1), ...
+                              linspace(varlim(2,1), varlim(2,2), np2));
   for i = 1:np1
     for j = 1:np2
-      p_ij = [p1_grid(i); p2_grid(j)];
+      p_ij = [p1_grid(i,j); p2_grid(i,j)];
       fval_grid(i,j) = fitnessfcn_desopt(p_ij);
     end
   end
   fval_grid(fval_grid==1e8) = NaN; % Damit unzulässiger Bereich im Plot leer bleibt
-  figure(10);clf;
+  figure(10);clf; title('Auswertung Segmentoptimierung. Kollisions-Fval nicht reproduzierbar.');
   hold on;
-  surf(1e3*p1_grid, 1e3*p2_grid, fval_grid, 'FaceAlpha',0.7);
+  mesh(1e3*p1_grid, 1e3*p2_grid, fval_grid, fval_grid, 'FaceAlpha',0.7);
   xlabel('p1 (Wandstärke) in mm');
   ylabel('p2 (Durchmesser) in mm');
   zlabel('Zielfunktion Entwurfsoptimierung');
-  hdl=plot3(1e3*p_val(1), 1e3*p_val(2), fval, 'ro', 'MarkerSize', 8);
-  legend(hdl, {'Optimum'});
-  view(3)
+  hdl1=plot3(1e3*p_val(1), 1e3*p_val(2), fval, 'ro', 'MarkerSize', 8);
+  % Trage die Stützstellen des Mesh-Plots ein
+  hdl2=plot3(1e3*p1_grid(:), 1e3*p2_grid(:), fval_grid(:), 'go')
+  % Trage die Partikel aus der Optimierung ein
+  hdl3 = plot3(1e3*pval_stack(:,1), 1e3*pval_stack(:,2), fval_stack, 'rx');
+  legend([hdl1,hdl2,hdl3], {'Optimum', 'Stützstellen', 'Aus Optimierung'});
+  view(3); grid on; set(gca, 'zscale', 'log');
 end

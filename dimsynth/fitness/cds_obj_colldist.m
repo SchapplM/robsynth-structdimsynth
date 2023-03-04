@@ -79,7 +79,9 @@ else % Kollision
   fval = 1e2*(1+9*f_colldist_norm); % normiere auf 1e2 bis 1e3
 end
 fval_debugtext = sprintf('Kollisionsabstand %1.1fmm.', 1e3*min2colldist);
-
+if min2colldist < 0
+  fval_debugtext = [fval_debugtext, ' (Kollision)'];
+end
 %% Debug
 % Hierfür Variable `names_collbodies` manuell aus cds_dimsynth_robot holen
 % for kk = 1:2

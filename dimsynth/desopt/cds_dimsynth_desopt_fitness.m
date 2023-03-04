@@ -9,6 +9,9 @@
 %   Einstellungen des Optimierungsalgorithmus
 % Q, QD, QDD
 %   Gelenkwinkel-Trajektorie
+% JP
+%   Gelenkpositionen aller Gelenke des Roboters
+%   (Zeilen: Zeitschritte der Trajektorie)
 % Jinvges
 %   Zeilenweise (inverse) Jacobi-Matrizen des Roboters (für PKM). Bezogen
 %   auf vollständige Gelenkgeschwindigkeiten und Plattform-Geschw. (in
@@ -29,6 +32,7 @@
 %   0...1e3: gewählte Zielfunktion
 %   1e3...1e4: Nebenbedingung von Zielfunktion überschritten
 %   1e4...1e5: Überschreitung Belastungsgrenze der Segmente
+%   1e7...1e8: Selbstkollision aufgrund zu großer Segmentdurchmesser
 %   1e8...1e9: Unplausible Eingabe (Radius vs Wandstärke)
 % physval_desopt
 %   Physikalische Entsprechung des für das Abbruchkriterium maßgeblichen
@@ -44,11 +48,15 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function [fval, physval_desopt, abort_fitnesscalc_retval] = cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn_reg, Structure, p_desopt)
+function [fval, physval_desopt, abort_fitnesscalc_retval] = cds_dimsynth_desopt_fitness(R, Set, Traj_0, Q, QD, QDD, JP, Jinv_ges, data_dyn_reg, Structure, p_desopt)
 t1 = tic();
-persistent abort_fitnesscalc
+persistent abort_fitnesscalc % Schalter für Abbruch der Optimierung
+% Merke den Durchmesser der letzten Prüfung und zugehörigen Kollisions- 
+% Funktionswert für i.O. (erste Zeile) und n.i.O. (zweite Zeile)
+persistent data_last_collchecks
 if nargin == 0
   abort_fitnesscalc = [];
+  data_last_collchecks = [];
   return;
 end
 % Debug:
@@ -74,7 +82,7 @@ elseif abort_fitnesscalc
   return;
 end
 vartypes = Structure.desopt_ptypes(Structure.desopt_ptypes~=1);
-p_ls = p_desopt(vartypes==2);
+p_ls = p_desopt(vartypes==2); % Wandstärke und Durchmesser
 p_jsoff = p_desopt(vartypes==3);
 p_js = p_desopt(vartypes==4);
 
@@ -86,7 +94,66 @@ if any(vartypes==2) && p_ls(1) > p_ls(2)/2 % Wandstärke darf nicht größer als
   constrvioltext = sprintf('Radius (%1.1fmm) ist kleiner als Wandstärke (%1.1fmm)', ...
     1e3*p_ls(2)/2, 1e3*p_ls(1));
 end
-
+%% Selbstkollisionen prüfen
+if Set.optimization.constraint_collisions_desopt
+  if isempty(data_last_collchecks)
+    % Die Selbstkollision wurde vorher (in cds_constraints_traj) mit dem
+    % Wert aus collision_bodies_size durchgeführt. 
+    data_last_collchecks = [[Set.optimization.collision_bodies_size - ...
+      Set.optimization.collision_bodies_safety_distance * 2, 0]; [inf, inf]];
+  end
+  if any(vartypes==2) && fval == 0
+    if p_ls(2) < data_last_collchecks(1,1)
+      % Durchmesser ist kleiner als größte i.O.-Kollisionsprüfung.
+      % Es kann keine Kollision geben
+    elseif p_ls(2) > data_last_collchecks(2,1)
+      % Durchmesser ist größer als beste n.i.O.-Kollisionsprüfung
+      % Es muss eine Kollision geben. Lade alte Daten.
+      fval = data_last_collchecks(2,2) * ... % vergrößere Strafterm proportional
+        (1+2/pi*atan(p_ls(2)/data_last_collchecks(2,1)-1)); % damit nicht alle den gleichen Fitness-Wert haben.
+      if fval > 0
+        constrvioltext = sprintf(['Bei Segment-Durchmesser %1.1fmm gab es ', ...
+          'bereits eine Kollision. Aktueller Wert %1.1fmm ist größer'], ...
+          1e3*data_last_collchecks(2), 1e3*p_ls(2));
+      end
+    else
+      % Durchmesser ist in einem unbekannten Bereich. Neu berechnen.
+      Set.optimization.collision_bodies_size = p_ls(2) + ... % Eintragen des neuen Sicherheitsabstandes
+        Set.optimization.collision_bodies_safety_distance * 2; 
+      Structure.collbodies_robot = cds_update_collbodies(R, Set, Structure, Q);
+      [fval, coll_traj] = cds_constr_collisions_self(R, Traj_0.X, ...
+        Set, Structure, JP, Q, [1e7; 1e8]);
+      if fval == 0 % Gut-Fall mit größerem Durchmesser als vorher
+        data_last_collchecks(1,:) = [p_ls(2), fval];
+      else % Schlecht-Fall mit kleinerem Durchmesser als vorher
+        constrvioltext = sprintf('Kollision in %d/%d Traj.-Punkten.', ...
+          sum(any(coll_traj,2)), size(coll_traj,1));
+        data_last_collchecks(2,:) = [p_ls(2), fval];
+      end
+    end
+  end
+end
+%% Materialspannung prüfen
+% Wenn bei einem vorherigen Versuch bereits eine stärkere Dimensionierung
+% nicht ausreichte, wird eine schwächere Dimensionierung auch fehlschlagen.
+% Annahme: Beitrag der Segmentstärke zur Festigkeit ist größer als ihr
+% Beitrag zur Erhöhung der Masse und damit erforderlicher Kräfte
+if all(vartypes==2) && fval == 0
+  % Extrahiere Detail-Daten aus den einzelnen PSO-Partikeln
+  PSO_Detail_Data = cds_desopt_save_particle_details(0, 0, NaN, 0, fval, fval, 'output');
+  I_morestrength = squeeze(PSO_Detail_Data.pval(:,1,:) >= p_ls(1))';
+  I_morediam = squeeze(PSO_Detail_Data.pval(:,2,:) >= p_ls(2))';
+  I_stronger = I_morestrength & I_morediam;
+  if any(I_stronger(:))
+    fval_stronger = PSO_Detail_Data.fval(I_stronger);
+    if all(fval_stronger(:) > 1e5)
+      % Keine Aussage möglich, da anderer Ausschlussgrund (Kollision)
+    elseif ~any(fval_stronger(:) < 1e4)
+      constrvioltext = sprintf('Stärkere Dimensionierung verletzt bereits Belastungsgrenze.');
+      fval = 1e5; % Dieses Partikel wird damit nicht in dieser Abfrage beim nächsten Partikel gezählt
+    end
+  end
+end
 %% Dynamikparameter aktualisieren
 if any(vartypes==2) && fval == 0
   cds_dimsynth_design(R, Q, Set, Structure, p_ls);

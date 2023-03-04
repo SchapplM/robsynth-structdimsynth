@@ -489,13 +489,18 @@ for iIKC = 1:size(Q0,1)
       % Ergebnis bereits vorgegeben (nachträgliche Auswertung)
       p_linkstrength = desopt_pval(Structure.desopt_ptypes==2);
       cds_dimsynth_design(R, Q, Set, Structure, p_linkstrength);
+      if Set.optimization.constraint_collisions_desopt % muss konsistent mit cds_dimsynth_desopt_fitness sein
+        Set.optimization.collision_bodies_size = p_linkstrength(2) + ...
+          Set.optimization.collision_bodies_safety_distance * 2;
+        Structure.collbodies_robot = cds_update_collbodies(R, Set, Structure, Q);
+      end
     end
     if ~isempty(Set.optimization.desopt_vars) % Entwurfsoptimierung aktiv.
       % Berechne Dynamik-Funktionen als Regressorform für die Entwurfsopt.
       data_dyn = cds_obj_dependencies(R, Traj_0, Set, Structure, Q, QD, QDD, Jinv_ges);
       t0 = tic();
       [fval_desopt, desopt_pval, vartypes_desopt] = cds_dimsynth_desopt( ...
-        R, Traj_0, Q, QD, QDD, Jinv_ges, data_dyn, Set, Structure);
+        R, Traj_0, Q, QD, QDD, JP, Jinv_ges, data_dyn, Set, Structure);
       cds_log(2,sprintf(['[fitness] G=%d;I=%d (Konfig %d/%d). Entwurfs', ...
         'optimierung in %1.2fs durchgeführt. fval_desopt=%1.3e. pval=[%s]'], ...
         i_gen, i_ind, iIKC, size(Q0,1), toc(t0), fval_desopt, disp_array(desopt_pval(:)', '%1.2g')));
@@ -503,8 +508,14 @@ for iIKC = 1:size(Q0,1)
         warning('Ein Funktionswert > 1e5 ist nicht für Entwurfsoptimierung vorgesehen');
       end
       if any(strcmp(Set.optimization.desopt_vars, 'linkstrength'))
+        p_linkstrength = desopt_pval(vartypes_desopt==2);
         % Speichere die Parameter der Segmentstärke (jedes Segment gleich)
-        desopt_pval_IKC(iIKC,Structure.desopt_ptypes==2) = desopt_pval(vartypes_desopt==2);
+        desopt_pval_IKC(iIKC,Structure.desopt_ptypes==2) = p_linkstrength;
+        if Set.optimization.constraint_collisions_desopt % muss konsistent mit cds_dimsynth_desopt_fitness sein
+          Set.optimization.collision_bodies_size = p_linkstrength(2) + ...
+            Set.optimization.collision_bodies_safety_distance * 2;
+          Structure.collbodies_robot = cds_update_collbodies(R, Set, Structure, Q);
+        end
       end
       if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref'))
         % Speichere die Parameter der Gelenkfeder-Ruhelage (jede Beinkette
