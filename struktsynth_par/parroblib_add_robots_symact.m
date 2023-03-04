@@ -182,7 +182,9 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
   Coupling_all = unique(Coupling_all,'row');
   for kk = 1:size(Coupling_all,1) % Schleife über Koppelpunkt-Möglichkeiten
     Coupling = Coupling_all(kk,:);
-
+    if Coupling(1) > 10 || Coupling(2) > 9
+      error('Fall nicht implementiert');
+    end
     %% Serielle Beinketten auswählen
     N_Legs = sum(EE_FG); % Voll-Parallel: So viele Beine wie EE-FG
     if all(EE_FG == [1 1 1 0 0 0]) || all(EE_FG == [1 1 1 0 0 1])
@@ -657,14 +659,15 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
       dssetfile = fullfile(resmaindir, [Set.optimization.optname, '_settings.mat']);
       if ~exist(dssetfile, 'file')
-        % Logik-Fehler. Speichere Status zum Debuggen. Nehme an, dass auf
-        % dem Cluster auf dem Tmp-Ordner einer Node gerechnet wird. Sichere
-        % PKM-Datenbank zum Debuggen und aktuellen Status, sonst ist er weg.
+        % Logik-Fehler. Speichere Status zum Debuggen.
         fprintf('Beginne Komprimierung der PKM-Datenbank für Debug-Abbild\n');
         tmpdir = fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp');
         mkdirs(tmpdir);
         save(fullfile(tmpdir, 'parroblib_add_robots_symact_debug_norobots.mat'));
-        zip(fullfile(tmpdir, 'parroblib.zip'), parroblibpath);
+        if settings.isoncluster %  Auf dem Cluster wird im Tmp-Ordner einer Node gerechnet.
+          % Sichere PKM-Datenbank zum Debuggen und aktuellen Status, sonst ist er weg.
+          zip(fullfile(tmpdir, 'parroblib.zip'), parroblibpath);
+        end
         error(['Einstellungsdatei %s existiert nicht. Logik-Fehler. Tmp-', ...
           'Daten in Ergebnis-Ordner gespeichert'], dssetfile)
       end
