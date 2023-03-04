@@ -544,9 +544,7 @@ if Set.general.computing_cluster
       % Es wird keine Optimierung durchgeführt. Kennzeichnung im Namen.
       computation_name = [computation_name, '_finish']; %#ok<AGROW>
     end
-    jobdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
-      'dimsynth', 'cluster_jobs', computation_name);
-    mkdirs(fullfile(jobdir, 'results')); % Unterordner notwendig für Cluster-Transfer-Toolbox
+    jobdir = tmpDirFcn(true);
     targetfile = fullfile(jobdir, 'dimsynth_start.m'); % Benutze nicht Namen der Optimierung als Dateiname, da Matlab nur bis 64 Zeichen unterstützt
     Set_cluster = Set;
     Set_cluster.optimization.optname = [Set.optimization.optname, suffix]; % sonst wird bei Zerlegung mehrfach der gleiche Name benutzt.
@@ -599,7 +597,8 @@ if Set.general.computing_cluster
       end
     end
     % Matlab-Skript erzeugen
-    clusterheaderfile=fullfile(jobdir,'..','..','dimsynth_cluster_header.m');
+    clusterheaderfile=fullfile(fileparts(which('structgeomsynth_path_init.m')),...
+      'dimsynth', 'dimsynth_cluster_header.m');
     if ~exist(clusterheaderfile, 'file')
       error('Datei %s existiert nicht. Muss manuell aus template-Datei erstellt werden.', clusterheaderfile);
     end
@@ -682,9 +681,7 @@ if Set.general.computing_cluster
     % als zusätzlichen Job starten
     computation_name3 = sprintf('dimsynth_%s_%s%s', ...
       datestr(now,'yyyymmdd_HHMMSS'), Set.optimization.optname, '_merge');
-    jobdir3 = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
-      'dimsynth', 'cluster_jobs', computation_name3);
-    mkdirs(fullfile(jobdir3, 'results')); % Unterordner notwendig für Cluster-Transfer-Toolbox
+    jobdir3 = tmpDirFcn(true);
     targetfile3 = fullfile(jobdir3, [computation_name3,'.m']);
     clusterheaderfile=fullfile(jobdir3,'..','..','dimsynth_cluster_header.m');
     if ~exist(clusterheaderfile, 'file')

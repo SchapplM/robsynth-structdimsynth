@@ -891,9 +891,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       end
       if ~isempty(legchain_compilelist) && settings.compile_job_on_cluster
         computation_name_compile = [computation_name, '_compile_serrob'];
-        jobdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
-          'struktsynth_par', 'cluster_jobs', computation_name_compile);
-        mkdirs(jobdir);
+        jobdir = tmpDirFcn(true);
         % Speichere die noch nicht kompilierten Beinketten als mat-Datei
         save(fullfile(jobdir, 'compilelist.mat'), 'legchain_compilelist');
         targetfile = fullfile(jobdir, 'compile_serrob.m');
@@ -933,9 +931,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         pkm_compilelist = Whitelist_PKM(III);
         pkm_compilelist = pkm_compilelist(randperm(numel(pkm_compilelist)));
         computation_name_compile = [computation_name, '_compile_parrob'];
-        jobdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
-          'struktsynth_par', 'cluster_jobs', computation_name_compile);
-        mkdirs(jobdir);
+        jobdir = tmpDirFcn(true);
         save(fullfile(jobdir, 'compilelist.mat'), 'pkm_compilelist', 'EE_FG');
         targetfile = fullfile(jobdir, 'compile_parrob.m');
         copyfile(chf_compile, targetfile);
@@ -972,9 +968,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       end
       %% Führe die Maßsynthese für die Struktursynthese auf dem Cluster durch.
       % Bereite eine Einstellungs-Datei vor
-      jobdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
-        'struktsynth_par', 'cluster_jobs', computation_name);
-      mkdirs(fullfile(jobdir, 'results')); % Unterordner notwendig für Cluster-Dateisynchronisation
+      jobdir = tmpDirFcn(true);
       targetfile = fullfile(jobdir, [computation_name,'.m']);
       settings_cluster = settings;
       % Für jede G-P-Nummer wird ein Cluster-Job erzeugt.
