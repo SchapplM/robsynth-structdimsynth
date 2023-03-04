@@ -154,7 +154,7 @@ Traj_0_E = cds_transform_traj(R, struct('XE', Traj_W.XE));
 
 %% Nebenbedingungen prüfen (für Eckpunkte)
 t0 = tic();
-qlim_test = R.update_qlim();
+qlim_test = R.update_qlim(Structure.qlim);
 if all(isnan(qlim_test(:)))
   cds_log(-1, '[fitness] qlim ist NaN. Darf nicht sein.')
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...

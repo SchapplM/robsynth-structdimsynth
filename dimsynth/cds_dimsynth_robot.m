@@ -173,7 +173,8 @@ for i = 1:NLEG
   if ~isnan(Set.optimization.max_range_prismatic)
     % Schätzwert für Begrenzung der Schubgelenke wird durch Benutzervorgabe
     % überschrieben. Z.B. Mit unendlich, um komplett frei zu lassen.
-    % Größe des Roboters wird dann durch andere Kennzahlen begrenzt
+    % Größe des Roboters wird dann durch andere Kennzahlen begrenzt.
+    % Hier wird nur der Bereich eingetragen und der maximale Absolutwert anderweitig geprüft
     R_init.qlim(R_init.MDH.sigma==1,:) = repmat([-0.5, 0.5]*...
       Set.optimization.max_range_prismatic,sum(R_init.MDH.sigma==1),1);
   end
