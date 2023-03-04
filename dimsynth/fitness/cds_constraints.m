@@ -32,7 +32,8 @@
 %   7.5e5...8e5  Jacobi-Grenzverletzung in Eckpunkten (trotz lösbarer IK)
 %   8e5...9e5  Jacobi-Singularität in Eckpunkten (trotz lösbarer IK)
 %   9e5...1e6  IK-Singularität in Eckpunkten (trotz lösbarer IK)
-%   1e6...1e7: IK in Einzelpunkten nicht lösbar
+%   1e6...9.8527e+06: IK in Einzelpunkten nicht lösbar
+%   9.9e6 IK in Einzelpunkten nicht lösbar wegen IK-Singularität
 %   1e7...1e8: Geometrie nicht plausibel lösbar (2: Reichweite PKM-Koppelpunkte)
 %   1e8...1e9: Geometrie nicht plausibel lösbar (1: Schließen PKM-Ketten)
 % QE_all (Anz. Eckpunkte x Anz. Gelenke x Anz. Konfigurationen)
@@ -1176,12 +1177,26 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   if (any(abs(Phi_E(:)) > 1e-2) || ... % Die Toleranz beim IK-Verfahren ist etwas größer
       any(abs(Phi_E(1,:))>1e-8)) && ... % Startpunkt für Traj. Hat feine Toleranz, sonst missverständliche Ergebnisse. Konsistent mit Toleranz oben.
       (isinf(fval_jic(jic)) || isnan(fval_jic(jic))) % Kein anderer Abbruchgrund oben
+    % Prüfe ob bisher bei allen geprüften Punkten eine Singularität vorlag.
+    % Wenn ja, wird das in einem besonderen Bereich gekennzeichnet zur Ab-
+    % grenzung von einem parameterbedingten Fehlschlag hiernach.
+    n_sing = sum(any(condJik > 1e10, 2));
+    n_calc = sum(any(~isnan(condJik), 2));
+    if n_sing == n_calc
+      fval_jic(jic) = 9.9e6; % abgestimmt mit folgendem Schwellwert
+      constrvioltext_jic{jic} = sprintf(['Alle %d berechneten Punkte ', ...
+        'waren singulär. Dadurch keine IK-Konvergenz in Eckpunkt %d/%d'], ...
+        n_sing, i, size(Traj_0.XE,1)); % es kann auch erfolgreiche Punkte geben dank DLS-Verfahren.
+      calctimes_jic(i_ar,jic) = toc(t1);
+      continue;
+    end
+
     % Nehme die mittlere IK-Abweichung aller Eckpunkte (Translation/Rotation
     % gemischt). Typische Werte von 1e-2 bis 10.
     % Bei vorzeitigem Abbruch zählt die Anzahl der erfolgreichen Eckpunkte
-    f_PhiE = mean(abs(Phi_E(:)));
+    f_PhiE = mean(abs(Phi_E(:))); % kann max. 1e6 sein (s.o.)
     f_phiE_norm = 2/pi*atan(f_PhiE/0.9e6*35); % Normierung auf 0 bis 1. 0.9e6 -> 0.98
-    fval_jic(jic) = 1e6*(1+9*f_phiE_norm); % Normierung auf 1e6 bis 1e7
+    fval_jic(jic) = 1e6*(1+9*f_phiE_norm); % Normierung auf 1e6 bis 1e7 (aber kleiner als 1e7: max. 9.8527e+06)
     % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
     constrvioltext_jic{jic} = sprintf(['Keine IK-Konvergenz in Eckwerten. ', ...
       'Untersuchte Eckpunkte: %d/%d. Durchschnittliche ZB-Verl. %1.2e'], ...

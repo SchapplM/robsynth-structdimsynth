@@ -1321,6 +1321,11 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           end
           rescode = 0;
           num_rankloss = num_rankloss + 1;
+        elseif min(fval_jjj) == 9.9e10 || ... % siehe cds_fitness
+            all(min(fval_jjj) > 9e9) && all(min(fval_jjj) < 1e10)
+          remove = true;
+          num_dimsynthfail = num_dimsynthfail + 1;
+          rescode = 10;
         elseif min(fval_jjj) > 1e10
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
             'Zielfunktion (Einzelpunkt-IK) %1.2e\n'], min(fval_jjj));
