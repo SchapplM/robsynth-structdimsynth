@@ -39,6 +39,7 @@ end
 if nargin < 3
   make_global_index = false;
 end
+t1 = tic();
 % Dateiname für Index-Datei bestimmen
 if make_global_index
   filename_idx = fullfile(Set.optimization.resdir, 'index_results.mat');
@@ -48,24 +49,39 @@ else
   filename_idx = fullfile(resdir_main, 'tmp', 'old_results.mat');
 end
 
-t1 = tic();
+
+% Bestimme die Namen der zu prüfenden Roboter für den Index
 RobNames = {};
+for k = 1:length(Structures)
+  RobNames = [RobNames, Structures{k}.Name]; %#ok<AGROW>
+end
+RobNames = unique(RobNames);
+% Prüfe, ob der Index für diese Optimierung vollständig ist
+index_complete = false;
+if ~make_global_index && exist(filename_idx, 'file')
+  idx_data = load(filename_idx);
+  if isfield(idx_data, 'RobNames')
+    initpop_RobNames = idx_data.RobNames;
+  else % altes Format ohne Speicherung der Roboternamen
+    initpop_RobNames = {};
+  end
+  if length(intersect(RobNames,initpop_RobNames)) == length(RobNames)
+    index_complete = true;
+  end
+end
+
 if make_global_index
   % Wähle die Dateien zu allen Robotern aus. Es muss kein Wildcard (*) mehr
   % gesetzt werden, da die Ausdrücke unten bereits den * nach RobName haben
   RobNames = {''};
-elseif exist(filename_idx, 'file') % nur, falls nicht globaler Index genommen wird
+elseif index_complete % nur, falls nicht globaler Index genommen wird
   % Datei existiert schon und muss nur noch geladen werden. Nichts tun.
   % Dieser Fall tritt nur beim Debuggen auf, wenn mehrmals die gleiche
   % Optimierung gestartet wird.
   cds_log(2, sprintf('[gen_init_pop_index] Nutze bestehende Datei %s', filename_idx));
   return
 else
-  % Erzeuge die Datei nur für die gegebenen Roboter
-  for k = 1:length(Structures)
-    RobNames = [RobNames, Structures{k}.Name]; %#ok<AGROW>
-  end
-  RobNames = unique(RobNames);
+  % Erzeuge die Datei nur für die gegebenen Roboter (Variable RobNames von oben)
 end
 cds_log(2, sprintf('[gen_init_pop_index] Beginne Zusammenfassung bisheriger Ergebnisse'));
 
@@ -132,6 +148,6 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
   end % if status
 end
 % Speichere Dateiliste ab
-save(filename_idx, 'initpop_matlist');
+save(filename_idx, 'initpop_matlist', 'RobNames');
 cds_log(2, sprintf(['[gen_init_pop_index] Vorherige Ergebnisse ', ...
   'zusammengefasst. Dauer: %1.1fs. Index-Datei: %s'], toc(t1), filename_idx));
