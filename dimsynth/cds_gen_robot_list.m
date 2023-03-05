@@ -399,7 +399,7 @@ for kkk = 1:size(EE_FG_allowed,1)
       UnwantedCylinderLever = false;
       if Set.structures.prismatic_cylinder_no_lever
         [~, csvbits] = serroblib_bits2csvline(SerRob_DB_all.BitArrays_Ndof(ilc,:));
-        PS = serroblib_bits2paramstruct(NLegDoF, csvbits);
+        PS = serroblib_csvindex2paramstruct(NLegDoF, csvbits);
         % Erkenne an welcher Stelle ein Schubgelenk liegt (Annahme:
         % Zylinder, falls nicht am Gestell). Finde zugehörige a-/d-Param.
         % Siehe: cds_dimsynth_robot (Code für prismatic_cylinder_no_lever)
