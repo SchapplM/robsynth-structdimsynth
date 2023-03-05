@@ -30,6 +30,7 @@ settings_default = struct( ...
   'selectvariants', true, ... % Auch alle Varianten wählen
   'ignore_check_leg_dof', false, ... % Plausibilitätsregeln aus parrob_structsynth_check_leg_dof können ignoriert werden
   'allow_passive_prismatic', false, ... % Technisch sinnvoll. Zum Testen auf true setzen (z.B. für 2T0R und 2T1R PKM)
+  'fixed_number_prismatic', NaN, ... % Vorgabe, wie viele Schubgelenke die Beinkette haben muss (NaN = egal)
   'comp_cluster', false, ... % Rechne auf PBS-Rechen-Cluster. Parallel-Instanz für G-/P-Kombis
   'compile_job_on_cluster', true, ... % Separater Job auf Cluster zum kompilieren der Mex-Funktionen
   'clustercomp_if_res_olderthan', 2, ... % Falls in den letzten zwei Tagen bereits ein vollständiger Durchlauf gemacht wurde, dann nicht nochmal auf dem Cluster rechnen. Deaktivieren durch Null-Setzen
@@ -298,6 +299,9 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       end
       if ~isempty(settings.whitelist_SerialKin) && ~any(strcmp(settings.whitelist_SerialKin, SName))
         % Aktuelle Roboterstruktur für Beinketten nicht in Positivliste
+        continue
+      end
+      if sum(SName=='P') ~= settings.fixed_number_prismatic
         continue
       end
       
@@ -1384,8 +1388,8 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
                   table2array(synthrestable(:,4))==Coupling(2);
         i_restab = find(I_name & I_coupl);
         % aktuellen Status feststellen
-        if isempty(i_restab)
-          error('Kein Eintrag in CSV-Tabelle für %sG%dP%d', PName, Coupling(1), Coupling(2));
+        if isempty(i_restab) % Tabelle wurde oben geladen und noch nicht aktualisiert (vermutlich lokaler Durchlauf der Synthese)
+          Status_restab = 6; % "noch nicht geprüft"
         elseif length(i_restab) > 1
           error('Doppelter Eintrag in CSV-Tabelle für %sG%dP%d', PName, Coupling(1), Coupling(2));
         else
