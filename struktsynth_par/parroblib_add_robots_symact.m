@@ -126,7 +126,11 @@ if settings.comp_cluster
   assert(~isempty(which('jobStart.m')), 'Cluster-Repo ist nicht im Pfad initialisiert');
 end
 % Abhängigkeiten der Cluster-Jobs in Struktur sammeln
-depstruct = struct('afterok', settings.clusterjobdepend, 'afternotok', [], 'afterany', []);
+startsettings = struct('afterok', settings.clusterjobdepend, 'afternotok', [], 'afterany', []);
+% zwei Tage lang in 5min-Abständen versuchen (falls Cluster voll und
+% die Jobs nach und nach erst gestartet werden dürfen)
+startsettings.waittime_max = 3600*24*2; %  2 Tage
+startsettings.retry_interval = 60*5; % 5 Minuten
 %% Alle PKM generieren
 fprintf('Beginne Schleife über %d verschiedene EE-FG\n', length(settings.EE_FG_Nr));
 for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
@@ -652,7 +656,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.general.parcomp_struct = settings.parcomp_structsynth;
     Set.general.use_mex = settings.use_mex;
     Set.general.compile_missing_functions = true; % wurde schon weiter oben gemacht. Mache nochmal, da es manchmal nicht funktioniert (unklare Gründe, womöglich Synchronisationsprobleme der parallelen Ausführung)
-    if ~Set.general.computing_cluster % Füge den Ergebnisordner aus der Projektablage hinzu
+    if ~settings.isoncluster % Füge den Ergebnisordner aus der Projektablage hinzu
       Set.optimization.result_dirs_for_init_pop = {fullfile(fileparts( which(...
         'robsynth_projektablage_path.m')), '03_Entwicklung', 'Struktursynthese', 'Ergebnisordner_Optimierung')};
     end
@@ -920,10 +924,12 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           'ppn', 1, ... % Es gibt Dateizugriffsprobleme auf dem Cluster ("Datei nicht gefunden"). Daher nicht parallel kompilieren, auch wenn es lange dauert.
           'matFileName', 'compile_serrob.m', ...
           'locUploadFolder', jobdir, ...
-          'time',12), depstruct)]; %#ok<AGROW> 
+          'time',12), startsettings)]; %#ok<AGROW> 
         LegChainListMexUpload = unique([LegChainListMexUpload, LegChainList_Coupling]);
         % Folgenden Struktursynthese-Job erst nach Kompilierung starten
-        depstruct = struct('afterok', serrob_compile_jobId, 'afternotok', [], 'afterany', []);
+        startsettings.afterok = serrob_compile_jobId;
+        startsettings.afternotok = [];
+        startsettings.afterany = [];
       end
       %% Kompiliere die Funktionen für die bereits existierenden PKM vorher.
       % Dadurch muss weniger auf den Parallel-Instanzen neu kompiliert und
@@ -969,10 +975,10 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           'ppn', 12, ... % Paralleles Kompilieren ausprobieren
           'matFileName', 'compile_parrob.m', ...
           'locUploadFolder', jobdir, ...
-          'time',24), depstruct)]; %#ok<AGROW> 
+          'time',24), startsettings)]; %#ok<AGROW> 
         % Wenn zentraler Kompilier-Job abbricht wird stattdessen wieder
         % dezentral kompiliert. Mögliche Ursache ist, dass es zu lange dauert.
-        depstruct.afterany = [depstruct.afterany, parrob_compile_jobId];
+        startsettings.afterany = [startsettings.afterany, parrob_compile_jobId];
       end
       %% Führe die Maßsynthese für die Struktursynthese auf dem Cluster durch.
       % Bereite eine Einstellungs-Datei vor
@@ -1036,7 +1042,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         'matFileName', [computation_name, '.m'], ...
         'locUploadFolder', jobdir, ...
         'time', 12+length(Whitelist_PKM)*0.5/min(length(Whitelist_PKM),12)), ... % Zeit in h. Schätze 30min pro PKM im Durchschnitt
-        depstruct); % Erst anfangen, wenn Funktionen für serielle Beinketten kompiliert wurden.
+        startsettings); % Erst anfangen, wenn Funktionen für serielle Beinketten kompiliert wurden.
       % Starte auch einen Abschluss-Job. Ist notwendig, falls bei Timeout
       % vorzeitig abgebrochen wird. Siehe cds_start.m
       Set.general.computing_cluster = true;
@@ -1262,8 +1268,19 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         [R_ii, Structure_ii] = cds_dimsynth_robot(tmpset.Set, tmpset.Traj, ...
           tmpset.Structures{res_ii.RobotOptRes.Structure.Number}, true);
         % Eintragen der Variable xref in die Matlab-Klasse
-        cds_update_robot_parameters(R_ii, tmpset.Set, Structure_ii, ...
-          res_ii.RobotOptRes.p_val);
+        try
+          % Aktualisiere die Parameter, falls eine veraltete
+          % Ergebnisversion geladen wurde
+          p_val_ii = cds_parameters_update(res_ii.RobotOptRes.Structure, ...
+            Structure_ii, res_ii.RobotOptRes.p_val);
+          % Eintragen in Roboter-Klasse
+          cds_update_robot_parameters(R_ii, tmpset.Set, Structure_ii, p_val_ii);
+        catch err
+          save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+            sprintf('parroblib_add_robots_symact_%s_update_robot_parameters_fail.mat', Name)));
+          warning(sprintf('Fehler beim Aktualisieren der Parameter. Vermutlich veraltetes Ergebnis: %s', err.message)); %#ok<SPWRN> 
+          continue
+        end
         % Verschiedene Koppelgelenk-Methoden durchgehen.
         for kkP = [7 1:3 8] % zulässige Methoden für PKM, die P7 unterstützen
           p_plf = R_ii.DesPar.platform_par(1);
