@@ -33,6 +33,7 @@ settings_default = struct( ...
   'fixed_number_prismatic', NaN, ... % Vorgabe, wie viele Schubgelenke die Beinkette haben muss (NaN = egal)
   'comp_cluster', false, ... % Rechne auf PBS-Rechen-Cluster. Parallel-Instanz für G-/P-Kombis
   'compile_job_on_cluster', true, ... % Separater Job auf Cluster zum kompilieren der Mex-Funktionen
+  'results_max_age', 30, ... % Keine alten Ergebnisse laden. Annahme: Wurden schon verarbeitet. In Tagen.
   'clustercomp_if_res_olderthan', 2, ... % Falls in den letzten zwei Tagen bereits ein vollständiger Durchlauf gemacht wurde, dann nicht nochmal auf dem Cluster rechnen. Deaktivieren durch Null-Setzen
   'clusterjobdepend', [], ...% Start-Abhängigkeit für alle Cluster-Jobs (z.B. Index-Erstellung der Datenbank
   'isoncluster', false, ... % Marker um festzustellen, dass gerade auf Cluster parallel gerechnet wird
@@ -741,6 +742,8 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
             warning('Ergebnis-Ordner "%s" passt nicht ins Datums-Namensschema. Überspringe.', reslist(i).name);
             continue
           end
+          date_i = datenum([datestr_match{1}{1}, ' ', datestr_match{1}{2}], 'yyyymmdd HHMMSS');
+          reslist_age(i) = now() - date_i; % Alter in Tagen
           % Prüfe, ob die Einstellungsdatei mit der Tabelle übereinstimmt
           settingsfile=fullfile(reslist(i).folder, reslist(i).name, ...
             sprintf('%s_settings.mat', reslist(i).name));
@@ -770,108 +773,116 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
               continue
             end
           end
-
-          date_i = datenum([datestr_match{1}{1}, ' ', datestr_match{1}{2}], 'yyyymmdd HHMMSS');
-          reslist_age(i) = now() - date_i; % Alter in Tagen
           reslist_nummatch(i) = sum(Whitelist_PKM_match); % Anzahl der Treffer
           % Verhältnis der gefundenen PKM: Berücksichtige freie alpha-/theta-
           % Parameter, die zu doppelten Ergebnissen für einen Namen führen.
           reslist_rationomatch(i) = 1 - reslist_nummatch(i)/length(unique(reslist_pkm_names));
-        end
+        end % for i
         reslist_rationomatch(isnan(reslist_rationomatch)) = 0;
-        % Bestimme das am sinnvollsten auszuwählendste Ergebnis:
-        [~, I] = max(reslist_nummatch/length(Whitelist_PKM) ... % Nehme möglichst vollständige Ordner
-          - reslist_age*0.05 ... aber ziehe 5% für jeden vergangenen Tag ab, ...
-            ... % damit nicht ein sehr altes vollständiges Ergebnis immer genommen wird
-          - reslist_rationomatch*0.10); % Bestrafe nicht passende Einträge
-        Set.optimization.optname = reslist(I).name;
-        % Erstelle Variablen, die sonst in cds_start entstehen
-        csvfile = fullfile(reslist(I).folder, reslist(I).name, ...
-          sprintf('%s_results_table.csv', reslist(I).name));
-        use_csv = true;
-        if ~exist(csvfile, 'file')
-          use_csv = false;
+        % Vor-Filterung der Ergebnisliste
+        III_age = reslist_age < settings.results_max_age;
+        III_anymatch = reslist_nummatch > 0;
+        III = III_age & III_anymatch;
+        if ~any(III)
+          fprintf(['Keiner der %d Ergebnis-Ordner ist brauchbar. Bei %d ', ...
+            'passendes Alter, bei %d irgendein passendes Ergebnis\n'], length(II), ...
+            sum(III_age), sum(III_anymatch));
+          I_reslist = 1; % Dummy-Definition (wird nicht verwendet)
         else
-          ResData_i = readtable(csvfile, 'HeaderLines', 2);
-          if size(ResData_i, 1) == 0 % Leere Tabelle führt zu Fehler
+          % Bestimme das am sinnvollsten auszuwählendste (vorgefilterte) Ergebnis:
+          [~, I_reslist] = max(reslist_nummatch(III)/length(Whitelist_PKM) ... % Nehme möglichst vollständige Ordner
+            - reslist_age(III)*0.05 ... aber ziehe 5% für jeden vergangenen Tag ab, ...
+              ... % damit nicht ein sehr altes vollständiges Ergebnis immer genommen wird
+            - reslist_rationomatch(III)*0.10); % Bestrafe nicht passende Einträge
+          Set.optimization.optname = reslist(I).name;
+          % Erstelle Variablen, die sonst in cds_start entstehen
+          csvfile = fullfile(reslist(I).folder, reslist(I).name, ...
+            sprintf('%s_results_table.csv', reslist(I).name));
+          use_csv = true;
+          if ~exist(csvfile, 'file')
             use_csv = false;
-          end
-        end
-        % Erstelle Cell-Array mit allen Roboter-Strukturen (Platzhalter-Var.)
-        if use_csv
-          ResData_i_headers = readtable(csvfile, 'ReadVariableNames', true);
-          ResData_i.Properties.VariableNames = ResData_i_headers.Properties.VariableNames;
-          Structures = cell(1,max(ResData_i.LfdNr),1);
-          for i = 1:size(ResData_i,1)
-            if isnan(ResData_i.LfdNr(i))
-              warning('Datei %s scheint beschädigt zu sein', csvfile);
-              continue
-            end
-            Structures{ResData_i.LfdNr(i)} = struct('Name', ResData_i.Name{i}, 'Type', 2);
-          end
-        else
-          roblist = dir(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
-            'Rob*_Endergebnis.mat')); % Die Namen aller Roboter sind in den Ergebnis-Dateien enthalten.
-          [tokens, ~] = regexp({roblist(:).name},'Rob(\d+)_([A-Za-z0-9]+)_Endergebnis\.mat','tokens','match');
-          % Nach Nummer der Roboter sortieren (für nachträgliche Erzeugung der
-          % Ergebnis-Tabelle zum korrekten Laden der mat-Dateien)
-          robnum_ges = zeros(length(tokens),1);
-          for i = 1:length(tokens)
-            robnum_ges(i) = str2double(tokens{i}{1}{1});
-          end
-          [~,I_sortres] = sort(robnum_ges);
-          Structures = cell(1,length(I_sortres)); istr = 0;
-          for i = I_sortres(:)'
-            istr = istr + 1;
-            Structures{istr} = struct('Name', tokens{i}{1}{2}, 'Type', 2); %#ok<SAGROW>
-          end
-        end
-        % Erstelle auch die csv-Tabelle aus den Ergebnissen (falls fehlend)
-        if ~exist(csvfile, 'file')
-          try
-            cds_results_table(Set, Traj, Structures);
-          catch
-            warning(['Ergebnis-Tabelle konnte nicht erstellt werden. ', ...
-              'Vermutlich Daten mit alter Version erzeugt.']);
-          end
-        end
-        % Stelle fest, ob das Ergebnis vollständig ist
-        offline_result_complete = false;
-        settingsfile=fullfile(Set.optimization.resdir, Set.optimization.optname, ...
-          sprintf('%s_settings.mat', Set.optimization.optname));
-        if exist(settingsfile, 'file')
-          tmpset = load(settingsfile, 'Structures');
-          % Vergleiche die Anzahl der geplant durchgeführten Optimierungen
-          % mit den tatsächlich durchgeführten (mit Endergebnis.mat). Wenn
-          % identisch, dann vollständiger Durchlauf
-          complstr = sprintf('Dabei %d/%d Maßsynthesen durchgeführt. ', ...
-            length(Structures), length(tmpset.Structures));
-          if length(tmpset.Structures) == length(Structures)
-            offline_result_complete = true;
-            complstr = [complstr,'Der Durchlauf ist vollständig.']; %#ok<AGROW>
-          elseif length(tmpset.Structures) < max(ResData_i.LfdNr)
-            complstr = [complstr,'Einstellungsdatei und Ergebnisliste nicht konsistent']; %#ok<AGROW>
           else
-            complstr = [complstr,'Der Durchlauf ist nicht vollständig.']; %#ok<AGROW>
+            ResData_i = readtable(csvfile, 'HeaderLines', 2);
+            if size(ResData_i, 1) == 0 % Leere Tabelle führt zu Fehler
+              use_csv = false;
+            end
           end
-        else
-          complstr = 'Keine Aussage über Vollständigkeit des Ergebnisses möglich.';
+          % Erstelle Cell-Array mit allen Roboter-Strukturen (Platzhalter-Var.)
+          if use_csv
+            ResData_i_headers = readtable(csvfile, 'ReadVariableNames', true);
+            ResData_i.Properties.VariableNames = ResData_i_headers.Properties.VariableNames;
+            Structures = cell(1,max(ResData_i.LfdNr),1);
+            for i = 1:size(ResData_i,1)
+              if isnan(ResData_i.LfdNr(i))
+                warning('Datei %s scheint beschädigt zu sein', csvfile);
+                continue
+              end
+              Structures{ResData_i.LfdNr(i)} = struct('Name', ResData_i.Name{i}, 'Type', 2);
+            end
+          else
+            roblist = dir(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+              'Rob*_Endergebnis.mat')); % Die Namen aller Roboter sind in den Ergebnis-Dateien enthalten.
+            [tokens, ~] = regexp({roblist(:).name},'Rob(\d+)_([A-Za-z0-9]+)_Endergebnis\.mat','tokens','match');
+            % Nach Nummer der Roboter sortieren (für nachträgliche Erzeugung der
+            % Ergebnis-Tabelle zum korrekten Laden der mat-Dateien)
+            robnum_ges = zeros(length(tokens),1);
+            for i = 1:length(tokens)
+              robnum_ges(i) = str2double(tokens{i}{1}{1});
+            end
+            [~,I_sortres] = sort(robnum_ges);
+            Structures = cell(1,length(I_sortres)); istr = 0;
+            for i = I_sortres(:)'
+              istr = istr + 1;
+              Structures{istr} = struct('Name', tokens{i}{1}{2}, 'Type', 2); %#ok<SAGROW>
+            end
+          end
+          % Erstelle auch die csv-Tabelle aus den Ergebnissen (falls fehlend)
+          if ~exist(csvfile, 'file')
+            try
+              cds_results_table(Set, Traj, Structures);
+            catch
+              warning(['Ergebnis-Tabelle konnte nicht erstellt werden. ', ...
+                'Vermutlich Daten mit alter Version erzeugt.']);
+            end
+          end
+          % Stelle fest, ob das Ergebnis vollständig ist
+          offline_result_complete = false;
+          settingsfile=fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+            sprintf('%s_settings.mat', Set.optimization.optname));
+          if exist(settingsfile, 'file')
+            tmpset = load(settingsfile, 'Structures');
+            % Vergleiche die Anzahl der geplant durchgeführten Optimierungen
+            % mit den tatsächlich durchgeführten (mit Endergebnis.mat). Wenn
+            % identisch, dann vollständiger Durchlauf
+            complstr = sprintf('Dabei %d/%d Maßsynthesen durchgeführt. ', ...
+              length(Structures), length(tmpset.Structures));
+            if length(tmpset.Structures) == length(Structures)
+              offline_result_complete = true;
+              complstr = [complstr,'Der Durchlauf ist vollständig.']; %#ok<AGROW>
+            elseif length(tmpset.Structures) < max(ResData_i.LfdNr)
+              complstr = [complstr,'Einstellungsdatei und Ergebnisliste nicht konsistent']; %#ok<AGROW>
+            else
+              complstr = [complstr,'Der Durchlauf ist nicht vollständig.']; %#ok<AGROW>
+            end
+          else
+            complstr = 'Keine Aussage über Vollständigkeit des Ergebnisses möglich.';
+          end
+          fprintf(['Ergebnis-Ordner %s zur Offline-Auswertung gewählt. Enthält ', ...
+            '%d/%d passende Ergebnisse (%1.0f%% unpassende Ergebnisse) und ist %1.1f ', ...
+            'Tage alt. %s\n'], Set.optimization.optname, reslist_nummatch(I), ...
+            length(Whitelist_PKM), 100*reslist_rationomatch(I), reslist_age(I), complstr);
+          resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
         end
-        fprintf(['Ergebnis-Ordner %s zur Offline-Auswertung gewählt. Enthält ', ...
-          '%d/%d passende Ergebnisse (%1.0f%% unpassende Ergebnisse) und ist %1.1f ', ...
-          'Tage alt. %s\n'], Set.optimization.optname, reslist_nummatch(I), ...
-          length(Whitelist_PKM), 100*reslist_rationomatch(I), reslist_age(I), complstr);
       end
     end
     % Ergebnisse der Struktursynthese (bzw. als solcher durchgeführten
     % Maßsynthese zusammenstellen)
-    resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
       sprintf('parroblib_add_robots_symact_%s_3.mat', EE_FG_Name)));
     %% LUIS-Cluster vorbereiten
     if settings.comp_cluster && offline_result_complete && ...
-        reslist_age(I) < settings.clustercomp_if_res_olderthan && ...
-        reslist_nummatch(I) == length(Whitelist_PKM)
+        reslist_age(III(I_reslist)) < settings.clustercomp_if_res_olderthan && ...
+        reslist_nummatch(III(I_reslist)) == length(Whitelist_PKM)
       % Prüfe Bedingungen, bei denen nicht auf dem Cluster gerechnet werden
       % soll, weil die Ergebnisse lokal schon vorliegen. Kann gemacht
       % werden, wenn die Rechnung auf dem Cluster für manche G-/P-Nummern
@@ -1055,48 +1066,54 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     end % Cluster-Berechnung
     
     %% Nachverarbeitung der Ergebnis-Liste
-    % CSV-Tabelle laden (obiges Laden derselben Datei wird nicht bei 
-    % jeder Einstellung des Skripts gemacht)
-    csvfile = fullfile(resmaindir, [Set.optimization.optname, ...
-        '_results_table.csv']); % Muss hier existieren
-    ResData = readtable(csvfile, 'HeaderLines', 2);
-    ResData_headers = readtable(csvfile, 'ReadVariableNames', true);
-    if isempty(ResData)
-      fprintf('Keine Ergebnisse vorhanden. Entferne PKM wieder bei Abschluss\n')
-      ResData = ResData_headers; % So Übernahme der Überschriften für leere Tabelle.
-      ResData = ResData([],:); % Darf keine Zeilen enthalten, sonst unten Fehler
+    if ~any(III)
+      num_results = 0; % Es kann kein Ergebnis geladen werden
     else
-      ResData.Properties.VariableNames = ResData_headers.Properties.VariableNames;
-    end
-    settingsfile = fullfile(resmaindir, [Set.optimization.optname, ...
-        '_settings.mat']);
-    num_results = 0;
-    if ~exist(settingsfile, 'file')
-      warning('Datei %s existiert nicht. Fehler bei Cluster-Berechnung?.', settingsfile);
-      tmpset = struct('Structures', {{}}); % Dummy
-    else
-      tmpset = load(settingsfile);
-      % Stelle die Liste der Roboter zusammen. Ist nicht identisch mit Dateiliste,
-      % da PKM mehrfach geprüft werden können.
-      Structures_Names = cell(1,length(Structures));
-      for jjj = 1:length(Structures)
-        if isempty(Structures{jjj}) % falls Daten lückenhaft
-          Structures_Names{jjj}='missing'; 
-          continue; 
-        end
-        Structures_Names{jjj} = Structures{jjj}.Name;
+      % CSV-Tabelle laden (obiges Laden derselben Datei wird nicht bei 
+      % jeder Einstellung des Skripts gemacht)
+      csvfile = fullfile(resmaindir, [Set.optimization.optname, ...
+          '_results_table.csv']); % Muss hier existieren
+      ResData = readtable(csvfile, 'HeaderLines', 2);
+      ResData_headers = readtable(csvfile, 'ReadVariableNames', true);
+      if isempty(ResData)
+        fprintf('Keine Ergebnisse vorhanden. Entferne PKM wieder bei Abschluss\n')
+        ResData = ResData_headers; % So Übernahme der Überschriften für leere Tabelle.
+        ResData = ResData([],:); % Darf keine Zeilen enthalten, sonst unten Fehler
+      else
+        ResData.Properties.VariableNames = ResData_headers.Properties.VariableNames;
       end
-      Structures_Names = unique(Structures_Names); % Eindeutige Liste der Strukturen erzeugen
-      Structures_Names = Structures_Names(~strcmp(Structures_Names, 'missing'));
-      % Sortiere die Liste absteigend, damit zuerst hohe Aktuierungs-
-      % nummern gelöscht werden. Andernfalls gibt es Logik-Probleme in der DB
-      Structures_Names = fliplr(sort(Structures_Names)); %#ok<FLPST>
-      num_results = length(Structures_Names);
+      settingsfile = fullfile(resmaindir, [Set.optimization.optname, ...
+          '_settings.mat']);
+      num_results = 0;
+      if ~exist(settingsfile, 'file')
+        warning('Datei %s existiert nicht. Fehler bei Cluster-Berechnung?.', settingsfile);
+        tmpset = struct('Structures', {{}}); % Dummy
+      else
+        tmpset = load(settingsfile);
+        % Stelle die Liste der Roboter zusammen. Ist nicht identisch mit Dateiliste,
+        % da PKM mehrfach geprüft werden können.
+        Structures_Names = cell(1,length(Structures));
+        for jjj = 1:length(Structures)
+          if isempty(Structures{jjj}) % falls Daten lückenhaft
+            Structures_Names{jjj}='missing'; 
+            continue; 
+          end
+          Structures_Names{jjj} = Structures{jjj}.Name;
+        end
+        Structures_Names = unique(Structures_Names); % Eindeutige Liste der Strukturen erzeugen
+        Structures_Names = Structures_Names(~strcmp(Structures_Names, 'missing'));
+        % Sortiere die Liste absteigend, damit zuerst hohe Aktuierungs-
+        % nummern gelöscht werden. Andernfalls gibt es Logik-Probleme in der DB
+        Structures_Names = fliplr(sort(Structures_Names)); %#ok<FLPST>
+        num_results = length(Structures_Names);
+      end
     end
     if num_results == 0
       % Trage alle vorher ermittelten PKM als Pseudo-Ergebnisliste ein, um
       % sie danach zu löschen
       Structures_Names = fliplr(sort(Whitelist_PKM(:)')); %#ok<FLPST,TRSRT> 
+      % Ergebnis-Variable ist damit bedeutungslos
+      ResData = {};
     else
       fprintf('Verarbeite die %d Ergebnisse der Struktursynthese (%d PKM)\n', ...
         sum(~isnan(ResData.LfdNr)), num_results);
@@ -1118,7 +1135,6 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       parallelity_jjj = [];
       for jj = 1:size(ResData,1)
         if strcmp(ResData.Name{jj},Name)
-          fval_jjj = [fval_jjj, ResData.Fval_Opt(jj)]; %#ok<AGROW>
           if length(tmpset.Structures) < jj
             warning('Struktur-Variable hat die falsche Dimension. Datenfehler?')
             continue
@@ -1128,6 +1144,8 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
             warning('Struktur-Variable nicht konsistente Einträge. Datenfehler?')
             continue
           end
+          % Ab hier sind die Daten konsistent und können eingetragen werden
+          fval_jjj = [fval_jjj, ResData.Fval_Opt(jj)]; %#ok<AGROW>
           if isempty(angles_jjj) % Syntax-Fehler vermeiden bei leerem char als erstem
             angles_jjj = {Structure_jj.angles_values};
           else
@@ -1154,7 +1172,10 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         end
       end % for jj
       if length(fval_jjj) ~= length(angles_jjj)
-        error('Variablen fval_jjj und angles_jjj sind nicht konsistent');
+        save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+          sprintf('parroblib_add_robots_symact_%s_fval_angles_inconsistent.mat', Name)));
+        warning('Variablen fval_jjj und angles_jjj sind nicht konsistent');
+        continue
       end
       if isempty(fval_jjj)
         if settings.offline
@@ -1171,7 +1192,8 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
             if ~success
               error('Fehler beim Löschen von %s', Name);
             end
-            fprintf('PKM %s wurde wieder aus der Datenbank gelöscht.\n', Name);
+            fprintf('PKM %d/%d %s wurde wieder aus der Datenbank gelöscht.\n', ...
+              jjj, length(Structures_Names), Name);
           end
           continue
         else
