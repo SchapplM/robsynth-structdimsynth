@@ -253,6 +253,9 @@ if ~isempty(Set.structures.repeatlist)
       'Eintrag in Set.structures.repeatlist hat nicht Dimension 2');
   end
 end
+if ~isa(Set.structures.joint_filter, 'cell') % Altes Format kompatibel machen
+  Set.structures.joint_filter = {Set.structures.joint_filter};
+end
 % Bei PKM-Struktursynthese darf nicht frühzeitig bei Singularität abbrechen
 if length(Set.optimization.objective) == 1 && ... % ist immer einkriteriell
     any(strcmp(Set.optimization.objective, {'valid_act', 'valid_kin'}))

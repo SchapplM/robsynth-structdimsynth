@@ -162,12 +162,19 @@ for N_JointDoF = N_JointDoF_allowed
     end
 
     % Prüfe, ob die Gelenkreihenfolge zum Filter passt
-    if any(~strcmp(structset.joint_filter, '*'))
-      Filter = structset.joint_filter(1:N_JointDoF);
-      ChainJoints_filt = SName(3:3+N_JointDoF-1);
-      ChainJoints_filt(Filter=='*') = '*';
-      if ~strcmp(ChainJoints_filt, structset.joint_filter(1:N_JointDoF))
-        FilterMatch = false;
+    for i = 1:length(structset.joint_filter)
+      FilterMatch = true;
+      joint_filter_i = structset.joint_filter{i};
+      if any(~strcmp(joint_filter_i, '*'))
+        Filter = joint_filter_i(1:N_JointDoF);
+        ChainJoints_filt = SName(3:3+N_JointDoF-1);
+        ChainJoints_filt(Filter=='*') = '*';
+        if ~strcmp(ChainJoints_filt, joint_filter_i(1:N_JointDoF))
+          FilterMatch = false;
+        end
+      end
+      if FilterMatch
+        break; % Ein Filter wurde erfüllt. Damit in Ordnung.
       end
     end
     
@@ -189,8 +196,8 @@ for N_JointDoF = N_JointDoF_allowed
     end
     if ~SkipRobot && ~FilterMatch
       if verblevel > 3
-        fprintf('%s passt nicht zum Filter %s.', ...
-          SName, structset.joint_filter);
+        fprintf('%s passt nicht zum Filter {%s}.', ...
+          SName, disp_array(structset.joint_filter, '%s'));
       end
       SkipRobot = true;
     end
@@ -369,12 +376,19 @@ for kkk = 1:size(EE_FG_allowed,1)
       end
       
       % Prüfe, ob die Gelenkreihenfolge zum Filter passt
-      if any(~strcmp(structset.joint_filter, '*'))
-        Filter_k = structset.joint_filter(1:NLegDoF);
-        ChainJoints_filt = ChainJoints;
-        ChainJoints_filt(Filter_k=='*') = '*';
-        if ~strcmp(ChainJoints_filt, structset.joint_filter(1:NLegDoF))
-          FilterMatch = false;
+      for i = 1:length(structset.joint_filter)
+        FilterMatch = true;
+        joint_filter_i = structset.joint_filter{i};
+        if any(~strcmp(joint_filter_i, '*'))
+          Filter_k = joint_filter_i(1:NLegDoF);
+          ChainJoints_filt = ChainJoints;
+          ChainJoints_filt(Filter_k=='*') = '*';
+          if ~strcmp(ChainJoints_filt, joint_filter_i(1:NLegDoF))
+            FilterMatch = false;
+          end
+        end
+        if FilterMatch
+          break; % Ein Filter wurde erfüllt. Damit in Ordnung.
         end
       end
       % Beinkette in Daten finden
@@ -503,8 +517,8 @@ for kkk = 1:size(EE_FG_allowed,1)
     end
     if ~SkipRobot && ~FilterMatch
       if verblevel > 3 || IsInWhiteList
-        fprintf('%s passt nicht zum Filter %s.', PNames_Akt{j}, ...
-          structset.joint_filter);
+        fprintf('%s passt nicht zum Filter {%s}.', PNames_Akt{j}, ...
+          disp_array(structset.joint_filter, '%s'));
       end
       SkipRobot = true;
     end
