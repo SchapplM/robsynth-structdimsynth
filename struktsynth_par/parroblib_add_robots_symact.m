@@ -794,10 +794,10 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
             - reslist_age(III)*0.05 ... aber ziehe 5% für jeden vergangenen Tag ab, ...
               ... % damit nicht ein sehr altes vollständiges Ergebnis immer genommen wird
             - reslist_rationomatch(III)*0.10); % Bestrafe nicht passende Einträge
-          Set.optimization.optname = reslist(I).name;
+          Set.optimization.optname = reslist(III(I_reslist)).name;
           % Erstelle Variablen, die sonst in cds_start entstehen
-          csvfile = fullfile(reslist(I).folder, reslist(I).name, ...
-            sprintf('%s_results_table.csv', reslist(I).name));
+          csvfile = fullfile(reslist(III(I_reslist)).folder, reslist(III(I_reslist)).name, ...
+            sprintf('%s_results_table.csv', reslist(III(I_reslist)).name));
           use_csv = true;
           if ~exist(csvfile, 'file')
             use_csv = false;
@@ -869,8 +869,8 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           end
           fprintf(['Ergebnis-Ordner %s zur Offline-Auswertung gewählt. Enthält ', ...
             '%d/%d passende Ergebnisse (%1.0f%% unpassende Ergebnisse) und ist %1.1f ', ...
-            'Tage alt. %s\n'], Set.optimization.optname, reslist_nummatch(I), ...
-            length(Whitelist_PKM), 100*reslist_rationomatch(I), reslist_age(I), complstr);
+            'Tage alt. %s\n'], Set.optimization.optname, reslist_nummatch(III(I_reslist)), ...
+            length(Whitelist_PKM), 100*reslist_rationomatch(III(I_reslist)), reslist_age(III(I_reslist)), complstr);
           resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
         end
       end
