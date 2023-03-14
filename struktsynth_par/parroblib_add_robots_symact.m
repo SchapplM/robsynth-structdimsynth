@@ -4,7 +4,7 @@
 % Probiere alle möglichen Beinketten aus der SerRobLib aus
 % 
 % TODO: Bei Abbruch des Skripts bleiben PKM mit "?"-Eintrag in der DB
-% zurück. Abhilfe: remove_invalid_robots.m.
+% zurück. Abhilfe: remove_invalid_robots.m und remove_orphaned_entries.m
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-09
 % (C) Institut für Mechatronische Systeme, Universität Hannover
@@ -783,21 +783,22 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         III_age = reslist_age < settings.results_max_age;
         III_anymatch = reslist_nummatch > 0;
         III = III_age & III_anymatch;
-        if ~any(III)
+        IIRL = find(III);
+        if isempty(IIRL)
           fprintf(['Keiner der %d Ergebnis-Ordner ist brauchbar. Bei %d ', ...
             'passendes Alter, bei %d irgendein passendes Ergebnis\n'], length(II), ...
             sum(III_age), sum(III_anymatch));
           I_reslist = 1; % Dummy-Definition (wird nicht verwendet)
         else
           % Bestimme das am sinnvollsten auszuwählendste (vorgefilterte) Ergebnis:
-          [~, I_reslist] = max(reslist_nummatch(III)/length(Whitelist_PKM) ... % Nehme möglichst vollständige Ordner
-            - reslist_age(III)*0.05 ... aber ziehe 5% für jeden vergangenen Tag ab, ...
+          [~, I_reslist] = max(reslist_nummatch(IIRL)/length(Whitelist_PKM) ... % Nehme möglichst vollständige Ordner
+            - reslist_age(IIRL)*0.05 ... aber ziehe 5% für jeden vergangenen Tag ab, ...
               ... % damit nicht ein sehr altes vollständiges Ergebnis immer genommen wird
-            - reslist_rationomatch(III)*0.10); % Bestrafe nicht passende Einträge
-          Set.optimization.optname = reslist(III(I_reslist)).name;
+            - reslist_rationomatch(IIRL)*0.10); % Bestrafe nicht passende Einträge
+          Set.optimization.optname = reslist(IIRL(I_reslist)).name;
           % Erstelle Variablen, die sonst in cds_start entstehen
-          csvfile = fullfile(reslist(III(I_reslist)).folder, reslist(III(I_reslist)).name, ...
-            sprintf('%s_results_table.csv', reslist(III(I_reslist)).name));
+          csvfile = fullfile(reslist(IIRL(I_reslist)).folder, reslist(IIRL(I_reslist)).name, ...
+            sprintf('%s_results_table.csv', reslist(IIRL(I_reslist)).name));
           use_csv = true;
           if ~exist(csvfile, 'file')
             use_csv = false;
@@ -869,8 +870,8 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           end
           fprintf(['Ergebnis-Ordner %s zur Offline-Auswertung gewählt. Enthält ', ...
             '%d/%d passende Ergebnisse (%1.0f%% unpassende Ergebnisse) und ist %1.1f ', ...
-            'Tage alt. %s\n'], Set.optimization.optname, reslist_nummatch(III(I_reslist)), ...
-            length(Whitelist_PKM), 100*reslist_rationomatch(III(I_reslist)), reslist_age(III(I_reslist)), complstr);
+            'Tage alt. %s\n'], Set.optimization.optname, reslist_nummatch(IIRL(I_reslist)), ...
+            length(Whitelist_PKM), 100*reslist_rationomatch(IIRL(I_reslist)), reslist_age(IIRL(I_reslist)), complstr);
           resmaindir = fullfile(Set.optimization.resdir, Set.optimization.optname);
         end
       end
@@ -881,8 +882,8 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       sprintf('parroblib_add_robots_symact_%s_3.mat', EE_FG_Name)));
     %% LUIS-Cluster vorbereiten
     if settings.comp_cluster && offline_result_complete && ...
-        reslist_age(III(I_reslist)) < settings.clustercomp_if_res_olderthan && ...
-        reslist_nummatch(III(I_reslist)) == length(Whitelist_PKM)
+        reslist_age(IIRL(I_reslist)) < settings.clustercomp_if_res_olderthan && ...
+        reslist_nummatch(IIRL(I_reslist)) == length(Whitelist_PKM)
       % Prüfe Bedingungen, bei denen nicht auf dem Cluster gerechnet werden
       % soll, weil die Ergebnisse lokal schon vorliegen. Kann gemacht
       % werden, wenn die Rechnung auf dem Cluster für manche G-/P-Nummern
@@ -952,8 +953,8 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         for kkk = 1:length(pkm_list_noGP)
           [~, ~, ~, ~, ~, ~, ~, ~, pkm_list_noGP{kkk}, ~] = parroblib_load_robot(Whitelist_PKM{kkk}, 0);
         end
-        [~, III] = unique(pkm_list_noGP);
-        pkm_compilelist = Whitelist_PKM(III);
+        [~, III_PKM] = unique(pkm_list_noGP);
+        pkm_compilelist = Whitelist_PKM(III_PKM);
         pkm_compilelist = pkm_compilelist(randperm(numel(pkm_compilelist)));
         computation_name_compile = [computation_name, '_compile_parrob'];
         jobdir = tmpDirFcn(true);
@@ -1066,7 +1067,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     end % Cluster-Berechnung
     
     %% Nachverarbeitung der Ergebnis-Liste
-    if ~any(III)
+    if isempty(IIRL)
       num_results = 0; % Es kann kein Ergebnis geladen werden
     else
       % CSV-Tabelle laden (obiges Laden derselben Datei wird nicht bei 
