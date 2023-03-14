@@ -822,7 +822,17 @@ if ~Set.general.regenerate_summary_only
           % Die Vorlagen-Funktionen können nicht in Parallelinstanzen
           % gleichzeitig erzeugt werden.
           parroblib_writelock('lock', 'template', Structure_i.DoF, 5*60, false);
-          parroblib_create_template_functions(Names(i), tplmode, false);
+          try % Abfangen von Fehlern für Sonderfall in Struktursynthese
+            parroblib_create_template_functions(Names(i), tplmode, false);
+          catch err % Passiert, wenn bei Struktursynthese Roboter beim Aufräumen nicht in Datenbank ist
+            cds_log(-1, sprintf('Fehler bei Funktions-Kompilierung für %s: %s', ...
+              Names{i}, err.message));
+            for k = 1:length(Structures) % Deaktivieren dieser PKM
+              if strcmp(Structures{k}.Name, Names{i})
+                Structures{k}.deactivated = true;
+              end
+            end
+          end
           parroblib_writelock('free', 'template', Structure_i.DoF, 5*60, false);
         end
       end
@@ -904,6 +914,13 @@ if ~Set.general.regenerate_summary_only
   cds_log(1, sprintf('Starte Schleife über %d Roboter. parfor_numworkers=%d', ...
     length(Structures), parfor_numworkers));
   parfor (i = 1:length(Structures), parfor_numworkers)
+    if isempty(Structures{i}.RobName), RobNameStr = '';
+    else, RobNameStr = sprintf('; %s', Structures{i}.RobName); end
+    % Überspringe Roboter, für die oben ein Fehler aufgetreten ist.
+    if isfield(Structures{i}, 'deactivated') && Structures{i}.deactivated
+      cds_log(1, sprintf('Überspringe Roboter %d (%s%s)', i, Structures{i}.Name, RobNameStr));
+      continue; 
+    end
     % Auflösung für Debug-Bilder setzen (wird auf ParPool auf Cluster nicht
     % vererbt aus globalen Einstellungen)
     if parfor_numworkers > 0
@@ -913,8 +930,6 @@ if ~Set.general.regenerate_summary_only
     % Maßsynthese für diesen Roboter starten
     if ~Set.general.only_finish_aborted, mode = 'Maßsynthese'; %#ok<PFBNS>
     else,                                mode = 'Abschluss'; end
-    if isempty(Structures{i}.RobName), RobNameStr = '';
-    else, RobNameStr = sprintf('; %s', Structures{i}.RobName); end
     cds_log(1, sprintf('Starte %s für Roboter %d (%s%s)', mode, i, ...
       Structures{i}.Name, RobNameStr));
     cds_dimsynth_robot(Set, Traj, Structures{i});
