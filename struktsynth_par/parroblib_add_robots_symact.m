@@ -1067,7 +1067,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     end % Cluster-Berechnung
     
     %% Nachverarbeitung der Ergebnis-Liste
-    if isempty(IIRL)
+    if ~exist('IIRL', 'var') || isempty(IIRL)
       num_results = 0; % Es kann kein Ergebnis geladen werden
     else
       % CSV-Tabelle laden (obiges Laden derselben Datei wird nicht bei 
