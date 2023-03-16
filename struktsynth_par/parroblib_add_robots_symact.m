@@ -271,8 +271,23 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     num_fullmobility = 0;
     num_isomorph = 0;
     num_checked_dimsynth = 0;
+    % Prüfe, ob die Positiv-Liste die gewünschte Gelenkzahl hat
+    I_wl = false(length(settings.whitelist_SerialKin), 1);
+    for i = LegDoF_allowed
+      [tokens,~] = regexp(settings.whitelist_SerialKin, 'S(\d)[RP]', 'tokens', 'match');
+      for k = 1:length(tokens)
+        if tokens{k}{1}{1} == sprintf('%d', i)
+          I_wl(k) = true;
+        end
+      end
+    end
+    if any(~I_wl)
+      fprintf('%d/%d Einträge der Positivliste haben falsche Gelenkzahl. Ignoriere.\n', ...
+        sum(~I_wl), length(I_wl));
+    end
+
     % Prüfe ob gewünschte Liste von Beinketten in Auswahl vorhanden ist
-    whitelist_notinDB = setdiff(settings.whitelist_SerialKin,l.Names_Ndof(II));
+    whitelist_notinDB = setdiff(settings.whitelist_SerialKin(I_wl),l.Names_Ndof(II));
     if ~isempty(whitelist_notinDB) && ~isempty(whitelist_notinDB{1})
       warning('%d/%d Einträge aus Auswahl-Liste nicht in Datenbank: %s', ...
         length(whitelist_notinDB), length(settings.whitelist_SerialKin), ...
