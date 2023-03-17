@@ -22,22 +22,33 @@ for EE_FG_Nr = 3:6 % 1=2T0R, 2=2T1R, 3=3T0R, ...
     'max_actuation_idx', 5); 
     
   % Debug:
-%   settings.base_couplings = 2;
-%   settings.plf_couplings = 2;
+%   settings.base_couplings = 9;
+%   settings.plf_couplings = 7;
+% Hole die Positiv-Liste aus der Struktursynthese-Liste der seriellen
+% Ketten
+roblibpath=fileparts(which('serroblib_path_init.m'));
+robot_list_dir = fullfile(roblibpath, 'synthesis_result_lists');
+reslist='prismatic_rod_chains';
+roblist = fullfile(robot_list_dir, reslist);
+settings.whitelist_SerialKin = readcell([roblist, '.txt']);
+% Debug: Einzelne Kinematiken
 %   settings.whitelist_SerialKin = 'S6RRPRRR13V5';
+%   settings.whitelist_SerialKin = 'S5RRRRP9V3';
 
-  settings.clusterjobdepend = 1236582;
+  settings.clusterjobdepend = 1270421;
 
   % Modifikation der Einstellungen: Auf Cluster rechnen.
   settings.comp_cluster = true;
   settings.offline = false;
-  settings.clustercomp_if_res_olderthan = 2; % 0=Immer neu generieren
+  settings.clustercomp_if_res_olderthan = 7; % 0=Immer neu generieren
   % Bestehende vorher i.O. erzeugte PKM in der Datenbank nicht aktualisieren
   settings.resstatus_downgrade_possible = false;
   % Nur falls die Eigenschaft der Gelenkgruppen fehlt: true
   settings.check_only_missing_joint_parallelity = false;
   % Bei mehrfachem Aufruf muss der Compile-Job irgendwann nicht mehr
   % gestartet werden.
-  settings.compile_job_on_cluster = true;
+%   if EE_FG_Nr ~= 6 % die anderen liefen schon
+    settings.compile_job_on_cluster = true;
+%   end
   parroblib_add_robots_symact(settings);
 end
