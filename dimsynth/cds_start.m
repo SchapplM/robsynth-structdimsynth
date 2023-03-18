@@ -502,7 +502,7 @@ if Set.optimization.InitPopRatioOldResults == 0
   % Es wird kein Index alter Ergebnisse benötigt
   Set.optimization.InitPopFromGlobalIndex = false;
 end
-if ~isempty(Set.optimization.result_dirs_for_init_pop)
+if length(Set.optimization.result_dirs_for_init_pop) > 1 % min. das Standard-Verzeichnis ist hier aktiv
   % Der globale Index kann aktuell nur benutzt werden, wenn keine zusätz- 
   % lichen Verzeichnisse mit eingelesen werden sollen (Implementierung)
   warning(['InitPopFromGlobalIndex wird deaktiviert, da zusätzliche ', ...
