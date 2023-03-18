@@ -311,17 +311,6 @@ end
 assert(isa(Set.general.cluster_dependjobs, 'struct'), 'cluster_dependjobs muss Struktur sein');
 assert(~isempty(intersect(fields(Set.general.cluster_dependjobs), ...
   {'afterok', 'afternotok', 'afterany'})), 'cluster_dependjobs muss min. ein Feld afterok, afternotok oder afterany haben');
-if Set.optimization.InitPopRatioOldResults == 0
-  % Es wird kein Index alter Ergebnisse benötigt
-  Set.optimization.InitPopFromGlobalIndex = false;
-end
-if ~isempty(Set.optimization.result_dirs_for_init_pop)
-  % Der globale Index kann aktuell nur benutzt werden, wenn keine zusätz- 
-  % lichen Verzeichnisse mit eingelesen werden sollen (Implementierung)
-  warning(['InitPopFromGlobalIndex wird deaktiviert, da zusätzliche ', ...
-    'Verzeichnisse in result_dirs_for_init_pop angegeben wurden']);
-  Set.optimization.InitPopFromGlobalIndex = false;
-end
 if Set.task.profile ~= 0 % Trajektorie prüfen
   % De-Normalisiere die Trajektorie. Dadurch springen die Euler-Winkel nicht
   % (Auswirkung hauptsächlich optisch in Auswertungen). Winkel größer pi.
@@ -508,6 +497,17 @@ if ~all(I_keep)
   warning('Verzeichnis aus result_dirs_for_init_pop existiert nicht: {%s}', ...
     disp_array(Set.optimization.result_dirs_for_init_pop(~I_keep), '%s'));
   Set.optimization.result_dirs_for_init_pop = Set.optimization.result_dirs_for_init_pop(I_keep);
+end
+if Set.optimization.InitPopRatioOldResults == 0
+  % Es wird kein Index alter Ergebnisse benötigt
+  Set.optimization.InitPopFromGlobalIndex = false;
+end
+if ~isempty(Set.optimization.result_dirs_for_init_pop)
+  % Der globale Index kann aktuell nur benutzt werden, wenn keine zusätz- 
+  % lichen Verzeichnisse mit eingelesen werden sollen (Implementierung)
+  warning(['InitPopFromGlobalIndex wird deaktiviert, da zusätzliche ', ...
+    'Verzeichnisse in result_dirs_for_init_pop angegeben wurden']);
+  Set.optimization.InitPopFromGlobalIndex = false;
 end
 %% Berechnung auf PBS-Cluster vorbereiten und durchführen
 if Set.general.computing_cluster
