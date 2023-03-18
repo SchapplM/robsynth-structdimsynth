@@ -31,6 +31,7 @@ counter_optresults = 0;
 InitPopLoadTmp = [];
 Q_PopTmp = [];
 OptNamesTmp = {};
+RobNamesTmp = {};
 ScoreLoad = [];
 resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
 if any(strcmp(Set.optimization.objective,'valid_act')) && Structure.Type==2
@@ -107,7 +108,12 @@ if any(strcmp(Set.optimization.objective,'valid_act')) && Structure.Type==2
   % PKM-Struktursynthese: Suchbegriff enthält nicht die Aktuierung
   RobFilter  = ['_', RobName, 'A']; % Aktuierung hinzufügen, damit passend
 else % Normale Maßsynthese. Begrenze Suchbegriff, damit nicht gierig zu viel gefunden wird
-  RobFilter  = ['_', RobName, '_'];
+  if Structure.Type == 2 % PKM: Wähle auch Ergebnisse mit anderen Koppelgelenk-Anordnungen
+    [~, ~, ~, ~, ~, ~, ~, ~, PName_Legs] = parroblib_load_robot(RobName, 0);
+    RobFilter  = ['_', PName_Legs];
+  else % Serielle Kinematik: Nur exakte Treffer nehmen
+    RobFilter  = ['_', RobName, '_'];
+  end
 end
 I_RobMatch = contains(initpop_matlist, RobFilter);
 for i = find(I_RobMatch)'% Unterordner durchgehen.
@@ -194,7 +200,9 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
   % Aktualisiere mittlerweile geänderte Einstellungen.
   Structure_i.varnames(strcmp(Structure_i.varnames,'platform_morph')) = ...
     {'platform_morph_pairdist'}; % Optimierungsvariable wurde umbenannt.
-  
+  % Prüfe, ob es sich um den identischen Roboter handelt (PKM-Koppelgelenkanord-
+  % nungen können anders sein)
+  score_i = score_i - 20*double(~strcmp(Structure_i.Name, Structure.Name));
   % Prüfe, ob die Zielfunktion die gleiche ist
   score_i = score_i + length(intersect(Set_i.optimization.objective,...
     Set.optimization.objective));
@@ -390,19 +398,30 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
   if length(Structure.vartypes) ~= length(Structure_i.vartypes) || ...
       any(Structure.vartypes ~= Structure_i.vartypes)
     % Die Optimierungsparameter sind unterschiedlich. 
-    I_basez = find(strcmp(Structure_i.varnames, 'base z')) == missing_local_in_file;
+    I_basez_i = strcmp(Structure_i.varnames, 'base z');
+    I_basez = (find(I_basez_i) == missing_local_in_file);
     % PKM mit Schubantrieben die nach oben zeigen. Die Basis-Position ist
     % egal. Falls der Parameter nicht mehr optimiert wird, sind vorherige
     % Ergebnisse trotzdem verwendbar.
-    if ~isempty(I_basez) && ...
+    if any(I_basez) && ...
         Structure.Type == 2 && Structure.Name(3) == 'P' && any(Structure.Coupling(1)==[1 4])
-      missing_local_in_file(missing_local_in_file==find(strcmp(Structure_i.varnames, 'base z'))) = 0;
+      missing_local_in_file(missing_local_in_file==find(I_basez_i)) = 0;
     end
     % Wenn in der Datei 3T3R benutzt wurde und jetzt 3T2R, ist die letzte
     % EE-Rotation egal und der Parameter wird ignoriert
-    I_eerotz = find(strcmp(Structure_i.varnames, 'ee rot 3')) == missing_local_in_file;
-    if ~isempty(I_eerotz) && Set.task.pointing_task
-      missing_local_in_file(missing_local_in_file==find(strcmp(Structure_i.varnames, 'ee rot 3'))) = 0;
+    I_eerotz_i = strcmp(Structure_i.varnames, 'ee rot 3');
+    I_eerotz = (find(I_eerotz_i) == missing_local_in_file);
+    if any(I_eerotz) && Set.task.pointing_task
+      missing_local_in_file(missing_local_in_file==find(I_eerotz_i)) = 0;
+    end
+    % Falls unterschiedliche Koppelgelenkanordnungen geladen werden, setze
+    % die zusätzlichen Parameter auf Null
+    I_coupl_i = Structure_i.vartypes == 8 | Structure_i.vartypes == 9;
+    for ll = find(I_coupl_i)'
+      I_coupl = (ll == missing_local_in_file);
+      if any(I_coupl)
+        missing_local_in_file(missing_local_in_file==ll) = 0;
+      end
     end
     if all(missing_local_in_file==0)
       % Alle in Datei überflüssigen Parameter sind egal. Mache weiter.
@@ -463,6 +482,7 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
   InitPopLoadTmp = [InitPopLoadTmp; pval_i(I_param_iO,:)]; %#ok<AGROW>
   Q_PopTmp = [Q_PopTmp; qval_i(I_param_iO,:)]; %#ok<AGROW>
   OptNamesTmp = [OptNamesTmp(:)', repmat({Set_i.optimization.optname}, 1, sum(I_param_iO))]; %#ok<AGROW> 
+  RobNamesTmp = [RobNamesTmp(:)', repmat({Structure_i.Name}, 1, sum(I_param_iO))]; %#ok<AGROW> 
   fval_mean_all = mean(fval_i(I_param_iO,:),2);
   ScoreLoad = [ScoreLoad; [score_i-2*floor(log10(fval_mean_all)), ...
     repmat(score_i,size(fval_mean_all,1),1),fval_mean_all]]; %#ok<AGROW>
@@ -490,6 +510,7 @@ if ~isempty(InitPopLoadTmp)
   InitPopLoadTmp = InitPopLoadTmp(I,:);
   Q_PopTmp = Q_PopTmp(I,:);
   OptNamesTmp = OptNamesTmp(I);
+  RobNamesTmp = RobNamesTmp(I);
   ScoreLoad = ScoreLoad(I,:);
   % Lösche Duplikate. Behalte die mit den besten Bewertungen. Prüfe mit
   % Toleranz (geht nur ohne NaN-Werte in Eingabe für uniquetol)
@@ -500,6 +521,7 @@ if ~isempty(InitPopLoadTmp)
   InitPopLoadTmp = InitPopLoadTmp(I,:);
   Q_PopTmp = Q_PopTmp(I,:);
   OptNamesTmp = OptNamesTmp(I);
+  RobNamesTmp = RobNamesTmp(I);
   ScoreLoad = ScoreLoad(I,:);
   num2 = size(InitPopLoadTmp,1);
   cds_log(1, sprintf(['[gen_init_pop] Insgesamt %d Partikel geladen. ', ...
@@ -525,6 +547,7 @@ if size(InitPopLoadTmp,1) > 0
   ScoreLoad = ScoreLoad(I,:);
   Q_PopLoadTmp = Q_PopTmp(I,:);
   OptNamesLoadTmp = OptNamesTmp(I);
+  RobNamesLoadTmp = RobNamesTmp(I);
   ScoreLoad = ScoreLoad(I,:);
   nIndLoad = min(nIndLoad, size(InitPopLoadTmpNorm,1));
   % Indizies der bereits ausgewählten Partikel (in InitPopLoadTmpNorm)
@@ -564,8 +587,9 @@ if size(InitPopLoadTmp,1) > 0
     pnorm_mean_i = mean(InitPopLoadNorm, 1, 'omitnan');
     % Bestimme den quadratischen Abstand aller durchsuchter Partikel gegen
     % den aktuellen Mittelwert. Das ist ein vereinfachtes Diversitätsmaß.
-    score_div = sum((InitPopLoadTmpNorm(I_search,:) - ...
-      repmat(pnorm_mean_i, sum(I_search), 1)).^2,2);
+    % Ignoriere freie Parameter (NaN) und normiere daher auf Parameterzahl
+    score_div = sum((InitPopLoadTmpNorm(I_search,:) - repmat(pnorm_mean_i, ...
+      sum(I_search), 1)).^2,2, 'omitnan')/size(InitPopLoadTmpNorm,2);
     if i == 1 % bei erstem Wert
       % nehme zufällig einen der erlaubten
       I_best = randi(length(score_div));
@@ -588,10 +612,10 @@ if size(InitPopLoadTmp,1) > 0
     % Markiere als bereits gewählt, damit es nicht erneut gewählt wird.
     I_selected(II_search(I_best)) = true;
     cds_log(4, sprintf(['[gen_init_pop] Partikel %d hinzugefügt ', ...
-      '(Bewertung %d, fval %1.1e, gew. Bew. %d, divers=%1.2f). p_norm=[%s]; aus %s'], ...
+      '(Bewertung %d, fval %1.1e, gew. Bew. %d, divers=%1.2f). p_norm=[%s]; aus %s (%s)'], ...
       II_search(I_best), ScoreLoad(II_search(I_best),2), ScoreLoad(II_search(I_best),3), ...
       ScoreLoad(II_search(I_best),1), score_div_best, disp_array(InitPopLoadNorm(i,:), '%1.3f'), ...
-      OptNamesLoadTmp{II_search(I_best)}));
+      OptNamesLoadTmp{II_search(I_best)}, RobNamesLoadTmp{II_search(I_best)}));
     % Entferne den Wert aus ScoreLoad, damit diese Werte nicht ein weiteres
     % Mal genutzt werden und keine Filterung gemacht werden muss
     ScoreLoad(II_search(I_best),1) = -inf;

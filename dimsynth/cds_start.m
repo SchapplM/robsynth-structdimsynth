@@ -318,6 +318,8 @@ end
 if ~isempty(Set.optimization.result_dirs_for_init_pop)
   % Der globale Index kann aktuell nur benutzt werden, wenn keine zusätz- 
   % lichen Verzeichnisse mit eingelesen werden sollen (Implementierung)
+  warning(['InitPopFromGlobalIndex wird deaktiviert, da zusätzliche ', ...
+    'Verzeichnisse in result_dirs_for_init_pop angegeben wurden']);
   Set.optimization.InitPopFromGlobalIndex = false;
 end
 if Set.task.profile ~= 0 % Trajektorie prüfen

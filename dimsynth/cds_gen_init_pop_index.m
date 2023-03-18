@@ -53,7 +53,12 @@ end
 % Bestimme die Namen der zu prüfenden Roboter für den Index
 RobNames = {};
 for k = 1:length(Structures)
-  RobNames = [RobNames, Structures{k}.Name]; %#ok<AGROW>
+  if Structures{k}.Type == 2 % PKM: Wähle auch Ergebnisse mit anderen Koppelgelenk-Anordnungen
+    [~, ~, ~, ~, ~, ~, ~, ~, PName_Legs] = parroblib_load_robot(Structures{k}.Name, 0);
+    RobNames = [RobNames, PName_Legs]; %#ok<AGROW>
+  else
+    RobNames = [RobNames, Structures{k}.Name]; %#ok<AGROW>
+  end
 end
 RobNames = unique(RobNames);
 % Prüfe, ob der Index für diese Optimierung vollständig ist
