@@ -399,25 +399,29 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
       any(Structure.vartypes ~= Structure_i.vartypes)
     % Die Optimierungsparameter sind unterschiedlich. 
     I_basez_i = strcmp(Structure_i.varnames, 'base z');
-    I_basez = (find(I_basez_i) == missing_local_in_file);
-    % PKM mit Schubantrieben die nach oben zeigen. Die Basis-Position ist
-    % egal. Falls der Parameter nicht mehr optimiert wird, sind vorherige
-    % Ergebnisse trotzdem verwendbar.
-    if any(I_basez) && ...
-        Structure.Type == 2 && Structure.Name(3) == 'P' && any(Structure.Coupling(1)==[1 4])
-      missing_local_in_file(missing_local_in_file==find(I_basez_i)) = 0;
+    for ll = find(I_basez_i)
+      I_basez = (ll == missing_local_in_file);
+      % PKM mit Schubantrieben die nach oben zeigen. Die Basis-Position ist
+      % egal. Falls der Parameter nicht mehr optimiert wird, sind vorherige
+      % Ergebnisse trotzdem verwendbar.
+      if any(I_basez) && ...
+          Structure.Type == 2 && Structure.Name(3) == 'P' && any(Structure.Coupling(1)==[1 4])
+        missing_local_in_file(missing_local_in_file==ll) = 0;
+      end
     end
     % Wenn in der Datei 3T3R benutzt wurde und jetzt 3T2R, ist die letzte
     % EE-Rotation egal und der Parameter wird ignoriert
     I_eerotz_i = strcmp(Structure_i.varnames, 'ee rot 3');
-    I_eerotz = (find(I_eerotz_i) == missing_local_in_file);
-    if any(I_eerotz) && Set.task.pointing_task
-      missing_local_in_file(missing_local_in_file==find(I_eerotz_i)) = 0;
+    for ll = find(I_eerotz_i)
+      I_eerotz = (ll == missing_local_in_file);
+      if any(I_eerotz) && Set.task.pointing_task
+        missing_local_in_file(missing_local_in_file==ll) = 0;
+      end
     end
     % Falls unterschiedliche Koppelgelenkanordnungen geladen werden, setze
     % die zusätzlichen Parameter auf Null
-    I_coupl_i = Structure_i.vartypes == 8 | Structure_i.vartypes == 9;
-    for ll = find(I_coupl_i)'
+    I_coupl_i = (Structure_i.vartypes == 8 | Structure_i.vartypes == 9)';
+    for ll = find(I_coupl_i)
       I_coupl = (ll == missing_local_in_file);
       if any(I_coupl)
         missing_local_in_file(missing_local_in_file==ll) = 0;
