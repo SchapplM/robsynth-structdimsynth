@@ -143,6 +143,8 @@ end
 if Structure.Type == 0 % Seriell
   serroblib_update_template_functions({Structure.Name});
 else % Parallel
+  [~,Leg_Names] = parroblib_load_robot(Structure.Name, 0);
+  serroblib_update_template_functions(unique(Leg_Names));
   parroblib_update_template_functions({Structure.Name});
 end
 if fitness_recalc_necessary

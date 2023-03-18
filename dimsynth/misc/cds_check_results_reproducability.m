@@ -124,6 +124,7 @@ end
 
 %% Roboter auswerten und Nachrechnen der Fitness-Funktion
 if s.update_template_functions
+  t_lastlog = now(); t_start = t_lastlog;
   for i = 1:length(RobNames)
     Type = -1;
     for j = 1:length(Structures)
@@ -135,9 +136,18 @@ if s.update_template_functions
     if Type == 0
       serroblib_update_template_functions(RobNames(i));
     elseif Type == 2
+      [~,Leg_Names] = parroblib_load_robot(RobNames{i}, 0);
+      serroblib_update_template_functions(unique(Leg_Names));
       parroblib_update_template_functions(RobNames(i));
     else
       error('Fehler bei Typ-Bestimmung des Roboters %s', RobNames(i));
+    end
+    if (now()-t_lastlog)*24*3600 > 30
+      T_estim = (length(RobNames)-i) * (now()-t_start)*24*3600 / i;
+      fprintf(['Vorlagen-Funktionen für %d/%d Roboter wurden geprüft. Zeit ', ...
+        'seit Beginn: %1.1f min. Erwartete Restzeit: %1.1fmin\n'], i, ...
+        length(RobNames), (now()-t_start)*24*60, T_estim*60);
+      t_lastlog = now();
     end
   end
 end
@@ -170,7 +180,12 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
     warning('Ergebnis-Datei %s existiert nicht.', resfile1);
     continue
   end
-  d1 = load(resfile1, 'RobotOptRes');
+  try
+    d1 = load(resfile1, 'RobotOptRes');
+  catch err
+    warning('Fehler beim Laden von Ergebnis-Datei %s: %s.', resfile1, err.message);
+    continue
+  end
   RobotOptRes = d1.RobotOptRes;
   % Prüfe Filter zum vorzeitigen Überspringen aufgrund der Funktionswerte
   % Dann muss die nächste Datei nicht geladen werden
