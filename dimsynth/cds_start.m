@@ -512,6 +512,11 @@ end
 %% Berechnung auf PBS-Cluster vorbereiten und durchführen
 if Set.general.computing_cluster
   % Bereite eine Einstellungs-Datei vor
+  clusterheaderfile=fullfile(fileparts(which('structgeomsynth_path_init.m')),...
+    'dimsynth', 'dimsynth_cluster_header.m');
+  if ~exist(clusterheaderfile, 'file')
+    error('Datei %s existiert nicht. Muss manuell aus template-Datei erstellt werden.', clusterheaderfile);
+  end
   % Erzeuge Liste aller oben zur Optimierung gefundener Roboter
   Names = {};
   for k = 1:length(Structures)
@@ -599,11 +604,6 @@ if Set.general.computing_cluster
       end
     end
     % Matlab-Skript erzeugen
-    clusterheaderfile=fullfile(fileparts(which('structgeomsynth_path_init.m')),...
-      'dimsynth', 'dimsynth_cluster_header.m');
-    if ~exist(clusterheaderfile, 'file')
-      error('Datei %s existiert nicht. Muss manuell aus template-Datei erstellt werden.', clusterheaderfile);
-    end
     copyfile(clusterheaderfile, targetfile);
     fid = fopen(targetfile, 'a');
     fprintf(fid, 'tmp=load(''%s'');\n', [computation_name,'.mat']);
@@ -685,10 +685,6 @@ if Set.general.computing_cluster
       datestr(now,'yyyymmdd_HHMMSS'), Set.optimization.optname, '_merge');
     jobdir3 = tmpDirFcn(true);
     targetfile3 = fullfile(jobdir3, [computation_name3,'.m']);
-    clusterheaderfile=fullfile(jobdir3,'..','..','dimsynth_cluster_header.m');
-    if ~exist(clusterheaderfile, 'file')
-      error('Datei %s existiert nicht. Muss manuell aus template-Datei erstellt werden.', clusterheaderfile);
-    end
     copyfile(clusterheaderfile, targetfile3);
     fid = fopen(targetfile3, 'a');
     fprintf(fid, ['cds_merge_results(''%s'', struct(''mode'', ''move'', ', ...
