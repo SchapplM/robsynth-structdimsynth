@@ -229,6 +229,7 @@ end
 
 %% Rufe die Plot-Funktion auf
 t2=tic();
+mkdirs(fullfile(resdir_opt, sprintf('Rob%d_%s', Structure.Number, Structure.Name)));
 if strcmp(SelStr(Selection), 'Visualisierung')
   cds_vis_results_figures('robvisu', Set, Traj, RobData, ResTab, ...
     RobotOptRes, RobotOptDetails);
