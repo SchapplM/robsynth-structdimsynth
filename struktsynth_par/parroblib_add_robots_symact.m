@@ -1213,6 +1213,8 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           end
           continue
         else
+          save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+            sprintf('parroblib_add_robots_symact_%s_not_found.mat', Name)));
           error('Keine Ergebnisse zu %s gefunden. Darf nicht passieren.', Name);
         end
       end
