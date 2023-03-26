@@ -551,6 +551,9 @@ if Set.general.computing_cluster
       % Es wird keine Optimierung durchgeführt. Kennzeichnung im Namen.
       computation_name = [computation_name, '_finish']; %#ok<AGROW>
     end
+    if kk < Set.general.continue_with_part
+      continue; % Falls dieser Job-Teil vorher schon hochgeladen wurde überspringen
+    end
     jobdir = tmpDirFcn(true);
     targetfile = fullfile(jobdir, 'dimsynth_start.m'); % Benutze nicht Namen der Optimierung als Dateiname, da Matlab nur bis 64 Zeichen unterstützt
     Set_cluster = Set;
