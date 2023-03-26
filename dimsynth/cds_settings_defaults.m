@@ -72,6 +72,7 @@ general = struct( ...
   'computing_cluster_cores', 16, ... % Anzahl der benutzten Kerne  pro Node auf dem Cluster (16 ist vergleichsweise flexibel)
   'computing_cluster_max_time', NaN, ... % maximale Rechenzeit pro Roboter (in Sekunden). Bedingt voll-parallele Berechnung
   'computing_cluster_start_time', NaN, ... % Zeitpunkt, zu dem der Cluster-Job gestartet wurde. Zeitformat von `now`
+  'continue_with_part', NaN, ... % Falls Starten von aufgeteilten Jobs abgebrochen wurde, kann bei einem bestimmten Part das Hochladen auf das Cluster fortgesetzt werden
   'isoncluster', false, ... % Merker, ob gerade auf dem Cluster gerechnet wird. Dann sind einige Bilder und Debug-Auswertungen unnötig.
   ... % Unbegrenzte Anzahl von Robotern auf jeder Cluster-Node. Niedrigere 
   ... % Zahl dient zur stärkeren Parallelisierung. Bei "inf" nur eine 

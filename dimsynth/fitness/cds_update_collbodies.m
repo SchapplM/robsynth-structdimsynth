@@ -286,10 +286,12 @@ if Structure.Type ~= 0 % PKM
     collbodies_robot.link = [collbodies_robot.link; ...
       repmat(uint8(R.I2L_LEG(end)-I1(end)+1),1,2)]; % zugeordnet (nur) zur Plattform
     collbodies_robot.type = [collbodies_robot.type; uint8(16)]; % Kugel im Körper-KS-Ursprung
-    % Ziehe 30mm ab, damit die Enden der Beinketten nicht permanent in Kol-
-    % lision stehen und mache die Kugel etwas kleiner. Nicht negativ.
+    % Ziehe Durchmesser ab, damit die Enden der Beinketten nicht permanent
+    % in Kollision stehen und mache die Kugel etwas kleiner. Nicht negativ.
+    % Dadurch ist auch der maximale Winkel (großzügig) definiert, mit dem die
+    % Beinkette über der Plattform geneigt zur Hochachse stehen kann.
     collbodies_robot.params = [collbodies_robot.params; ...
-      [max(min(3/4*platform_radius,platform_radius-30e-3),0), NaN(1,9)]]; % nur Radius als Parameter
+      [max(3/4*platform_radius-Set.optimization.collision_bodies_size,0), NaN(1,9)]]; % nur Radius als Parameter
   end
   if any(strcmp(collshape_platform, 'star'))
     % Sternförmige Kapseln für die Plattform. Verbindung zwischen

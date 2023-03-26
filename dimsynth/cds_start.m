@@ -311,15 +311,6 @@ end
 assert(isa(Set.general.cluster_dependjobs, 'struct'), 'cluster_dependjobs muss Struktur sein');
 assert(~isempty(intersect(fields(Set.general.cluster_dependjobs), ...
   {'afterok', 'afternotok', 'afterany'})), 'cluster_dependjobs muss min. ein Feld afterok, afternotok oder afterany haben');
-if Set.optimization.InitPopRatioOldResults == 0
-  % Es wird kein Index alter Ergebnisse benötigt
-  Set.optimization.InitPopFromGlobalIndex = false;
-end
-if ~isempty(Set.optimization.result_dirs_for_init_pop)
-  % Der globale Index kann aktuell nur benutzt werden, wenn keine zusätz- 
-  % lichen Verzeichnisse mit eingelesen werden sollen (Implementierung)
-  Set.optimization.InitPopFromGlobalIndex = false;
-end
 if Set.task.profile ~= 0 % Trajektorie prüfen
   % De-Normalisiere die Trajektorie. Dadurch springen die Euler-Winkel nicht
   % (Auswirkung hauptsächlich optisch in Auswertungen). Winkel größer pi.
@@ -507,9 +498,25 @@ if ~all(I_keep)
     disp_array(Set.optimization.result_dirs_for_init_pop(~I_keep), '%s'));
   Set.optimization.result_dirs_for_init_pop = Set.optimization.result_dirs_for_init_pop(I_keep);
 end
+if Set.optimization.InitPopRatioOldResults == 0
+  % Es wird kein Index alter Ergebnisse benötigt
+  Set.optimization.InitPopFromGlobalIndex = false;
+end
+if length(Set.optimization.result_dirs_for_init_pop) > 1 % min. das Standard-Verzeichnis ist hier aktiv
+  % Der globale Index kann aktuell nur benutzt werden, wenn keine zusätz- 
+  % lichen Verzeichnisse mit eingelesen werden sollen (Implementierung)
+  warning(['InitPopFromGlobalIndex wird deaktiviert, da zusätzliche ', ...
+    'Verzeichnisse in result_dirs_for_init_pop angegeben wurden']);
+  Set.optimization.InitPopFromGlobalIndex = false;
+end
 %% Berechnung auf PBS-Cluster vorbereiten und durchführen
 if Set.general.computing_cluster
   % Bereite eine Einstellungs-Datei vor
+  clusterheaderfile=fullfile(fileparts(which('structgeomsynth_path_init.m')),...
+    'dimsynth', 'dimsynth_cluster_header.m');
+  if ~exist(clusterheaderfile, 'file')
+    error('Datei %s existiert nicht. Muss manuell aus template-Datei erstellt werden.', clusterheaderfile);
+  end
   % Erzeuge Liste aller oben zur Optimierung gefundener Roboter
   Names = {};
   for k = 1:length(Structures)
@@ -544,9 +551,10 @@ if Set.general.computing_cluster
       % Es wird keine Optimierung durchgeführt. Kennzeichnung im Namen.
       computation_name = [computation_name, '_finish']; %#ok<AGROW>
     end
-    jobdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
-      'dimsynth', 'cluster_jobs', computation_name);
-    mkdirs(fullfile(jobdir, 'results')); % Unterordner notwendig für Cluster-Transfer-Toolbox
+    if kk < Set.general.continue_with_part
+      continue; % Falls dieser Job-Teil vorher schon hochgeladen wurde überspringen
+    end
+    jobdir = tmpDirFcn(true);
     targetfile = fullfile(jobdir, 'dimsynth_start.m'); % Benutze nicht Namen der Optimierung als Dateiname, da Matlab nur bis 64 Zeichen unterstützt
     Set_cluster = Set;
     Set_cluster.optimization.optname = [Set.optimization.optname, suffix]; % sonst wird bei Zerlegung mehrfach der gleiche Name benutzt.
@@ -599,10 +607,6 @@ if Set.general.computing_cluster
       end
     end
     % Matlab-Skript erzeugen
-    clusterheaderfile=fullfile(jobdir,'..','..','dimsynth_cluster_header.m');
-    if ~exist(clusterheaderfile, 'file')
-      error('Datei %s existiert nicht. Muss manuell aus template-Datei erstellt werden.', clusterheaderfile);
-    end
     copyfile(clusterheaderfile, targetfile);
     fid = fopen(targetfile, 'a');
     fprintf(fid, 'tmp=load(''%s'');\n', [computation_name,'.mat']);
@@ -682,14 +686,8 @@ if Set.general.computing_cluster
     % als zusätzlichen Job starten
     computation_name3 = sprintf('dimsynth_%s_%s%s', ...
       datestr(now,'yyyymmdd_HHMMSS'), Set.optimization.optname, '_merge');
-    jobdir3 = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
-      'dimsynth', 'cluster_jobs', computation_name3);
-    mkdirs(fullfile(jobdir3, 'results')); % Unterordner notwendig für Cluster-Transfer-Toolbox
+    jobdir3 = tmpDirFcn(true);
     targetfile3 = fullfile(jobdir3, [computation_name3,'.m']);
-    clusterheaderfile=fullfile(jobdir3,'..','..','dimsynth_cluster_header.m');
-    if ~exist(clusterheaderfile, 'file')
-      error('Datei %s existiert nicht. Muss manuell aus template-Datei erstellt werden.', clusterheaderfile);
-    end
     copyfile(clusterheaderfile, targetfile3);
     fid = fopen(targetfile3, 'a');
     fprintf(fid, ['cds_merge_results(''%s'', struct(''mode'', ''move'', ', ...
