@@ -321,7 +321,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         % Aktuelle Roboterstruktur für Beinketten nicht in Positivliste
         continue
       end
-      if sum(SName=='P') ~= settings.fixed_number_prismatic
+      if ~isnan(settings.fixed_number_prismatic) && sum(SName=='P') ~= settings.fixed_number_prismatic
         continue
       end
       
@@ -1386,12 +1386,14 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           num_rankloss = num_rankloss + 1;
         elseif min(fval_jjj) == 9.9e10 || ... % siehe cds_fitness
             all(min(fval_jjj) > 9e9) && all(min(fval_jjj) < 1e10)
+          fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
+            'Zielfunktion %1.2e (Beinketten-Singularität in Einzelpunkt-IK)\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
           rescode = 10;
         elseif min(fval_jjj) > 1e10
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
-            'Zielfunktion (Einzelpunkt-IK) %1.2e\n'], min(fval_jjj));
+            'Zielfunktion %1.2e (Einzelpunkt-IK)\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
           rescode = 3;
@@ -1403,19 +1405,19 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           rescode = 7;
         elseif min(fval_jjj) > 1e8
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
-            'Zielfunktion (Traj.-IK) %1.2e\n'], min(fval_jjj));
+            'Zielfunktion %1.2e (Traj.-IK)\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
           rescode = 4;
         elseif min(fval_jjj) >= 9e7
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
-            'Zielfunktion (Parasitäre Bewegung) %1.2e\n'], min(fval_jjj));
+            'Zielfunktion %1.2e (Parasitäre Bewegung)\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
           rescode = 5;
         else
           fprintf(['Der Rang der Jacobi konnte gar nicht erst geprüft werden. ', ...
-            'Zielfunktion (Nicht behandelte Ausnahme) %1.2e\n'], min(fval_jjj));
+            'Zielfunktion %1.2e (Nicht behandelte Ausnahme)\n'], min(fval_jjj));
           remove = true;
           num_dimsynthfail = num_dimsynthfail + 1;
           rescode = 7;
