@@ -243,6 +243,12 @@ elseif strcmp(SelStr(Selection), 'Animation')
   if isempty(Set.general.animation_styles)
     Set.general.animation_styles = {'3D'};
   end
+  if isempty(Set.general.save_animation_file_extensions)
+    Set.general.save_animation_file_extensions = {'mp4'};
+  end
+  if all(strcmp(Set.general.save_animation_file_extensions, 'gif'))
+    Set.general.save_animation_file_extensions = {'mp4','gif'};
+  end
   cds_vis_results_figures('animation', Set, Traj, RobData, ResTab, ...
     RobotOptRes, RobotOptDetails);
 elseif strcmp(SelStr(Selection), 'Dynamik')
