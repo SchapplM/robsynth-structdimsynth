@@ -248,15 +248,17 @@ end
 
 %% Abbruchbedingung aus Eckpunkt-Nebenbedingungen prüfen
 if all(fval_constr > 9e5) && all(fval_constr < 1e6) || ... % Grenzen für IK-Jacobi-Singularität
-    all(fval_constr > 8e5) && all(fval_constr < 9e5) % Grenzen für Jacobi-Singularität
+    all(fval_constr > 8e5) && all(fval_constr < 9e5) || ... % Grenzen für Jacobi-Singularität
+    fval_constr == 9.9e6 % Bisher ausschließlich Singularität und IK-Misserfolg
   % Prüfe, wie oft schon dieses Ergebnis vorlag
   PSO_Detail_Data = cds_save_particle_details([], [], 0, 0, NaN, NaN, NaN, NaN, 'output');
   if ~isempty(PSO_Detail_Data)
     % Bei mehrkriterieller Optimierung bei NB-Verletzung gleiche Einträge 
     fval_hist = PSO_Detail_Data.fval(:,1,:);
-    I_sing = fval_hist > 1e4*8e5 & fval_hist < 1e4*1e6;
+    I_sing = fval_hist > 1e4*8e5 & fval_hist < 1e4*1e6 | fval_hist == 1e4*9.9e6;
     I_nonsing = fval_hist < 1e4*8e5;
-    if sum(I_sing(:)) > 4 && sum(I_nonsing(:)) == 0
+    if fval_constr == 9.9e6 && sum(I_sing(:)) > 20 && sum(I_nonsing(:)) == 0 ||... % mehr Versuche zulassen
+       fval_constr ~= 9.9e6 && sum(I_sing(:)) > 4 && sum(I_nonsing(:)) == 0
       if ~abort_fitnesscalc % Meldung nur einmal zeigen
         cds_log(2,sprintf(['[fitness] Es gab %d singuläre Ergebnisse und kein ', ...
           'nicht-singuläres. Roboter nicht geeignet. Abbruch der Optimierung.'], sum(I_sing(:))));

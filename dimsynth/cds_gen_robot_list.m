@@ -162,12 +162,19 @@ for N_JointDoF = N_JointDoF_allowed
     end
 
     % Prüfe, ob die Gelenkreihenfolge zum Filter passt
-    if any(~strcmp(structset.joint_filter, '*'))
-      Filter = structset.joint_filter(1:N_JointDoF);
-      ChainJoints_filt = SName(3:3+N_JointDoF-1);
-      ChainJoints_filt(Filter=='*') = '*';
-      if ~strcmp(ChainJoints_filt, structset.joint_filter(1:N_JointDoF))
-        FilterMatch = false;
+    for i = 1:length(structset.joint_filter)
+      FilterMatch = true;
+      joint_filter_i = structset.joint_filter{i};
+      if any(~strcmp(joint_filter_i, '*'))
+        Filter = joint_filter_i(1:N_JointDoF);
+        ChainJoints_filt = SName(3:3+N_JointDoF-1);
+        ChainJoints_filt(Filter=='*') = '*';
+        if ~strcmp(ChainJoints_filt, joint_filter_i(1:N_JointDoF))
+          FilterMatch = false;
+        end
+      end
+      if FilterMatch
+        break; % Ein Filter wurde erfüllt. Damit in Ordnung.
       end
     end
     
@@ -189,8 +196,8 @@ for N_JointDoF = N_JointDoF_allowed
     end
     if ~SkipRobot && ~FilterMatch
       if verblevel > 3
-        fprintf('%s passt nicht zum Filter %s.', ...
-          SName, structset.joint_filter);
+        fprintf('%s passt nicht zum Filter {%s}.', ...
+          SName, disp_array(structset.joint_filter, '%s'));
       end
       SkipRobot = true;
     end
@@ -214,7 +221,7 @@ for N_JointDoF = N_JointDoF_allowed
     if verblevel >= 2, fprintf('%d: %s\n', ii, SName); end
     Structures{ii} = struct('Name', SName, 'Type', 0, 'Number', ii, ...
       'RobName', RName, ... % Falls ein konkreter Roboter mit Parametern gewählt ist
-      'act_type', acttype_i, ...
+      'act_type', acttype_i, 'deactivated', false, ...
       ... % Platzhalter, Angleichung an PKM (Erkennung altes Dateiformat)
       'angles_values', []); %#ok<AGROW> 
   end
@@ -369,12 +376,19 @@ for kkk = 1:size(EE_FG_allowed,1)
       end
       
       % Prüfe, ob die Gelenkreihenfolge zum Filter passt
-      if any(~strcmp(structset.joint_filter, '*'))
-        Filter_k = structset.joint_filter(1:NLegDoF);
-        ChainJoints_filt = ChainJoints;
-        ChainJoints_filt(Filter_k=='*') = '*';
-        if ~strcmp(ChainJoints_filt, structset.joint_filter(1:NLegDoF))
-          FilterMatch = false;
+      for i = 1:length(structset.joint_filter)
+        FilterMatch = true;
+        joint_filter_i = structset.joint_filter{i};
+        if any(~strcmp(joint_filter_i, '*'))
+          Filter_k = joint_filter_i(1:NLegDoF);
+          ChainJoints_filt = ChainJoints;
+          ChainJoints_filt(Filter_k=='*') = '*';
+          if ~strcmp(ChainJoints_filt, joint_filter_i(1:NLegDoF))
+            FilterMatch = false;
+          end
+        end
+        if FilterMatch
+          break; % Ein Filter wurde erfüllt. Damit in Ordnung.
         end
       end
       % Beinkette in Daten finden
@@ -393,6 +407,24 @@ for kkk = 1:size(EE_FG_allowed,1)
       % zu geringem Bewegungsraum).
       if any(SName_TechJoint(1:end-1) == 'S')
         SphericalJointInChain = true;
+      end
+      % Ignoriere PKM-Beinketten, die bei Schubzylindern einen Hebel vom
+      % Zylinder auf die vorherigen und folgenden Gelenke haben (optional)
+      UnwantedCylinderLever = false;
+      if Set.structures.prismatic_cylinder_no_lever
+        [~, csvbits] = serroblib_bits2csvline(SerRob_DB_all.BitArrays_Ndof(ilc,:));
+        PS = serroblib_csvindex2paramstruct(NLegDoF, csvbits);
+        % Erkenne an welcher Stelle ein Schubgelenk liegt (Annahme:
+        % Zylinder, falls nicht am Gestell). Finde zugehörige a-/d-Param.
+        % Siehe: cds_dimsynth_robot (Code für prismatic_cylinder_no_lever)
+        I_cyl = find(PS.sigma == 1 & [0; ones(NLegDoF-1,1)]);
+        for ii_cyl = I_cyl' % kann mehrere Gelenke geben
+          if isnan(PS.a(ii_cyl)) || ii_cyl < NLegDoF && ...
+              ( isnan(PS.a(ii_cyl+1)) || isnan(PS.d(ii_cyl+1)) )
+            UnwantedCylinderLever = true;
+            break;
+          end
+        end
       end
       % Prüfe, ob die Beinkette nur manuell in die Seriellkinematik-Daten-
       % bank eingetragen wurde und das nicht erwünscht ist
@@ -485,8 +517,8 @@ for kkk = 1:size(EE_FG_allowed,1)
     end
     if ~SkipRobot && ~FilterMatch
       if verblevel > 3 || IsInWhiteList
-        fprintf('%s passt nicht zum Filter %s.', PNames_Akt{j}, ...
-          structset.joint_filter);
+        fprintf('%s passt nicht zum Filter {%s}.', PNames_Akt{j}, ...
+          disp_array(structset.joint_filter, '%s'));
       end
       SkipRobot = true;
     end
@@ -505,7 +537,13 @@ for kkk = 1:size(EE_FG_allowed,1)
       end
       SkipRobot = true;
     end
-    
+    if ~SkipRobot && UnwantedCylinderLever
+      if verblevel > 3 || IsInWhiteList
+        fprintf('%s hat einen Hebel auf einen Schubzylinder in der Beinkette (%s)', ...
+          PNames_Akt{j}, SName_TechJoint);
+      end
+      SkipRobot = true;
+    end
     if ~SkipRobot && WrongLegChainOrigin
       if verblevel > 3 || IsInWhiteList
         fprintf('%s hat keine Beinkette aus %s-PKM-Synthese (%s).', ...
@@ -597,7 +635,7 @@ for kkk = 1:size(EE_FG_allowed,1)
       if verblevel >= 2, fprintf('%d: %s; %s\n', ii, PNames_Akt{j}, theta_logstr); end
       Structures{ii} = struct('Name', PNames_Akt{j}, 'Type', 2, 'Number', ii, ...
         'Coupling', Coupling, 'angles_values', av, 'DoF', EE_FG_allowed(kkk,:), ...
-        'act_type', acttype_i, ...
+        'act_type', acttype_i, 'deactivated', false, ...
         'RobName', ''); %#ok<AGROW> % Zur Angleichung an SerRob.
     end
   end

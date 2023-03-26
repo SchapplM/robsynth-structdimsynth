@@ -140,7 +140,8 @@ for i = 1:length(Structures)
   elseif f <= 1e4*8e5, fval_text = 'Jacobi-Schwellwert Eckpkt.';
   elseif f <= 1e4*9e5, fval_text = 'Jacobi-Singularität Eckpkt.';
   elseif f <= 1e4*1e6, fval_text = 'Seriell-Singularität Eckpkt.';
-  elseif f <= 1e4*1e7, fval_text = 'Eckpkt.-IK Fehler';
+  elseif f == 1e4*9.9e6, fval_text = 'Eckpkt.-IK Fehler (IK-Singularität)';
+  elseif f <= 1e4*1e7, fval_text = 'Eckpkt.-IK Fehler'; % Sonderfall, geht eigentlich nur bis 9.8527e10
   elseif f <= 1e4*1e8, fval_text = 'Geom. Plausib.-Fehler 2.';
   elseif f <= 1e4*1e9, fval_text = 'Geom. Plausib.-Fehler 1.';
   elseif f <= 1e14,    fval_text = 'Parameter unplausibel';

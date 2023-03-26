@@ -455,29 +455,35 @@ elseif Structure.Type == 0 || Structure.Type == 2
     I_d2 = R_pkin.pkin_jointnumber==2 & R_pkin.pkin_types == 6;
     Ipkinrel = Ipkinrel & ~I_d2; % Nehme die "1" bei d2 weg.
   end
-  % Setze den a-Parameter für Schubylinder zu Null. Ist technisch
-  % sinnvoller. Sonst wäre der Schubzylinder mit einem Hebel zum vorherigen
-  % oder nächsten Gelenk angebracht. Widerspricht dem Konzept der Stabkinematik
-  % Hierdurch wird die Vielfalt möglicher Roboter zugunsten einer besseren
-  % Plausibilität der Ergebnisse eingeschränkt. TODO: Zurücknehmen, sobald
-  % Kollisionskörper für Führungsschiene/Zylinder besser implementiert sind
-  I_cyl = find(R_pkin.MDH.sigma == 1 & R_init.DesPar.joint_type == 5);
-  % Nur bei räumlichen Systemen mit Drehung aus der Ebene heraus machen.
-  % Betrifft die serielle Kette und nicht die Aufgabe (im Fall von PKM)
-  if all(R_pkin.I_EE(4:5)==0), I_cyl = []; end
-  for ii_cyl = I_cyl' % Alle Gelenke mit Schubzylinder durchgehen (falls mehrere)
-    % Setze den a-Parameter vor einem Schubylinder zu Null. Dadurch drückt
-    % der Zylinder direkt auf das vorhergehende Gelenk
-    I_aprecyl = R_pkin.pkin_jointnumber==ii_cyl & R_pkin.pkin_types == 4;
-    Ipkinrel = Ipkinrel & ~I_aprecyl; % Nehme die "1" bei dem a-Parameter weg
-    % Setze den d- und a-Parameter nach einem Schubylinder zu Null. Ist technisch
-    % sinnvoller. Dadurch drückt der Zylinder direkt auf das folgende Gelenk
-    I_apostcyl = R_pkin.pkin_jointnumber==(ii_cyl+1) & R_pkin.pkin_types == 4;
-    Ipkinrel = Ipkinrel & ~I_apostcyl; % Nehme die "1" bei dem a-Parameter weg
-    I_dpostcyl = R_pkin.pkin_jointnumber==(ii_cyl+1) & R_pkin.pkin_types == 6;
-    Ipkinrel = Ipkinrel & ~I_dpostcyl; % Nehme die "1" bei dem d-Parameter weg
+  if Set.structures.prismatic_cylinder_no_lever
+    % Setze den a-Parameter für Schubylinder zu Null. Ist technisch
+    % sinnvoller. Sonst wäre der Schubzylinder mit einem Hebel zum vorherigen
+    % oder nächsten Gelenk angebracht. Widerspricht dem Konzept der Stabkinematik
+    % Hierdurch wird die Vielfalt möglicher Roboter zugunsten einer besseren
+    % Plausibilität der Ergebnisse eingeschränkt.
+    I_cyl = find(R_pkin.MDH.sigma == 1 & R_init.DesPar.joint_type == 5);
+    % Nur bei räumlichen Systemen mit Drehung aus der Ebene heraus machen.
+    % Betrifft die serielle Kette und nicht die Aufgabe (im Fall von PKM)
+    if all(R_pkin.I_EE(4:5)==0), I_cyl = []; end
+    for ii_cyl = I_cyl' % Alle Gelenke mit Schubzylinder durchgehen (falls mehrere)
+      % Setze den a-Parameter vor einem Schubylinder zu Null. Dadurch drückt
+      % der Zylinder direkt auf das vorhergehende Gelenk
+      I_aprecyl = R_pkin.pkin_jointnumber==ii_cyl & R_pkin.pkin_types == 4;
+      % Setze den d- und a-Parameter nach einem Schubylinder zu Null. Ist technisch
+      % sinnvoller. Dadurch drückt der Zylinder direkt auf das folgende Gelenk
+      I_apostcyl = R_pkin.pkin_jointnumber==(ii_cyl+1) & R_pkin.pkin_types == 4;
+      I_dpostcyl = R_pkin.pkin_jointnumber==(ii_cyl+1) & R_pkin.pkin_types == 6;
+      if any(Ipkinrel & (I_aprecyl | I_apostcyl | I_dpostcyl))
+        cds_log(-1, sprintf(['[dimsynth] Option prismatic_cylinder_no_lever ' ...
+          'ist gesetzt und Beinkette hat DH-Parameter, die zu Null gesetzt ' ...
+          'würden (%s). Dafür sollten eigene Beinketten-Varianten benutzt werden.'], ...
+          disp_array(R_pkin.pkin_names(Ipkinrel & (I_aprecyl | I_apostcyl | I_dpostcyl)), '%s')));
+      end
+      Ipkinrel = Ipkinrel & ~I_aprecyl; % Nehme die "1" bei dem a-Parameter weg
+      Ipkinrel = Ipkinrel & ~I_apostcyl; % Nehme die "1" bei dem a-Parameter weg
+      Ipkinrel = Ipkinrel & ~I_dpostcyl; % Nehme die "1" bei dem d-Parameter weg
+    end
   end
-  
   % Deaktiviert:
   % Setze den letzten d-Parameter für PKM-Beinketten auf Null. Dieser ist
   % kinematisch redundant zur Plattform-Größe. Für die Auslegung spielt der
