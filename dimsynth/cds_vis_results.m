@@ -404,6 +404,7 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   for pfvar = 1:2 % 1=alle Roboter, 2=Varianten mit gleichem Marker zusammengefasst
   % Schleife über verschiedene Aktuierungstypen (Dreh/Schub/Mischung)
   for pfact = find(any(I_acttype))
+  t1 = tic();
   if     pfact == 1, name_suffix = [name_suffix_phys, '_revact'];
   elseif pfact == 2, name_suffix = [name_suffix_phys, '_prisact'];
   elseif pfact == 3, name_suffix = [name_suffix_phys, '_mixact'];
@@ -500,6 +501,9 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   countmarker = 0; % Stelle Marker für jeden Roboter zusammen
   markerlist = {'x', 's', 'v', '^', '*', 'o', 'd', 'v', '<', '>', 'p', 'h'};
   colorlist =  {'r', 'g', 'b', 'c', 'm', 'k'};
+  Plot_Indices = NaN(size(I_acttype,1),1);
+  Line_Handles = NaN(size(I_acttype,1),1);
+
   for i = find(I_acttype(:,pfact)')
     Name = Structures{i}.Name;
     % Für Legende: Nur erfolgreiche PKM zählen (werden oben schon gefiltert
@@ -528,6 +532,8 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     % Der Legendeneintrag wird im Fall von gruppierten Ergebnissen mehrmals
     % überschrieben. Dadurch nur ein Legendeneintrag pro Gruppe.
     leghdl(countmarker,:) = hdl; %#ok<AGROW>
+    Plot_Indices(i) = countmarker;
+    Line_Handles(i) = hdl;
     if ~isa(ResTab.Beschreibung, 'cell')
       RobShortName = ''; % Wenn kein Wert belegt ist, wird NaN gesetzt
     else
@@ -554,10 +560,6 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
           RobName_base{i}, addtxt, addtxt2); %#ok<AGROW>
       end
     end
-    % Funktions-Handle zum Anklicken der Datenpunkte
-    ButtonDownFcn=@(src,event)cds_paretoplot_buttondownfcn(src,event,...
-      Set.optimization.optname,Structures{i}.Name, i);
-    set(hdl, 'ButtonDownFcn', ButtonDownFcn)
   end % for i (Roboter)
   if pffig == 1
     xlabel(sprintf('%s in %s', Set.optimization.objective{1}, obj_units{1}));
@@ -609,6 +611,15 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   end
   % PNG-Export bereits hier, da Probleme mit uicontrol.
   export_fig(f, fullfile(resmaindir, sprintf('Pareto_Gesamt_%s.png',name_suffix)));
+  % Bild bereits einmal als Fig speichern (falls später ein Fehler auftritt)
+  saveas(f, fullfile(resmaindir, sprintf('Pareto_Gesamt_%s_nomenu.fig',name_suffix)));
+  % Funktions-Handle zum Anklicken der Datenpunkte erst hier eintragen
+  % (Kann Fehler verursachen, wenn Bild zu groß wird)
+  for i = find(~isnan(Plot_Indices))'
+    ButtonDownFcn=@(src,event)cds_paretoplot_buttondownfcn(src,event,...
+      Set.optimization.optname,Structures{i}.Name, i);
+    set(Line_Handles(i), 'ButtonDownFcn', ButtonDownFcn)
+  end 
   % Auswahlmenü für eine nachträglich zu plottende Auswertung. Wird in der
   % ButtonDownFcn (cds_paretoplot_buttondownfcn) bei Klicken auf einen
   % Pareto-Punkt ausgelesen.
@@ -642,7 +653,16 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
             'String', menuitems, ...
             'Units', 'pixels', ...
             'Position', [10, 30, 120, 24]);
-  saveas(f, fullfile(resmaindir, sprintf('Pareto_Gesamt_%s.fig',name_suffix)));
+  try
+    saveas(f, fullfile(resmaindir, sprintf('Pareto_Gesamt_%s.fig',name_suffix)));
+    % Temporär erzeugtes Bild ohne Bedienelemente kann gelöscht werden.
+    delete(fullfile(resmaindir, sprintf('Pareto_Gesamt_%s_nomenu.fig',name_suffix)));
+  catch err % Abfangen eines Fehlers, falls z.B. die Bilddatei zu groß wird
+    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+      'tmp', 'cds_pareto_figure_save_error.mat'));
+    warning(sprintf('Fehler beim Speichern des Bildes als fig: %s', err.message));
+  end
+  fprintf('Pareto_Gesamt_%s.fig gespeichert. Dauer: %1.1fs\n', name_suffix, toc(t1));
   end % for pfact
   end % for pfvar
   end % for pffig
