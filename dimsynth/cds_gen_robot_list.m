@@ -403,9 +403,8 @@ for kkk = 1:size(EE_FG_allowed,1)
         NumTechJointsDontMatch = true;
       end
       % Ignoriere PKM-Beinketten, die das Kugelgelenk nicht am Ende haben
-      % (ist in der Mitte nicht sinnvoll konstruierbar und an der Basis mit
-      % zu geringem Bewegungsraum).
-      if any(SName_TechJoint(1:end-1) == 'S')
+      % oder am Anfang (ist in der Mitte nicht sinnvoll konstruierbar)
+      if any(SName_TechJoint(2:end-1) == 'S')
         SphericalJointInChain = true;
       end
       % Ignoriere PKM-Beinketten, die bei Schubzylindern einen Hebel vom
