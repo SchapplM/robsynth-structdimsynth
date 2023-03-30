@@ -426,7 +426,9 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   pf_data = NaN(0, length(Set.optimization.objective));
   pf_robnum = []; % zugehörige Roboter-Nummer für jedes Partikel
   RobName_base = cell(1,size(I_acttype,1)); % Name des Roboters zum Zusammenfassen zu Gruppen
-  for i = find(I_acttype(:,pfact)') % Auswahl der Roboter durchgehen
+  % Suche alle PKM mit der aktuell gesuchten Aktuierung
+  II_acttype_act = find(I_acttype(:,pfact)');
+  for i = II_acttype_act % Auswahl der Roboter durchgehen
     % Lade Ergebnisse Für Roboter i
     Name = Structures{i}.Name;
     resfile1 = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', i, Name));
@@ -456,17 +458,21 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
       pf_data = [pf_data; tmp1.RobotOptRes.fval_pareto]; %#ok<AGROW>
     end
     pf_robnum = [pf_robnum; i*ones(size(tmp1.RobotOptRes.physval_pareto,1),1)]; %#ok<AGROW>
-  end
+  end % for i = II_acttype_act
   if pfvar == 2
     pf_groupnum = zeros(length(pf_robnum),1);
     % Pareto-Front nachverarbeiten, falls Roboter zusammengefasst werden.
     robgroups = zeros(length(RobName_base), 1); % Zuordnung der Roboter-Nummern zu Gruppen-Nummern
-    for i = find(I_acttype(:,pfact)')
+    for i = II_acttype_act
       if isempty(RobName_base{i}), continue; end % nicht belegt
       I_find = find(strcmp(RobName_base{i}, RobName_base(1:i-1)));
       if ~isempty(I_find)
         % Dieser Roboter ist nicht der erste seiner Art. Nehme gleiche Gruppe
         robgroups(i) = robgroups(I_find(1));
+        if any(robgroups(1:i-1) > robgroups(i))
+          warning('Rob. %d (%s): Gruppennummern nicht aufsteigend. Hier %d, max. %d', ...
+            i, RobName_base{i}, robgroups(i), max(robgroups(1:i-1)));
+        end
       else
         % Roboter ist der erste seiner Gruppe. Erzeuge neue Gruppe
         robgroups(i) = max(robgroups(:))+1;
@@ -484,7 +490,7 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     % Deaktiviere Roboter-Struktur wieder, wenn sie komplett dominiert wird
     % Damit kann die Anzahl der Roboter pro Gruppe in der Legende bestimmt
     % werden.
-    for kk = find(I_acttype(:,pfact)')
+    for kk = II_acttype_act
       if all(any(isnan(pf_data(pf_robnum==kk,:)),2))
         pf_robnum(pf_robnum==kk) = 0; %#ok<AGROW>
         pf_groupnum(pf_robnum==kk) = 0;
@@ -504,7 +510,13 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   Plot_Indices = NaN(size(I_acttype,1),1);
   Line_Handles = NaN(size(I_acttype,1),1);
 
-  for i = find(I_acttype(:,pfact)')
+  % Sortiere die Strukturen so, dass die Roboter-Gruppen aufsteigend sind
+  % (unklar, warum die Reihenfolge durcheinander gehen kann, eventuell bei manuellem Eingriff)
+  [robgroups_sort,I_acttype_pfact_sort] = sort(robgroups(II_acttype_act));
+  % Gehe durch die sortierten Strukturen durch und zeichne die Ergebnisse ein
+  II_acttype_act_sort = II_acttype_act(I_acttype_pfact_sort);
+  for j = 1:length(II_acttype_act_sort)
+    i = II_acttype_act_sort(j);
     Name = Structures{i}.Name;
     % Für Legende: Nur erfolgreiche PKM zählen (werden oben schon gefiltert
     if ~any(pf_robnum==i), continue; end
@@ -512,7 +524,7 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     if all(any(isnan(pf_data(pf_robnum==i,:)),2)), continue; end
     if pfvar == 1 || ... % Bild-Variante 1: jeden Roboter zählen
         pfvar == 2 && ... % Bild-Variante 2: Gruppen zählen
-        (countmarker == 0 || all(robgroups(i)>robgroups(1:i-1)))
+        (countmarker == 0 || all(robgroups(i)>robgroups(II_acttype_act_sort(1:j-1))))
       countmarker = countmarker + 1; % Hochzählen für die Marker und Farben
     end
     if countmarker > length(markerlist)*length(colorlist)
