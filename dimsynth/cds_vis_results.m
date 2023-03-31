@@ -541,6 +541,7 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     else % length(Set.optimization.objective) == 3
       hdl=plot3(pf_data(pf_robnum==i,1), pf_data(pf_robnum==i,2), pf_data(pf_robnum==i,3), marker);
     end
+    set(hdl, 'DisplayName', sprintf('Rob%d_%s', i, Name)); % zur Zuordnung später
     % Der Legendeneintrag wird im Fall von gruppierten Ergebnissen mehrmals
     % überschrieben. Dadurch nur ein Legendeneintrag pro Gruppe.
     leghdl(countmarker,:) = hdl; %#ok<AGROW>
@@ -605,7 +606,6 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     end
   end
   axhdl = get(f, 'children');
-  legend(leghdl, legstr);
   % Prüfe ob ein Wertebereich sehr stark unausgeglichen ist (z.B. wenn die
   % Konditionszahl als Kriterium bis unendlich geht). Dann logarithmisch.
   if length(axhdl) == 1
@@ -621,17 +621,17 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
       end
     end
   end
+  % Erzeuge Dummy-Legende (damit DisplayName gleich bleibt)
+  leghdl2 = leghdl;
+  for i = 1:length(leghdl)
+    leghdl2(i) = plot(NaN, NaN, 'x');
+    set(leghdl2(i), 'Color', get(leghdl(i), 'Color'));
+    set(leghdl2(i), 'Marker', get(leghdl(i), 'Marker'));
+    set(leghdl2(i), 'MarkerSize', get(leghdl(i), 'MarkerSize'));
+  end
+  legend(leghdl2, legstr);
   % PNG-Export bereits hier, da Probleme mit uicontrol.
   export_fig(f, fullfile(resmaindir, sprintf('Pareto_Gesamt_%s.png',name_suffix)));
-  % Bild bereits einmal als Fig speichern (falls später ein Fehler auftritt)
-  saveas(f, fullfile(resmaindir, sprintf('Pareto_Gesamt_%s_nomenu.fig',name_suffix)));
-  % Funktions-Handle zum Anklicken der Datenpunkte erst hier eintragen
-  % (Kann Fehler verursachen, wenn Bild zu groß wird)
-  for i = find(~isnan(Plot_Indices))'
-    ButtonDownFcn=@(src,event)cds_paretoplot_buttondownfcn(src,event,...
-      Set.optimization.optname,Structures{i}.Name, i);
-    set(Line_Handles(i), 'ButtonDownFcn', ButtonDownFcn)
-  end 
   % Auswahlmenü für eine nachträglich zu plottende Auswertung. Wird in der
   % ButtonDownFcn (cds_paretoplot_buttondownfcn) bei Klicken auf einen
   % Pareto-Punkt ausgelesen.
@@ -665,15 +665,12 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
             'String', menuitems, ...
             'Units', 'pixels', ...
             'Position', [10, 30, 120, 24]);
-  try
-    saveas(f, fullfile(resmaindir, sprintf('Pareto_Gesamt_%s.fig',name_suffix)));
-    % Temporär erzeugtes Bild ohne Bedienelemente kann gelöscht werden.
-    delete(fullfile(resmaindir, sprintf('Pareto_Gesamt_%s_nomenu.fig',name_suffix)));
-  catch err % Abfangen eines Fehlers, falls z.B. die Bilddatei zu groß wird
-    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
-      'tmp', 'cds_pareto_figure_save_error.mat'));
-    warning(sprintf('Fehler beim Speichern des Bildes als fig: %s', err.message));
-  end
+  saveas(f, fullfile(resmaindir, sprintf('Pareto_Gesamt_%s.fig',name_suffix)));
+  % Aktualisiere die ButtonDownFcns hier nach dem Speichern (sonst wird die
+  % gespeicherte Datei zu groß). Wird beim erneuten öffnen auch ausgeführt.
+  CreateFcn=@(src, dummy)cds_paretoplot_createfcn(src, dummy, Set.optimization.optname);
+  set(f, 'CreateFcn', CreateFcn);
+  cds_paretoplot_createfcn(f, [], Set.optimization.optname);
   fprintf('Pareto_Gesamt_%s.fig gespeichert. Dauer: %1.1fs\n', name_suffix, toc(t1));
   end % for pfact
   end % for pfvar
