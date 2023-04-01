@@ -404,6 +404,7 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   for pfvar = 1:2 % 1=alle Roboter, 2=Varianten mit gleichem Marker zusammengefasst
   % Schleife über verschiedene Aktuierungstypen (Dreh/Schub/Mischung)
   for pfact = find(any(I_acttype))
+  t1 = tic();
   if     pfact == 1, name_suffix = [name_suffix_phys, '_revact'];
   elseif pfact == 2, name_suffix = [name_suffix_phys, '_prisact'];
   elseif pfact == 3, name_suffix = [name_suffix_phys, '_mixact'];
@@ -425,7 +426,9 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   pf_data = NaN(0, length(Set.optimization.objective));
   pf_robnum = []; % zugehörige Roboter-Nummer für jedes Partikel
   RobName_base = cell(1,size(I_acttype,1)); % Name des Roboters zum Zusammenfassen zu Gruppen
-  for i = find(I_acttype(:,pfact)') % Auswahl der Roboter durchgehen
+  % Suche alle PKM mit der aktuell gesuchten Aktuierung
+  II_acttype_act = find(I_acttype(:,pfact)');
+  for i = II_acttype_act % Auswahl der Roboter durchgehen
     % Lade Ergebnisse Für Roboter i
     Name = Structures{i}.Name;
     resfile1 = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', i, Name));
@@ -455,17 +458,21 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
       pf_data = [pf_data; tmp1.RobotOptRes.fval_pareto]; %#ok<AGROW>
     end
     pf_robnum = [pf_robnum; i*ones(size(tmp1.RobotOptRes.physval_pareto,1),1)]; %#ok<AGROW>
-  end
-  if pfvar == 2
-    pf_groupnum = zeros(length(pf_robnum),1);
+  end % for i = II_acttype_act
+  robgroups = zeros(length(RobName_base), 1); % Zuordnung der Roboter-Nummern zu Gruppen-Nummern
+  if pfvar == 2 % Bild mit Gruppierung der Varianten
+    pf_groupnum = zeros(length(pf_robnum),1); % Gruppenzuordnung jedes Paretofront-Datenpunkts
     % Pareto-Front nachverarbeiten, falls Roboter zusammengefasst werden.
-    robgroups = zeros(length(RobName_base), 1); % Zuordnung der Roboter-Nummern zu Gruppen-Nummern
-    for i = find(I_acttype(:,pfact)')
+    for i = II_acttype_act
       if isempty(RobName_base{i}), continue; end % nicht belegt
       I_find = find(strcmp(RobName_base{i}, RobName_base(1:i-1)));
       if ~isempty(I_find)
         % Dieser Roboter ist nicht der erste seiner Art. Nehme gleiche Gruppe
         robgroups(i) = robgroups(I_find(1));
+        if any(robgroups(1:i-1) > robgroups(i))
+          warning('Rob. %d (%s): Gruppennummern nicht aufsteigend. Hier %d, max. %d', ...
+            i, RobName_base{i}, robgroups(i), max(robgroups(1:i-1)));
+        end
       else
         % Roboter ist der erste seiner Gruppe. Erzeuge neue Gruppe
         robgroups(i) = max(robgroups(:))+1;
@@ -483,7 +490,7 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     % Deaktiviere Roboter-Struktur wieder, wenn sie komplett dominiert wird
     % Damit kann die Anzahl der Roboter pro Gruppe in der Legende bestimmt
     % werden.
-    for kk = find(I_acttype(:,pfact)')
+    for kk = II_acttype_act
       if all(any(isnan(pf_data(pf_robnum==kk,:)),2))
         pf_robnum(pf_robnum==kk) = 0; %#ok<AGROW>
         pf_groupnum(pf_robnum==kk) = 0;
@@ -500,7 +507,17 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   countmarker = 0; % Stelle Marker für jeden Roboter zusammen
   markerlist = {'x', 's', 'v', '^', '*', 'o', 'd', 'v', '<', '>', 'p', 'h'};
   colorlist =  {'r', 'g', 'b', 'c', 'm', 'k'};
-  for i = find(I_acttype(:,pfact)')
+  Plot_Indices = NaN(size(I_acttype,1),1);
+  Line_Handles = NaN(size(I_acttype,1),1);
+
+  % Sortiere die Strukturen so, dass die Roboter-Gruppen aufsteigend sind
+  % (unklar, warum die Reihenfolge durcheinander gehen kann, eventuell bei manuellem Eingriff)
+  % Falls keine Gruppen angezeigt werden, hat das hier keine Wirkung.
+  [~, I_acttype_pfact_sort] = sort(robgroups(II_acttype_act));
+  % Gehe durch die sortierten Strukturen durch und zeichne die Ergebnisse ein
+  II_acttype_act_sort = II_acttype_act(I_acttype_pfact_sort);
+  for j = 1:length(II_acttype_act_sort)
+    i = II_acttype_act_sort(j);
     Name = Structures{i}.Name;
     % Für Legende: Nur erfolgreiche PKM zählen (werden oben schon gefiltert
     if ~any(pf_robnum==i), continue; end
@@ -508,7 +525,7 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     if all(any(isnan(pf_data(pf_robnum==i,:)),2)), continue; end
     if pfvar == 1 || ... % Bild-Variante 1: jeden Roboter zählen
         pfvar == 2 && ... % Bild-Variante 2: Gruppen zählen
-        (countmarker == 0 || all(robgroups(i)>robgroups(1:i-1)))
+        (countmarker == 0 || all(robgroups(i)>robgroups(II_acttype_act_sort(1:j-1))))
       countmarker = countmarker + 1; % Hochzählen für die Marker und Farben
     end
     if countmarker > length(markerlist)*length(colorlist)
@@ -525,9 +542,12 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     else % length(Set.optimization.objective) == 3
       hdl=plot3(pf_data(pf_robnum==i,1), pf_data(pf_robnum==i,2), pf_data(pf_robnum==i,3), marker);
     end
+    set(hdl, 'DisplayName', sprintf('Rob%d_%s', i, Name)); % zur Zuordnung später
     % Der Legendeneintrag wird im Fall von gruppierten Ergebnissen mehrmals
     % überschrieben. Dadurch nur ein Legendeneintrag pro Gruppe.
     leghdl(countmarker,:) = hdl; %#ok<AGROW>
+    Plot_Indices(i) = countmarker;
+    Line_Handles(i) = hdl;
     if ~isa(ResTab.Beschreibung, 'cell')
       RobShortName = ''; % Wenn kein Wert belegt ist, wird NaN gesetzt
     else
@@ -554,10 +574,6 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
           RobName_base{i}, addtxt, addtxt2); %#ok<AGROW>
       end
     end
-    % Funktions-Handle zum Anklicken der Datenpunkte
-    ButtonDownFcn=@(src,event)cds_paretoplot_buttondownfcn(src,event,...
-      Set.optimization.optname,Structures{i}.Name, i);
-    set(hdl, 'ButtonDownFcn', ButtonDownFcn)
   end % for i (Roboter)
   if pffig == 1
     xlabel(sprintf('%s in %s', Set.optimization.objective{1}, obj_units{1}));
@@ -591,7 +607,6 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     end
   end
   axhdl = get(f, 'children');
-  legend(leghdl, legstr);
   % Prüfe ob ein Wertebereich sehr stark unausgeglichen ist (z.B. wenn die
   % Konditionszahl als Kriterium bis unendlich geht). Dann logarithmisch.
   if length(axhdl) == 1
@@ -607,6 +622,15 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
       end
     end
   end
+  % Erzeuge Dummy-Legende (damit DisplayName gleich bleibt)
+  leghdl2 = leghdl;
+  for i = 1:length(leghdl)
+    leghdl2(i) = plot(NaN, NaN, 'x');
+    set(leghdl2(i), 'Color', get(leghdl(i), 'Color'));
+    set(leghdl2(i), 'Marker', get(leghdl(i), 'Marker'));
+    set(leghdl2(i), 'MarkerSize', get(leghdl(i), 'MarkerSize'));
+  end
+  legend(leghdl2, legstr);
   % PNG-Export bereits hier, da Probleme mit uicontrol.
   export_fig(f, fullfile(resmaindir, sprintf('Pareto_Gesamt_%s.png',name_suffix)));
   % Auswahlmenü für eine nachträglich zu plottende Auswertung. Wird in der
@@ -642,7 +666,14 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
             'String', menuitems, ...
             'Units', 'pixels', ...
             'Position', [10, 30, 120, 24]);
+  % ButtonDownFcn wird erst beim erneuten Laden der Datei eingetragen
+  % (sonst wird die gespeicherte Datei zu groß).
+  CreateFcn=@(src, dummy)cds_paretoplot_createfcn(src, dummy, Set.optimization.optname);
+  set(f, 'CreateFcn', CreateFcn);
   saveas(f, fullfile(resmaindir, sprintf('Pareto_Gesamt_%s.fig',name_suffix)));
+  % Für das bereits offene Fenster die ButtonDownFcns hier eintragen.
+  cds_paretoplot_createfcn(f, [], Set.optimization.optname);
+  fprintf('Pareto_Gesamt_%s.fig gespeichert. Dauer: %1.1fs\n', name_suffix, toc(t1));
   end % for pfact
   end % for pfvar
   end % for pffig
