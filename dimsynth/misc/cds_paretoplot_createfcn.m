@@ -8,31 +8,22 @@
 %   Vorgegebene Eingaben einer CreateFcn
 % OptName
 %   Name der Optimierung
+% 
+% Beispiele:
+% Zum manuellen Eintragen der CreateFcn oder bei Änderung des Namens der
+% Optimierung (OptName in Code-Zeile anpassen):
+% `set(gcf, 'CreateFcn', @(src, dummy)cds_paretoplot_createfcn(src, dummy, OptName));`
+% (Danach Bild neu speichern)
+% Zum Eintragen in offenes Bild:
+% `cds_paretoplot_createfcn(gcf, [], OptName)`
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2023-03
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
 function cds_paretoplot_createfcn(fighdl, dummy, OptName)
 
-%% Lade die Daten
-% Benutze den Ordner als Speicherort der Daten, in dem auch das Bild liegt.
-resdir_opt = fileparts(get(fighdl, 'FileName'));
-if isempty(resdir_opt)
-  % Das Bild wurde eventuell gerade erst gezeichnet und daher ist kein
-  % Dateiname abgespeichert. Suche den Ordner der Ergebnisse.
-  resdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), 'results');
-  resdir_opt = fullfile(resdir, OptName);
-  if ~exist(resdir_opt, 'file')
-    warning('Automatisch ermittelter Ergebnis-Ordner %s existiert nicht. Abbruch.', resdir_opt);
-    return
-  end
-elseif ~exist(resdir_opt, 'file')
-  warning('Ergebnis-Ordner %s existiert nicht, obwohl Bild von dort geladen wurde. Abbruch.', resdir_opt);
-  return
-end
-
 %% Trage die ButtonDownFcns ein
-fch = get(gcf, 'Children');
+fch = get(fighdl, 'Children');
 axhdl = fch(strcmp(get(fch, 'type'), 'axes'));
 ach = get(axhdl, 'Children');
 for i = 1:length(ach)

@@ -666,11 +666,12 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
             'String', menuitems, ...
             'Units', 'pixels', ...
             'Position', [10, 30, 120, 24]);
-  saveas(f, fullfile(resmaindir, sprintf('Pareto_Gesamt_%s.fig',name_suffix)));
-  % Aktualisiere die ButtonDownFcns hier nach dem Speichern (sonst wird die
-  % gespeicherte Datei zu groß). Wird beim erneuten öffnen auch ausgeführt.
+  % ButtonDownFcn wird erst beim erneuten Laden der Datei eingetragen
+  % (sonst wird die gespeicherte Datei zu groß).
   CreateFcn=@(src, dummy)cds_paretoplot_createfcn(src, dummy, Set.optimization.optname);
   set(f, 'CreateFcn', CreateFcn);
+  saveas(f, fullfile(resmaindir, sprintf('Pareto_Gesamt_%s.fig',name_suffix)));
+  % Für das bereits offene Fenster die ButtonDownFcns hier eintragen.
   cds_paretoplot_createfcn(f, [], Set.optimization.optname);
   fprintf('Pareto_Gesamt_%s.fig gespeichert. Dauer: %1.1fs\n', name_suffix, toc(t1));
   end % for pfact
