@@ -459,10 +459,10 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     end
     pf_robnum = [pf_robnum; i*ones(size(tmp1.RobotOptRes.physval_pareto,1),1)]; %#ok<AGROW>
   end % for i = II_acttype_act
-  if pfvar == 2
-    pf_groupnum = zeros(length(pf_robnum),1);
+  robgroups = zeros(length(RobName_base), 1); % Zuordnung der Roboter-Nummern zu Gruppen-Nummern
+  if pfvar == 2 % Bild mit Gruppierung der Varianten
+    pf_groupnum = zeros(length(pf_robnum),1); % Gruppenzuordnung jedes Paretofront-Datenpunkts
     % Pareto-Front nachverarbeiten, falls Roboter zusammengefasst werden.
-    robgroups = zeros(length(RobName_base), 1); % Zuordnung der Roboter-Nummern zu Gruppen-Nummern
     for i = II_acttype_act
       if isempty(RobName_base{i}), continue; end % nicht belegt
       I_find = find(strcmp(RobName_base{i}, RobName_base(1:i-1)));
@@ -512,7 +512,8 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
 
   % Sortiere die Strukturen so, dass die Roboter-Gruppen aufsteigend sind
   % (unklar, warum die Reihenfolge durcheinander gehen kann, eventuell bei manuellem Eingriff)
-  [robgroups_sort,I_acttype_pfact_sort] = sort(robgroups(II_acttype_act));
+  % Falls keine Gruppen angezeigt werden, hat das hier keine Wirkung.
+  [~, I_acttype_pfact_sort] = sort(robgroups(II_acttype_act));
   % Gehe durch die sortierten Strukturen durch und zeichne die Ergebnisse ein
   II_acttype_act_sort = II_acttype_act(I_acttype_pfact_sort);
   for j = 1:length(II_acttype_act_sort)
