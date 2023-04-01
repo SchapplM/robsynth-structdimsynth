@@ -1080,9 +1080,11 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       cds_start(Set, Traj);
       continue % Nachfolgendes muss nicht gemacht werden
     end % Cluster-Berechnung
-    
+    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+      sprintf('parroblib_add_robots_symact_%s_4.mat', EE_FG_Name)));
     %% Nachverarbeitung der Ergebnis-Liste
-    if ~exist('IIRL', 'var') || isempty(IIRL)
+
+    if settings.offline && (~exist('IIRL', 'var') || isempty(IIRL))
       num_results = 0; % Es kann kein Ergebnis geladen werden
     else
       % CSV-Tabelle laden (obiges Laden derselben Datei wird nicht bei 
