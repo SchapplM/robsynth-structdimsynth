@@ -2271,6 +2271,12 @@ else % Einkriteriell: PSO
   else % Lade Ergebnis einer unfertigen Optimierung
     d = load_checkpoint_file(Set, Structure, resdir);
     if isempty(d), return; end
+    if ~isfield(d, 'optimValues')
+      cds_log(-1, 'Fehler beim Laden der Daten');
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+        'cds_dimsynth_robot_singleobj_load_error.mat'));
+      return;
+    end
     p_val = d.optimValues.bestx(:);
     fval = d.optimValues.bestfval;
     exitflag = -6;
