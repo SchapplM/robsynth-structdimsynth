@@ -108,6 +108,13 @@ if isa(Set.optimization.objective, 'char')
   % Einheitliches Format für Ein- und Mehrkriteriell.
   Set.optimization.objective = {Set.optimization.objective};
 end
+if length(intersect(Set.optimization.objective, {'mass', 'energy', 'power', ...
+    'condition', 'valid_kin', 'valid_act', 'actforce', 'materialstress', ...
+    'stiffness', 'jointrange', 'jointlimit', 'manipulability', 'minjacsingval', ...
+    'positionerror', 'actvelo', 'chainlength', 'installspace', 'footprint', 'colldist'})) ~= ...
+    length(Set.optimization.objective)
+  error('Set.optimization.objective enthält unerwarteten Wert');
+end
 if isa(Set.optimization.objective_ik, 'char')
   Set.optimization.objective_ik = {Set.optimization.objective_ik};
 end
