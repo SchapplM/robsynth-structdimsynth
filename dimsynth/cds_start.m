@@ -115,6 +115,11 @@ if length(intersect(Set.optimization.objective, {'mass', 'energy', 'power', ...
     length(Set.optimization.objective)
   error('Set.optimization.objective enthält unerwarteten Wert');
 end
+if length(Set.optimization.objective) > 1 && strcmp(Set.optimization.algorithm, 'pso')
+  Set.optimization.algorithm = 'mopso';
+elseif length(Set.optimization.objective) == 1 && strcmp(Set.optimization.algorithm, 'mopso')
+  Set.optimization.algorithm = 'pso';
+end
 if isa(Set.optimization.objective_ik, 'char')
   Set.optimization.objective_ik = {Set.optimization.objective_ik};
 end
