@@ -730,14 +730,24 @@ if ~isempty(Set.structures.whitelist)
   end
   Names_in_Struct = {}; % Es können bei Struktursynthese Strukturen doppelt getestet werden
   for i = 1:length(Structures), Names_in_Struct{i} = Structures{i}.Name; end %#ok<AGROW>
-  if length(Set.structures.whitelist) ~= length(unique(Names_in_Struct))
-    cds_log(-1, sprintf(['Es wurde eine Positiv-Liste übergeben, aber nur %d ', ...
-      'dieser %d Strukturen wurden gewählt.'], length(unique(Names_in_Struct)), ...
-      length(Set.structures.whitelist)));
-    disp('Gültige Roboter:');
-    disp(intersect(Set.structures.whitelist, Names_in_Struct));
-    disp('Ungültige Roboter:')
-    disp(setdiff(Set.structures.whitelist, Names_in_Struct));
+  if Set.general.only_finish_aborted
+    % Beim Zusammenfassen werden fehlende Teile ignoriert. Ergänze diese
+    % hier wieder
+    Set.structures.whitelist = unique([Set.structures.whitelist, Names_in_Struct]);
+  end
+  missing_in_robotlist = setdiff(unique(Set.structures.whitelist), unique(Names_in_Struct));
+  missing_in_whitelist = setdiff(unique(Names_in_Struct), unique(Set.structures.whitelist));
+  if ~isempty(missing_in_whitelist)
+    cds_log(-1, sprintf(['Es wurde eine Positiv-Liste mit %d Einträgen ', ...
+      'übergeben, dort fehlen %d der jetzt ermittelten %d Strukturen: %s'], ...
+      length(unique(Set.structures.whitelist)), length(missing_in_whitelist), ...
+      length(Names_in_Struct), disp_array(missing_in_whitelist, '%s')) );
+  end
+  if ~isempty(missing_in_robotlist)
+    cds_log(-1, sprintf(['Es wurde eine Positiv-Liste mit %d Einträgen ', ...
+      'übergeben, aber nur %d dieser Strukturen wurden gewählt. %d fehlen: %s'], ...
+      length(Set.structures.whitelist), length(Names_in_Struct{i}), ...
+      length(unique(missing_in_robotlist)), disp_array(missing_in_robotlist, '%s')) );
   end
 end
 
