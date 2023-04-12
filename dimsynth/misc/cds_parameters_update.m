@@ -20,13 +20,17 @@
 % Structure_neu_mod
 %   Modifizierte Version von Structure_neu, mit der der Parametervektor
 %   p_alt direkt in cds_update_robot_parameters genutzt werden kann
+% state
+%   0: Keine Mehrdeutigkeiten, 1: Auflösung eventuell nicht erfolgreich
 % 
 % Siehe auch: cds_gen_init_pop
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2022-04
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function [p_neu, Structure_neu_mod] = cds_parameters_update(Structure_alt, Structure_neu, p_alt)
+function [p_neu, Structure_neu_mod, state] = cds_parameters_update(Structure_alt, Structure_neu, p_alt)
+
+state = 0;
 
 Structure_neu_mod = Structure_neu;
 
@@ -34,30 +38,41 @@ Structure_neu_mod = Structure_neu;
 Structure_alt.varnames(strcmp(Structure_alt.varnames,'platform_morph')) = ...
   {'platform_morph_pairdist'}; 
 
-% Parameter vergleichen
-[~, Iparam, ~] = intersect(Structure_neu.varnames, Structure_alt.varnames, ...
+% Parameter vergleichen: Schnittmenge der Parameter lässt sich übertragen.
+% Fehlende Parameter werden eventuell falsch eingestellt aufgrund der Annahmen
+[~, I_neu, I_alt] = intersect(Structure_neu.varnames, Structure_alt.varnames, ...
   'stable');
-
-if length(Iparam) ~= length(p_alt)
+II_neu = false(length(Structure_neu.varnames),1);
+II_neu(I_neu) = true;
+II_alt = false(length(Structure_alt.varnames),1);
+II_alt(I_alt) = true;
+if length(I_neu) ~= length(p_alt)
   % Unterschied der Parameter:
-  disp('Unterschiedliche Parameter:');
-  disp(setxor(Structure_alt.varnames, Structure_neu.varnames));
-  error('Zuordnung der Parameter nicht möglich');
+  if any(~II_alt)
+    fprintf('Alte Parameter, die nicht im neuen Vektor vorkommen: %s\n', ...
+      disp_array(Structure_alt.varnames(~II_alt), '%s'));
+  end
+  if any(~II_neu)
+    fprintf('Neue Parameter, für die keine Werte eingegeben wurden: %s\n', ...
+      disp_array(Structure_neu.varnames(~II_neu), '%s'));
+  end
+  state = 1;
 end
 
 % Entferne Optimierungsvariablen, die neu hinzugekommen sind (zwischen der
 % Version, mit der der Versuch erstellt wurde und der aktuellen Version)
-Structure_neu_mod.varnames = Structure_neu.varnames(Iparam);
-Structure_neu_mod.vartypes = Structure_neu.vartypes(Iparam);
-Structure_neu_mod.varlim = Structure_neu.varlim(Iparam,:);
+Structure_neu_mod.varnames = Structure_neu.varnames(I_neu);
+Structure_neu_mod.vartypes = Structure_neu.vartypes(I_neu);
+Structure_neu_mod.varlim = Structure_neu.varlim(I_neu,:);
 % Entferne Einträge zu relevanten Kinematikparametern (z.B. da letzter
 % d-Parameter seit Anfang 2022 mit optimiert wird
 Structure_neu_mod.Ipkinrel = Structure_alt.Ipkinrel;
 
 % Setze nicht belegte Werte im Parametervektor auf Null
 p_neu = zeros(length(Structure_neu.varnames), 1);
-p_neu(Iparam) = p_alt;
+p_neu(I_neu) = p_alt(I_alt);
 
+return
 %% Debug: Parameter in Tabellenform ausgeben und testen
 ParamTab_alt = cell2table(cell(length(p_alt),2), 'VariableNames', {'Name', 'Value'});
 ParamTab_alt.Name(:) = Structure_alt.varnames;
