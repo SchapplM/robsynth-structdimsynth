@@ -130,7 +130,7 @@ structures = struct( ...
 % Einstellungen mit Auswirkung auf die Optimierung: Auswahl der
 % Optimierungsvariablen und Annahmen über die Roboter, die getroffen werden
 optimization = struct( ...
-  'objective', {{'energy'}}, ... % Zielfunktion. Möglich: mass, energy, power, condition, 
+  'objective', {{'TODO'}}, ... % Zielfunktion. Möglich: mass, energy, power, condition, 
    ... % valid_kin, valid_act, actforce, materialstress, stiffness, jointrange, jointlimit
    ... % manipulability, minjacsingval, positionerror, actvelo, chainlength,
    ... % installspace, footprint, colldist. Auch mehrere gleichzeitig möglich.
@@ -139,6 +139,10 @@ optimization = struct( ...
             'only_prismatic', false, ... % Minimiere nur Wertebereich von Schubgelenken
             'only_active', false, ... % Minimiere nur Wertebereich aktiver Gelenke
             'only_passive', false), ... % Minimiere nur Wertebereich passiver Gelenke
+  'obj_power', ... % Zusatzeinstellungen für die Zielfunktion "power"
+  ... Nehme nicht das Maximum der Einzel-Leistungen, sondern die Leistung 
+  ... aus max. Drehmoment und Drehzahl. Betrifft PKM:
+    struct( 'symmetric_speed_torque_limits', true), ...
   ... Zielgröße für IK bei Redundanz. Möglich:
   ...  * default (Einstellung anhand der Kriterien der Maßsynthese), 
   ...  * ikjac_cond, jac_cond, coll_par, instspc_par, poserr_ee (siehe invkin-Funktionen)
@@ -148,7 +152,7 @@ optimization = struct( ...
   'constraint_obj', zeros(7,1), ... % Nebenbedingungen, 1=Mass, 2=Energy, 3=Actforce, 4=Condition, 5=Stiffness, 6=MaterialStress, 7=PositionError; Eintrag entspricht physikalischem Wert
   'condition_limit_sing', 1e5, ... % Wenn die Konditionszahl (der IK-Jacobi) schlechter ist, wird sofort abgebrochen. Schwellwert für Singularität. Deaktivieren durch setzen auf inf.
   'condition_limit_sing_act', inf, ... % Wenn die Konditionszahl (der PKM-Jacobi) schlechter ist, wird sofort abgebrochen. Schwellwert für Singularität. Deaktivieren durch setzen auf inf.
-  'algorithm', 'mopso', ... % Optimierungsalgorithmus für mehrkriterielle Optimierung. Möglich: pso, mopso, gamultiobj
+  'algorithm', 'pso', ... % Optimierungsalgorithmus. Möglich: Einkriteriell: pso; Mehrkriterielle: mopso, gamultiobj
   'movebase', true, ... % Position der Roboter-Basis
   'basepos_limits', NaN(3,2), ... % Grenzen für Basis-Position (Absolut, im Welt-KS)
   'ee_translation', true, ... % Freie Verschiebung des EE

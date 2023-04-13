@@ -415,8 +415,8 @@ elseif Structure.Type == 0 || Structure.Type == 2
     II_alphatheta = find(I_alphatheta);
     if length(II_alphatheta) ~= length(Structure.angles_values)
       error(['Anzahl der freien alpha-/theta-Parameter der Beinkette stimmt ', ...
-        'nicht (%d in Beinkette, %d in Datenbank: "%s")'], length(II_alphatheta), ...
-        length(Structure.angles_values), Structure.angles_values)
+        'nicht (%d in Beinkette, %d in Datenbank: "%s")'], length(Structure.angles_values), ...
+        length(II_alphatheta), Structure.angles_values)
     end
     iik = 0; % Zähler für Variable Structure.angles_values
     for kk = III' % Gehe alle Kinematikparameter durch (in veränderter REihenfolge)
@@ -2271,6 +2271,12 @@ else % Einkriteriell: PSO
   else % Lade Ergebnis einer unfertigen Optimierung
     d = load_checkpoint_file(Set, Structure, resdir);
     if isempty(d), return; end
+    if ~isfield(d, 'optimValues')
+      cds_log(-1, 'Fehler beim Laden der Daten');
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+        'cds_dimsynth_robot_singleobj_load_error.mat'));
+      return;
+    end
     p_val = d.optimValues.bestx(:);
     fval = d.optimValues.bestfval;
     exitflag = -6;
@@ -2558,7 +2564,7 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act')) && ~
   % Einzelne Zielfunktionen aufrufen
   [fval_mass,~, ~, physval_mass] = cds_obj_mass(R);
   [fval_energy,~, ~, physval_energy] = cds_obj_energy(R, Set, Structure, Traj_0, data_dyn.TAU, QD);
-  [fval_power,~, ~, physval_power] = cds_obj_power(R, data_dyn.TAU, QD);
+  [fval_power,~, ~, physval_power] = cds_obj_power(R, Set, data_dyn.TAU, QD);
   [fval_actforce,~, ~, physval_actforce] = cds_obj_actforce(data_dyn.TAU);
   [fval_ms, ~, ~, physval_ms] = cds_obj_materialstress(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
   [fval_cond,~, ~, physval_cond] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
@@ -2849,7 +2855,8 @@ if strcmp(Set.optimization.algorithm, 'mopso')
 elseif strcmp(Set.optimization.algorithm, 'gamultiobj')
   filelist_tmpres = dir(fullfile(resdir, 'GAMO_Gen*_AllInd.mat'));
 elseif strcmp(Set.optimization.algorithm, 'pso')
-  filelist_tmpres = dir(fullfile(resdir, 'PSO_Gen*_AllInd.mat'));
+  filelist_tmpres = dir(fullfile(resdir, 'MOPSO_Gen*_AllInd.mat'));
+%   filelist_tmpres = dir(fullfile(resdir, 'PSO_Gen*_AllInd.mat'));
 else
   error('Algorithmus %s nicht definiert', Set.optimization.algorithm);
 end
@@ -2893,6 +2900,14 @@ if ~isempty(filelist_tmpres) % Fall 1: "normale" Daten im tmp-Ordner
     try
       file_load = filelist_tmpres(ii);
       d = load(fullfile(file_load.folder, file_load.name));
+      if strcmp(Set.optimization.algorithm, 'pso') && ~isfield(d, 'optimValues') && ...
+         isfield(d, 'REP') % Wurde durch einen Fehler verursacht. Kann weg, wenn alte Daten nicht mehr da sind
+        cds_log(-1, sprintf('[dimsynth] Daten für PSO-Zwischenergebnisse haben MOPSO-Format.'));
+        if isfield(d, 'REP')
+          d.optimValues.bestx = d.REP.pos;
+          d.optimValues.bestfval = d.REP.pos_fit;
+        end
+      end
       cds_log(1, sprintf(['[dimsynth] Laden des letzten abgebrochenen Durch', ...
         'laufs aus gespeicherten tmp-Daten erfolgreich aus %s.'], ...
         fullfile(file_load.folder, file_load.name)));
@@ -2926,8 +2941,8 @@ elseif ~isempty(filelist_tmpres2) % Fall 2: Bereits von cds_gen_init_pop nachver
       % Überschreibe Pareto-Front immer wieder, damit es automatisch die letzte lesbare Datei ist
       d.REP.pos_fit = d_tmp.RobotOptRes.fval_pareto;
       d.REP.pos = d_tmp.RobotOptRes.p_val_pareto;
-    elseif strcmp(Set.optimization.algorithm, 'gamultiobj')
-      warning('gamultiobj hier noch nicht implementiert');
+    else
+      warning('%s hier noch nicht implementiert', Set.optimization.algorithm);
     end
     % Trage basierend auf der oben schon mit NaN initialisierten Struktur
     % die Werte ein. Annahme: Benutze die vorletzte Generation.

@@ -53,7 +53,7 @@ for jj = 1:length(Set.optimization.objective)
       obj_units{jj} = 'N or Nm';
     end
   elseif strcmp(Set.optimization.objective{jj}, 'materialstress')
-    obj_units{jj} = 'in %';
+    obj_units{jj} = '%';
     objscale(jj) = 100;
   elseif strcmp(Set.optimization.objective{jj}, 'stiffness')
     obj_units{jj} = 'm/N';

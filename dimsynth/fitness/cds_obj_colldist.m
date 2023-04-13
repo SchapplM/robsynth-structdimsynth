@@ -135,26 +135,31 @@ end
 p_coll_min = p_coll(:,:,IItmin);
 II_norange = find(I_norange);
 II_range = find(~I_norange);
+legtxt = {'Keine Änderung', 'Kritischer Punkt', 'Kritische Verbindung'};
+leghdl = NaN(3,1);
 for i = 1:size(p_coll_min,1)
   % Kollisionspunkte ins Welt-KS transformieren. Prüfung im Basis-KS.
   p1 = R.T_W_0 * [p_coll_min(i,1:3)';1];
   p2 = R.T_W_0 * [p_coll_min(i,4:6)';1];
   % Fall der Kollisionsprüfung unterscheiden
+  casenum = 0; %#ok<NASGU> 
   if any(i == II_norange) % Betrifft eine Prüfung, deren Wert sich nicht ändert
-    s = 'g-'; lw = 5;
+    s = 'g-'; lw = 5; casenum = 1;
   elseif IIcmin(IItmin) == find(II_range == i) % Kleinster Abstand
     % Variable IIcmin ist bezogen auf reduzierte Menge der Prüfungen aus
     % II_range. Variable i bezogen auf vollständige Menge.
-    s = 'r-'; lw = 5;
-    plot3(mean([p1(1);p1(1)]), mean([p1(2);p1(2)]), mean([p1(3);p1(3)]), 'rx', 'markersize', 30);
+    s = 'r-'; lw = 5; casenum = 3;
+    leghdl(2) = plot3(mean([p1(1);p1(1)]), mean([p1(2);p1(2)]), mean([p1(3);p1(3)]), 'rx', 'markersize', 30);
   else % Alle anderen Prüfungen
     s = 'k--'; lw = 0.5; %#ok<NASGU>
     continue
   end
-  plot3([p1(1);p2(1)], [p1(2);p2(2)], [p1(3);p2(3)], s, 'linewidth', lw)
+  hdl = plot3([p1(1);p2(1)], [p1(2);p2(2)], [p1(3);p2(3)], s, 'linewidth', lw);
+  if casenum > 0, leghdl(casenum) = hdl; end
 end
 title(sprintf(['Kollisionsabstände schlechtester Fall. ', ...
   'Dist=%1.1fmm, I=%d/%d'], 1e3*min2colldist, IItmin, size(Q,1)));
+legend(leghdl(~isnan(leghdl)), legtxt(~isnan(leghdl)));
 drawnow();
 [currgen,currind,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'ObjInstallspace');
 for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
