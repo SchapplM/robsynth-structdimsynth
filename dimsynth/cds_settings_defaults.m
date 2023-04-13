@@ -139,6 +139,10 @@ optimization = struct( ...
             'only_prismatic', false, ... % Minimiere nur Wertebereich von Schubgelenken
             'only_active', false, ... % Minimiere nur Wertebereich aktiver Gelenke
             'only_passive', false), ... % Minimiere nur Wertebereich passiver Gelenke
+  'obj_power', ... % Zusatzeinstellungen für die Zielfunktion "power"
+  ... Nehme nicht das Maximum der Einzel-Leistungen, sondern die Leistung 
+  ... aus max. Drehmoment und Drehzahl. Betrifft PKM:
+    struct( 'symmetric_speed_torque_limits', true), ...
   ... Zielgröße für IK bei Redundanz. Möglich:
   ...  * default (Einstellung anhand der Kriterien der Maßsynthese), 
   ...  * ikjac_cond, jac_cond, coll_par, instspc_par, poserr_ee (siehe invkin-Funktionen)

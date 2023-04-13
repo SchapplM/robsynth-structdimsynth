@@ -728,7 +728,7 @@ for iIKC = 1:size(Q0,1)
     fval_debugtext = [fval_debugtext, ' ', fval_debugtext_en]; %#ok<AGROW>
   end
   if any(strcmp(Set.optimization.objective, 'power'))
-    [fval_pwr,fval_debugtext_pwr, ~, physval_pwr] = cds_obj_power(R, TAU, QD);
+    [fval_pwr,fval_debugtext_pwr, ~, physval_pwr] = cds_obj_power(R, Set, TAU, QD);
     fval_IKC(iIKC,strcmp(Set.optimization.objective, 'power')) = fval_pwr;
     physval_IKC(iIKC,strcmp(Set.optimization.objective, 'power')) = physval_pwr;
     fval_debugtext = [fval_debugtext, ' ', fval_debugtext_pwr]; %#ok<AGROW>

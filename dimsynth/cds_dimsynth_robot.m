@@ -2564,7 +2564,7 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act')) && ~
   % Einzelne Zielfunktionen aufrufen
   [fval_mass,~, ~, physval_mass] = cds_obj_mass(R);
   [fval_energy,~, ~, physval_energy] = cds_obj_energy(R, Set, Structure, Traj_0, data_dyn.TAU, QD);
-  [fval_power,~, ~, physval_power] = cds_obj_power(R, data_dyn.TAU, QD);
+  [fval_power,~, ~, physval_power] = cds_obj_power(R, Set, data_dyn.TAU, QD);
   [fval_actforce,~, ~, physval_actforce] = cds_obj_actforce(data_dyn.TAU);
   [fval_ms, ~, ~, physval_ms] = cds_obj_materialstress(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
   [fval_cond,~, ~, physval_cond] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
