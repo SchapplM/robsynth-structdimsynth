@@ -1141,18 +1141,29 @@ if now() < t_lastsave + 4/(24*60)
 end
 t_end_plan = Set.general.computing_cluster_start_time + ... % Rechne in Tagen
   Set.general.computing_cluster_max_time/(24*3600); % geplante Endzeit
-% Prüfe, wie lange der Fitness-Aufruf maximal dauerte.
-PSO_Detail_Data = cds_save_particle_details([], [], 0, 0, NaN, NaN, NaN, NaN, 'output');
-T_fitness_max = max(PSO_Detail_Data.comptime(:));
-% Wenn 50% mehr als diese Zeit nur noch verbleibt, speichere. Mindestens
-% aber 5min vor Ende einmal speichern, falls Fitness-Aufruf schnell geht
-t_lastcheck = now();
-if now() < t_end_plan - max(1.5*T_fitness_max, 5*60)/(24*3600)
-  return % Das Planmäßige Ende ist noch zu lange entfernt. Nicht speichern
+% Einmal nach der Hälfte der Zeit speichern, damit zu lange Rechenzeiten
+% eines Partikels am Ende nicht das Speichern blockiert
+force_save = false;
+if t_lastsave == 0 && (t_end_plan-now()) < ... % Restlaufzeit in d
+    0.5*Set.general.computing_cluster_max_time/(24*3600) % Erlaubte Dauer in s
+  force_save = true;
+  cds_log(4, sprintf(['[fitness/save_generation] Noch %1.1fh verbleiben ', ...
+    '(von %1.1fh). Speichere.'], (t_end_plan-now())*24, Set.general.computing_cluster_max_time/3600));
 end
-if now() > t_end_plan + 10/(24*60) 
-  % Annahme: Mehr als 10min nach Ende entspricht Offline-Auswertung
-  return
+if ~force_save % Prüfe weitere Speicher-Bedingungen gegen Ende der Optimierung
+  % Prüfe, wie lange der Fitness-Aufruf maximal dauerte.
+  PSO_Detail_Data = cds_save_particle_details([], [], 0, 0, NaN, NaN, NaN, NaN, 'output');
+  T_fitness_max = max(PSO_Detail_Data.comptime(:));
+  % Wenn 100% mehr als diese Zeit nur noch verbleibt, speichere. Mindestens
+  % aber 15min vor Ende einmal speichern, falls Fitness-Aufruf schnell geht
+  t_lastcheck = now();
+  if now() < t_end_plan - max(2*T_fitness_max, 15*60)/(24*3600)
+    return % Das Planmäßige Ende ist noch zu lange entfernt. Nicht speichern
+  end
+  if now() > t_end_plan + 10/(24*60) 
+    % Annahme: Mehr als 10min nach Ende entspricht Offline-Auswertung
+    return
+  end
 end
 if strcmp(Set.optimization.algorithm, 'mopso')
   cds_save_all_results_mopso([], Set, Structure);
