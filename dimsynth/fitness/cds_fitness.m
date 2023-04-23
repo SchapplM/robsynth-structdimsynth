@@ -1141,6 +1141,10 @@ if now() < t_lastsave + 4/(24*60)
 end
 t_end_plan = Set.general.computing_cluster_start_time + ... % Rechne in Tagen
   Set.general.computing_cluster_max_time/(24*3600); % geplante Endzeit
+if now() > t_end_plan + 10/(24*60) 
+  % Annahme: Mehr als 10min nach Ende entspricht Offline-Auswertung
+  return
+end
 % Einmal nach der Hälfte der Zeit speichern, damit zu lange Rechenzeiten
 % eines Partikels am Ende nicht das Speichern blockiert
 force_save = false;
@@ -1159,10 +1163,6 @@ if ~force_save % Prüfe weitere Speicher-Bedingungen gegen Ende der Optimierung
   t_lastcheck = now();
   if now() < t_end_plan - max(2*T_fitness_max, 15*60)/(24*3600)
     return % Das Planmäßige Ende ist noch zu lange entfernt. Nicht speichern
-  end
-  if now() > t_end_plan + 10/(24*60) 
-    % Annahme: Mehr als 10min nach Ende entspricht Offline-Auswertung
-    return
   end
 end
 if strcmp(Set.optimization.algorithm, 'mopso')
