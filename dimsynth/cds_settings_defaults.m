@@ -167,6 +167,7 @@ optimization = struct( ...
   'platform_size_limits', [NaN, NaN], ... % Grenzen für Plattform-Größe (Radius; Absolut; bei paarweiser Anordnung wird effektiver Radius gezählt)
   'base_morphology', true, ... % Aussehen des Gestells (z.B. Schrägheit, Gelenkpaarabstand)
   'platform_morphology', true, ... % Aussehen der Plattform (z.B. Gelenkpaarabstand)
+  'tilt_base', false, ... % Kippen der Roboter-Basis (über Rotation um x- und y-Achse). Ermöglicht Ausweichen struktureller Singularitäten
   'rotate_base', true, ... % Orientierung der Roboter-Basis (nur um die z-Achse). Hilft bei PKM.
   ... % Fixiere die Gelenkwinkel-Grenzen auf den beim Start gesetzten Wert.
   ... % Ist nur sinnvoll, wenn ein bereits gegebenes Robotermodell genutzt wird.

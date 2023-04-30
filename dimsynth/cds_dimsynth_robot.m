@@ -731,6 +731,14 @@ elseif Set.optimization.ee_rotation
   end
 end
 
+% Gestell-Neigung: Ermöglicht Ausgleich struktureller Singularitäten
+if Set.optimization.tilt_base
+  nvars = nvars + 2;
+  vartypes = [vartypes; 5; 5];
+  varlim = [varlim; repmat([-pi, pi], 2, 1)];
+  varnames = [varnames(:)', {'baserotation x', 'baserotation y'}];
+end
+
 % Gestell-Rotation: Besonders für PKM relevant. Für Serielle Roboter mit
 % erstem Drehgelenk in z-Richtung irrelevant.
 if Set.optimization.rotate_base && ...
