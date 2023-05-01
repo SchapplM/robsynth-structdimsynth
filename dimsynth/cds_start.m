@@ -535,7 +535,11 @@ if Set.general.computing_cluster
   % Erzeuge Liste aller oben zur Optimierung gefundener Roboter
   Names = {};
   for k = 1:length(Structures)
-    Names = [Names, Structures{k}.Name]; %#ok<AGROW>
+    if ~isempty(Structures{k}.RobName)
+      Names = [Names, Structures{k}.RobName]; %#ok<AGROW>
+    else
+      Names = [Names, Structures{k}.Name]; %#ok<AGROW>
+    end
   end
   % Erzeuge Positiv-Liste für Cluster aus bereits ausgelesener Roboter-DB
   % Teile diese Liste so auf, dass mehrere Cluster-Instanzen parallel
