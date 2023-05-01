@@ -894,7 +894,7 @@ if ~Set.general.regenerate_summary_only
           R = serroblib_create_robot_class(Names{i});
         else % PKM
           parroblib_writelock('check', 'csv', logical(Set.task.DoF), 5*60, false);
-          R = parroblib_create_robot_class(Names{i},1,1);
+          R = parroblib_create_robot_class(Names{i}, '',  1,1);
         end
         % Hierdurch werden fehlende mex-Funktionen kompiliert.
         if type == 2 % keine gleichzeitige mex-Kompilierung gleicher Kinematiken erlauben.
