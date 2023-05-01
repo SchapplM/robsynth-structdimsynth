@@ -24,6 +24,7 @@
 %   3e13...4e13: Effektiver Radius für paarweise Gestellgelenke zu groß
 %   4e13...5e13: Das gleiche für effektiven Radius paarweiser Plattformgelenke
 %   5e13...6e13: Die Gelenkabstände sind zu klein
+%   6e13...7e13: Neigung der Basis ist zu groß
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2023-02
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
@@ -197,6 +198,21 @@ if Set.optimization.min_joint_distance > 0
     fval = 1e13 * (5 + fval_rel); % normiere auf 5e13 bis 6e13
     constrvioltext = sprintf('Gelenkabstand ist zu klein (Gelenk %d Abstand %1.1fmm, also %1.0f%% von %1.1fmm)', ...
       IminRelNormViol, 1e3*DHtable(IminRelNormViol,3), minRelNormViol*100, 1e3*Set.optimization.min_joint_distance);
+    return
+  end
+end
+%% Prüfe Neigungswinkel der Basis
+if Set.optimization.tilt_base
+  z_base_opt = R.T_W_0(1:3,3)'; % Ist-Ausrichtung für Partikel
+  z_base_neutral = Structure.R_W_0(1:3,3); % Decken- vs Bodenmontage jew. anders
+  phi_B = acos(z_base_opt*z_base_neutral); % Neigungswinkel gegen Neutral-Richtung
+  if phi_B > Set.optimization.max_tilt_base
+    RelNormViol = phi_B/Set.optimization.max_tilt_base;
+    fval = 1e13 * (6 + 1 * 2/pi*atan(RelNormViol-1)); % normiere auf 6e13 bis 7e13
+    p_baserot = p_phys(Structure.vartypes == 5);
+    constrvioltext = sprintf(['Gestellneigung ist zu groß. %1.1f°>%1.1f° ' ...
+      '(phi_x=%1.1f°, phi_y=%1.1f°)'], 180/pi*phi_B, 180/pi * ...
+      Set.optimization.max_tilt_base, 180/pi*p_baserot(1), 180/pi*p_baserot(2));
     return
   end
 end

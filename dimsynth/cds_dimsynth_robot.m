@@ -735,7 +735,7 @@ end
 if Set.optimization.tilt_base
   nvars = nvars + 2;
   vartypes = [vartypes; 5; 5];
-  varlim = [varlim; repmat([-pi, pi], 2, 1)];
+  varlim = [varlim; repmat(Set.optimization.max_tilt_base*[-1, 1], 2, 1)];
   varnames = [varnames(:)', {'baserotation x', 'baserotation y'}];
 end
 
