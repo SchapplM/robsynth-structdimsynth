@@ -203,13 +203,19 @@ if Set.optimization.min_joint_distance > 0
 end
 %% Prüfe Neigungswinkel der Basis
 if Set.optimization.tilt_base
-  z_base_opt = R.T_W_0(1:3,3)'; % Ist-Ausrichtung für Partikel
+  p_baserot = p_phys(Structure.vartypes == 5); % Euler-Winkel für Basis-Rotation
   z_base_neutral = Structure.R_W_0(1:3,3); % Decken- vs Bodenmontage jew. anders
-  phi_B = acos(z_base_opt*z_base_neutral); % Neigungswinkel gegen Neutral-Richtung
+  if ~isempty(R) % normaler Aufruf in Fitness-Funktion
+    z_base_opt = R.T_W_0(1:3,3); % Ist-Ausrichtung für Partikel
+  elseif all(~isnan(p_baserot(1:2))) % falls aus gen_init_pop mit gesetzten Werten aufgerufen
+    z_base_opt = rotx(p_baserot(1)) * roty(p_baserot(2)) * z_base_neutral;
+  else % nicht bestimmbar (z.B. wenn aus gen_init_pop aufgerufen)
+    z_base_opt = z_base_neutral;
+  end
+  phi_B = acos(z_base_opt'*z_base_neutral); % Neigungswinkel gegen Neutral-Richtung
   if phi_B > Set.optimization.max_tilt_base
     RelNormViol = phi_B/Set.optimization.max_tilt_base;
     fval = 1e13 * (6 + 1 * 2/pi*atan(RelNormViol-1)); % normiere auf 6e13 bis 7e13
-    p_baserot = p_phys(Structure.vartypes == 5);
     constrvioltext = sprintf(['Gestellneigung ist zu groß. %1.1f°>%1.1f° ' ...
       '(phi_x=%1.1f°, phi_y=%1.1f°)'], 180/pi*phi_B, 180/pi * ...
       Set.optimization.max_tilt_base, 180/pi*p_baserot(1), 180/pi*p_baserot(2));
