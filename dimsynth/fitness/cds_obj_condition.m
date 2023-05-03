@@ -33,7 +33,7 @@
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
 function [fval, fval_debugtext, debug_info, f_cond1] = cds_obj_condition(R, Set, Structure, Jinvges, Traj_0, Q, QD)
-debug_info = {};
+debug_info = {''};
 
 % Berechne Konditionszahl über Trajektorie
 Cges = NaN(length(Traj_0.t), 1);
