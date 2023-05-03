@@ -1098,6 +1098,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           JPE(i+1:end,:) = JP_jic(i+1:end,:,I_findq);
           QE(i+1:end,:) = Q_jic(i+1:end,:,I_findq);
           Phi_E(i+1:end,:) = 0; % Tue so, als ob es erfolgreich war
+          % Nicht erfolgreiche Konfigurationen sind mit NaN markiert
+          Phi_E(any(isnan(QE),2),:) = NaN; % sonst wird unten mit Fehlern von vorher weitergemacht
           condJik(i+1:end,:) = NaN; % Sonst stehen noch die falschen Werte drin
           condJ(i+1:end,:) = NaN; % Dadurch müssen die Jacobi-Matrizen unten leider neu berechnet werden.
           break; % Direkt die Gesamtheit aller Punkte weiter unten prüfen
@@ -1127,6 +1129,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           JPE(i+1:end,:) = JP_jic(i+1:end,:,I_findp);
           QE(i+1:end,:) = Q_jic(i+1:end,:,I_findp);
           Phi_E(i+1:end,:) = 0; % Tue so, als ob es erfolgreich war
+          Phi_E(any(isnan(QE),2),:) = NaN; % sonst wird unten mit Fehlern von vorher weitergemacht
           condJik(i+1:end,:) = NaN; % Sonst stehen noch die falschen Werte drin
           condJ(i+1:end,:) = NaN; % Dadurch müssen die Jacobi-Matrizen unten leider neu berechnet werden.
           break; % Direkt die Gesamtheit aller Punkte weiter unten prüfen
