@@ -50,6 +50,9 @@
 %   Zusätzliche Informationen zu den einzelnen Werten aus Q0. Felder:
 %   .bestcolldist: Bestmöglicher Kollisionsabstand
 %   .bestinstspcdist: Bestmöglicher Abstand zum Bauraum
+%   .minmaxcondJ: Best- und schlechtestmöglicher Wert der Jacobi-Kondition
+%   .minmaxcondJik: Das gleiche für die IK-Jacobi (Typ-I-Singularität)
+%   .fval_jic: Funktionswerte für alle Konfigurationen (auch nicht optimale)
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Universität Hannover
@@ -228,6 +231,8 @@ constrvioltext_jic = cell(n_jic,1);
 constrvioltext2_jic = cell(n_jic,1);
 bestcolldist_jic = NaN(1,n_jic);
 bestinstspcdist_jic = NaN(1,n_jic);
+minmaxcondJ_jic = NaN(2,n_jic);
+minmaxcondJik_jic = NaN(2,n_jic);
 % IK-Statistik (für Aufgabenredundanz). Absolute Verbesserung von
 % Zielkriterien gegenüber der nicht-redundanten Kinematik
 arikstats_jic = NaN(size(Traj_0.XE,1),n_jic);
@@ -1166,6 +1171,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     calctimes_jic(i_ar,jic) = toc(t1);
     continue;
   end
+  minmaxcondJ_jic(:,jic) = minmax2(condJ(:)');
+  minmaxcondJik_jic(:,jic) = minmax2(condJik(:)');
+
   Q_jic(:,:,jic) = QE; % hier belegen falls früher Abbruch in nächster Prüfung
   JP_jic(:,:,jic) = JPE;
   if fval_jic(jic) < inf
@@ -1608,8 +1616,10 @@ I_iO = find(fval_jic == 1e3);
 if ~any(I_iO) % keine gültige Lösung für Eckpunkte
   Q0 = Q_jic(1,:,jic_best); % Gebe nur eine einzige Konfiguration aus
   QE_all = Q_jic(:,:,jic_best);
-  bestcolldist_jic = bestcolldist_jic(jic_best);
-  bestinstspcdist_jic = bestinstspcdist_jic(jic_best);
+  bestcolldist_Q0 = bestcolldist_jic(jic_best);
+  bestinstspcdist_Q0 = bestinstspcdist_jic(jic_best);
+  minmaxcondJ_Q0 = minmaxcondJ_jic(:,jic_best);
+  minmaxcondJik_Q0 = minmaxcondJik_jic(:,jic_best);
   % Wenn die IK nicht für alle Punkte erfolgreich war, wurde abgebrochen.
   % Dann stehen nur Nullen im Ergebnis. Schlecht zum Debuggen.
   if all(Q0==0)
@@ -1633,8 +1643,10 @@ else % Gebe alle gültigen Lösungen aus
   % darstellen
   Q0 = Q0(I,:);
   I_iO = I_iO(I);
-  bestcolldist_jic = bestcolldist_jic(I);
-  bestinstspcdist_jic = bestinstspcdist_jic(I);
+  bestcolldist_Q0 = bestcolldist_jic(I_iO);
+  bestinstspcdist_Q0 = bestinstspcdist_jic(I_iO);
+  minmaxcondJ_Q0 = minmaxcondJ_jic(:,I_iO);
+  minmaxcondJik_Q0 = minmaxcondJik_jic(:,I_iO);
   
   % Ausgabe der IK-Werte für alle Eckpunkte. Im weiteren Verlauf der
   % Optimierung benötigt, falls keine Trajektorie berechnet wird.
@@ -1664,8 +1676,9 @@ else % Gebe alle gültigen Lösungen aus
     end % for k
   end
 end
-Stats_constraints = struct('bestcolldist', bestcolldist_jic, ...
-  'bestinstspcdist', bestinstspcdist_jic, 'fval_jic', fval_jic);
+Stats_constraints = struct('bestcolldist', bestcolldist_Q0, ...
+  'bestinstspcdist', bestinstspcdist_Q0, 'fval_jic', fval_jic, ...
+  'minmaxcondJ', minmaxcondJ_Q0, 'minmaxcondJik', minmaxcondJik_Q0);
 % Änderungen an Roboter-Klasse rückgängig machen. Zurücksetzen der
 % Aufgaben-FG funktioniert oben nur, wenn IK auch erfolreich ist.
 if strcmp(Set.optimization.objective_ik, 'constant') && Structure.task_red

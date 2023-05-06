@@ -298,6 +298,33 @@ qlim = R.update_qlim(); % Nur Ausgabe, nichts in Klasse eintragen
 % Erst hier berechnen, da zeitaufwändig bei größeren Trajektorien
 Traj_0 = cds_transform_traj(R, Traj_W);
 
+
+%% Bestimme die Reihenfolge, in der die Konfigurationen geprüft werden
+if Set.optimization.traj_ik_abort_on_success && size(Q0,1) > 1
+  % Reihenfolge anhand eines Leistungsmerkmals
+  if all(~isnan(Stats_constraints.minmaxcondJ(2,:)))
+    [maxcondJ_sort, I_IKC] = sort(Stats_constraints.minmaxcondJ(2,:));
+    cds_log(3,sprintf(['[fitness] G=%d;I=%d. %d Konfig. anhand max. condJ ', ...
+      'sortiert (%1.1f...%1.1f): [%s]'], i_gen, i_ind, size(Q0,1), ...
+      min(maxcondJ_sort), max(maxcondJ_sort), disp_array(I_IKC, '%d')));
+  elseif all(~isnan(Stats_constraints.bestcolldist))
+    [bestcolldist_sort, I_IKC] = sort(Stats_constraints.bestcolldist);
+    cds_log(3,sprintf(['[fitness] G=%d;I=%d. %d Konfig. anhand kleinstem ', ...
+      'Kollisionsabstand sortiert (%1.1fmm ... %1.1fmm): [%s]'], i_gen, i_ind, ...
+      size(Q0,1), 1e3*min(bestcolldist_sort), 1e3*max(bestcolldist_sort), disp_array(I_IKC, '%d')));
+  elseif all(~isnan(Stats_constraints.minmaxcondJik(2,:)))
+    [maxcondJik_sort, I_IKC] = sort(Stats_constraints.minmaxcondJik(2,:));
+    cds_log(3,sprintf(['[fitness] G=%d;I=%d. %d Konfig. anhand max. condJik ', ...
+      'sortiert (%1.1f...%1.1f): [%s]'], i_gen, i_ind, size(Q0,1), ...
+      min(maxcondJik_sort), max(maxcondJik_sort), disp_array(I_IKC, '%d')));
+  else
+    cds_log(3,sprintf('[fitness] G=%d;I=%d. %d Konfig. Kein Sortierungskriterium vorab bestimmt.', ...
+      i_gen, i_ind, size(Q0,1)));
+    I_IKC = 1:size(Q0,1);
+  end
+else
+  I_IKC = 1:size(Q0,1); % der Reihe nach durchgehen
+end
 %% Alle IK-Konfigurationen durchgehen
 % Berechne jeweils alle Zielfunktionen. Bestimme erst danach, welcher
 % Parametersatz der beste ist
@@ -321,7 +348,7 @@ if R.Type == 0, n_actjoint = R.NJ;
 else,           n_actjoint = sum(R.I_qa); end
 TAU_IKC = NaN(size(Traj_0.X,1), n_actjoint, size(Q0,1));
 
-for iIKC = 1:size(Q0,1)
+for iIKC = I_IKC
   %% Gelenkwinkel-Grenzen aktualisieren
   if ~all(abs(QE_iIKC(1,:,iIKC) - Q0(iIKC,:))<1e-8) % NaN gibt auch Fehler.
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
