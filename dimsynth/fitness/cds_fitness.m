@@ -364,8 +364,12 @@ for iIKC = I_IKC
   end
   if any(Q0(iIKC,:)' < qlim_neu(:,1) | Q0(iIKC,:)' > qlim_neu(:,2))
     cds_log(-1, '[cds_fitness] Anfangswert für Gelenkwinkel außerhalb der Grenzen. Für Traj. ungünstig.');
-    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
-      'tmp', 'cds_fitness_qlim_viol_q0.mat'));
+    try
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+        'tmp', 'cds_fitness_qlim_viol_q0.mat'));
+    catch err % Dateisystem nicht immer stabil auf Cluster
+      cds_log(-1, sprintf('[cds_fitness] %s', err.message));
+    end
   end
   %% Trajektorie berechnen
   if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
@@ -1113,6 +1117,17 @@ qErot_meannorm = normalizeAngle(qErot_mean, Q(1,R.MDH.sigma==0)');
 % Einträge für Drehgelenke überschreiben
 qlim_neu(R.MDH.sigma==0,:) = repmat(qErot_meannorm,1,2)+...
   [-qlim_range(R.MDH.sigma==0), qlim_range(R.MDH.sigma==0)]/2;
+% Verschiebe die Grenzen nochmals, falls die ersten Winkel nicht drin sind
+Q_delta_ll = qlim_neu(:,1) - Q(1,:)';
+if any(Q_delta_ll > 0) % untere Grenze wird verletzt
+  qlim_neu(Q_delta_ll>0) = qlim_neu(Q_delta_ll>0) - Q_delta_ll(Q_delta_ll>0) - ...
+    qlim_range(Q_delta_ll>0) * 0.02; % Sicherheitsabstand
+end
+Q_delta_ul = qlim_neu(:,2) - Q(1,:)';
+if any(Q_delta_ul < 0) % untere Grenze wird verletzt
+  qlim_neu(Q_delta_ul<0) = qlim_neu(Q_delta_ul<0) - Q_delta_ul(Q_delta_ul<0) - ...
+    qlim_range(Q_delta_ul<0) * 0.02; % Sicherheitsabstand
+end
 % Schubgelenke auf die minimal nötige Grenze reduzieren (für Animationen)
 if limit_pris_to_Q
   if R.Type == 0 % Seriell
