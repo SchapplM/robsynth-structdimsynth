@@ -37,7 +37,7 @@ for i = 1:5 % Versuche mehrfach, den Pool zu starten
       parfor_numworkers = Pool.NumWorkers;
     catch err
       cds_log(-1, sprintf(['[start_parpool] Fehler beim Starten des parpool ', ...
-        '(%1.1fs nach Funktionsaufruf): %s'], err.message, toc(t0)));
+        '(%1.1fs nach Funktionsaufruf): %s'], toc(t0), err.message));
       parfor_numworkers = 0; % Kein parfor benutzen
       continue % Nochmal neu versuchen oder Ende der Funktion ohne ParPool
     end
