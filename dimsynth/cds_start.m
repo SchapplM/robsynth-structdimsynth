@@ -642,7 +642,9 @@ if Set.general.computing_cluster
     fprintf(fid, '%% Set.general.only_finish_aborted = true;\n');
     fprintf(fid, 'cds_start(Set, Traj);\n');
     % Schließen des ParPools auch in Datei hineinschreiben
+    fprintf(fid, 'parpool_writelock(''lock'', 300, true);\n');
     fprintf(fid, 'delete(gcp(''nocreate''));\n');
+    fprintf(fid, 'parpool_writelock(''free'', 0, true);\n');
     fclose(fid);
 
     % Matlab-Skript auf Cluster starten (Toolbox muss im Pfad sein).
