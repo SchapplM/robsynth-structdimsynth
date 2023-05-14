@@ -743,11 +743,12 @@ if ~isempty(Set.structures.whitelist)
   for i = 1:length(Structures), Names_in_Struct{i} = Structures{i}.Name; end %#ok<AGROW>
   if Set.general.only_finish_aborted
     % Beim Zusammenfassen werden fehlende Teile ignoriert. Ergänze diese
-    % hier wieder
+    % hier wieder. TODO: Abgrenzung Robotername vs Modellname beachten
     Set.structures.whitelist = unique([Set.structures.whitelist, Names_in_Struct]);
   end
   missing_in_robotlist = setdiff(unique(Set.structures.whitelist), unique(Names_in_Struct));
   missing_in_whitelist = setdiff(unique(Names_in_Struct), unique(Set.structures.whitelist));
+  if ~any(contains(Set.structures.whitelist, '_')) % TODO: Abgrenzung Modellname und Robotername so, dass Warnungen sinnvoll sind.
   if ~isempty(missing_in_whitelist)
     cds_log(-1, sprintf(['Es wurde eine Positiv-Liste mit %d Einträgen ', ...
       'übergeben, dort fehlen %d der jetzt ermittelten %d Strukturen: %s'], ...
@@ -759,6 +760,7 @@ if ~isempty(Set.structures.whitelist)
       'übergeben, aber nur %d dieser Strukturen wurden gewählt. %d fehlen: %s'], ...
       length(Set.structures.whitelist), length(Names_in_Struct{i}), ...
       length(unique(missing_in_robotlist)), disp_array(missing_in_robotlist, '%s')) );
+  end
   end
 end
 
