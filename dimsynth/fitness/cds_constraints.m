@@ -223,8 +223,9 @@ I_jic5_phizkomb = I_jicmax+(1:n_phizkomb);
 n_jic = max([I_jicmax, I_jic5_phizkomb]);
 % nochmalige Begrenzung bei Vorgabe durch Einstellung von negativer Zahl
 % (dient dazu, bei Reproduktion nur eine Konfiguration zu prüfen)
-n_jic = max(n_jic+Set.optimization.pos_ik_tryhard_num, 1);
-
+if Set.optimization.pos_ik_tryhard_num < 0
+  n_jic = max(n_jic+Set.optimization.pos_ik_tryhard_num, 1);
+end
 fval_jic = NaN(1,n_jic);
 calctimes_jic = NaN(2,n_jic);
 constrvioltext_jic = cell(n_jic,1);
