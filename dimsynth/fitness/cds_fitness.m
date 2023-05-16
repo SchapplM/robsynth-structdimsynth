@@ -300,24 +300,47 @@ Traj_0 = cds_transform_traj(R, Traj_W);
 
 
 %% Bestimme die Reihenfolge, in der die Konfigurationen geprüft werden
-if Set.optimization.traj_ik_abort_on_success && size(Q0,1) > 1
+if Set.optimization.traj_ik_abort_on_success && size(Q0,1) > 1 && ...
+    size(Q0,1) == size(Stats_constraints.minmaxcondJ,2) % sonst Reihenfolge mit q0_traj bereits gesetzt.
   % Reihenfolge anhand eines Leistungsmerkmals
-  if all(~isnan(Stats_constraints.minmaxcondJ(2,:)))
+  I_IKC = [];
+  if any(R.MDH.sigma == 1)
+    % Benutze Spannweite der Schubgelenkkoordinaten als erstes Kriterium
+    % Bei PKM wird die Symmetrie bei Schubgelenken berücksichtigt.
+    qrange_from_q0 = NaN(size(Q0,1),R.NJ);
+    for i = 1:size(Q0,1)
+      qrange_from_q0(i,:) = diff(update_joint_limits(R, Set, Q0(i,:), 1, 0, 1)');
+    end
+    qrange_from_q0(isinf(qrange_from_q0)) = NaN;
+    if diff(minmax2(sum(qrange_from_q0(:,R.MDH.sigma == 1),2,'omitnan')')) > 1e-3 % Schubgelenk-Koordinaten unterscheiden sich
+      [qrange_sort, I_IKC] = sort(sum(qrange_from_q0(:,R.MDH.sigma == 1),2,'omitnan')'); %#ok<TRSRT> 
+      cds_log(3,sprintf(['[fitness] G=%d;I=%d. %d Konfig. anhand Schubgelenk ', ...
+        'sortiert (Verfahrweg: %1.1f...%1.1f): [%s]'], i_gen, i_ind, size(Q0,1), ...
+        min(qrange_sort)/R.NLEG, max(qrange_sort)/R.NLEG, disp_array(I_IKC, '%d')));      
+    end
+  end
+  if isempty(I_IKC) && all(~isnan(Stats_constraints.minmaxcondJ(2,:))) && ...
+      diff(minmax2(Stats_constraints.minmaxcondJ(2,:))) > 1e-3 % Konditionszahlen unterscheiden sich
     [maxcondJ_sort, I_IKC] = sort(Stats_constraints.minmaxcondJ(2,:));
     cds_log(3,sprintf(['[fitness] G=%d;I=%d. %d Konfig. anhand max. condJ ', ...
       'sortiert (%1.1f...%1.1f): [%s]'], i_gen, i_ind, size(Q0,1), ...
       min(maxcondJ_sort), max(maxcondJ_sort), disp_array(I_IKC, '%d')));
-  elseif all(~isnan(Stats_constraints.bestcolldist))
+  end
+  if isempty(I_IKC) && all(~isnan(Stats_constraints.bestcolldist)) && ...
+      diff(minmax2(Stats_constraints.bestcolldist)) > 1e-3 % Abstände unterscheiden sich
     [bestcolldist_sort, I_IKC] = sort(Stats_constraints.bestcolldist);
     cds_log(3,sprintf(['[fitness] G=%d;I=%d. %d Konfig. anhand kleinstem ', ...
       'Kollisionsabstand sortiert (%1.1fmm ... %1.1fmm): [%s]'], i_gen, i_ind, ...
       size(Q0,1), 1e3*min(bestcolldist_sort), 1e3*max(bestcolldist_sort), disp_array(I_IKC, '%d')));
-  elseif all(~isnan(Stats_constraints.minmaxcondJik(2,:)))
+  end
+  if isempty(I_IKC) && all(~isnan(Stats_constraints.minmaxcondJik(2,:))) && ...
+      diff(minmax2(Stats_constraints.minmaxcondJik(2,:))) > 1e-3 % unterscheiden sich
     [maxcondJik_sort, I_IKC] = sort(Stats_constraints.minmaxcondJik(2,:));
     cds_log(3,sprintf(['[fitness] G=%d;I=%d. %d Konfig. anhand max. condJik ', ...
       'sortiert (%1.1f...%1.1f): [%s]'], i_gen, i_ind, size(Q0,1), ...
       min(maxcondJik_sort), max(maxcondJik_sort), disp_array(I_IKC, '%d')));
-  else
+  end
+  if isempty(I_IKC)
     cds_log(3,sprintf('[fitness] G=%d;I=%d. %d Konfig. Kein Sortierungskriterium vorab bestimmt.', ...
       i_gen, i_ind, size(Q0,1)));
     I_IKC = 1:size(Q0,1);
@@ -1083,7 +1106,7 @@ rng('shuffle'); % damit Zufallszahlen in anderen Funktionen zufällig bleiben
 save_generation(Set, Structure, i_gen);
 end % function
 
-function qlim_neu = update_joint_limits(R, Set, Q, limit_pris_to_Q, tol)
+function qlim_neu = update_joint_limits(R, Set, Q, limit_pris_to_Q, tol, dryrun)
 % Funktion zum Aktualisieren der Gelenkgrenzen in der Matlab-Klasse.
 % Schreibt die Min-/Max-Werte der Schubgelenk-Koordinaten von Q als Grenze.
 % Drehgelenkgrenzen werden mit dem ursprünglichen Bereich neu zentriert
@@ -1091,10 +1114,14 @@ function qlim_neu = update_joint_limits(R, Set, Q, limit_pris_to_Q, tol)
 % R: Matlab-Klasse (Zeiger, wird auch geändert)
 % Set: Einstellungen
 % Q: Gelenk-Koordinaten
-% only_pris: Falls true: Nur Schubgelenke aktualisieren
+% limit_pris_to_Q: Falls true: Nur Schubgelenke aktualisieren
 % tol: Toleranz, um die die Grenzen zusätzlich aufgeweitet werden
+% dryrun: Bei true wird die Klassenvariable nicht geschrieben
 if nargin < 5
   tol = 0;
+end
+if nargin < 6
+  dryrun = 0;
 end
 if Set.optimization.fix_joint_limits
   % Bei Roboter-Modellen mit vorgegebenen Gelenkgrenzen wird nichts gemacht
@@ -1159,7 +1186,9 @@ if all(isnan(qlim_neu(:)))
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
     'tmp', 'cds_fitness_qlimnan_error_debug2.mat'));
 end
-R.update_qlim(qlim_neu);
+if ~dryrun
+  R.update_qlim(qlim_neu);
+end
 end % function
 
 function save_generation(Set, Structure, i_gen)
