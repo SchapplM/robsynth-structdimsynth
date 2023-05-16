@@ -1234,7 +1234,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         % Bei Parallel-IK ist die Konditionszahl nicht bestimmt. Rechne Jacobi
         % und Kondition neu aus
         if isnan(condJ(ii)) || Set.optimization.constraint_obj(7)
-          if any(isnan(Jinv_E(i,:)))
+          if any(isnan(Jinv_E(ii,:)))
             [~, Jinv_ii] = R.jacobi_qa_x(QE(ii,:)', Traj_0.XE(ii,:)');
             Jinv_E(ii,:) = Jinv_ii(:);
           end
@@ -1243,6 +1243,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         end
       end
     end
+    minmaxcondJ_jic(:,jic) = minmax2(condJ(:)'); % Überschreiben
   end
   % Wenn die Kondition im Anfangswert oder einem Zwischenpunkt schlecht ist,
   % braucht anschließend keine Trajektorie mehr gerechnet werden
