@@ -675,7 +675,7 @@ if ~isempty(Set.structures.repeatlist)
     end
     if ~found
       warning(['Roboter %s soll mehrfach optimiert werden, ist aber gar ', ...
-        'nicht in ursprünglicher Lister der Roboter enthalten.'], Name_i);
+        'nicht in ursprünglicher Liste der Roboter enthalten.'], Name_i);
     end
   end
 end
