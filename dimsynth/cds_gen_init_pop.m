@@ -419,6 +419,20 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
         missing_local_in_file(missing_local_in_file==ll) = 0;
       end
     end
+    % Ignoriere die Neigung des Gestells. Annahme: Könnte geometrisch
+    % trotzdem gut funktionieren und wird bestraft durch Abweichung der
+    % Einstellungen.
+    for ll = 1:length(Structure_i.varnames)
+      if contains(Structure_i.varnames{ll}, 'baserotation')
+        missing_local_in_file(missing_local_in_file==ll) = 0;
+      end
+    end
+    % Ignoriere die Neigung des EE. Gleiche Annahme
+    for ll = 1:length(Structure_i.varnames)
+      if contains(Structure_i.varnames{ll}, 'ee rot')
+        missing_local_in_file(missing_local_in_file==ll) = 0;
+      end
+    end
     % Falls unterschiedliche Koppelgelenkanordnungen geladen werden, setze
     % die zusätzlichen Parameter auf Null
     I_coupl_i = (Structure_i.vartypes == 8 | Structure_i.vartypes == 9)';
