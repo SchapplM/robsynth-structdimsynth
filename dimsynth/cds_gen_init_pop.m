@@ -115,6 +115,9 @@ else % Normale Maßsynthese. Begrenze Suchbegriff, damit nicht gierig zu viel ge
     RobFilter  = ['_', RobName, '_'];
   end
 end
+cds_log(1, sprintf(['[gen_init_pop] Suche nach Ergebnissen für \"*%s*\" in %d ' ...
+  'Ergebnis-Dateien für Optimierungs-Parameter {%s}'], RobFilter, ...
+  length(initpop_matlist), disp_array(Structure.varnames, '%s')));
 I_RobMatch = contains(initpop_matlist, RobFilter);
 for i = find(I_RobMatch)'% Unterordner durchgehen.
   dirname_i = fileparts(initpop_matlist{i});
@@ -279,10 +282,23 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
     end
   end
   % TODO: Belege die Parameter aus den gespeicherten Eigenschaften des Roboters
-  
+
+  % Bestimme die Variablennamen ohne die laufende Nummber bei pkin
+  for ll = 1:2
+    if ll == 1, varnames_tmp = Structure_i.varnames;
+    else,       varnames_tmp = Structure.varnames;
+    end
+    [t,~] = regexp(varnames_tmp, 'pkin [\d]+: (.*)', 'tokens', 'match');
+    for ii = 1:length(varnames_tmp)
+      if ~isempty(t{ii}), varnames_tmp{ii} = t{ii}{1}{1}; end
+    end
+    if ll == 1, varnames_i = varnames_tmp;
+    else,       varnames_this = varnames_tmp;
+    end
+  end
   % Bestimme Indizes der in der Datei benutzten und aktuell nicht benutzten Parameter
   [~,missing_local_in_file, missing_file_in_local] = ...
-    setxor(Structure_i.varnames,Structure.varnames);
+    setxor(varnames_i, varnames_this);
   % Debug:
 %   fprintf('Lokale Parameter, fehlend in Datei: {%s}\n', ...
 %     disp_array(Structure_i.varnames(missing_local_in_file),'%s'));
@@ -451,7 +467,7 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
         'Ordner %s unterschiedlich (%d vs %d). Keine Anfangswerte ableitbar. ', ...
         'Unterschied: {%s}. Bestimmbar: {%s}'], fileparts(initpop_matlist{i}), ...
         length(Structure.vartypes), length(Structure_i.vartypes), ...
-        disp_array(setxor(Structure_i.varnames, Structure.varnames)), ...
+        disp_array(setxor(varnames_i, varnames_this)), ...
         disp_array(Structure.varnames(~isnan(pval_i_const)), '%s')));
       continue
     end
