@@ -783,6 +783,16 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     'Tv', T_dec_dp/2, ...
     'debug_dir', fullfile(resdir,sprintf('%s_dynprog_it%d', name_prefix_ardbg, i_ar)), ...
     'continue_saved_state', true); % Debuggen: Falls mehrfach gleicher Aufruf
+  if strcmp(Set.optimization.objective_ik, 'maxactvelo') || ...
+      strcmp(Set.optimization.objective_ik, 'default') && any(strcmp(Set.optimization.objective, 'actvelo'))
+    s_dp.cost_criterion = 'actvelo';
+  elseif ~isempty(intersect(Set.optimization.objective, {'positionerror','condition'}))
+    % Die Zielfunktionen sind direkt mit den IK-Zielen übereinstimmend und
+    % leichter zu berechnen als die Antriebskraft. Wähle diese Ziele
+  elseif strcmp(Set.optimization.objective_ik, 'maxactforce') || ...
+      strcmp(Set.optimization.objective_ik, 'default') && any(strcmp(Set.optimization.objective, 'actforce'))
+    s_dp.cost_criterion = 'actforce';
+  end
   if R.I_EE_Task(6) == 1 % Keine Nullraumoptimierung in DP.
     s_dp.T_dec_ns = 0; % Kein Abbremsen der Nullraumbewegung notwendig
     s_dp.Tv = 0;

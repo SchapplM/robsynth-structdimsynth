@@ -20,4 +20,4 @@ defstruct.obj_names_all = {'mass', 'energy', 'power', 'actforce', 'materialstres
   'actvelo','chainlength', 'installspace', 'footprint', 'colldist', 'stiffness'}; % konsistent zu fval_obj_all und physval_obj_all
 % Zielkriterien der inversen Kinematik
 defstruct.objective_ik_names_all = {'default', 'ikjac_cond', 'jac_cond', ...
-  'coll_par', 'instspc_par', 'poserr_ee', 'none', 'constant'};
+  'coll_par', 'instspc_par', 'poserr_ee', 'none', 'constant', 'maxactvelo', 'maxactforce'};
