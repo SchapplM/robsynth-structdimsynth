@@ -87,28 +87,7 @@ end
 % Umrechnung der Jacobi-Matrix auf Plattform-Koordinaten (Dynamik ist nicht
 % in EE-Koordinaten definiert, da die Trafo sich ändern kann).
 if R.Type == 2
-  JinvP_ges = NaN(size(JinvE_ges));
-  for i = 1:size(JinvE_ges)
-    JinvE_i = reshape(JinvE_ges(i,:), R.NJ, sum(R.I_EE));
-    % Bezogen auf EE-Position, Euler-Winkel als Rotation
-    JinvE_i_fullx = zeros(R.NJ, 6);
-    JinvE_i_fullx(:,R.I_EE) = JinvE_i;
-    H_xE = [eye(3,3), zeros(3,3); zeros(3,3), euljac(XE(i,4:6)', R.phiconv_W_E)];
-    % Bezogen auf EE-Position, geometrische Rotation
-    JinvE_i_fulls = JinvE_i_fullx / H_xE; % [A]/(11)
-    % Umrechnung der geometrischen Jacobi auf die Plattform (statt EE)
-    T_0_E = R.x2t(XE(i,:)');
-    r_P_P_E = R.T_P_E(1:3,4);
-    r_E_P_E = R.T_P_E(1:3,1:3)' * r_P_P_E;
-    r_0_P_E = T_0_E(1:3,1:3)*r_E_P_E;
-    A_E_P = adjoint_jacobian(r_0_P_E);
-    JinvP_i_fulls = JinvE_i_fulls * A_E_P;
-    % Zurückrechnen auf die Euler-Winkel-Rotation (Plattform)
-    H_xP = [eye(3,3), zeros(3,3); zeros(3,3), euljac(XP(i,4:6)', R.phiconv_W_E)];
-    JinvP_i_fullx = JinvP_i_fulls * H_xP; % [A]/(12)
-    JinvP_i = JinvP_i_fullx(:,R.I_EE);
-    JinvP_ges(i,:) = JinvP_i(:);
-  end
+  JinvP_ges = R.jacobi_q_xE_2_jacobi_q_xP_traj(JinvE_ges, XE, XP);
 end
 
 %% Berechnungen durchführen

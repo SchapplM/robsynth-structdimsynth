@@ -23,7 +23,6 @@ function [InitPop, Q_Pop] = cds_gen_init_pop(Set, Structure)
 nIndTotal = Set.optimization.NumIndividuals;
 varlim = Structure.varlim;
 varnames = Structure.varnames;
-vartypes = Structure.vartypes;
 nvars = length(varnames);
 %% Lade Ergebnisse bisheriger Optimierungen aus dem Ergebnis-Ordner
 t1 = tic();
@@ -58,8 +57,7 @@ else
     initpop_matlist = tmp.initpop_matlist;
   else
     initpop_matlist = {};
-    cds_log(-1, sprintf(['[gen_init_pop] Datei %s existiert nicht.'], ...
-      filename_idx));
+    cds_log(-1, sprintf('[gen_init_pop] Datei %s existiert nicht.', filename_idx));
   end
 end
 %% Lade Ergebnisse aus dem Temp-Ordner
@@ -115,7 +113,7 @@ else % Normale Maßsynthese. Begrenze Suchbegriff, damit nicht gierig zu viel ge
     RobFilter  = ['_', RobName, '_'];
   end
 end
-cds_log(1, sprintf(['[gen_init_pop] Suche nach Ergebnissen für \"*%s*\" in %d ' ...
+cds_log(2, sprintf(['[gen_init_pop] Suche nach Ergebnissen für \"*%s*\" in %d ' ...
   'Ergebnis-Dateien für Optimierungs-Parameter {%s}'], RobFilter, ...
   length(initpop_matlist), disp_array(Structure.varnames, '%s')));
 I_RobMatch = contains(initpop_matlist, RobFilter);
@@ -498,7 +496,7 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
   % gesetzter Parameter in Ordnung ist. Es werden dann unten statt
   % gespeicherter Werte Zufallswerte eingesetzt.
   I_param_iO = all(ll_repmat <= pval_i & ul_repmat >= pval_i | isnan(pval_i) ,2);
-  cds_log(1, sprintf(['[gen_init_pop] Auswertung %d/%d (%s) geladen. ', ...
+  cds_log(2, sprintf(['[gen_init_pop] Auswertung %d/%d (%s) geladen. ', ...
     'Bewertung: %d. Bei %d/%d Parametergrenzen passend.'], i, sum(I_RobMatch), ...
     initpop_matlist{i}, score_i, sum(I_param_iO), size(pval_i,1)));
   if any(~I_param_iO)
