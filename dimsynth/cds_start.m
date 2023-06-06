@@ -275,7 +275,13 @@ if length(Set.optimization.objective) == 1 && ... % ist immer einkriteriell
 end
 assert(~all(Set.general.taskred_dynprog_numstates == 0), ['Es dürfen nicht', ...
   'alle Einträge in taskred_dynprog_numstates Null sein']);
-
+if strcmp(Set.optimization.objective_ik, 'constant') && Set.general.taskred_dynprog
+  cds_log(1, ['Einstellung objective_ik=constant und taskred_dynprog ' ...
+    'widersprüchlich. Deaktiviere Dynamische Programmierung']);
+  Set.general.taskred_dynprog = false;
+  Set.general.taskred_dynprog_and_gradproj = false;
+  Set.general.taskred_dynprog_only = false;
+end
 % Einige eher kosmetische Einstellungen sollten bei Struktursynthese
 % deaktiviert bleiben
 if length(Set.optimization.objective) == 1 && ... % ist immer einkriteriell
