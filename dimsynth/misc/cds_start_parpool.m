@@ -23,8 +23,12 @@ if Set.general.parcomp_maxworkers <= 1
   return;
 end
 t0 = tic();
+if Set.general.isoncluster % auf Cluster möglicher Zugriffskonflikt für ParPool
+  parpool_writelock('lock', 180, true); % Synchronisationsmittel für ParPool
+end
 for i = 1:5 % Versuche mehrfach, den Pool zu starten
   if i > 1 % Zufällige Wartezeit zur Prävention von Thread-Konflikten
+    cds_log(1, sprintf('[start_parpool] Erneuter Versuch %d nach Fehler', i));
     pause(5+(5+i)*rand());
   end
   Pool = gcp('nocreate');
@@ -37,7 +41,7 @@ for i = 1:5 % Versuche mehrfach, den Pool zu starten
       parfor_numworkers = Pool.NumWorkers;
     catch err
       cds_log(-1, sprintf(['[start_parpool] Fehler beim Starten des parpool ', ...
-        '(%1.1fs nach Funktionsaufruf): %s'], err.message, toc(t0)));
+        '(%1.1fs nach Funktionsaufruf): %s.'], toc(t0), err.message));
       parfor_numworkers = 0; % Kein parfor benutzen
       continue % Nochmal neu versuchen oder Ende der Funktion ohne ParPool
     end
@@ -64,9 +68,12 @@ for i = 1:5 % Versuche mehrfach, den Pool zu starten
       % Siehe https://github.com/altmany/export_fig/issues/75
       parfevalOnAll(gcp(), @warning, 0, 'off', 'MATLAB:prnRenderer:opengl');
     catch err
-      cds_log(-1, sprintf('[start_parpool] Fehler beim Konfigurieren des parpool: %s', err.message));
+      cds_log(-1, sprintf('[start_parpool] Fehler beim Konfigurieren des parpool: %s.', err.message));
       continue % Nochmal neu versuchen oder Ende der Funktion ohne diese Konfiguration
     end
   end
   break; % Bis hier gekommen. Also erfolgreich gestartet.
+end
+if Set.general.isoncluster
+  parpool_writelock('free', 0, true);
 end

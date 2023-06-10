@@ -269,11 +269,23 @@ for kkk = 1:size(EE_FG_allowed,1)
   ActTab = tmp.ActTab;
   [~, PNames_Akt, AdditionalInfo_Akt] = parroblib_filter_robots(EE_FG_allowed(kkk,:), max_rankdeficit);
   for j = 1:length(PNames_Akt)
-    if ~isempty(structset.whitelist) && ~any(strcmp(structset.whitelist, PNames_Akt{j}))
+    RName = '';
+    IsInWhiteList = any(strcmp(structset.whitelist, PNames_Akt{j}));
+    % Prüfe zuerst, ob Roboter in Positiv-Liste ein parametriertes Modell
+    % ist (siehe oben bei seriellen Robotern
+    Idx_Rob = contains(structset.whitelist, [PNames_Akt{j},'_']);
+    IsRobInWhiteList = any(Idx_Rob);
+    if ~isempty(structset.whitelist) && IsRobInWhiteList
+      if sum(Idx_Rob) > 1
+        error('Mehr als ein Robotermodell eingegeben. Noch nicht implementiert');
+      end
+      IsInWhiteList = IsRobInWhiteList;
+      RName = structset.whitelist{Idx_Rob};
+    elseif ~isempty(structset.whitelist) && ~IsInWhiteList
       % Es gibt eine Liste von Robotern, dieser ist nicht dabei.
       continue
     end
-    IsInWhiteList = any(strcmp(structset.whitelist, PNames_Akt{j}));
+    
     % Lade vereinfachte Informationen des Robotermodells
     [NLEG, LEG_Names, ~, Coupling] = parroblib_load_robot(PNames_Akt{j}, 0);
     Ij = strcmp(ActTab.Name, PNames_Akt{j});
@@ -635,7 +647,7 @@ for kkk = 1:size(EE_FG_allowed,1)
       Structures{ii} = struct('Name', PNames_Akt{j}, 'Type', 2, 'Number', ii, ...
         'Coupling', Coupling, 'angles_values', av, 'DoF', EE_FG_allowed(kkk,:), ...
         'act_type', acttype_i, 'deactivated', false, ...
-        'RobName', ''); %#ok<AGROW> % Zur Angleichung an SerRob.
+        'RobName', RName); %#ok<AGROW>
     end
   end
 end
@@ -663,7 +675,7 @@ if ~isempty(Set.structures.repeatlist)
     end
     if ~found
       warning(['Roboter %s soll mehrfach optimiert werden, ist aber gar ', ...
-        'nicht in ursprünglicher Lister der Roboter enthalten.'], Name_i);
+        'nicht in ursprünglicher Liste der Roboter enthalten.'], Name_i);
     end
   end
 end

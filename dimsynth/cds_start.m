@@ -235,9 +235,9 @@ end
 if Set.optimization.constraint_collisions_desopt && ~Set.optimization.constraint_collisions
   error('constraint_collisions_desopt=1, aber constraint_collisions=0. Unlogisch.')
 end
-if length(intersect(Set.optimization.objective_ik, {'default', 'none', 'constant', ...
-    'ikjac_cond', 'jac_cond', 'coll_par', 'instspc_par', 'poserr_ee'})) ~= ...
-    length(Set.optimization.objective_ik)
+defstruct = cds_definitions();
+if length(intersect(Set.optimization.objective_ik, ...
+    defstruct.objective_ik_names_all)) ~= length(Set.optimization.objective_ik)
   error('Set.optimization.objective_ik enthält unerwarteten Wert');
 end
 if ~isempty(intersect(Set.general.eval_figures, {'pareto_desopt', ...
@@ -275,7 +275,13 @@ if length(Set.optimization.objective) == 1 && ... % ist immer einkriteriell
 end
 assert(~all(Set.general.taskred_dynprog_numstates == 0), ['Es dürfen nicht', ...
   'alle Einträge in taskred_dynprog_numstates Null sein']);
-
+if strcmp(Set.optimization.objective_ik, 'constant') && Set.general.taskred_dynprog
+  cds_log(1, ['Einstellung objective_ik=constant und taskred_dynprog ' ...
+    'widersprüchlich. Deaktiviere Dynamische Programmierung']);
+  Set.general.taskred_dynprog = false;
+  Set.general.taskred_dynprog_and_gradproj = false;
+  Set.general.taskred_dynprog_only = false;
+end
 % Einige eher kosmetische Einstellungen sollten bei Struktursynthese
 % deaktiviert bleiben
 if length(Set.optimization.objective) == 1 && ... % ist immer einkriteriell
@@ -535,7 +541,11 @@ if Set.general.computing_cluster
   % Erzeuge Liste aller oben zur Optimierung gefundener Roboter
   Names = {};
   for k = 1:length(Structures)
-    Names = [Names, Structures{k}.Name]; %#ok<AGROW>
+    if ~isempty(Structures{k}.RobName)
+      Names = [Names, Structures{k}.RobName]; %#ok<AGROW>
+    else
+      Names = [Names, Structures{k}.Name]; %#ok<AGROW>
+    end
   end
   % Erzeuge Positiv-Liste für Cluster aus bereits ausgelesener Roboter-DB
   % Teile diese Liste so auf, dass mehrere Cluster-Instanzen parallel
@@ -638,7 +648,9 @@ if Set.general.computing_cluster
     fprintf(fid, '%% Set.general.only_finish_aborted = true;\n');
     fprintf(fid, 'cds_start(Set, Traj);\n');
     % Schließen des ParPools auch in Datei hineinschreiben
+    fprintf(fid, 'parpool_writelock(''lock'', 300, true);\n');
     fprintf(fid, 'delete(gcp(''nocreate''));\n');
+    fprintf(fid, 'parpool_writelock(''free'', 0, true);\n');
     fclose(fid);
 
     % Matlab-Skript auf Cluster starten (Toolbox muss im Pfad sein).
@@ -653,7 +665,7 @@ if Set.general.computing_cluster
       'nodes', 1, ... Nur einen Knoten pro Job (Synthese profitiert nich von mehr Knoten, dafür mehr parallele Jobs)
       ... % Nur so viele Kerne beantragen, wie auch benötigt werden ("ppn")
       'ppn', ppn, ... % 32 ist max. auf Cluster
-      'mem', ceil(16+4*ppn), ... % Hergeleitet aus MaxRSS-Wert aus diversen Job-Status-Emails. 1GB Aufschlag aufgrund erneuter Speicher-Probleme
+      'mem', ceil(16+5*ppn), ... % Hergeleitet aus MaxRSS-Wert aus diversen Job-Status-Emails. 2GB Aufschlag aufgrund wiederholter Speicher-Probleme
       'matFileName', 'dimsynth_start.m', ...
       'locUploadFolder', jobdir, ...
       'time',comptime_est/3600), ... % Angabe in h
@@ -683,7 +695,7 @@ if Set.general.computing_cluster
       'name', computation_name2, ...
       'nodes', 1, ...
       'ppn', min(length(I1_kk:I2_kk),Set.general.computing_cluster_cores), ... % gleiche Anzahl wie oben
-      'mem', ceil(16+4*ppn), ... % gleiche Zahl wie oben (da beim Finish-Job die Fitness-Funktion auch einmal ausgeführt wird)
+      'mem', ceil(16+5*ppn), ... % gleiche Zahl wie oben (da beim Finish-Job die Fitness-Funktion auch einmal ausgeführt wird)
       'matFileName', 'dimsynth_finish.m', ...
       'locUploadFolder', jobdir2, ...
       'time',2), ... % % Geht schnell. Veranschlage 2h. Evtl. länger wegen ParPool-Synchronisation.
@@ -737,11 +749,12 @@ if ~isempty(Set.structures.whitelist)
   for i = 1:length(Structures), Names_in_Struct{i} = Structures{i}.Name; end %#ok<AGROW>
   if Set.general.only_finish_aborted
     % Beim Zusammenfassen werden fehlende Teile ignoriert. Ergänze diese
-    % hier wieder
+    % hier wieder. TODO: Abgrenzung Robotername vs Modellname beachten
     Set.structures.whitelist = unique([Set.structures.whitelist, Names_in_Struct]);
   end
   missing_in_robotlist = setdiff(unique(Set.structures.whitelist), unique(Names_in_Struct));
   missing_in_whitelist = setdiff(unique(Names_in_Struct), unique(Set.structures.whitelist));
+  if ~any(contains(Set.structures.whitelist, '_')) % TODO: Abgrenzung Modellname und Robotername so, dass Warnungen sinnvoll sind.
   if ~isempty(missing_in_whitelist)
     cds_log(-1, sprintf(['Es wurde eine Positiv-Liste mit %d Einträgen ', ...
       'übergeben, dort fehlen %d der jetzt ermittelten %d Strukturen: %s'], ...
@@ -753,6 +766,7 @@ if ~isempty(Set.structures.whitelist)
       'übergeben, aber nur %d dieser Strukturen wurden gewählt. %d fehlen: %s'], ...
       length(Set.structures.whitelist), length(Names_in_Struct{i}), ...
       length(unique(missing_in_robotlist)), disp_array(missing_in_robotlist, '%s')) );
+  end
   end
 end
 
@@ -894,7 +908,7 @@ if ~Set.general.regenerate_summary_only
           R = serroblib_create_robot_class(Names{i});
         else % PKM
           parroblib_writelock('check', 'csv', logical(Set.task.DoF), 5*60, false);
-          R = parroblib_create_robot_class(Names{i},1,1);
+          R = parroblib_create_robot_class(Names{i}, '',  1,1);
         end
         % Hierdurch werden fehlende mex-Funktionen kompiliert.
         if type == 2 % keine gleichzeitige mex-Kompilierung gleicher Kinematiken erlauben.

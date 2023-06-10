@@ -194,13 +194,23 @@ if Set.optimization.ee_rotation && any(Structure.vartypes == 4)
 end
 
 %% Basis-Rotation (um die z-Achse nach der Drehung in Boden-/Deckenmontage)
-if Set.optimization.rotate_base && any(Structure.vartypes == 5)
-  p_baserot = p(Structure.vartypes == 5);
+% Zusätzlich Verkippen der Basis optional
+if (Set.optimization.rotate_base || Set.optimization.tilt_base) && ...
+    any(Structure.vartypes == 5)
+  p_baserot = p(Structure.vartypes == 5); % enthält xyz-Rotation
   p_phys(Structure.vartypes == 5) = p_baserot;
+  p_baserot_xyz = zeros(3,1);
+  if Set.optimization.tilt_base % XYZ-Notation, Kippen mit ersten beiden
+    p_baserot_xyz(1:2) = p_baserot(1:2);
+  end
+  if Set.optimization.rotate_base % Drehen (um z-Achse) mit letztem Param.
+    p_baserot_xyz(end) = p_baserot(end);
+  end
   if Structure.R_W_0_isset
-    phi_W_0 = r2eulxyz(Structure.R_W_0*rotz(p_baserot));
+    phi_W_0 = r2eulxyz(Structure.R_W_0*rotx(p_baserot_xyz(1)) * ...
+      roty(p_baserot_xyz(2)) * rotz(p_baserot_xyz(3)));
   else
-    phi_W_0 = [0;0;p_baserot];
+    phi_W_0 = p_baserot_xyz;
   end
   R_neu.update_base([], phi_W_0);
   if all(Structure.Type == 2) && (all(R_neu.I_EE == [1 1 1 0 0 0]) || all(R_neu.I_EE == [1 1 0 0 0 0]))
@@ -215,7 +225,7 @@ if Set.optimization.rotate_base && any(Structure.vartypes == 5)
         phi_N_E = zeros(3,1);
       end
     end
-    R_neu.update_EE([], phi_N_E+[0;0;p_baserot]);
+    R_neu.update_EE([], phi_N_E+p_baserot_xyz);
   end
   changed_basepose = true;
 end

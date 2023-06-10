@@ -568,7 +568,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           parroblib_writelock('check', 'csv', logical(EE_FG), 10*60, true);
           % Erzeuge Klasse. Dafür Aktuierung A1 angenommen. Ist aber für
           % Generierung der Funktionen egal.
-          RP = parroblib_create_robot_class([Whitelist_Kin{i},'A1'],1,1);
+          RP = parroblib_create_robot_class([Whitelist_Kin{i},'A1'],'', 1, 1);
           % Hierdurch werden fehlende mex-Funktionen kompiliert.
           if settings.use_mex %#ok<PFBNS>
             parroblib_writelock('lock', Whitelist_Kin{i}, logical(EE_FG), 60*60, true);
@@ -991,7 +991,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         fprintf(fid, 'fprintf(''Beginne Funktions-Aktualisierung %%d/%%d für %%s\\n'', i, length(pkm_compilelist), pkm_compilelist{i});\n');
         fprintf(fid, 'if ~any(contains(ActTab.Name, pkm_compilelist{i})), fprintf(''Nicht in Datenbank\\n''); continue; end\n');
         fprintf(fid, 'parroblib_writelock(''lock'', pkm_compilelist{i}, EE_FG, 2*60, 0);\n');
-        fprintf(fid, 'RP=parroblib_create_robot_class(pkm_compilelist{i},0,0);\n');
+        fprintf(fid, 'RP=parroblib_create_robot_class(pkm_compilelist{i},'''',0,0);\n');
         fprintf(fid, 'RP.fill_fcn_handles(true, true);\n');
         fprintf(fid, 'parroblib_update_template_functions(pkm_compilelist(i));\n');
         fprintf(fid, 'parroblib_writelock(''free'', pkm_compilelist{i}, EE_FG, 0, 0);\n');

@@ -117,7 +117,7 @@ if update_collbodies
     % Aktualisiere Kollisionskörper der Segmente (für alle). Betrifft nicht
     % die Plattform- und Gestell-Körper, da diese hiernach gesetzt werden.
     I_update_link = R_cc.collbodies.type == 6 & all(R_cc.collbodies.link ~= 0,2);
-    R_cc.collbodies.params(I_update_link,1) = Set.optimization.collision_bodies_size;
+    R_cc.collbodies.params(I_update_link,1) = Set.optimization.collision_bodies_size/2; % Radius vs Durchmesser
   end
 end
 %% 

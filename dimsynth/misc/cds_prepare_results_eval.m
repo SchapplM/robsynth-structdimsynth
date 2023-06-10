@@ -55,7 +55,7 @@ for type = [0 2]
     if type == 0 % Serieller Roboter
       R = serroblib_create_robot_class(RobNames{i});
     else % PKM
-      R = parroblib_create_robot_class(RobNames{i},1,1);
+      R = parroblib_create_robot_class(RobNames{i},'', 1, 1);
     end
     R.fill_fcn_handles(true, true);
   end

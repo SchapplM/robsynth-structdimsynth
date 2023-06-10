@@ -134,7 +134,7 @@ elseif Structure.Type == 2 % Parallel
   % Bei paralleler Rechnung der Struktursynthese auf Cluster Konflikte vermeiden
   parroblib_writelock('check', 'csv', logical(Set.task.DoF), 5*60, false);
   % Klasse initialisierung (liest auch die csv-Dateien aus).
-  R = parroblib_create_robot_class(Structure.Name, p_base(:), p_platform(:));
+  R = parroblib_create_robot_class(Structure.Name, Structure.RobName, p_base(:), p_platform(:));
   NLEG = R.NLEG;
   R.update_dynpar1(R.DynPar.mges, R.DynPar.rSges, R.DynPar.Icges); % Nochmal initialisieren, damit MPV definiert ist
 else
@@ -731,6 +731,14 @@ elseif Set.optimization.ee_rotation
   end
 end
 
+% Gestell-Neigung: Ermöglicht Ausgleich struktureller Singularitäten
+if Set.optimization.tilt_base
+  nvars = nvars + 2;
+  vartypes = [vartypes; 5; 5];
+  varlim = [varlim; repmat(Set.optimization.max_tilt_base*[-1, 1], 2, 1)];
+  varnames = [varnames(:)', {'baserotation x', 'baserotation y'}];
+end
+
 % Gestell-Rotation: Besonders für PKM relevant. Für Serielle Roboter mit
 % erstem Drehgelenk in z-Richtung irrelevant.
 if Set.optimization.rotate_base && ...
@@ -744,7 +752,7 @@ if Set.optimization.rotate_base && ...
 end
 
 % Basis-Koppelpunkt Positionsparameter (z.B. Gestell-Radius)
-if Structure.Type == 2 && Set.optimization.base_size
+if Structure.Type == 2 && Set.optimization.base_size && isempty(Structure.RobName)
   % TODO: Die Anzahl der Positionsparameter könnte sich evtl ändern
   % Eventuell ist eine Abgrenzung verschiedener Basis-Anordnungen sinnvoll
   nvars = nvars + 1;
@@ -762,7 +770,7 @@ if Structure.Type == 2 && Set.optimization.base_size
 end
 
 % Plattform-Koppelpunkt Positionsparameter (z.B. Plattform-Radius)
-if Structure.Type == 2 && Set.optimization.platform_size
+if Structure.Type == 2 && Set.optimization.platform_size && isempty(Structure.RobName)
   nvars = nvars + 1;
   vartypes = [vartypes; 7];
   if all(~isnan(Set.optimization.platform_size_limits))
@@ -778,7 +786,7 @@ end
 
 % Gestell-Morphologie-Parameter (z.B. Gelenkpaarabstand).
 % Siehe align_base_coupling.m
-if Structure.Type == 2 && Set.optimization.base_morphology
+if Structure.Type == 2 && Set.optimization.base_morphology && isempty(Structure.RobName)
   if any(R.DesPar.base_method == 5:8) % Paarweise Anordnung der Beinketten
     nvars = nvars + 1;
     vartypes = [vartypes; 8];
@@ -826,7 +834,7 @@ end
 
 % Plattform-Morphologie-Parameter (z.B. Gelenkpaarabstand).
 % Siehe align_platform_coupling.m
-if Structure.Type == 2 && Set.optimization.platform_morphology
+if Structure.Type == 2 && Set.optimization.platform_morphology && isempty(Structure.RobName)
   if any(R.DesPar.platform_method == [1:3,7]) % keine Parameter bei Kreis
   elseif any(R.DesPar.platform_method == 4:6) % Parameter ist Gelenkpaarabstand (6FG-PKM)
     nvars = nvars + 1;

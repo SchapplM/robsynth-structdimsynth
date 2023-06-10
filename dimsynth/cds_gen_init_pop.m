@@ -23,7 +23,6 @@ function [InitPop, Q_Pop] = cds_gen_init_pop(Set, Structure)
 nIndTotal = Set.optimization.NumIndividuals;
 varlim = Structure.varlim;
 varnames = Structure.varnames;
-vartypes = Structure.vartypes;
 nvars = length(varnames);
 %% Lade Ergebnisse bisheriger Optimierungen aus dem Ergebnis-Ordner
 t1 = tic();
@@ -58,8 +57,7 @@ else
     initpop_matlist = tmp.initpop_matlist;
   else
     initpop_matlist = {};
-    cds_log(-1, sprintf(['[gen_init_pop] Datei %s existiert nicht.'], ...
-      filename_idx));
+    cds_log(-1, sprintf('[gen_init_pop] Datei %s existiert nicht.', filename_idx));
   end
 end
 %% Lade Ergebnisse aus dem Temp-Ordner
@@ -89,7 +87,7 @@ for i = 1:length(tmpdirsrob)
       RobotOptRes.q0_pareto = tmp.PSO_Detail_Data.q0_ik(~I_dom,:,1+igen);
       RobotOptRes.q0 = RobotOptRes.q0_pareto(1,:)';
       RobotOptRes.fval = RobotOptRes.fval_pareto(1,:)';
-      RobotOptRes.timestamps_start_end = repmat(genfiles(j),1,2); % setze beides auf den Zeitstempel der Datei
+      RobotOptRes.timestamps_start_end = repmat(genfiles(j).datenum,1,2); % setze beides auf den Zeitstempel der Datei
     else
       % TODO: Fall noch nicht definiert.
       continue
@@ -115,6 +113,9 @@ else % Normale Maßsynthese. Begrenze Suchbegriff, damit nicht gierig zu viel ge
     RobFilter  = ['_', RobName, '_'];
   end
 end
+cds_log(2, sprintf(['[gen_init_pop] Suche nach Ergebnissen für \"*%s*\" in %d ' ...
+  'Ergebnis-Dateien für Optimierungs-Parameter {%s}'], RobFilter, ...
+  length(initpop_matlist), disp_array(Structure.varnames, '%s')));
 I_RobMatch = contains(initpop_matlist, RobFilter);
 for i = find(I_RobMatch)'% Unterordner durchgehen.
   dirname_i = fileparts(initpop_matlist{i});
@@ -279,10 +280,23 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
     end
   end
   % TODO: Belege die Parameter aus den gespeicherten Eigenschaften des Roboters
-  
+
+  % Bestimme die Variablennamen ohne die laufende Nummber bei pkin
+  for ll = 1:2
+    if ll == 1, varnames_tmp = Structure_i.varnames;
+    else,       varnames_tmp = Structure.varnames;
+    end
+    [t,~] = regexp(varnames_tmp, 'pkin [\d]+: (.*)', 'tokens', 'match');
+    for ii = 1:length(varnames_tmp)
+      if ~isempty(t{ii}), varnames_tmp{ii} = t{ii}{1}{1}; end
+    end
+    if ll == 1, varnames_i = varnames_tmp;
+    else,       varnames_this = varnames_tmp;
+    end
+  end
   % Bestimme Indizes der in der Datei benutzten und aktuell nicht benutzten Parameter
   [~,missing_local_in_file, missing_file_in_local] = ...
-    setxor(Structure_i.varnames,Structure.varnames);
+    setxor(varnames_i, varnames_this);
   % Debug:
 %   fprintf('Lokale Parameter, fehlend in Datei: {%s}\n', ...
 %     disp_array(Structure_i.varnames(missing_local_in_file),'%s'));
@@ -376,7 +390,8 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
      Structure.Type == 2 && any(Structure.Coupling(2) == [4 5 6]) && ... % PKM, Plattform paarweise
      all(~isnan(Set.optimization.platform_size_limits)) && ... % Plattform-Grenzen gegeben
      any(Structure.vartypes == 9) && ... % Morphologie wird optimiert
-     Set.optimization.platform_size_limits(1)~=Set.optimization.platform_size_limits(2) % Grenzen nicht gleich
+     Set.optimization.platform_size_limits(1)~=Set.optimization.platform_size_limits(2) ... % Grenzen nicht gleich
+     || Set.optimization.tilt_base  % Neigungswinkel für Gestell werden optimiert
     for jjj = 1:size(pval_i,1)
       p_phys_jjj=cds_update_robot_parameters([], Set, Structure, pval_i(jjj,:)');
       % Der Winkel wird direkt physikalisch eingesetzt. Alle anderen Parameter sind egal.
@@ -418,6 +433,20 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
         missing_local_in_file(missing_local_in_file==ll) = 0;
       end
     end
+    % Ignoriere die Neigung des Gestells. Annahme: Könnte geometrisch
+    % trotzdem gut funktionieren und wird bestraft durch Abweichung der
+    % Einstellungen.
+    for ll = 1:length(Structure_i.varnames)
+      if contains(Structure_i.varnames{ll}, 'baserotation')
+        missing_local_in_file(missing_local_in_file==ll) = 0;
+      end
+    end
+    % Ignoriere die Neigung des EE. Gleiche Annahme
+    for ll = 1:length(Structure_i.varnames)
+      if contains(Structure_i.varnames{ll}, 'ee rot')
+        missing_local_in_file(missing_local_in_file==ll) = 0;
+      end
+    end
     % Falls unterschiedliche Koppelgelenkanordnungen geladen werden, setze
     % die zusätzlichen Parameter auf Null
     I_coupl_i = (Structure_i.vartypes == 8 | Structure_i.vartypes == 9)';
@@ -436,7 +465,7 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
         'Ordner %s unterschiedlich (%d vs %d). Keine Anfangswerte ableitbar. ', ...
         'Unterschied: {%s}. Bestimmbar: {%s}'], fileparts(initpop_matlist{i}), ...
         length(Structure.vartypes), length(Structure_i.vartypes), ...
-        disp_array(setxor(Structure_i.varnames, Structure.varnames)), ...
+        disp_array(setxor(varnames_i, varnames_this)), ...
         disp_array(Structure.varnames(~isnan(pval_i_const)), '%s')));
       continue
     end
@@ -467,7 +496,7 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
   % gesetzter Parameter in Ordnung ist. Es werden dann unten statt
   % gespeicherter Werte Zufallswerte eingesetzt.
   I_param_iO = all(ll_repmat <= pval_i & ul_repmat >= pval_i | isnan(pval_i) ,2);
-  cds_log(1, sprintf(['[gen_init_pop] Auswertung %d/%d (%s) geladen. ', ...
+  cds_log(2, sprintf(['[gen_init_pop] Auswertung %d/%d (%s) geladen. ', ...
     'Bewertung: %d. Bei %d/%d Parametergrenzen passend.'], i, sum(I_RobMatch), ...
     initpop_matlist{i}, score_i, sum(I_param_iO), size(pval_i,1)));
   if any(~I_param_iO)

@@ -55,7 +55,7 @@ CollSet = struct('collsearch', true);
 % Im Debug-Modus auch die vollständigen Kollisionsabstände berechnen.
 % Benötigt ca. 20% mehr Rechenzeit für Kollisionsprüfung.
 if Set.general.verbosity >= 3, CollSet.collsearch = false; end
-[coll, colldepth_abs, colldepth_rel] = check_collisionset_simplegeom_mex( ...
+[coll, colldepth_abs, colldepth_rel, coll_pts] = check_collisionset_simplegeom_mex( ...
   collbodies, collchecks, JP, CollSet);
 % Folgende Debug-Prüfung ist nur sinnvoll, wenn collsearch auf true ist.
 % if any(abs(colldepth_rel(:))>1) || any(abs(colldepth_rel(:))<0)
@@ -163,6 +163,16 @@ for i = 1:size(collbodies.link,1)
     drawCapsule([pts_W(1:3)',pts_W(4:6)',r],'FaceColor', color, 'FaceAlpha', 0.3);
   else
     drawSphere([pts_W(1:3)',r],'FaceColor', color, 'FaceAlpha', 0.3);
+  end
+  % Kollisionspunkte einzeichnen
+  for kk = find(coll(j,:))
+    collpts_kk_0 = coll_pts(kk, 1:6, j)';
+    collpts_kk_W = repmat(R.T_W_0(1:3,4),2,1) + rotate_wrench(collpts_kk_0, R.T_W_0(1:3,1:3));
+    hdl1=plot3(collpts_kk_W(1), collpts_kk_W(2), collpts_kk_W(3), 'mx', 'MarkerSize', 30);
+    hdl2=plot3(collpts_kk_W(4), collpts_kk_W(5), collpts_kk_W(6), 'c+', 'MarkerSize', 25);
+  end
+  if any(coll(j,:))
+    legend([hdl1,hdl2], {'Kollisionsmitte (1)', 'Kollisionsmitte (2)'})
   end
 end
 sgtitle(sprintf('Selbstkollisionsprüfung. Schritt %d/%d: %d/%d Koll. Sum. rel. Tiefe: %1.2f', ...

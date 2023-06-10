@@ -96,6 +96,8 @@ if Structure.task_red && strcmp(Set.optimization.objective_ik, 'constant')
   Traj_0.X(:,6) = x2(6);
   Traj_0.XD(:,6) = 0; Traj_0.XDD(:,6) = 0;
   R.update_EE_FG(R.I_EE, [R.I_EE_Task(1:5), 1]); % Auf nicht-redundant setzen
+  % Dynamische Programmierung deaktivieren (mit konstanter Orientierung sinnlos)
+  Set.general.taskred_dynprog = false;
 end
 constrvioltext_alt = '';
 % Speicherung für Linien in Redundanzkarte
@@ -783,6 +785,18 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     'Tv', T_dec_dp/2, ...
     'debug_dir', fullfile(resdir,sprintf('%s_dynprog_it%d', name_prefix_ardbg, i_ar)), ...
     'continue_saved_state', true); % Debuggen: Falls mehrfach gleicher Aufruf
+  if strcmp(Set.optimization.objective_ik, 'maxactvelo') || ...
+      strcmp(Set.optimization.objective_ik, 'default') && any(strcmp(Set.optimization.objective, 'actvelo'))
+    s_dp.cost_criterion = 'actvelo';
+  elseif strcmp(Set.optimization.objective_ik, 'maxactforce')
+    s_dp.cost_criterion = 'actforce';
+  elseif ~isempty(intersect(Set.optimization.objective, {'positionerror','condition'}))
+    % Die Zielfunktionen sind direkt mit den IK-Zielen übereinstimmend und
+    % leichter zu berechnen als die Antriebskraft. Wähle diese Ziele
+  elseif strcmp(Set.optimization.objective_ik, 'default') && ...
+      any(strcmp(Set.optimization.objective, 'actforce'))
+    s_dp.cost_criterion = 'actforce';
+  end
   if R.I_EE_Task(6) == 1 % Keine Nullraumoptimierung in DP.
     s_dp.T_dec_ns = 0; % Kein Abbremsen der Nullraumbewegung notwendig
     s_dp.Tv = 0;

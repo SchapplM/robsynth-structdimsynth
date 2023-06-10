@@ -96,6 +96,8 @@ if Set.task.pointing_task && ~isempty(RobotOptDetails.Traj_Q) && traj_available
   XD(:,6) = XD_fk(:,6); XDD(:,6) = XDD_fk(:,6);
   XE(Traj_0.IE~=0,:) = X(Traj_0.IE(Traj_0.IE~=0),:);
 end
+% Entferne Sprünge der Euler-Winkel von +/- 180° (sind in Eingabe schon so)
+X(:,4:6) = denormalize_angle_traj(X(:,4:6)); 
 if RobData.Type ~= 0
   R.update_EE_FG(R.I_EE, R.I_EE);
 end
