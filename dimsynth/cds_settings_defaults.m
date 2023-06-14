@@ -166,6 +166,7 @@ optimization = struct( ...
   'base_tolerance_prismatic_guidance', 1.0, ... % Erhöhte Toleranz für das Überstehen von Schubgelenk-Führungsschienen
   'platform_size', true, ... % Größe der Plattform
   'platform_size_limits', [NaN, NaN], ... % Grenzen für Plattform-Größe (Radius; Absolut; bei paarweiser Anordnung wird effektiver Radius gezählt)
+  'max_platform_base_ratio', inf, ... % Plattform sollte nicht so viel mal größer als die Basis sein
   'base_morphology', true, ... % Aussehen des Gestells (z.B. Schrägheit, Gelenkpaarabstand)
   'platform_morphology', true, ... % Aussehen der Plattform (z.B. Gelenkpaarabstand)
   'tilt_base', false, ... % Kippen der Roboter-Basis (über Rotation um x- und y-Achse). Ermöglicht Ausweichen struktureller Singularitäten

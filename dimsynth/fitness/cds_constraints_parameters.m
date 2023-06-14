@@ -26,6 +26,7 @@
 %   5e13...6e13: Die Gelenkabstände sind zu klein
 %   6e13...7e13: Neigung der Basis ist zu groß
 %   7e13...8e13: Beinketten sind zu lang
+%   8e13...9e13: Plattform ist relativ zum Gestell zu groß
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2023-02
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
@@ -101,19 +102,27 @@ if Structure.Type == 2 && any(Structure.Coupling(2) == 9) && ...
   end
 end
 %% Prüfe effektiven Radius für paarweise Gestell-Gelenke
-if Structure.Type == 2 && any(Structure.Coupling(1) == [5 6 7 8]) && ... % PKM, Gestell paarweise
-    all(~isnan(Set.optimization.base_size_limits)) && ... % Gestell-Grenzen gegeben
-    any(Structure.vartypes == 8) && ... % Morphologie wird optimiert
-    Set.optimization.base_size_limits(1)~=Set.optimization.base_size_limits(2) % Grenzen nicht gleich
-  r_plf = p(Structure.vartypes == 6); % Gestell-Radius
-  p_plf_morph = p_phys(Structure.vartypes == 8); % Gestell-Morphologie-Parameter
-  d_plf_pair = p_plf_morph(1); % Paar-Abstand
-  r_eff = sqrt((d_plf_pair/2)^2 + r_plf^2); % effektiver Radius (zum Gelenkpunkt)
+check_base_r_eff_valid = Structure.Type == 2 && ...
+    any(Structure.Coupling(1) == [5 6 7 8]) && ... % PKM, Gestell paarweise
+    any(Structure.vartypes == 8); % Morphologie wird optimiert
+check_base_r_eff_constr = all(~isnan(Set.optimization.base_size_limits)) && ... % Gestell-Grenzen gegeben
+    Set.optimization.base_size_limits(1)~=Set.optimization.base_size_limits(2); % Grenzen nicht gleich
+if check_base_r_eff_valid && (check_base_r_eff_constr || ~isinf(Set.optimization.max_platform_base_ratio))
+  r_base = p(Structure.vartypes == 6); % Gestell-Radius
+  p_base_morph = p_phys(Structure.vartypes == 8); % Gestell-Morphologie-Parameter
+  d_base_pair = p_base_morph(1); % Paar-Abstand
+  r_base_eff = sqrt((d_base_pair/2)^2 + r_base^2); % effektiver Radius (zum Gelenkpunkt)
+elseif Set.optimization.base_size_limits(1)==Set.optimization.base_size_limits(2) % Grenzen gleich
+  r_base_eff = Set.optimization.base_size_limits(1);
+else % nicht benötigt oder nicht paarweise, also direkt ablesbar
+  r_base_eff = p(Structure.vartypes == 6); % Gestell-Radius
+end
+if check_base_r_eff_valid && check_base_r_eff_constr
   if ~isempty(R) 
-    r_eff2 = norm(R.r_0_A_all(:,1)); % Effektiver Radius (Abstand des Gelenks zur Mitte)
-    assert(all(abs(r_eff2-r_eff)<1e-10), 'Berechnung des effektiven Gestell-Radius stimmt nicht');
+    r_base_eff2 = norm(R.r_0_A_all(:,1)); % Effektiver Radius (Abstand des Gelenks zur Mitte)
+    assert(all(abs(r_base_eff2-r_base_eff)<1e-10), 'Berechnung des effektiven Gestell-Radius stimmt nicht');
   end
-  r_eff_exc_rel = (r_eff - Set.optimization.base_size_limits(1)) / ...
+  r_eff_exc_rel = (r_base_eff - Set.optimization.base_size_limits(1)) / ...
     (Set.optimization.base_size_limits(2)-Set.optimization.base_size_limits(1));
   if r_eff_exc_rel > 1 % obere Grenze überschritten durch zu großen Paarabstand
     fval = 1e13 * (3 + 1 * 2/pi*atan(r_eff_exc_rel-1)); % normiere auf 3e13 bis 4e13
@@ -135,25 +144,34 @@ if Structure.Type == 2 && any(Structure.Coupling(1) == [5 6 7 8]) && ... % PKM, 
   end
 end
 %% Prüfe effektiven Radius für paarweise Plattform-Gelenke
-if Structure.Type == 2 && any(Structure.Coupling(2) == [4 5 6]) && ... % PKM, Plattform paarweise
-    all(~isnan(Set.optimization.platform_size_limits)) && ... % Plattform-Grenzen gegeben
-    any(Structure.vartypes == 9) && ... % Morphologie wird optimiert
-    Set.optimization.platform_size_limits(1)~=Set.optimization.platform_size_limits(2) % Grenzen nicht gleich
+% Berechne den effektiven Radius falls benötigt
+check_plf_r_eff_valid = Structure.Type == 2 && ...
+  any(Structure.Coupling(2) == [4 5 6]) && ... % PKM, Plattform paarweise
+  any(Structure.vartypes == 9); % Morphologie wird optimiert
+check_plf_r_eff_constr = all(~isnan(Set.optimization.platform_size_limits)) && ... % Plattform-Grenzen gegeben
+    Set.optimization.platform_size_limits(1)~=Set.optimization.platform_size_limits(2); % Grenzen nicht gleich
+if check_plf_r_eff_valid && (check_plf_r_eff_constr || ~isinf(Set.optimization.max_platform_base_ratio))
   r_plf = p(Structure.vartypes == 7); % Plattform-Radius
   p_plf_morph = p_phys(Structure.vartypes == 9); % Plattform-Morphologie-Parameter
   d_plf_pair = p_plf_morph(1); % Paar-Abstand
-  r_eff = sqrt((d_plf_pair/2)^2 + r_plf^2); % effektiver Radius (zum Gelenkpunkt)
+  r_plf_eff = sqrt((d_plf_pair/2)^2 + r_plf^2); % effektiver Radius (zum Gelenkpunkt)
+elseif Set.optimization.platform_size_limits(1)==Set.optimization.platform_size_limits(2) % Grenzen gleich
+  r_plf_eff = Set.optimization.platform_size_limits(1);
+else % nicht benötigt oder nicht paarweise, also direkt ablesbar
+  r_plf_eff = p(Structure.vartypes == 7); % Plattform-Radius
+end
+if check_plf_r_eff_valid && check_plf_r_eff_constr  
   if ~isempty(R)
-    r_eff2 = norm(R.r_P_B_all(:,1)); % Effektiver Radius (Abstand des Gelenks zur Mitte)
-    assert(all(abs(r_eff2-r_eff)<1e-10), 'Berechnung des effektiven Plattform-Radius stimmt nicht');
+    r_plf_eff2 = norm(R.r_P_B_all(:,1)); % Effektiver Radius (Abstand des Gelenks zur Mitte)
+    assert(all(abs(r_plf_eff2-r_plf_eff)<1e-10), 'Berechnung des effektiven Plattform-Radius stimmt nicht');
   end
-  r_eff_exc_rel = (r_eff - Set.optimization.platform_size_limits(1)) / ...
+  r_eff_exc_rel = (r_plf_eff - Set.optimization.platform_size_limits(1)) / ...
     (Set.optimization.platform_size_limits(2)-Set.optimization.platform_size_limits(1));
   if r_eff_exc_rel > 1 % obere Grenze überschritten durch zu großen Paarabstand
     fval = 1e13 * (4 + 1 * 2/pi*atan(r_eff_exc_rel-1)); % normiere auf 4e13 bis 5e13
     constrvioltext = sprintf(['Plattform-Paarabstand ist um %1.1f%% zu groß. ', ...
       'Effektiver Plattform-Radius damit %1.1fmm (erlaubt: %1.1fmm ... %1.1fmm)'], ...
-      100*(r_eff_exc_rel-1), 1e3*r_eff, 1e3*Set.optimization.platform_size_limits(1), ...
+      100*(r_eff_exc_rel-1), 1e3*r_plf_eff, 1e3*Set.optimization.platform_size_limits(1), ...
       1e3*Set.optimization.platform_size_limits(2));
     return
   elseif r_eff_exc_rel < 0
@@ -163,7 +181,7 @@ if Structure.Type == 2 && any(Structure.Coupling(2) == [4 5 6]) && ... % PKM, Pl
     fval = 1e13 * (4 + 1 * 2/pi*atan(-r_eff_exc_rel)); % normiere auf 4e13 bis 5e13
     constrvioltext = sprintf(['Plattform-Paarabstand ist um %1.1f%% zu klein. ', ...
       'Effektiver Plattform-Radius damit %1.1fmm (erlaubt: %1.1fmm ... %1.1fmm)'], ...
-      100*(-r_eff_exc_rel), 1e3*r_eff, 1e3*Set.optimization.platform_size_limits(1), ...
+      100*(-r_eff_exc_rel), 1e3*r_plf_eff, 1e3*Set.optimization.platform_size_limits(1), ...
       1e3*Set.optimization.platform_size_limits(2));
     return
   end
@@ -243,6 +261,17 @@ if ~isinf(Set.optimization.max_chain_length)
     fval = 1e13 * (7 + 1 * 2/pi*atan(RelNormViol-1)); % normiere auf 7e13 bis 8e13
     constrvioltext = sprintf(['Länge der kinematischen Kette zu groß. ' ...
       '%1.1fmm>%1.1fmm'], 1e3*Lchain, 1e3*Set.optimization.max_chain_length);
+    return
+  end
+end
+%% Prüfe das Verhältnis von Gestell- und Plattformdurchmesser
+if ~isinf(Set.optimization.max_platform_base_ratio)
+  pbr = r_plf_eff / r_base_eff;
+  if pbr > Set.optimization.max_platform_base_ratio
+    RelNormViol = pbr / Set.optimization.max_platform_base_ratio;
+    fval = 1e13 * (8 + 1 * 2/pi*atan(RelNormViol-1)); % normiere auf 8e13 bis 9e13
+    constrvioltext = sprintf(['Verhältnis von Plattform- zu Gestelldurchmesser zu groß. ' ...
+      '%1.1fmm/%1.1fmm > %1.1f%%'], 1e3*r_plf_eff, 1e3*r_base_eff, 1e2*Set.optimization.max_platform_base_ratio);
     return
   end
 end
