@@ -25,6 +25,7 @@
 %   4e13...5e13: Das gleiche für effektiven Radius paarweiser Plattformgelenke
 %   5e13...6e13: Die Gelenkabstände sind zu klein
 %   6e13...7e13: Neigung der Basis ist zu groß
+%   7e13...8e13: Beinketten sind zu lang
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2023-02
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
@@ -167,19 +168,20 @@ if Structure.Type == 2 && any(Structure.Coupling(2) == [4 5 6]) && ... % PKM, Pl
     return
   end
 end
-%% Prüfe minimalen Gelenkabstand
-if Set.optimization.min_joint_distance > 0
-  % Gehe alle a-/d-Variablen durch und bestimme daraus den Abstand
+%% Bestimme DH-Tabelle aus den Optimierungsvariablen
+% Dadurch muss nicht die Roboter-Klasse benutzt werden (dauert länger)
+if Set.optimization.min_joint_distance > 0 || ~isinf(Set.optimization.max_chain_length)
+  % Gehe alle a-/d-Variablen durch und liste diese auf
   [tokens, ~] = regexp(Structure.varnames, 'pkin \d+: ([ad])(\d)', 'tokens', 'match');
   DHtable = NaN(7,3); % Spalten: a-Param., d-Param., Norm. Zeile: Gelenke
   for i = 1:length(tokens)
     if isempty(tokens{i}), continue; end
-      if tokens{i}{1}{1} == 'a', j = 1;
-      elseif tokens{i}{1}{1} == 'd', j = 2; % d-Param.
-      else, error('Unerwartetes Muster in Structure.varnames');
-      end
-      k = str2double(tokens{i}{1}{2}); % Gelenknummer
-      DHtable(k,j) = p(1) * p(i); % Skaliere auf physikalischen Wert
+    if tokens{i}{1}{1} == 'a', j = 1;
+    elseif tokens{i}{1}{1} == 'd', j = 2; % d-Param.
+    else, error('Unerwartetes Muster in Structure.varnames');
+    end
+    k = str2double(tokens{i}{1}{2}); % Gelenknummer
+    DHtable(k,j) = p(1) * p(i); % Skaliere auf physikalischen Wert
   end
   % Berechne den Abstand zum vorherigen Gelenk. Keine Beachtung von U/S
   % Gelenken notwendig, da diese sowieso keine Optimierungsparameter haben
@@ -190,6 +192,11 @@ if Set.optimization.min_joint_distance > 0
     % Gelenkabstand aus a- und d-Parameter berechnen
     DHtable(i,3) = sqrt(DHtable(i,1)^2 + DHtable(i,2)^2);
   end
+else
+  DHtable = [];
+end
+%% Prüfe minimalen Gelenkabstand
+if Set.optimization.min_joint_distance > 0
   RelNormViol = DHtable(:,3) / Set.optimization.min_joint_distance;
   if any(RelNormViol < 1)
     [minRelNormViol, IminRelNormViol] = min(RelNormViol);
@@ -219,6 +226,23 @@ if Set.optimization.tilt_base
     constrvioltext = sprintf(['Gestellneigung ist zu groß. %1.1f°>%1.1f° ' ...
       '(phi_x=%1.1f°, phi_y=%1.1f°)'], 180/pi*phi_B, 180/pi * ...
       Set.optimization.max_tilt_base, 180/pi*p_baserot(1), 180/pi*p_baserot(2));
+    return
+  end
+end
+%% Prüfe Länge der Beinketten
+if ~isinf(Set.optimization.max_chain_length)
+  % Berechne die Länge der Beinketten (ohne Betrachtung von Schubgelenken)
+  Lchain = sum(DHtable(~isnan(DHtable(:,3)),3));
+  if ~isempty(R)
+    if R.Type == 0, Lchain2 = R.reach(zeros(R.NJ,2));
+    else,           Lchain2 = R.Leg(1).reach(zeros(R.Leg(1).NJ,2)); end
+    assert(abs(Lchain-Lchain2)<1e-6, 'Berechnung der Kettenlänge inkonsistent');
+  end
+  if Lchain > Set.optimization.max_chain_length
+    RelNormViol = Lchain / Set.optimization.max_chain_length;
+    fval = 1e13 * (7 + 1 * 2/pi*atan(RelNormViol-1)); % normiere auf 7e13 bis 8e13
+    constrvioltext = sprintf(['Länge der kinematischen Kette zu groß. ' ...
+      '%1.1fmm>%1.1fmm'], 1e3*Lchain, 1e3*Set.optimization.max_chain_length);
     return
   end
 end

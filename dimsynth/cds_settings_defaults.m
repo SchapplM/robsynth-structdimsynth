@@ -160,6 +160,7 @@ optimization = struct( ...
   'ee_translation_only_serial', true, ... % ... nur bei seriellen Robotern
   'ee_rotation', true, ... % Freie Rotation des EE
   'ee_rotation_fixed', NaN(1,3), ... % vorgegebene EE-Transformation (bspw. bereits konstruierter Endeffektor). Entspricht phi_N_E (SerRob) bzw. phi_P_E (ParRob); XYZ-Euler-Winkel
+  'max_chain_length', inf, ... % maximale Länge der Beinketten (bei PKM) bzw. max. Länge der seriellen Kinematik (in m)
   'base_size', true, ... % Größe des Gestells
   'base_size_limits', [NaN, NaN], ... % Grenzen für Gestell-Größe (Radius; Absolut; bei paarweiser Anordnung wird effektiver Radius gezählt)
   'base_tolerance_prismatic_guidance', 1.0, ... % Erhöhte Toleranz für das Überstehen von Schubgelenk-Führungsschienen

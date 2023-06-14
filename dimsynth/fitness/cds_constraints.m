@@ -24,7 +24,8 @@
 %   3.5e5...4e5: Selbstkollision in Einzelpunkten (Prüfung nach IK aller Punkte)
 %   4e5...4.25e5: Schubzylinder geht ... (symmetrisch für PKM)
 %   4.25e5...4.5e5: Schubzylinder geht zu weit nach hinten weg (nach IK erkannt)
-%   4.5e5...5e5: Gestell ist wegen Schubgelenken zu groß (nach IK erkannt)
+%   4.5e5...4.9e5: Gestell ist wegen Schubgelenken zu groß (nach IK erkannt)
+%   4.9e5...5e5: Beinkette ist zu lang (wegen Schubgelenken)
 %   5e5...5.5e5: Plattform-Rotation entspricht nicht den gegebenen Grenzen
 %   5.5e5...6e5: Gelenkwinkelgrenzen (Absolut) in Einzelpunkten
 %   6e5...7e5: Gelenkwinkelgrenzen (Spannweite) in Einzelpunkten
@@ -73,8 +74,8 @@ if ~isnan(Set.optimization.max_range_prismatic) && any(R.MDH.sigma==1)
   qlim_tmp(R.MDH.sigma==1) = 5*Structure.Lref;
   R.update_qlim(qlim_tmp);
 end
-if R.Type == 0, Lchain = R.reach(); % Berechne maximale Länge der Beinkette
-else,           Lchain = R.Leg(1).reach(); end
+if R.Type == 0, Lchain = R.reach(); % Berechne maximale Länge der Kinematik ...
+else,           Lchain = R.Leg(1).reach(); end % ... bzw. der Beinkette bei PKM
 if ~isnan(Set.optimization.max_range_prismatic) && any(R.MDH.sigma==1)
   R.update_qlim(qlim); % Rückgängig machen (Grenzen werden aber sowieso später angepasst)
 end
@@ -1384,6 +1385,30 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     [Structure.collbodies_robot, Structure.installspace_collbodies] = ...
       cds_update_collbodies(R, Set, Structure, QE);
   end
+  %% Prüfe Länge der Beinketten für geänderte Positionsgrenze von Schubgelenk
+  if ~isinf(Set.optimization.max_chain_length)
+    q_minmax = NaN(R.NJ, 2);
+    q_minmax(R.MDH.sigma==1,:) = minmax2(QE(:,R.MDH.sigma==1)');
+    if R.Type == 0 || ...  % Seriell
+        ~Set.optimization.joint_limits_symmetric_prismatic 
+      q_minmax_sym = q_minmax;
+    elseif R.Type == 2  % Symmetrische PKM
+      q_minmax_sym = q_minmax(R.I1J_LEG(1):R.I2J_LEG(1),:);
+      % Grenzen durch Min-/Max-Werte aller Beinketten finden
+      for i = 2:R.NLEG
+        q_minmax_sym = minmax2([q_minmax_sym, q_minmax(R.I1J_LEG(i):R.I2J_LEG(i),:)]);
+      end
+    end
+    if R.Type == 0, Lchain = R.reach(q_minmax_sym);
+    else,           Lchain = R.Leg(1).reach(q_minmax_sym(1:R.Leg(1).NJ,2)); end
+    if Lchain > Set.optimization.max_chain_length
+      RelNormViol = Lchain / Set.optimization.max_chain_length;
+      fval = 1e5 * (4.9 + 0.1 * 2/pi*atan(RelNormViol-1));  % Normierung auf 4.9e5 bis 5e5
+      constrvioltext = sprintf(['Länge der kinematischen Kette zu groß mit Schubgelenken. ' ...
+        '%1.1fmm>%1.1fmm'], 1e3*Lchain, 1e3*Set.optimization.max_chain_length);
+      return
+    end
+  end
   %% Prüfe Gestell-Durchmesser durch geänderte gestellfeste Führungsschienen
   if ~isnan(Set.optimization.base_size_limits(2)) && ...% Obere Grenze für Gestell-Radius gesetzt
       any(Structure.I_firstprismatic) % Es gibt ein gestellfestes Schubgelenk
@@ -1404,7 +1429,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         'achsen-Führungsschienen um %1.0f%% zu groß (%1.1fmm>%1.1fmm).'], ...
         100*fval_rbase, 1e3*r_base_eff, 1e3*1/((fval_rbase+1)/r_base_eff));
       fval_rbase_norm = 2/pi*atan(fval_rbase*3); % Normierung auf 0 bis 1; 100% zu groß ist 0.8
-      fval_jic(jic) = 1e5*(4.5+0.5*fval_rbase_norm); % Normierung auf 4.5e5 bis 5e5
+      fval_jic(jic) = 1e5*(4.5+0.4*fval_rbase_norm); % Normierung auf 4.5e5 bis 4.9e5
       calctimes_jic(i_ar,jic) = toc(t1);
       continue;
     end
