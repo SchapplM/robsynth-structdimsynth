@@ -443,7 +443,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   constrvioltext_jic{jic} = ''; % hier zurücksetzen. Berechne Nebenbedingungen ab hier neu.
   constrvioltext2_jic{jic} = '';
   I_TrajCheck = 1:size(Traj_0.XE,1);
-  if any(jic == I_jic5_phizkomb)
+  if any(jic == I_jic5_phizkomb) && Set.task.profile ~= 0 % Wenn es keine Trajektorie gibt, werden alle Punkte benötigt
     I_TrajCheck = 1; % nur den ersten Punkt prüfen
   end
   % IK für alle Eckpunkte
@@ -1566,6 +1566,11 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       break;
     end
   end
+  if any(any(isnan(Q_jic(:,:,jic)))) && fval_jic(jic) == 1e3
+    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+      'tmp', 'cds_constraints_Qjic_NaN_error.mat'));
+    error('Q_jic für jic=%d enthält NaN, obwohl Konfig. erfolgreich', jic);
+  end
   if i_ar == 2 && fval_jic(jic) < fval_jic_old(jic)
     fval_jic(jic) = fval_jic_old(jic);
     Q_jic(:,:,jic) =  Q_jic_old(:,:,jic);
@@ -1678,6 +1683,11 @@ else % Gebe alle gültigen Lösungen aus
   % Ausgabe der IK-Werte für alle Eckpunkte. Im weiteren Verlauf der
   % Optimierung benötigt, falls keine Trajektorie berechnet wird.
   QE_all = Q_jic(:,:,I_iO);
+  if any(isnan(QE_all(:))) % Prüfe auf Korrektheit
+    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+      'tmp', 'cds_constraints_QEall_NaN_error.mat'));
+    error('Gelenkwinkel für i.O.-Konfigurationen sind NaN');
+  end
   % Debug: Zeige die verschiedenen Lösungen an
   if Set.general.plot_details_in_fitness < 0 && 1e4*fval >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
      Set.general.plot_details_in_fitness > 0 && 1e4*fval <= abs(Set.general.plot_details_in_fitness)
