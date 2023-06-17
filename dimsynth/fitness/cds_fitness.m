@@ -413,9 +413,9 @@ for iIKC = I_IKC
     end
   end
   %% Trajektorie berechnen
+  Structure.config_index = iIKC; % Index dieser Konfiguration (für Debuggen)
+  Structure.config_number = size(Q0,1); % Anzahl der Konfigurationen insgesamt
   if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
-    Structure.config_index = iIKC;
-    Structure.config_number = size(Q0,1);
     t0 = tic();
     try
       [fval_trajconstr,Q,QD,QDD,Jinv_ges,JP,constrvioltext_IKC{iIKC}, Traj_0_corr] = ...
