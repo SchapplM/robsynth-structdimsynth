@@ -1241,7 +1241,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
             Jinv_E(ii,:) = Jinv_ii(:);
           end
           Jinv_ii = reshape(Jinv_E(ii,:), R.NJ, sum(R.I_EE));
-          if isnan(condJ(ii)), condJ(ii) = cond(Jinv_ii(R.I_qa, R.I_EE)); end
+          if isnan(condJ(ii)), condJ(ii) = cond(Jinv_ii(R.I_qa, :)); end
         end
       end
     end
