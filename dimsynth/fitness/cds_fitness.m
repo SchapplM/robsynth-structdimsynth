@@ -137,7 +137,15 @@ end
 p_phys = cds_update_robot_parameters(R, Set, Structure, p);
 
 %% Plausibilitätsprüfung der Parameter
-[fval_constrparam, constrvioltext] = cds_constraints_parameters(R, Set, Structure, p, p_phys);
+try
+  [fval_constrparam, constrvioltext] = cds_constraints_parameters(R, Set, Structure, p, p_phys);
+catch err
+  cds_log(-1, sprintf('[fitness] Fehler in cds_constraints_parameters: %s', err.message));
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+    'tmp', ['cds_fitness_call_cds_constraints_parameters_error_', R.mdlname, '.mat']));
+  abort_fitnesscalc = true;
+  return
+end
 if fval_constrparam > 0
   fval(:) = fval_constrparam;
   cds_log(2,sprintf(['[fitness] G=%d;I=%d. Fitness-Evaluation in %1.2fs. ', ...
@@ -160,7 +168,15 @@ if all(isnan(qlim_test(:)))
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
     'tmp', 'cds_fitness_qlimnan_error_debug.mat'));
 end
-[fval_constr,QE_iIKC, Q0, constrvioltext, Stats_constraints] = cds_constraints(R, Traj_0_E, Set, Structure);
+try
+  [fval_constr,QE_iIKC, Q0, constrvioltext, Stats_constraints] = cds_constraints(R, Traj_0_E, Set, Structure);
+catch err
+  cds_log(-1, sprintf('[fitness] Fehler in cds_constraints: %s', err.message));
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+    'tmp', ['cds_fitness_call_cds_constraints_error_', R.mdlname, '.mat']));
+  abort_fitnesscalc = true;
+  return
+end
 cds_log(2,sprintf(['[fitness] G=%d;I=%d. Nebenbedingungen für Einzelpunkte ', ...
   'in %1.2fs geprüft. %d IK-Konfigurationen gefunden. fval_constr=%1.3e. %s'],...
   i_gen, i_ind, toc(t0), size(Q0,1)-sum(any(isnan(Q0),2)), fval_constr, constrvioltext));
@@ -399,8 +415,16 @@ for iIKC = I_IKC
     Structure.config_index = iIKC;
     Structure.config_number = size(Q0,1);
     t0 = tic();
-    [fval_trajconstr,Q,QD,QDD,Jinv_ges,JP,constrvioltext_IKC{iIKC}, Traj_0_corr] = ...
-      cds_constraints_traj(R, Traj_0, Q0(iIKC,:)', Set, Structure, Stats_constraints);
+    try
+      [fval_trajconstr,Q,QD,QDD,Jinv_ges,JP,constrvioltext_IKC{iIKC}, Traj_0_corr] = ...
+        cds_constraints_traj(R, Traj_0, Q0(iIKC,:)', Set, Structure, Stats_constraints);
+    catch err
+      cds_log(-1, sprintf('[fitness] Fehler in cds_constraints_traj: %s', err.message));
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+        'tmp', ['cds_fitness_call_cds_constraints_traj_error_', R.mdlname, '.mat']));
+      abort_fitnesscalc = true;
+      return
+    end
     cds_log(2,sprintf(['[fitness] G=%d;I=%d (Konfig %d/%d). Nebenbedingungen ', ...
       'für Trajektorie in %1.2fs geprüft. fval_constr=%1.3e. %s'], i_gen, ...
       i_ind, iIKC, size(Q0,1), toc(t0), fval_trajconstr, constrvioltext_IKC{iIKC}));
