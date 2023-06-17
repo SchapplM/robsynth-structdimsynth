@@ -145,7 +145,7 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
   % Platzhalter für Detail-Datei
   d2 = [];
   file2 = strrep(initpop_matlist{i}, 'Endergebnis', 'Details');
-  if ~isfield(d.RobotOptRes, 'q0') % Altes Dateiformat, aber eventuell korrigierbar (Dieser Code kann irgendwann weg)
+  if ~isfield(d.RobotOptRes, 'q0') % Altes Dateiformat, aber eventuell korrigierbar (Dieser Code kann irgendwann weg, fehlende Daten führen dann zum Ausschluss)
     % Versuche die fehlende Information aus zweiter Datei zu laden
     if exist(file2, 'file')
       try
@@ -172,6 +172,7 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
     else % Datei existiert nicht. Es werden NaN gelassen
       cds_log(-1, sprintf(['[gen_init_pop] IK-Konfiguration für Datei ', ...
         '%s nicht rekonstruierbar'], file2));
+      q0_pareto_i = NaN(size(d.RobotOptRes.p_val_pareto, 1), size(Structure.qlim, 1));
     end
     if ~isempty(d.RobotOptRes.p_val_pareto)
       d.RobotOptRes.q0_pareto = q0_pareto_i;
