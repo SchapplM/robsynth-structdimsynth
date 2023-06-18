@@ -1454,14 +1454,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       calctimes_jic(i_ar,jic) = toc(t1);
       continue;
       % Debug: Zeichnen des Roboters in der Konfiguration
-      if R.Type == 0 %#ok<UNRCH>
-        R.Leg.qlim(:,:) = minmax2(QE');
-      else
-        for kkk = 1:R.NLEG
-          R.Leg(kkk).qlim(:,:) = minmax2(QE(:,R.I1J_LEG(kkk):R.I2J_LEG(kkk))');
-        end
-      end
-      cds_fitness_debug_plot_robot(R, QE(1,:)', Traj_0, Traj_0, Set, Structure, [], fval_jic(jic), {});
+      R.update_qlim(minmax2(QE')); %#ok<UNRCH> 
+      Set.general.plot_robot_in_fitness = 1e6;
+      cds_fitness_debug_plot_robot(R, QE(1,:)', Traj_0, Traj_0, Set, Structure, [], 1e5, {});
     end
     % Gleiche Rechnung, nur für symmetrische Anordnung der PKM-Beinketten.
     % Annahme: Symmetrischer Aufbau, also zählen die Bewegungen aller Beine
