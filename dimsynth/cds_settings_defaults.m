@@ -134,15 +134,19 @@ optimization = struct( ...
    ... % valid_kin, valid_act, actforce, materialstress, stiffness, jointrange, jointlimit
    ... % manipulability, minjacsingval, positionerror, actvelo, chainlength,
    ... % installspace, footprint, colldist. Auch mehrere gleichzeitig möglich.
-  'obj_jointrange', ... % Zusatzeinstellungen für die Zielfunktion "jointrange"
-    struct( 'only_revolute', false, ... % Minimiere nur Wertebereich von Drehgelenken
-            'only_prismatic', false, ... % Minimiere nur Wertebereich von Schubgelenken
-            'only_active', false, ... % Minimiere nur Wertebereich aktiver Gelenke
-            'only_passive', false), ... % Minimiere nur Wertebereich passiver Gelenke
+  'obj_jointrange', struct(... % Zusatzeinstellungen für die Zielfunktion "jointrange"
+      'only_revolute', false, ... % Minimiere nur Wertebereich von Drehgelenken
+      'only_prismatic', false, ... % Minimiere nur Wertebereich von Schubgelenken
+      'only_active', false, ... % Minimiere nur Wertebereich aktiver Gelenke
+      'only_passive', false), ... % Minimiere nur Wertebereich passiver Gelenke
   'obj_power', ... % Zusatzeinstellungen für die Zielfunktion "power"
   ... Nehme nicht das Maximum der Einzel-Leistungen, sondern die Leistung 
   ... aus max. Drehmoment und Drehzahl. Betrifft PKM:
     struct( 'symmetric_speed_torque_limits', true), ...
+  ... Konfigurierbarkeit für Genauigkeit der Antriebe
+  'obj_positionerror', struct(... % Zusatzeinstellungen für die Zielfunktion "jointrange"
+      'revolute', 7 * 1/3600 * pi/180, ... % Genauigkeit: 7 Winkelsekunden; Umrechnung in Grad und Radiant; https://www.heidenhain.de/de_DE/produkte/winkelmessgeraete/winkelmessmodule/baureihe-mrp-2000/
+      'prismatic', 10e-6), ... % % https://www.heidenhain.de/de_DE/produkte/laengenmessgeraete/gekapselte-laengenmessgeraete/fuer-universelle-applikationen/
   ... Zielgröße für IK bei Redundanz. Möglich:
   ...  * default (Einstellung anhand der Kriterien der Maßsynthese), 
   ...  * ikjac_cond, jac_cond, coll_par, instspc_par, poserr_ee (siehe invkin-Funktionen)
@@ -257,7 +261,11 @@ optimization = struct( ...
 task = struct( ...
   'DoF', input_settings.DoF, ... % Für die Aufgabe relevante Freiheitsgrade
   'pointing_task', false, ... % Bei true ist die Drehung um die EE-z-Achse egal (für 3T0R/2T0R notwendig)
-  'profile', 1, ... % Beschleunigungs-Trapez für Kartesische Eckpunkte
+  .... % Wahl der Trajektorienart:
+  ... % 0=nur Eckpunkte, 
+  ... % 1=Beschleunigungs-Trapez (Rast-zu-Rast für Kartesische Eckpunkte), 
+  ... % 2=Trajektorie aus Differenzenquotient ohne Rastpunkte (benutze cumsum statt cumtrapz)
+  'profile', 1, ... 
   'vmax', 1, ... % maximale Geschwindigkeit (m/s oder rad/s)
   'amax', 3, ... % maximale Beschleunigung (m/s² oder rad/s²)
   'Tv', 0.01, ... % Verschliffzeit der Beschleunigung (für Ruckbegrenzung)
