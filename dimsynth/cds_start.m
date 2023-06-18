@@ -339,7 +339,14 @@ if Set.task.profile ~= 0 % Trajektorie prüfen
   % (Auswirkung hauptsächlich optisch in Auswertungen). Winkel größer pi.
   Traj.X(:,4:6) = denormalize_angle_traj(Traj.X(:,4:6));
   % Prüfe Konsistenz des Positionsverlaufs
-  X_numint = repmat(Traj.X(1,:),size(Traj.X,1),1)+cumtrapz(Traj.t, Traj.XD);
+  if Set.task.profile == 1 % Variante 1: Trapezregel (besser für kontinuierliche Funktionen)
+    X_numint = repmat(Traj.X(1,:),size(Traj.X,1),1)+cumtrapz(Traj.t, Traj.XD);
+  elseif Set.task.profile == 2 % Variante 2: Kumulierte Summe (besser, falls aus Differenzenquotient)
+    X_numint = repmat(Traj.X(1,:),size(Traj.X,1),1) + ...
+      cumsum(Traj.XD.*repmat([diff(Traj.t); diff(Traj.t(end-1:end))],1,size(Traj.XD,2)) );
+  else
+    error('Fall Set.task.profile=%d nicht definiert', Set.task.profile);
+  end
   corrX = diag(corr(X_numint, Traj.X));
   corrX(all(abs(X_numint-Traj.X)<1e-6)) = 1;
   assert(all(corrX>0.98), 'eingegebene Trajektorie ist nicht konsistent (X-XD)');
@@ -347,7 +354,12 @@ if Set.task.profile ~= 0 % Trajektorie prüfen
   if any(abs(testX(:))>1e-2)
     warning('Abweichung zwischen int(XD) und X zu groß: [%s]', disp_array(max(abs(testX)), '%1.1e'));
   end
-  XD_numint = repmat(Traj.XD(1,:),size(Traj.XD,1),1)+cumtrapz(Traj.t, Traj.XDD);
+  if Set.task.profile == 1
+    XD_numint = repmat(Traj.XD(1,:),size(Traj.XD,1),1)+cumtrapz(Traj.t, Traj.XDD);
+  else
+    XD_numint = repmat(Traj.XD(1,:),size(Traj.XD,1),1) + ...
+      cumsum(Traj.XDD.*repmat([diff(Traj.t); diff(Traj.t(end-1:end))],1,size(Traj.XD,2)) );
+  end
   corrXD = diag(corr(XD_numint, Traj.XD));
   corrXD(all(abs(Traj.XD)<1e-3)) = 1;
   assert(all(corrXD>0.98), 'eingegebene Trajektorie ist nicht konsistent (XD-XDD)');
