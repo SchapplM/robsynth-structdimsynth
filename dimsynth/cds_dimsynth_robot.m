@@ -2961,13 +2961,16 @@ elseif ~isempty(filelist_tmpres2) % Fall 2: Bereits von cds_gen_init_pop nachver
     end
     % Trage basierend auf der oben schon mit NaN initialisierten Struktur
     % die Werte ein. Annahme: Benutze die vorletzte Generation.
-    d.PSO_Detail_Data.pval(:,:,i_gen) =  d_tmp.RobotOptRes.p_val_pareto;
-    d.PSO_Detail_Data.fval(:,:,i_gen) =  d_tmp.RobotOptRes.fval_pareto;
+    % Die Dimension kann sich unterscheiden (evtl. falls Pareto-Dominierte
+    % entfernt wurden)
+    I_load = 1:min([size(d_tmp.RobotOptRes.p_val_pareto,1), size(d.PSO_Detail_Data.pval,1)]);
+    d.PSO_Detail_Data.pval(I_load,:,i_gen) =  d_tmp.RobotOptRes.p_val_pareto(I_load,:);
+    d.PSO_Detail_Data.fval(I_load,:,i_gen) =  d_tmp.RobotOptRes.fval_pareto(I_load,:);
     d.PSO_Detail_Data.comptime(i_gen,:) = 0; % Setze Rechenzeit auf Null (nicht bestimmbar). Genutzt für Bestimmung der Generation
     if isfield(d_tmp.RobotOptRes, 'desopt_pval_pareto') % Prüfung zur Kompatibilität für Daten älter als 03.02.2023
-      d.PSO_Detail_Data.desopt_pval(:,:,i_gen) = d_tmp.RobotOptRes.desopt_pval_pareto;
+      d.PSO_Detail_Data.desopt_pval(I_load,:,i_gen) = d_tmp.RobotOptRes.desopt_pval_pareto(I_load,:);
     end
-    d.PSO_Detail_Data.q0_ik(:,:,i_gen) = d_tmp.RobotOptRes.q0_pareto;
+    d.PSO_Detail_Data.q0_ik(I_load,:,i_gen) = d_tmp.RobotOptRes.q0_pareto(I_load,:);
     i_gen = i_gen + 1;
   end % for ii
 end
