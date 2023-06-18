@@ -444,6 +444,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   constrvioltext2_jic{jic} = '';
   I_TrajCheck = 1:size(Traj_0.XE,1);
   if any(jic == I_jic5_phizkomb) && Set.task.profile ~= 0 % Wenn es keine Trajektorie gibt, werden alle Punkte benötigt
+    % Schnelle Prüfung mit einem anderen Anfangswert. Es wird sicher- 
+    % gestellt, dass mindestens eine andere Konfig. alle Punkte schafft
     I_TrajCheck = 1; % nur den ersten Punkt prüfen
   end
   % IK für alle Eckpunkte
@@ -1562,9 +1564,22 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     end
   end
   if any(any(isnan(Q_jic(:,:,jic)))) && fval_jic(jic) == 1e3
-    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
-      'tmp', 'cds_constraints_Qjic_NaN_error.mat'));
-    error('Q_jic für jic=%d enthält NaN, obwohl Konfig. erfolgreich', jic);
+    % Prüfe ob das NaN dort steht, weil nicht alle Punkte geprüft werden
+    I_fromother = setxor(1:size(Q_jic,1), I_TrajCheck); % nicht geprüfte Punkt-Indizes
+    if any(any(isnan(Q_jic(I_TrajCheck,:,jic)))) % geprüft und NaN
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+        'tmp', 'cds_constraints_Qjic_NaN_error.mat'));
+      error('Q_jic für jic=%d enthält NaN, obwohl Konfig. erfolgreich', jic);
+    elseif any(any(~isnan(Q_jic(I_fromother,:,jic)))) % nicht geprüft und nicht NaN
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+        'tmp', 'cds_constraints_Qjic_nontested_nonNaN_error.mat'));
+      error('Q_jic für jic=%d enthält kein NaN, obwohl Punkte nicht getestet', jic);
+    else % nicht geprüft und NaN
+      % Belege die Gelenkwinkel der nicht geprüften Punkte mit den Werten
+      % einer anderen Konfiguration, damit spätere Plausi-Prüfungen gehen.
+      J_other_iO = find(fval_jic == 1e3, 1, 'first');
+      Q_jic(I_fromother,:,jic) = Q_jic(I_fromother,:,J_other_iO);
+    end
   end
   if i_ar == 2 && fval_jic(jic) < fval_jic_old(jic)
     fval_jic(jic) = fval_jic_old(jic);
