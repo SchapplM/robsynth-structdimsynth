@@ -2079,9 +2079,11 @@ if ~Set.general.only_finish_aborted
   try
     [InitPop, QPop] = cds_gen_init_pop(Set, Structure);
   catch err
-    cds_log(-1, sprintf('[dimsynth] Fehler in cds_gen_init_pop: %s', err.message));
-    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
-      'tmp', ['cds_dimsynth_robot_call_cds_gen_init_pop_error_', R.mdlname, '.mat']));
+    dbgfile = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+      'tmp', ['cds_dimsynth_robot_call_cds_gen_init_pop_error_', R.mdlname, '.mat']);
+    cds_log(-1, sprintf(['[dimsynth] Fehler in cds_gen_init_pop: %s. Zustand ' ...
+      'gespeichert: %s'], err.message, dbgfile));
+    save(dbgfile);
     return
   end
   % Speichere die Gelenkwinkel der Anfangspopulation, um sie später wieder

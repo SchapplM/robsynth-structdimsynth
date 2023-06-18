@@ -171,9 +171,11 @@ end
 try
   [fval_constr,QE_iIKC, Q0, constrvioltext, Stats_constraints] = cds_constraints(R, Traj_0_E, Set, Structure);
 catch err
-  cds_log(-1, sprintf('[fitness] Fehler in cds_constraints: %s', err.message));
-  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
-    'tmp', ['cds_fitness_call_cds_constraints_error_', R.mdlname, '.mat']));
+  dbgfile=fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+    'tmp', ['cds_fitness_call_cds_constraints_error_', R.mdlname, '.mat']);
+  cds_log(-1, sprintf(['[fitness] Fehler in cds_constraints: %s. Zustand ' ...
+    'gespeichert: %s'], err.message, dbgfile));
+  save(dbgfile);
   abort_fitnesscalc = true;
   return
 end
@@ -419,9 +421,11 @@ for iIKC = I_IKC
       [fval_trajconstr,Q,QD,QDD,Jinv_ges,JP,constrvioltext_IKC{iIKC}, Traj_0_corr] = ...
         cds_constraints_traj(R, Traj_0, Q0(iIKC,:)', Set, Structure, Stats_constraints);
     catch err
-      cds_log(-1, sprintf('[fitness] Fehler in cds_constraints_traj: %s', err.message));
-      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
-        'tmp', ['cds_fitness_call_cds_constraints_traj_error_', R.mdlname, '.mat']));
+      dbgfile = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+        'tmp', ['cds_fitness_call_cds_constraints_traj_error_', R.mdlname, '.mat']);
+      cds_log(-1, sprintf(['[fitness] Fehler in cds_constraints_traj: %s. ' ...
+        'Zustand gespeichert: %s'], err.message, dbgfile));
+      save(dbgfile);
       abort_fitnesscalc = true;
       return
     end
