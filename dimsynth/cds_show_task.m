@@ -64,7 +64,7 @@ subplot(3,2,sprc2no(3,2,2,2));
 plot(T_ges, 180/pi*XD_ges(:,4:6));
 ylabel('Euler-Geschw. in deg/s'); grid on;
 subplot(3,2,sprc2no(3,2,3,2));
-plot(T_ges, 180/pi*XDD_ges(:,1:3));
+plot(T_ges, 180/pi*XDD_ges(:,4:6));
 ylabel('Euler-Beschl. in deg/s²'); grid on;
 xlabel(sprintf('Zeit in s (%d Samples)', length(T_ges)));
 linkxaxes
