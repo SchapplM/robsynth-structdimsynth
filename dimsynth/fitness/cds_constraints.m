@@ -1405,10 +1405,10 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     else,           Lchain = R.Leg(1).reach(q_minmax_sym(1:R.Leg(1).NJ,2)); end
     if Lchain > Set.optimization.max_chain_length
       RelNormViol = Lchain / Set.optimization.max_chain_length;
-      fval = 1e5 * (4.9 + 0.1 * 2/pi*atan(RelNormViol-1));  % Normierung auf 4.9e5 bis 5e5
-      constrvioltext = sprintf(['Länge der kinematischen Kette zu groß mit Schubgelenken. ' ...
+      fval_jic(jic) = 1e5 * (4.9 + 0.1 * 2/pi*atan(RelNormViol-1));  % Normierung auf 4.9e5 bis 5e5
+      constrvioltext_jic{jic} = sprintf(['Länge der kinematischen Kette zu groß mit Schubgelenken. ' ...
         '%1.1fmm>%1.1fmm'], 1e3*Lchain, 1e3*Set.optimization.max_chain_length);
-      return
+      continue
     end
   end
   %% Prüfe Gestell-Durchmesser durch geänderte gestellfeste Führungsschienen
