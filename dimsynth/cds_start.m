@@ -362,14 +362,20 @@ else % Kein Trajektorienprofil gegeben. Prüfe Datenformat
 end
 assert(all(size(Traj.X)==size(Traj.XD)), 'Dimension von X und XD nicht gleich');
 assert(all(size(Traj.X)==size(Traj.XDD)), 'Dimension von X und XDD nicht gleich');
-assert(length(Traj.IE)==size(Traj.XE,1), 'IE und XE muss gleiche Dimension haben in Traj.-Var.');
+if Set.task.profile ~= 2
+  assert(length(Traj.IE)==size(Traj.XE,1), 'IE und XE muss gleiche Dimension haben in Traj.-Var.');
+end
 assert(max(Traj.IE)<=size(Traj.X,1), 'Index-Vektor IE darf Bereich aus X nicht überschreiten');
 test_XEfromIE = Traj.X(Traj.IE(Traj.IE~=0),:) - Traj.XE(Traj.IE~=0,:);
-assert(all(abs(test_XEfromIE(:))<1e-10), 'Eckpunkte der Trajektorie X müssen in XE mit IE indiziert werden können');
+if Set.task.profile ~= 2
+  assert(all(abs(test_XEfromIE(:))<1e-10), 'Eckpunkte der Trajektorie X müssen in XE mit IE indiziert werden können');
+end
 IE_firstzero = find(Traj.IE==0, 1, 'first');
 if ~isempty(IE_firstzero)
   assert(all(Traj.IE(IE_firstzero:end)==0), 'die letzten Werte in XE dürfen nicht mehr der Trajektorie zugeordnet sein');
 end
+IE_lastentry = find(Traj.IE~=0, 1, 'last');
+assert(all(diff(Traj.IE(1:IE_lastentry)) > 0), 'Werte in IE müssen monoton steigend sein');
 if all(Set.task.DoF(1:5) == [1 1 0 0 0]) % planare Aufgabe: 2T0R, 2T0*R oder 2T1R
   if ~strcmp(Set.structures.mounting_parallel, 'wall')
     assert(all(abs(Traj.X(1,3)- Traj.X(:,3))  < 1e-10) && ...

@@ -263,8 +263,8 @@ task = struct( ...
   'pointing_task', false, ... % Bei true ist die Drehung um die EE-z-Achse egal (für 3T0R/2T0R notwendig)
   .... % Wahl der Trajektorienart:
   ... % 0=nur Eckpunkte, 
-  ... % 1=Beschleunigungs-Trapez (Rast-zu-Rast für Kartesische Eckpunkte), 
-  ... % 2=Trajektorie aus Differenzenquotient ohne Rastpunkte (benutze cumsum statt cumtrapz)
+  ... % 1=Beschleunigungs-Trapez (Rast-zu-Rast für kartesische Eckpunkte, Konsistente Beschleunigung), 
+  ... % 2=Trajektorie ohne Rastpunkte (allgemeinere Trajektorie, oder aus Differenzenquotient, benutze cumsum statt cumtrapz, Konsistenz der Beschleunigung nicht so wichtig).
   'profile', 1, ... 
   'vmax', 1, ... % maximale Geschwindigkeit (m/s oder rad/s)
   'amax', 3, ... % maximale Beschleunigung (m/s² oder rad/s²)
