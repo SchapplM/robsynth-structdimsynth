@@ -225,12 +225,24 @@ if nargin >= 6
   % Die Kriterien werden aktiviert, wenn der beste Wert um 30%
   % verschlechtert wird. Dann ist das Kriterium im besten Fall nicht aktiv
   % und führt zu Schwingungen der IK.
-  s.installspace_thresh = 0.7*min(Stats_constraints.bestinstspcdist(:));
+  if ~isempty(Stats_constraints.bestinstspcdist)
+    s.installspace_thresh = 0.7*min(Stats_constraints.bestinstspcdist(:));
+  else
+    cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Wert für ' ...
+      'bestinstspcdist fehlt aus cds_constraints. Lasse Standard.']), ...
+      Structure.config_index, Structure.config_number);
+  end
   if isnan(s.installspace_thresh)
     s = rmfield(s, 'installspace_thresh'); % Lasse Standard-Wert aus Funktion
   end
   % Ausgegebene Kollisionsabstände sind negativ, wenn es keine Koll. gibt.
-  s.collision_thresh = -0.7*min(Stats_constraints.bestcolldist(:));
+  if ~isempty(Stats_constraints.bestcolldist)
+    s.collision_thresh = -0.7*min(Stats_constraints.bestcolldist(:));
+  else
+    cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Wert für ' ...
+      'bestcolldist fehlt aus cds_constraints. Lasse Standard.']), ...
+      Structure.config_index, Structure.config_number);
+  end
   if s.collision_thresh <= 0
     s.collision_thresh = NaN;
   end
