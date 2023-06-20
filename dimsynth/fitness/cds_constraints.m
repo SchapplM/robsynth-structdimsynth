@@ -1655,6 +1655,21 @@ end
 constrvioltext = constrvioltext_jic{jic_best};
 
 I_iO = find(fval_jic == 1e3);
+if any(I_iO) % Erster Schritt. Prüfung der Gelenkkonfigurationen dazu (Syntax-Fehler)
+  for i = 1:length(I_iO)
+    if any(any(isnan(Q_jic(:,:,I_iO(i)))))
+      warning('Gelenkwink für i.O.-Konfiguration %d sind NaN', I_iO(i));
+      I_iO(i) = 0;
+    end
+  end
+  if any(I_iO == 0) % Es mussten Konfigurationen entfernt werden. Code-Fehler.
+    dbgfile=fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+      'tmp', 'cds_constraints_QEall_NaN_error.mat');
+    save(dbgfile);
+    cds_log(3, sprintf('[constraints] Status zum Debuggen gespeichert: %s', dbgfile));
+  end
+  I_iO = I_iO(I_iO~=0); % Deaktiviere die wegen NaN verworfenen Lösungen
+end
 if ~any(I_iO) % keine gültige Lösung für Eckpunkte
   Q0 = Q_jic(1,:,jic_best); % Gebe nur eine einzige Konfiguration aus
   QE_all = Q_jic(:,:,jic_best);
@@ -1689,15 +1704,9 @@ else % Gebe alle gültigen Lösungen aus
   bestinstspcdist_Q0 = bestinstspcdist_jic(I_iO);
   minmaxcondJ_Q0 = minmaxcondJ_jic(:,I_iO);
   minmaxcondJik_Q0 = minmaxcondJik_jic(:,I_iO);
-  
   % Ausgabe der IK-Werte für alle Eckpunkte. Im weiteren Verlauf der
   % Optimierung benötigt, falls keine Trajektorie berechnet wird.
   QE_all = Q_jic(:,:,I_iO);
-  if any(isnan(QE_all(:))) % Prüfe auf Korrektheit
-    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
-      'tmp', 'cds_constraints_QEall_NaN_error.mat'));
-    error('Gelenkwinkel für i.O.-Konfigurationen sind NaN');
-  end
   % Debug: Zeige die verschiedenen Lösungen an
   if Set.general.plot_details_in_fitness < 0 && 1e4*fval >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
      Set.general.plot_details_in_fitness > 0 && 1e4*fval <= abs(Set.general.plot_details_in_fitness)
