@@ -2347,6 +2347,10 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell
 else % Einkriteriell
   physval_pareto = [];
 end
+if any(isnan(p_val))
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot_p_NaN_error.mat'));
+  error('Auszuwertende Parameter sind NaN. Darf nicht sein.');
+end
 
 % Fitness-Funktion nochmal mit besten Parametern aufrufen. Dadurch werden
 % die Klassenvariablen (R.pkin, R.DesPar.seg_par, ...) aktualisiert
