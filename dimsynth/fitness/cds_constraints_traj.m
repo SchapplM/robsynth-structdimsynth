@@ -809,6 +809,9 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
       any(strcmp(Set.optimization.objective, 'actforce'))
     s_dp.cost_criterion = 'actforce';
   end
+  if isfield(Traj_0, 'Fext') && any(Traj_0.Fext(:))
+    s_dp.Fext = Traj_0.Fext;
+  end
   if R.I_EE_Task(6) == 1 % Keine Nullraumoptimierung in DP.
     s_dp.T_dec_ns = 0; % Kein Abbremsen der Nullraumbewegung notwendig
     s_dp.Tv = 0;
