@@ -132,6 +132,7 @@ for i = 1:length(Structures)
   elseif f <= 1e4*4e5, fval_text = 'Selbstkoll. Eckpkt.';
   elseif f <= 1e4*4.25e5, fval_text = 'Schubzylinder Länge Eckpkt. (symm)';
   elseif f <= 1e4*4.5e5, fval_text = 'Schubzylinder Länge Eckpkt.';
+  elseif f <= 1e4*4.9e5, fval_text = 'Beinkettenlänge Eckpkt.';
   elseif f <= 1e4*5e5, fval_text = 'Gestelldurchmesser Eckpkt.';
   elseif f <= 1e4*5.5e5, fval_text = 'Plattform-Rotation-Grenze Eckpkt.';
   elseif f <= 1e4*6e5, fval_text = 'Gel.-Pos.-Grenze Eckpkt.';

@@ -134,15 +134,19 @@ optimization = struct( ...
    ... % valid_kin, valid_act, actforce, materialstress, stiffness, jointrange, jointlimit
    ... % manipulability, minjacsingval, positionerror, actvelo, chainlength,
    ... % installspace, footprint, colldist. Auch mehrere gleichzeitig möglich.
-  'obj_jointrange', ... % Zusatzeinstellungen für die Zielfunktion "jointrange"
-    struct( 'only_revolute', false, ... % Minimiere nur Wertebereich von Drehgelenken
-            'only_prismatic', false, ... % Minimiere nur Wertebereich von Schubgelenken
-            'only_active', false, ... % Minimiere nur Wertebereich aktiver Gelenke
-            'only_passive', false), ... % Minimiere nur Wertebereich passiver Gelenke
+  'obj_jointrange', struct(... % Zusatzeinstellungen für die Zielfunktion "jointrange"
+      'only_revolute', false, ... % Minimiere nur Wertebereich von Drehgelenken
+      'only_prismatic', false, ... % Minimiere nur Wertebereich von Schubgelenken
+      'only_active', false, ... % Minimiere nur Wertebereich aktiver Gelenke
+      'only_passive', false), ... % Minimiere nur Wertebereich passiver Gelenke
   'obj_power', ... % Zusatzeinstellungen für die Zielfunktion "power"
   ... Nehme nicht das Maximum der Einzel-Leistungen, sondern die Leistung 
   ... aus max. Drehmoment und Drehzahl. Betrifft PKM:
     struct( 'symmetric_speed_torque_limits', true), ...
+  ... Konfigurierbarkeit für Genauigkeit der Antriebe
+  'obj_positionerror', struct(... % Zusatzeinstellungen für die Zielfunktion "jointrange"
+      'revolute', 7 * 1/3600 * pi/180, ... % Genauigkeit: 7 Winkelsekunden; Umrechnung in Grad und Radiant; https://www.heidenhain.de/de_DE/produkte/winkelmessgeraete/winkelmessmodule/baureihe-mrp-2000/
+      'prismatic', 10e-6), ... % % https://www.heidenhain.de/de_DE/produkte/laengenmessgeraete/gekapselte-laengenmessgeraete/fuer-universelle-applikationen/
   ... Zielgröße für IK bei Redundanz. Möglich:
   ...  * default (Einstellung anhand der Kriterien der Maßsynthese), 
   ...  * ikjac_cond, jac_cond, coll_par, instspc_par, poserr_ee (siehe invkin-Funktionen)
@@ -160,11 +164,13 @@ optimization = struct( ...
   'ee_translation_only_serial', true, ... % ... nur bei seriellen Robotern
   'ee_rotation', true, ... % Freie Rotation des EE
   'ee_rotation_fixed', NaN(1,3), ... % vorgegebene EE-Transformation (bspw. bereits konstruierter Endeffektor). Entspricht phi_N_E (SerRob) bzw. phi_P_E (ParRob); XYZ-Euler-Winkel
+  'max_chain_length', inf, ... % maximale Länge der Beinketten (bei PKM) bzw. max. Länge der seriellen Kinematik (in m)
   'base_size', true, ... % Größe des Gestells
   'base_size_limits', [NaN, NaN], ... % Grenzen für Gestell-Größe (Radius; Absolut; bei paarweiser Anordnung wird effektiver Radius gezählt)
   'base_tolerance_prismatic_guidance', 1.0, ... % Erhöhte Toleranz für das Überstehen von Schubgelenk-Führungsschienen
   'platform_size', true, ... % Größe der Plattform
   'platform_size_limits', [NaN, NaN], ... % Grenzen für Plattform-Größe (Radius; Absolut; bei paarweiser Anordnung wird effektiver Radius gezählt)
+  'max_platform_base_ratio', inf, ... % Plattform sollte nicht so viel mal größer als die Basis sein
   'base_morphology', true, ... % Aussehen des Gestells (z.B. Schrägheit, Gelenkpaarabstand)
   'platform_morphology', true, ... % Aussehen der Plattform (z.B. Gelenkpaarabstand)
   'tilt_base', false, ... % Kippen der Roboter-Basis (über Rotation um x- und y-Achse). Ermöglicht Ausweichen struktureller Singularitäten
@@ -255,7 +261,11 @@ optimization = struct( ...
 task = struct( ...
   'DoF', input_settings.DoF, ... % Für die Aufgabe relevante Freiheitsgrade
   'pointing_task', false, ... % Bei true ist die Drehung um die EE-z-Achse egal (für 3T0R/2T0R notwendig)
-  'profile', 1, ... % Beschleunigungs-Trapez für Kartesische Eckpunkte
+  .... % Wahl der Trajektorienart:
+  ... % 0=nur Eckpunkte, 
+  ... % 1=Beschleunigungs-Trapez (Rast-zu-Rast für kartesische Eckpunkte, Konsistente Beschleunigung), 
+  ... % 2=Trajektorie ohne Rastpunkte (allgemeinere Trajektorie, oder aus Differenzenquotient, benutze cumsum statt cumtrapz, Konsistenz der Beschleunigung nicht so wichtig).
+  'profile', 1, ... 
   'vmax', 1, ... % maximale Geschwindigkeit (m/s oder rad/s)
   'amax', 3, ... % maximale Beschleunigung (m/s² oder rad/s²)
   'Tv', 0.01, ... % Verschliffzeit der Beschleunigung (für Ruckbegrenzung)

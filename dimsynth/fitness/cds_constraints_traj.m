@@ -130,7 +130,7 @@ s = struct( ...
   ... % Einhaltung der Gelenkwinkelgrenzen nicht über NR-Bewegung erzwingen
   'enforce_qlim', false, ...
   'wn', zeros(R.idx_ik_length.wntraj,1), ... % Gewichtung Nullraumoptimierung: Zusammstellung je nach Aufgabe
-  'Phit_tol', 1e-10, 'Phir_tol', 1e-10); % feine Toleranz
+  'Phit_tol', 1e-8, 'Phir_tol', 1e-8); % Toleranz 1e-10 führt teilweise zu Abbruch, da sie knapp nicht erreicht werden kann
 % Interpolations-Stützstellen für relative Maximalgeschwindigkeit der
 % Nullraumbewegung. Dadurch echte Rast-zu-Rast-Bewegung auch im Nullraum.
 % (Falls bei Eingabe der Aufgabe gewünscht)
@@ -225,12 +225,24 @@ if nargin >= 6
   % Die Kriterien werden aktiviert, wenn der beste Wert um 30%
   % verschlechtert wird. Dann ist das Kriterium im besten Fall nicht aktiv
   % und führt zu Schwingungen der IK.
-  s.installspace_thresh = 0.7*min(Stats_constraints.bestinstspcdist(:));
+  if ~isempty(Stats_constraints.bestinstspcdist)
+    s.installspace_thresh = 0.7*min(Stats_constraints.bestinstspcdist(:));
+  else
+    cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Wert für ' ...
+      'bestinstspcdist fehlt aus cds_constraints. Lasse Standard.']), ...
+      Structure.config_index, Structure.config_number);
+  end
   if isnan(s.installspace_thresh)
     s = rmfield(s, 'installspace_thresh'); % Lasse Standard-Wert aus Funktion
   end
   % Ausgegebene Kollisionsabstände sind negativ, wenn es keine Koll. gibt.
-  s.collision_thresh = -0.7*min(Stats_constraints.bestcolldist(:));
+  if ~isempty(Stats_constraints.bestcolldist)
+    s.collision_thresh = -0.7*min(Stats_constraints.bestcolldist(:));
+  else
+    cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Wert für ' ...
+      'bestcolldist fehlt aus cds_constraints. Lasse Standard.']), ...
+      Structure.config_index, Structure.config_number);
+  end
   if s.collision_thresh <= 0
     s.collision_thresh = NaN;
   end
@@ -1670,14 +1682,22 @@ if any(~isinf(Structure.qDDlim(:)))
 end
 
 %% Prüfe, ob die Konfiguration umklappt während der Trajektorie
+% Notwendige Bedingung: Größerer Betragswechsel bei Winkeln
+q_maxstep_revjoint = max(abs(diff(Q(:,R.MDH.sigma==0))));
+% Hinreichende Bedingung: Korrelation der Position und integr. Geschw.
 % Geschwindigkeit neu mit Differenzenquotient berechnen
 QD_num = zeros(size(Q));
 QD_num(2:end,R.MDH.sigma==1) = diff(Q(:,R.MDH.sigma==1))./...
   repmat(diff(Traj_0.t), 1, sum(R.MDH.sigma==1)); % Differenzenquotient
 QD_num(2:end,R.MDH.sigma==0) = (mod(diff(Q(:,R.MDH.sigma==0))+pi, 2*pi)-pi)./...
   repmat(diff(Traj_0.t), 1, sum(R.MDH.sigma==0)); % Siehe angdiff.m
-% Position neu mit Trapezregel berechnen (Integration)
-Q_num = repmat(Q(1,:),size(Q,1),1)+cumtrapz(Traj_0.t, QD);
+% Position neu berechnen (Integration)
+if Set.task.profile == 1 % ...  mit Trapezregel
+  Q_num = repmat(Q(1,:),size(Q,1),1)+cumtrapz(Traj_0.t, QD);
+else % ... mit linksseitiger Rechteckregel
+  Q_num = repmat(Q(1,:),size(Q,1),1) + ...
+      cumsum(QD.*repmat([diff(Traj_0.t); diff(Traj_0.t(end-1:end))],1,size(QD,2)) );
+end
 % Bestimme Korrelation zwischen den Verläufen (1 ist identisch)
 corrQD = diag(corr(QD_num, QD));
 corrQ = diag(corr(Q_num, Q));
@@ -1686,12 +1706,12 @@ corrQ = diag(corr(Q_num, Q));
 corrQ(all(abs(Q_num-Q)<1e-6)) = 1;
 corrQD(all(abs(QD_num-QD)<1e-3)) = 1;
 corrQ(all(abs(QD)<1e-10)) = 1; % qD=0 und q schwankt numerisch (als Nullraumbewegung) wegen IK-Positionskorrektur
-if Structure.task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
+if Structure.task_red && (any(corrQD < 0.95) || any(corrQ < 0.98)) || ...
+    ~Structure.task_red && ~any(q_maxstep_revjoint>10*pi/180)
   % TODO: Inkonsistenz ist Fehler in Traj.-IK. Dort korrigieren.
   cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d; i_ar=%d, i_m=%d: ', ...
-    'Nullraumbewegung führt zu nicht konsistenten Gelenkverläufen. ', ...
-    'Korrelation Geschw. min. %1.2f, Position %1.2f'], Structure.config_index, ...
-    Structure.config_number, i_ar, i_m, min(corrQD), min(corrQ)'));
+    'Nicht konsistente Gelenkverläufe. Korrelation Geschw. min. %1.2f, ' ...
+    'Position %1.2f'], Structure.config_index, Structure.config_number, i_ar, i_m, min(corrQD), min(corrQ)'));
 end
 if ~Structure.task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
   % Wenn eine Gelenkgröße konstant ist (ohne Rundungsfehler), wird die
@@ -1700,16 +1720,31 @@ if ~Structure.task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
   % gewertet. Reicht für die Erkennung eines Sprungs/Umklappens
   corrQD(isnan(corrQD)) = 1;
   corrQ(isnan(corrQ)) = 1;
-  % Bilde normierten Strafterm aus Korrelationskoeffizienten (zwischen -1
-  % und 1).
-  fval_jump_norm = 0.5*(mean(1-corrQ) + mean(1-corrQD));
-  fval_all(i_m, i_ar)  = 1e3*(4+1*fval_jump_norm); % Wert zwischen 4e3 und 5e3
-  constrvioltext_m{i_m} = sprintf('Konfiguration scheint zu springen. Korrelation Geschw. min. %1.2f, Position %1.2f', ...
-    min(corrQD), min(corrQ));
+  if any(q_maxstep_revjoint>10*pi/180)
+    % Bilde normierten Strafterm aus Korrelationskoeffizienten (zwischen -1
+    % und 1).
+    fval_jump_norm = 0.5*(mean(1-corrQ) + mean(1-corrQD));
+    fval_all(i_m, i_ar)  = 1e3*(4+1*fval_jump_norm); % Wert zwischen 4e3 und 5e3
+    constrvioltext_m{i_m} = sprintf('Konfiguration scheint zu springen. Korrelation Geschw. min. %1.2f, Position %1.2f', ...
+      min(corrQD), min(corrQ));
+  else
+    % Es liegt eine inkonsistente Q/QD vor, aber vermutlich kein Konf.Sprung
+    cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d; i_ar=%d, i_m=%d: ', ...
+      'Korrigiere die Trajektorie.'], Structure.config_index, ...
+      Structure.config_number, i_ar, i_m));
+    QD = QD_num;
+    QDD = zeros(size(Q)); % Differenzenquotient neu berechnen (neues QD)
+    QDD(1:end-1,:) = diff(QD(:,:))./ repmat(diff(Traj_0.t), 1, R.NJ);
+  end
   if Set.general.plot_details_in_fitness < 0 && 1e4*fval_all(i_m, i_ar)  >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
      Set.general.plot_details_in_fitness > 0 && 1e4*fval_all(i_m, i_ar)  <= abs(Set.general.plot_details_in_fitness)
-    % Geschwindigkeit neu mit Trapezregel berechnen (Integration)
-    QD_num2 = repmat(QD(1,:),size(QD,1),1)+cumtrapz(Traj_0.t, QDD);
+    % Geschwindigkeit neu berechnen (Integration)
+    if Set.task.profile == 1 % ...  mit Trapezregel
+      QD_num2 = repmat(QD(1,:),size(QD,1),1)+cumtrapz(Traj_0.t, QDD);
+    else % ... mit linksseitiger Rechteckregel
+      QD_num2 = repmat(QD(1,:),size(QD,1),1) + ...
+          cumsum(QDD.*repmat([diff(Traj_0.t); diff(Traj_0.t(end-1:end))],1,size(QDD,2)) );
+    end
     RP = ['R', 'P'];
     change_current_figure(1001);clf;
     for i = 1:R.NJ
@@ -1777,11 +1812,13 @@ if ~Structure.task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
     end
     linkxaxes
     sgtitle('Verlauf Gelenkbeschleunigungen');
-  end
+  end % Debug-Plots
 %   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
 %     'cds_constraints_traj_config_flip.mat'));
-  continue
-end
+  if ~isnan(fval_all(i_m, i_ar))
+    continue
+  end
+end % Konfigurationssprung erkannt
 %% Aktualisiere Roboter für Kollisionsprüfung (geänderte Grenzen aus Traj.-IK)
 if Set.optimization.constraint_collisions || ...
     ~isempty(Set.task.installspace.type) || ~isempty(Set.task.obstacles.type)

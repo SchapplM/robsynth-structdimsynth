@@ -24,7 +24,8 @@
 %   3.5e5...4e5: Selbstkollision in Einzelpunkten (Prüfung nach IK aller Punkte)
 %   4e5...4.25e5: Schubzylinder geht ... (symmetrisch für PKM)
 %   4.25e5...4.5e5: Schubzylinder geht zu weit nach hinten weg (nach IK erkannt)
-%   4.5e5...5e5: Gestell ist wegen Schubgelenken zu groß (nach IK erkannt)
+%   4.5e5...4.9e5: Gestell ist wegen Schubgelenken zu groß (nach IK erkannt)
+%   4.9e5...5e5: Beinkette ist zu lang (wegen Schubgelenken)
 %   5e5...5.5e5: Plattform-Rotation entspricht nicht den gegebenen Grenzen
 %   5.5e5...6e5: Gelenkwinkelgrenzen (Absolut) in Einzelpunkten
 %   6e5...7e5: Gelenkwinkelgrenzen (Spannweite) in Einzelpunkten
@@ -73,8 +74,8 @@ if ~isnan(Set.optimization.max_range_prismatic) && any(R.MDH.sigma==1)
   qlim_tmp(R.MDH.sigma==1) = 5*Structure.Lref;
   R.update_qlim(qlim_tmp);
 end
-if R.Type == 0, Lchain = R.reach(); % Berechne maximale Länge der Beinkette
-else,           Lchain = R.Leg(1).reach(); end
+if R.Type == 0, Lchain = R.reach(); % Berechne maximale Länge der Kinematik ...
+else,           Lchain = R.Leg(1).reach(); end % ... bzw. der Beinkette bei PKM
 if ~isnan(Set.optimization.max_range_prismatic) && any(R.MDH.sigma==1)
   R.update_qlim(qlim); % Rückgängig machen (Grenzen werden aber sowieso später angepasst)
 end
@@ -442,7 +443,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   constrvioltext_jic{jic} = ''; % hier zurücksetzen. Berechne Nebenbedingungen ab hier neu.
   constrvioltext2_jic{jic} = '';
   I_TrajCheck = 1:size(Traj_0.XE,1);
-  if any(jic == I_jic5_phizkomb)
+  if any(jic == I_jic5_phizkomb) && Set.task.profile ~= 0 % Wenn es keine Trajektorie gibt, werden alle Punkte benötigt
+    % Schnelle Prüfung mit einem anderen Anfangswert. Es wird sicher- 
+    % gestellt, dass mindestens eine andere Konfig. alle Punkte schafft
     I_TrajCheck = 1; % nur den ersten Punkt prüfen
   end
   % IK für alle Eckpunkte
@@ -1240,7 +1243,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
             Jinv_E(ii,:) = Jinv_ii(:);
           end
           Jinv_ii = reshape(Jinv_E(ii,:), R.NJ, sum(R.I_EE));
-          if isnan(condJ(ii)), condJ(ii) = cond(Jinv_ii(R.I_qa, R.I_EE)); end
+          if isnan(condJ(ii)), condJ(ii) = cond(Jinv_ii(R.I_qa, :)); end
         end
       end
     end
@@ -1384,6 +1387,30 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     [Structure.collbodies_robot, Structure.installspace_collbodies] = ...
       cds_update_collbodies(R, Set, Structure, QE);
   end
+  %% Prüfe Länge der Beinketten für geänderte Positionsgrenze von Schubgelenk
+  if ~isinf(Set.optimization.max_chain_length)
+    q_minmax = NaN(R.NJ, 2);
+    q_minmax(R.MDH.sigma==1,:) = minmax2(QE(:,R.MDH.sigma==1)');
+    if R.Type == 0 || ...  % Seriell
+        ~Set.optimization.joint_limits_symmetric_prismatic 
+      q_minmax_sym = q_minmax;
+    elseif R.Type == 2  % Symmetrische PKM
+      q_minmax_sym = q_minmax(R.I1J_LEG(1):R.I2J_LEG(1),:);
+      % Grenzen durch Min-/Max-Werte aller Beinketten finden
+      for i = 2:R.NLEG
+        q_minmax_sym = minmax2([q_minmax_sym, q_minmax(R.I1J_LEG(i):R.I2J_LEG(i),:)]);
+      end
+    end
+    if R.Type == 0, Lchain = R.reach(q_minmax_sym);
+    else,           Lchain = R.Leg(1).reach(q_minmax_sym(1:R.Leg(1).NJ,2)); end
+    if Lchain > Set.optimization.max_chain_length
+      RelNormViol = Lchain / Set.optimization.max_chain_length;
+      fval_jic(jic) = 1e5 * (4.9 + 0.1 * 2/pi*atan(RelNormViol-1));  % Normierung auf 4.9e5 bis 5e5
+      constrvioltext_jic{jic} = sprintf(['Länge der kinematischen Kette zu groß mit Schubgelenken. ' ...
+        '%1.1fmm>%1.1fmm'], 1e3*Lchain, 1e3*Set.optimization.max_chain_length);
+      continue
+    end
+  end
   %% Prüfe Gestell-Durchmesser durch geänderte gestellfeste Führungsschienen
   if ~isnan(Set.optimization.base_size_limits(2)) && ...% Obere Grenze für Gestell-Radius gesetzt
       any(Structure.I_firstprismatic) % Es gibt ein gestellfestes Schubgelenk
@@ -1404,7 +1431,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         'achsen-Führungsschienen um %1.0f%% zu groß (%1.1fmm>%1.1fmm).'], ...
         100*fval_rbase, 1e3*r_base_eff, 1e3*1/((fval_rbase+1)/r_base_eff));
       fval_rbase_norm = 2/pi*atan(fval_rbase*3); % Normierung auf 0 bis 1; 100% zu groß ist 0.8
-      fval_jic(jic) = 1e5*(4.5+0.5*fval_rbase_norm); % Normierung auf 4.5e5 bis 5e5
+      fval_jic(jic) = 1e5*(4.5+0.4*fval_rbase_norm); % Normierung auf 4.5e5 bis 4.9e5
       calctimes_jic(i_ar,jic) = toc(t1);
       continue;
     end
@@ -1429,14 +1456,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       calctimes_jic(i_ar,jic) = toc(t1);
       continue;
       % Debug: Zeichnen des Roboters in der Konfiguration
-      if R.Type == 0 %#ok<UNRCH>
-        R.Leg.qlim(:,:) = minmax2(QE');
-      else
-        for kkk = 1:R.NLEG
-          R.Leg(kkk).qlim(:,:) = minmax2(QE(:,R.I1J_LEG(kkk):R.I2J_LEG(kkk))');
-        end
-      end
-      cds_fitness_debug_plot_robot(R, QE(1,:)', Traj_0, Traj_0, Set, Structure, [], fval_jic(jic), {});
+      R.update_qlim(minmax2(QE')); %#ok<UNRCH> 
+      Set.general.plot_robot_in_fitness = 1e6;
+      cds_fitness_debug_plot_robot(R, QE(1,:)', Traj_0, Traj_0, Set, Structure, [], 1e5, {});
     end
     % Gleiche Rechnung, nur für symmetrische Anordnung der PKM-Beinketten.
     % Annahme: Symmetrischer Aufbau, also zählen die Bewegungen aller Beine
@@ -1541,6 +1563,24 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       break;
     end
   end
+  if any(any(isnan(Q_jic(:,:,jic)))) && fval_jic(jic) == 1e3
+    % Prüfe ob das NaN dort steht, weil nicht alle Punkte geprüft werden
+    I_fromother = setxor(1:size(Q_jic,1), I_TrajCheck); % nicht geprüfte Punkt-Indizes
+    if any(any(isnan(Q_jic(I_TrajCheck,:,jic)))) % geprüft und NaN
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+        'tmp', 'cds_constraints_Qjic_NaN_error.mat'));
+      error('Q_jic für jic=%d enthält NaN, obwohl Konfig. erfolgreich', jic);
+    elseif any(any(~isnan(Q_jic(I_fromother,:,jic)))) % nicht geprüft und nicht NaN
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+        'tmp', 'cds_constraints_Qjic_nontested_nonNaN_error.mat'));
+      error('Q_jic für jic=%d enthält kein NaN, obwohl Punkte nicht getestet', jic);
+    else % nicht geprüft und NaN
+      % Belege die Gelenkwinkel der nicht geprüften Punkte mit den Werten
+      % einer anderen Konfiguration, damit spätere Plausi-Prüfungen gehen.
+      J_other_iO = find(fval_jic == 1e3, 1, 'first');
+      Q_jic(I_fromother,:,jic) = Q_jic(I_fromother,:,J_other_iO);
+    end
+  end
   if i_ar == 2 && fval_jic(jic) < fval_jic_old(jic)
     fval_jic(jic) = fval_jic_old(jic);
     Q_jic(:,:,jic) =  Q_jic_old(:,:,jic);
@@ -1615,6 +1655,21 @@ end
 constrvioltext = constrvioltext_jic{jic_best};
 
 I_iO = find(fval_jic == 1e3);
+if any(I_iO) % Erster Schritt. Prüfung der Gelenkkonfigurationen dazu (Syntax-Fehler)
+  for i = 1:length(I_iO)
+    if any(any(isnan(Q_jic(:,:,I_iO(i)))))
+      warning('Gelenkwink für i.O.-Konfiguration %d sind NaN', I_iO(i));
+      I_iO(i) = 0;
+    end
+  end
+  if any(I_iO == 0) % Es mussten Konfigurationen entfernt werden. Code-Fehler.
+    dbgfile=fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+      'tmp', 'cds_constraints_QEall_NaN_error.mat');
+    save(dbgfile);
+    cds_log(3, sprintf('[constraints] Status zum Debuggen gespeichert: %s', dbgfile));
+  end
+  I_iO = I_iO(I_iO~=0); % Deaktiviere die wegen NaN verworfenen Lösungen
+end
 if ~any(I_iO) % keine gültige Lösung für Eckpunkte
   Q0 = Q_jic(1,:,jic_best); % Gebe nur eine einzige Konfiguration aus
   QE_all = Q_jic(:,:,jic_best);
@@ -1649,7 +1704,6 @@ else % Gebe alle gültigen Lösungen aus
   bestinstspcdist_Q0 = bestinstspcdist_jic(I_iO);
   minmaxcondJ_Q0 = minmaxcondJ_jic(:,I_iO);
   minmaxcondJik_Q0 = minmaxcondJik_jic(:,I_iO);
-  
   % Ausgabe der IK-Werte für alle Eckpunkte. Im weiteren Verlauf der
   % Optimierung benötigt, falls keine Trajektorie berechnet wird.
   QE_all = Q_jic(:,:,I_iO);

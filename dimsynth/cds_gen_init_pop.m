@@ -145,7 +145,7 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
   % Platzhalter für Detail-Datei
   d2 = [];
   file2 = strrep(initpop_matlist{i}, 'Endergebnis', 'Details');
-  if ~isfield(d.RobotOptRes, 'q0') % Altes Dateiformat, aber eventuell korrigierbar (Dieser Code kann irgendwann weg)
+  if ~isfield(d.RobotOptRes, 'q0') % Altes Dateiformat, aber eventuell korrigierbar (Dieser Code kann irgendwann weg, fehlende Daten führen dann zum Ausschluss)
     % Versuche die fehlende Information aus zweiter Datei zu laden
     if exist(file2, 'file')
       try
@@ -172,6 +172,7 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
     else % Datei existiert nicht. Es werden NaN gelassen
       cds_log(-1, sprintf(['[gen_init_pop] IK-Konfiguration für Datei ', ...
         '%s nicht rekonstruierbar'], file2));
+      q0_pareto_i = NaN(size(d.RobotOptRes.p_val_pareto, 1), size(Structure.qlim, 1));
     end
     if ~isempty(d.RobotOptRes.p_val_pareto)
       d.RobotOptRes.q0_pareto = q0_pareto_i;
@@ -600,7 +601,7 @@ if size(InitPopLoadTmp,1) > 0
       bestscoreratio = 1-0.3*i/nIndLoad;
       I_score_allowed = ScoreLoad(:,1) > worstscore + bestscoreratio*(bestscore-worstscore);
     else % Bezug auf den Fitness-Wert (bei jedem dritten)
-      I_score_allowed = ScoreLoad(:,3) < 1e3;
+      I_score_allowed = ScoreLoad(:,3) < 1e3 & ScoreLoad(:,1)~=-inf;
     end
     % Bestimme die Indizes der Partikel, die durchsucht werden. Schließe
     % bereits gewählte aus.
@@ -608,11 +609,11 @@ if size(InitPopLoadTmp,1) > 0
     if ~any(I_search) % falls keiner gefunden wurde: Prüfe alle
       [~, Isort] = sort(ScoreLoad(:,1), 'descend');
       % Entferne die bereits vorhandenen Partikel. Ansonsten doppelte.
-      % (nicht mehr notwendig, da bereits vorhandene bereits mit -inf ans
-      % Ende gesetzt wurden. Die folgende Prüfung dauert sehr lange bei großen Daten.
-%       for k = find(I_selected)'
-%         Isort = Isort(Isort~=k);
-%       end
+      Isort = Isort(ScoreLoad(Isort,1)~=-inf);
+      if isempty(Isort)
+        cds_log(4, sprintf('[gen_init_pop] Keine weiteren Partikel mehr verfügbar'));
+        break;
+      end
       I_search(Isort(1:min(10,length(Isort)))) = true; % Wähle die 10 besten aus
     end
     II_search = find(I_search); % Zähl-Indizes zusätzlich zu Binär-Indizes

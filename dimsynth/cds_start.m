@@ -238,7 +238,9 @@ end
 defstruct = cds_definitions();
 if length(intersect(Set.optimization.objective_ik, ...
     defstruct.objective_ik_names_all)) ~= length(Set.optimization.objective_ik)
-  error('Set.optimization.objective_ik enthält unerwarteten Wert');
+  error(['Set.optimization.objective_ik enthält unerwarteten Wert. Ist: %s. ' ...
+    'Erlaubt: {%s}'], disp_array(Set.optimization.objective_ik, '%s'), ...
+    disp_array(defstruct.objective_ik_names_all, '%s'));
 end
 if ~isempty(intersect(Set.general.eval_figures, {'pareto_desopt', ...
     'pareto_dimsynth_desopt'})) && ~Set.general.debug_desopt
@@ -337,7 +339,14 @@ if Set.task.profile ~= 0 % Trajektorie prüfen
   % (Auswirkung hauptsächlich optisch in Auswertungen). Winkel größer pi.
   Traj.X(:,4:6) = denormalize_angle_traj(Traj.X(:,4:6));
   % Prüfe Konsistenz des Positionsverlaufs
-  X_numint = repmat(Traj.X(1,:),size(Traj.X,1),1)+cumtrapz(Traj.t, Traj.XD);
+  if Set.task.profile == 1 % Variante 1: Trapezregel (besser für kontinuierliche Funktionen)
+    X_numint = repmat(Traj.X(1,:),size(Traj.X,1),1)+cumtrapz(Traj.t, Traj.XD);
+  elseif Set.task.profile == 2 % Variante 2: Kumulierte Summe (besser, falls aus Differenzenquotient)
+    X_numint = repmat(Traj.X(1,:),size(Traj.X,1),1) + ...
+      cumsum(Traj.XD.*repmat([diff(Traj.t); diff(Traj.t(end-1:end))],1,size(Traj.XD,2)) );
+  else
+    error('Fall Set.task.profile=%d nicht definiert', Set.task.profile);
+  end
   corrX = diag(corr(X_numint, Traj.X));
   corrX(all(abs(X_numint-Traj.X)<1e-6)) = 1;
   assert(all(corrX>0.98), 'eingegebene Trajektorie ist nicht konsistent (X-XD)');
@@ -345,7 +354,12 @@ if Set.task.profile ~= 0 % Trajektorie prüfen
   if any(abs(testX(:))>1e-2)
     warning('Abweichung zwischen int(XD) und X zu groß: [%s]', disp_array(max(abs(testX)), '%1.1e'));
   end
-  XD_numint = repmat(Traj.XD(1,:),size(Traj.XD,1),1)+cumtrapz(Traj.t, Traj.XDD);
+  if Set.task.profile == 1
+    XD_numint = repmat(Traj.XD(1,:),size(Traj.XD,1),1)+cumtrapz(Traj.t, Traj.XDD);
+  else
+    XD_numint = repmat(Traj.XD(1,:),size(Traj.XD,1),1) + ...
+      cumsum(Traj.XDD.*repmat([diff(Traj.t); diff(Traj.t(end-1:end))],1,size(Traj.XD,2)) );
+  end
   corrXD = diag(corr(XD_numint, Traj.XD));
   corrXD(all(abs(Traj.XD)<1e-3)) = 1;
   assert(all(corrXD>0.98), 'eingegebene Trajektorie ist nicht konsistent (XD-XDD)');
@@ -360,14 +374,20 @@ else % Kein Trajektorienprofil gegeben. Prüfe Datenformat
 end
 assert(all(size(Traj.X)==size(Traj.XD)), 'Dimension von X und XD nicht gleich');
 assert(all(size(Traj.X)==size(Traj.XDD)), 'Dimension von X und XDD nicht gleich');
-assert(length(Traj.IE)==size(Traj.XE,1), 'IE und XE muss gleiche Dimension haben in Traj.-Var.');
+if Set.task.profile ~= 2
+  assert(length(Traj.IE)==size(Traj.XE,1), 'IE und XE muss gleiche Dimension haben in Traj.-Var.');
+end
 assert(max(Traj.IE)<=size(Traj.X,1), 'Index-Vektor IE darf Bereich aus X nicht überschreiten');
 test_XEfromIE = Traj.X(Traj.IE(Traj.IE~=0),:) - Traj.XE(Traj.IE~=0,:);
-assert(all(abs(test_XEfromIE(:))<1e-10), 'Eckpunkte der Trajektorie X müssen in XE mit IE indiziert werden können');
+if Set.task.profile ~= 2
+  assert(all(abs(test_XEfromIE(:))<1e-10), 'Eckpunkte der Trajektorie X müssen in XE mit IE indiziert werden können');
+end
 IE_firstzero = find(Traj.IE==0, 1, 'first');
 if ~isempty(IE_firstzero)
   assert(all(Traj.IE(IE_firstzero:end)==0), 'die letzten Werte in XE dürfen nicht mehr der Trajektorie zugeordnet sein');
 end
+IE_lastentry = find(Traj.IE~=0, 1, 'last');
+assert(all(diff(Traj.IE(1:IE_lastentry)) > 0), 'Werte in IE müssen monoton steigend sein');
 if all(Set.task.DoF(1:5) == [1 1 0 0 0]) % planare Aufgabe: 2T0R, 2T0*R oder 2T1R
   if ~strcmp(Set.structures.mounting_parallel, 'wall')
     assert(all(abs(Traj.X(1,3)- Traj.X(:,3))  < 1e-10) && ...

@@ -272,24 +272,17 @@ if Set.task.pointing_task
   R.xDDlim = [NaN(5,2); [-1,1]*Set.optimization.max_acceleration_ee_rotation];
 end
 % Trage Encoder-Fehler ein, die für die Berechnung des Positionsfehlers
-% benutzt werden. Siehe cds_obj_positionerror.
-% Treffe Annahme über die Genauigkeit der angetriebenen Gelenke
+% benutzt werden. Siehe cds_obj_positionerror und cds_settings_defaults.
 % Nehme Beispielwerte aus Datenblättern (Heidenhein). Die genauen Werte
-% sind nicht so wichtig, da der Vergleich verschiedener Roboter im
-% Vordergrund steht.
-% https://www.heidenhain.de/de_DE/produkte/winkelmessgeraete/winkelmessmodule/baureihe-mrp-2000/
-% Genauigkeit: 7 Winkelsekunden; Umrechnung in Grad und Radiant
-delta_rev = 7 * 1/3600 * pi/180;
-% https://www.heidenhain.de/de_DE/produkte/laengenmessgeraete/gekapselte-laengenmessgeraete/fuer-universelle-applikationen/
-delta_pris = 10e-6; % 10 Mikrometer
+% sind nicht so wichtig für den relativen Vergleich verschiedener Roboter
 if R.Type == 0 % Seriell
   delta_qa = NaN(R.NQJ,1);
-  delta_qa(R.MDH.sigma==0) = delta_rev;
-  delta_qa(R.MDH.sigma==1) = delta_pris;
+  delta_qa(R.MDH.sigma==0) = Set.optimization.obj_positionerror.revolute;
+  delta_qa(R.MDH.sigma==1) = Set.optimization.obj_positionerror.prismatic;
 else
   delta_qa = NaN(sum(R.I_qa),1);
-  delta_qa(R.MDH.sigma(R.I_qa)==0) = delta_rev;
-  delta_qa(R.MDH.sigma(R.I_qa)==1) = delta_pris;
+  delta_qa(R.MDH.sigma(R.I_qa)==0) = Set.optimization.obj_positionerror.revolute;
+  delta_qa(R.MDH.sigma(R.I_qa)==1) = Set.optimization.obj_positionerror.prismatic;
 end
 R.update_q_poserr(delta_qa);
 
@@ -2083,7 +2076,16 @@ NumIndividuals = Set.optimization.NumIndividuals;
 if ~Set.general.only_finish_aborted
   % Generiere Anfangspopulation aus Funktion mit Annahmen bezüglich Winkel.
   % Lädt zusätzlich bisherige Ergebnisse, um schneller i.O.-Werte zu bekommen.
-  [InitPop, QPop] = cds_gen_init_pop(Set, Structure);
+  try
+    [InitPop, QPop] = cds_gen_init_pop(Set, Structure);
+  catch err
+    dbgfile = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+      'tmp', ['cds_dimsynth_robot_call_cds_gen_init_pop_error_', R.mdlname, '.mat']);
+    cds_log(-1, sprintf(['[dimsynth] Fehler in cds_gen_init_pop: %s. Zustand ' ...
+      'gespeichert: %s'], err.message, dbgfile));
+    save(dbgfile);
+    return
+  end
   % Speichere die Gelenkwinkel der Anfangspopulation, um sie später wieder
   % abzurufen (betrifft die aus alten Ergebnissen geladenen).
   if ~isempty(QPop)
@@ -2344,6 +2346,10 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell
   end
 else % Einkriteriell
   physval_pareto = [];
+end
+if any(isnan(p_val))
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot_p_NaN_error.mat'));
+  error('Auszuwertende Parameter sind NaN. Darf nicht sein.');
 end
 
 % Fitness-Funktion nochmal mit besten Parametern aufrufen. Dadurch werden
@@ -2954,13 +2960,16 @@ elseif ~isempty(filelist_tmpres2) % Fall 2: Bereits von cds_gen_init_pop nachver
     end
     % Trage basierend auf der oben schon mit NaN initialisierten Struktur
     % die Werte ein. Annahme: Benutze die vorletzte Generation.
-    d.PSO_Detail_Data.pval(:,:,i_gen) =  d_tmp.RobotOptRes.p_val_pareto;
-    d.PSO_Detail_Data.fval(:,:,i_gen) =  d_tmp.RobotOptRes.fval_pareto;
+    % Die Dimension kann sich unterscheiden (evtl. falls Pareto-Dominierte
+    % entfernt wurden)
+    I_load = 1:min([size(d_tmp.RobotOptRes.p_val_pareto,1), size(d.PSO_Detail_Data.pval,1)]);
+    d.PSO_Detail_Data.pval(I_load,:,i_gen) =  d_tmp.RobotOptRes.p_val_pareto(I_load,:);
+    d.PSO_Detail_Data.fval(I_load,:,i_gen) =  d_tmp.RobotOptRes.fval_pareto(I_load,:);
     d.PSO_Detail_Data.comptime(i_gen,:) = 0; % Setze Rechenzeit auf Null (nicht bestimmbar). Genutzt für Bestimmung der Generation
     if isfield(d_tmp.RobotOptRes, 'desopt_pval_pareto') % Prüfung zur Kompatibilität für Daten älter als 03.02.2023
-      d.PSO_Detail_Data.desopt_pval(:,:,i_gen) = d_tmp.RobotOptRes.desopt_pval_pareto;
+      d.PSO_Detail_Data.desopt_pval(I_load,:,i_gen) = d_tmp.RobotOptRes.desopt_pval_pareto(I_load,:);
     end
-    d.PSO_Detail_Data.q0_ik(:,:,i_gen) = d_tmp.RobotOptRes.q0_pareto;
+    d.PSO_Detail_Data.q0_ik(I_load,:,i_gen) = d_tmp.RobotOptRes.q0_pareto(I_load,:);
     i_gen = i_gen + 1;
   end % for ii
 end
