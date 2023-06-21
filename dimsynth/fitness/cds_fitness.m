@@ -140,10 +140,13 @@ p_phys = cds_update_robot_parameters(R, Set, Structure, p);
 try
   [fval_constrparam, constrvioltext] = cds_constraints_parameters(R, Set, Structure, p, p_phys);
 catch err
-  cds_log(-1, sprintf('[fitness] Fehler in cds_constraints_parameters: %s', err.message));
+  fval(:) = 1e14; % Größtmöglicher Wert für cds_constraints_parameters
+  cds_log(-1, sprintf(['[fitness] Fehler in cds_constraints_parameters: %s. ' ...
+    'Setze fval=%1.1e'], err.message, fval(1)));
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
     'tmp', ['cds_fitness_call_cds_constraints_parameters_error_', R.mdlname, '.mat']));
   abort_fitnesscalc = true;
+  cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, desopt_pval);
   return
 end
 if fval_constrparam > 0
@@ -171,12 +174,14 @@ end
 try
   [fval_constr,QE_iIKC, Q0, constrvioltext, Stats_constraints] = cds_constraints(R, Traj_0_E, Set, Structure);
 catch err
+  fval(:) = 1e13; % Größtmöglicher Wert für cds_constraints
   dbgfile=fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
     'tmp', ['cds_fitness_call_cds_constraints_error_', R.mdlname, '.mat']);
   cds_log(-1, sprintf(['[fitness] Fehler in cds_constraints: %s. Zustand ' ...
-    'gespeichert: %s'], err.message, dbgfile));
+    'gespeichert: %s. Setze fval=%1.1e'], err.message, dbgfile, fval(1)));
   save(dbgfile);
   abort_fitnesscalc = true;
+  cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, desopt_pval);
   return
 end
 cds_log(2,sprintf(['[fitness] G=%d;I=%d. Nebenbedingungen für Einzelpunkte ', ...
@@ -290,8 +295,8 @@ end
 % NB-Verletzung in Eckpunkt-IK wird in Ausgabe mit Werten von 1e5 aufwärts
 % angegeben. Umwandlung in Werte von 1e9 aufwärts.
 % Ursache: Nachträgliches Einfügen von weiteren Nebenbedingungen.
-fval(:) = fval_constr*1e4; % Erhöhung, damit später kommende Funktionswerte aus Entwurfsoptimierung kleiner sein können
 if fval_constr > 1000 % Nebenbedingungen verletzt.
+  fval(:) = fval_constr*1e4; % Erhöhung, damit später kommende Funktionswerte aus Entwurfsoptimierung kleiner sein können
   % Speichere die Anfangs-Winkelstellung in der Roboterklasse für später.
   % Dient zum Vergleich und zur Reproduktion der Ergebnisse
   R.update_qref(Q0(1,:)');
@@ -421,10 +426,11 @@ for iIKC = I_IKC
       [fval_trajconstr,Q,QD,QDD,Jinv_ges,JP,constrvioltext_IKC{iIKC}, Traj_0_corr] = ...
         cds_constraints_traj(R, Traj_0, Q0(iIKC,:)', Set, Structure, Stats_constraints);
     catch err
+      fval(:) = 1e9; % Größtmöglicher Wert für cds_constraints_traj
       dbgfile = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
         'tmp', ['cds_fitness_call_cds_constraints_traj_error_', R.mdlname, '.mat']);
       cds_log(-1, sprintf(['[fitness] Fehler in cds_constraints_traj: %s. ' ...
-        'Zustand gespeichert: %s'], err.message, dbgfile));
+        'Zustand gespeichert: %s. Setze fval=%1.1e'], err.message, dbgfile, fval(1)));
       save(dbgfile);
       abort_fitnesscalc = true;
       return
@@ -616,7 +622,7 @@ for iIKC = I_IKC
         % 1e4...1e5: Nebenbedingung von Zielfunktion überschritten
         % 1e5...1e6: Überschreitung Belastungsgrenze der Segmente
         fval_IKC(iIKC,:) = 10*fval_desopt; % Wert ist im Bereich 1e3...1e5. Bringe in Bereich 1e4 bis 1e6
-        cds_fitness_debug_plot_robot(R, zeros(R.NJ,1), Traj_0, Traj_W, Set, Structure, p, fval(1), debug_info);
+        cds_fitness_debug_plot_robot(R, zeros(R.NJ,1), Traj_0, Traj_W, Set, Structure, p, fval_IKC(iIKC,1), debug_info);
         constrvioltext_IKC{iIKC} = 'Verletzung der Nebenbedingungen in Entwurfsoptimierung';
         continue
       end
@@ -712,7 +718,7 @@ for iIKC = I_IKC
       fval_IKC(iIKC,:) = fval_st*100; % Bringe in Bereich 1e4 ... 1e5
       constrvioltext_IKC{iIKC} = sprintf('Die Nachgiebigkeit ist zu groß: %1.1e > %1.1e', ...
         fval_phys_st, Set.optimization.constraint_obj(5));
-      cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.2fs. fval=%1.3e. %s', toc(t1), fval(1), constrvioltext_stiffness));
+      cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.2fs. fval=%1.3e. %s', toc(t1), fval_IKC(iIKC,1), constrvioltext_stiffness));
       continue
     end
   end
@@ -724,7 +730,7 @@ for iIKC = I_IKC
     if tau_a_max > Set.optimization.constraint_obj(3)
       fval_IKC(iIKC,:) = 1e3*(1+9*fval_actforce/1e3); % normiert auf 1e3 bis 1e4
       debug_info = {sprintf('Antriebskraft %1.1e > %1.1e', tau_a_max, Set.optimization.constraint_obj(3))};
-      cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval(1), debug_info);
+      cds_fitness_debug_plot_robot(R, Q(1,:)', Traj_0, Traj_W, Set, Structure, p, fval_IKC(iIKC,1), debug_info);
       constrvioltext_IKC{iIKC} = sprintf('Antriebskraft zu hoch: %1.1e > %1.1e', tau_a_max, Set.optimization.constraint_obj(3));
       continue
     end
