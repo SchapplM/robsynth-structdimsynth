@@ -1096,11 +1096,18 @@ end
 if Stats.iter == 0 && ...
     ~(all(Structure.q0_traj == q)) % wenn der Startwert erzwungen wurde, muss die Einzelpunkt-IK nicht erfolgreich dafür gewesen sein
   % TODO: Mögliche Ursachen: Andere Schwellwerte bei Kollision und Abbruch
-  % aus diesem Grund. Sollte eigentlich nicht auftreten
+  % aus diesem Grund. Sollte eigentlich nicht auftreten. Betrachte das als Fehler
+  dbgfile = fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+    sprintf('cds_constraints_traj_point0_error_%s_%s.mat', Set.optimization.optname, Structure.Name)); 
   cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Bereits bei erster ', ...
     'Traj.-Iteration Abbruch, obwohl Einzelpunkt-IK erfolgreich war. ', ...
-    'Vermutlich Logik-Fehler. Invkin-Fehlercode %d'], Structure.config_index, ...
-    Structure.config_number, Stats.errorcode));
+    'Vermutlich Logik-Fehler. Invkin-Fehlercode %d. Zustand speichern: %s'], ...
+    Structure.config_index, Structure.config_number, Stats.errorcode, dbgfile));
+  save(dbgfile);
+  fval_all(i_m, i_ar) = 6e4; % Schlechtester Wert in dem Bereich "IK-Konvergenz"
+  % Keine Konvergenz der IK. Weitere Rechnungen machen keinen Sinn.
+  constrvioltext_m{i_m} = 'Abbruch bei erstem Traj.-Punkt. Ungeklärter Fehler';
+  continue
 end
 % Die Traj.-IK bricht auch bei Verletzung von Nebenbedingungen ab und nicht
 % nur bei ungültiger Konfiguration. Prüfe hier nur den letzteren Fall.
