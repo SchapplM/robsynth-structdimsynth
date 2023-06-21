@@ -2328,7 +2328,16 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell
   physval_pareto = NaN(size(fval_pareto));
   for i = 1:size(fval_pareto,1) % Pareto-Front durchgehen
     [k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, fval_pareto(i,:)');
-    physval_pareto(i,:) = PSO_Detail_Data.physval(k_ind,:,k_gen);
+    if k_gen == -1
+      dbgfile = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+        'tmp', sprintf('cds_dimsynth_robot_reproduce_physval_error_%s_%s.mat', ...
+        Set.optimization.optname, Structure.Name));
+      cds_log(-1, sprintf(['[dimsynth] Fehler in cds_load_particle_details. ' ...
+      'Zustand gespeichert: %s'], dbgfile));
+      save(dbgfile);
+    else
+      physval_pareto(i,:) = PSO_Detail_Data.physval(k_ind,:,k_gen);
+    end
   end
   % Falls Nebenbedingungen gesetzt sind: Wähle von Pareto-Front dazu
   % passende Partikel als Rückgabe aus (für Plausibilität).
