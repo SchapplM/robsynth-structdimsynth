@@ -21,6 +21,10 @@ for i = 1:length(optdirs)
   if optdirs(i).name(1) == '.'
     continue
   end
+  % Debug: Sperren eines Versuchs
+%  if strcmp(optdirs(i).name, 'ARK_3T1R_20230618_phdthesis_v6_retry')
+%    continue % Debug: Dieser Versuch wird gerade bearbeitet
+%  end
   %% Prüfe, ob der Ordner der Optimierung zu alt ist.
   if now() - optdirs(i).datenum > max_age_optim_days
     fprintf('%s: Zu alt (%1.1f Tage)\n', optdirs(i).name, now() - optdirs(i).datenum);
@@ -108,14 +112,18 @@ for i = 1:length(optdirs)
   % TODO: Eigentlich gibt es dafür schon eine Logik in cds_start, die
   % aber scheinbar nicht funktioniert.
   Set_tmp.optimization.resdir = respath;
-  if any(~complete & tmpfiles_available)
-    fprintf('Optimierung %s ist unfertig. Schließe vorläufiges Ergebnis ab\n', ...
-      optdirs(i).name);
-    cds_start(Set_tmp, sd.Traj); % erzeugt auch die Tabelle neu
-  elseif any(complete) && ~exist(tf_file, 'file')
-    % nur Tabelle neu erzeugen
-    Set_tmp.general.only_finish_aborted = false;
-    Set_tmp.general.regenerate_summary_only = true;
-    cds_start(Set_tmp, sd.Traj);
+  try
+    if any(~complete & tmpfiles_available)
+      fprintf('Optimierung %s ist unfertig. Schließe vorläufiges Ergebnis ab\n', ...
+        optdirs(i).name);
+      cds_start(Set_tmp, sd.Traj); % erzeugt auch die Tabelle neu
+    elseif any(complete) && ~exist(tf_file, 'file')
+      % nur Tabelle neu erzeugen
+      Set_tmp.general.only_finish_aborted = false;
+      Set_tmp.general.regenerate_summary_only = true;
+      cds_start(Set_tmp, sd.Traj);
+    end
+  catch err
+    warning(sprintf('Fehler beim Abschließen von %s: %s', optdirs(i).name, err.message))
   end
 end
