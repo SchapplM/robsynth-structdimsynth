@@ -65,6 +65,12 @@ function [fval,Q,QD,QDD,Jinv_ges,JP,constrvioltext, Traj_0] = cds_constraints_tr
 % Debug
 % save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_0.mat'));
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_0.mat')); nargin=6;
+% Debug: Falls mat-Datei aus der Mitte der Funktion kommt und hier geladen wird
+% if Structure.task_red && ~strcmp(Set.optimization.objective_ik, 'constant')
+%   R.update_EE_FG(R.I_EE, [R.I_EE_Task(1:5), 0]); % Auf redundant setzen
+% else
+%   R.update_EE_FG(R.I_EE, [Structure.I_EE_Task(1:5), 1]); % nicht redundant
+% end
 % Set.general.taskred_dynprog_and_gradproj = true;
 % Set.general.debug_taskred_fig = true;
 % Set.general.debug_dynprog_files = true;
@@ -137,6 +143,7 @@ s = struct( ...
 s.nullspace_maxvel_interp = Traj_0.nullspace_maxvel_interp;
 % Sofort abbrechen, wenn eine der aktiven Nebenbedingungen verletzt wurde.
 s.abort_thresh_h = NaN(R.idx_ik_length.hntraj, 1); % alle deaktivieren.
+abort_thresh_h_active = s.abort_thresh_h; % Für Auswertung am Ende
 % Kollisionen führen nicht zum Abbruch, da die Kollisionskörper größer
 % gewählt sind als in Maßsynthese. Sonst wird in Traj.-IK immer zu früh
 % abgebrochen. Alternativ müsste collbodies_thresh=1 gewählt werden.
@@ -920,14 +927,20 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     i1 = Traj_0.IE(ii);
     i2 = Traj_0.IE(ii+1);
     if isnan(XL(ii+1,6)), break; end % Keine Vorgaben mehr. Traj. ungültig.
-    if abs(diff(XL(ii:ii+1,6)')) < 1e-12 % Funktion gibt Fehler bei gleichem Start/Ziel aus
-      Traj_0.X(i1:i2,6) = XL(ii,6);
-      Traj_0.XD(i1:i2,6) = 0;
-      Traj_0.XDD(i1:i2,6) = 0;
+    Traj_0.X(i1:i2,6) = XL(ii,6);
+    Traj_0.XD(i1:i2,6) = 0;
+    Traj_0.XDD(i1:i2,6) = 0;
+    if abs(diff(XL(ii:ii+1,6)')) < 1e-10 % Funktion gibt Fehler bei gleichem Start/Ziel aus
+      % Nehme vorbelegte Werte von oben
     else
-      [Traj_0.X(i1:i2,6),Traj_0.XD(i1:i2,6),Traj_0.XDD(i1:i2,6)] = ...
-        trapveltraj(XL(ii:ii+1,6)', i2-i1+1,...
-        'EndTime',Traj_0.t(i2)-Traj_0.t(i1), 'Acceleration', R.xDDlim(6,2));
+      try
+        [Traj_0.X(i1:i2,6),Traj_0.XD(i1:i2,6),Traj_0.XDD(i1:i2,6)] = ...
+          trapveltraj(XL(ii:ii+1,6)', i2-i1+1,...
+          'EndTime',Traj_0.t(i2)-Traj_0.t(i1), 'Acceleration', R.xDDlim(6,2));
+      catch err
+        cds_log(-1, sprintf(['[constraints_traj] Fehler in trapveltraj für ' ...
+          '%1.2f°->%1.2f°: %s'], 180/pi*XL(ii,6)', 180/pi*XL(ii+1,6)', err.message));
+      end
     end
   end
   s_ikdp = s;
@@ -1005,6 +1018,7 @@ if i_m == 1 || i_m == 3 % Gradientenprojektion
     [Q_gp, QD_gp, QDD_gp, PHI_gp, Jinv_ges_gp, ~, JP_gp, Stats_gp] = ...
       R.invkin2_traj(Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s_trajik);
   end
+  abort_thresh_h_active = s.abort_thresh_h;
   Q = Q_gp; QD = QD_gp; QDD = QDD_gp; PHI = PHI_gp; Jinv_ges = Jinv_ges_gp;
   JP = JP_gp; Stats = Stats_gp;
   % Speichere die erste Iteration der GP-Methode nochmal ab, damit später
@@ -1032,6 +1046,7 @@ if i_m == 1 || i_m == 3 % Gradientenprojektion
 else % i_m == 2 % Nur Ergebnis der dynamischen Programmierung
   Q = Q_dp; QD = QD_dp; QDD = QDD_dp; PHI = PHI_dp; Jinv_ges = Jinv_ges_dp;
   JP = JP_dp; Stats = Stats_dp;
+  abort_thresh_h_active = s_dp.abort_thresh_h; % merke für unten (Abbruchkriterien anders bei DP vs GP)
 end
 % Bestimme den Index, bis zu dem die Trajektorien-IK ausgibt.
 if any(Stats.errorcode == [0 1 2])
@@ -1174,11 +1189,11 @@ if ~isinf(Set.optimization.condition_limit_sing_act) && R.Type == 2
 end
 %% Singularität prüfen (bezogen auf IK-Jacobi-Matrix)
 if ~isinf(Set.optimization.condition_limit_sing) && Stats.errorcode == 3 && ...
-    any(Stats.h(:,1+R.idx_iktraj_hn.jac_cond) > s.abort_thresh_h(R.idx_iktraj_hn.jac_cond))
+    any(Stats.h(:,1+R.idx_iktraj_hn.jac_cond) > abort_thresh_h_active(R.idx_iktraj_hn.jac_cond))
   % Führt bereits in Traj.-IK zum Abbruch. Prüfe, ob dies die Ursache war
   constrvioltext_m{i_m} = sprintf(['Roboter ist singulär (Konditionszahl IK-', ...
     'Jacobi). %1.1e > %1.1e. Abbruch bei iter=%d'], Stats.h(1+Stats.iter,...
-    1+R.idx_iktraj_hn.jac_cond), s.abort_thresh_h(R.idx_iktraj_hn.jac_cond), Stats.iter);
+    1+R.idx_iktraj_hn.jac_cond), abort_thresh_h_active(R.idx_iktraj_hn.jac_cond), Stats.iter);
   fval_all(i_m, i_ar)  = 1e4*(5); % zunächst kein eigener Wertebereich
   continue
 end
@@ -1875,7 +1890,7 @@ if Set.optimization.constraint_collisions
 %     end
     continue
   elseif Stats.errorcode == 3 && Stats.h(Stats_iter_h,1+R.idx_iktraj_hn.coll_hyp) ...
-      >= s.abort_thresh_h(R.idx_iktraj_hn.coll_hyp)
+      >= abort_thresh_h_active(R.idx_iktraj_hn.coll_hyp)
     % Mögliche Ursache: Kollisionskörper in Traj.-IK sind größer als hier.
     cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Kollision in ', ...
       'Traj.-IK erkannt, aber nicht danach.'], Structure.config_index, Structure.config_number));
@@ -1901,7 +1916,7 @@ if ~isempty(Set.task.installspace.type)
     end
   end
   if Stats.errorcode == 3 && Stats.h(Stats_iter_h,1+R.idx_iktraj_hn.instspc_hyp) ...
-      >= s.abort_thresh_h(R.idx_iktraj_hn.instspc_hyp)
+      >= abort_thresh_h_active(R.idx_iktraj_hn.instspc_hyp)
     % Eine Ursache für falsche Erkennung: Exakt auf Grenze, daher in Traj.
     % erkannt und in CDS nicht.
     cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Bauraumverletzung in ', ...
@@ -1929,22 +1944,22 @@ end
 % Kann inkonsistente Wertebereiche der Fitness-Funktion erzeugen zugunsten
 % einer schnelleren Rechenzeit (ohne Abbruch wäre evtl. Kollision der Abbruchgrund)
 if Stats.errorcode == 3 && Stats.h(Stats_iter_h,1+R.idx_iktraj_hn.jac_cond) ...
-      >= s.abort_thresh_h(R.idx_iktraj_hn.jac_cond)
+      >= abort_thresh_h_active(R.idx_iktraj_hn.jac_cond)
   Failratio = 1-Stats.iter/length(Traj_0.t);
   fval_all(i_m, i_ar) = 1e3 * (1.1+0.1*Failratio); % 1.1e3 bis 1.2e3
   constrvioltext_m{i_m} = sprintf(['Vorzeitiger Abbruch aufgrund von Über', ...
     'schreitung der Konditionszahl-Grenze %1.1e in Traj.-Iter. %d.'], ...
-    s.abort_thresh_h(R.idx_iktraj_hn.jac_cond), Stats_iter_h);
+    abort_thresh_h_active(R.idx_iktraj_hn.jac_cond), Stats_iter_h);
   continue % damit nicht die Fehlermeldung hierunter ausgelöst wird
 end
 % Das gleiche für Positionsfehler
 if Stats.errorcode == 3 && Stats.h(Stats_iter_h,1+R.idx_iktraj_hn.poserr_ee) ...
-      >= s.abort_thresh_h(R.idx_iktraj_hn.poserr_ee)
+      >= abort_thresh_h_active(R.idx_iktraj_hn.poserr_ee)
   Failratio = 1-Stats.iter/length(Traj_0.t);
   fval_all(i_m, i_ar) = 1e3 * (1+0.1*Failratio); % 1.0e3 bis 1.1e3
   constrvioltext_m{i_m} = sprintf(['Vorzeitiger Abbruch aufgrund von Über', ...
     'schreitung der Positionsfehler-Grenze %1.1e in Traj.-Iter. %d. Wert: %1.1e'], ...
-    s.abort_thresh_h(R.idx_iktraj_hn.poserr_ee), Stats_iter_h, ...
+    abort_thresh_h_active(R.idx_iktraj_hn.poserr_ee), Stats_iter_h, ...
     Stats.h(Stats_iter_h,1+R.idx_iktraj_hn.poserr_ee));
   continue % damit nicht die Fehlermeldung hierunter ausgelöst wird
 end
