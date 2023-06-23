@@ -90,6 +90,10 @@ for i = 1:length(tmpdirsrob)
     RobotOptRes = struct('Structure', Structure); % Annahme: Gleiche Einstellungen der Optimierung
     if size(tmp.PSO_Detail_Data.fval,2) > 1 % siehe cds_save_particle_details
       I_dom = pareto_dominance(tmp.PSO_Detail_Data.fval(:,:,1+igen)); % Sonst später Warnungen, da keine valide Pareto-Front
+      % Entferne auch NaN-Einträge (erzeugen beim späteren Laden Probleme)
+      % (treten auf, wenn es kein Status am Ende einer Generation ist,
+      % sondern wenn die Berechnung in einer Generation vorzeitig abbricht)
+      I_dom = I_dom | any(isnan(tmp.PSO_Detail_Data.fval(:,:,1+igen)),2);
       RobotOptRes.fval_pareto = tmp.PSO_Detail_Data.fval(~I_dom,:,1+igen);
       RobotOptRes.p_val_pareto = tmp.PSO_Detail_Data.pval(~I_dom,:,1+igen);
       RobotOptRes.desopt_pval_pareto = tmp.PSO_Detail_Data.desopt_pval(~I_dom,:,1+igen);
