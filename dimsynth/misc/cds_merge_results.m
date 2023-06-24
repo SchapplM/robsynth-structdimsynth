@@ -36,6 +36,7 @@ settings = struct( ...
   'create_missing_tables', false, ...
   'create_pareto_fig', false, ...
   'delete_parts_dirs', true, ...
+  'resdir', '', ... % Standardmäßig Ordner im Repo nehmen. Optional anderes
   'retry', false);
 if nargin == 2
   for f = fields(settings_in)'
@@ -49,7 +50,11 @@ end
 if strcmp(settings.mode, 'symlink')
   settings.delete_parts_dirs = false; % Bei Verlinkung löschen nicht sinnvoll.
 end
-resdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), 'results');
+if isempty(settings)
+  resdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), 'results');
+else
+  resdir = settings.resdir;
+end
 resdir_ges = fullfile(resdir, optname);
 
 if exist(resdir_ges, 'file') 
@@ -203,13 +208,22 @@ for i = 0:maxnum_parts % Ordner 0 kommt nicht aus Optimierung sondern von oben
     RobNr_j_neu = IdxNeu(IdxAlt==RobNr_j_alt); % Setze neue Nummer
     if resobjects_i(j).isdir % Kopiere das Verzeichnis
       dirname_j_neu = sprintf('Rob%d_%s', RobNr_j_neu, RobName_j);
-      if strcmp(settings.mode, 'copy')
+      mode = settings.mode;
+      if strcmp(mode, 'move')
+        try % Bei Windows Verschieben evtl. nicht möglich wegen offener Dateien
+          movefile(fullfile(resdir,dirname_i,resobjects_i(j).name), ...
+            fullfile(resdir_ges, dirname_j_neu));
+        catch err
+          warning(sprintf(['Verschieben nicht möglich. Kopiere ' ...
+            'stattdessen: %s'], err.message)); %#ok<SPWRN> 
+          mode = 'copy';
+        end
+      end
+      if strcmp(mode, 'copy')
         copyfile(fullfile(resdir,dirname_i,resobjects_i(j).name), ...
           fullfile(resdir_ges, dirname_j_neu));
-      elseif strcmp(settings.mode, 'move')
-        movefile(fullfile(resdir,dirname_i,resobjects_i(j).name), ...
-          fullfile(resdir_ges, dirname_j_neu));
-      elseif strcmp(settings.mode, 'symlink')
+      end
+      if strcmp(mode, 'symlink')
         if ~isunix()
           error('Symbolische Verknüpfung nur unter Linux möglich');
         end
