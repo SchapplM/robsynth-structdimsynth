@@ -15,6 +15,8 @@
 %   Eigenschaften der Roboterstruktur (aus cds_gen_robot_list.m)
 % Stats_constraints
 %   Zusätzliche Eigenschaften der Anfangswerte aus cds_constraints.
+% p_opt
+%   Optimierungsparameter der Maßsynthese (aus cds_fitness)
 % 
 % Ausgabe:
 % fval
@@ -61,7 +63,7 @@
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
 function [fval,Q,QD,QDD,Jinv_ges,JP,constrvioltext, Traj_0] = cds_constraints_traj( ...
-  R, Traj_0_in, q, Set, Structure, Stats_constraints)
+  R, Traj_0_in, q, Set, Structure, Stats_constraints, p_opt)
 % Debug
 % save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_0.mat'));
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_constraints_traj_0.mat')); nargin=6;
@@ -302,7 +304,7 @@ if Structure.task_red && Set.general.debug_taskred_perfmap
       length(phiz_range), toc(t1)));
     % Speichere die Redundanzkarte (da die Berechnung recht lange dauert)
     save(matfile_pm, 'Structure', 'H_all', 's_ref', 's_tref', ...
-      'phiz_range', 'i_ar', 'q', 'nt_red', 'x0', 'set_perfmap');
+      'phiz_range', 'i_ar', 'q', 'nt_red', 'x0', 'set_perfmap', 'qlim', 'p_opt');
     end
   end
   if i_ar > 1 % Redundanzkarte erst zeichnen, wenn Trajektorie zur Verfügung steht

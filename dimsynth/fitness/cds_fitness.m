@@ -424,7 +424,7 @@ for iIKC = I_IKC
     t0 = tic();
     try
       [fval_trajconstr,Q,QD,QDD,Jinv_ges,JP,constrvioltext_IKC{iIKC}, Traj_0_corr] = ...
-        cds_constraints_traj(R, Traj_0, Q0(iIKC,:)', Set, Structure, Stats_constraints);
+        cds_constraints_traj(R, Traj_0, Q0(iIKC,:)', Set, Structure, Stats_constraints, p);
     catch err
       fval(:) = 1e9; % Größtmöglicher Wert für cds_constraints_traj
       dbgfile = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
