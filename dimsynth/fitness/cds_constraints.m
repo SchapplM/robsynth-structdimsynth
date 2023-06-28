@@ -439,6 +439,10 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       fval_jic(jic) > 1e6 % ... falls normale IK erfolgreich war.
     break; % sonst ist die zweite Iteration nicht notwendig.
   end
+  if i_ar == 2 && fval_jic(jic) == 1e3 && jic == 1 && ... % Erfolgreich für erste Konfiguration (die vorgegebene)
+      Set.optimization.pos_ik_tryhard_num > 0 % Anzeichen für Reproduktions-Versuch (TODO: Systematischer, siehe andere Vorkommnisse)
+    break; % Keine zweite Aufgabenredundanz-Iteration (für Reproduktion der Ergebnisse)
+  end
   fval_jic(jic) = NaN; % Muss später im Ablauf überschrieben werden
   constrvioltext_jic{jic} = ''; % hier zurücksetzen. Berechne Nebenbedingungen ab hier neu.
   constrvioltext2_jic{jic} = '';
