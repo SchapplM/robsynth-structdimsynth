@@ -1737,8 +1737,6 @@ Stats_constraints = struct('bestcolldist', bestcolldist_Q0, ...
   'minmaxcondJ', minmaxcondJ_Q0, 'minmaxcondJik', minmaxcondJik_Q0);
 % Änderungen an Roboter-Klasse rückgängig machen. Zurücksetzen der
 % Aufgaben-FG funktioniert oben nur, wenn IK auch erfolreich ist.
-if strcmp(Set.optimization.objective_ik, 'constant') && Structure.task_red
-  if ~all(R.I_EE_Task == Set.task.DoF)
-    R.update_EE_FG(R.I_EE, Set.task.DoF);
-  end
+if Structure.task_red && ~all(R.I_EE_Task == Set.task.DoF)
+  R.update_EE_FG(R.I_EE, Set.task.DoF);
 end
