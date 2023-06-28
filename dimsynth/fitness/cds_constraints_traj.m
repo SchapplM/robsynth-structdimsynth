@@ -155,7 +155,8 @@ abort_thresh_h_active = s.abort_thresh_h; % Für Auswertung am Ende
 if ~isempty(Set.task.installspace.type)
   s.abort_thresh_h(R.idx_iktraj_hn.instspc_hyp) = inf;
 end
-% Singularitäten führen zum Abbruch, wenn Schwellwert gesetzt ist
+% Singularitäten führen zum Abbruch, wenn Schwellwert gesetzt ist.
+% TODO: Warum wird hier nicht der Zahlenwert gesetzt? Siehe DP-Abschnitt.
 if ~isinf(Set.optimization.condition_limit_sing_act)
   s.abort_thresh_h(R.idx_iktraj_hn.jac_cond) = inf;
 end
@@ -818,7 +819,6 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     'xDDlim', dp_xDDlim, 'xDlim', dp_xDlim, ...
     'cost_mode', 'max', ...
     'cost_mode2', 'motion_redcoord', ... % möglichst geringe Bewegung der red. Koord.
-    'abort_thresh_h', s.abort_thresh_h, ...
     'PM_H_all', H_all, 'PM_s_ref', s_ref, 'PM_s_tref', s_tref, 'PM_phiz_range', phiz_range, ...
     'verbose', 0, 'IE', Traj_0.IE(Traj_0.IE~=0), ...
     ... % 360°. Falls Startpose am Rand liegt den Suchbereich etwas aufweiten
@@ -863,12 +863,15 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
   % Aktiviere immer die Nebenbedingungen, die später zum Abbruch führen
   % TODO: Funktioniert aktuell noch nicht, falls sie nicht mit `wn` aktiviert werden
   if Set.optimization.constraint_collisions
-    s_dp.abort_thresh_h(R.idx_iktraj_hn.coll_hyp) = inf;
+    s_dp.settings_ik.abort_thresh_h(R.idx_iktraj_hn.coll_hyp) = inf;
     % Keine Vergrößerung der Kollisionskörper mehr, da sonst vorzeitiger
     % Abbruch
     s_dp.settings_ik.collbodies_thresh = 1.0;
     s_dp.settings_ik.collision_thresh = 1.5; % Versuche auszuweichen, wenn in kritischer Nähe
   end
+  % Singularitäten führen zum Abbruch, wenn Schwellwert gesetzt ist
+  s_dp.settings_ik.abort_thresh_h(R.idx_iktraj_hn.jac_cond) = Set.optimization.condition_limit_sing_act;
+  s_dp.settings_ik.abort_thresh_h(R.idx_iktraj_hn.ikjac_cond) = Set.optimization.condition_limit_sing;
   % Deaktiviere das Kriterium xlim_hyp und xlim_par wieder. Werden in DP
   % bereits durch die Variablen-Grenzen (phi_min/phi_max) sichergestellt.
   s_dp.wn(R.idx_ikpos_wn.xlim_par) = 0;
@@ -1076,7 +1079,7 @@ if i_m == 1 || i_m == 3 % Gradientenprojektion
 else % i_m == 2 % Nur Ergebnis der dynamischen Programmierung
   Q = Q_dp; QD = QD_dp; QDD = QDD_dp; PHI = PHI_dp; Jinv_ges = Jinv_ges_dp;
   JP = JP_dp; Stats = Stats_dp;
-  abort_thresh_h_active = s_dp.abort_thresh_h; % merke für unten (Abbruchkriterien anders bei DP vs GP)
+  abort_thresh_h_active = s_dp.settings_ik.abort_thresh_h; % merke für unten (Abbruchkriterien anders bei DP vs GP)
 end
 % Bestimme den Index, bis zu dem die Trajektorien-IK ausgibt.
 if any(Stats.errorcode == [0 1 2])
