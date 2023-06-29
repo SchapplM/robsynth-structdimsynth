@@ -1009,13 +1009,13 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         % Damit werden für alle noch folgenden Punkte die Ergebnisse des
         % nicht-optimierten Aufrufs genommen (kann Bewertung in Maßsynthese
         % leicht verzerren, ist aber tolerierbar).
-        constrvioltext2_jic{jic} = sprintf('Abbruch nach Punkt %d wegen Kollision in IK', i);
+        constrvioltext2_jic{jic} = sprintf('Abbruch in AR-Iteration nach Punkt %d wegen Kollision in IK', i);
         break; 
       end
       % Gleiche Betrachtung bei Bauraumprüfung. Ausgabe wird nur belegt, wenn
       % Kennzahl auch geprüft wird
       if Stats.instspc_mindst(1+Stats.iter,:) > 0
-        constrvioltext2_jic{jic} = sprintf('Abbruch nach Punkt %d wegen Bauraumverletzung in IK', i);
+        constrvioltext2_jic{jic} = sprintf('Abbruch in AR-Iteration nach Punkt %d wegen Bauraumverletzung in IK', i);
         break;
       end
       % Neue Werte aus der IK wurden nicht verworfen. Schreibe Konditionszahl
@@ -1651,7 +1651,8 @@ if Set.general.debug_calc && Structure.task_red
   end
 end
 % Text vervollständigen aus beiden Variablen
-for i = find(~strcmp(constrvioltext2_jic, ''))'
+
+for i = find(~cellfun(@isempty,constrvioltext2_jic))'
   constrvioltext_jic{i} = sprintf('%s %s', constrvioltext_jic{i}, constrvioltext2_jic{i});
 end
 %% IK-Konfigurationen für Eckpunkte auswerten. Nehme besten.
