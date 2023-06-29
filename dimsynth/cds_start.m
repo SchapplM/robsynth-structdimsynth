@@ -988,7 +988,16 @@ if ~Set.general.regenerate_summary_only
     else,                                mode = 'Abschluss'; end
     cds_log(1, sprintf('Starte %s für Roboter %d (%s%s)', mode, i, ...
       Structures{i}.Name, RobNameStr));
-    cds_dimsynth_robot(Set, Traj, Structures{i});
+    try
+      cds_dimsynth_robot(Set, Traj, Structures{i});
+    catch err
+      dbgfile = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+        'tmp', ['cds_dimsynth_robot_error_', Set.optimization.optname, '_', R.mdlname, '.mat']);
+      cds_log(-1, sprintf(['Fehler in cds_dimsynth_robot: %s. \nZustand ' ...
+        'gespeichert: %s\n%s'], err.message, dbgfile, getReport(err, 'extended')));
+      save(dbgfile);
+      continue
+    end
     % Log-Funktion muss erneut initialisiert werden (oben evtl zurückgesetzt)
     cds_log(1, sprintf('Beendet: %s für Roboter %d (%s%s)', mode, i, ...
       Structures{i}.Name, RobNameStr), 'amend', Set, struct('Number', 0));
