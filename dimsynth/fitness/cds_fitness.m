@@ -142,7 +142,7 @@ try
 catch err
   fval(:) = 1e14; % Größtmöglicher Wert für cds_constraints_parameters
   cds_log(-1, sprintf(['[fitness] Fehler in cds_constraints_parameters: %s. ' ...
-    'Setze fval=%1.1e'], err.message, fval(1)));
+    'Setze fval=%1.1e.\n%s'], err.message, fval(1), getReport(err, 'extended')));
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
     'tmp', ['cds_fitness_call_cds_constraints_parameters_error_', R.mdlname, '.mat']));
   abort_fitnesscalc = true;
@@ -178,7 +178,7 @@ catch err
   dbgfile=fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
     'tmp', ['cds_fitness_call_cds_constraints_error_', R.mdlname, '.mat']);
   cds_log(-1, sprintf(['[fitness] Fehler in cds_constraints: %s. Zustand ' ...
-    'gespeichert: %s. Setze fval=%1.1e'], err.message, dbgfile, fval(1)));
+    'gespeichert: %s. Setze fval=%1.1e.\n%s'], err.message, dbgfile, fval(1), getReport(err, 'extended')));
   save(dbgfile);
   abort_fitnesscalc = true;
   cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, desopt_pval);
@@ -430,7 +430,7 @@ for iIKC = I_IKC
       dbgfile = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
         'tmp', ['cds_fitness_call_cds_constraints_traj_error_', R.mdlname, '.mat']);
       cds_log(-1, sprintf(['[fitness] Fehler in cds_constraints_traj: %s. ' ...
-        'Zustand gespeichert: %s. Setze fval=%1.1e'], err.message, dbgfile, fval(1)));
+        'Zustand gespeichert: %s. Setze fval=%1.1e\n%s'], err.message, dbgfile, fval(1), getReport(err, 'extended')));
       save(dbgfile);
       abort_fitnesscalc = true;
       return

@@ -921,7 +921,7 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     catch err
       save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
         sprintf('cds_constraints_traj_dynprog_fail.mat')));
-      error('Fehler in dynamischer Programmierung: %s', err.message);
+      error('Fehler in dynamischer Programmierung: %s\n%s', err.message, getReport(err, 'extended'));
     end
     if Set.general.debug_dynprog_files
       save(matfile_dp, 'XL', 'DPstats', 'TrajDetailDP');
@@ -972,7 +972,7 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
           'EndTime',Traj_0.t(i2)-Traj_0.t(i1), 'Acceleration', R.xDDlim(6,2));
       catch err
         cds_log(-1, sprintf(['[constraints_traj] Fehler in trapveltraj für ' ...
-          '%1.2f°->%1.2f°: %s'], 180/pi*XL(ii,6)', 180/pi*XL(ii+1,6)', err.message));
+          '%1.2f°->%1.2f°: %s\n%s'], 180/pi*XL(ii,6)', 180/pi*XL(ii+1,6)', err.message, getReport(err, 'extended')));
       end
     end
   end

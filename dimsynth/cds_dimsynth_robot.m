@@ -2081,8 +2081,8 @@ if ~Set.general.only_finish_aborted
   catch err
     dbgfile = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
       'tmp', ['cds_dimsynth_robot_call_cds_gen_init_pop_error_', R.mdlname, '.mat']);
-    cds_log(-1, sprintf(['[dimsynth] Fehler in cds_gen_init_pop: %s. Zustand ' ...
-      'gespeichert: %s'], err.message, dbgfile));
+    cds_log(-1, sprintf(['[dimsynth] Fehler in cds_gen_init_pop: %s. \nZustand ' ...
+      'gespeichert: %s\n%s'], err.message, dbgfile, getReport(err, 'extended')));
     save(dbgfile);
     return
   end
@@ -2947,7 +2947,7 @@ if ~isempty(filelist_tmpres) % Fall 1: "normale" Daten im tmp-Ordner
       break;
     catch err
       cds_log(-1, sprintf(['[dimsynth] Fehler beim Laden von Wiederauf', ...
-        'nahme-Datei: %s.'], err.message));
+        'nahme-Datei: %s.\n%s'], err.message, getReport(err, 'extended')));
       continue
     end
   end
