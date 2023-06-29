@@ -1207,7 +1207,7 @@ if ~isinf(Set.optimization.condition_limit_sing_act) && R.Type == 2
     Jinv_IK = reshape(Jinv_ges(i,:), R.NJ, sum(R.I_EE));
     % Konditionszahl der auf Antriebe bezogenen (inversen) Jacobi-Matrix
     c = cond(Jinv_IK(R.I_qa,:));
-    if c > Set.optimization.condition_limit_sing_act_act
+    if c > Set.optimization.condition_limit_sing_act
       IdxFirst = i;
       break;
     end
