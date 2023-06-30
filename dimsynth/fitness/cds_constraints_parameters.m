@@ -72,8 +72,8 @@ if Structure.Type == 2 && any(Structure.Coupling(1) == [4 8]) && ...
                 Set.optimization.min_inclination_conic_base_joint;
     assert(fval_rel <=1 & fval_rel >=0, 'Relative Abweichung der Gelenkneigung muss <1 sein');
     fval = 1e13 * (1 + 0.5*fval_rel); % normiere auf 1e13 bis 1.5e13
-    constrvioltext = sprintf('Neigung des Gestellgelenks ist mit %1.1f° nicht groß genug', ...
-      180/pi*gamma_b);
+    constrvioltext = sprintf(['Neigung des Gestellgelenks ist mit %1.1f° ' ...
+      'nicht groß genug (min. %1.1f°)'], 180/pi*gamma_b, 180/pi*Set.optimization.min_inclination_conic_base_joint);
     return
   elseif ~isnan(delta_gamma_b_max)
     gamma_exc_rel = delta_gamma_b_max/Set.optimization.max_inclination_conic_base_joint;
@@ -283,7 +283,8 @@ if ~isinf(Set.optimization.max_chain_length)
   end
 end
 %% Prüfe das Verhältnis von Gestell- und Plattformdurchmesser
-if ~isinf(Set.optimization.max_platform_base_ratio)
+if ~isinf(Set.optimization.max_platform_base_ratio) && R.Type == 2 && ...
+    ~(any(Structure.Coupling(1) == [3 4]) && Structure.Name(3) == 'P') % Bei Radialen/Konischen Schubgelenken nicht anwendbar
   pbr = r_plf_eff / r_base_eff;
   if pbr > Set.optimization.max_platform_base_ratio
     RelNormViol = pbr / Set.optimization.max_platform_base_ratio;
