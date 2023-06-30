@@ -283,7 +283,7 @@ if ~isinf(Set.optimization.max_chain_length)
   end
 end
 %% Prüfe das Verhältnis von Gestell- und Plattformdurchmesser
-if ~isinf(Set.optimization.max_platform_base_ratio) && R.Type == 2 && ...
+if ~isinf(Set.optimization.max_platform_base_ratio) && Structure.Type == 2 && ...
     ~(any(Structure.Coupling(1) == [3 4]) && Structure.Name(3) == 'P') % Bei Radialen/Konischen Schubgelenken nicht anwendbar
   pbr = r_plf_eff / r_base_eff;
   if pbr > Set.optimization.max_platform_base_ratio
