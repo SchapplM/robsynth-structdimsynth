@@ -1392,9 +1392,16 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       cds_update_collbodies(R, Set, Structure, QE);
   end
   %% Prüfe Länge der Beinketten für geänderte Positionsgrenze von Schubgelenk
-  if ~isinf(Set.optimization.max_chain_length)
+  % Muss nur gemacht werden, wenn es nicht-gestellfeste Schubgelenke gibt
+  I_nonfirstprismatic = R.MDH.sigma==1;
+  I_nonfirstprismatic(Structure.I_firstprismatic) = 0;
+  if ~isinf(Set.optimization.max_chain_length) && ...
+      any(I_nonfirstprismatic)
     q_minmax = NaN(R.NJ, 2);
     q_minmax(R.MDH.sigma==1,:) = minmax2(QE(:,R.MDH.sigma==1)');
+    % Keine Betrachtung von Basisnahen Schubgelenken. Hier zählt nur die
+    % Kette danach (vgl. PrauseChaCor2015, Gl. 7 und Text darüber)
+    q_minmax(Structure.I_firstprismatic,:) = 0;
     if R.Type == 0 || ...  % Seriell
         ~Set.optimization.joint_limits_symmetric_prismatic 
       q_minmax_sym = q_minmax;
