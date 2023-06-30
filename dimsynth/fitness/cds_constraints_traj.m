@@ -287,16 +287,17 @@ if Structure.task_red && Set.general.debug_taskred_perfmap
 %     perfmap_range_phiz(perfmap_range_phiz> 2*pi)= 2*pi;
     cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: Beginne Aufgabenredundanz-', ...
       'Diagnosebild für Trajektorie mit %d Zeit-Stützstellen'], Structure.config_index, Structure.config_number, nt_red));
+    suffix = 'TaskRedPerfMap_Data';
+    matfile_pm = fullfile(resdir,sprintf('%s_%s.mat', name_prefix_ardbg, suffix));
     % Durchsuche die vorhandenen gespeicherten Daten um die Berechnung im Debug-Fall zu sparen
     pm_loaded = false; % auf true setzen wenn geladen.
     if dbg_load_perfmap
-      suffix = 'TaskRedPerfMap_Data';
       matfilelist_pm = dir(fullfile(resdir, sprintf(['Gen%02d_Ind%02d_' ...
         'Konfig*_%s.mat'], currgen, currind, suffix)));
       % Prüfe, ob die Datei die richtigen Daten enthält
       for iidbg = 1:length(matfilelist_pm)
-        matfile_pm = fullfile(resdir, matfilelist_pm(iidbg).name);
-        tmp = load(matfile_pm);
+        matfile_pm_ii = fullfile(resdir, matfilelist_pm(iidbg).name);
+        tmp = load(matfile_pm_ii);
         if any(abs(q-tmp.q)>1e-8) || nt_red ~= tmp.nt_red || i_ar ~= tmp.i_ar
           continue
         else
@@ -304,7 +305,7 @@ if Structure.task_red && Set.general.debug_taskred_perfmap
           H_all = tmp.H_all; s_ref = tmp.s_ref; s_tref = tmp.s_tref;
           phiz_range = tmp.phiz_range;
           cds_log(2, sprintf(['[constraints_traj] Konfig %d/%d: Bilddaten ' ...
-            'geladen: %s'], Structure.config_index, Structure.config_number, matfile_pm));
+            'geladen: %s'], Structure.config_index, Structure.config_number, matfile_pm_ii));
           % Überschreibe den Namenspräfix für die zu speichernden Dateien
           [tokens, ~] = regexp(matfilelist_pm(iidbg).name, 'Konfig(\d+)_', 'tokens', 'match');
           Structure.config_index = str2double(tokens{1}{1});
