@@ -1130,9 +1130,14 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       % Abweichung eines Gelenkpunktes um 3% der Beinkettenlänge wird noch
       % als gleich gewertet. Sonst zu viele Lösungen.
       I_JPfail = all(abs(test_JP_vs_all_prev)/Lchain < 3e-2,2); % Jede Zeile entspricht einem vorherigen Anfangswert jic
+      % Prüfe ob sich die Koordinaten von Schubgelenken verändert haben
+      % (Bei PKM wie 3-UPU kann das Schubgelenk mathematisch umklappen,
+      % alle andere Kriterien sind aber gleich)
+      I_prisdifferent = all(abs(test_vs_all_prev(R.MDH.sigma==1,:)) < 1e-10, 1)';
       % Erkenne eine andere Gelenkposition nur an, wenn die Plattformdrehung 
-      % ungefähr gleich bleibt. Sonst teilweise große EE-Änderung bei kleiner Gelenkpositionsänderung
-      I_findp = find(I_JPfail & I_phizsame,1,'first');
+      % ungefähr gleich bleibt. Sonst teilweise große EE-Änderung bei
+      % kleiner Gelenkpositionsänderung. Zusätzlich Schubgelenk-Ausnahme 
+      I_findp = find(I_JPfail & I_phizsame & I_prisdifferent,1,'first');
       if ~isempty(I_findp)
         if i == 1
           fval_jic(jic) = Inf; % damit jic-Iteration nicht weiter gemacht wird und doppelte Konfiguration nicht in Liste aufgenommen wird.
@@ -1670,7 +1675,7 @@ I_iO = find(fval_jic == 1e3);
 if any(I_iO) % Erster Schritt. Prüfung der Gelenkkonfigurationen dazu (Syntax-Fehler)
   for i = 1:length(I_iO)
     if any(any(isnan(Q_jic(:,:,I_iO(i)))))
-      warning('Gelenkwink für i.O.-Konfiguration %d sind NaN', I_iO(i));
+      warning('Gelenkwinkel für i.O.-Konfiguration %d sind NaN', I_iO(i));
       I_iO(i) = 0;
     end
   end
@@ -1704,9 +1709,26 @@ else % Gebe alle gültigen Lösungen aus
   if size(Q0_unique,1) ~= size(Q0,1)
     cds_log(-1, sprintf('[constraints] Doppelte Konfigurationen als Ergebnis. Darf nicht sein'));
   end
+  % Berücksichtige, ob die Schubgelenke unterschiedliche Werte haben (s.o.)
+  % (Grenzfall bei 3-UPU oder evtl. 6-UPU)
+  if R.Type == 2 && any(R.MDH.sigma==1) % Abstand des Schubgelenks von Basis
+    d_prismatic = NaN(length(I_iO),1);
+    for kk = 1:length(I_iO)
+      qminmax_legs = reshape(minmax2(Q_jic(:,:,I_iO(kk))'),R.Leg(1).NJ,2*R.NLEG);
+      qminmax_leg = minmax2(qminmax_legs);
+      q_range_leg = diff(qminmax_leg');
+      d_prismatic(kk) = q_range_leg(R.Leg(1).MDH.sigma==1);
+    end
+    % Sortiere die Konfigurationen nach absteigender Schubgelenk-Auslenkung
+    % Damit werden im nächsten Schritt die doppelten Gelenkpunk-Konfigu-
+    % rationen aussortiert, die nicht einheitliche Vorzeichen haben
+    [~,I_sortpris] = sort(d_prismatic, 'ascend');
+    I_iO = I_iO(I_sortpris);
+    Q0 = Q0(I_sortpris,:);
+  end
   % Prüfe, welche der IK-Konfigurationen andere Gelenk-Positionen zur Folge haben. Nur diese werden genommen.
   [~,I,~] = unique(round( reshape(squeeze(JP_jic(1, :, I_iO)), ...
-    size(JP_jic,2), length(I_iO))' ,5), 'rows', 'first');
+    size(JP_jic,2), length(I_iO))', 5), 'rows', 'first');
   % Reduziere die Ergebnisse. Damit werden IK-Konfigurationen verworfen,
   % die nur rechnerisch eine andere Koordinate haben, aber kein Umklappen
   % darstellen
