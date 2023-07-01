@@ -1125,7 +1125,7 @@ if Structure.desopt_prismaticoffset
 end
 cds_fitness_debug_plot_robot(R, Q_IKC(1,:, iIKCbest)', Traj_0, Traj_W, Set, Structure, p, mean(fval), debug_info);
 cds_save_particle_details(Set, R, toc(t1), fval, p, physval, constraint_obj_val, desopt_pval);
-if all(fval<1e3)
+if all(fval<=1e3)
   if length(fval)>1, fvalstr=['[',disp_array(fval', '%1.3e'),']'];
   else,              fvalstr=sprintf('%1.3e', fval); end
   cds_log(2,sprintf(['[fitness] G=%d;I=%d. Fitness-Evaluation in %1.2fs. fval=%s. Erfolg', ...
