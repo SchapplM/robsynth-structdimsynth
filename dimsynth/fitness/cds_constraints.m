@@ -1681,7 +1681,8 @@ if any(I_iO) % Erster Schritt. Prüfung der Gelenkkonfigurationen dazu (Syntax-F
   end
   if any(I_iO == 0) % Es mussten Konfigurationen entfernt werden. Code-Fehler.
     dbgfile=fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
-      'tmp', 'cds_constraints_QEall_NaN_error.mat');
+      'tmp', sprintf('cds_constraints_QEall_NaN_error_%s_%s.mat', ...
+      Set.optimization.optname, Structure.Name));
     save(dbgfile);
     cds_log(3, sprintf('[constraints] Status zum Debuggen gespeichert: %s', dbgfile));
   end

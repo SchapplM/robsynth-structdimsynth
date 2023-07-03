@@ -2002,7 +2002,8 @@ if any(isnan(Q(:)))
   % Wenn Traj.-IK abbricht wegen NB-Verletzung, muss das oben abgefangen
   % werden. Falls das nicht passiert, hier Fehler aufwerfen.
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
-    'cds_constraints_traj_jacobi_nan_error.mat'));  
+    sprintf('cds_constraints_traj_jacobi_nan_error_%s_%s.mat', ...
+      Set.optimization.optname, Structure.Name)));  
   error('Prüfung der Nebenbedingungen nicht vollständig');
 end
 fval_all(i_m, i_ar) = 1e3;
