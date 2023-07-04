@@ -36,10 +36,10 @@ function [fval, fval_debugtext, debug_info, f_cond1] = cds_obj_condition(R, Set,
 debug_info = {''};
 
 % Berechne Konditionszahl über Trajektorie
-Cges = NaN(length(Traj_0.t), 1);
+Cges = NaN(size(Q,1), 1);
 if R.Type == 0
   % Berechne Konditionszahl für alle Punkte der Bahn
-  for i = 1:length(Traj_0.t)
+  for i = 1:size(Q,1)
     % Nehme die analytische Jacobi-Matrix (für 3T2R wichtig, da dort die
     % ersten fünf Zeilen der Aufgabe entsprechen. Bei jacobig falsch).
     J_3T3R = R.jacobia(Q(i,:)');
@@ -48,7 +48,7 @@ if R.Type == 0
   end
 else
   % Berechne Konditionszahl für alle Punkte der Bahn
-  for i = 1:length(Traj_0.t)
+  for i = 1:size(Q,1)
     Jinv_IK = reshape(Jinvges(i,:), R.NJ, sum(R.I_EE));
     Cges(i) = cond(Jinv_IK(R.I_qa,:));
   end
@@ -66,8 +66,8 @@ fval = 1e3*f_cond_norm; % Normiert auf 0 bis 1e3
 fval_debugtext = sprintf('Schlechteste Konditionszahl %1.3e.', f_cond1);
 
 %% Debug-Plot
-if Set.general.plot_robot_in_fitness < 0 && 1e4*fval > abs(Set.general.plot_robot_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
-   Set.general.plot_robot_in_fitness > 0 && 1e4*fval < abs(Set.general.plot_robot_in_fitness) % Gütefunktion ist besser als Schwellwert: Zeichne
+if Set.general.plot_details_in_fitness < 0 && 1e4*fval > abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
+   Set.general.plot_details_in_fitness > 0 && 1e4*fval < abs(Set.general.plot_details_in_fitness) % Gütefunktion ist besser als Schwellwert: Zeichne
   % Zeichnen/Debuggen (s.u.)
 else
   return

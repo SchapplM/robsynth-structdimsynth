@@ -439,6 +439,10 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       fval_jic(jic) > 1e6 % ... falls normale IK erfolgreich war.
     break; % sonst ist die zweite Iteration nicht notwendig.
   end
+  if i_ar == 2 && fval_jic(jic) == 1e3 && jic == 1 && ... % Erfolgreich für erste Konfiguration (die vorgegebene)
+      Set.optimization.pos_ik_tryhard_num > 0 % Anzeichen für Reproduktions-Versuch (TODO: Systematischer, siehe andere Vorkommnisse)
+    break; % Keine zweite Aufgabenredundanz-Iteration (für Reproduktion der Ergebnisse)
+  end
   fval_jic(jic) = NaN; % Muss später im Ablauf überschrieben werden
   constrvioltext_jic{jic} = ''; % hier zurücksetzen. Berechne Nebenbedingungen ab hier neu.
   constrvioltext2_jic{jic} = '';
@@ -1005,13 +1009,13 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         % Damit werden für alle noch folgenden Punkte die Ergebnisse des
         % nicht-optimierten Aufrufs genommen (kann Bewertung in Maßsynthese
         % leicht verzerren, ist aber tolerierbar).
-        constrvioltext2_jic{jic} = sprintf('Abbruch nach Punkt %d wegen Kollision in IK', i);
+        constrvioltext2_jic{jic} = sprintf('Abbruch in AR-Iteration nach Punkt %d wegen Kollision in IK', i);
         break; 
       end
       % Gleiche Betrachtung bei Bauraumprüfung. Ausgabe wird nur belegt, wenn
       % Kennzahl auch geprüft wird
       if Stats.instspc_mindst(1+Stats.iter,:) > 0
-        constrvioltext2_jic{jic} = sprintf('Abbruch nach Punkt %d wegen Bauraumverletzung in IK', i);
+        constrvioltext2_jic{jic} = sprintf('Abbruch in AR-Iteration nach Punkt %d wegen Bauraumverletzung in IK', i);
         break;
       end
       % Neue Werte aus der IK wurden nicht verworfen. Schreibe Konditionszahl
@@ -1126,9 +1130,14 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       % Abweichung eines Gelenkpunktes um 3% der Beinkettenlänge wird noch
       % als gleich gewertet. Sonst zu viele Lösungen.
       I_JPfail = all(abs(test_JP_vs_all_prev)/Lchain < 3e-2,2); % Jede Zeile entspricht einem vorherigen Anfangswert jic
+      % Prüfe ob sich die Koordinaten von Schubgelenken verändert haben
+      % (Bei PKM wie 3-UPU kann das Schubgelenk mathematisch umklappen,
+      % alle andere Kriterien sind aber gleich)
+      I_prisdifferent = all(abs(test_vs_all_prev(R.MDH.sigma==1,:)) < 1e-10, 1)';
       % Erkenne eine andere Gelenkposition nur an, wenn die Plattformdrehung 
-      % ungefähr gleich bleibt. Sonst teilweise große EE-Änderung bei kleiner Gelenkpositionsänderung
-      I_findp = find(I_JPfail & I_phizsame,1,'first');
+      % ungefähr gleich bleibt. Sonst teilweise große EE-Änderung bei
+      % kleiner Gelenkpositionsänderung. Zusätzlich Schubgelenk-Ausnahme 
+      I_findp = find(I_JPfail & I_phizsame & I_prisdifferent,1,'first');
       if ~isempty(I_findp)
         if i == 1
           fval_jic(jic) = Inf; % damit jic-Iteration nicht weiter gemacht wird und doppelte Konfiguration nicht in Liste aufgenommen wird.
@@ -1388,9 +1397,16 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       cds_update_collbodies(R, Set, Structure, QE);
   end
   %% Prüfe Länge der Beinketten für geänderte Positionsgrenze von Schubgelenk
-  if ~isinf(Set.optimization.max_chain_length)
+  % Muss nur gemacht werden, wenn es nicht-gestellfeste Schubgelenke gibt
+  I_nonfirstprismatic = R.MDH.sigma==1;
+  I_nonfirstprismatic(Structure.I_firstprismatic) = 0;
+  if ~isinf(Set.optimization.max_chain_length) && ...
+      any(I_nonfirstprismatic)
     q_minmax = NaN(R.NJ, 2);
     q_minmax(R.MDH.sigma==1,:) = minmax2(QE(:,R.MDH.sigma==1)');
+    % Keine Betrachtung von Basisnahen Schubgelenken. Hier zählt nur die
+    % Kette danach (vgl. PrauseChaCor2015, Gl. 7 und Text darüber)
+    q_minmax(Structure.I_firstprismatic,:) = 0;
     if R.Type == 0 || ...  % Seriell
         ~Set.optimization.joint_limits_symmetric_prismatic 
       q_minmax_sym = q_minmax;
@@ -1647,7 +1663,8 @@ if Set.general.debug_calc && Structure.task_red
   end
 end
 % Text vervollständigen aus beiden Variablen
-for i = find(~strcmp(constrvioltext2_jic, ''))'
+
+for i = find(~cellfun(@isempty,constrvioltext2_jic))'
   constrvioltext_jic{i} = sprintf('%s %s', constrvioltext_jic{i}, constrvioltext2_jic{i});
 end
 %% IK-Konfigurationen für Eckpunkte auswerten. Nehme besten.
@@ -1658,13 +1675,14 @@ I_iO = find(fval_jic == 1e3);
 if any(I_iO) % Erster Schritt. Prüfung der Gelenkkonfigurationen dazu (Syntax-Fehler)
   for i = 1:length(I_iO)
     if any(any(isnan(Q_jic(:,:,I_iO(i)))))
-      warning('Gelenkwink für i.O.-Konfiguration %d sind NaN', I_iO(i));
+      warning('Gelenkwinkel für i.O.-Konfiguration %d sind NaN', I_iO(i));
       I_iO(i) = 0;
     end
   end
   if any(I_iO == 0) % Es mussten Konfigurationen entfernt werden. Code-Fehler.
     dbgfile=fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
-      'tmp', 'cds_constraints_QEall_NaN_error.mat');
+      'tmp', sprintf('cds_constraints_QEall_NaN_error_%s_%s.mat', ...
+      Set.optimization.optname, Structure.Name));
     save(dbgfile);
     cds_log(3, sprintf('[constraints] Status zum Debuggen gespeichert: %s', dbgfile));
   end
@@ -1692,9 +1710,26 @@ else % Gebe alle gültigen Lösungen aus
   if size(Q0_unique,1) ~= size(Q0,1)
     cds_log(-1, sprintf('[constraints] Doppelte Konfigurationen als Ergebnis. Darf nicht sein'));
   end
+  % Berücksichtige, ob die Schubgelenke unterschiedliche Werte haben (s.o.)
+  % (Grenzfall bei 3-UPU oder evtl. 6-UPU)
+  if R.Type == 2 && any(R.MDH.sigma==1) % Abstand des Schubgelenks von Basis
+    d_prismatic = NaN(length(I_iO),1);
+    for kk = 1:length(I_iO)
+      qminmax_legs = reshape(minmax2(Q_jic(:,:,I_iO(kk))'),R.Leg(1).NJ,2*R.NLEG);
+      qminmax_leg = minmax2(qminmax_legs);
+      q_range_leg = diff(qminmax_leg');
+      d_prismatic(kk) = q_range_leg(R.Leg(1).MDH.sigma==1);
+    end
+    % Sortiere die Konfigurationen nach absteigender Schubgelenk-Auslenkung
+    % Damit werden im nächsten Schritt die doppelten Gelenkpunk-Konfigu-
+    % rationen aussortiert, die nicht einheitliche Vorzeichen haben
+    [~,I_sortpris] = sort(d_prismatic, 'ascend');
+    I_iO = I_iO(I_sortpris);
+    Q0 = Q0(I_sortpris,:);
+  end
   % Prüfe, welche der IK-Konfigurationen andere Gelenk-Positionen zur Folge haben. Nur diese werden genommen.
   [~,I,~] = unique(round( reshape(squeeze(JP_jic(1, :, I_iO)), ...
-    size(JP_jic,2), length(I_iO))' ,5), 'rows', 'first');
+    size(JP_jic,2), length(I_iO))', 5), 'rows', 'first');
   % Reduziere die Ergebnisse. Damit werden IK-Konfigurationen verworfen,
   % die nur rechnerisch eine andere Koordinate haben, aber kein Umklappen
   % darstellen
@@ -1737,8 +1772,6 @@ Stats_constraints = struct('bestcolldist', bestcolldist_Q0, ...
   'minmaxcondJ', minmaxcondJ_Q0, 'minmaxcondJik', minmaxcondJik_Q0);
 % Änderungen an Roboter-Klasse rückgängig machen. Zurücksetzen der
 % Aufgaben-FG funktioniert oben nur, wenn IK auch erfolreich ist.
-if strcmp(Set.optimization.objective_ik, 'constant') && Structure.task_red
-  if ~all(R.I_EE_Task == Set.task.DoF)
-    R.update_EE_FG(R.I_EE, Set.task.DoF);
-  end
+if Structure.task_red && ~all(R.I_EE_Task == Set.task.DoF)
+  R.update_EE_FG(R.I_EE, Set.task.DoF);
 end

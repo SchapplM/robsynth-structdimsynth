@@ -2081,8 +2081,8 @@ if ~Set.general.only_finish_aborted
   catch err
     dbgfile = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
       'tmp', ['cds_dimsynth_robot_call_cds_gen_init_pop_error_', R.mdlname, '.mat']);
-    cds_log(-1, sprintf(['[dimsynth] Fehler in cds_gen_init_pop: %s. Zustand ' ...
-      'gespeichert: %s'], err.message, dbgfile));
+    cds_log(-1, sprintf(['[dimsynth] Fehler in cds_gen_init_pop: %s. \nZustand ' ...
+      'gespeichert: %s\n%s'], err.message, dbgfile, getReport(err, 'extended')));
     save(dbgfile);
     return
   end
@@ -2232,10 +2232,18 @@ elseif length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
   % Bei Laden alter Ergebnisse aus MO-GA auch nicht-dominante möglich.
   Idom = pareto_dominance(fval_pareto);
   if any(Idom)
-    cds_log(-1, sprintf(['[dimsynth] %d Partikel aus der Pareto-Front werden ', ...
-      'dominiert (und sind damit eigentlich nicht Teil der Pareto-Front)'], sum(Idom)));
+    cds_log(-1, sprintf(['[dimsynth] %d/%d Partikel aus der Pareto-Front werden ', ...
+      'dominiert (und sind damit eigentlich nicht Teil der Pareto-Front)'], sum(Idom), size(fval_pareto,1)));
     fval_pareto = fval_pareto(~Idom,:);
     p_val_pareto = p_val_pareto(~Idom,:);
+  end
+  % Entferne NaN-Partikel. Werden nicht als dominiert erkannt.
+  Inan = any(isnan(fval_pareto),2);
+  if any(Inan)
+    cds_log(-1, sprintf(['[dimsynth] %d/%d Partikel aus der Pareto-Front sind ' ...
+      'NaN. Logik-Fehler?)'], sum(Inan), size(fval_pareto,1)));
+    fval_pareto = fval_pareto(~Inan,:);
+    p_val_pareto = p_val_pareto(~Inan,:);
   end
   % Sortiere die Pareto-Front nach dem ersten Optimierungskriterium. Dann
   % sind die Partikel der Pareto-Front im Diagramm von links nach rechts
@@ -2328,7 +2336,16 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell
   physval_pareto = NaN(size(fval_pareto));
   for i = 1:size(fval_pareto,1) % Pareto-Front durchgehen
     [k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, fval_pareto(i,:)');
-    physval_pareto(i,:) = PSO_Detail_Data.physval(k_ind,:,k_gen);
+    if k_gen == -1
+      dbgfile = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+        'tmp', sprintf('cds_dimsynth_robot_reproduce_physval_error_%s_%s.mat', ...
+        Set.optimization.optname, Structure.Name));
+      cds_log(-1, sprintf(['[dimsynth] Fehler in cds_load_particle_details. ' ...
+      'Zustand gespeichert: %s'], dbgfile));
+      save(dbgfile);
+    else
+      physval_pareto(i,:) = PSO_Detail_Data.physval(k_ind,:,k_gen);
+    end
   end
   % Falls Nebenbedingungen gesetzt sind: Wähle von Pareto-Front dazu
   % passende Partikel als Rückgabe aus (für Plausibilität).
@@ -2348,8 +2365,10 @@ else % Einkriteriell
   physval_pareto = [];
 end
 if any(isnan(p_val))
-  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot_p_NaN_error.mat'));
-  error('Auszuwertende Parameter sind NaN. Darf nicht sein.');
+  dbgfile = fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+    sprintf('cds_dimsynth_robot_p_NaN_error_%s_%s.mat', Set.optimization.optname, Structure.Name));
+  save(dbgfile);
+  error('Auszuwertende Parameter sind NaN. Darf nicht sein. Status gespeichert. %s', dbgfile);
 end
 
 % Fitness-Funktion nochmal mit besten Parametern aufrufen. Dadurch werden
@@ -2928,7 +2947,7 @@ if ~isempty(filelist_tmpres) % Fall 1: "normale" Daten im tmp-Ordner
       break;
     catch err
       cds_log(-1, sprintf(['[dimsynth] Fehler beim Laden von Wiederauf', ...
-        'nahme-Datei: %s.'], err.message));
+        'nahme-Datei: %s.\n%s'], err.message, getReport(err, 'extended')));
       continue
     end
   end
@@ -2952,9 +2971,17 @@ elseif ~isempty(filelist_tmpres2) % Fall 2: Bereits von cds_gen_init_pop nachver
       d = struct('PSO_Detail_Data', PSO_Detail_Data);
     end
     if strcmp(Set.optimization.algorithm, 'mopso')
-      % Überschreibe Pareto-Front immer wieder, damit es automatisch die letzte lesbare Datei ist
-      d.REP.pos_fit = d_tmp.RobotOptRes.fval_pareto;
-      d.REP.pos = d_tmp.RobotOptRes.p_val_pareto;
+      % Überschreibe Pareto-Front immer wieder, damit es automatisch die
+      % letzte lesbare Datei ist. Durch Fehler beim Speichern können
+      % NaN-Zeilen entstehen. Unklar, warum. Diese entfernen.
+      Inan = any(isnan(d_tmp.RobotOptRes.fval_pareto),2);
+      if any(Inan)
+        cds_log(-1, sprintf(['[dimsynth] %d/%d NaN-Einträge in Wiederauf', ...
+          'nahme-Datei.'], sum(Inan), size(Inan,1)));
+      end
+      if all(Inan), continue; end % nicht übernehmen
+      d.REP.pos_fit = d_tmp.RobotOptRes.fval_pareto(~Inan,:);
+      d.REP.pos = d_tmp.RobotOptRes.p_val_pareto(~Inan,:);
     else
       warning('%s hier noch nicht implementiert', Set.optimization.algorithm);
     end

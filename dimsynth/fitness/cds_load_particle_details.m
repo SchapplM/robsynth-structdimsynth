@@ -9,7 +9,7 @@
 % Ausgabe:
 % k_gen
 %   Index der Generation des Optimierungsalgorithmus 
-%   (0=Initialpopulation)
+%   (0=Initialpopulation, -1=Fehler)
 % k_ind
 %   Index des Individuums in der Generation k_gen
 % 
@@ -41,7 +41,11 @@ end
 k = find(fval_oc_mask, 1, 'first'); % Umrechnen der Indizes
 if isempty(k)
   % Abbruch, deutet auf einen Syntax-Fehler hin. Wert muss da sein.
-  error('Gesuchter Wert nicht in gespeicherten Daten gefunden.');
+  k_gen = -1;
+  k_ind = -1;
+  warning('Gesuchter Wert [%s] nicht in gespeicherten Daten gefunden.', ...
+    disp_array(fval(:)', '%1.3e'));
+  return
 end
 [k_ind,k_gen] = ind2sub(fliplr(size_data),k); % Umrechnung in 2D-Indizes: Generation und Individuum
 

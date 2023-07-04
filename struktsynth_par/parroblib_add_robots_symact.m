@@ -10,6 +10,8 @@
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
 function parroblib_add_robots_symact(settings)
+assert(isa(settings, 'struct') && all(size(settings)==[1 1]), ...
+  'Eingabe settings hat falsche Dimension');
 %% Standardeinstellungen für Benutzereingabe
 settings_default = struct( ...
   'check_existing', false, ... % Falls true: Prüfe existierende Roboter in Datenbank nochmal

@@ -58,6 +58,8 @@ s = struct( ...
   ... % Saturate all values above e.g. 100 to have more colors in the range
   ... % of low condition numbers. Saturate by decadic logarithm.
   'condsat_limit', 100, ...
+  'sing_thresh_ikjac_cond', 1e4, ... % Schwellwert ab dem eine IK-Singularität eingezeichnet wird
+  'sing_thresh_jac_cond', 1e4, ... % Schwellwert ab dem eine Typ2-Singularität eingezeichnet wird
   'name_prefix_ardbg', '', ... % Für Dateinamen der zu speichernden Bilder
   'fval', NaN, ... % Für Titelbeschriftung
   'critnames', {{}}, ... % Für Beschriftungen
@@ -224,7 +226,9 @@ ylabel(cb, cbtext, 'Rotation', 90, 'interpreter', 'tex');
 % insert trajectory into plot
 change_current_figure(fighdl);
 hdl = NaN(size(phiz_traj,2)+6,1);
-legtxt = [s.TrajLegendText, 'Joint Lim', 'Act. Sing.', 'IK Sing.', ...
+legtxt = [s.TrajLegendText, 'Joint Lim', ...
+  sprintf('Act. Sing. (>%1.1e)', s.sing_thresh_jac_cond), ...
+  sprintf('IK Sing. (>%1.1e)', s.sing_thresh_ikjac_cond), ...
   'Collision', 'Install. Space', 'Out of Range'];
 trajmarkers = {'<', '>', 'p', 'h'};
 linhdl_tmp = NaN(size(phiz_traj, 2), 1);
@@ -262,9 +266,9 @@ for i = 1:6
     case 1
       I = isinf(H_all(:,:,strcmp(s.critnames, 'qlim_hyp'))'); % Gelenkgrenzen
     case 2
-      I = H_all(:,:,end)' > 1e3; % Kondition Jacobi (Antriebe)
+      I = H_all(:,:,end)' > s.sing_thresh_jac_cond; % Kondition Jacobi (Antriebe)
     case 3
-      I = H_all(:,:,end-1)' > 1e3; % Kondition IK-Jacobi (Beinketten)
+      I = H_all(:,:,end-1)' > s.sing_thresh_ikjac_cond; % Kondition IK-Jacobi (Beinketten)
     case 4
       I = isinf(H_all(:,:,strcmp(s.critnames, 'coll_hyp'))'); % Kollision
     case 5

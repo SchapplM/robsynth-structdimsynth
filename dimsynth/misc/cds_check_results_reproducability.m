@@ -79,6 +79,11 @@ end
 d3 = load(setfile, 'Set', 'Structures', 'Traj');
 Structures = d3.Structures;
 Set = cds_settings_update(d3.Set);
+% Eventuell noch in Einstellungen vorgesehene Debug-Bilder deaktivieren
+Set.general.debug_taskred_perfmap = 0;
+Set.general.plot_details_in_fitness = 0;
+Set.general.plot_robot_in_fitness = 0;
+
 Set.general.isoncluster = false; % Falls auf Cluster durchgeführt, jetzt Einstellungen für lokale Auswertung
 % Überschreibe die Einstellungen
 for f = fields(s.Set_mod)'
@@ -247,10 +252,11 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
       PSO_Detail_Data.fval(:,:,1) = fval_all;
     end
   end
+  Set_tmp = Set;
   % Debug: Zusätzliche Bilder
   % Set.general.plot_details_in_fitness = 1e10;
   % Initialisiere die Roboter-Klasse
-  [R, Structure] = cds_dimsynth_robot(Set, Traj, Structure, true);
+  [R, Structure] = cds_dimsynth_robot(Set_tmp, Traj, Structure, true);
   % Sortiere die Fitness-Werte aufsteigend. Fange mit den besten für
   % Kriterium 1 an (links in 2D-Pareto-Diagramm)
   [~,I] = sortrows(fval_all, 1:size(fval_all,2));
@@ -282,7 +288,7 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
     f3_jj = NaN(length(f_jj), 1); % Initialisierung zum Eintragen in Tabelle
     if ~s.only_use_stored_q0
       cds_fitness(); % Persistente Variablen löschen (falls nicht in parfor)
-      [f2_jj, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set,Traj,Structure_jj,p_jj,p_desopt_jj);
+      [f2_jj, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set_tmp,Traj,Structure_jj,p_jj,p_desopt_jj);
       test_f2_abs = f_jj - f2_jj;
     else
       f2_jj = NaN(length(f_jj), 1);
@@ -296,13 +302,12 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
       if ~s.only_use_stored_q0
         warning(['Fitness-Wert zu Partikel Nr. %d (Gen. %d, Ind. %d) nicht ohne q0 ', ...
           'reproduzierbar. In Optimierung (%s): [%s]. Neu: [%s]. Diff.: [%s]%%'], ...
-          jj, k_gen, k_ind, disp_array(Set.optimization.objective), ...
+          jj, k_gen, k_ind, disp_array(Set_tmp.optimization.objective), ...
           disp_array(f_jj', '%1.3e'), disp_array(f2_jj', '%1.3e'), ...
           disp_array(1e2*test_f2_rel', '%1.2f'));
       end
       % Versuche erneut mit vorgegebenen Gelenkwinkeln aus den
       % Detail-Ergebnissen (ohne zusätzlich höherer Anzahl Versuche)
-      Set_tmp = Set;
       Set_tmp.optimization.pos_ik_tryhard_num = -200; % nur auf q0 aufbauen
       if ~isempty(q0)
         % Trage Gelenkwinkel ein, damit Trajektorien-Prüfung erzwungen wird
@@ -314,7 +319,7 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
       end
       % Breche Optimierung nach dem Prüfen der ersten i.O.-Konfiguration
       % ab. Das sollte q0 sein. Sonst Fehler mit Reproduzierbarkeit.
-      Set_tmp.optimization.obj_limit = 1e3*ones(length(Set.optimization.objective),1);
+      Set_tmp.optimization.obj_limit = 1e3*ones(length(Set_tmp.optimization.objective),1);
       cds_fitness(); % Variablen zurücksetzen, damit obj_limit unabhängig ausgewertet wird
       [f3_jj, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set_tmp,Traj,Structure_jj,p_jj,p_desopt_jj);
       if isempty(Q)
@@ -374,7 +379,7 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
       opts.VariableDescriptionsLine = 2;
       ResTab = readtable(restabfile, opts);
       for kk = 1:length(s.eval_plots)
-        cds_vis_results_figures(s.eval_plots{kk}, Set, Traj, RobData, ResTab, ...
+        cds_vis_results_figures(s.eval_plots{kk}, Set_tmp, Traj, RobData, ResTab, ...
           RobotOptRes, RobotOptDetails, [], struct('figure_invisible', ...
           s.figure_invisible, 'delete_figure', s.figure_invisible));
       end

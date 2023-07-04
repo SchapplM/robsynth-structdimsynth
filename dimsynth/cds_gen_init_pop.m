@@ -52,11 +52,15 @@ else
   else
     filename_idx = fullfile(resdir_main, 'tmp', 'old_results.mat');
   end
+  initpop_matlist = {};
   if exist(filename_idx, 'file')
-    tmp = load(filename_idx, 'initpop_matlist');
-    initpop_matlist = tmp.initpop_matlist;
+    try
+      tmp = load(filename_idx, 'initpop_matlist');
+      initpop_matlist = tmp.initpop_matlist;
+    catch err % Auf dem Cluster kann es trotz vorher korrekt vorhandener Datei in seltenen Fällen zu Dateisystemfehlern kommen
+      cds_log(-1, sprintf('[gen_init_pop] Fehler beim Öffnen des Index: %s', err.message));
+    end
   else
-    initpop_matlist = {};
     cds_log(-1, sprintf('[gen_init_pop] Datei %s existiert nicht.', filename_idx));
   end
 end
@@ -73,7 +77,12 @@ for i = 1:length(tmpdirsrob)
   [ttt, ~] = regexp(tmpdirsrob(i).name, ['(\d+)_', RobName], 'tokens', 'match');
   irob = str2double(ttt{1}{1});
   for j = 1:length(genfiles)
-    tmp = load(fullfile(genfiles(j).folder, genfiles(j).name));
+    try % Auf Cluster Dateisystem-Fehler möglich
+      tmp = load(fullfile(genfiles(j).folder, genfiles(j).name));
+    catch err
+      cds_log(-1, sprintf('[gen_init_pop] Fehler beim Öffnen der Generations-Datei: %s.', err.message));
+      continue
+    end
     % Erzeuge eine Dummy-Datei mit den Daten der Generation, die dann
     % später wieder geladen werden kann.
     [ttt, ~] = regexp(genfiles(j).name, '_Gen(\d+)_', 'tokens', 'match');
@@ -81,6 +90,10 @@ for i = 1:length(tmpdirsrob)
     RobotOptRes = struct('Structure', Structure); % Annahme: Gleiche Einstellungen der Optimierung
     if size(tmp.PSO_Detail_Data.fval,2) > 1 % siehe cds_save_particle_details
       I_dom = pareto_dominance(tmp.PSO_Detail_Data.fval(:,:,1+igen)); % Sonst später Warnungen, da keine valide Pareto-Front
+      % Entferne auch NaN-Einträge (erzeugen beim späteren Laden Probleme)
+      % (treten auf, wenn es kein Status am Ende einer Generation ist,
+      % sondern wenn die Berechnung in einer Generation vorzeitig abbricht)
+      I_dom = I_dom | any(isnan(tmp.PSO_Detail_Data.fval(:,:,1+igen)),2);
       RobotOptRes.fval_pareto = tmp.PSO_Detail_Data.fval(~I_dom,:,1+igen);
       RobotOptRes.p_val_pareto = tmp.PSO_Detail_Data.pval(~I_dom,:,1+igen);
       RobotOptRes.desopt_pval_pareto = tmp.PSO_Detail_Data.desopt_pval(~I_dom,:,1+igen);

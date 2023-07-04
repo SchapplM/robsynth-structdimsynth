@@ -19,7 +19,8 @@
 %   Zielfunktionswert, der im PSO-Algorithmus minimiert wird. Entspricht
 %   Strafterm in der Fitnessfunktion bei Verletzung der Nebenbedingungen
 %   Werte:
-%   1e13...2e13: Winkel für konische Gestellgelenke zu nah an waagerecht/senkrecht
+%   1e13...1.5e13: Winkel für konische Gestellgelenke zu nah an waagerecht/senkrecht
+%   1.5e13...3e13: Winkel für konische Gestellgelenke zu groß (vs waagerecht)
 %   2e13...3e13: Das gleiche für konische Plattformgelenke
 %   3e13...4e13: Effektiver Radius für paarweise Gestellgelenke zu groß
 %   4e13...5e13: Das gleiche für effektiven Radius paarweiser Plattformgelenke
@@ -37,35 +38,52 @@ constrvioltext = '';
 if nargin < 5, p_phys = p; end
 %% Prüfe Neigungswinkel konischer Gestellgelenke
 if Structure.Type == 2 && any(Structure.Coupling(1) == [4 8]) && ...
-    Set.optimization.min_inclination_conic_base_joint > 0
+    (Set.optimization.min_inclination_conic_base_joint > 0 || ...
+     Set.optimization.max_inclination_conic_base_joint < pi)
   p_basemorph = p_phys(Structure.vartypes == 8);
   gamma_b = p_basemorph(end);
   % Bestrafe Abweichungen von der senkrechten (0 bzw. 180°) oder
   % waagerechten (90° oder 270°)
-  delta_gamma1 = angleDiff(gamma_b, 0);
-  delta_gamma2 = angleDiff(gamma_b, pi/2);
-  delta_gamma3 = angleDiff(gamma_b, pi);
-  delta_gamma4 = angleDiff(gamma_b, 3*pi/2);
+  delta_gamma1 = angleDiff(gamma_b, 0); % senkrechte nach oben
+  delta_gamma2 = angleDiff(gamma_b, pi/2); % waagerechte
+  delta_gamma3 = angleDiff(gamma_b, pi); % senkrechte nach unten
+  delta_gamma4 = angleDiff(gamma_b, 3*pi/2); % waagerechte
+  % Werte den Mindest-Winkel aus
   if     abs(delta_gamma1) < Set.optimization.min_inclination_conic_base_joint
-    delta_gamma = abs(delta_gamma1);
+    delta_gamma_b_min = abs(delta_gamma1);
   elseif abs(delta_gamma2) < Set.optimization.min_inclination_conic_base_joint
-    delta_gamma = abs(delta_gamma2);
+    delta_gamma_b_min = abs(delta_gamma2);
   elseif abs(delta_gamma3) < Set.optimization.min_inclination_conic_base_joint
-    delta_gamma = abs(delta_gamma3);
+    delta_gamma_b_min = abs(delta_gamma3);
   elseif abs(delta_gamma4) < Set.optimization.min_inclination_conic_base_joint
-    delta_gamma = abs(delta_gamma4);
+    delta_gamma_b_min = abs(delta_gamma4);
   else
-    delta_gamma = NaN;
+    delta_gamma_b_min = NaN;
+  end
+  % Werte den maximalen Winkel nur gegen die Horizontale aus
+  if min(abs([delta_gamma2;delta_gamma4])) > Set.optimization.max_inclination_conic_base_joint
+    delta_gamma_b_max = min(abs([delta_gamma2;delta_gamma4]));
+  else
+    delta_gamma_b_max = NaN;
   end
   % Normierten Strafterm bilden
-  if ~isnan(delta_gamma)
-    fval_rel = (Set.optimization.min_inclination_conic_base_joint-delta_gamma)/...
+  if ~isnan(delta_gamma_b_min)
+    fval_rel = (Set.optimization.min_inclination_conic_base_joint-delta_gamma_b_min)/...
                 Set.optimization.min_inclination_conic_base_joint;
     assert(fval_rel <=1 & fval_rel >=0, 'Relative Abweichung der Gelenkneigung muss <1 sein');
-    fval = 1e13 * (1 + fval_rel); % normiere auf 1e13 bis 2e13
-    constrvioltext = sprintf('Neigung des Gestellgelenks ist mit %1.1f° nicht groß genug', ...
-      180/pi*gamma_b);
+    fval = 1e13 * (1 + 0.5*fval_rel); % normiere auf 1e13 bis 1.5e13
+    constrvioltext = sprintf(['Neigung des Gestellgelenks ist mit %1.1f° ' ...
+      'nicht groß genug (min. %1.1f°)'], 180/pi*gamma_b, 180/pi*Set.optimization.min_inclination_conic_base_joint);
     return
+  elseif ~isnan(delta_gamma_b_max)
+    gamma_exc_rel = delta_gamma_b_max/Set.optimization.max_inclination_conic_base_joint;
+    assert(gamma_exc_rel > 1, 'Relative Abweichung der Gelenkneigung muss >1 sein');
+    fval = 1e13 * (1.5 + 0.5*2/pi*atan(gamma_exc_rel-1)); % normiere auf 1.5e13 bis2e13
+    constrvioltext = sprintf(['Neigung des Gestellgelenks ist mit %1.1f° ', ...
+      'zu groß (%1.1f° bzw %1.1f° gegen Horizontale, max %1.1f° erlaubt.)'], ...
+      180/pi*gamma_b, 180/pi*delta_gamma2, 180/pi*delta_gamma4, ...
+      180/pi*Set.optimization.max_inclination_conic_base_joint);
+    return % Debug: figure(1);clf;R.plot(zeros(R.NJ,1), zeros(6,1)); title(constrvioltext);
   end
 end
 
@@ -265,7 +283,8 @@ if ~isinf(Set.optimization.max_chain_length)
   end
 end
 %% Prüfe das Verhältnis von Gestell- und Plattformdurchmesser
-if ~isinf(Set.optimization.max_platform_base_ratio)
+if ~isinf(Set.optimization.max_platform_base_ratio) && Structure.Type == 2 && ...
+    ~(any(Structure.Coupling(1) == [3 4]) && Structure.Name(3) == 'P') % Bei Radialen/Konischen Schubgelenken nicht anwendbar
   pbr = r_plf_eff / r_base_eff;
   if pbr > Set.optimization.max_platform_base_ratio
     RelNormViol = pbr / Set.optimization.max_platform_base_ratio;

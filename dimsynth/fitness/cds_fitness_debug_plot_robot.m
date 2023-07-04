@@ -19,11 +19,16 @@
 % debug_info [cell]
 %   Zusatz-Informationen, die im Debug-Bild des Roboters angezeigt werden
 %   (Zeilenweise als Text)
+% 
+% Ausgabe:
+% fighdl
+%   Handle zum erzeugten Bild
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-10
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function cds_fitness_debug_plot_robot(R, q, Traj_0, Traj_W, Set, Structure, p, fval, debug_info)
+function fighdl = cds_fitness_debug_plot_robot(R, q, Traj_0, Traj_W, Set, Structure, p, fval, debug_info)
+fighdl = NaN;
 % Zeichne den Roboter für den aktuellen Parametersatz.
 if Set.general.plot_robot_in_fitness < 0 && fval >= abs(Set.general.plot_robot_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
    Set.general.plot_robot_in_fitness > 0 && fval <= abs(Set.general.plot_robot_in_fitness) % Gütefunktion ist besser als Schwellwert: Zeichne

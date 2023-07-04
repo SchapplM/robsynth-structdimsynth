@@ -988,7 +988,22 @@ if ~Set.general.regenerate_summary_only
     else,                                mode = 'Abschluss'; end
     cds_log(1, sprintf('Starte %s für Roboter %d (%s%s)', mode, i, ...
       Structures{i}.Name, RobNameStr));
-    cds_dimsynth_robot(Set, Traj, Structures{i});
+    try
+      cds_dimsynth_robot(Set, Traj, Structures{i});
+    catch err
+      dbgfile = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+        'tmp', ['cds_dimsynth_robot_error_', Set.optimization.optname, '_', R.mdlname, '.mat']);
+      cds_log(-1, sprintf('Fehler in cds_dimsynth_robot: %s.  %s', ...
+        err.message, getReport(err, 'extended')));
+      try % Eigentlich kann man in parfor den Workspace nicht speichern
+        Structure_i = Structures{i};
+        save(dbgfile, 'Set', 'Traj', 'Structure_i'); %#ok<PFSV>
+        cds_log(0, sprintf('Zustand gespeichert: %s', dbgfile));
+      catch err
+        cds_log(0, sprintf('Fehler beim Speichern des Zustands: %s (%s)', err.message, dbgfile));
+      end
+      continue
+    end
     % Log-Funktion muss erneut initialisiert werden (oben evtl zurückgesetzt)
     cds_log(1, sprintf('Beendet: %s für Roboter %d (%s%s)', mode, i, ...
       Structures{i}.Name, RobNameStr), 'amend', Set, struct('Number', 0));

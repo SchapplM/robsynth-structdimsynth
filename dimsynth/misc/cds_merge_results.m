@@ -36,6 +36,7 @@ settings = struct( ...
   'create_missing_tables', false, ...
   'create_pareto_fig', false, ...
   'delete_parts_dirs', true, ...
+  'resdir', '', ... % Standardmäßig Ordner im Repo nehmen. Optional anderes
   'retry', false);
 if nargin == 2
   for f = fields(settings_in)'
@@ -49,7 +50,11 @@ end
 if strcmp(settings.mode, 'symlink')
   settings.delete_parts_dirs = false; % Bei Verlinkung löschen nicht sinnvoll.
 end
-resdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), 'results');
+if isempty(settings.resdir)
+  resdir = fullfile(fileparts(which('structgeomsynth_path_init.m')), 'results');
+else
+  resdir = settings.resdir;
+end
 resdir_ges = fullfile(resdir, optname);
 
 if exist(resdir_ges, 'file') 
@@ -203,13 +208,25 @@ for i = 0:maxnum_parts % Ordner 0 kommt nicht aus Optimierung sondern von oben
     RobNr_j_neu = IdxNeu(IdxAlt==RobNr_j_alt); % Setze neue Nummer
     if resobjects_i(j).isdir % Kopiere das Verzeichnis
       dirname_j_neu = sprintf('Rob%d_%s', RobNr_j_neu, RobName_j);
-      if strcmp(settings.mode, 'copy')
+      mode = settings.mode;
+      done = false;
+      if strcmp(mode, 'move')
+        try % Bei Windows Verschieben evtl. nicht möglich wegen offener Dateien
+          movefile(fullfile(resdir,dirname_i,resobjects_i(j).name), ...
+            fullfile(resdir_ges, dirname_j_neu));
+          done = true;
+        catch err
+          warning(sprintf(['Verschieben nicht möglich. Kopiere ' ...
+            'stattdessen: %s'], err.message)); %#ok<SPWRN> 
+          mode = 'copy';
+        end
+      end
+      if strcmp(mode, 'copy')
         copyfile(fullfile(resdir,dirname_i,resobjects_i(j).name), ...
           fullfile(resdir_ges, dirname_j_neu));
-      elseif strcmp(settings.mode, 'move')
-        movefile(fullfile(resdir,dirname_i,resobjects_i(j).name), ...
-          fullfile(resdir_ges, dirname_j_neu));
-      elseif strcmp(settings.mode, 'symlink')
+        done = true;
+      end
+      if strcmp(mode, 'symlink')
         if ~isunix()
           error('Symbolische Verknüpfung nur unter Linux möglich');
         end
@@ -228,8 +245,10 @@ for i = 0:maxnum_parts % Ordner 0 kommt nicht aus Optimierung sondern von oben
           system(sprintf('ln -s %s %s', fullfile(resdir,dirname_i,resobjects_i(j).name,resfiles_j(k).name), ...
             fullfile(resdir_ges,dirname_j_neu,newfilename_k)));
         end
-      else
-        error('Modus %s nicht definiert', settings.mode);
+        done = true;
+      end
+      if ~done
+        error('Modus %s nicht definiert oder nicht erfolgreich', settings.mode);
       end
       % Benenne alle Dateien in den Ordnern konsistent um
       if RobNr_j_alt ~= RobNr_j_neu && ~strcmp(settings.mode, 'symlink')
@@ -251,16 +270,30 @@ for i = 0:maxnum_parts % Ordner 0 kommt nicht aus Optimierung sondern von oben
       resfilename_j_neu = sprintf('Rob%d_%s%s', RobNr_j_neu, RobName_j, Suffix);
       sourcefile = fullfile(resdir,dirname_i,resobjects_i(j).name);
       targetfile = fullfile(resdir_ges, resfilename_j_neu);
-      if strcmp(settings.mode, 'copy')
+      mode = settings.mode;
+      done = false;
+      if strcmp(settings.mode, 'move') % Verschieben anstatt kopieren
+        try
+          movefile(sourcefile, targetfile);
+          done = true;
+        catch err
+          warning(sprintf(['Verschieben nicht möglich. Kopiere ' ...
+            'stattdessen: %s'], err.message)); %#ok<SPWRN> 
+          mode = 'copy';
+        end
+      end
+      if strcmp(mode, 'copy')
         copyfile(sourcefile, targetfile);
-      elseif strcmp(settings.mode, 'move') % Verschieben anstatt kopieren
-        movefile(sourcefile, targetfile);
-      elseif strcmp(settings.mode, 'symlink')
+        done = true;
+      end
+      if strcmp(mode, 'symlink')
         if ~isunix()
           error('Symbolische Verknüpfung nur unter Linux möglich');
         end
         system(sprintf('ln -s "%s" "%s"', sourcefile, targetfile));
-      else
+        done = true;
+      end
+      if ~done
         error('Modus %s nicht definiert', settings.mode);
       end
     end
@@ -290,12 +323,24 @@ for i = 0:maxnum_parts % Ordner 0 kommt nicht aus Optimierung sondern von oben
     if emptydir, continue; end
     % Gesamt-Verzeichnis erstellen
     mkdirs(fullfile(resdir_ges, 'tmp'));
+    mode = settings.mode;
+    done = false;
     % Kopiere das tmp-Verzeichnis
-    if strcmp(settings.mode, 'copy')
+    if strcmp(mode, 'move')
+      try
+        movefile(tmpdir_j_alt, tmpdir_j_neu);
+        done = true;
+      catch err
+        warning(sprintf(['Verschieben von %s nicht möglich: %s. Kopiere ' ...
+          'stattdessen'], tmpdir_j_alt, err.message)); %#ok<SPWRN>
+        mode = 'copy';
+      end
+    end
+    if strcmp(mode, 'copy')
       copyfile(tmpdir_j_alt, tmpdir_j_neu);
-    elseif strcmp(settings.mode, 'move')
-      movefile(tmpdir_j_alt, tmpdir_j_neu);
-    elseif strcmp(settings.mode, 'symlink')
+      done = true;
+    end
+    if strcmp(mode, 'symlink')
       if ~isunix()
         error('Symbolische Verknüpfung nur unter Linux möglich');
       end
@@ -308,8 +353,10 @@ for i = 0:maxnum_parts % Ordner 0 kommt nicht aus Optimierung sondern von oben
         system(sprintf('ln -s %s %s', fullfile(tmpdir_j_alt,tmpobjects_j(l).name), ...
           fullfile(tmpdir_j_neu,tmpobjects_j(l).name)));
       end
-    else
-      error('Modus %s nicht definiert', settings.mode);
+      done = true;
+    end
+    if ~done
+      error('Modus %s nicht definiert oder nicht erfolgreich.', settings.mode);
     end
   end
   % Kopiere die Log-Dateien
