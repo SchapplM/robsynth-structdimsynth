@@ -948,8 +948,17 @@ else
     fval_IKC_check(:,mm) = fval_IKC_check(:,mm) - min(fval_IKC(:,mm));
   end
   fval_IKC_check(abs(fval_IKC_check)<1e-10) = 0; % Runde kleine Differenzen auf Gleichheit
+  % Wähle Kriterien zur Prüfung der Optimalität, müssen nicht alle sein
+  if ~isempty(Set.optimization.criteria_config_selection)
+    I_check = false(1,length(Set.optimization.objective));
+    for kk = 1:length(Set.optimization.objective)
+      I_check(kk) = any(strcmp(Set.optimization.objective{kk}, Set.optimization.criteria_config_selection));
+    end
+  else % Alle Optimierungskriterien berücksichtigen zur Auswahl
+    I_check = true(1,length(Set.optimization.objective));
+  end
   % Prüfung auf Pareto-Optimalität der Lösungen
-  dom_vector = pareto_dominance(fval_IKC_check);
+  dom_vector = pareto_dominance(fval_IKC_check(:,I_check));
   % Aus Menge der möglichen Pareto-optimalen Lösungen auswählen.
   iIKCopt = find(~dom_vector);
 end
