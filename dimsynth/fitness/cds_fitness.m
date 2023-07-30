@@ -404,6 +404,10 @@ for iIKC = I_IKC
   % Als Spannweite vorgegebene Gelenkgrenzen neu zentrieren. Benutze dafür
   % alle Eckpunkte aus der Einzelpunkt-IK
   if ~Set.optimization.fix_joint_limits && ~any(any(isnan(QE_iIKC(:,:,iIKC))))
+    % Zunächst die Spannweite der Grenzen wieder zurücksetzen (wurde even-
+    % tuell überschrieben für die vorherigen IK-Anfangswerte in iIKC-Schleife)
+    R.update_qlim(qlim);
+    % Erst danach die Gelenkgrenzen neu zentrieren für das aktuelle iIKC
     qlim_neu = update_joint_limits(R, Set, QE_iIKC(:,:,iIKC), false, 0);
   else
     qlim_neu = qlim; % Variable einheitlich definieren
