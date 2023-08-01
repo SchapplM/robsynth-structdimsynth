@@ -8,6 +8,8 @@
 %   Matlab-Klasse für zu optimierenden Roboter (SerRob/ParRob)
 % Set
 %   Einstellungen des Optimierungsalgorithmus (aus cds_settings_defaults.m)
+% Structure
+%   Eigenschaften der Roboterstruktur (aus cds_gen_robot_list.m)
 % Traj_0
 %   Endeffektor-Trajektorie (bezogen auf Basis-KS)
 % Q
