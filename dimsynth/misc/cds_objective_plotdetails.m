@@ -106,6 +106,12 @@ for jj = 1:length(Set.optimization.objective)
   elseif strcmp(Set.optimization.objective{jj}, 'colldist')
     obj_units{jj} = 'mm';
     objscale(jj) = 1e3;
+  elseif strcmp(Set.optimization.objective{jj}, 'mrk1')
+    obj_units{jj} = 'deg';
+    objscale(jj) = 180/pi;
+  elseif strcmp(Set.optimization.objective{jj}, 'mrk2')
+    obj_units{jj} = 'TODO-Unit';
+    objscale(jj) = 1;
   else
     error('Zielfunktion %s nicht vorgesehen', Set.optimization.objective{jj});
   end
