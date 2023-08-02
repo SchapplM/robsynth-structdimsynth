@@ -163,7 +163,7 @@ title(sprintf(['Kollisionsabstände schlechtester Fall. ', ...
   'Dist=%1.1fmm, I=%d/%d'], 1e3*min2colldist, IItmin, size(Q,1)));
 legend(leghdl(~isnan(leghdl)), legtxt(~isnan(leghdl)));
 drawnow();
-[currgen,currind,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'ObjInstallspace');
+[currgen,currind,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'ObjCollDist');
 for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
   if strcmp(fileext{1}, 'fig')
     saveas(fhdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ObjCollDist.fig', currgen, currind, currimg)));
