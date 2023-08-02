@@ -904,6 +904,18 @@ for iIKC = I_IKC
     physval_IKC(iIKC,strcmp(Set.optimization.objective, 'positionerror')) = physval_pe;
     fval_debugtext = [fval_debugtext, ' ', fval_debugtext_pe]; %#ok<AGROW>
   end
+  if any(strcmp(Set.optimization.objective, 'mrk1'))
+    [fval_mrk1, fval_debugtext_mrk1, ~, physval_mrk1] = cds_obj_mrk1(R, Set, Structure, Traj_0, Q, JP);
+    fval_IKC(iIKC,strcmp(Set.optimization.objective, 'mrk1')) = fval_mrk1;
+    physval_IKC(iIKC,strcmp(Set.optimization.objective, 'mrk1')) = physval_mrk1;
+    fval_debugtext = [fval_debugtext, ' ', fval_debugtext_mrk1]; %#ok<AGROW>
+  end
+  if any(strcmp(Set.optimization.objective, 'mrk2'))
+    [fval_mrk2, fval_debugtext_mrk2, ~, physval_mrk2] = cds_obj_mrk2(R, Set, Structure, Traj_0, Q, JP);
+    fval_IKC(iIKC,strcmp(Set.optimization.objective, 'mrk2')) = fval_mrk2;
+    physval_IKC(iIKC,strcmp(Set.optimization.objective, 'mrk2')) = physval_mrk2;
+    fval_debugtext = [fval_debugtext, ' ', fval_debugtext_mrk2]; %#ok<AGROW>
+  end
   fval_debugtext_IKC{iIKC} = fval_debugtext;
   if any(fval_IKC(iIKC,:)>1e3)
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
