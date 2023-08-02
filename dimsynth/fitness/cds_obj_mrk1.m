@@ -41,11 +41,12 @@ function [fval, fval_debugtext, debug_info, f_clamp] = cds_obj_mrk1(R, Set, Stru
 % if Set.general.matfile_verbosity > 2 % Debug
 %   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_obj_mrk1.mat'));
 % end
+% clear
+% clc
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_obj_mrk1.mat'));
 debug_info = '';
 
 %% Winkel in passiven Gelenken bestimmen
-kk = 1;
 Q_clamp_all = NaN(size(Q));
 for k = 1:size(Q,1) % Alle Zeitschritte durchgehen
   i_pt = 1; % Index für Gelenkpunkte JP
@@ -75,21 +76,40 @@ for k = 1:size(Q,1) % Alle Zeitschritte durchgehen
       % Abgleich des neu mit direkter Kinematik berechneten KS mit den
       % eingegebenen Gelenkpunkten (Konsistenzprüfung), im Basis-KS
       test_jp = R.Leg(i).T_W_0 * Tc_Leg_i(:,:,j+1) * [0;0;0;1] - [jp_k(:,i_pt); 1];
-      assert(all(abs(test_jp) < 1e-6), 'Fehler bei Indizes der Gelenkpunkte');
+      if ~all(abs(test_jp) < 1e-6)
+        save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+          sprintf('cds_obj_mrk1_error_testjp_%s_%s.mat', Set.optimization.optname, Structure.Name)));
+        error('Fehler bei Indizes der Gelenkpunkte');
+      end
       if R.Leg(i).MDH.sigma(j) == 1, continue; end % keine Schubgelenke betrachten
       if j == 1, continue; end % Keinen Klemmwinkel für gestellfestes Gelenk betrachten
       % Bestimme Vektor des Segments zum Gelenk hin (im Basis-KS der Beinkette)
       link1_L0 = Tc_Leg_i(1:3,4,j+1)-Tc_Leg_i(1:3,4,j);
       % Klemmwinkel für Gelenk-FG j der Beinkette i zu Zeitschritt k
-      if R.Leg(1).DesPar.joint_type(j) == 0 % Drehgelenk
-        % Winkel ist direkt ablesbar
-        Q_clamp_all(k,R.I1J_LEG(i)-1+j) = Q(k,R.I1J_LEG(i)-1+j);
-        % Probe: Winkel auch aus KS-Trafo holen (Prüfung der Indizes)
-        T_joint_j = Tc_Leg_i(:,:,j) \ Tc_Leg_i(:,:,j+1);
-        phi_joint_j = r2eulxyz(T_joint_j(1:3,1:3));
-        q_ik_test = phi_joint_j(3);
-        assert(abs(angleDiff(Q_clamp_all(k,i), q_ik_test))<1e-3, ...
-          'Berechnung des Winkels des Drehgelenks inkonsistent: Q vs Tc_Leg_i');
+      if R.Leg(i).DesPar.joint_type(j) == 0 % Drehgelenk
+        if j < R.Leg(i).NJ % Drehgelenk in der Kette
+          % Vektor zum nächsten Gelenk (Gelenkpunkt liegt bei j+1)
+          link2_L0 = Tc_Leg_i(1:3,4,j+2)-Tc_Leg_i(1:3,4,j+1);
+          clamp_check_type = 1;
+          Q_clamp_all(k,R.I1J_LEG(i)-1+j) = acos(-link1_L0' * link2_L0);
+          % Alter Ansatz: Direkt den Gelenkwinkel nehmen. Das ignoriert den
+          % MDH-Parameter alpha
+%           % Winkel ist direkt ablesbar
+%           Q_clamp_all(k,R.I1J_LEG(i)-1+j) = Q(k,R.I1J_LEG(i)-1+j);
+%           % Probe: Winkel auch aus KS-Trafo holen (Prüfung der Indizes)
+%           T_joint_j = Tc_Leg_i(:,:,j) \ Tc_Leg_i(:,:,j+1);
+%           phi_joint_j = r2eulxyz(T_joint_j(1:3,1:3));
+%           q_ik_test = phi_joint_j(3);
+%           if abs(angleDiff(Q_clamp_all(k,R.I1J_LEG(i)-1+j), q_ik_test))>1e-3
+%             save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+%               sprintf('cds_obj_mrk1_error_testqdiff_%s_%s.mat', Set.optimization.optname, Structure.Name)));
+%             error('Berechnung des Winkels des Drehgelenks inkonsistent: Q vs Tc_Leg_i');
+%           end
+        else % Letztes Gelenk der Kette
+          clamp_check_type = 2;
+          % TODO: Siehe andere Fälle weiter unten
+%           Q_clamp_all(k,R.I1J_LEG(i)-1+j) = asin(R_L0_P(1:3,3)' * link1_L0);
+        end
       elseif R.Leg(1).DesPar.joint_type(j) == 2 % Kardan-Gelenk
         % Der Gelenkpunkt liegt bei Transformationsmatrix Index j+1 und j+2
         if j < R.Leg(i).NJ-1 % Gelenk liegt in der Kette, nicht am Ende
@@ -106,7 +126,7 @@ for k = 1:size(Q,1) % Alle Zeitschritte durchgehen
           % Winkel zwischen Vektor und Ebene (90° Minus der Winkel zwischen
           % der Normalen (z-Achse) und dem Vektor). Daher asin statt acos.
           % TODO: So inkonsistent mit Kugelgelenk. Noch nicht plausibel.
-          Q_clamp_all(k,R.I1J_LEG(i)-1+j) = asin(R_L0_P(1:3,3)' * link1_L0);
+%           Q_clamp_all(k,R.I1J_LEG(i)-1+j) = asin(R_L0_P(1:3,3)' * link1_L0);
         end
       elseif R.Leg(1).DesPar.joint_type(j) == 3 % Kugel-Gelenk
         if j < R.Leg(i).NJ-2 % Gelenk liegt in der Kette (nicht in Datenbank vorgesehen)
@@ -117,10 +137,10 @@ for k = 1:size(Q,1) % Alle Zeitschritte durchgehen
           % Winkel zwischen Oberflächennormale der Plattform und des Stabs
 %           Q_clamp_all(k,R.I1J_LEG(i)-1+j) = asin(R_L0_P(1:3,3)' * link1); % s.o.
           % Winkel zwischen Vektor vom Gelenk zur Plattform-Mitte
-          Q_clamp_all(k,R.I1J_LEG(i)-1+j) = acos(-link1_L0' * r_L0_Bi_P);
+%           Q_clamp_all(k,R.I1J_LEG(i)-1+j) = acos(-link1_L0' * r_L0_Bi_P);
         end
       end
-      if false % Debuggen
+      if false && ~isnan(Q_clamp_all(k,R.I1J_LEG(i)-1+j)) % Debuggen
         fhdl = change_current_figure(3); clf; hold all; %#ok<UNRCH> 
         view(3); axis auto; hold on; grid on;
         xlabel('x in m'); ylabel('y in m'); zlabel('z in m');
@@ -147,6 +167,8 @@ for k = 1:size(Q,1) % Alle Zeitschritte durchgehen
           plot3(plfcpl_W(1)+[0;plfvec_W(1)],plfcpl_W(2)+[0;plfvec_W(2)], ...
             plfcpl_W (3)+[0;plfvec_W(3)], 'b--', 'LineWidth', 5);
         elseif clamp_check_type == 0
+          save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+            sprintf('cds_obj_mrk1_error_plotundefinedcase_%s_%s.mat', Set.optimization.optname, Structure.Name)));
           error('Fall undefiniert')
         end
         % Aktuellen Winkel eintragen
