@@ -61,7 +61,8 @@ end
 % Zurücksetzen der Detail-Speicherfunktion
 cds_save_particle_details();
 % Anpassung der eingegebenen Struktur-Variable an Aktualisierungen
-if ~isfield(Structure, 'RobName'), Structure.RobName = ''; end  
+if ~isfield(Structure, 'RobName'), Structure.RobName = ''; end
+ds = cds_definitions();
 %% Referenzlänge ermitteln
 % Mittelpunkt der Aufgabe
 Structure.xT_mean = mean(minmax2(Traj.X(:,1:3)'), 2);
@@ -2700,8 +2701,8 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act')) && ~
 else
   % Keine Berechnung der Leistungsmerkmale möglich, da keine zulässige Lösung
   % gefunden wurde.
-  fval_obj_all = NaN(17,1);
-  physval_obj_all = NaN(17,1);
+  fval_obj_all = NaN(length(ds.obj_names_all),1);
+  physval_obj_all = NaN(length(ds.obj_names_all),1);
   physval_cond = inf;
 end
 % Prüfe auf Plausibilität, ob die Optimierungsziele erreicht wurden. Neben-
@@ -2709,7 +2710,6 @@ end
 I_fobj_set = Set.optimization.constraint_obj ~= 0;
 % Die Reihenfolge der Zielfunktionen insgesamt und die der Zielfunktionen
 % als Grenze sind unterschiedlich. Finde Indizes der einen in den anderen.
-ds = cds_definitions();
 objconstr_names_all = ds.objconstr_names_all;
 obj_names_all = ds.obj_names_all;
 I_constr = zeros(length(objconstr_names_all),1);
