@@ -91,7 +91,8 @@ for k = 1:size(Q,1) % Alle Zeitschritte durchgehen
           % Vektor zum nächsten Gelenk (Gelenkpunkt liegt bei j+1)
           link2_L0 = Tc_Leg_i(1:3,4,j+2)-Tc_Leg_i(1:3,4,j+1);
           clamp_check_type = 1;
-          Q_clamp_all(k,R.I1J_LEG(i)-1+j) = acos(-link1_L0' * link2_L0);
+          Q_clamp_all(k,R.I1J_LEG(i)-1+j) = acos(-link1_L0' * link2_L0 / ...
+                                                (norm(link1_L0)*norm(link2_L0)));
           % Alter Ansatz: Direkt den Gelenkwinkel nehmen. Das ignoriert den
           % MDH-Parameter alpha
 %           % Winkel ist direkt ablesbar
@@ -116,7 +117,8 @@ for k = 1:size(Q,1) % Alle Zeitschritte durchgehen
           clamp_check_type = 1;
           % Vektor zum nächsten Gelenk
           link2_L0 = Tc_Leg_i(1:3,4,j+3)-Tc_Leg_i(1:3,4,j+2);
-          Q_clamp_all(k,R.I1J_LEG(i)-1+j) = acos(-link1_L0' * link2_L0);
+          Q_clamp_all(k,R.I1J_LEG(i)-1+j) = acos(-link1_L0' * link2_L0 / ...
+                                                (norm(link1_L0)*norm(link2_L0)));
           % Probe: Winkel auch aus Gelenkkoordinaten bestimmen
 %           T_joint_j = Tc_Leg_i(:,:,j) \ Tc_Leg_i(:,:,j+2);
 %           R_joint_j_test = rotx(R.Leg(i).MDH.alpha(j)) * rotz(Q(k,R.I1J_LEG(i)-1+j)) * ...
