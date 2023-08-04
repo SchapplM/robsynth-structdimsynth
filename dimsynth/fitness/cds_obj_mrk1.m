@@ -196,6 +196,13 @@ end
 [minclampangle, IIcmin] = min(abs(Q_clamp_all),[],2); % kleinster jeweils alle Zeitschritte
 [min2clampangle, IItmin] = min(minclampangle); % Zeitschritt für kleinsten Winkel von allen
 
+if all(isnan(min2clampangle)) % Falls kein Gelenk von der MRK-Kennzahl erfasst wird
+  fval = 0;
+  f_clamp = 0;
+  fval_debugtext = '';
+  return
+end
+
 % Kennzahl berechnen: Bester Wert ist 180°, schlechtester Wert ist 0°. Es
 % gibt keine negativen Winkel
 f_clamp_norm = (pi - min2clampangle)/pi; % 0 bis 1 (Minimierungsproblem)
