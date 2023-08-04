@@ -19,19 +19,15 @@
 % Ausgabe:
 % fval [1x1]
 %   Zielfunktionswert, der im PSO-Algorithmus minimiert wird. Benutze den
-%   kleinsten Klemmwinkel
+%   kleinsten Klemmwinkel (negativ gezählter Klemmwinkel)
 % fval_debugtext [char]
 %   Zeile mit Hinweistext, der bei PSO nach Fitness-Berechnung ausgegeben wird
 % debug_info [cell]
 %   Zusatz-Informationen, die im Debug-Bild des Roboters angezeigt werden
 % f_clamp [1x1]
-%   Physikalischer Wert, der dem Zielfunktionswert zugrunde liegt
-%   Hier: Geringster Abstand zweier Kollisionskörper (negativer gezählt,
-%   damit bester Wert am weitesten links im Pareto-Diagramm ist).
-%   Also: negativ=Keine Kollision; positiv=Kollision
-% 
-% TODO:
-% * Winkel zwischen Beinkette und Plattform ist noch nicht plausibel
+%   Physikalischer Wert, der dem Zielfunktionswert zugrunde liegt.
+%   Winkel wird negativ gezählt, da es ein Minimierungsproblem ist und
+%   große Beträge besser sind.
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2023-08
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
@@ -207,7 +203,7 @@ end
 % gibt keine negativen Winkel
 f_clamp_norm = (pi - min2clampangle)/pi; % 0 bis 1 (Minimierungsproblem)
 fval = 1e3*f_clamp_norm; % 0 bis 1e3 (Wertebereich für Toolbox)
-f_clamp = min2clampangle; % Physikalischer Wert (Winkel in Grad)
+f_clamp = -min2clampangle; % Physikalischer Wert (Winkel in Grad), negativ, da kleine Beträge schlecht sind
 fval_debugtext = sprintf('Klemmwinkel %1.1f°.', 180/pi*min2clampangle);
 
 %% Aktivierung des Debug-Plots prüfen
