@@ -32,6 +32,6 @@
 function [fval, fval_debugtext, debug_info, f_mrk] = cds_obj_mrk2(R, Set, Structure, Traj_0, Q, JP)
 % Platzhalter:
 debug_info = '';
-fval = 0;
+fval = 1e3-eps(1e3); % schlechtest-möglicher Wert
 fval_debugtext = '';
 f_mrk = 0;
