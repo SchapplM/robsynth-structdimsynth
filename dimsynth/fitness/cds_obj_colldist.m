@@ -52,6 +52,65 @@ end
 % Benutze Kollisionsprüfungen aus der Roboterklasse
 [~, colldist, ~, p_coll] = check_collisionset_simplegeom_mex(R.collbodies, R.collchecks, ...
   JP, struct('collsearch', false));
+% Ignoriere bestimmte Kollisionsabstände, die eher konstruktive Ursachen
+% haben und für MRK-Klemmabstände nicht kritisch sind.
+for i = 1:size(colldist,1) % Zeitschritte
+  jp_i = reshape(JP(i,:), 3, size(JP,2)/3);
+  % Definiere einen Toleranzbereich in dem keine Kollisionsabstände
+  % gewertet werden. Annahme: An Plattform konstruktiv vermeidbar.
+  % Lege eine Kugel um jedes Plattform-Koppelgelenk
+  r_c_collignore_all = NaN(3,R.NLEG);
+  i_jp = 1; % Für PKM-Basis
+  for k = 1:R.NLEG % Indizes: siehe fkine_coll
+    i_jp = i_jp + 1; % Überspringe Beinketten-Basis-KS
+    i_jp = i_jp + R.Leg(k).NJ; % Letztes Gelenk-KS
+    r_c_collignore_all(:,k) = jp_i(:,i_jp);
+  end
+  i_jp = i_jp + 2; % Plattform- und EE-KS der PKM
+  assert(i_jp == size(jp_i,2), 'Indizierung von jp_i ist falsch');
+  for j = 1:size(colldist,2) % Kollisionsprüfungen
+    % Am nächsten zueinander liegende Punkte der beiden Kollisionskörper
+    r_0_C1 = p_coll(j,1:3,i)';
+    r_0_C2 = p_coll(j,4:6,i)';
+    % Prüfe, ob die Punkte in einem Toleranzbereich der Plattform liegen
+    for k = 1:R.NLEG
+      coll_k = norm(r_c_collignore_all(:,k) - (r_0_C1+r_0_C2)/2) < 50e-3;
+      if coll_k
+        colldist(i,j) = NaN; % Deaktiviere den Kollisionsabstand
+        break;
+      end
+    end
+    % Debug-Bild
+    if coll_k && false
+      fhdl = change_current_figure(869); clf; hold all %#ok<NASGU> 
+      view(3); axis auto; grid on;
+      xlabel('x in m');ylabel('y in m');zlabel('z in m');
+      plotmode = 5; % Kollisionskörper
+      if R.Type == 0 % Seriell
+        s_plot = struct( 'ks', 1:R.NJ+2, 'straight', 1, 'mode', plotmode, 'nojoints', 1);
+        R.plot( Q(i,:)', s_plot);
+      else % PKM
+        s_plot = struct( 'ks_legs', [], 'straight', 1, 'mode', plotmode, 'nojoints', 1);
+        R.plot( Q(i,:)', Traj_0.X(i,:)', s_plot);
+      end
+      rh_W_C1 = R.T_W_0 * [r_0_C1;1];
+      rh_W_C2 = R.T_W_0 * [r_0_C2;1];
+      r_W_M = (rh_W_C1+rh_W_C2)/2;
+      plot3(rh_W_C1(1), rh_W_C1(2), rh_W_C1(3), 'rx', 'MarkerSize', 15);
+      plot3(rh_W_C2(1), rh_W_C2(2), rh_W_C2(3), 'rx', 'MarkerSize', 15);
+      plot3(r_W_M(1), r_W_M(2), r_W_M(3), 'b+', 'MarkerSize', 15);
+      plot3([rh_W_C1(1);rh_W_C2(1)], [rh_W_C1(2);rh_W_C2(2)], ...
+        [rh_W_C1(3);rh_W_C2(3)], 'c-', 'LineWidth', 5);
+      text(r_W_M(1), r_W_M(2), r_W_M(3), sprintf('%1.1fmm', ...
+        colldist(i,j)*1e3), 'BackgroundColor', 'y');
+      % Zeichne den Toleranzbereich ein
+      pts_W_sphere = R.T_W_0 * [r_c_collignore_all(:,k);1];
+      drawSphere([pts_W_sphere(1:3)',50e-3],'FaceColor', 'g', 'FaceAlpha', 0.3);
+      drawnow();
+    end
+  end % for j
+end % for i
+
 % Prüfe, welche Kollisionsabstände sich nie ändern. Wird eigentlich bereits
 % in cds_dimsynth_robot geprüft. Dort kann aber noch nicht die PKM mit
 % geschlossenen kinematischen Ketten geprüft werden (IK noch nicht gelöst).
