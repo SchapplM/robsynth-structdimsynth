@@ -48,6 +48,7 @@ if ~isempty(I_firstnan)
   fval_all = fval_all(1:I_firstnan-1,:);
   physval_all = physval_all(1:I_firstnan-1,:);
   pval_all = pval_all(1:I_firstnan-1,:);
+  q0_all = q0_all(1:I_firstnan-1,:);
 end
 % Als Struktur ausgeben
 RobotOptRes = struct('fval_all', fval_all, 'physval_all', physval_all, ...
