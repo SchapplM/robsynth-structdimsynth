@@ -19,7 +19,7 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function [InitPop, Q_Pop] = cds_gen_init_pop(Set, Structure)
+function [InitPop, Q_Pop] = cds_gen_init_pop(Set, Structure, Traj)
 nIndTotal = Set.optimization.NumIndividuals;
 varlim = Structure.varlim;
 varnames = Structure.varnames;
@@ -485,10 +485,28 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
     end
   end
   % Prüfe, ob die Trajektorie gleich ist
+  trajectory_similarity = NaN; % Maß der Ähnlichkeit der Trajektorie
   if ~all(abs(Structure_i.xT_mean-Structure.xT_mean) < 1e-6)
-    % Trajektorienmittelpunkt anders. Vergleich der Strukturen evtl nicht
-    % sinnvoll. Besserer Vergleich wäre sinnvoll.
-    score_i = score_i - 5;
+    if size(Traj.X,1) == size(settings_i.Traj.X,1)
+      % Bestimme Ähnlichkeit
+      xc = diag(corr(Traj.X, settings_i.Traj.X));
+      if all(xc > 0.98 | isnan(xc))
+        % Trajektorie ist sehr ähnlich, aber nur verschoben. Nehme an, dass
+        % die Ergebnisse nutzbar sind
+        trajectory_similarity = 2;
+      else
+        % Gleich lang aber etwas anders. Strafterm.
+        score_i = score_i - 3;
+        trajectory_similarity = 1;
+      end
+    else
+      % Trajektorienmittelpunkt und Länge anders. Vergleich der Strukturen
+      % evtl nicht sinnvoll. Daher Straferm
+      score_i = score_i - 5;
+      trajectory_similarity = 0;
+    end
+  else
+    trajectory_similarity = 3; % Annahme: Ist identisch (weitere Prüfungen ignorieren)
   end
 
   % Prüfe, ob die Parametergrenzen eingehalten werden
@@ -496,11 +514,13 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
   ll_repmat = repmat(varlim(:,1)',size(pval_i,1),1);
   ul_repmat = repmat(varlim(:,2)',size(pval_i,1),1);
   % Manuelle Anpassung der Parametergrenzen
-  if Structure.Type == 2 && Structure.Name(3) == 'P' && any(Structure.Coupling(1)==[1 4])
-    % PKM mit Schubantrieben die nach oben zeigen. Die Basis-Position ist
-    % egal. Verletzung der Grenzen wird auf Grenze gesetzt. In der IK
-    % ergibt sich eine neue Lösung.
-    I_bpz = strcmp(Structure_i.varnames, 'base z');
+  % Setze bei Verletzung des Basis-Position-Z-Parameters diesen in manchen
+  % Fällen auf die Grenze
+  I_bpz = strcmp(Structure_i.varnames, 'base z'); % Index des Parameters
+  % PKM mit Schubantrieben die nach oben zeigen. Die Basis-Position ist
+  % egal. In der IK ergibt sich automatisch eine neue Lösung.  
+  B_verticalprismatic = Structure.Type == 2 && Structure.Name(3) == 'P' && any(Structure.Coupling(1)==[1 4]);
+  if any(I_bpz) && (B_verticalprismatic || trajectory_similarity>=2)
     I_bpz_llviol = pval_i(:,I_bpz)<ll_repmat(:,I_bpz);
     pval_i(I_bpz_llviol,I_bpz) = ll_repmat(I_bpz_llviol,I_bpz);
     I_bpz_ulviol = pval_i(:,I_bpz)>ul_repmat(:,I_bpz);

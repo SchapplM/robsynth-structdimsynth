@@ -2078,7 +2078,7 @@ if ~Set.general.only_finish_aborted
   % Generiere Anfangspopulation aus Funktion mit Annahmen bezüglich Winkel.
   % Lädt zusätzlich bisherige Ergebnisse, um schneller i.O.-Werte zu bekommen.
   try
-    [InitPop, QPop] = cds_gen_init_pop(Set, Structure);
+    [InitPop, QPop] = cds_gen_init_pop(Set, Structure, Traj);
   catch err
     dbgfile = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
       'tmp', ['cds_dimsynth_robot_call_cds_gen_init_pop_error_', R.mdlname, '.mat']);
