@@ -25,7 +25,9 @@
 %   1e3...1e4: Überschreitung dynamischer NB (Antriebskraft)
 %   1e4...1e5: Nebenbedingung für Zielfunktion in Entwurfsopt. überschritten
 %   1e5...1e6: Überschreitung Belastungsgrenze der Segmente (aus cds_dimsynth_desopt_fitness)
-%   1e6...5e6: Überschreitung kinematischer NB (Positionsfehler)
+%   2e6...3e6: Überschreitung MRK-Nebenbedingung (Erkennung Kontaktkraft)
+%   3e6...4e6: Überschreitung MRK-Nebenbedingung (Klemmwinkel)
+%   4e6...5e6: Überschreitung kinematischer NB (Positionsfehler)
 %   5e6...1e7: Überschreitung kinematischer NB (Kondition)
 %   1e7...1e9: Siehe cds_constraints_traj. Werte von dort mit Faktor 1e4 multipliziert
 %   1e9...1e13: Siehe cds_constraints. Werte von dort mit Faktor 1e4 multipliziert
@@ -554,9 +556,29 @@ for iIKC = I_IKC
     [fval_pe, fval_debugtext_pe, debug_info_pe, physval_pe] = cds_obj_positionerror(R, Set, Jinv_ges, Q);
     constraint_obj_val_IKC(7,iIKC) = physval_pe;
     if physval_pe > Set.optimization.constraint_obj(7)
-      fval_IKC(iIKC,:) = 1e6*(1+4*fval_pe/1e3); % normiert auf 1e6 bis 5e6
+      fval_IKC(iIKC,:) = 1e6*(4+1*fval_pe/1e3); % normiert auf 4e6 bis 5e6
       constrvioltext_IKC{iIKC} = sprintf(['Positionsfehler ist zu groß: ', ...
         '%1.1eµm > %1.1eµm'], 1e6*physval_pe, 1e6*Set.optimization.constraint_obj(7));
+      continue
+    end
+  end
+  %% MRK-Zielfunktion als Nebenbedingung prüfen
+  if Set.optimization.constraint_obj(8) ~= 0 % NB für MRK-1 (Klemmwinkel) gesetzt
+    [fval_mrk1, fval_debugtext_mrk1, ~, physval_mrk1] = cds_obj_mrk1(R, Set, Structure, Traj_0, Q, JP);
+    constraint_obj_val_IKC(8,iIKC) = physval_mrk1;
+    if physval_mrk1 > Set.optimization.constraint_obj(8)
+      fval_IKC(iIKC,:) = 1e6*(3+1*fval_mrk1/1e3); % normiert auf 3e6 bis 4e6
+      constrvioltext_IKC{iIKC} = sprintf(['Klemmwinkel (für MRK) ist zu klein: ', ...
+        '%1.1f° < %1.1f°'], -180/pi*physval_mrk1, -180/pi*Set.optimization.constraint_obj(8));
+      continue
+    end
+  end
+  if Set.optimization.constraint_obj(9) ~= 0 % NB für MRK-2 (Kontakterkennung) gesetzt
+    [fval_mrk2, fval_debugtext_mrk2, ~, physval_mrk2] = cds_obj_mrk2(R, Set, Structure, Traj_0, Q, Jinv_ges, JP);
+    if physval_mrk2 > Set.optimization.constraint_obj(9)
+      fval_IKC(iIKC,:) = 1e6*(2+1*fval_mrk2/1e3); % normiert auf 2e6 bis 3e6
+      constrvioltext_IKC{iIKC} = sprintf(['Kontaktkraft-Antriebsmoment (für MRK) ist zu klein: ', ...
+        '%1.1f < %1.1f'], -physval_mrk2, -Set.optimization.constraint_obj(9));
       continue
     end
   end
@@ -900,13 +922,17 @@ for iIKC = I_IKC
     fval_debugtext = [fval_debugtext, ' ', fval_debugtext_pe]; %#ok<AGROW>
   end
   if any(strcmp(Set.optimization.objective, 'mrk1'))
-    [fval_mrk1, fval_debugtext_mrk1, ~, physval_mrk1] = cds_obj_mrk1(R, Set, Structure, Traj_0, Q, JP);
+    if Set.optimization.constraint_obj(8) == 0
+      [fval_mrk1, fval_debugtext_mrk1, ~, physval_mrk1] = cds_obj_mrk1(R, Set, Structure, Traj_0, Q, JP);
+    end
     fval_IKC(iIKC,strcmp(Set.optimization.objective, 'mrk1')) = fval_mrk1;
     physval_IKC(iIKC,strcmp(Set.optimization.objective, 'mrk1')) = physval_mrk1;
     fval_debugtext = [fval_debugtext, ' ', fval_debugtext_mrk1]; %#ok<AGROW>
   end
   if any(strcmp(Set.optimization.objective, 'mrk2'))
-    [fval_mrk2, fval_debugtext_mrk2, ~, physval_mrk2] = cds_obj_mrk2(R, Set, Structure, Traj_0, Q, JP);
+    if Set.optimization.constraint_obj(9) == 0
+      [fval_mrk2, fval_debugtext_mrk2, ~, physval_mrk2] = cds_obj_mrk2(R, Set, Structure, Traj_0, Q, Jinv_ges, JP);
+    end
     fval_IKC(iIKC,strcmp(Set.optimization.objective, 'mrk2')) = fval_mrk2;
     physval_IKC(iIKC,strcmp(Set.optimization.objective, 'mrk2')) = physval_mrk2;
     fval_debugtext = [fval_debugtext, ' ', fval_debugtext_mrk2]; %#ok<AGROW>
