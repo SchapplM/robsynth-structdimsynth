@@ -163,6 +163,8 @@ for i_traj = 1:length(Traj_0.t) % Alle Zeitschritte durchgehen
           i_leg_min = i_leg;
           i_link_min = i_link;
           i_force_min = i_force_min_tmp;
+          f_W_min = R.T_W_0(1:3,1:3) * T_0_L0(1:3,1:3) * f_L0_all(:,i_force_min);
+          r_W_W_Cmin = R.T_W_0 * T_0_L0 * Tc_Leg_i(:,:,i_link+1) * [rh_i_i_C(1:3);1];
         end
       end
     end
@@ -191,10 +193,54 @@ for i_traj = 1:length(Traj_0.t)
     i_leg_min = 0;
     i_link_min = 0;
     i_force_min = i_force_min_tmp;
+    f_W_min = R.T_W_0(1:3,1:3) * f_0_all(:,i_force_min);
+    r_W_W_Cmin = XE(i_traj_min,1:3)';
   end
 end
 
 %% Abschluss
-f_phys = -tau_a_min; % Werte von Null (am schlechtesten) bis beliebiger Größe. Zähle negativ, damit hohe Zahlenwerte beim Minimierungsproblem gut ist.
+f_mrk = -tau_a_min; % Werte von Null (am schlechtesten) bis beliebiger Größe. Zähle negativ, damit hohe Zahlenwerte beim Minimierungsproblem gut ist.
 fval = 1e3 * 2/pi*atan(10/tau_a_min); % Wert 874/1000 bei Grenzfall von 2Nm. Bei höheren Momenten kleinerer Ergebniswert
 fval_debugtext = sprintf('Referenzkontaktkraft führt zu Erkennungs-Antriebskraft von %1.1f', tau_a_min);
+%% Aktivierung des Debug-Plots prüfen
+if Set.general.plot_details_in_fitness < 0 && 1e4*fval > abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
+   Set.general.plot_details_in_fitness > 0 && 1e4*fval < abs(Set.general.plot_details_in_fitness) % Gütefunktion ist besser als Schwellwert: Zeichne
+  % Zeichnen/Debuggen (s.u.)
+else
+  return
+end
+%% Debug-Plot zeichnen
+fhdl = change_current_figure(906); clf; hold all;
+view(3); axis auto; hold on; grid on;
+xlabel('x in m'); ylabel('y in m'); zlabel('z in m');
+
+plotmode = 1; % Strichmodell
+if R.Type == 0 % Seriell
+  s_plot = struct( 'ks', [], 'straight', 1, 'mode', plotmode, 'nojoints', 1);
+  R.plot( Q(i_traj_min,:)', s_plot);
+else % PKM
+  s_plot = struct( 'ks_legs', [], 'ks_platform', [], ...
+    'straight', 1, 'mode', plotmode, 'nojoints', 1);
+  R.plot( Q(i_traj_min,:)', Traj_0.X(i_traj_min,:)', s_plot);
+end
+
+% Kraft mit Angriffspunkt
+plot3(r_W_W_Cmin(1), r_W_W_Cmin(2), r_W_W_Cmin(3), 'rx', 'MarkerSize', 12);
+plotratio = 0.15 / 140; % 140N entsprechen 150mm.
+quiver3(r_W_W_Cmin(1), r_W_W_Cmin(2), r_W_W_Cmin(3), ...
+  plotratio*f_W_min(1), plotratio*f_W_min(2), plotratio*f_W_min(3), ...
+  'LineWidth', 5, 'Color', 'r');
+
+title(sprintf(['Kontaktkrafterkennung schlechtester Fall. ', ...
+  'min(tau\\_a)=%1.e, I=%d/%d. Beinkette %d, Segment %d'], ...
+  tau_a_min, i_traj_min, size(Q,1), i_leg_min, i_link_min));
+drawnow();
+% Bild speichern
+[currgen,currind,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'ObjHRCForceDetection');
+for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
+  if strcmp(fileext{1}, 'fig')
+    saveas(fhdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ObjHRCForceDetection.fig', currgen, currind, currimg)));
+  else
+    export_fig(fhdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ObjHRCForceDetection.%s', currgen, currind, currimg, fileext{1})));
+  end
+end
