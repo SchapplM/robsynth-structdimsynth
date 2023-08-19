@@ -116,6 +116,8 @@ for i = 1:length(Structures)
   elseif f <= 8e5, fval_text = 'EO: Selbstkollision';
   elseif f <= 1e6, fval_text = 'EO: Fehler (unplausible Werte)';
   elseif f <= 2e6, fval_text = 'Undefiniert';
+  elseif f <= 3e6, fval_text = 'MRK-NB (Erkennung Kraft)';
+  elseif f <= 4e6, fval_text = 'MRK-NB (Klemmwinkel)';
   elseif f <= 6e6, fval_text = 'Kinematik-NB (Pos.-Fehler)';
   elseif f <= 1e7, fval_text = 'Kinematik-NB (Kond.)';
   elseif f <= 1e4*1.1e3, fval_text = 'Kinematik-NB (PosErr.,traj-constr)'; % ab hier aus cds_constraints_traj.m
