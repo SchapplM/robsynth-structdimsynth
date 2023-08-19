@@ -36,15 +36,15 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2023-08
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-% function [fval, fval_debugtext, debug_info, f_mrk] = cds_obj_mrk2(R, Set, Structure, Traj_0, Q, JinvE_ges, JP)
+function [fval, fval_debugtext, debug_info, f_mrk] = cds_obj_mrk2(R, Set, Structure, Traj_0, Q, JinvE_ges, JP)
 
 % Debug-Code:
 % if Set.general.matfile_verbosity > 2 % Debug
 %   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_obj_mrk2.mat'));
 % end
-clear
-clc
-load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_obj_mrk2.mat'));
+% clear
+% clc
+% load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_obj_mrk2.mat'));
 
 %% Initialisierung
 % Platzhalter:
