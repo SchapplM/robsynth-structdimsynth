@@ -970,11 +970,12 @@ if ~Set.general.regenerate_summary_only
   cds_log(1, sprintf('Starte Schleife über %d Roboter. parfor_numworkers=%d', ...
     length(Structures), parfor_numworkers));
   parfor (i = 1:length(Structures), parfor_numworkers)
-    if isempty(Structures{i}.RobName), RobNameStr = '';
-    else, RobNameStr = sprintf('; %s', Structures{i}.RobName); end
+    Structure_i = Structures{i};
+    if isempty(Structure_i.RobName), RobNameStr = '';
+    else, RobNameStr = sprintf('; %s', Structure_i.RobName); end
     % Überspringe Roboter, für die oben ein Fehler aufgetreten ist.
-    if isfield(Structures{i}, 'deactivated') && Structures{i}.deactivated
-      cds_log(1, sprintf('Überspringe Roboter %d (%s%s)', i, Structures{i}.Name, RobNameStr));
+    if isfield(Structure_i, 'deactivated') && Structure_i.deactivated
+      cds_log(1, sprintf('Überspringe Roboter %d (%s%s)', i, Structure_i.Name, RobNameStr));
       continue; 
     end
     % Auflösung für Debug-Bilder setzen (wird auf ParPool auf Cluster nicht
@@ -987,16 +988,15 @@ if ~Set.general.regenerate_summary_only
     if ~Set.general.only_finish_aborted, mode = 'Maßsynthese'; %#ok<PFBNS>
     else,                                mode = 'Abschluss'; end
     cds_log(1, sprintf('Starte %s für Roboter %d (%s%s)', mode, i, ...
-      Structures{i}.Name, RobNameStr));
+      Structure_i.Name, RobNameStr));
     try
-      cds_dimsynth_robot(Set, Traj, Structures{i});
+      cds_dimsynth_robot(Set, Traj, Structure_i);
     catch err
       dbgfile = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
         'tmp', ['cds_dimsynth_robot_error_', Set.optimization.optname, '_', R.mdlname, '.mat']);
       cds_log(-1, sprintf('Fehler in cds_dimsynth_robot: %s.  %s', ...
         err.message, getReport(err, 'extended')));
       try % Eigentlich kann man in parfor den Workspace nicht speichern (mit direktem Save-Befehl)
-        Structure_i = Structures{i};
         save_debug_state(dbgfile, struct('Set', Set, 'Traj', Traj, ...
           'Structure_i', Structure_i, 'err', err, 'i', i))
         cds_log(0, sprintf('Zustand gespeichert: %s', dbgfile));
@@ -1007,7 +1007,7 @@ if ~Set.general.regenerate_summary_only
     end
     % Log-Funktion muss erneut initialisiert werden (oben evtl zurückgesetzt)
     cds_log(1, sprintf('Beendet: %s für Roboter %d (%s%s)', mode, i, ...
-      Structures{i}.Name, RobNameStr), 'amend', Set, struct('Number', 0));
+      Structure_i.Name, RobNameStr), 'amend', Set, struct('Number', 0));
   end
   cds_log(1, sprintf(['Optimierung von %d Robotern abgeschlossen. ', ...
     'Dauer: %1.1fs'], length(Structures), toc(t1)), 'amend', Set, struct('Number', 0));
