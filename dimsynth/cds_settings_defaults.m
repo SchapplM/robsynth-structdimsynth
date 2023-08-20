@@ -27,6 +27,7 @@ for f = fields(input_settings_default)'
   end
 end
 input_settings.DoF = logical(input_settings.DoF);
+defstruct = cds_definitions();
 %% Allgemeine Einstellugen
 % Einstellungen mit Auswirkungen auf vom Benutzer sichtbare Ergebnisse und
 % deren Nachverarbeitung
@@ -154,7 +155,7 @@ optimization = struct( ...
   ...  * constant (benutzt eine konstante Orientierung für alle Eckpunkte und für die ganz Trajektorie. Entspricht Fall ohne Redundanz) 
   'objective_ik', {{'default'}}, ... 
   'criteria_config_selection', {{}}, ... % Zielkriterien (mehrere möglich) zur Auswahl einer Konfiguration, falls mehrere gleich gut sind
-  'constraint_obj', zeros(7,1), ... % Nebenbedingungen, 1=Mass, 2=Energy, 3=Actforce, 4=Condition, 5=Stiffness, 6=MaterialStress, 7=PositionError; Eintrag entspricht physikalischem Wert
+  'constraint_obj', zeros(length(defstruct.objconstr_names_all),1), ... % Nebenbedingungen, 1=Mass, 2=Energy, 3=Actforce, 4=Condition, 5=Stiffness, 6=MaterialStress, 7=PositionError; Eintrag entspricht physikalischem Wert
   'condition_limit_sing', 1e5, ... % Wenn die Konditionszahl (der IK-Jacobi) schlechter ist, wird sofort abgebrochen. Schwellwert für Singularität. Deaktivieren durch setzen auf inf.
   'condition_limit_sing_act', inf, ... % Wenn die Konditionszahl (der PKM-Jacobi) schlechter ist, wird sofort abgebrochen. Schwellwert für Singularität. Deaktivieren durch setzen auf inf.
   'algorithm', 'pso', ... % Optimierungsalgorithmus. Möglich: Einkriteriell: pso; Mehrkriterielle: mopso, gamultiobj
