@@ -201,7 +201,7 @@ end
 %% Abschluss
 f_mrk = -tau_a_min; % Werte von Null (am schlechtesten) bis beliebiger Größe. Zähle negativ, damit hohe Zahlenwerte beim Minimierungsproblem gut ist.
 fval = 1e3 * 2/pi*atan(10/tau_a_min); % Wert 874/1000 bei Grenzfall von 2Nm. Bei höheren Momenten kleinerer Ergebniswert
-fval_debugtext = sprintf('MRK-Sensitivität %1.1f N/Nm', tau_a_min);
+fval_debugtext = sprintf('MRK-Sensitivität %1.1f N/Nm.', tau_a_min);
 %% Aktivierung des Debug-Plots prüfen
 if Set.general.plot_details_in_fitness < 0 && 1e4*fval > abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
    Set.general.plot_details_in_fitness > 0 && 1e4*fval < abs(Set.general.plot_details_in_fitness) % Gütefunktion ist besser als Schwellwert: Zeichne
