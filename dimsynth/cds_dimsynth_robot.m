@@ -2695,7 +2695,7 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act')) && ~
     cds_obj_mrk1(R, Set, Structure, Traj_0, Q, JP);
   [fval_obj_all(strcmp(ds.obj_names_all, 'mrk2')),~, ~, ...
     physval_obj_all(strcmp(ds.obj_names_all, 'mrk2'))] = ...
-    cds_obj_mrk2(R, Set, Structure, Traj_0, Q, JP);
+    cds_obj_mrk2(R, Set, Structure, Traj_0, Q, Jinv_ges, JP);
   if any(isnan(fval_obj_all)) || any(isnan(physval_obj_all))
     % Dimension ist falsch, wenn eine Zielfunktion nicht skalar ist (z.B. leer)
     cds_log(-1, sprintf('[dimsynth] Nicht alle Zielfunktionen berechnet'));
