@@ -486,7 +486,17 @@ elseif Structure.Type == 0 || Structure.Type == 2
 %     I_lastdpar = ((R_pkin.pkin_jointnumber==R_pkin.NJ) & (R_pkin.pkin_types==6));
 %     Ipkinrel = Ipkinrel & ~I_lastdpar; % Nehme die "1" bei d6 weg.
 %   end
-
+  % Erzwinge senkrechte oder parallele Gelenktransformationen.
+  if Set.structures.orthogonal_links
+    % Setze den d-Parameter zu Null, wenn es einen a-Parameter gibt
+    for kk = 1:R_pkin.NJ
+      if any(R_pkin.pkin_jointnumber==kk & R_pkin.pkin_types==4) && ... % a-Parameter existiert
+         any(R_pkin.pkin_jointnumber==kk & R_pkin.pkin_types==6) % d-Parameter auch
+        % Deaktiviere den d-Parameter
+        Ipkinrel = Ipkinrel & ~(R_pkin.pkin_jointnumber==kk&R_pkin.pkin_types==6);
+      end
+    end
+  end
   pkin_init = R_pkin.pkin;
   pkin_init(~Ipkinrel) = 0; % nicht relevante Parameter Null setzen
   % Nicht relevanten alpha- oder theta-Parameter auf 0 oder pi/2 setzen.

@@ -78,13 +78,18 @@ if Structure.Type == 0 || Structure.Type == 2
       continue
     end
     j = j + 1; % Index für Kinematikparameter in den Optimierungsvariablen
-    if R_pkin.pkin_types(i) == 1 || R_pkin.pkin_types(i) == 3 || R_pkin.pkin_types(i) == 5
-      pkin_voll(i) = pkin_optvar(j);
-      p_phys(Ipkin(j)) = pkin_optvar(j);
-    else
+    if any(R_pkin.pkin_types(i) == [2 4 6]) % MDH-Parameter b, a, d
       % Längenparameter skaliert mit Roboter-Skalierungsfaktor
       pkin_voll(i) = pkin_optvar(j)*scale;
       p_phys(Ipkin(j)) = pkin_optvar(j)*scale;
+    else % [1 3 5] MDH-Parameter beta, alpha, theta
+      if isfield(Set.structures, 'orthogonal_joints') && Set.structures.orthogonal_joints % TODO: "isfield" entfernen
+        % Runde die Parameter auf glatte 90°
+        pkin_voll(i) = round(pkin_optvar(j)/(pi/2))*pi/2;
+      else % Direkte Übernahme des Winkels
+        pkin_voll(i) = pkin_optvar(j);
+      end
+      p_phys(Ipkin(j)) = pkin_voll(i);
     end
   end
   if ~isempty(R)
