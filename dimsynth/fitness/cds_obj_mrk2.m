@@ -77,7 +77,8 @@ for i_traj = 1:length(Traj_0.t) % Alle Zeitschritte durchgehen
     q_leg = q(R.I1J_LEG(i_leg):R.I2J_LEG(i_leg)); % Gelenkwinkel der BK
     Tc_Leg_i = R.Leg(i_leg).fkine(q_leg); % Beinketten-Trafos im BK-Basis-KS
 %     i_pt = i_pt + 1; % Basis-KS überspringen
-    for i_link = 1:R.Leg(i_leg).NJ
+    num_link_checked = 0;
+    for i_link = R.Leg(i_leg).NJ:-1:1 % Von Plattform-Segment anfangen und zur Beinketten-Basis gehen
 %       i_pt = i_pt + 1;
       if i_link == 1, continue; end % Oberarm ignorieren (Erkennung unproblematisch)
       if i_link == R.Leg(i_leg).NJ, continue; end % EE-KS (kein nachfolgendes Segment)
@@ -88,6 +89,7 @@ for i_traj = 1:length(Traj_0.t) % Alle Zeitschritte durchgehen
         % Kugelgelenk oder Kardangelenk.
         continue
       end
+      num_link_checked = num_link_checked + 1;
       if debug_plot
         fhdl = change_current_figure(3); clf; hold all; %#ok<UNRCH> 
         view(3); axis auto; hold on; grid on;
@@ -110,13 +112,26 @@ for i_traj = 1:length(Traj_0.t) % Alle Zeitschritte durchgehen
       % (Körper-KS-Ursprung)
       Jg_Link = R.Leg(i_leg).jacobig_refpoint(q_leg, i_link, zeros(3,1));
       % Diskretisiere Länge des Segments
-      for i_reflength = 1:n_reflength
+      for i_reflength = 2:n_reflength % ersten Prüfpunkt weglassen, da er schon zum vorherigen Segment gehört
         l_rel = (i_reflength-1)/(n_reflength-1); % von 0 bis 1 für Strecke auf Segment
         % Angriffspunkt der externen Kraft (relativ zu Gelenk-KS)
         r_L0_i_C = link2_L0*l_rel;
         % Umrechnung des Referenzpunktes in Segment-KS
         T_Li_L0 = invtr(Tc_Leg_i(:,:,i_link+1));
         rh_i_i_C = T_Li_L0 * [r_L0_i_C;0];
+        % In Welt-KS umrechnen, prüfen ob es im Interaktionsarbeitsraum
+        % liegt. Wird vorerst als erster Körper des Bauraums definiert
+        r_W_W_C = R.T_W_0 * T_0_L0 * Tc_Leg_i(:,:,i_link+1) * [rh_i_i_C(1:3);1];
+        n_cb_instspc = size(Set.task.installspace.type,1);
+        if n_cb_instspc > 0 % TODO!
+          collbodies_instspc = struct( ...
+            'links', Structure.installspace_collbodies.links{1}, ...
+            'type', Structure.installspace_collbodies.type(1), ...
+            'params', Structure.installspace_collbodies.type(1,:));
+          % Prüfe, ob Punkt im Bauraum ist
+%           [coll, absdist] = check_collisionset_simplegeom_mex(collbodies, collchecks, JP, CollSet);
+
+        end
         % Beziehe Jacobi-Matrix auf diesen Punkt
         A_C_i = adjoint_jacobian(rh_i_i_C(1:3)); % Übergabe: Vektor von i nach C.
         J_C = A_C_i * Jg_Link; % Jg_Link entspricht J_i
@@ -136,7 +151,6 @@ for i_traj = 1:length(Traj_0.t) % Alle Zeitschritte durchgehen
           f_L0_all(:,i_force) = f_L0;
           if debug_plot % Debug: Zeichnen
             % Kraft mit Angriffspunkt
-            r_W_W_C = R.T_W_0 * T_0_L0 * Tc_Leg_i(:,:,i_link+1) * [rh_i_i_C(1:3);1];
             plot3(r_W_W_C(1), r_W_W_C(2), r_W_W_C(3), 'rx', 'MarkerSize', 12);
             plotratio = 0.15 / 140; % 140N entsprechen 150mm.
             f_W = R.T_W_0(1:3,1:3) * T_0_L0(1:3,1:3) * f_L0;
@@ -166,6 +180,13 @@ for i_traj = 1:length(Traj_0.t) % Alle Zeitschritte durchgehen
           f_W_min = R.T_W_0(1:3,1:3) * T_0_L0(1:3,1:3) * f_L0_all(:,i_force_min);
           r_W_W_Cmin = R.T_W_0 * T_0_L0 * Tc_Leg_i(:,:,i_link+1) * [rh_i_i_C(1:3);1];
         end
+      end
+      if num_link_checked >= 1
+        % Für jede Beinkette nur das Plattform-nächste Segment prüfen.
+        % Bei 6-RUS ist es bspw. möglich mit einer Kraft am Ellenbogen
+        % direkt in die Struktur zu drücken ohne Auswirkung auf die
+        % Antriebe.
+        break
       end
     end
   end
