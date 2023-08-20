@@ -995,12 +995,13 @@ if ~Set.general.regenerate_summary_only
         'tmp', ['cds_dimsynth_robot_error_', Set.optimization.optname, '_', R.mdlname, '.mat']);
       cds_log(-1, sprintf('Fehler in cds_dimsynth_robot: %s.  %s', ...
         err.message, getReport(err, 'extended')));
-      try % Eigentlich kann man in parfor den Workspace nicht speichern
+      try % Eigentlich kann man in parfor den Workspace nicht speichern (mit direktem Save-Befehl)
         Structure_i = Structures{i};
-        save(dbgfile, 'Set', 'Traj', 'Structure_i'); %#ok<PFSV>
+        save_debug_state(dbgfile, struct('Set', Set, 'Traj', Traj, ...
+          'Structure_i', Structure_i, 'err', err, 'i', i))
         cds_log(0, sprintf('Zustand gespeichert: %s', dbgfile));
-      catch err
-        cds_log(0, sprintf('Fehler beim Speichern des Zustands: %s (%s)', err.message, dbgfile));
+      catch err2
+        cds_log(0, sprintf('Fehler beim Speichern des Zustands: %s (%s)', err2.message, dbgfile));
       end
       continue
     end
@@ -1029,4 +1030,11 @@ lfp = cds_log(1, sprintf(['Ergebnis-Nachverarbeitung von %d Robotern ', ...
   'abgeschlossen. Dauer: %1.1fs'], length(Structures), toc(t1)));
 if exist(lfp, 'file')
   gzip(lfp); delete(lfp);
+end
+
+end
+
+function save_debug_state(dbgfile, savestruct)
+% Der Save-Befehl geht nicht direkt oben in der ParFor-Schleife.
+save(dbgfile, '-struct', 'savestruct');
 end
