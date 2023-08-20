@@ -993,7 +993,7 @@ if ~Set.general.regenerate_summary_only
       cds_dimsynth_robot(Set, Traj, Structure_i);
     catch err
       dbgfile = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
-        'tmp', ['cds_dimsynth_robot_error_', Set.optimization.optname, '_', R.mdlname, '.mat']);
+        'tmp', ['cds_dimsynth_robot_error_', Set.optimization.optname, '_', Structure_i.Name '.mat']);
       cds_log(-1, sprintf('Fehler in cds_dimsynth_robot: %s.  %s', ...
         err.message, getReport(err, 'extended')));
       try % Eigentlich kann man in parfor den Workspace nicht speichern (mit direktem Save-Befehl)
