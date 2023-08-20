@@ -3031,9 +3031,19 @@ elseif ~isempty(filelist_tmpres2) % Fall 2: Bereits von cds_gen_init_pop nachver
     i_gen = i_gen + 1;
   end % for ii
 end
+
 if isempty(d)
   cds_log(-1, sprintf(['[dimsynth] Keine der %d Wiederaufnahme-Dateien ', ...
     'erfolgreich geladen.'], length(I_dateasc)));
-  return
+else
+  % Prüfe Kompatibilität der Daten bzgl. altem Speicherformat
+  defstruct = cds_definitions();
+  if size(d.PSO_Detail_Data.constraint_obj_val,2) < length(defstruct.objconstr_names_all)
+    % Es sind seit dem Speichern neue Zielfunktions-Nebenbedingungen im- 
+    % plementiert worden. Passe die Variable an. Annahme: Hinten angehängen
+    for kk = size(d.PSO_Detail_Data.constraint_obj_val,2)+1 : length(defstruct.objconstr_names_all)
+      d.PSO_Detail_Data.constraint_obj_val(:,kk,:) = NaN;
+    end
+  end
 end
 end
