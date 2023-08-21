@@ -122,16 +122,16 @@ for i_traj = 1:length(Traj_0.t) % Alle Zeitschritte durchgehen
         % In Welt-KS umrechnen, prüfen ob es im Interaktionsarbeitsraum
         % liegt. Wird vorerst als erster Körper des Bauraums definiert
         r_W_W_C = R.T_W_0 * T_0_L0 * Tc_Leg_i(:,:,i_link+1) * [rh_i_i_C(1:3);1];
-        n_cb_instspc = size(Set.task.installspace.type,1);
-        if n_cb_instspc > 0 % TODO!
-          collbodies_instspc = struct( ...
-            'links', Structure.installspace_collbodies.links{1}, ...
-            'type', Structure.installspace_collbodies.type(1), ...
-            'params', Structure.installspace_collbodies.type(1,:));
-          % Prüfe, ob Punkt im Bauraum ist
-%           [coll, absdist] = check_collisionset_simplegeom_mex(collbodies, collchecks, JP, CollSet);
-
-        end
+%         n_cb_instspc = size(Set.task.installspace.type,1);
+%         if n_cb_instspc > 0 % TODO!
+%           collbodies_instspc = struct( ...
+%             'links', Structure.installspace_collbodies.links{1}, ...
+%             'type', Structure.installspace_collbodies.type(1), ...
+%             'params', Structure.installspace_collbodies.type(1,:));
+%           % Prüfe, ob Punkt im Bauraum ist
+% %           [coll, absdist] = check_collisionset_simplegeom_mex(collbodies, collchecks, JP, CollSet);
+% 
+%         end
         % Beziehe Jacobi-Matrix auf diesen Punkt
         A_C_i = adjoint_jacobian(rh_i_i_C(1:3)); % Übergabe: Vektor von i nach C.
         J_C = A_C_i * Jg_Link; % Jg_Link entspricht J_i
