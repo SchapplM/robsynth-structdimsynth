@@ -593,7 +593,7 @@ for iIKC = I_IKC
       % Berechne Dynamik-Funktionen als Regressorform für die Entwurfsopt.
       data_dyn = cds_obj_dependencies(R, Traj_0, Set, Structure, Q, QD, QDD, Jinv_ges);
       t0 = tic();
-      [fval_desopt, desopt_pval, vartypes_desopt] = cds_dimsynth_desopt( ...
+      [fval_desopt, desopt_pval, vartypes_desopt, constrvioltext_IKC{iIKC}] = cds_dimsynth_desopt( ...
         R, Traj_0, Q, QD, QDD, JP, Jinv_ges, data_dyn, Set, Structure);
       cds_log(2,sprintf(['[fitness] G=%d;I=%d (Konfig %d/%d). Entwurfs', ...
         'optimierung in %1.2fs durchgeführt. fval_desopt=%1.3e. pval=[%s]'], ...
@@ -627,7 +627,6 @@ for iIKC = I_IKC
         % 1e5...1e6: Überschreitung Belastungsgrenze der Segmente
         fval_IKC(iIKC,:) = 10*fval_desopt; % Wert ist im Bereich 1e3...1e5. Bringe in Bereich 1e4 bis 1e6
         cds_fitness_debug_plot_robot(R, zeros(R.NJ,1), Traj_0, Traj_W, Set, Structure, p, fval_IKC(iIKC,1), debug_info);
-        constrvioltext_IKC{iIKC} = 'Verletzung der Nebenbedingungen in Entwurfsoptimierung';
         continue
       end
     end
