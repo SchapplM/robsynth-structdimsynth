@@ -30,13 +30,16 @@
 % vartypes
 %   Variablen-Typen in der Ausgabe `p_val`. Entspricht Structure.desopt_ptypes.
 %   Kann unterschiedlich sein, da nicht alle Entwurfsparameter hier optimiert werden.
+% constrvioltext [char]
+%   Text mit Zusatzinformationen, die beim Aufruf der Fitness-Funktion
+%   ausgegeben werden
 
 % Siehe auch: cds_dimsynth_robot.m
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function [fval, p_val, vartypes] = cds_dimsynth_desopt(R, Traj_0, Q, QD, QDD, JP, Jinv_ges, data_dyn, Set, Structure)
+function [fval, p_val, vartypes, constrvioltext] = cds_dimsynth_desopt(R, Traj_0, Q, QD, QDD, JP, Jinv_ges, data_dyn, Set, Structure)
 t1 = tic();
 if Set.general.matfile_verbosity > 2
 save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_desopt1.mat'));
@@ -386,6 +389,19 @@ if Set.general.debug_desopt
   physval_main_default = PSO_Detail_Data.physval_main(1,:,end);
   save(fullfile(resdir, name_matfile), 'PSO_Detail_Data', 'fval', 'p_val', ...
     'fval_main_default', 'physval_main_default');
+end
+if fval < 1e3 % Siehe cds_dimsynth_desopt_fitness
+  constrvioltext = '';
+elseif fval < 1e4
+  constrvioltext = 'Entwurfsoptimierung: Nebenbedingung von Zielfunktion verletzt';
+elseif fval < 1e5
+  constrvioltext = 'Entwurfsoptimierung: Materialspannung in Segment zu groß';
+elseif fval < 1e7
+  constrvioltext = 'Entwurfsoptimierung: Fehler. Wert nicht definiert';
+elseif fval < 1e8
+  constrvioltext = 'Entwurfsoptimierung: Selbstkollision (notwendiger Segmentdurchmesser zu groß)';
+else
+  constrvioltext = 'Entwurfsoptimierung: Unplausible Eingabe';
 end
 return
 %% Debug
