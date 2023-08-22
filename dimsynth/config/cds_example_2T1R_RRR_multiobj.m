@@ -26,7 +26,7 @@ Traj = cds_gen_traj(DoF, 1, Set.task);
 for obj_case = 1:5
   % Variablen zurücksetzen, die sonst als mit falscher Dimension gesetzt
   % erkannt werden.
-  Set.optimization.obj_limit_physval = 0;
+  Set.optimization.obj_limit_physval = NaN;
   Set.optimization.obj_limit = 0;
   switch obj_case
     case 1

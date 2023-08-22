@@ -150,9 +150,9 @@ if sum(only_opts) > 1
 end
 % Prüfe Plausibilität von Abbruchbedingungen und Wahl mehrkriterieller Ziele
 if length(Set.optimization.obj_limit_physval) == 1 && length(Set.optimization.objective) > 1 && ...
-    Set.optimization.obj_limit_physval == 0 % nur, falls Null nicht bereits überschrieben wurde
+    isnan(Set.optimization.obj_limit_physval) % nur, falls NaN nicht bereits überschrieben wurde
   % Korrigiere auf Dimension der Fitness-Funktion. Skalare Grenze von
-  % Null ist Standard (kein Fehler)
+  % NaN ist Standard (kein Fehler)
   Set.optimization.obj_limit_physval = repmat(Set.optimization.obj_limit_physval, ...
     length(Set.optimization.objective), 1);
 end
