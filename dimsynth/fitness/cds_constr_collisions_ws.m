@@ -94,8 +94,29 @@ for i = 1:size(Set.task.obstacles.type,1)
   collbodies.link = [collbodies.link; uint8([0,0])];
   % Generiere Liste der Kollisionspaare: Teste Kollision jedes Roboter-KS
   % mit dem Geometrieobjekt für den Bauraum
-  collchecks = [collchecks; ...
-    uint8(1:n_cb_robot)', repmat(uint8(size(collbodies.type,1)),n_cb_robot,1)]; %#ok<AGROW>
+  collchecks_i = [uint8(1:n_cb_robot)', repmat(uint8(size(collbodies.type,1)),n_cb_robot,1)];
+  % Passe die Kollisionskörper an, falls die Prüfung noch nicht
+  % implementiert ist. Betrifft bspw. Bauraum-Quader oder -zylinder
+  if type_i == 10 || type_i == 12
+    % In check_collisionset_simplegeom sind Kollisionen nur mit Quader und
+    % Punkt implementiert. Wandle alle kollidierenden Objeke in Punkte um.
+    % Damit geht die räumliche Ausdehnung verloren und die Prüfung wird
+    % rudimentär.
+    for k = 1:size(collchecks_i,1)
+      i_colllink = collchecks_i(k,1);
+      switch collbodies.type(i_colllink)
+        case 6 % Kapsel als schräge DH-Verbindung
+          collbodies.type(i_colllink) = 9;
+          collbodies.params(i_colllink,1) = NaN; % Punkt hat keinen Parameter
+        case 13 % Kapsel im Basis-KS (für Schubgelenk-Führungsschienen)
+          % Nehme nur das eine Kapsel-Ende als Punkt an (Minimal-Lösung)
+          % (sehr starke Vereinfachung)
+          collbodies.type(i_colllink) = 14;
+          collbodies.params(i_colllink,4:end) = NaN; % nur drei Parameter
+      end
+    end
+  end
+  collchecks = [collchecks; collchecks_i]; %#ok<AGROW>
 end
 
 %% Bestimme Kollisionen mit Hindernissen

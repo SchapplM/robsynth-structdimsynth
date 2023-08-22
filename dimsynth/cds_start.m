@@ -222,6 +222,10 @@ end
 if size(Set.task.obstacles.type,2) > 1
   error('Set.task.obstacles: Feld "type" hat mehr als eine Spalte.');
 end
+if any(Set.task.obstacles.type==1) || any(Set.task.obstacles.type==2)
+  warning(['Arbeitsraum-Hindernis als Quader oder Zylinder definiert. ' ...
+    'Kollisionsprüfung nur als Ersatzpunkt definiert'])
+end
 assert(isa(Set.optimization.collshape_base, 'cell'), ...
   'Set.optimization.collshape_base muss cell array sein');
 if length(intersect(Set.optimization.collshape_base, {'default', 'ring', ...
