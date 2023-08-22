@@ -61,7 +61,8 @@ end
 % Zurücksetzen der Detail-Speicherfunktion
 cds_save_particle_details();
 % Anpassung der eingegebenen Struktur-Variable an Aktualisierungen
-if ~isfield(Structure, 'RobName'), Structure.RobName = ''; end  
+if ~isfield(Structure, 'RobName'), Structure.RobName = ''; end
+ds = cds_definitions();
 %% Referenzlänge ermitteln
 % Mittelpunkt der Aufgabe
 Structure.xT_mean = mean(minmax2(Traj.X(:,1:3)'), 2);
@@ -485,7 +486,17 @@ elseif Structure.Type == 0 || Structure.Type == 2
 %     I_lastdpar = ((R_pkin.pkin_jointnumber==R_pkin.NJ) & (R_pkin.pkin_types==6));
 %     Ipkinrel = Ipkinrel & ~I_lastdpar; % Nehme die "1" bei d6 weg.
 %   end
-
+  % Erzwinge senkrechte oder parallele Gelenktransformationen.
+  if Set.structures.orthogonal_links
+    % Setze den d-Parameter zu Null, wenn es einen a-Parameter gibt
+    for kk = 1:R_pkin.NJ
+      if any(R_pkin.pkin_jointnumber==kk & R_pkin.pkin_types==4) && ... % a-Parameter existiert
+         any(R_pkin.pkin_jointnumber==kk & R_pkin.pkin_types==6) % d-Parameter auch
+        % Deaktiviere den d-Parameter
+        Ipkinrel = Ipkinrel & ~(R_pkin.pkin_jointnumber==kk&R_pkin.pkin_types==6);
+      end
+    end
+  end
   pkin_init = R_pkin.pkin;
   pkin_init(~Ipkinrel) = 0; % nicht relevante Parameter Null setzen
   % Nicht relevanten alpha- oder theta-Parameter auf 0 oder pi/2 setzen.
@@ -2077,7 +2088,7 @@ if ~Set.general.only_finish_aborted
   % Generiere Anfangspopulation aus Funktion mit Annahmen bezüglich Winkel.
   % Lädt zusätzlich bisherige Ergebnisse, um schneller i.O.-Werte zu bekommen.
   try
-    [InitPop, QPop] = cds_gen_init_pop(Set, Structure);
+    [InitPop, QPop] = cds_gen_init_pop(Set, Structure, Traj);
   catch err
     dbgfile = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
       'tmp', ['cds_dimsynth_robot_call_cds_gen_init_pop_error_', R.mdlname, '.mat']);
@@ -2595,44 +2606,71 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act')) && ~
   end
   data_dyn = cds_obj_dependencies(R, Traj_0, Set, Structure_tmp, Q, QD, QDD, Jinv_ges);
   % Einzelne Zielfunktionen aufrufen
-  [fval_mass,~, ~, physval_mass] = cds_obj_mass(R);
-  [fval_energy,~, ~, physval_energy] = cds_obj_energy(R, Set, Structure, Traj_0, data_dyn.TAU, QD);
-  [fval_power,~, ~, physval_power] = cds_obj_power(R, Set, data_dyn.TAU, QD);
-  [fval_actforce,~, ~, physval_actforce] = cds_obj_actforce(data_dyn.TAU);
-  [fval_ms, ~, ~, physval_ms] = cds_obj_materialstress(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
-  [fval_cond,~, ~, physval_cond] = cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
-  [fval_mani,~, ~, physval_mani] = cds_obj_manipulability(R, Set, Jinv_ges, Traj_0, Q);
-  [fval_msv,~, ~, physval_msv] = cds_obj_minjacsingval(R, Set, Jinv_ges, Traj_0, Q);
-  [fval_pe,~, ~, physval_pe] = cds_obj_positionerror(R, Set, Jinv_ges, Q);
-  [fval_jrange,~, ~, physval_jrange] = cds_obj_jointrange(R, Set, Structure, Q);
-  [fval_jlimit,~, ~, physval_jlimit] = cds_obj_jointlimit(R, Set, Structure, Q);
-  [fval_actvelo,~, ~, physval_actvelo] = cds_obj_actvelo(R, QD);
-  [fval_chainlength,~, ~, physval_chainlength] = cds_obj_chainlength(R);
-  [fval_instspc,~, ~, physval_instspc] = cds_obj_installspace(R, Set, Structure, Traj_0, Q, JP);
-  [fval_footprint,~, ~, physval_footprint] = cds_obj_footprint(R, Set, Structure, Traj_0, Q, JP);
-  [fval_colldist,~, ~, physval_colldist] = cds_obj_colldist(R, Set, Structure, Traj_0, Q, JP);
-  [fval_stiff,~, ~, physval_stiff] = cds_obj_stiffness(R, Set, Q);
   % Reihenfolge siehe Variable Set.optimization.constraint_obj aus cds_settings_defaults
-  fval_obj_all = [fval_mass; fval_energy; fval_power; fval_actforce; fval_ms; fval_cond; ...
-    fval_mani; fval_msv; fval_pe; fval_jrange; fval_jlimit; fval_actvelo; fval_chainlength; ...
-    fval_instspc; fval_footprint; fval_colldist; fval_stiff];
-  physval_obj_all = [physval_mass; physval_energy; physval_power; physval_actforce; ...
-    physval_ms; physval_cond; physval_mani; physval_msv; physval_pe; ...
-    physval_jrange; physval_jlimit; physval_actvelo; physval_chainlength; ...
-    physval_instspc; physval_footprint; physval_colldist; physval_stiff];
-  if length(fval_obj_all)~=17 || length(physval_obj_all)~=17
+  fval_obj_all = NaN(length(ds.obj_names_all),1);
+  physval_obj_all = fval_obj_all;
+  [fval_obj_all(strcmp(ds.obj_names_all, 'mass')),~, ~, ...
+    physval_obj_all(strcmp(ds.obj_names_all, 'mass'))] = cds_obj_mass(R);
+  [fval_obj_all(strcmp(ds.obj_names_all, 'energy')),~, ~, ...
+    physval_obj_all(strcmp(ds.obj_names_all, 'energy'))] = ...
+    cds_obj_energy(R, Set, Structure, Traj_0, data_dyn.TAU, QD);
+  [fval_obj_all(strcmp(ds.obj_names_all, 'power')),~, ~, ...
+    physval_obj_all(strcmp(ds.obj_names_all, 'power'))] = ...
+    cds_obj_power(R, Set, data_dyn.TAU, QD);
+  [fval_obj_all(strcmp(ds.obj_names_all, 'actforce')), ~, ~, ...
+    physval_obj_all(strcmp(ds.obj_names_all, 'actforce'))] = ...
+    cds_obj_actforce(data_dyn.TAU);
+  [fval_obj_all(strcmp(ds.obj_names_all, 'materialstress')), ~, ~, ...
+    physval_obj_all(strcmp(ds.obj_names_all, 'materialstress'))] = ...
+    cds_obj_materialstress(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
+  [fval_obj_all(strcmp(ds.obj_names_all, 'condition')),~, ~, ...
+    physval_obj_all(strcmp(ds.obj_names_all, 'condition'))] = ...
+    cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
+  [fval_obj_all(strcmp(ds.obj_names_all, 'manipulability')),~, ~, ...
+    physval_obj_all(strcmp(ds.obj_names_all, 'manipulability'))] = ...
+    cds_obj_manipulability(R, Set, Jinv_ges, Traj_0, Q);
+  [fval_obj_all(strcmp(ds.obj_names_all, 'minjacsingval')),~, ~, ...
+    physval_obj_all(strcmp(ds.obj_names_all, 'minjacsingval'))] = ...
+    cds_obj_minjacsingval(R, Set, Jinv_ges, Traj_0, Q);
+  [fval_obj_all(strcmp(ds.obj_names_all, 'positionerror')),~, ~, ...
+    physval_obj_all(strcmp(ds.obj_names_all, 'positionerror'))] = ...
+    cds_obj_positionerror(R, Set, Jinv_ges, Q);
+  [fval_obj_all(strcmp(ds.obj_names_all, 'jointrange')),~, ~, ...
+    physval_obj_all(strcmp(ds.obj_names_all, 'jointrange'))] = ...
+    cds_obj_jointrange(R, Set, Structure, Q);
+  [fval_obj_all(strcmp(ds.obj_names_all, 'jointlimit')),~, ~, ...
+    physval_obj_all(strcmp(ds.obj_names_all, 'jointlimit'))] = ...
+    cds_obj_jointlimit(R, Set, Structure, Q);
+  [fval_obj_all(strcmp(ds.obj_names_all, 'actvelo')),~, ~, ...
+    physval_obj_all(strcmp(ds.obj_names_all, 'actvelo'))] = ...
+    cds_obj_actvelo(R, QD);
+  [fval_obj_all(strcmp(ds.obj_names_all, 'chainlength')),~, ~, ...
+    physval_obj_all(strcmp(ds.obj_names_all, 'chainlength'))] = ...
+    cds_obj_chainlength(R);
+  [fval_obj_all(strcmp(ds.obj_names_all, 'installspace')) ,~, ~, ...
+    physval_obj_all(strcmp(ds.obj_names_all, 'installspace'))] = ...
+    cds_obj_installspace(R, Set, Structure, Traj_0, Q, JP);
+  [fval_obj_all(strcmp(ds.obj_names_all, 'footprint')),~, ~, ...
+    physval_obj_all(strcmp(ds.obj_names_all, 'footprint'))] = ...
+    cds_obj_footprint(R, Set, Structure, Traj_0, Q, JP);
+  [fval_obj_all(strcmp(ds.obj_names_all, 'colldist')),~, ~, ...
+    physval_obj_all(strcmp(ds.obj_names_all, 'colldist'))] = ...
+    cds_obj_colldist(R, Set, Structure, Traj_0, Q, JP);
+  [fval_obj_all(strcmp(ds.obj_names_all, 'stiffness')),~, ~, ...
+    physval_obj_all(strcmp(ds.obj_names_all, 'stiffness'))] = ...
+    cds_obj_stiffness(R, Set, Q);
+  if any(isnan(fval_obj_all)) || any(isnan(physval_obj_all))
     % Dimension ist falsch, wenn eine Zielfunktion nicht skalar ist (z.B. leer)
-    cds_log(-1, sprintf(['[dimsynth] Dimension der Zielfunktionen falsch ', ...
-      'berechnet. dim(fval_obj_all)=%d, dim(physval_obj_all)=%d'], ...
-      length(fval_obj_all), length(physval_obj_all)));
+    cds_log(-1, sprintf('[dimsynth] Nicht alle Zielfunktionen berechnet'));
     try % Auf Cluster teilweise Probleme beim Dateisystemzugriff
-      save(fullfile(resdir, 'fvaldimensionerror.mat'));
+      save(fullfile(resdir, 'fvalrecalcerror.mat'));
     catch err
       cds_log(-1, sprintf('[dimsynth] Fehler beim Speichern von mat-Datei: %s', err.message));
     end
   end
   % Vergleiche neu berechnete Werte mit den zuvor abgespeicherten (müssen
   % übereinstimmen)
+  physval_cond = physval_obj_all(strcmp(ds.obj_names_all, 'condition'));
   test_Jcond_abs = PSO_Detail_Data.constraint_obj_val(dd_optind, 4, dd_optgen) - physval_cond;
   test_Jcond_rel = test_Jcond_abs / physval_cond;
   if abs(test_Jcond_abs) > 1e-6 && test_Jcond_rel > 1e-3 && ...
@@ -2648,6 +2686,7 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act')) && ~
       cds_log(-1, sprintf('[dimsynth] Fehler beim Speichern von mat-Datei: %s', err.message));
     end
   end
+  physval_pe = physval_obj_all(strcmp(ds.obj_names_all, 'positionerror'));
   test_PosErr_abs = PSO_Detail_Data.constraint_obj_val(dd_optind, 7, dd_optgen) - physval_pe;
   test_PosErr_rel = test_PosErr_abs / physval_pe;
   if abs(test_PosErr_abs) > 1e-6 && test_PosErr_rel > 1e-3 && ...
@@ -2663,6 +2702,7 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act')) && ~
       cds_log(-1, sprintf('[dimsynth] Fehler beim Speichern von mat-Datei: %s', err.message));
     end
   end
+  physval_ms = physval_obj_all(strcmp(ds.obj_names_all, 'materialstress'));
   test_sv = PSO_Detail_Data.constraint_obj_val(dd_optind, 6, dd_optgen) - physval_ms;
   if abs(test_sv) > 1e-5
     cds_log(-1, sprintf(['[dimsynth] Während Optimierung gespeicherte ', ...
@@ -2675,6 +2715,7 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act')) && ~
       cds_log(-1, sprintf('[dimsynth] Fehler beim Speichern von mat-Datei: %s', err.message));
     end
   end
+  physval_actforce = physval_obj_all(strcmp(ds.obj_names_all, 'actforce'));
   test_actforce = PSO_Detail_Data.constraint_obj_val(dd_optind, 3, dd_optgen) - physval_actforce;
   if abs(test_actforce) > 1e-5
     cds_log(-1, sprintf(['[dimsynth] Während Optimierung gespeicherte ', ...
@@ -2687,6 +2728,7 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act')) && ~
       cds_log(-1, sprintf('[dimsynth] Fehler beim Speichern von mat-Datei: %s', err.message));
     end
   end
+  physval_mass = physval_obj_all(strcmp(ds.obj_names_all, 'mass'));
   test_mass = PSO_Detail_Data.constraint_obj_val(dd_optind, 1, dd_optgen) - physval_mass;
   if abs(test_mass) > 1e-5
     cds_log(-1, sprintf('[dimsynth] Während Optimierung gespeicherte Masse (%1.5e) stimmt nicht mit erneuter Berechnung (%1.5e) überein. Differenz %1.5e.', ...
@@ -2700,8 +2742,8 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act')) && ~
 else
   % Keine Berechnung der Leistungsmerkmale möglich, da keine zulässige Lösung
   % gefunden wurde.
-  fval_obj_all = NaN(17,1);
-  physval_obj_all = NaN(17,1);
+  fval_obj_all = NaN(length(ds.obj_names_all),1);
+  physval_obj_all = NaN(length(ds.obj_names_all),1);
   physval_cond = inf;
 end
 % Prüfe auf Plausibilität, ob die Optimierungsziele erreicht wurden. Neben-
@@ -2709,7 +2751,6 @@ end
 I_fobj_set = Set.optimization.constraint_obj ~= 0;
 % Die Reihenfolge der Zielfunktionen insgesamt und die der Zielfunktionen
 % als Grenze sind unterschiedlich. Finde Indizes der einen in den anderen.
-ds = cds_definitions();
 objconstr_names_all = ds.objconstr_names_all;
 obj_names_all = ds.obj_names_all;
 I_constr = zeros(length(objconstr_names_all),1);
@@ -3000,9 +3041,19 @@ elseif ~isempty(filelist_tmpres2) % Fall 2: Bereits von cds_gen_init_pop nachver
     i_gen = i_gen + 1;
   end % for ii
 end
+
 if isempty(d)
   cds_log(-1, sprintf(['[dimsynth] Keine der %d Wiederaufnahme-Dateien ', ...
     'erfolgreich geladen.'], length(I_dateasc)));
-  return
+else
+  % Prüfe Kompatibilität der Daten bzgl. altem Speicherformat
+  defstruct = cds_definitions();
+  if size(d.PSO_Detail_Data.constraint_obj_val,2) < length(defstruct.objconstr_names_all)
+    % Es sind seit dem Speichern neue Zielfunktions-Nebenbedingungen im- 
+    % plementiert worden. Passe die Variable an. Annahme: Hinten angehängen
+    for kk = size(d.PSO_Detail_Data.constraint_obj_val,2)+1 : length(defstruct.objconstr_names_all)
+      d.PSO_Detail_Data.constraint_obj_val(:,kk,:) = NaN;
+    end
+  end
 end
 end
