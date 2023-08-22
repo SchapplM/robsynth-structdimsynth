@@ -915,7 +915,7 @@ for iIKC = I_IKC
     % Wenn eine IK-Konfiguration erfolgreich berechnet wird, sofort
     % abbrechen, wenn dies das Ziel der Optimierung ist.
     if all(Set.optimization.obj_limit == 1e3) && ... % keine konkrete Vorgabe, hauptsache i.O.
-        all(Set.optimization.obj_limit_physval==0) % keine Vorgabe
+        all(~isnan(Set.optimization.obj_limit_physval)) % keine Vorgabe
       fval_IKC(isnan(fval_IKC)) = inf; % Sonst unten Fehler bei Bestimmung der besten Konfiguration wegen NaN
       break;
     end
