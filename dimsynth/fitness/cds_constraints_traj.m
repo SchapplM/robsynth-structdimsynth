@@ -1503,8 +1503,8 @@ if any(I_qlimviol_T)
   % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Weitere Rechnungen machen keinen Sinn.
   constrvioltext_m{i_m} = sprintf(['Gelenkgrenzverletzung in Traj. Schlechteste ', ...
     'Spannweite: %1.2f/%1.2f (Gelenk %d)'], q_range_T(IIw), q_range_max(IIw), IIw);
-  if Set.general.plot_details_in_fitness < 0 && 1e4*fval >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
-     Set.general.plot_details_in_fitness > 0 && 1e4*fval <= abs(Set.general.plot_details_in_fitness)
+  if Set.general.plot_details_in_fitness < 0 && 1e4*fval_all(i_m, i_ar) >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
+     Set.general.plot_details_in_fitness > 0 && 1e4*fval_all(i_m, i_ar) <= abs(Set.general.plot_details_in_fitness)
     RP = ['R', 'P'];
     change_current_figure(1000); clf;
     for i = 1:R.NJ
