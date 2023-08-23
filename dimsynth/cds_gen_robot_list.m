@@ -228,13 +228,49 @@ for N_JointDoF = N_JointDoF_allowed
     else
      acttype_i = 'mixed';
     end
-    ii = ii + 1;
-    if verblevel >= 2, fprintf('%d: %s\n', ii, SName); end
-    Structures{ii} = struct('Name', SName, 'Type', 0, 'Number', ii, ...
-      'RobName', RName, ... % Falls ein konkreter Roboter mit Parametern gewählt ist
-      'act_type', acttype_i, 'deactivated', false, ...
-      ... % Platzhalter, Angleichung an PKM (Erkennung altes Dateiformat)
-      'angles_values', []); %#ok<AGROW> 
+    % Sonderfall Portalsysteme: Probiere alle Kombinationen von
+    % Linearachsen und Hubzylindern aus. Macht Unterschied bei Kollision
+    I_prismatic = SName(3:end) == 'P';
+    if ~all(I_prismatic(1:2)) % Normaler Fall: Höchstens erste Achse ist Linearachse
+      ii = ii + 1;
+      if verblevel >= 2, fprintf('%d: %s\n', ii, SName); end
+      Structures{ii} = struct('Name', SName, 'Type', 0, 'Number', ii, ...
+        'RobName', RName, ... % Falls ein konkreter Roboter mit Parametern gewählt ist
+        'act_type', acttype_i, 'deactivated', false, ...
+        ... % Platzhalter, Angleichung an PKM (Erkennung altes Dateiformat)
+        'angles_values', [], 'prismatic_types', []); %#ok<AGROW> 
+    else % Mehrere Schubachsen nacheinander
+      % Basierend auf technisch sinnvoller Umsetzbarkeit erfolgt die
+      % Bildung möglicher Kombinationen von Linearachse und Schubzylinder
+      allcombinput = cell(1,find(~I_prismatic,1,'first')-1);
+      for k = 1:length(allcombinput)
+        allcombinput{k} = 'LC';
+      end
+      prismtypeall = allcomb(allcombinput{:});
+      for k = 1:size(prismtypeall,1)
+        keep = true;
+        for kk = 1:size(prismtypeall,2)
+          if kk > 1 && prismtypeall(k,kk)=='L' && prismtypeall(k,kk-1)=='C'
+            keep = false; % Linearachse kommt nach Schubzylinder -> zu schwer
+            break;
+          end
+          if sum(prismtypeall(k,:)=='C') > 1
+            keep = false; % Mehr als ein Schubzylinder -> nicht sinnvoll wegen Biegungen
+            break;
+          end
+        end
+        if ~keep
+          continue
+        end
+        ii = ii + 1;
+        prismtype_logstr = sprintf('Fall %s', prismtypeall(k,:));
+        if verblevel >= 2, fprintf('%d: %s; Schubgelenke %s\n', ii, SName, prismtype_logstr); end
+        Structures{ii} = struct('Name', SName, 'Type', 0, 'Number', ii, ...
+          'RobName', RName, ... % Falls ein konkreter Roboter mit Parametern gewählt ist
+          'act_type', acttype_i, 'deactivated', false, ...
+          'angles_values', [], 'prismatic_types', prismtypeall(k,:)); %#ok<AGROW> 
+      end % for k
+    end
   end
 end
 
@@ -658,7 +694,7 @@ for kkk = 1:size(EE_FG_allowed,1)
       Structures{ii} = struct('Name', PNames_Akt{j}, 'Type', 2, 'Number', ii, ...
         'Coupling', Coupling, 'angles_values', av, 'DoF', EE_FG_allowed(kkk,:), ...
         'act_type', acttype_i, 'deactivated', false, ...
-        'RobName', RName); %#ok<AGROW>
+        'prismatic_types', [], 'RobName', RName); %#ok<AGROW>
     end
   end
 end

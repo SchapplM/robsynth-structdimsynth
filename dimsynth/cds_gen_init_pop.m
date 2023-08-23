@@ -245,6 +245,14 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
       ~strcmp(Set.structures.mounting_parallel, Set_i.structures.mounting_parallel))
     score_i = score_i - 10;
   end
+  % Bei Portalsystemen sollten die Typen der Schubgelenke gleich sein
+  if ~isempty(Structure.prismatic_types) && ...
+      (~isfield(Structure_i, 'prismatic_types') || ... % Altes Dateiformat
+       ~strcmp(Structure_i.prismatic_types, Structure.prismatic_types))
+    % Ergebnisse sind nicht direkt vergleichbar, da aufgrund der Schubgelenk- 
+    % Offsets bei anderen Gelenktypen eventuell die Kollisionen nicht passen
+    score_i = score_i - 2;
+  end
   
   % Auslesen der Parameter (bezogen auf die Datei)
   if ~isempty(d.RobotOptRes.p_val_pareto)

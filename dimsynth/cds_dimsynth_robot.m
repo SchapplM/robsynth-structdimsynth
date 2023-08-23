@@ -268,8 +268,18 @@ for i = 1:NLEG
 
   R_init.DesPar.joint_type((1:R_init.NJ)'==1&R_init.MDH.sigma==1) = 4; % Linearführung erste Achse
   R_init.DesPar.joint_type((1:R_init.NJ)'~=1&R_init.MDH.sigma==1) = 5; % Schubzylinder weitere Achse
+  % Setze bei Portalsystemen die Schubgelenke so wie aus cds_gen_robot_list
+  if all(R_init.MDH.sigma(1:2)==1)
+    for k = 1:length(Structure.prismatic_types)
+      switch Structure.prismatic_types(k)
+        case 'L' % Linearführung
+          R_init.DesPar.joint_type(k) = 4;
+        case 'C' % Hubzylinder
+          R_init.DesPar.joint_type(k) = 5;
+      end
+    end
+  end
   R_init.update_dynpar1(); % Nochmal initialisieren, damit MPV definiert ist
-  
   % Platzhalter-Werte für Segment-Parameter setzen (nur für Plotten)
   R_init.DesPar.seg_par(:,1) = 50e-3;
   R_init.DesPar.seg_par(:,2) = 5e-3;
