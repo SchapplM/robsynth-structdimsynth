@@ -1199,10 +1199,10 @@ qlim = R.update_qlim(); % Nur Auslesen, nicht in Klasse schreiben
 qlim_range = qlim(:,2) - qlim(:,1);
 qlim_neu = qlim; % Für Dreh- und Schubgelenke separat. Berücksichtige 2pi-Periodizität
 % Naiver Mittelwert: Für Schubgelenke korrekt
-qlim_neu(R.MDH.sigma==1,:) = repmat(mean(Q(:,R.MDH.sigma==1),1)',1,2)+...
+qlim_neu(R.MDH.sigma==1,:) = repmat(mean(Q(I_valid,R.MDH.sigma==1),1)',1,2)+...
   [-qlim_range(R.MDH.sigma==1), qlim_range(R.MDH.sigma==1)]/2;
 % Mittelwert der Winkel, zunächst normalisiert um pi
-qErot_mean = meanangle(Q(:,R.MDH.sigma==0),1)';
+qErot_mean = meanangle(Q(I_valid,R.MDH.sigma==0),1)';
 % Zentrieren um ersten Schritt. Sonst kann q0 außerhalb liegen, obwohl
 % es eigentlich der korrekte Bereich ist.
 qErot_meannorm = normalizeAngle(qErot_mean, Q(1,R.MDH.sigma==0)');
@@ -1235,8 +1235,8 @@ if limit_pris_to_Q
     for i = 1:R.NLEG
       I = R.Leg(i).MDH.sigma==1;
       if ~Set.optimization.joint_limits_symmetric_prismatic
-        Q_i = Q(:,R.I1J_LEG(i):R.I2J_LEG(i));
-        qminmax_legI = minmax2(Q_i(:,I)');
+        Q_i = Q(I_valid,R.I1J_LEG(i):R.I2J_LEG(i));
+        qminmax_legI = minmax2(Q_i(I_valid,I)');
       else
         qminmax_legI = qminmax_leg(I,:);
       end
@@ -1247,7 +1247,7 @@ if limit_pris_to_Q
   end
 end
 if all(isnan(qlim_neu(:)))
-  cds_log(-1, '[fitness/update_joint_limits] qlim_neu ist NaN. Darf nicht sein.')
+  cds_log(-1, '[fitness/update_joint_limits] qlim_neu ist NaN. Darf nicht sein.');
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
     'tmp', 'cds_fitness_qlimnan_error_debug2.mat'));
 end
