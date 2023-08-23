@@ -78,14 +78,25 @@ if structset.use_serial
 else
   N_JointDoF_allowed = [];
 end
+% Bei EE-Beschränkungen (3T0R, 3T1R) mehr Gelenk-FG erlauben/erzwingen
+N_JointDoF_allowed = N_JointDoF_allowed + Set.structures.min_task_constraint;
+N_JointDoF_allowed = N_JointDoF_allowed : (N_JointDoF_allowed + ...
+  Set.structures.max_task_constraint - Set.structures.min_task_constraint);
 % Mögliche Anzahl an Gelenken durchgehen
 for N_JointDoF = N_JointDoF_allowed
   % Seriellroboter-Datenbank für diese Gelenk-Anzahl vor-filtern
   I_N_in_all = SerRob_DB_all.N == N_JointDoF;
   l = struct('Names_Ndof', {SerRob_DB_all.Names(I_N_in_all)}, ...
              'AdditionalInfo', SerRob_DB_all.AdditionalInfo(I_N_in_all,:));
+  % EE-Filter-Maske anpassen für den Fall dass Aufgaben-Zwangsbedingungen
+  % vorliegen (noch unausgereift und nimmt wahrscheinlich zu viele
+  % Strukturen mit)
+  EE_FG_Mask_ser_i = EE_FG_Mask_ser;
+  if all(Set.task.DoF(4:5)==0) && N_JointDoF > sum(Set.task.DoF)
+    EE_FG_Mask_ser_i([4 5 7 8]) = 0;
+  end
   % Filterung auf EE-FG (zusätzlich zur Gelenkzahl)
-  [~,I_FG] = serroblib_filter_robots(N_JointDoF, EE_FG_ser, EE_FG_Mask_ser);
+  [~,I_FG] = serroblib_filter_robots(N_JointDoF, EE_FG_ser, EE_FG_Mask_ser_i);
   I_novar = (l.AdditionalInfo(:,2) == 0);
   I = I_FG;
   % Varianten von Robotern in der Datenbank
