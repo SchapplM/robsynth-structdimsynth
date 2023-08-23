@@ -62,6 +62,9 @@ end
 % Die Länge der Offsets ist damit erstmal egal und kann auch viel zu groß
 % werden.
 options_fsolve = optimoptions('fsolve', 'Display', 'none');
+if length(x0) > 1 % Mehrere Schubgelenke, mehrere Offsets, sonst Warnung bei Solver
+  options_fsolve.Algorithm = 'Levenberg-Marquardt';
+end
 jo_opt_fsolve = fsolve(nonlcon2, x0, options_fsolve);
 
 % Führe die Minimierung der Offsets mit hierarchischer Optimierung durch.
