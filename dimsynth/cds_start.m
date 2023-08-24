@@ -3,11 +3,12 @@
 % Eingabe:
 %   Set (Globale Einstellungen). Siehe cds_settings_defaults.m
 %   Traj (Eigenschaften der Trajektorie). Siehe cds_gen_traj.m
+%   Structures (Liste der zu optimierenden Strukturen, s. cds_gen_robot_list.m)
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function cds_start(Set, Traj)
+function cds_start(Set, Traj, Structures)
 
 % Warnungen unterdrücken, die bei der Maßsynthese typischerweise auftreten
 warning('off', 'MATLAB:singularMatrix');
@@ -20,7 +21,9 @@ warning('off', 'Coder:MATLAB:illConditionedMatrix');
 warning('off', 'Coder:MATLAB:rankDeficientMatrix');
 % Falls Figure manuell angedockt wurde und gespeichert werden soll
 warning('off', 'MATLAB:Figure:SetPosition');
-
+if nargin < 3
+  Structures = [];
+end
 %% Log Vorbereiten
 resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
 if Set.general.isoncluster && isfolder(resdir_main) && ...
@@ -423,6 +426,7 @@ if Set.general.create_template_functions && ~Set.general.check_missing_template_
   warning('check_missing_template_functions wurde auf true gesetzt, da create_template_functions gesetzt')
 end
 %% Menge der Roboter laden
+% Nur neu erzeugen, wenn die Liste nicht schon vorgegeben wurde
 if ~(Set.general.only_finish_aborted && Set.general.isoncluster) && ... % Abschluss auf Cluster
     ~Set.general.regenerate_summary_only || ... % Nur Bilder (ohne Abschluss)
     (Set.general.only_finish_aborted && Set.general.computing_cluster) % Abschluss lokal. Kein Aufruf zum Hochladen des Abschluss-Auftrags auf das Cluster
@@ -432,7 +436,9 @@ if ~(Set.general.only_finish_aborted && Set.general.isoncluster) && ... % Abschl
   % Der Fall des Hochladens des Auftrags zum Abschluss auf das Cluster wird
   % mit obiger Logik berücksichtigt (zum Aufteilen auf parallele Jobs)
   t1 = tic();
-  Structures = cds_gen_robot_list(Set);
+  if isempty(Structures)
+    Structures = cds_gen_robot_list(Set);
+  end
   cds_log(1, sprintf('Insgesamt %d Roboter ausgewählt. Dauer: %1.1fs', ...
     length(Structures), toc(t1)));
   if isempty(Structures)
@@ -613,24 +619,8 @@ if Set.general.computing_cluster
     Set_cluster.general.parcomp_struct = true; % parallele Berechnung auf Cluster (sonst sinnlos)
     Set_cluster.general.parcomp_plot = true; % paralleles Plotten auf Cluster (ist dort gleichwertig und schneller)
     % Wähle nur einen Bereich aller möglicher Roboter aus für diesen Lauf.
-    Set_cluster.structures.whitelist = Names(I1_kk:I2_kk);
-    % Falls ein Roboter mehrfach parallel optimiert werden soll, muss die
-    % Einstellungen für das Cluster neu generiert werden.
-    if ~isempty(Set.structures.repeatlist)
-      Set_cluster.structures.repeatlist = {};
-      Names_repeated = Set_cluster.structures.whitelist;
-      Set_cluster.structures.whitelist = unique(Names_repeated);
-      % Zähle, wie viele Roboter jeweils doppelt sind. Daraus wird die Ein-
-      % stellung repeatlist rekonstruiert.
-      for jj = 1:length(Set_cluster.structures.whitelist)
-        I_unique = strcmp(Names_repeated, Set_cluster.structures.whitelist{jj});
-        if sum(I_unique) == 1, continue; end % Nur eine Optimierung. Kein Eintrag notwendig.
-        Set_cluster.structures.repeatlist = [Set_cluster.structures.repeatlist, ...
-          {{Set_cluster.structures.whitelist{jj}, sum(I_unique)}}];
-      end
-    end
-
-    save(fullfile(jobdir, [computation_name,'.mat']), 'Set_cluster', 'Traj');
+    Structures_cluster = Structures(I1_kk:I2_kk);
+    save(fullfile(jobdir, [computation_name,'.mat']), 'Set_cluster', 'Traj', 'Structures_cluster');
     % Schätze die Rechenzeit: Im Mittel 2s pro Parametersatz aufgeteilt auf
     % 12 parallele Kerne, 30min für Bilderstellung und 6h Reserve/Allgemeines
     comptime_est = (Set.optimization.NumIndividuals*(1+Set.optimization.MaxIter)*2 + ...
@@ -659,7 +649,7 @@ if Set.general.computing_cluster
     copyfile(clusterheaderfile, targetfile);
     fid = fopen(targetfile, 'a');
     fprintf(fid, 'tmp=load(''%s'');\n', [computation_name,'.mat']);
-    fprintf(fid, 'Set=tmp.Set_cluster;\nTraj=tmp.Traj;\n');
+    fprintf(fid, 'Set=tmp.Set_cluster;\nTraj=tmp.Traj;\nStructures=tmp.Structures_cluster;\n');
     % Ergebnis-Ordner neu setzen. Ansonsten ist der Pfad des Rechners
     % gesetzt, von dem der Job gestartet wird.
     fprintf(fid, ['Set.optimization.resdir=fullfile(fileparts(', ...
@@ -670,7 +660,7 @@ if Set.general.computing_cluster
     fprintf(fid, 'Set.general.computing_cluster_start_time=now();\n');
     % Platzhalter-Eintrag, der weiter unten ersetzt wird:
     fprintf(fid, '%% Set.general.only_finish_aborted = true;\n');
-    fprintf(fid, 'cds_start(Set, Traj);\n');
+    fprintf(fid, 'cds_start(Set, Traj, Structures);\n');
     % Schließen des ParPools auch in Datei hineinschreiben
     fprintf(fid, 'parpool_writelock(''lock'', 300, true);\n');
     fprintf(fid, 'delete(gcp(''nocreate''));\n');
