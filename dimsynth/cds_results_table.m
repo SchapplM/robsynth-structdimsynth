@@ -122,7 +122,8 @@ for i = 1:length(Structures)
   elseif f <= 1e4*7.5e3, fval_text = 'Gel.-Pos.-Grenze Traj. (symm)';
   elseif f <= 1e4*8e3, fval_text = 'Gel.-Pos.-Spannw. Traj. (symm)';
   elseif f <= 1e4*9e3, fval_text = 'Gel.-Pos.-Spannw. Traj.';
-  elseif f <= 1e4*1e4, fval_text = 'Parasitäre Bew.';
+  elseif f < 1e4*1e4, fval_text = 'Parasitäre Bew.';
+  elseif f == 1e4*1e4, fval_text = 'Inaktives Gelenk';
   elseif f <= 1e4*2e4, fval_text = 'Traj.-IK Fehler (Beschl. 3T2R)';
   elseif f <= 1e4*3e4, fval_text = 'Traj.-IK Fehler (Geschw. 3T2R)';
   elseif f <= 1e4*4e4, fval_text = 'Traj.-IK Fehler (Pos. 3T2R)';
