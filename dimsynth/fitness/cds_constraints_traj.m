@@ -38,6 +38,7 @@
 %   7.5e3...8e3: Gelenkwinkelgrenzen (Spannweite) in Trajektorie (alle Beinkette zusammen)
 %   8e3...9e3: Gelenkwinkelgrenzen (Spannweite) in Trajektorie (jede Beinkette)
 %   9e3...1e4: Parasitäre Bewegung (Roboter strukturell unpassend)
+%   1e4: Inaktives Gelenk (strukturell unpassend für Aufgabe)
 %   1e4...4e4: Inkonsistente Pos./Geschw./Beschl. in Traj.-IK. für Beink. 1 (Sonderfall 3T2R)
 %   4e4...5e4: Singularität in Beinkette (obige Betrachtung daher sinnlos)
 %   5e4...6e4: Singularität der PKM (bezogen auf Aktuierung)
@@ -1481,7 +1482,14 @@ if R.Type ~= 0 && Set.general.debug_calc
     end
   end
 end
-
+%% Prüfe ob ein Gelenk inaktiv ist
+if Set.structures.no_inactive_joints && ...
+    (R.Type==0 && Structure.constraints > 0 || R.Type==2) && ... % bei PKM gibt es noch keinen Marker für Aufgaben-Zwangsbedingungen
+      any(all( abs(Q-repmat(Q(1,:),size(Q,1),1))<1e-8 ))
+  fval_all(i_m, i_ar)  = 1e4;
+  constrvioltext_m{i_m}='Ein Gelenk ist inaktiv';
+  continue
+end
 %% Prüfe, ob die Gelenkwinkelgrenzen (als Spannweite) verletzt werden
 % Andere Prüfung als in cds_constraints.m. Gehe davon aus, dass die
 % Trajektorie stetig und sprungfrei ist. Ist eine Winkelspannweite von mehr

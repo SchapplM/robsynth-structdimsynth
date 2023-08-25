@@ -164,6 +164,7 @@ if R.Type == 0
     num_constr = 3;
   end
 end
+Structure.constraints = num_constr;
 % Aufgaben-FG müssen aufgrund der Implementierung neu gesetzt werden.
 % Die auf Null fixierten Rotationen entsprechen einer festen Vorgabe
 if num_constr > 0
