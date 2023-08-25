@@ -152,6 +152,13 @@ for N_JointDoF = N_JointDoF_allowed
     else
       Mask_Origin = uint16(bin2dec(fliplr('01001'))); % Nehme auch Gelenkfolge-Varianten der Hauptmodelle
     end
+    % Bei Aufgaben-Zwangsbedingungen werden auch die PKM-Beinktten als
+    % Roboterkinematik ausprobiert, da diese eventuell durch Gelenk-
+    % parallelität gut funktionieren. TODO: Systematische Synthese für
+    % den Fall durchführen.
+    if Set.structures.max_task_constraint > 0
+      Mask_Origin = bitor(Mask_Origin,uint16(bin2dec(fliplr('00110')))); % einsen bei Spalte 3T0R-/3T1R (PKM-Beinkette)
+    end
     ilc = find(strcmp(SerRob_DB_all.Names, SName)); % Index des Roboters in Datenbank
     if isempty(ilc) || length(ilc)>1, error('Unerwarteter Eintrag in Datenbank für Beinkette %s', LegChainName); end
     if ~Set.structures.only_serialrobot_from_synthesis && ... % Modus: Varianten betrachten
