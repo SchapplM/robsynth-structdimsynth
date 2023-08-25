@@ -181,7 +181,9 @@ optimization = struct( ...
   'platform_morphology', true, ... % Aussehen der Plattform (z.B. Gelenkpaarabstand)
   'tilt_base', false, ... % Kippen der Roboter-Basis (über Rotation um x- und y-Achse). Ermöglicht Ausweichen struktureller Singularitäten
   'max_tilt_base', pi, ... % Begrenzung des Kippwinkels der Basis (sowohl einzelne Euler-Winkel, als auch Gesamt-Neigung)
+  'tilt_base_only_orthogonal', false, ... % Nur glatte 90°-Winkel
   'rotate_base', true, ... % Orientierung der Roboter-Basis (nur um die z-Achse). Hilft bei PKM.
+  'rotate_base_only_orthogonal', false, ... % Nur glatte 90°-Winkel zulassen
   ... % Fixiere die Gelenkwinkel-Grenzen auf den beim Start gesetzten Wert.
   ... % Ist nur sinnvoll, wenn ein bereits gegebenes Robotermodell genutzt wird.
   'fix_joint_limits', false, ...

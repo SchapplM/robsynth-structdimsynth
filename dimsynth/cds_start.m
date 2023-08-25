@@ -196,6 +196,12 @@ end
 if ~all(size(Set.optimization.basepos_limits)==[3 2])
   error('basepos_limits muss 3x2 sein (xyz Koordinate, min/max)');
 end
+if Set.optimization.rotate_base_only_orthogonal && ~Set.optimization.rotate_base
+  error('rotate_base_only_orthogonal ohne rotate_base ergibt keinen Sinn.');
+end
+if Set.optimization.tilt_base_only_orthogonal && ~Set.optimization.tilt_base
+  error('tilt_base_only_orthogonal ohne tilt_base ergibt keinen Sinn.');
+end
 if ~all(size(Set.optimization.ee_translation_fixed)==[1 3])
   error('ee_translation_fixed muss 1x3 sein (xyz Koordinate)');
 end
