@@ -143,17 +143,11 @@ for i = 0:maxnum_parts % Ordner 0 kommt nicht aus Optimierung sondern von oben
     end
   end
   % Erzeuge die Gesamt-Variable der Roboterstrukturen für die neue
-  % Einstellungsdatei.Prüfe, welche Nummerierung in der Einstellungsdatei ist.
-  IdxAlt = 1:length(s.Structures);
+  % Einstellungsdatei. Nummerierung ist schon richtig.
   if numdirs_processed == 0 % statt `i==1`, falls i=1 nicht existiert
     Structures = s.Structures;
-    IdxNeu = IdxAlt;  % Nr. nicht verändern
   else
-    IdxNeu = IdxAlt + Structures{end}.Number; % alle Nummern hochzählen.
     % Nummer der Roboter in den Strukturen verändern
-    for kk = 1:length(s.Structures)
-      s.Structures{kk}.Number = IdxNeu(s.Structures{kk}.Number);
-    end
     Structures = [Structures, s.Structures]; %#ok<AGROW>
   end
   % Tabelle zusammenstellen (aus den Tabellen der Teil-Ergebnisse)
@@ -178,12 +172,8 @@ for i = 0:maxnum_parts % Ordner 0 kommt nicht aus Optimierung sondern von oben
   if numdirs_processed == 0 % Setze als Gesamt-Tabelle. Das hier ist das erste vollständige Ergebnis mit Tabelle
     ResTab_ges = ResTab_i;
   else % Hänge Tabelle an
-    % Erhöhe die Laufende Nummer der Roboter in der Tabelle. Annahme: Die
-    % Roboter in jeder Tabelle fangen bei Nr. 1 an. Ziel ist, dass die
-    % Roboter in der Gesamt-Tabelle fortlaufend nummeriert sind.
-    ResTab_i.LfdNr(:) = IdxNeu(ResTab_i.LfdNr);
     % Hänge die aktuelle Tabelle (mit nur einem Teil der Ergebnisse) an das
-    % Ende der Gesamt-Tabelle an)
+    % Ende der Gesamt-Tabelle an). Nummern passen bereits.
     ResTab_ges = [ResTab_ges; ResTab_i]; %#ok<AGROW>
   end
   % Kopiere die Dateien für den Roboter in den Ordner der Gesamt-Ergebnisse.
@@ -198,16 +188,15 @@ for i = 0:maxnum_parts % Ordner 0 kommt nicht aus Optimierung sondern von oben
       continue
     end
     % Lese Daten des Roboters aus den Datei-/Ordnernamen
-    RobNr_j_alt = str2double(tokens{1}{1});
+    RobNr_j = str2double(tokens{1}{1});
     RobName_j = tokens{1}{2};
     if length(tokens{1}) == 3
       Suffix = tokens{1}{3};
     else
       Suffix = '';
     end
-    RobNr_j_neu = IdxNeu(IdxAlt==RobNr_j_alt); % Setze neue Nummer
     if resobjects_i(j).isdir % Kopiere das Verzeichnis
-      dirname_j_neu = sprintf('Rob%d_%s', RobNr_j_neu, RobName_j);
+      dirname_j_neu = sprintf('Rob%d_%s', RobNr_j, RobName_j);
       mode = settings.mode;
       done = false;
       if strcmp(mode, 'move')
@@ -236,12 +225,12 @@ for i = 0:maxnum_parts % Ordner 0 kommt nicht aus Optimierung sondern von oben
         % Verlinke alle Dateien im Verzeichnis
         resfiles_j = dir(fullfile(resdir,dirname_i,resobjects_i(j).name, 'Rob*.*'));
         for k = 1:length(resfiles_j)
-          tokens_k = regexp(resfiles_j(k).name, sprintf('Rob%d_%s(.*)',RobNr_j_alt,RobName_j), 'tokens');
+          tokens_k = regexp(resfiles_j(k).name, sprintf('Rob%d_%s(.*)',RobNr_j,RobName_j), 'tokens');
           if isempty(tokens_k)
             warning('Datei %s entspricht nicht dem Namensschema', resfiles_j(k).name);
             continue
           end
-          newfilename_k = sprintf('Rob%d_%s%s', RobNr_j_neu, RobName_j, tokens_k{1}{1});
+          newfilename_k = sprintf('Rob%d_%s%s', RobNr_j, RobName_j, tokens_k{1}{1});
           system(sprintf('ln -s %s %s', fullfile(resdir,dirname_i,resobjects_i(j).name,resfiles_j(k).name), ...
             fullfile(resdir_ges,dirname_j_neu,newfilename_k)));
         end
@@ -250,24 +239,8 @@ for i = 0:maxnum_parts % Ordner 0 kommt nicht aus Optimierung sondern von oben
       if ~done
         error('Modus %s nicht definiert oder nicht erfolgreich', settings.mode);
       end
-      % Benenne alle Dateien in den Ordnern konsistent um
-      if RobNr_j_alt ~= RobNr_j_neu && ~strcmp(settings.mode, 'symlink')
-        % Keine Umbenennung notwendig, wenn symbolische Verknüpfungen
-        % gesetzt wurden. Dann ist der neue Name schon korrekt.
-        resfiles_j = dir(fullfile(resdir_ges, dirname_j_neu, 'Rob*.*'));
-        for k = 1:length(resfiles_j)
-          tokens_k = regexp(resfiles_j(k).name, sprintf('Rob%d_%s(.*)',RobNr_j_alt,RobName_j), 'tokens');
-          if isempty(tokens_k)
-            warning('Datei %s entspricht nicht der Erwartung.', resfiles_j(k).name);
-            continue
-          end
-          newfilename_k = sprintf('Rob%d_%s%s', RobNr_j_neu, RobName_j, tokens_k{1}{1});
-          movefile(fullfile(resdir_ges,dirname_j_neu,resfiles_j(k).name), ...
-                   fullfile(resdir_ges,dirname_j_neu,newfilename_k));
-        end
-      end
     else % Kopiere die Endergebnis-mat-Dateien
-      resfilename_j_neu = sprintf('Rob%d_%s%s', RobNr_j_neu, RobName_j, Suffix);
+      resfilename_j_neu = sprintf('Rob%d_%s%s', RobNr_j, RobName_j, Suffix);
       sourcefile = fullfile(resdir,dirname_i,resobjects_i(j).name);
       targetfile = fullfile(resdir_ges, resfilename_j_neu);
       mode = settings.mode;
@@ -306,13 +279,12 @@ for i = 0:maxnum_parts % Ordner 0 kommt nicht aus Optimierung sondern von oben
       continue
     end
     % Lese Daten des Roboters aus den Datei-/Ordnernamen
-    RobNr_j_alt = str2double(tokens{1}{1});
+    RobNr_j = str2double(tokens{1}{1});
     RobName_j = tokens{1}{2};
-    RobNr_j_neu = IdxNeu(IdxAlt==RobNr_j_alt); % Setze neue Nummer
     tmpdir_j_alt = fullfile(resdir, dirname_i, 'tmp', sprintf('%d_%s', ...
-      RobNr_j_alt, RobName_j));
+      RobNr_j, RobName_j));
     tmpdir_j_neu = fullfile(resdir_ges, 'tmp', sprintf('%d_%s', ...
-      RobNr_j_neu, RobName_j));
+      RobNr_j, RobName_j));
     % Prüfe, ob das Verzeichnis nicht leer ist
     tmpobjects_j = dir(tmpdir_j_alt);
     emptydir = true;
