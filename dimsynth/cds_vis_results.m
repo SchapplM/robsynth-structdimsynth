@@ -129,10 +129,11 @@ parfor (i = 1:length_Structures_parfor, parfor_numworkers)
   % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_vis_results2.mat'));
   Structure = Structures{i};
   Name = Structures{i}.Name;
-  fprintf('%d/%d: Visualisiere Ergebnisse für (%s): {%s}\n', i, ...
-    length_Structures, Name, disp_array(Set.general.eval_figures, '%s')); %#ok<PFBNS> 
-  resfile1 = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', i, Name));
-  resfile2 = fullfile(resmaindir, sprintf('Rob%d_%s_Details.mat', i, Name));
+  Number = Structures{i}.Number;
+  fprintf('%d/%d: Visualisiere Ergebnisse für (%d/%s): {%s}\n', i, ...
+    length_Structures, Number, Name, disp_array(Set.general.eval_figures, '%s')); %#ok<PFBNS> 
+  resfile1 = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', Number, Name));
+  resfile2 = fullfile(resmaindir, sprintf('Rob%d_%s_Details.mat', Number, Name));
   if ~exist(resfile1, 'file') || ~exist(resfile2, 'file')
     warning('Ergebnis-Datei für Roboter %d/%d (%s) existiert nicht: %s oder %s', ...
       i, length_Structures, Name, resfile1, resfile2);
@@ -140,8 +141,8 @@ parfor (i = 1:length_Structures_parfor, parfor_numworkers)
   end
   tmp1 = load(resfile1, 'RobotOptRes');
   tmp2 = load(resfile2, 'RobotOptDetails', 'PSO_Detail_Data');
-  fprintf('%d/%d: Dateien für %s geladen.\n', i, length_Structures, Name);
-  resrobdir = fullfile(resmaindir, sprintf('Rob%d_%s', i, Name));
+  fprintf('%d/%d: Dateien für Rob %d (%s) geladen.\n', i, length_Structures, Number, Name);
+  resrobdir = fullfile(resmaindir, sprintf('Rob%d_%s', Number, Name));
   mkdirs(resrobdir); % Speicherort für Bilder dieses Roboters
   RobotOptRes = tmp1.RobotOptRes;
   RobotOptDetails = tmp2.RobotOptDetails;
@@ -151,7 +152,7 @@ parfor (i = 1:length_Structures_parfor, parfor_numworkers)
   else
     parroblib_addtopath({Name});
   end
-  RobData = struct('Name', Name, 'Number', i, 'ParetoNumber', 1, ...
+  RobData = struct('Name', Name, 'Number', Number, 'ParetoNumber', 1, ...
     'Type', RobotOptRes.Structure.Type);
   %% Statistische Verteilung der Ergebnisse aller Generationen
   if any(strcmp(Set.general.eval_figures, 'histogram'))
@@ -164,7 +165,7 @@ parfor (i = 1:length_Structures_parfor, parfor_numworkers)
   % Histogramm erstellen
   f = change_current_figure(100*i+1, vis_settings.figure_invisible); %#ok<PFBNS> 
   clf; hold all;
-  set(f, 'Name', sprintf('Rob%d_Hist', i), 'NumberTitle', 'off', 'color','w');
+  set(f, 'Name', sprintf('Rob%d_Hist', Number), 'NumberTitle', 'off', 'color','w');
   sgtitle(sprintf('Erg.-Vert. für %s: %d Parametersätze in %d Gen.', Name, length(I_zul), size(Erg_All_Gen,1)));
   subplot(2,2,sprc2no(2,2,1,1)); % Histogramm über zulässige Lösungen
   h_zul = histogram(Erg_All_Gen(I_zul));
@@ -253,8 +254,8 @@ parfor (i = 1:length_Structures_parfor, parfor_numworkers)
   ylabel('Häufigkeit (abs)');
   title('Vert. alle Lsg. (nach Gen.)');
 
-  saveas(f,     fullfile(resrobdir, sprintf('Rob%d_%s_Histogramm.fig', i, Name)));
-  export_fig(f, fullfile(resrobdir, sprintf('Rob%d_%s_Histogramm.png', i, Name)));
+  saveas(f,     fullfile(resrobdir, sprintf('Rob%d_%s_Histogramm.fig', Number, Name)));
+  export_fig(f, fullfile(resrobdir, sprintf('Rob%d_%s_Histogramm.png', Number, Name)));
   fprintf('%d/%d: Histogramm für %s gespeichert. Dauer: %1.1fs\n', ...
     i, length_Structures, Name, toc(t1));
   end
@@ -301,19 +302,19 @@ parfor (i = 1:length_Structures_parfor, parfor_numworkers)
   title('Materialbelastung vs Kondition');
   grid on;  
   
-  saveas(f,     fullfile(resrobdir, sprintf('Rob%d_%s_Population_Fitness.fig', i, Name)));
-  export_fig(f, fullfile(resrobdir, sprintf('Rob%d_%s_Population_Fitness.png', i, Name)));
-  fprintf('%d/%d: Weitere Auswertungsbilder für %s gespeichert. Dauer: %1.1fs\n', ...
-    i, length_Structures, Name, toc(t1));
+  saveas(f,     fullfile(resrobdir, sprintf('Rob%d_%s_Population_Fitness.fig', Number, Name)));
+  export_fig(f, fullfile(resrobdir, sprintf('Rob%d_%s_Population_Fitness.png', Number, Name)));
+  fprintf('%d/%d: Weitere Auswertungsbilder für Rob %d (%s) gespeichert. Dauer: %1.1fs\n', ...
+    i, length_Structures, Number, Name, toc(t1));
   end
   %% Animation des besten Roboters für die Trajektorie
   if ~isempty(Set.general.animation_styles)
     t1 = tic();
-    fprintf('%d/%d: Beginne Animation für %s\n', i, length_Structures, Name);
+    fprintf('%d/%d: Beginne Animation für Rob %d (%s)\n', i, length_Structures, Number, Name);
     cds_vis_results_figures('animation', Set, Traj, RobData, ...
       ResTab, RobotOptRes, RobotOptDetails, [], vis_settings);
-    fprintf('%d/%d: Animation für %s gespeichert nach %s. Dauer: %1.1fs\n', ...
-      i, length_Structures, Name, resrobdir, toc(t1));
+    fprintf('%d/%d: Animation für Rob %d (%s) gespeichert nach %s. Dauer: %1.1fs\n', ...
+      i, length_Structures, Number, Name, resrobdir, toc(t1));
   end
   t1 = tic();
   %% Zeichnung der Roboters mit Trägheitsellipsen und Ersatzdarstellung
@@ -359,7 +360,7 @@ parfor (i = 1:length_Structures_parfor, parfor_numworkers)
     close all;
   end
 
-  fprintf('Visualisierung für Rob %d (%s) beendet. Dauer: %1.1fs\n', i, Name, toc(t_start_i));
+  fprintf('Visualisierung für Rob %d (%s) beendet. Dauer: %1.1fs\n', Number, Name, toc(t_start_i));
 end
 %% Erzeuge Pareto-Diagramme für alle Roboter (2D)
 if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriterien gleichzeitig nicht sinnvoll
@@ -431,10 +432,11 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   for i = II_acttype_act % Auswahl der Roboter durchgehen
     % Lade Ergebnisse Für Roboter i
     Name = Structures{i}.Name;
-    resfile1 = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', i, Name));
+    Number = Structures{i}.Number;
+    resfile1 = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', Number, Name));
     if ~exist(resfile1, 'file')
-      warning('Ergebnis-Datei für Roboter %d/%d (%s) existiert nicht: %s', ...
-        i, length_Structures, Name, resfile1);
+      warning('Ergebnis-Datei für Roboter %d/%d (%d/%s) existiert nicht: %s', ...
+        i, length_Structures, Number, Name, resfile1);
       continue
     end
     tmp1 = load(resfile1, 'RobotOptRes');
@@ -519,6 +521,7 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   for j = 1:length(II_acttype_act_sort)
     i = II_acttype_act_sort(j);
     Name = Structures{i}.Name;
+    Number = Structures{i}.Number;
     % Für Legende: Nur erfolgreiche PKM zählen (werden oben schon gefiltert
     if ~any(pf_robnum==i), continue; end
     % Falls alle Pareto-Partikel dieses Roboters dominiert wurden, weiter.
@@ -542,7 +545,7 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     else % length(Set.optimization.objective) == 3
       hdl=plot3(pf_data(pf_robnum==i,1), pf_data(pf_robnum==i,2), pf_data(pf_robnum==i,3), marker);
     end
-    set(hdl, 'DisplayName', sprintf('Rob%d_%s', i, Name)); % zur Zuordnung später
+    set(hdl, 'DisplayName', sprintf('Rob%d_%s', Number, Name)); % zur Zuordnung später
     % Der Legendeneintrag wird im Fall von gruppierten Ergebnissen mehrmals
     % überschrieben. Dadurch nur ein Legendeneintrag pro Gruppe.
     leghdl(countmarker,:) = hdl; %#ok<AGROW>
