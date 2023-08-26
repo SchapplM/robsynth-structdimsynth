@@ -357,8 +357,8 @@ for i = 1:length(m_ges_Link)
         y_Si = cross(x_Si, T_P_E(1:3,3)); % wähle y-Achse so wie in EE-KS (aber ausgehend von z-Achse, damit exakt senkrecht zu x-Achse)
       else
         y_Si = cross(x_Si, T_P_E(1:3,1)); % y-Achse neu wählen
-        y_Si = y_Si/norm(y_Si);
       end
+      y_Si = y_Si/norm(y_Si); % Sonst kein Einheitsvektor, da Vektoren für Kreuzprodukt für y_Si nicht orthogonal sind
       z_Si = cross(x_Si, y_Si); % senkrecht dazu
       R_i_Si = [x_Si, y_Si, z_Si];
     else
