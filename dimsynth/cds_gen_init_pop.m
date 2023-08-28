@@ -401,17 +401,20 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
   % Parameter modifizieren, die gerundet wurden. Runde auch hier, damit die
   % geladenen Parameter den gerundeten entsprechen. Siehe cds_update_robot_parameters
   % Betrifft alpha/theta und Basis-Rotation
-  if Set_i.structures.orthogonal_joints && ~Set.structures.orthogonal_joints
+  if isfield(Set_i.structures, 'orthogonal_joints') && ... % Feld existiert eventuell nicht in alten Daten
+      Set_i.structures.orthogonal_joints && ~Set.structures.orthogonal_joints
     I_alphatheta = contains(Structure_i.varnames, 'pkin') & ...
       (contains(Structure_i.varnames, 'alpha') | contains(Structure_i.varnames, 'theta'));
     pval_i(:,I_alphatheta) = round(pval_i(:,I_alphatheta)/(pi/2))*pi/2;
   end
-  if Set_i.optimization.tilt_base_only_orthogonal && ~Set.optimization.tilt_base_only_orthogonal
+  if isfield(Set_i.structures, 'tilt_base_only_orthogonal') && ...
+      Set_i.optimization.tilt_base_only_orthogonal && ~Set.optimization.tilt_base_only_orthogonal
     I_baserotxy = contains(Structure_i.varnames, 'baserotation x') | ...
                   contains(Structure_i.varnames, 'baserotation y');
     pval_i(:,I_baserotxy) = round(pval_i(:,I_baserotxy)/(pi/2))*pi/2;
   end
-  if Set_i.optimization.rotate_base_only_orthogonal && ~Set.optimization.rotate_base_only_orthogonal
+  if isfield(Set_i.structures, 'rotate_base_only_orthogonal') && ...
+      Set_i.optimization.rotate_base_only_orthogonal && ~Set.optimization.rotate_base_only_orthogonal
     I_baserotz = contains(Structure_i.varnames, 'baserotation z');
     pval_i(:,I_baserotz) = round(pval_i(:,I_baserotz)/(pi/2))*pi/2;
   end
