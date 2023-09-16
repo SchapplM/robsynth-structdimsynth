@@ -245,6 +245,14 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
       ~strcmp(Set.structures.mounting_parallel, Set_i.structures.mounting_parallel))
     score_i = score_i - 10;
   end
+  % Bei Portalsystemen sollten die Typen der Schubgelenke gleich sein
+  if ~isempty(Structure.prismatic_types) && ...
+      (~isfield(Structure_i, 'prismatic_types') || ... % Altes Dateiformat
+       ~strcmp(Structure_i.prismatic_types, Structure.prismatic_types))
+    % Ergebnisse sind nicht direkt vergleichbar, da aufgrund der Schubgelenk- 
+    % Offsets bei anderen Gelenktypen eventuell die Kollisionen nicht passen
+    score_i = score_i - 2;
+  end
   
   % Auslesen der Parameter (bezogen auf die Datei)
   if ~isempty(d.RobotOptRes.p_val_pareto)
@@ -343,6 +351,15 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
   if ~isempty(I_baserotz) && any(I_baserotz == missing_file_in_local)
     pval_i_const(I_baserotz) = 0;
   end
+  % Das gleiche für Tilt Base
+  I_baserotx = find(strcmp(Structure.varnames, 'baserotation x'));
+  if ~isempty(I_baserotx) && any(I_baserotx == missing_file_in_local)
+    pval_i_const(I_baserotx) = 0;
+  end
+  I_baseroty = find(strcmp(Structure.varnames, 'baserotation y'));
+  if ~isempty(I_baseroty) && any(I_baseroty == missing_file_in_local)
+    pval_i_const(I_baseroty) = 0;
+  end
   % Gleiches für Plattform-Morphologie (G8-Methode). Standardmäßig Null.
   I_platform_morph_axoffset = find(strcmp(Structure.varnames, 'platform_morph_axoffset'));
   if ~isempty(I_platform_morph_axoffset) && any(I_platform_morph_axoffset == missing_file_in_local)
@@ -380,6 +397,26 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
       % Null-Eintrag da aus Einstellungen ableitbar
       I_p_file(jjj) = NaN;
     end
+  end
+  % Parameter modifizieren, die gerundet wurden. Runde auch hier, damit die
+  % geladenen Parameter den gerundeten entsprechen. Siehe cds_update_robot_parameters
+  % Betrifft alpha/theta und Basis-Rotation
+  if isfield(Set_i.structures, 'orthogonal_joints') && ... % Feld existiert eventuell nicht in alten Daten
+      Set_i.structures.orthogonal_joints && ~Set.structures.orthogonal_joints
+    I_alphatheta = contains(Structure_i.varnames, 'pkin') & ...
+      (contains(Structure_i.varnames, 'alpha') | contains(Structure_i.varnames, 'theta'));
+    pval_i(:,I_alphatheta) = round(pval_i(:,I_alphatheta)/(pi/2))*pi/2;
+  end
+  if isfield(Set_i.structures, 'tilt_base_only_orthogonal') && ...
+      Set_i.optimization.tilt_base_only_orthogonal && ~Set.optimization.tilt_base_only_orthogonal
+    I_baserotxy = contains(Structure_i.varnames, 'baserotation x') | ...
+                  contains(Structure_i.varnames, 'baserotation y');
+    pval_i(:,I_baserotxy) = round(pval_i(:,I_baserotxy)/(pi/2))*pi/2;
+  end
+  if isfield(Set_i.structures, 'rotate_base_only_orthogonal') && ...
+      Set_i.optimization.rotate_base_only_orthogonal && ~Set.optimization.rotate_base_only_orthogonal
+    I_baserotz = contains(Structure_i.varnames, 'baserotation z');
+    pval_i(:,I_baserotz) = round(pval_i(:,I_baserotz)/(pi/2))*pi/2;
   end
 
   % Prüfe erlaubte Werte für Parameter

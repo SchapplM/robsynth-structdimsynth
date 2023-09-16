@@ -78,14 +78,25 @@ if structset.use_serial
 else
   N_JointDoF_allowed = [];
 end
+% Bei EE-Beschränkungen (3T0R, 3T1R) mehr Gelenk-FG erlauben/erzwingen
+N_JointDoF_allowed = N_JointDoF_allowed + Set.structures.min_task_constraint;
+N_JointDoF_allowed = N_JointDoF_allowed : (N_JointDoF_allowed + ...
+  Set.structures.max_task_constraint - Set.structures.min_task_constraint);
 % Mögliche Anzahl an Gelenken durchgehen
 for N_JointDoF = N_JointDoF_allowed
   % Seriellroboter-Datenbank für diese Gelenk-Anzahl vor-filtern
   I_N_in_all = SerRob_DB_all.N == N_JointDoF;
   l = struct('Names_Ndof', {SerRob_DB_all.Names(I_N_in_all)}, ...
              'AdditionalInfo', SerRob_DB_all.AdditionalInfo(I_N_in_all,:));
+  % EE-Filter-Maske anpassen für den Fall dass Aufgaben-Zwangsbedingungen
+  % vorliegen (noch unausgereift und nimmt wahrscheinlich zu viele
+  % Strukturen mit)
+  EE_FG_Mask_ser_i = EE_FG_Mask_ser;
+  if all(Set.task.DoF(4:5)==0) && N_JointDoF > sum(Set.task.DoF)
+    EE_FG_Mask_ser_i([4 5 7 8]) = 0;
+  end
   % Filterung auf EE-FG (zusätzlich zur Gelenkzahl)
-  [~,I_FG] = serroblib_filter_robots(N_JointDoF, EE_FG_ser, EE_FG_Mask_ser);
+  [~,I_FG] = serroblib_filter_robots(N_JointDoF, EE_FG_ser, EE_FG_Mask_ser_i);
   I_novar = (l.AdditionalInfo(:,2) == 0);
   I = I_FG;
   % Varianten von Robotern in der Datenbank
@@ -140,6 +151,13 @@ for N_JointDoF = N_JointDoF_allowed
       Mask_Origin = uint16(bin2dec(fliplr('01000'))); % Nehme nur Ursprung Struktursynthese-Seriell
     else
       Mask_Origin = uint16(bin2dec(fliplr('01001'))); % Nehme auch Gelenkfolge-Varianten der Hauptmodelle
+    end
+    % Bei Aufgaben-Zwangsbedingungen werden auch die PKM-Beinktten als
+    % Roboterkinematik ausprobiert, da diese eventuell durch Gelenk-
+    % parallelität gut funktionieren. TODO: Systematische Synthese für
+    % den Fall durchführen.
+    if Set.structures.max_task_constraint > 0
+      Mask_Origin = bitor(Mask_Origin,uint16(bin2dec(fliplr('00110')))); % einsen bei Spalte 3T0R-/3T1R (PKM-Beinkette)
     end
     ilc = find(strcmp(SerRob_DB_all.Names, SName)); % Index des Roboters in Datenbank
     if isempty(ilc) || length(ilc)>1, error('Unerwarteter Eintrag in Datenbank für Beinkette %s', LegChainName); end
@@ -217,13 +235,49 @@ for N_JointDoF = N_JointDoF_allowed
     else
      acttype_i = 'mixed';
     end
-    ii = ii + 1;
-    if verblevel >= 2, fprintf('%d: %s\n', ii, SName); end
-    Structures{ii} = struct('Name', SName, 'Type', 0, 'Number', ii, ...
-      'RobName', RName, ... % Falls ein konkreter Roboter mit Parametern gewählt ist
-      'act_type', acttype_i, 'deactivated', false, ...
-      ... % Platzhalter, Angleichung an PKM (Erkennung altes Dateiformat)
-      'angles_values', []); %#ok<AGROW> 
+    % Sonderfall Portalsysteme: Probiere alle Kombinationen von
+    % Linearachsen und Hubzylindern aus. Macht Unterschied bei Kollision
+    I_prismatic = SName(3:end) == 'P';
+    if ~all(I_prismatic(1:2)) % Normaler Fall: Höchstens erste Achse ist Linearachse
+      ii = ii + 1;
+      if verblevel >= 2, fprintf('%d: %s\n', ii, SName); end
+      Structures{ii} = struct('Name', SName, 'Type', 0, 'Number', ii, ...
+        'RobName', RName, ... % Falls ein konkreter Roboter mit Parametern gewählt ist
+        'act_type', acttype_i, 'deactivated', false, ...
+        ... % Platzhalter, Angleichung an PKM (Erkennung altes Dateiformat)
+        'angles_values', [], 'prismatic_types', []); %#ok<AGROW> 
+    else % Mehrere Schubachsen nacheinander
+      % Basierend auf technisch sinnvoller Umsetzbarkeit erfolgt die
+      % Bildung möglicher Kombinationen von Linearachse und Schubzylinder
+      allcombinput = cell(1,find(~I_prismatic,1,'first')-1);
+      for k = 1:length(allcombinput)
+        allcombinput{k} = 'LC';
+      end
+      prismtypeall = allcomb(allcombinput{:});
+      for k = 1:size(prismtypeall,1)
+        keep = true;
+        for kk = 1:size(prismtypeall,2)
+          if kk > 1 && prismtypeall(k,kk)=='L' && prismtypeall(k,kk-1)=='C'
+            keep = false; % Linearachse kommt nach Schubzylinder -> zu schwer
+            break;
+          end
+          if sum(prismtypeall(k,:)=='C') > 1
+            keep = false; % Mehr als ein Schubzylinder -> nicht sinnvoll wegen Biegungen
+            break;
+          end
+        end
+        if ~keep
+          continue
+        end
+        ii = ii + 1;
+        prismtype_logstr = sprintf('Fall %s', prismtypeall(k,:));
+        if verblevel >= 2, fprintf('%d: %s; Schubgelenke %s\n', ii, SName, prismtype_logstr); end
+        Structures{ii} = struct('Name', SName, 'Type', 0, 'Number', ii, ...
+          'RobName', RName, ... % Falls ein konkreter Roboter mit Parametern gewählt ist
+          'act_type', acttype_i, 'deactivated', false, ...
+          'angles_values', [], 'prismatic_types', prismtypeall(k,:)); %#ok<AGROW> 
+      end % for k
+    end
   end
 end
 
@@ -647,7 +701,7 @@ for kkk = 1:size(EE_FG_allowed,1)
       Structures{ii} = struct('Name', PNames_Akt{j}, 'Type', 2, 'Number', ii, ...
         'Coupling', Coupling, 'angles_values', av, 'DoF', EE_FG_allowed(kkk,:), ...
         'act_type', acttype_i, 'deactivated', false, ...
-        'RobName', RName); %#ok<AGROW>
+        'prismatic_types', [], 'RobName', RName); %#ok<AGROW>
     end
   end
 end

@@ -110,6 +110,8 @@ structures = struct( ...
   'min_task_redundancy', 0, ... % Geforderter Grad der Aufgabenredundanz
   'max_task_redundancy', 0, ... % Zulässiger Grad der Aufgabenredundanz
   'max_kin_redundancy', 0, ... % Zulässiger Grad der kinematischen Redundanz
+  'min_task_constraint', 0, ...% Minimale Anzahl kinematischer Beschränkungen des Endeffektors. 
+  'max_task_constraint', 0, ... % Bei "3" können auch 3T3R-Roboter für 3T0R-Aufgaben benutzt werden.
   'joint_filter', {{'******'}}, ... % Vorgabe von Gelenktypen ("R", "P", "*"). Mehrere Filter in Cell-Array möglich (ODER-Verknüpfung)
   'num_tech_joints', 1:6, ... Mögliche Anzahl technischer Gelenke (in PKM-Beinketten). Wert 3 ermöglicht bspw. Ketten UPS, PUS, RUS, ...
   'parrob_basejointfilter', 1:10, ... % Vorgabe zum Gestell-Koppelgelenktyp einer PKM (alle Gelenke) ...
@@ -124,6 +126,7 @@ structures = struct( ...
   'max_index_active', 6, ... % Setzt den maximalen Index aktuierter Gelenke fest (nachrrangig gegen vorherige Option); für PKM
   'max_index_active_revolute', 6, ... % wie vorherige, nur bezogen auf Drehgelenke; für PKM
   'max_index_active_prismatic', 6, ... % wie vorherige, nur bezogen auf Schuzbgelenke; für PKM
+  'no_inactive_joints', true, ... % Kinematiken mit inaktiven Gelenken werden verworfen
   'mounting_serial', {'floor'}, ... % Montageort für serielle Roboter: floor, ceiling, wall
   'mounting_parallel', {mounting_parallel_default}, ... % ... für PKM (wird entsprechend zur Aufgabe ausgerichtet; Schubgelenke haben Vorzugsrichtung)
   'repeatlist', {{}}, ... % Liste für mehrfache Durchführung eines Roboters. Einträge: {'Name', Anzahl}. Sinnvoll, wenn parallele Berechnung möglich.
@@ -179,7 +182,9 @@ optimization = struct( ...
   'platform_morphology', true, ... % Aussehen der Plattform (z.B. Gelenkpaarabstand)
   'tilt_base', false, ... % Kippen der Roboter-Basis (über Rotation um x- und y-Achse). Ermöglicht Ausweichen struktureller Singularitäten
   'max_tilt_base', pi, ... % Begrenzung des Kippwinkels der Basis (sowohl einzelne Euler-Winkel, als auch Gesamt-Neigung)
+  'tilt_base_only_orthogonal', false, ... % Nur glatte 90°-Winkel
   'rotate_base', true, ... % Orientierung der Roboter-Basis (nur um die z-Achse). Hilft bei PKM.
+  'rotate_base_only_orthogonal', false, ... % Nur glatte 90°-Winkel zulassen
   ... % Fixiere die Gelenkwinkel-Grenzen auf den beim Start gesetzten Wert.
   ... % Ist nur sinnvoll, wenn ein bereits gegebenes Robotermodell genutzt wird.
   'fix_joint_limits', false, ...

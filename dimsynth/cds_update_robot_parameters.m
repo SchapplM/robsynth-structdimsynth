@@ -46,7 +46,9 @@ end
 %% Gelenkgrenzen
 % Müssen neu hineingeschrieben werden, da die Variable im späteren Verlauf
 % der Optimierung überschrieben wird (z.B. zwecks Plotten)
-if Structure.Type == 0
+if isempty(R)
+  % Fall nicht relevant
+elseif Structure.Type == 0
   R_neu.qlim = Structure.qlim;
   % Schubgelenkgrenzen mit Skalierungsfaktor setzen. Ansonsten passt die
   % Proportion zwischen Segmentlängen und Schubgelenkslängen nicht
@@ -94,7 +96,7 @@ if Structure.Type == 0 || Structure.Type == 2
   end
   if ~isempty(R)
     if Structure.Type == 0, R_neu.update_mdh(pkin_voll);  % Seriell
-    else,               R_neu.update_mdh_legs(pkin_voll); end % Parallel
+    else,                   R_neu.update_mdh_legs(pkin_voll); end % Parallel
   end
 else
   error('Noch nicht implementiert');
@@ -163,7 +165,9 @@ if any(Structure.vartypes == 3) % Set.optimization.ee_translation
   % EE-Versatz skaliert mit Roboter-Skalierungsfaktor
   r_N_E_neu(abs(task_transl_DoF_rotE(:))>1e-10) = p_eepos .* scale;
   p_phys(Structure.vartypes == 3) = r_N_E_neu(abs(task_transl_DoF_rotE(:))>1e-10);
-  R_neu.update_EE(r_N_E_neu);
+  if ~isempty(R)
+    R_neu.update_EE(r_N_E_neu);
+  end
 end
 
 %% EE-Rotation
@@ -195,7 +199,9 @@ if Set.optimization.ee_rotation && any(Structure.vartypes == 4)
       phi_N_E = r2eulxyz(Structure.R_N_E*eulxyz2r(phi_N_E));
     end
   end
-  R_neu.update_EE([], phi_N_E);
+  if ~isempty(R)
+    R_neu.update_EE([], phi_N_E);
+  end
 end
 
 %% Basis-Rotation (um die z-Achse nach der Drehung in Boden-/Deckenmontage)
@@ -203,6 +209,12 @@ end
 if (Set.optimization.rotate_base || Set.optimization.tilt_base) && ...
     any(Structure.vartypes == 5)
   p_baserot = p(Structure.vartypes == 5); % enthält xyz-Rotation
+  if Set.optimization.tilt_base_only_orthogonal
+    p_baserot(1:2) = round(p_baserot(1:2)/(pi/2))*pi/2;
+  end
+  if Set.optimization.rotate_base_only_orthogonal
+    p_baserot(end) = round(p_baserot(end)/(pi/2))*pi/2;
+  end
   p_phys(Structure.vartypes == 5) = p_baserot;
   p_baserot_xyz = zeros(3,1);
   if Set.optimization.tilt_base % XYZ-Notation, Kippen mit ersten beiden

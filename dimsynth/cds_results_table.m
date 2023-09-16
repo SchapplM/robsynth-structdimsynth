@@ -54,6 +54,7 @@ serrob_list = load(fullfile(fileparts(which('serroblib_path_init.m')), ...
 % Alle Ergebnisse durchgehen und Tabelle erstellen
 for i = 1:length(Structures)
   Structure = Structures{i};
+  Number = Structure.Number;
   Name = Structure.Name;
   Beschreibung = '';
   if Structure.Type == 2
@@ -66,8 +67,8 @@ for i = 1:length(Structures)
     Beschreibung = PName_TechJoint;
   end
   % Ergebnisse laden. Inhalt der Datei siehe cds_dimsynth_robot.m
-  resfile1 = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', i, Name));
-  resfile2 = fullfile(resmaindir, sprintf('Rob%d_%s_Details.mat', i, Name));
+  resfile1 = fullfile(resmaindir, sprintf('Rob%d_%s_Endergebnis.mat', Number, Name));
+  resfile2 = fullfile(resmaindir, sprintf('Rob%d_%s_Details.mat', Number, Name));
   if ~exist(resfile1, 'file') % Prüfe nicht die Detail-Ergebnisse resfile2. Geht auch ohne.
     warning('Ergebnis-Datei für Roboter %d/%d (%s) existiert nicht: %s', ...
       i, length(Structures), Name, resfile1);
@@ -85,8 +86,8 @@ for i = 1:length(Structures)
       tmp2 = load(resfile2, 'RobotOptDetails', 'PSO_Detail_Data');
     catch e
       tmp2 = [];
-      warning('Fehler beim Laden der Ergebnis-Detail-Datei für Roboter %d/%d (%s): %s', ...
-        i, length(Structures), Name, e.message);
+      warning('Fehler beim Laden der Ergebnis-Detail-Datei für Roboter %d/%d (%d/%s): %s', ...
+        i, length(Structures), Number, Name, e.message);
     end
   else
     tmp2 = [];
@@ -121,7 +122,8 @@ for i = 1:length(Structures)
   elseif f <= 1e4*7.5e3, fval_text = 'Gel.-Pos.-Grenze Traj. (symm)';
   elseif f <= 1e4*8e3, fval_text = 'Gel.-Pos.-Spannw. Traj. (symm)';
   elseif f <= 1e4*9e3, fval_text = 'Gel.-Pos.-Spannw. Traj.';
-  elseif f <= 1e4*1e4, fval_text = 'Parasitäre Bew.';
+  elseif f < 1e4*1e4, fval_text = 'Parasitäre Bew.';
+  elseif f == 1e4*1e4, fval_text = 'Inaktives Gelenk';
   elseif f <= 1e4*2e4, fval_text = 'Traj.-IK Fehler (Beschl. 3T2R)';
   elseif f <= 1e4*3e4, fval_text = 'Traj.-IK Fehler (Geschw. 3T2R)';
   elseif f <= 1e4*4e4, fval_text = 'Traj.-IK Fehler (Pos. 3T2R)';
@@ -159,7 +161,7 @@ for i = 1:length(Structures)
       datestr(tmp1.RobotOptRes.timestamps_start_end(2),'dd.mm.yyyy HH:MM:SS')
       };
   end
-  Row_i = {i, Name, Structure.Type, Beschreibung, datecols{1}, datecols{2},...
+  Row_i = {Number, Name, Structure.Type, Beschreibung, datecols{1}, datecols{2},...
     tmp1.RobotOptRes.timestamps_start_end(3), f, fval_text};
   % Hole andere Zielfunktionen aus den Ergebnissen. TODO: Code kann
   % vereinfacht werden, wenn keine alten Daten mehr damit verarbeitet

@@ -1110,6 +1110,24 @@ if any(strcmp(Set.optimization.objective, 'valid_act')) && R.Type == 2 && ...
     end
   end
 end
+%% Abbruchbedingung aufgrund inaktiver Gelenke prüfen
+if Set.structures.no_inactive_joints && all(fval==1e4*1e4)
+  % Prüfe, wie oft schon dieses Ergebnis vorlag
+  PSO_Detail_Data = cds_save_particle_details([], [], 0, 0, NaN, NaN, NaN, NaN, 'output');
+  if ~isempty(PSO_Detail_Data)
+    % Bei mehrkriterieller Optimierung bei NB-Verletzung gleiche Einträge 
+    fval_hist = PSO_Detail_Data.fval(:,1,:);
+    I_inact = fval_hist == 1e4*1e4;
+    I_noninact = fval_hist < 1e4*1e4; % erfolgreicherere Berechnung (besser)
+    if sum(I_inact(:)) > 4 && sum(I_noninact(:)) == 0
+      if ~abort_fitnesscalc % Meldung nur einmal zeigen
+        cds_log(2,sprintf(['[fitness] Es gab %d Ergebnisse mit inaktiven Gelenken ', ...
+          'und keins ohne. Roboter nicht geeignet. Abbruch der Optimierung.'], sum(I_inact(:))));
+      end
+      abort_fitnesscalc = true;
+    end
+  end
+end
 %% Ende
 % Anfangs-Gelenkwinkel in Roboter-Klasse speichern (zur Reproduktion der
 % Ergebnisse)

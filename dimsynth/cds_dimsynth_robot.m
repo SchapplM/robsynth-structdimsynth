@@ -149,10 +149,31 @@ R.update_EE_FG(R.I_EE, Set.task.DoF);
 if all(Set.task.DoF == [1 1 1 1 1 0])
   Set.task.pointing_task = true;
 end
+% Zähle die Anzahl der Aufgaben-Zwangsbedingungen (siehe Tabelle 2.1 in Diss)
+% Es liegt z.B. keine Aufgabenredundanz vor, wenn ein 3T3R-Roboter eine
+% 3T0R-Aufgabe hat.
+num_constr = 0;
+if R.Type == 0 
+  if all(Set.task.DoF==[1 1 1 0 0 1]) && R.NJ == 5
+    num_constr = 1;
+  elseif all(Set.task.DoF==[1 1 1 0 0 1]) && R.NJ == 6
+    num_constr = 2;
+  elseif all(Set.task.DoF==[1 1 1 0 0 0]) && R.NJ == 5
+    num_constr = 2;
+  elseif all(Set.task.DoF==[1 1 1 0 0 0]) && R.NJ == 6
+    num_constr = 3;
+  end
+end
+Structure.constraints = num_constr;
+% Aufgaben-FG müssen aufgrund der Implementierung neu gesetzt werden.
+% Die auf Null fixierten Rotationen entsprechen einer festen Vorgabe
+if num_constr > 0
+  R.update_EE_FG(R.I_EE, Set.task.DoF | [0 0 0 1 1 0]);
+end
 % Speichere die Eigenschaft der Aufgabenredundanz
 Structure.task_red = ...
-  R.Type == 0 && sum(R.I_EE_Task) < R.NJ || ... % Seriell: Redundant wenn mehr Gelenke als Aufgaben-FG
-  R.Type == 2 && sum(R.I_EE_Task) < sum(R.I_EE); % Parallel: Redundant wenn mehr Plattform-FG als Aufgaben-FG
+  R.Type == 0 && (sum(Set.task.DoF)+num_constr) < R.NJ || ... % Seriell: Redundant wenn mehr Gelenke als Aufgaben-FG
+  R.Type == 2 && (sum(Set.task.DoF)+num_constr) < sum(R.I_EE); % Parallel: Redundant wenn mehr Plattform-FG als Aufgaben-FG
 
 % Platzhalter für Vorgabe der Traj-IK-Anfangswerte
 Structure.q0_traj = NaN(R.NJ, 1);
@@ -248,8 +269,18 @@ for i = 1:NLEG
 
   R_init.DesPar.joint_type((1:R_init.NJ)'==1&R_init.MDH.sigma==1) = 4; % Linearführung erste Achse
   R_init.DesPar.joint_type((1:R_init.NJ)'~=1&R_init.MDH.sigma==1) = 5; % Schubzylinder weitere Achse
+  % Setze bei Portalsystemen die Schubgelenke so wie aus cds_gen_robot_list
+  if all(R_init.MDH.sigma(1:2)==1)
+    for k = 1:length(Structure.prismatic_types)
+      switch Structure.prismatic_types(k)
+        case 'L' % Linearführung
+          R_init.DesPar.joint_type(k) = 4;
+        case 'C' % Hubzylinder
+          R_init.DesPar.joint_type(k) = 5;
+      end
+    end
+  end
   R_init.update_dynpar1(); % Nochmal initialisieren, damit MPV definiert ist
-  
   % Platzhalter-Werte für Segment-Parameter setzen (nur für Plotten)
   R_init.DesPar.seg_par(:,1) = 50e-3;
   R_init.DesPar.seg_par(:,2) = 5e-3;
