@@ -43,7 +43,7 @@ q_range(R.MDH.sigma==0) = angle_range( Q(:,R.MDH.sigma==0));
 if Structure.Type == 2 % Paralleler Roboter
   I_active = R.I_qa;
 else
-  I_active = R.MDH.mu;
+  I_active = R.MDH.mu==1;
 end
 I_prismatic = R.MDH.sigma==1;
 
