@@ -280,6 +280,11 @@ if ~isempty(Set.structures.repeatlist)
       'Eintrag in Set.structures.repeatlist hat nicht Dimension 2');
   end
 end
+if length(Set.structures.whitelist) ~= length(unique(Set.structures.whitelist))
+  warning('Die Positiv-Liste enthält %d doppelte Einträge. Werden entfernt.', ...
+    length(Set.structures.whitelist)-length(unique(Set.structures.whitelist)));
+  Set.structures.whitelist = unique(Set.structures.whitelist);
+end
 if ~isa(Set.structures.joint_filter, 'cell') % Altes Format kompatibel machen
   Set.structures.joint_filter = {Set.structures.joint_filter};
 end
