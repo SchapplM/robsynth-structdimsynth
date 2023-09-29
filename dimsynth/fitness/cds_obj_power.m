@@ -2,7 +2,7 @@
 % basierend auf maximaler Leistung des Roboters für gegebene Trajektorie.
 % Die Leistung bestimmt sich aus Maximalgeschwindigkeit und Maximalmoment
 % der Antriebe, unabhängig vom zeitlichen Vorkommen. Die Kennzahl ist daher
-% eher als Auslegungsgröße zu sehen
+% eher als Auslegungsgröße zu sehen. Berücksichtige auch Anzahl Beinketten.
 % Die Leistung wird in einen normierten Zielfunktionswert übersetzt
 % 
 % Eingabe:
@@ -25,6 +25,7 @@
 % P_max_krit [1x1]
 %   Physikalischer Wert, der dem Zielfunktionswert zugrunde liegt
 %   Hier: maximale Leistung in W, gemäß implementiertem Algorithmus
+%   (summiert über alle Antriebe)
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2022-08
 % (C) Institut für Mechatronische Systeme, Leibnis Universität Hannover
@@ -42,18 +43,18 @@ end
 P_max = TAU_max .* QD_max;
 
 if R.Type == 0
-% Seriell: Basisnahe Antriebe haben eher größere Leistung. Kriterium daher
+  % Seriell: Basisnahe Antriebe haben eher größere Leistung. Kriterium daher
   % als die Summe dieser maximalen Leistungen.
   P_max_krit = sum(P_max);
 else
   % PKM: Annahme einer symmetrischen PKM. Maximum von Kraft und Geschw.
   % ist entscheidend für Antriebsauslegung
   if Set.optimization.obj_power.symmetric_speed_torque_limits
-    P_max_krit = max(TAU_max) * max(QD_max);
+    P_max_krit = R.NLEG * max(TAU_max) * max(QD_max);
   else % Alte Berechnung (zur Kompatibilität): Keine Symmetrische Auslegung. 
     % ... Max. Leistung wird für jeden Antrieb für sich bestimmt (mit eigenem Getriebe).
     % ... Ist weniger plausibel für eine spätere Anwendung.
-    P_max_krit = max(P_max);
+    P_max_krit = R.NLEG * max(P_max);
   end
 end
 f_pwr_norm = 2/pi*atan((P_max_krit)/100); % Normierung auf 0 bis 1; 620 ist 0.9
