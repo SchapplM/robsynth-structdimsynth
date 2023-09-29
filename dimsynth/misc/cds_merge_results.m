@@ -147,7 +147,6 @@ for i = 0:maxnum_parts % Ordner 0 kommt nicht aus Optimierung sondern von oben
   if numdirs_processed == 0 % statt `i==1`, falls i=1 nicht existiert
     Structures = s.Structures;
   else
-    % Nummer der Roboter in den Strukturen verändern
     Structures = [Structures, s.Structures]; %#ok<AGROW>
   end
   % Tabelle zusammenstellen (aus den Tabellen der Teil-Ergebnisse)
