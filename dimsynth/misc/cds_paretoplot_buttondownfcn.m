@@ -89,8 +89,15 @@ end
 d3 = load(setfile, 'Traj', 'Set', 'Structures');
 Set = d3.Set;
 Traj = d3.Traj;
-Structure = d3.Structures{RobNr};
-
+% Wähle die Strukturvariable anhand der darin gespeicherten Nummer aus (ist
+% die ursprüngliche Nummer aus cds_gen_robot_list). Bei Nutzung der laufen- 
+% den Nummer kann die Reihenfolge gestört werden, wenn bei aufgeteilten 
+% Rechnungen bei einem Teil die Einstellungsdatei/ der Ordner fehlt
+for k=1:length(d3.Structures)
+  if d3.Structures{k}.Number == RobNr
+    Structure = d3.Structures{k};
+  end
+end
 % Optimierungsnamen korrigieren, falls er inkonsistent ist.
 % Ordnername und Optimierungsname müssen gleich sein. Nachträgliche
 % Umbenennung ist mit manchen Skripten schwierig.
