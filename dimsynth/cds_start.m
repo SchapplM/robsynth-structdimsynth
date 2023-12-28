@@ -214,6 +214,10 @@ end
 if length(Set.task.installspace.links) ~= length(Set.task.installspace.type)
   error('Set.task.installspace: Länge von Feldern "links" und "type" stimmt nicht überein');
 end
+if isa(Set.task.installspace.links, 'uint8')
+  warning('Set.task.installspace.links: Typ wurde auf uint16 geändert.');
+  Set.task.installspace.links = uint16(Set.task.installspace.links);
+end
 if ~isa(Set.task.installspace.links, 'cell')
   error('Set.task.installspace: Feld "links" muss cell Array sein');
 end

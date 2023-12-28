@@ -175,7 +175,7 @@ if update_installspcbodies && n_cb_instspc > 0
     collbodies_instspc.params(i,:) = params_0;
     collbodies_instspc.type(i,1) = type_i;
     % Bauraum wird zur Basis (=0) gezählt (ortsfest)
-    collbodies_instspc.link(i,:) = uint8([0,0]);
+    collbodies_instspc.link(i,:) = uint16([0,0]);
   end
 
   % Aktualisiere die Bauraum-Objekte in der Roboter-Klasse
@@ -225,7 +225,7 @@ if Structure.Type ~= 0 % PKM
     % den Vorgänger auf die jeweiligen Basiskörper der einzelnen Beinketten.
     % Kapseln verbinden die Koppelgelenke.
     collbodies_robot.link = [collbodies_robot.link; ...
-      uint8([zeros(NLEG,1), R.I1L_LEG-(I1-1)])];
+      uint16([zeros(NLEG,1), R.I1L_LEG-(I1-1)])];
     collbodies_robot.type = [collbodies_robot.type; repmat(uint8(6),NLEG,1)];
     collbodies_robot.params = [collbodies_robot.params; ...
       [repmat(10e-3, NLEG, 1), NaN(NLEG, 9)]];
@@ -234,7 +234,7 @@ if Structure.Type ~= 0 % PKM
     % Ringförmige Basis; verbindet die Basis der Beinketten mit der jeweils
     % vorherigen
     collbodies_robot.link = [collbodies_robot.link; ...
-      uint8([R.I1L_LEG(I1)-(I1-1), R.I1L_LEG(I2)-(I2-1)])];
+      uint16([R.I1L_LEG(I1)-(I1-1), R.I1L_LEG(I2)-(I2-1)])];
     collbodies_robot.type = [collbodies_robot.type; repmat(uint8(6),NLEG,1)];
     collbodies_robot.params = [collbodies_robot.params; ...
       [repmat(10e-3, NLEG, 1), NaN(NLEG, 9)]];
@@ -243,7 +243,7 @@ if Structure.Type ~= 0 % PKM
     % Nur Gestellgelenke als Kugel, damit eine Kollision anderer Beinketten
     % damit verhindert wird.
     collbodies_robot.link = [collbodies_robot.link; ... % Beinketten-Basis
-      uint8(repmat(R.I1L_LEG(I1)-(I1-1), 1, 2))];
+      uint16(repmat(R.I1L_LEG(I1)-(I1-1), 1, 2))];
 %     T_base_stack = [R.Leg(:).T_W_0]; % Alle Beinketten-Basis-KS als Trafo spaltenweise
     collbodies_robot.type = [collbodies_robot.type; repmat(uint8(16),NLEG,1)]; % Kugel im Basis-KS der Beinketten
     collbodies_robot.params = [collbodies_robot.params; ... % Koordinaten der Gestell-Koppelgelenke eintragen
@@ -270,7 +270,7 @@ if Structure.Type ~= 0 % PKM
     % Plattform-Seite). Kapsel als Verbindung zum jeweils vorherigen
     % Koppelgelenk. Erzeugt Ring an der Plattform
     collbodies_robot.link = [collbodies_robot.link; ...
-      uint8([R.I2L_LEG(I1)-(I1-1)-1, R.I2L_LEG(I2)-(I2-1)-1])];
+      uint16([R.I2L_LEG(I1)-(I1-1)-1, R.I2L_LEG(I2)-(I2-1)-1])];
     collbodies_robot.type = [collbodies_robot.type; repmat(uint8(6),NLEG,1)];
     collbodies_robot.params = [collbodies_robot.params; ...
       [repmat(10e-3, NLEG, 1), NaN(NLEG, 9)]];
@@ -284,7 +284,7 @@ if Structure.Type ~= 0 % PKM
     % lisionskörper benutzt (mit gleicher Implementierung)
     platform_radius = R.DesPar.platform_par(1);
     collbodies_robot.link = [collbodies_robot.link; ...
-      repmat(uint8(R.I2L_LEG(end)-I1(end)+1),1,2)]; % zugeordnet (nur) zur Plattform
+      repmat(uint16(R.I2L_LEG(end)-I1(end)+1),1,2)]; % zugeordnet (nur) zur Plattform
     collbodies_robot.type = [collbodies_robot.type; uint8(16)]; % Kugel im Körper-KS-Ursprung
     % Ziehe Durchmesser ab, damit die Enden der Beinketten nicht permanent
     % in Kollision stehen und mache die Kugel etwas kleiner. Nicht negativ.
@@ -297,7 +297,7 @@ if Structure.Type ~= 0 % PKM
     % Sternförmige Kapseln für die Plattform. Verbindung zwischen
     % Endpunkten der Beinketten und Plattform-KS
     collbodies_robot.link = [collbodies_robot.link; ...
-      uint8([R.I2L_LEG(I1)-(I1-1)-1, repmat(R.I2L_LEG(end)-I1(end)+1, NLEG, 1)])];
+      uint16([R.I2L_LEG(I1)-(I1-1)-1, repmat(R.I2L_LEG(end)-I1(end)+1, NLEG, 1)])];
     collbodies_robot.type = [collbodies_robot.type; repmat(uint8(6),NLEG,1)];
     collbodies_robot.params = [collbodies_robot.params; ...
       [repmat(10e-3, NLEG, 1), NaN(NLEG, 9)]];
@@ -308,7 +308,7 @@ if Structure.Type ~= 0 % PKM
       all(~isnan(Set.optimization.ee_translation_fixed))
     % Direkte Verbindung als Kapsel
     collbodies_robot.link = [collbodies_robot.link; ...
-      uint8(R.I2L_LEG(end)-I1(end)+[1 2])]; % Plattform+TCP
+      uint16(R.I2L_LEG(end)-I1(end)+[1 2])]; % Plattform+TCP
     collbodies_robot.type = [collbodies_robot.type; uint8(6)]; % Kapsel
     collbodies_robot.params = [collbodies_robot.params; ...
       [10e-3, NaN(1, 9)]]; % Radius 10mm
