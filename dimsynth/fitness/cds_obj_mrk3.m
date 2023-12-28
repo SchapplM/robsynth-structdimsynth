@@ -1,7 +1,7 @@
 % Zielfunktion ("objective function") für Optimierung in der Maßsynthese
-% basierend auf Kollisionsabständen des Roboters.
+% für MRK-Kennzahl (basierend auf Segmentabständen).
 % Ansatz: Je weiter die Kollisionskörper des Roboters voneinander entfernt
-% sind, desto unwahrscheinlicher ist eine Selbstkollision auch bei Parameteränderung.
+% sind, desto besser zur Vermeidung von Klemmungen.
 % Benutzt alle Aufenthaltsorte der Gelenke des Roboters in der Trajektorie
 % 
 % Eingabe:
@@ -33,19 +33,19 @@
 %   damit bester Wert am weitesten links im Pareto-Diagramm ist).
 %   Also: negativ=Keine Kollision; positiv=Kollision
 % 
-% Siehe auch: cds_constr_collisions_self.m
+% Siehe auch: cds_constr_collisions_self.m, cds_obj_colldist.m
 
-% Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2021-11
+% Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2023-08
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function [fval, fval_debugtext, debug_info, f_colldist] = cds_obj_colldist(R, Set, Structure, Traj_0, Q, JP)
+function [fval, fval_debugtext, debug_info, f_colldist] = cds_obj_mrk3(R, Set, Structure, Traj_0, Q, JP)
 % Debug-Code:
 if Set.general.matfile_verbosity > 2 % Debug
-  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_obj_colldist.mat'));
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_obj_mrk3.mat'));
 end
 % clear
 % clc
-% load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_obj_colldist.mat'));
+% load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_obj_mrk3.mat'));
 
 debug_info = '';
 fval_debugtext = '';
@@ -393,11 +393,11 @@ title(sprintf(['Kollisionsabstände schlechtester Fall. ', ...
   'Dist=%1.1fmm, I=%d/%d'], 1e3*min2colldist, IItmin, size(Q,1)));
 legend(leghdl(~isnan(leghdl)), legtxt(~isnan(leghdl)));
 drawnow();
-[currgen,currind,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'ObjCollDist');
+[currgen,currind,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'ObjMRK3');
 for fileext=Set.general.save_robot_details_plot_fitness_file_extensions
   if strcmp(fileext{1}, 'fig')
-    saveas(fhdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ObjCollDist.fig', currgen, currind, currimg)));
+    saveas(fhdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ObjMRK3.fig', currgen, currind, currimg)));
   else
-    export_fig(fhdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ObjCollDist.%s', currgen, currind, currimg, fileext{1})));
+    export_fig(fhdl, fullfile(resdir, sprintf('Gen%02d_Ind%02d_Eval%d_ObjMRK3.%s', currgen, currind, currimg, fileext{1})));
   end
 end
