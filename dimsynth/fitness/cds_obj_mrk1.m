@@ -222,7 +222,7 @@ end
 
 if all(isnan(min2clampangle)) % Falls kein Gelenk von der MRK-Kennzahl erfasst wird
   fval = 0;
-  f_clamp = 0;
+  f_clamp = -pi; % Bestmöglicher Wert
   fval_debugtext = 'Kein Klemmwinkel im Interaktionsbereich';
   return
 end
