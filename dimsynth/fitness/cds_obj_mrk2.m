@@ -220,7 +220,7 @@ for i_traj = 1:length(Traj_0.t) % Alle Zeitschritte durchgehen
           i_link_min = i_link;
           i_force_min = i_force_min_tmp;
           f_W_min = R.T_W_0(1:3,1:3) * T_0_L0(1:3,1:3) * f_L0_all(:,i_force_min);
-          r_W_W_Cmin = R.T_W_0 * T_0_L0 * Tc_Leg_i(:,:,i_link+1) * [rh_i_i_C(1:3);1];
+          r_0_0_Cmin = T_0_L0 * Tc_Leg_i(:,:,i_link+1) * [rh_i_i_C(1:3);1];
         end
       end
       if num_link_checked >= 1
@@ -240,11 +240,11 @@ end
 for i_traj = 1:length(Traj_0.t)
   % Stelle Kraftrichtungen für Kontakt am Plattform-KS mit Kugelkoordinaten
   % zusammen. TODO: Noch ungeprüft
-  if ~any(coll_iaspc(i_traj,:)) % Punkt ist nicht im Interaktionsraum. Ignorieren.
+  if ~any(coll_iaspc_traj(i_traj,:)) % Punkt ist nicht im Interaktionsraum. Ignorieren.
     continue
   else
     % Bestimme Interaktionskraft aus dem Interaktions-Arbeitsraum
-    for idx_iaspcs = find(coll_iaspc(i_traj,:))'
+    for idx_iaspcs = find(coll_iaspc_traj(i_traj,:))'
       f_norm = Set.task.interactionspace.ref_force(idx_iaspcs);
     end
   end
@@ -268,7 +268,7 @@ for i_traj = 1:length(Traj_0.t)
     i_link_min = 0;
     i_force_min = i_force_min_tmp;
     f_W_min = R.T_W_0(1:3,1:3) * f_0_all(:,i_force_min);
-    r_W_W_Cmin = XE(i_traj_min,1:3)';
+    r_0_0_Cmin = XE(i_traj_min,1:3)';
   end
 end
 
@@ -299,15 +299,19 @@ else % PKM
 end
 
 % Kraft mit Angriffspunkt
-plot3(r_W_W_Cmin(1), r_W_W_Cmin(2), r_W_W_Cmin(3), 'rx', 'MarkerSize', 12);
+rh_W_W_Cmin = R.T_W_0 * [r_0_0_Cmin(1:3);1];
+plot3(rh_W_W_Cmin(1), rh_W_W_Cmin(2), rh_W_W_Cmin(3), 'rx', 'MarkerSize', 12);
 plotratio = 0.15 / 140; % 140N entsprechen 150mm.
-quiver3(r_W_W_Cmin(1), r_W_W_Cmin(2), r_W_W_Cmin(3), ...
+quiver3(rh_W_W_Cmin(1), rh_W_W_Cmin(2), rh_W_W_Cmin(3), ...
   plotratio*f_W_min(1), plotratio*f_W_min(2), plotratio*f_W_min(3), ...
   'LineWidth', 5, 'Color', 'r');
-
-title(sprintf(['Kontaktkrafterkennung schlechtester Fall. ', ...
-  'min(tau\\_a)=%1.e, I=%d/%d. Beinkette %d, Segment %d'], ...
-  tau_a_min, i_traj_min, size(Q,1), i_leg_min, i_link_min));
+if i_leg_min == 0
+  locstr = 'Plattform';
+else
+  locstr = sprintf('Beinkette %d, Segment %d', i_leg_min, i_link_min);
+end
+title(sprintf(['Kontaktkrafterkennung schlechtester Fall. min(tau\\_a)=' ...
+  '%1.e, I=%d/%d. %s'], tau_a_min, i_traj_min, size(Q,1), locstr));
 drawnow();
 % Bild speichern
 [currgen,currind,currimg,resdir] = cds_get_new_figure_filenumber(Set, Structure,'ObjHRCForceDetection');
