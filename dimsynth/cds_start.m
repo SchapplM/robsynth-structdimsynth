@@ -396,6 +396,10 @@ else % Kein Trajektorienprofil gegeben. Prüfe Datenformat
 end
 assert(all(size(Traj.X)==size(Traj.XD)), 'Dimension von X und XD nicht gleich');
 assert(all(size(Traj.X)==size(Traj.XDD)), 'Dimension von X und XDD nicht gleich');
+if ~isfield(Traj, 'IE')
+  warning('Eingabe Traj enthält keinen Index-Vektor IE. Annahme: Keine Übereinstimmung XE und X');
+  Traj.IE = zeros(size(Traj.XE,1),1);
+end
 if Set.task.profile ~= 2
   assert(length(Traj.IE)==size(Traj.XE,1), 'IE und XE muss gleiche Dimension haben in Traj.-Var.');
 end
