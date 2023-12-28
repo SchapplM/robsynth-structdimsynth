@@ -110,8 +110,17 @@ for jj = 1:length(Set.optimization.objective)
     obj_units{jj} = 'deg';
     objscale(jj) = 180/pi;
   elseif strcmp(Set.optimization.objective{jj}, 'mrk2')
-    obj_units{jj} = 'TODO-Unit';
+    if strcmp(acttype, 'prismatic')
+      obj_units{jj} = 'N';
+    elseif strcmp(acttype, 'revolute')
+      obj_units{jj} = 'Nm';
+    else
+      obj_units{jj} = 'N or Nm';
+    end
     objscale(jj) = 1;
+  elseif strcmp(Set.optimization.objective{jj}, 'mrk3')
+    obj_units{jj} = 'mm';
+    objscale(jj) = 1e3;
   else
     error('Zielfunktion %s nicht vorgesehen', Set.optimization.objective{jj});
   end
