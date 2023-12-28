@@ -39,9 +39,9 @@
 function [fval, fval_debugtext, debug_info, f_mrk] = cds_obj_mrk2(R, Set, Structure, Traj_0, Q, JinvE_ges, JP)
 
 % Debug-Code:
-% if Set.general.matfile_verbosity > 2 % Debug
-%   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_obj_mrk2.mat'));
-% end
+if Set.general.matfile_verbosity > 2 % Debug
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_obj_mrk2.mat'));
+end
 % clear
 % clc
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_obj_mrk2.mat'));
@@ -50,7 +50,7 @@ function [fval, fval_debugtext, debug_info, f_mrk] = cds_obj_mrk2(R, Set, Struct
 % Platzhalter:
 debug_info = '';
 f_mrk = 0;
-f_norm = 140; % Referenzkraft 140N nach MRK-Richtlinie
+f_norm = 140; % Referenzkraft 140N nach MRK-Richtlinie. Wird durch Interaktions-Arbeitsraum überschrieben
 debug_plot = false;
 
 % Umrechnung der Jacobi-Matrix auf Plattform-Koordinaten (Dynamik ist nicht
@@ -58,6 +58,29 @@ debug_plot = false;
 XE = Traj_0.X; % EE-Pose
 XP = R.xE2xP_traj(XE);
 JinvP_ges = R.jacobi_q_xE_2_jacobi_q_xP_traj(JinvE_ges, XE, XP);
+
+% Interaktions-Arbeitsraum in das KS 0 rotieren
+collbodies_iaspc = cds_update_interactionspace(R, Set);
+% Virtueller Kollisionskörper für zu prüfenden Punkt
+n_cb_robot = 1; % Prüfe für einen einzigen Punkt
+collbodies_iaspc2 = struct(...
+  'link', uint16([ collbodies_iaspc.link; ...
+    repmat((1:n_cb_robot)'-1, 1,2) ]), ... % Der Eintrag für den Punkt ist auch bzgl. Link 0
+  'type', [ collbodies_iaspc.type; ...
+    repmat(uint8(9), n_cb_robot, 1) ], ...
+  'params', [ Set.task.interactionspace.params; ...
+    NaN(n_cb_robot, 10) ]);
+% Virtuelle Kollisionsprüfung mit den Punkten und Interaktionsraum
+collchecks_iaspc2 = [];
+n_cb_iaspc = size(Set.task.interactionspace.type,1);
+for i = 1:n_cb_iaspc
+  % Prüfe, ob in diesem Interaktionsarbeitsraum die Gelenkklemmung
+  % betrachtet wird
+  if isinf(Set.task.interactionspace.ref_force), continue; end
+  collchecks_iaspc2 = [collchecks_iaspc2; ...
+    [n_cb_iaspc+(1:n_cb_robot)', repmat(uint8(i), n_cb_robot, 1)]]; %#ok<AGROW> 
+end
+CollSet = struct('collsearch', false); % Einstellung für virt. Koll.-Prüfung
 %% Bestimme Antriebskräfte aus beispielhafter Kontaktkraft für Segmente
 % Variablen zur Speicherung des schlechtesten Falls
 tau_a_min = inf;
@@ -94,6 +117,7 @@ for i_traj = 1:length(Traj_0.t) % Alle Zeitschritte durchgehen
         fhdl = change_current_figure(3); clf; hold all; %#ok<UNRCH> 
         view(3); axis auto; hold on; grid on;
         xlabel('x in m'); ylabel('y in m'); zlabel('z in m');
+        title(sprintf('i_traj=%d, i_leg=%d, i_link=%d', i_traj, i_leg, i_link), 'interpreter', 'none');
         if R.Type == 0 % Seriell
           s_plot = struct( 'ks', [], 'straight', 1, 'mode', 1, 'nojoints', 1);
           R.plot( Q(i_reflength,:)', s_plot);
@@ -107,6 +131,23 @@ for i_traj = 1:length(Traj_0.t) % Alle Zeitschritte durchgehen
         link2_W = R.T_W_0 * T_0_L0 * [link2_L0; 0];
         plot3(joint_W(1)+[0;link2_W(1)], joint_W(2)+[0;link2_W(2)], ...
           joint_W(3)+[0;link2_W(3)], 'c--', 'LineWidth', 5);
+        % Zeichne Interaktionsbereich
+        for kk = 1:length(collbodies_iaspc.type)
+          if collbodies_iaspc.type(kk) == 10
+            params_W = Set.task.interactionspace.params(kk,:); % ist schon im Welt-KS
+            q_W = eye(3,4)*[params_W(1:3)';1];
+            u1_W = params_W(4:6)';
+            u2_W = params_W(7:9)';
+            % letzte Kante per Definition senkrecht auf anderen beiden.
+            u3_W = cross(u1_W,u2_W); u3_W = u3_W/norm(u3_W)*params_W(10);
+            % Umrechnen in Format der plot-Funktion
+            cubpar_c = q_W(:)+(u1_W(:)+u2_W(:)+u3_W(:))/2; % Mittelpunkt des Quaders
+            cubpar_l = [norm(u1_W); norm(u2_W); norm(u3_W)]; % Dimension des Quaders
+            cubpar_a = 180/pi*tr2rpy([u1_W(:)/norm(u1_W), u2_W(:)/norm(u2_W), u3_W(:)/norm(u3_W)],'zyx')'; % Orientierung des Quaders
+            drawCuboid([cubpar_c', cubpar_l', cubpar_a'], ...
+              'FaceColor', 'm', 'FaceAlpha', 0.1);
+          end
+        end
       end
       % Bestimme Jacobi-Matrix der seriellen Beinkette zum Segment
       % (Körper-KS-Ursprung)
@@ -119,19 +160,20 @@ for i_traj = 1:length(Traj_0.t) % Alle Zeitschritte durchgehen
         % Umrechnung des Referenzpunktes in Segment-KS
         T_Li_L0 = invtr(Tc_Leg_i(:,:,i_link+1));
         rh_i_i_C = T_Li_L0 * [r_L0_i_C;0];
-        % In Welt-KS umrechnen, prüfen ob es im Interaktionsarbeitsraum
-        % liegt. Wird vorerst als erster Körper des Bauraums definiert
-        r_W_W_C = R.T_W_0 * T_0_L0 * Tc_Leg_i(:,:,i_link+1) * [rh_i_i_C(1:3);1];
-%         n_cb_instspc = size(Set.task.installspace.type,1);
-%         if n_cb_instspc > 0 % TODO!
-%           collbodies_instspc = struct( ...
-%             'links', Structure.installspace_collbodies.links{1}, ...
-%             'type', Structure.installspace_collbodies.type(1), ...
-%             'params', Structure.installspace_collbodies.type(1,:));
-%           % Prüfe, ob Punkt im Bauraum ist
-% %           [coll, absdist] = check_collisionset_simplegeom_mex(collbodies, collchecks, JP, CollSet);
-% 
-%         end
+        % In Basis-KS umrechnen und prüfen ob es im Interaktionsarbeitsraum
+        % liegt.
+        rh_0_0_C = T_0_L0 * Tc_Leg_i(:,:,i_link+1) * [rh_i_i_C(1:3);1];
+        rh_W_W_C = R.T_W_0 * rh_0_0_C;
+        [coll_iaspc, ~] = check_collisionset_simplegeom_mex(collbodies_iaspc2, ...
+          collchecks_iaspc2, rh_0_0_C(1:3)', CollSet);
+        if ~any(coll_iaspc) % Punkt ist nicht im Interaktionsraum. Ignorieren.
+          continue
+        else
+          % Bestimme Interaktionskraft aus dem Interaktions-Arbeitsraum
+          for idx_iaspcs = find(coll_iaspc)'
+            f_norm = Set.task.interactionspace.ref_force(idx_iaspcs);
+          end
+        end
         % Beziehe Jacobi-Matrix auf diesen Punkt
         A_C_i = adjoint_jacobian(rh_i_i_C(1:3)); % Übergabe: Vektor von i nach C.
         J_C = A_C_i * Jg_Link; % Jg_Link entspricht J_i
@@ -151,10 +193,10 @@ for i_traj = 1:length(Traj_0.t) % Alle Zeitschritte durchgehen
           f_L0_all(:,i_force) = f_L0;
           if debug_plot % Debug: Zeichnen
             % Kraft mit Angriffspunkt
-            plot3(r_W_W_C(1), r_W_W_C(2), r_W_W_C(3), 'rx', 'MarkerSize', 12);
+            plot3(rh_W_W_C(1), rh_W_W_C(2), rh_W_W_C(3), 'rx', 'MarkerSize', 12);
             plotratio = 0.15 / 140; % 140N entsprechen 150mm.
             f_W = R.T_W_0(1:3,1:3) * T_0_L0(1:3,1:3) * f_L0;
-            quiver3(r_W_W_C(1), r_W_W_C(2), r_W_W_C(3), ...
+            quiver3(rh_W_W_C(1), rh_W_W_C(2), rh_W_W_C(3), ...
               plotratio*f_W(1), plotratio*f_W(2), plotratio*f_W(3));
           end
         end
@@ -191,10 +233,21 @@ for i_traj = 1:length(Traj_0.t) % Alle Zeitschritte durchgehen
     end
   end
 end
-%% Kontaktkraft auch für die Plattform-Kontakt bestimmen
+%% Kontaktkraft auch für die Plattform-Kontakte bestimmen
+% Prüfe Interaktionsarbeitsraum
+[coll_iaspc_traj, ~] = check_collisionset_simplegeom_mex(collbodies_iaspc2, ...
+  collchecks_iaspc2, Traj_0.X(:,1:3), CollSet);
 for i_traj = 1:length(Traj_0.t)
   % Stelle Kraftrichtungen für Kontakt am Plattform-KS mit Kugelkoordinaten
   % zusammen. TODO: Noch ungeprüft
+  if ~any(coll_iaspc(i_traj,:)) % Punkt ist nicht im Interaktionsraum. Ignorieren.
+    continue
+  else
+    % Bestimme Interaktionskraft aus dem Interaktions-Arbeitsraum
+    for idx_iaspcs = find(coll_iaspc(i_traj,:))'
+      f_norm = Set.task.interactionspace.ref_force(idx_iaspcs);
+    end
+  end
   k = 1;
   f_0_all = NaN(3,10*20);
   for i_phi = 1:10 % nur die erste Hälfte (sonst doppelt)

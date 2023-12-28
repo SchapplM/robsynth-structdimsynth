@@ -86,14 +86,18 @@ end
 
 n_iobj = size(TaskSet.installspace.type,1);
 n_cobj = size(TaskSet.obstacles.type,1);
+n_aobj = size(TaskSet.interactionspace.type,1);
 collbodies = struct('params', [], 'type', []);
-for i = 1:(n_iobj+n_cobj)
+for i = 1:(n_iobj+n_cobj+n_aobj)
   if i <= n_iobj % Bauraum
     type_i = TaskSet.installspace.type(i);
     params_W = TaskSet.installspace.params(i,:);
-  else % Hindernisse
+  elseif i <= n_iobj+n_cobj % Hindernisse
     type_i = TaskSet.obstacles.type(i-n_iobj);
     params_W = TaskSet.obstacles.params(i-n_iobj,:);
+  else
+    type_i = TaskSet.interactionspace.type(i-n_iobj-n_cobj);
+    params_W = TaskSet.interactionspace.params(i-n_iobj-n_cobj,:);
   end
   % Ändere Nummer "körperfestes Objekt" zu "Welt-festes Objekt" (für
   % Implementierung)
@@ -113,8 +117,10 @@ for i = 1:size(collbodies.type,1)
   params_W = collbodies.params(i,:);
   if i <= n_iobj % Bauraum
     color = 'g';
-  else % Hindernisse
+  elseif i <= n_iobj+n_cobj % Hindernisse
     color = 'r';
+  else
+    color = 'b'; % Interaktionsbereich
   end
   switch collbodies.type(i)
     case 4
@@ -155,27 +161,29 @@ for i = 1:size(collbodies.type,1)
   end
   if i <= n_iobj % Bauraum
     legh(1) = h(1);
-  else % Hindernisse
+  elseif i <= n_iobj+n_cobj % Hindernisse
     legh(2) = h(1);
+  else
+    legh(3) = h(1); % Interaktionsraum
   end
 end
 % Mögliche Basis-Positionen des Roboters
 bpmean = mean(Set.optimization.basepos_limits,2);
 if ~any(diff(Set.optimization.basepos_limits'))
   % Basis ist als Punkt festgelegt.
-  legh(3) = plot3(bpmean(1),bpmean(2),bpmean(3), 'kx', 'MarkerSize', 3);
+  legh(4) = plot3(bpmean(1),bpmean(2),bpmean(3), 'kx', 'MarkerSize', 3);
 else
   % Basis kann in festgelegten Grenzen liegen
   plot3(Set.optimization.basepos_limits(1,:)',bpmean(2)*[1;1],...
     bpmean(3)*[1;1], 'k--', 'LineWidth', 3);
   plot3(bpmean(1)*[1;1],Set.optimization.basepos_limits(2,:)',...
     bpmean(3)*[1;1], 'k--', 'LineWidth', 3);
-  legh(3) = plot3(bpmean(1)*[1;1],bpmean(2)*[1;1],Set.optimization.basepos_limits(3,:)', ...
+  legh(4) = plot3(bpmean(1)*[1;1],bpmean(2)*[1;1],Set.optimization.basepos_limits(3,:)', ...
     'k--', 'LineWidth', 3);
 end
 I_legh = ~isnan(legh);
 if any(I_legh)
-  lgtxt={'Bauraum (außerhalb unzulässig)', 'Hindernisse', 'Basis-Position'};
+  lgtxt={'Bauraum (außerhalb unzulässig)', 'Hindernisse', 'Interaktionsraum', 'Basis-Position'};
   legend(legh(I_legh), lgtxt(I_legh));
 end
 

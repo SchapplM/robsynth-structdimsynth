@@ -294,6 +294,12 @@ task = struct( ...
   'obstacles', struct( ... % Hindernisse im Arbeitsraum zur Kollisionsprüfung
     'type', [], ... % Nummerierung siehe SerRob.m (collbodies)
     'params', []), ...% s.o.
+  'interactionspace', struct( ... % Konfiguration des möglichen MRK-Interaktionsraums
+    'type', [], ... % 1=Quader, 2=Zylinder; zeilenweise mehrere Körper
+    'params', [], ... % s.o.
+    'check_clamp_angle', true, ... % Prüfung der Winkel in Gelenken
+    'check_clamp_dist', true, ... % Prüfung der Abstände verschiedener Beinketten
+    'ref_force', 140), ... % Referenzkraft, die erkannt werden muss
   'payload', struct( ... % Zusätzliche Masse
     'm', 3, ... % Masse
     'rS', zeros(3,1), ... % Schwerpunkt, bezogen auf EE-KS (nicht: Plattform-KS)
