@@ -954,7 +954,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   % Prüfe Selbstkollisionen einer kinematischen Kette.
   for k = 1:NLEG
     % Erneute Initialisierung (sonst eventuell doppelte Eintragungen)
-    collbodies = struct('link', uint8([]), 'type', uint8(zeros(0,2)), ...
+    collbodies = struct('link', uint16([]), 'type', uint8(zeros(0,2)), ...
       'params', zeros(0,10)); % Liste für Beinkette
     if Structure.Type == 0  % Seriell 
       NLoffset = 0;
@@ -1020,7 +1020,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       end
       collbodies.params = [collbodies.params; cbi_par, NaN(1,3)];
       % Führungsschiene/Führungszylinder ist vorherigem Segment zugeordnet
-      collbodies.link = [collbodies.link; [uint8(i-1), uint8(i-1)]];
+      collbodies.link = [collbodies.link; [uint16(i-1), uint16(i-1)]];
     end
     
     % Erzeuge Ersatzkörper für die kinematische Kette (aus Gelenk-Trafo)
@@ -1034,7 +1034,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       if R_cc.MDH.a(i) ~= 0 || R_cc.MDH.d(i) ~= 0 || R_cc.MDH.sigma(i) == 1
         % Es gibt eine Verschiebung in der Koordinatentransformation i
         % Definiere einen Ersatzkörper dafür
-        collbodies.link =   [collbodies.link; [uint8(i),uint8(i-1)]];
+        collbodies.link =   [collbodies.link; [uint16(i),uint16(i-1)]];
         collbodies.type =   [collbodies.type; uint8(6)]; % Kapsel, direkte Verbindung
         % Wähle Kapseln mit z.B. Radius 20mm. R.DesPar.seg_par ist noch nicht belegt
         % (passiert erst in Entwurfsoptimierung).
@@ -1044,7 +1044,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     % Trage eine EE-Transformation ein: Kapsel von letzten Roboter-Segment
     % zu TCP. Direkte Verbindung. Dünner als Segment-Verbindungen
     if Structure.Type == 0 && Set.optimization.ee_translation
-      collbodies.link =   [collbodies.link; [uint8(R_cc.NJ+1),uint8(R_cc.NJ)]];
+      collbodies.link =   [collbodies.link; [uint16(R_cc.NJ+1),uint16(R_cc.NJ)]];
       collbodies.type =   [collbodies.type; uint8(6)]; % Kapsel, direkte Verbindung
       collbodies.params = [collbodies.params; Set.optimization.collision_bodies_size/4, NaN(1,9)]; % Radius 10mm
     end
@@ -1799,14 +1799,14 @@ if ~isempty(Set.task.installspace.type)
       % Führungsschiene/Führungszylinder ist vorherigem Segment zugeordnet
       % Bei gestellfestem Schubgelenk wird ein Punkt bzgl Beinketten-Basis
       % und ein Punkt bzgl. PKM-Basis eingetragen
-      links_i = repmat(uint8(i-1),2,1);
+      links_i = repmat(uint16(i-1),2,1);
       collbodies_instspc_k.link = [collbodies_instspc_k.link; [links_i, v(1+links_i)]]; % TODO: Unklar welche Bedeutung die zweite Spalte hat
     end
     % Hänge einen Punkt (Nr. 9) für jedes Gelenk an. Unabhängig, ob 3D-Körper dafür
     collbodies_instspc_k.type = [collbodies_instspc_k.type; repmat(uint8(9),R_cc.NJ,1)];
     collbodies_instspc_k.params = [collbodies_instspc_k.params; NaN(R_cc.NJ,10)];
     collbodies_instspc_k.link = [collbodies_instspc_k.link; ...
-      repmat(uint8((1:R_cc.NJ)'),1,2)];
+      repmat(uint16((1:R_cc.NJ)'),1,2)];
     % Prüfe den Offset-Parameter für das Schubgelenk
     for i = find(R_cc.MDH.sigma'==1)
       for j = 1:length(Set.task.installspace.links)

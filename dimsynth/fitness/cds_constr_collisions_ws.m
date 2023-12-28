@@ -91,7 +91,7 @@ for i = 1:size(Set.task.obstacles.type,1)
   collbodies.params = [collbodies.params; params_0];
   collbodies.type = [collbodies.type; type_i];
   % Bauraum wird zur Basis (=0) gezählt (ortsfest)
-  collbodies.link = [collbodies.link; uint8([0,0])];
+  collbodies.link = [collbodies.link; uint16([0,0])];
   % Generiere Liste der Kollisionspaare: Teste Kollision jedes Roboter-KS
   % mit dem Geometrieobjekt für den Bauraum
   collchecks_i = [uint8(1:n_cb_robot)', repmat(uint8(size(collbodies.type,1)),n_cb_robot,1)];
