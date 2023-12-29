@@ -109,6 +109,7 @@ for jj = 1:length(Set.optimization.objective)
   elseif strcmp(Set.optimization.objective{jj}, 'mrk1')
     obj_units{jj} = 'deg';
     objscale(jj) = 180/pi;
+    objtext{jj} = 'clamping angle';
   elseif strcmp(Set.optimization.objective{jj}, 'mrk2')
     if strcmp(acttype, 'prismatic')
       obj_units{jj} = 'N';
@@ -118,9 +119,11 @@ for jj = 1:length(Set.optimization.objective)
       obj_units{jj} = 'N or Nm';
     end
     objscale(jj) = 1;
+    objtext{jj} = 'effect of external force';
   elseif strcmp(Set.optimization.objective{jj}, 'mrk3')
     obj_units{jj} = 'mm';
     objscale(jj) = 1e3;
+    objtext{jj} = 'clamping distance';
   else
     error('Zielfunktion %s nicht vorgesehen', Set.optimization.objective{jj});
   end
