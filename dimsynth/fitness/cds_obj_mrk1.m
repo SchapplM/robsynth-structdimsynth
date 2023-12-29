@@ -51,7 +51,7 @@ collbodies_iaspc2 = struct(...
     repmat((1:n_cb_robot)'-1, 1,2) ]), ... % Der erste Eintrag in JP ist auch bzgl. Link 0
   'type', [ collbodies_iaspc.type; ...
     repmat(uint8(9), n_cb_robot, 1) ], ...
-  'params', [ Set.task.interactionspace.params; ...
+  'params', [ collbodies_iaspc.params; ...
     NaN(n_cb_robot, 10) ]);
 % Virtuelle Kollisionsprüfung mit den Punkten und Interaktionsraum
 collchecks_iaspc2 = [];
@@ -67,12 +67,57 @@ end
 CollSet = struct('collsearch', false);
 [coll_iaspc, ~] = check_collisionset_simplegeom_mex(collbodies_iaspc2, ...
   collchecks_iaspc2, JP, CollSet);
+if n_cb_iaspc>1
+  error('Mehr als ein Interaktionsraum nicht vollständig implementiert');
+  % TODO: Die Zuordnung von coll_iaspc ist nicht mehr 1:1 mit JP
+end
 
 %% Winkel in passiven Gelenken bestimmen
 Q_clamp_all = NaN(size(Q));
 for k = 1:size(Q,1) % Alle Zeitschritte durchgehen
   i_pt = 1; % Index für Gelenkpunkte JP
   jp_k = reshape(JP(k,:), 3, size(JP,2)/3);
+  % Debug: Zeichne Roboter und alle Gelenkpunkte mit Info, ob innen/außen
+  if false
+    fhdl = change_current_figure(5); clf; hold all; %#ok<UNRCH> 
+    view(3); axis auto; hold on; grid on;
+    xlabel('x in m'); ylabel('y in m'); zlabel('z in m');
+    if R.Type == 0 % Seriell
+      s_plot = struct( 'ks', [], 'straight', 1, 'mode', 1, 'nojoints', 1);
+      R.plot( Q(k,:)', s_plot);
+    else % PKM
+      s_plot = struct( 'ks_legs', [], 'ks_platform', [], ...
+        'straight', 1, 'mode', 1, 'nojoints', 1);
+      R.plot( Q(k,:)', Traj_0.X(k,:)', s_plot);
+    end
+    for jj = 1:size(jp_k,2)
+      JP_jj_W = R.T_W_0 * [jp_k(:,jj);1];
+      hdljj = plot3(JP_jj_W(1), JP_jj_W(2), JP_jj_W(3), 'kx', 'MarkerSize', 10);
+      if ~coll_iaspc(k, jj)
+        set(hdljj, 'Color', 'r');
+      else
+        set(hdljj, 'Color', 'g');
+      end
+    end
+    % Zeichne Interaktionsbereich
+    for kk = 1:length(collbodies_iaspc.type)
+      if collbodies_iaspc.type(kk) == 10
+        params_W = Set.task.interactionspace.params(kk,:); % ist schon im Welt-KS
+        q_W = eye(3,4)*[params_W(1:3)';1];
+        u1_W = params_W(4:6)';
+        u2_W = params_W(7:9)';
+        % letzte Kante per Definition senkrecht auf anderen beiden.
+        u3_W = cross(u1_W,u2_W); u3_W = u3_W/norm(u3_W)*params_W(10);
+        % Umrechnen in Format der plot-Funktion
+        cubpar_c = q_W(:)+(u1_W(:)+u2_W(:)+u3_W(:))/2; % Mittelpunkt des Quaders
+        cubpar_l = [norm(u1_W); norm(u2_W); norm(u3_W)]; % Dimension des Quaders
+        cubpar_a = 180/pi*tr2rpy([u1_W(:)/norm(u1_W), u2_W(:)/norm(u2_W), u3_W(:)/norm(u3_W)],'zyx')'; % Orientierung des Quaders
+        drawCuboid([cubpar_c', cubpar_l', cubpar_a'], ...
+          'FaceColor', 'm', 'FaceAlpha', 0.03);
+      end
+    end
+  end
+
   % Gehe alle Beinketten durch
   for i = 1:R.NLEG % Alle Beinketten durchgehen
     i_pt = i_pt + 1; % Basis-KS überspringen
@@ -201,7 +246,26 @@ for k = 1:size(Q,1) % Alle Zeitschritte durchgehen
         jp_w = R.T_W_0 * [jp_k(:,i_pt);1];
         text(jp_w(1), jp_w(2), jp_w(3), sprintf('%1.0f°', ...
           180/pi*Q_clamp_all(k,R.I1J_LEG(i)-1+j)), 'BackgroundColor', 'y');
-        title(sprintf('Beinkette %d, Gelenk-FG %d', i, j));
+        % Zeichne Interaktionsbereich
+        for kk = 1:length(collbodies_iaspc.type)
+          if collbodies_iaspc.type(kk) == 10
+            params_0 = collbodies_iaspc.params(kk,:); % Testweise nochmal hier transformieren
+            q_W = eye(3,4)*R.T_W_0*[params_0(1:3)';1]; % Ortsvektor
+            u1_W = eye(3,4)*R.T_W_0*[params_0(4:6)';0]; % Richtungsvektor
+            u2_W = eye(3,4)*R.T_W_0*[params_0(7:9)';0];
+            % letzte Kante per Definition senkrecht auf anderen beiden.
+            u3_W = cross(u1_W,u2_W); u3_W = u3_W/norm(u3_W)*params_0(10);
+            % Umrechnen in Format der plot-Funktion
+            cubpar_c = q_W(:)+(u1_W(:)+u2_W(:)+u3_W(:))/2; % Mittelpunkt des Quaders
+            cubpar_l = [norm(u1_W); norm(u2_W); norm(u3_W)]; % Dimension des Quaders
+            cubpar_a = 180/pi*tr2rpy([u1_W(:)/norm(u1_W), u2_W(:)/norm(u2_W), u3_W(:)/norm(u3_W)],'zyx')'; % Orientierung des Quaders
+            drawCuboid([cubpar_c', cubpar_l', cubpar_a'], ...
+              'FaceColor', 'm', 'FaceAlpha', 0.05);
+          end
+        end
+        titleaddstr='';
+        if ~coll_iaspc(k, i_pt), titleaddstr=' (nicht in Interaktionsraum)'; end
+        title(sprintf('Beinkette %d, Gelenk-FG %d%s', i, j, titleaddstr));
         drawnow();
       end
       if R.Leg(i).DesPar.joint_type(j) == 2 % Kardan-Gelenk
@@ -276,6 +340,23 @@ for i = 1:R.NLEG
     end
     text(jp_w(1), jp_w(2), jp_w(3), sprintf('%1.1f°', ...
       180/pi*Q_clamp_all(IItmin,idx_q)), 'BackgroundColor', 'y');
+  end
+end
+% Zeichne Interaktionsbereich
+for kk = 1:length(collbodies_iaspc.type)
+  if collbodies_iaspc.type(kk) == 10
+    params_W = Set.task.interactionspace.params(kk,:); % ist schon im Welt-KS
+    q_W = eye(3,4)*[params_W(1:3)';1];
+    u1_W = params_W(4:6)';
+    u2_W = params_W(7:9)';
+    % letzte Kante per Definition senkrecht auf anderen beiden.
+    u3_W = cross(u1_W,u2_W); u3_W = u3_W/norm(u3_W)*params_W(10);
+    % Umrechnen in Format der plot-Funktion
+    cubpar_c = q_W(:)+(u1_W(:)+u2_W(:)+u3_W(:))/2; % Mittelpunkt des Quaders
+    cubpar_l = [norm(u1_W); norm(u2_W); norm(u3_W)]; % Dimension des Quaders
+    cubpar_a = 180/pi*tr2rpy([u1_W(:)/norm(u1_W), u2_W(:)/norm(u2_W), u3_W(:)/norm(u3_W)],'zyx')'; % Orientierung des Quaders
+    drawCuboid([cubpar_c', cubpar_l', cubpar_a'], ...
+      'FaceColor', 'm', 'FaceAlpha', 0.1);
   end
 end
 title(sprintf(['Klemmwinkel schlechtester Fall. ', ...
