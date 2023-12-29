@@ -115,13 +115,13 @@ for i = 1:NLEG
 end
 % Prüfe, ob für ein Segment die Materialspannung überschritten wurde
 [f_maxstrengthviol, I_maxstrengthviol] = max(f_yieldstrength(:));
-f_maxstrengthviol_safety = f_maxstrengthviol*safety_factor;
-if any(f_maxstrengthviol_safety > 1)
+if any(f_maxstrengthviol > 1/safety_factor) % Prüfe gegen Sicherheitsfaktor. Bspw. bei SF=2 nur max. f_yieldstrength=50% erlaubt.
   % Normiere auf Wert zwischen 0 und 1
-  f_maxstrengthviol_norm = 2/pi*atan(f_maxstrengthviol_safety-1); % 1->0; 10->0.93
+  f_maxstrengthviol_norm = 2/pi*atan(f_maxstrengthviol-1/safety_factor); % 1/safety_factor->0; 10/safety_factor->0.93
   fval = 1e4*(1+9*f_maxstrengthviol_norm); % Normiere in Bereich 1e4...1e5
-  constrvioltext = sprintf('Materialbelastungsgrenze überschritten (%d/%d Prüfungen; max Faktor %1.1f. Sicherheitsfaktor %1.1f)', ...
-    sum(f_yieldstrength(:)>1), length(f_yieldstrength(:)), f_maxstrengthviol_safety, safety_factor);
+  constrvioltext = sprintf(['Materialbelastungsgrenze überschritten ' ...
+    '(%d/%d Prüfungen über 100%%; %d über Sicherheitsfaktor %1.0f%%; max Faktor %1.1f).'], ...
+    sum(f_yieldstrength(:)>1), length(f_yieldstrength(:)), sum(f_yieldstrength(:)>1/safety_factor), 100*safety_factor, f_maxstrengthviol);
 end
 
 %% Debug-Plot für Schnittkräfte
