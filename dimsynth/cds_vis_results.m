@@ -421,7 +421,7 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     continue;
   end
   % Achsbeschriftungen für Diagramm für diese Roboterauswahl aktualisieren
-  [obj_units, objscale] = cds_objective_plotdetails(Set, Structures(I_acttype(:,pfact)'));
+  [obj_units, objscale, objtext] = cds_objective_plotdetails(Set, Structures(I_acttype(:,pfact)'));
 
   % Daten für Pareto-Front sammeln
   pf_data = NaN(0, length(Set.optimization.objective));
@@ -578,12 +578,14 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
       end
     end
   end % for i (Roboter)
+  if ~isempty(objtext{1}), addtxtx=[' (', objtext{1}, ')']; else, addtxtx=''; end
+  if ~isempty(objtext{2}), addtxty=[' (', objtext{2}, ')']; else, addtxty=''; end
   if pffig == 1
-    xlabel(sprintf('%s in %s', Set.optimization.objective{1}, obj_units{1}));
-    ylabel(sprintf('%s in %s', Set.optimization.objective{2}, obj_units{2}));
+    xlabel(sprintf('%s%s in %s', Set.optimization.objective{1}, addtxtx, obj_units{1}));
+    ylabel(sprintf('%s%s in %s', Set.optimization.objective{2}, addtxty, obj_units{2}));
   else
-    xlabel(sprintf('%s (normiert)', Set.optimization.objective{1}));
-    ylabel(sprintf('%s (normiert)', Set.optimization.objective{2}));
+    xlabel(sprintf('%s%s (normiert)', Set.optimization.objective{1}, addtxtx));
+    ylabel(sprintf('%s%s (normiert)', Set.optimization.objective{2}, addtxty));
   end
   if length(Set.optimization.objective) == 2
     if pffig == 1
@@ -594,10 +596,11 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
         Set.optimization.objective{1}, Set.optimization.objective{2}), 'interpreter', 'none');
     end
   else
+    if ~isempty(objtext{3}), addtxtz=[' (', objtext{3}, ')']; else, addtxtz=''; end
     if pffig == 1
-      zlabel(sprintf('%s in %s', Set.optimization.objective{3}, obj_units{3}));
+      zlabel(sprintf('%s%s in %s', Set.optimization.objective{3}, addtxtz, obj_units{3}));
     else
-      zlabel(sprintf('%s (normiert)', Set.optimization.objective{3}));
+      zlabel(sprintf('%s%s (normiert)', Set.optimization.objective{3}, addtxtz));
     end
     if pffig == 1
       title(sprintf('%s: %s vs %s vs %s (physikalisch)', ...
