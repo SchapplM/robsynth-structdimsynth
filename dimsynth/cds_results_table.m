@@ -104,7 +104,7 @@ for i = 1:length(Structures)
   % werden.
   f = mean(tmp1.RobotOptRes.fval); % Falls mehrkriteriell abfangen mit `mean`
   if     f <= 1e3,     fval_text = 'i.O.'; % ab hier aus cds_fitness.m
-  elseif f <= 1e4, fval_text = 'NB-Verl. Zielf.';
+  elseif f <= 1e4, fval_text = 'NB-Verl. Zielf. (Antriebskraft)';
   elseif f <= 1e5, fval_text = 'NB-Verl. Zielf. EO';
   elseif f <= 1e6, fval_text = 'Festigkeit Segmente';
   elseif f <= 5e6, fval_text = 'Kinematik-NB (Pos.-Fehler)';
