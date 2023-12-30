@@ -33,6 +33,7 @@ s = struct( ...
   'eval_plots', {{}}, ... % Liste von Plots, die für jedes Partikel erstellt werden. Siehe Eingabe figname in cds_vis_results_figures.
   'results_dir', '', ... % Alternatives Verzeichnis zum Laden der Ergebnisse
   'isoncluster', false, ... % Falls auf Cluster, muss der parpool-Zugriff geschützt werden
+  'ignore_desopt_result', false, ...
   'parcomp_maxworkers', 1, ... % Maximale Anzahl an Parallelinstanzen. Standardmäßig ohne Parfor
   'Set_mod', struct(), ... % Einstellungs-Struktur aus cds_settings_defaults zum Feld-weise Überschreiben der geladenen Einstellungen.
   'only_merge_tables', false, ... % Aufruf nur zum Zusammenführen bestehender Tabellen für einzelne Roboter
@@ -163,6 +164,7 @@ cds_log(); % Log-Funktion zurücksetzen
 parfor_numworkers = cds_start_parpool(Set_dummy);
 % Alle Roboter durchgehen (Aufteilung so, dass Roboter nicht auf mehrere
 % parfor-Iterationen verteilt werden.
+% for i = 1:length(RobNames)
 parfor (i = 1:length(RobNames), parfor_numworkers)
   if parfor_numworkers > 0
     set(0, 'defaultfigureposition', [1 1 1920 1080]);
@@ -267,6 +269,9 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
     if any(f_jj < s.fval_check_lim(1)) || any(f_jj > s.fval_check_lim(2)), continue; end
     p_desopt_jj = p_desopt_all(jj,:)';
     Structure_jj = Structure;
+    if s.ignore_desopt_result
+      p_desopt_jj(:) = NaN;
+    end
     if any(isnan(p_desopt_jj))
       p_desopt_jj = [];
     else
