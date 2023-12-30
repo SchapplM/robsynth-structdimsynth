@@ -38,6 +38,7 @@ s = struct( ...
   'Set_mod', struct(), ... % Einstellungs-Struktur aus cds_settings_defaults zum Feld-weise Überschreiben der geladenen Einstellungen.
   'only_merge_tables', false, ... % Aufruf nur zum Zusammenführen bestehender Tabellen für einzelne Roboter
   'only_use_stored_q0', true, ... % Versuche nicht mit neuen Zufallswerten die Gelenkwinkel neu zu generieren, sondern nehme die gespeicherten.
+  'ignore_q0', false, ... % Ignoriere alle gespeicherten Informationen zu q0 und berechne komplett neu
   'only_from_pareto_front', true); % bei false werden alle Partikel geprüft, bei true nur die besten
 if nargin < 3
   s_in = s;
@@ -62,6 +63,9 @@ else
   end
 end
 assert(isa(s.eval_plots, 'cell'), 'Eingabefeld eval_plots muss cell array sein');
+if s.ignore_q0
+  s.only_use_stored_q0 = false;
+end
 % Eindeutigen Namen für diesen Durchlauf des Versuchs der Reproduktion.
 % Es kann auf verschiedenen Rechnern ein unterschiedliches Ergebnis
 % rauskommen, je nach CPU-Architektur (für Zufallszahlen) oder Programmversion
@@ -283,7 +287,9 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
       Structure_jj.calc_dyn_reg = false;
     end
     [k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, f_jj);
-    if ~isempty(PSO_Detail_Data) && isfield(PSO_Detail_Data, 'q0_ik')
+    if s.ignore_q0
+      q0 = [];
+    elseif ~isempty(PSO_Detail_Data) && isfield(PSO_Detail_Data, 'q0_ik')
       q0 = PSO_Detail_Data.q0_ik(k_ind,:,k_gen)';
     else
       q0 = RobotOptRes.q0_pareto(jj,:)';
