@@ -320,7 +320,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       % alle Kombinationen der einzelnen Beinketten durchgehen
       nj = zeros(1,R.NLEG); % Anzahl der Kombinationen für jede Beinkette
       indvec = cell(1,R.NLEG); % Vektor mit Indizes zum Bilden der PKM-Kombinationen
-      dist_pt1 = NaN(size(Q_jic,3), R.NLEG);
+      dist_pt1 = NaN(0, R.NLEG); % Anzahl der gefundenen Konfigurationen zu Konfig. 1
       Idesc = dist_pt1;
       Il = 3; % Indizes für drei Koordinaten der PKM-Basis
       for j = 1:R.NLEG
@@ -354,9 +354,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           % Umklapplagen)
           Ijrev = Ij(R.Leg(j).MDH.sigma==0);
           dist_qi_q1 = angleDiff(Q_configperm1(1, Ijrev),Q_configperm1(nj(j), Ijrev));
-          dist_pt1(i,j) = sum(abs(dist_qi_q1));
+          dist_pt1(nj(j),j) = sum(abs(dist_qi_q1));
         end % i
-        dist_pt1(isnan(dist_pt1)) = -inf; % deaktivieren der NaN-Einträge für Sortierung
         % Indizes gemäß Abstand zum ersten sortieren. Hilft bei Aufgaben-
         % redundanz, wenn unendlich viele Konfigurationen möglich sind.
         [~,Idesc(1:nj(j),j)] = sort(dist_pt1(1:nj(j),j), 'desc');
