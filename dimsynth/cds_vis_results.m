@@ -444,6 +444,23 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     if any(RobotOptRes.fval > 1e3)
       continue
     end
+    % Pareto-Front anhängen
+    if pffig == 1 % Bild mit physikalischen Werten (bereits mit Plot-Skalierung)
+      pf_data_add = repmat(objscale(:)', size(...
+        tmp1.RobotOptRes.physval_pareto,1),1).*tmp1.RobotOptRes.physval_pareto;
+    else % Bild mit normierten Werten
+      pf_data_add = tmp1.RobotOptRes.fval_pareto;
+    end
+    if all(isnan(pf_data_add(:)))
+      warning('Daten für Pareto-Diagramm sind NaN für Roboter %d/%d (%d/%s).', ...
+        i, length_Structures, Number, Name);
+      continue;
+    end
+    pf_data = [pf_data; pf_data_add]; %#ok<AGROW>
+    pf_robnum = [pf_robnum; i*ones(size(tmp1.RobotOptRes.physval_pareto,1),1)]; %#ok<AGROW>
+    % Erst hier den Namen des Roboters einspeichern (nach allen continues)
+    % Sonst könnte ein ungültiger Roboter in die Liste kommen und die
+    % Nummerierung in der Legende durcheinanderbringen. Das verwirrt dann.
     if Structures{i}.Type == 0 % Seriell: Keine Unterscheidung
       RobName_base{i} = Structures{i}.Name;
     else % PKM-Name ohne G-P-Nummer
@@ -452,14 +469,6 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
       % kommen und es sollte die Unterstrich-Notation in die Legende.
       RobName_base{i} = sprintf('%s,Act=%d', PName_Legs, Actuation{1});
     end
-    % Pareto-Front anhängen
-    if pffig == 1 % Bild mit physikalischen Werten (bereits mit Plot-Skalierung)
-      pf_data = [pf_data; repmat(objscale(:)', size(...
-        tmp1.RobotOptRes.physval_pareto,1),1).*tmp1.RobotOptRes.physval_pareto]; %#ok<AGROW>
-    else % Bild mit normierten Werten
-      pf_data = [pf_data; tmp1.RobotOptRes.fval_pareto]; %#ok<AGROW>
-    end
-    pf_robnum = [pf_robnum; i*ones(size(tmp1.RobotOptRes.physval_pareto,1),1)]; %#ok<AGROW>
   end % for i = II_acttype_act
   robgroups = zeros(length(RobName_base), 1); % Zuordnung der Roboter-Nummern zu Gruppen-Nummern
   if pfvar == 2 % Bild mit Gruppierung der Varianten
@@ -569,11 +578,11 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
        if sum(robgroups(1:i)==robgroups(i)) == 1
         % Nur ein Roboter dieser Gruppe. Dann direkt den vollen Namen
         % hinschreiben (aber Nummerierung der Gruppe beibehalten)
-        legstr{countmarker} = sprintf('%d/%d (%s%s)', countmarker, max(robgroups), ...
+        legstr{countmarker} = sprintf('%d/%d (%s%s)', robgroups(i), max(robgroups), ...
           Structures{i}.Name, addtxt); %#ok<AGROW>
       else % Mehrere Roboter. Anderer Text mit Bezug auf Gruppe
         addtxt2 = sprintf(' (%d Rob.)', sum(robgroups(1:i)==robgroups(i)));
-        legstr{countmarker} = sprintf('%d/%d (%s%s)%s', countmarker, max(robgroups), ...
+        legstr{countmarker} = sprintf('%d/%d (%s%s)%s', robgroups(i), max(robgroups), ...
           RobName_base{i}, addtxt, addtxt2); %#ok<AGROW>
       end
     end
