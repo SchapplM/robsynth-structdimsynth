@@ -105,9 +105,15 @@ for i = 1:length(Structures)
   f = mean(tmp1.RobotOptRes.fval); % Falls mehrkriteriell abfangen mit `mean`
   if     f <= 1e3,     fval_text = 'i.O.'; % ab hier aus cds_fitness.m
   elseif f <= 1e4, fval_text = 'NB-Verl. Zielf. (Antriebskraft)';
-  elseif f <= 1e5, fval_text = 'NB-Verl. Zielf. EO';
-  elseif f <= 1e6, fval_text = 'Festigkeit Segmente';
-  elseif f <= 5e6, fval_text = 'Kinematik-NB (Pos.-Fehler)';
+  elseif f <= 2e4, fval_text = 'NB-Verl. Zielf. EO (Masse)';
+  elseif f <= 3e4, fval_text = 'NB-Verl. Zielf. EO (Antriebskraft)';
+  elseif f <= 4e4, fval_text = 'NB-Verl. Zielf. EO (Steifigkeit)';
+  elseif f <= 1e5, fval_text = 'NB-Verl. Zielf. EO (TODO)';
+  elseif f <= 4e5, fval_text = 'EO: Festigkeit Segmente';
+  elseif f <= 8e5, fval_text = 'EO: Selbstkollision';
+  elseif f <= 1e6, fval_text = 'EO: Fehler (unplausible Werte)';
+  elseif f <= 2e6, fval_text = 'Undefiniert';
+  elseif f <= 6e6, fval_text = 'Kinematik-NB (Pos.-Fehler)';
   elseif f <= 1e7, fval_text = 'Kinematik-NB (Kond.)';
   elseif f <= 1e4*1.1e3, fval_text = 'Kinematik-NB (PosErr.,traj-constr)'; % ab hier aus cds_constraints_traj.m
   elseif f <= 1e4*1.2e3, fval_text = 'Kinematik-NB (Kond.,traj-constr)';

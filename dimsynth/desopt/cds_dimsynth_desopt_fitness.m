@@ -30,7 +30,10 @@
 %   Verletzung von Nebenbedingungen oder Wert der Zielfunktion (je nachdem)
 %   Werte:
 %   0...1e3: gewählte Zielfunktion
-%   1e3...1e4: Nebenbedingung von Zielfunktion überschritten
+%   1e3...1e4: Nebenbedingung von Zielfunktion überschritten:
+%      1e3...2e3: Masse
+%      2e3...3e3: Antriebskraft
+%      3e3...4e3: Steifigkeit
 %   1e4...1e5: Überschreitung Belastungsgrenze der Segmente
 %   1e7...1e8: Selbstkollision aufgrund zu großer Segmentdurchmesser
 %   1e8...1e9: Unplausible Eingabe (Radius vs Wandstärke)
