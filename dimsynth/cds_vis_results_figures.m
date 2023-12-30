@@ -112,7 +112,8 @@ if RobData.Type ~= 0
 end
 
 %% Animation
-if any(strcmp(figname, {'robvisu', 'animation'}))
+if any(strcmp(figname, {'robvisu', 'animation'})) && ...
+    all(fval < Set.general.animation_fval_threshold)
 if strcmp(figname, 'robvisu')
   % Die Roboter-Visualisierung ist größtenteils identisch zur Animation.
   % Nur dass nicht animiert wird, sondern dass das erste Standbild genommen
