@@ -124,6 +124,9 @@ for jj = 1:length(Set.optimization.objective)
     obj_units{jj} = 'mm';
     objscale(jj) = 1e3;
     objtext{jj} = 'clamping distance';
+  elseif strcmp(Set.optimization.objective{jj}, 'mrk4')
+    obj_units{jj} = 'kg';
+    objtext{jj} = 'effective platform mass';
   else
     error('Zielfunktion %s nicht vorgesehen', Set.optimization.objective{jj});
   end
