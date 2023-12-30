@@ -601,7 +601,7 @@ for iIKC = I_IKC
   update_joint_limits(R, Set, Q, true, 0);
   massparam_set = false; % Marker, ob Masseparameter gesetzt wurden
   if ~isempty(intersect(Set.optimization.objective, {'energy', 'power', 'mass', ...
-      'actforce', 'stiffness', 'materialstress'})) || ... % Für Zielfunktion benötigt
+      'actforce', 'stiffness', 'materialstress', 'mrk4'})) || ... % Für Zielfunktion benötigt
       Set.optimization.constraint_obj(3) ~= 0 % Für Nebenbedingung benötigt
     % Dynamik-Parameter aktualisieren. Keine Nutzung der Ausgabe der Funktion
     % (Parameter werden direkt in Klasse geschrieben; R.DesPar.seg_par ist
@@ -959,6 +959,12 @@ for iIKC = I_IKC
     fval_IKC(iIKC,strcmp(Set.optimization.objective, 'mrk3')) = fval_mrk3;
     physval_IKC(iIKC,strcmp(Set.optimization.objective, 'mrk3')) = physval_mrk3;
     fval_debugtext = [fval_debugtext, ' ', fval_debugtext_mrk3]; %#ok<AGROW>
+  end
+  if any(strcmp(Set.optimization.objective, 'mrk4'))
+    [fval_mrk4, fval_debugtext_mrk4, ~, physval_mrk4] = cds_obj_mrk4(R, Set, Structure, Traj_0, Q, Jinv_ges);
+    fval_IKC(iIKC,strcmp(Set.optimization.objective, 'mrk4')) = fval_mrk4;
+    physval_IKC(iIKC,strcmp(Set.optimization.objective, 'mrk4')) = physval_mrk4;
+    fval_debugtext = [fval_debugtext, ' ', fval_debugtext_mrk4]; %#ok<AGROW>
   end
   fval_debugtext_IKC{iIKC} = fval_debugtext;
   if any(fval_IKC(iIKC,:)>1e3)

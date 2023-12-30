@@ -141,7 +141,7 @@ optimization = struct( ...
   'objective', {{'TODO'}}, ... % Zielfunktion. Möglich: mass, energy, power, condition, 
    ... % valid_kin, valid_act, actforce, materialstress, stiffness, jointrange, jointlimit
    ... % manipulability, minjacsingval, positionerror, actvelo, chainlength,
-   ... % installspace, footprint, colldist, mrk1, mrk2, mrk3. Auch mehrere gleichzeitig möglich.
+   ... % installspace, footprint, colldist, mrk1, mrk2, mrk3, mrk4. Auch mehrere gleichzeitig möglich.
   'obj_jointrange', struct(... % Zusatzeinstellungen für die Zielfunktion "jointrange"
       'only_revolute', false, ... % Minimiere nur Wertebereich von Drehgelenken
       'only_prismatic', false, ... % Minimiere nur Wertebereich von Schubgelenken
