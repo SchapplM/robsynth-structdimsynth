@@ -4,11 +4,16 @@
 %   Set (Globale Einstellungen). Siehe cds_settings_defaults.m
 %   Traj (Eigenschaften der Trajektorie). Siehe cds_gen_traj.m
 %   Structures (Liste der zu optimierenden Strukturen, s. cds_gen_robot_list.m)
+% 
+% Ausgabe:
+% jobID_out
+%   Nummer des letzten Teil-Jobs auf dem Rechencluster. Kann für
+%   Abhängigkeiten beim Start mehrerer Synthese-Durchläufe benutzt werden.
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function cds_start(Set, Traj, Structures)
+function jobID_out = cds_start(Set, Traj, Structures)
 
 % Warnungen unterdrücken, die bei der Maßsynthese typischerweise auftreten
 warning('off', 'MATLAB:singularMatrix');
@@ -24,6 +29,7 @@ warning('off', 'MATLAB:Figure:SetPosition');
 if nargin < 3
   Structures = [];
 end
+jobID_out = [];
 %% Log Vorbereiten
 resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
 if Set.general.isoncluster && isfolder(resdir_main) && ...
@@ -769,6 +775,10 @@ if Set.general.computing_cluster
       'Produktiv-Jobs: [%s], Finish-Jobs: [%s], Merge-Job: %d'], ...
       length(I1_Struct), length(Structures), disp_array(jobIDs(1,:), '%d'), ...
       disp_array(jobIDs(2,:), '%d'), jobID_merge));
+    jobID_out = jobID_merge; % Wenn dieser Job fertig ist, ist die Synthese fertig
+  else
+    % Nur ein paralleler Job. Nehme Job-ID des Finish-Jobs für Rückgabe 
+    jobID_out = jobIDs(end);
   end
 
   return;
