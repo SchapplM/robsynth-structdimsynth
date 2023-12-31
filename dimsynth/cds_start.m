@@ -744,7 +744,7 @@ if Set.general.computing_cluster
       'Die Ergebnisse müssen nach Beendigung der Rechnung manuell heruntergeladen ', ...
       'werden.'], length(I1_kk:I2_kk)));
     if kk < length(I1_Struct) % Damit nicht alle exakt zeitgleich starten; exakt gleichzeitiger, ...
-      pause(30); % ... paralleler Start des parpools sowieso nicht möglich
+      pause(5); % ... paralleler Start des parpools sowieso nicht möglich
     end
   end
   if length(I1_Struct) > 1 && ~Set.general.only_finish_aborted
