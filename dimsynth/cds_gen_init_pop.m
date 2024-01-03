@@ -446,8 +446,11 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
      any(Structure_i.vartypes == 9) && ... % Morphologie wird optimiert
      Set.optimization.platform_size_limits(1)~=Set.optimization.platform_size_limits(2) ... % Grenzen nicht gleich
      || Set.optimization.tilt_base  % Neigungswinkel für Gestell werden optimiert
+    % Aktualisiere die geladenen Einstellungen, falls sie auf einer alten
+    % Version basieren. Sonst Fehler in update_robot_parameters
+    Set_i = cds_settings_update(Set_i); % Erst hier wegen Rechenzeit
     for jjj = 1:size(pval_i,1)
-      p_phys_jjj=cds_update_robot_parameters([], Set, Structure_i, pval_i_file(jjj,:)');
+      p_phys_jjj=cds_update_robot_parameters([], Set_i, Structure_i, pval_i_file(jjj,:)');
       % Der Winkel wird direkt physikalisch eingesetzt. Alle anderen Parameter sind egal.
       fval_jjj = cds_constraints_parameters([], Set, Structure_i, pval_i_file(jjj,:)', p_phys_jjj);
       if fval_jjj > 0
