@@ -362,8 +362,23 @@ parfor (i = 1:length_Structures_parfor, parfor_numworkers)
 
   fprintf('Visualisierung für Rob %d (%s) beendet. Dauer: %1.1fs\n', Number, Name, toc(t_start_i));
 end
-%% Erzeuge Pareto-Diagramme für alle Roboter (2D)
-if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriterien gleichzeitig nicht sinnvoll
+%% Erzeuge Pareto-Diagramme für alle Roboter (2D oder 3D)
+if length(Set.optimization.objective) > 1 % Mehrkriterielle Optimierung
+  % Für mehr als drei Kriterien gleichzeitig nicht sinnvoll
+  if length(Set.optimization.objective) > 3
+    % Gehe alle Kombinationen von drei Zielkriterien durch
+    objcomb3D = allcomb(1:length(Set.optimization.objective), 1:length(Set.optimization.objective), 1:length(Set.optimization.objective));
+    % Entferne Duplikate (Schema: Aufsteigende ZF-Nummer mit xyz-Achse)
+    objcomb3D(objcomb3D(:,1)==objcomb3D(:,2),:) = [];
+    objcomb3D(objcomb3D(:,1)==objcomb3D(:,3),:) = [];
+    objcomb3D(objcomb3D(:,2)==objcomb3D(:,3),:) = [];
+    objcomb3D(objcomb3D(:,1)>objcomb3D(:,2),:) = [];
+    objcomb3D(objcomb3D(:,1)>objcomb3D(:,3),:) = [];
+    objcomb3D(objcomb3D(:,2)>objcomb3D(:,3),:) = [];
+  else
+    objcomb3D = 1:length(Set.optimization.objective);
+  end
+  for pfcomb = 1:size(objcomb3D,1)
   for pffig = 1:2 % Zwei Bilder: Physikalische Werte und normierte Werte
   if pffig == 1 && ~any(strcmp(Set.general.eval_figures, 'pareto_all_phys')) || ...
      pffig == 2 && ~any(strcmp(Set.general.eval_figures, 'pareto_all_fval'))
@@ -371,6 +386,13 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   end
   if pffig == 1, name_suffix_phys = 'phys';
   else,          name_suffix_phys = 'fval'; end
+  name_suffix_obj = '';
+  for kk = 1:size(objcomb3D,2)
+    if kk > 1
+      name_suffix_obj = [name_suffix_obj, '_vs_']; %#ok<AGROW> 
+    end
+    name_suffix_obj = [name_suffix_obj, Set.optimization.objective{objcomb3D(pfcomb, kk)}]; %#ok<AGROW> 
+  end
   % Prüfe die Art der Aktuierung der Roboter. Wenn gemischt Dreh- und
   % Schubantriebe vorkommen, erzeuge zwei zusätzliche Bilder. Sonst
   % ist der Vergleich in einem Diagramm nicht zielführend
@@ -413,6 +435,7 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   end
   if     pfvar == 2, name_suffix = [name_suffix, '_groups']; %#ok<AGROW>
   end
+  name_suffix = [name_suffix, '_', name_suffix_obj]; %#ok<AGROW> 
   if ~any(I_acttype(:,pfact)), continue; end
   if sum(I_acttype(:,pfact)) == 1 && pfvar == 2 % Sonderfall einzelner Roboter
     continue; % Nichts zu gruppieren
@@ -422,6 +445,10 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   end
   % Achsbeschriftungen für Diagramm für diese Roboterauswahl aktualisieren
   [obj_units, objscale, objtext] = cds_objective_plotdetails(Set, Structures(I_acttype(:,pfact)'));
+  % Indizes der betrachteten Zielkriterien
+  IO1 = objcomb3D(pfcomb, 1);
+  IO2 = objcomb3D(pfcomb, 2);
+  IO3 = objcomb3D(pfcomb, 3);
 
   % Daten für Pareto-Front sammeln
   pf_data = NaN(0, length(Set.optimization.objective));
@@ -550,9 +577,9 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     end
     % Pareto-Front für diesen Roboter einzeichnen
     if length(Set.optimization.objective) == 2
-      hdl=plot(pf_data(pf_robnum==i,1), pf_data(pf_robnum==i,2), marker);
+      hdl=plot(pf_data(pf_robnum==i,IO1), pf_data(pf_robnum==i,IO2), marker);
     else % length(Set.optimization.objective) == 3
-      hdl=plot3(pf_data(pf_robnum==i,1), pf_data(pf_robnum==i,2), pf_data(pf_robnum==i,3), marker);
+      hdl=plot3(pf_data(pf_robnum==i,IO1), pf_data(pf_robnum==i,IO2), pf_data(pf_robnum==i,IO3), marker);
     end
     set(hdl, 'DisplayName', sprintf('Rob%d_%s', Number, Name)); % zur Zuordnung später
     % Der Legendeneintrag wird im Fall von gruppierten Ergebnissen mehrmals
@@ -587,38 +614,38 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
       end
     end
   end % for i (Roboter)
-  if ~isempty(objtext{1}), addtxtx=[' (', objtext{1}, ')']; else, addtxtx=''; end
-  if ~isempty(objtext{2}), addtxty=[' (', objtext{2}, ')']; else, addtxty=''; end
+  if ~isempty(objtext{IO1}), addtxtx=[' (', objtext{IO1}, ')']; else, addtxtx=''; end
+  if ~isempty(objtext{IO2}), addtxty=[' (', objtext{IO2}, ')']; else, addtxty=''; end
   if pffig == 1
-    xlabel(sprintf('%s%s in %s', Set.optimization.objective{1}, addtxtx, obj_units{1}));
-    ylabel(sprintf('%s%s in %s', Set.optimization.objective{2}, addtxty, obj_units{2}));
+    xlabel(sprintf('%s%s in %s', Set.optimization.objective{IO1}, addtxtx, obj_units{IO1}));
+    ylabel(sprintf('%s%s in %s', Set.optimization.objective{IO2}, addtxty, obj_units{IO2}));
   else
-    xlabel(sprintf('%s%s (normiert)', Set.optimization.objective{1}, addtxtx));
-    ylabel(sprintf('%s%s (normiert)', Set.optimization.objective{2}, addtxty));
+    xlabel(sprintf('%s%s (normiert)', Set.optimization.objective{IO1}, addtxtx));
+    ylabel(sprintf('%s%s (normiert)', Set.optimization.objective{IO2}, addtxty));
   end
   if length(Set.optimization.objective) == 2
     if pffig == 1
       title(sprintf('%s: %s vs %s (physikalisch)', Set.optimization.optname, ...
-        Set.optimization.objective{1}, Set.optimization.objective{2}), 'interpreter', 'none');
+        Set.optimization.objective{IO1}, Set.optimization.objective{IO2}), 'interpreter', 'none');
     else
       title(sprintf('%s: %s vs %s (normiert)', Set.optimization.optname, ...
-        Set.optimization.objective{1}, Set.optimization.objective{2}), 'interpreter', 'none');
+        Set.optimization.objective{IO1}, Set.optimization.objective{IO2}), 'interpreter', 'none');
     end
   else
-    if ~isempty(objtext{3}), addtxtz=[' (', objtext{3}, ')']; else, addtxtz=''; end
+    if ~isempty(objtext{IO3}), addtxtz=[' (', objtext{IO3}, ')']; else, addtxtz=''; end
     if pffig == 1
-      zlabel(sprintf('%s%s in %s', Set.optimization.objective{3}, addtxtz, obj_units{3}));
+      zlabel(sprintf('%s%s in %s', Set.optimization.objective{IO3}, addtxtz, obj_units{IO3}));
     else
-      zlabel(sprintf('%s%s (normiert)', Set.optimization.objective{3}, addtxtz));
+      zlabel(sprintf('%s%s (normiert)', Set.optimization.objective{IO3}, addtxtz));
     end
     if pffig == 1
       title(sprintf('%s: %s vs %s vs %s (physikalisch)', ...
-        Set.optimization.optname, Set.optimization.objective{1}, ...
-        Set.optimization.objective{2}, Set.optimization.objective{3}), 'interpreter', 'none');
+        Set.optimization.optname, Set.optimization.objective{IO1}, ...
+        Set.optimization.objective{IO2}, Set.optimization.objective{IO3}), 'interpreter', 'none');
     else
       title(sprintf('%s: %s vs %s vs %s (normiert)', ...
-        Set.optimization.optname, Set.optimization.objective{1}, ...
-        Set.optimization.objective{2}, Set.optimization.objective{3}), 'interpreter', 'none');
+        Set.optimization.optname, Set.optimization.objective{IO1}, ...
+        Set.optimization.objective{IO2}, Set.optimization.objective{IO3}), 'interpreter', 'none');
     end
   end
   axhdl = get(f, 'children');
@@ -692,4 +719,5 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   end % for pfact
   end % for pfvar
   end % for pffig
+  end % for pfcomb
 end
