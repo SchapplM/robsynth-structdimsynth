@@ -710,8 +710,9 @@ if length(Set.optimization.objective) > 1 % Mehrkriterielle Optimierung
             'Position', [10, 30, 120, 24]);
   % ButtonDownFcn wird erst beim erneuten Laden der Datei eingetragen
   % (sonst wird die gespeicherte Datei zu groß).
-  CreateFcn=@(src, dummy)cds_paretoplot_createfcn(src, dummy, Set.optimization.optname);
-  set(f, 'CreateFcn', CreateFcn);
+  CreateFcn_old = get(f, 'CreateFcn'); % wird durch figure_invisible.m erstellt.
+  CreateFcn_new=@(src, dummy)cds_paretoplot_createfcn(src, dummy, Set.optimization.optname, CreateFcn_old);
+  set(f, 'CreateFcn', CreateFcn_new);
   saveas(f, fullfile(resmaindir, sprintf('Pareto_Gesamt_%s.fig',name_suffix)));
   % Für das bereits offene Fenster die ButtonDownFcns hier eintragen.
   cds_paretoplot_createfcn(f, [], Set.optimization.optname);
