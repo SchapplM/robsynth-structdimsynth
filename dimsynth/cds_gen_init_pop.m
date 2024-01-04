@@ -673,7 +673,6 @@ if size(InitPopLoadTmp,1) > 0
   Q_PopLoadTmp = Q_PopTmp(I,:);
   OptNamesLoadTmp = OptNamesTmp(I);
   RobNamesLoadTmp = RobNamesTmp(I);
-  ScoreLoad = ScoreLoad(I,:);
   nIndLoad = min(nIndLoad, size(InitPopLoadTmpNorm,1));
   % Indizies der bereits ausgewählten Partikel (in InitPopLoadTmpNorm)
   I_selected = false(size(ScoreLoad,1),1);
