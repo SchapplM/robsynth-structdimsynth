@@ -9,8 +9,8 @@
 % OptName
 %   Name der Optimierung
 % oldcreatefcn
-%   Ursprüngliche CreateFcn des Figures. Notwendig für unsichtbares
-%   Speichern des Bildes und Sichtbarmachen beim Neu-Öffnen
+%   Ursprüngliche CreateFcn des Figures als Char-String. Notwendig für
+%   unsichtbares Speichern des Bildes und Sichtbarmachen beim Neu-Öffnen
 % 
 % Beispiele:
 % Zum manuellen Eintragen der CreateFcn oder bei Änderung des Namens der
@@ -24,8 +24,12 @@
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
 function cds_paretoplot_createfcn(fighdl, dummy, OptName, oldcreatefcn)
-if nargin == 4
-  eval(oldcreatefcn);
+if nargin == 4 && isa(oldcreatefcn, 'char')
+  try
+    eval(oldcreatefcn);
+  catch err
+    warning('Keine Ausführung der CreateFcn möglich: %s\n %s', oldcreatefcn, err.message);
+  end
 end
 %% Trage die ButtonDownFcns ein
 fch = get(fighdl, 'Children');
