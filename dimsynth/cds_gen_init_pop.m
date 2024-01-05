@@ -218,6 +218,9 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
   if ~isfield(Structure_i, 'xref_W') % Kompatibilität für altes Format
     Structure_i.xref_W = settings_i.Traj.X(1,:)'; % siehe cds_dimsynth_robot.m
   end
+  if ~isfield(Structure_i, 'mirrorconfig_d') % Kompatibilität für altes Format
+    Structure_i.mirrorconfig_d = 1;
+  end
   % Prüfe, ob es sich um den identischen Roboter handelt (PKM-Koppelgelenkanord-
   % nungen können anders sein)
   score_i = score_i - 20*double(~strcmp(Structure_i.Name, Structure.Name));

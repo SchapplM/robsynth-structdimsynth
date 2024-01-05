@@ -260,6 +260,7 @@ optimization = struct( ...
   'max_inclination_conic_base_joint', pi, ... % Maximaler Winkel des Gestellgelenks gegen die Horizontale
   'min_inclination_conic_platform_joint', 5*pi/180, ... % Das gleiche für Plattformgelenke (nur bei konischer Anordnung)
   'min_joint_distance', 0, ... % Minimaler Abstand zwischen zwei Gelenken
+  'mirror_legs_min_a_d_ratio', 0.05, ... % Bei Spiegelung der Ketten muss der d-Parameter mind. so viel relativ zum a-Parameter lang sein
   'nolinkmass', false, ... % Setze die Masse der Robotersegmente auf Null.
   'noplatformmass', false, ... % Setze die Masse der PKM-Plattform auf Null.
   'ElectricCoupling', true, ... % Kopplung der Achsen für Energieberechnung. TODO
