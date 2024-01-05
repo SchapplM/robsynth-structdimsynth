@@ -33,7 +33,7 @@ s = struct( ...
   'eval_plots', {{}}, ... % Liste von Plots, die für jedes Partikel erstellt werden. Siehe Eingabe figname in cds_vis_results_figures.
   'results_dir', '', ... % Alternatives Verzeichnis zum Laden der Ergebnisse
   'isoncluster', false, ... % Falls auf Cluster, muss der parpool-Zugriff geschützt werden
-  'ignore_desopt_result', false, ...
+  'ignore_desopt_result', false, ... % Verwerfe gespeicherte Ergebnisse der Entwurfsoptimierung
   'parcomp_maxworkers', 1, ... % Maximale Anzahl an Parallelinstanzen. Standardmäßig ohne Parfor
   'Set_mod', struct(), ... % Einstellungs-Struktur aus cds_settings_defaults zum Feld-weise Überschreiben der geladenen Einstellungen.
   'only_merge_tables', false, ... % Aufruf nur zum Zusammenführen bestehender Tabellen für einzelne Roboter
@@ -156,7 +156,7 @@ if s.update_template_functions
       T_estim = (length(RobNames)-i) * (now()-t_start)*24*3600 / i;
       fprintf(['Vorlagen-Funktionen für %d/%d Roboter wurden geprüft. Zeit ', ...
         'seit Beginn: %1.1f min. Erwartete Restzeit: %1.1fmin\n'], i, ...
-        length(RobNames), (now()-t_start)*24*60, T_estim*60);
+        length(RobNames), (now()-t_start)*24*60, T_estim/60);
       t_lastlog = now();
     end
   end
