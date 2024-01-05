@@ -141,7 +141,7 @@ end
 iRobTab = strcmp(ResTab.Name,Name) & ResTab.LfdNr==RNr;
 fval_text = ResTab.Fval_Text{iRobTab};
 RobShortName_str = ''; % Wenn kein Wert belegt ist, wird NaN gesetzt
-if isfield(ResTab, 'Beschreibung') && isa(ResTab.Beschreibung, 'cell')
+if any(strcmp(ResTab.Properties.VariableNames, 'Beschreibung')) && isa(ResTab.Beschreibung, 'cell')
   RobShortName = ResTab.Beschreibung{iRobTab};
   if ~isempty(RobShortName)
     RobShortName_str = sprintf(' (%s)', RobShortName);
