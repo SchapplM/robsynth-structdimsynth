@@ -28,6 +28,8 @@
 %   6e13...7e13: Neigung der Basis ist zu groß
 %   7e13...8e13: Beinketten sind zu lang
 %   8e13...9e13: Plattform ist relativ zum Gestell zu groß
+%   9e13...1e14: d-Parameter im Verhältnis zu a-Parameter zu klein
+%                (gespiegelte Beinketten
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2023-02
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
@@ -206,10 +208,11 @@ if check_plf_r_eff_valid && check_plf_r_eff_constr
 end
 %% Bestimme DH-Tabelle aus den Optimierungsvariablen
 % Dadurch muss nicht die Roboter-Klasse benutzt werden (dauert länger)
-if Set.optimization.min_joint_distance > 0 || ~isinf(Set.optimization.max_chain_length)
+if Set.optimization.min_joint_distance > 0 || ~isinf(Set.optimization.max_chain_length) ||...
+    Structure.mirrorconfig_d == -1
   % Gehe alle a-/d-Variablen durch und liste diese auf
   [tokens, ~] = regexp(Structure.varnames, 'pkin \d+: ([ad])(\d)', 'tokens', 'match');
-  DHtable = NaN(7,3); % Spalten: a-Param., d-Param., Norm. Zeile: Gelenke
+  DHtable = NaN(7,2); % Spalten: a-Param., d-Param., Zeile: Gelenke
   for i = 1:length(tokens)
     if isempty(tokens{i}), continue; end
     if tokens{i}{1}{1} == 'a', j = 1;
@@ -219,28 +222,31 @@ if Set.optimization.min_joint_distance > 0 || ~isinf(Set.optimization.max_chain_
     k = str2double(tokens{i}{1}{2}); % Gelenknummer
     DHtable(k,j) = p(1) * p(i); % Skaliere auf physikalischen Wert
   end
-  % Berechne den Abstand zum vorherigen Gelenk. Keine Beachtung von U/S
-  % Gelenken notwendig, da diese sowieso keine Optimierungsparameter haben
-  for i = 1:size(DHtable,1)
-    if all(isnan(DHtable(i,:))), continue; end
-    % Setze NaN-Felder auf Null. Der DH-Parameter ist nicht gesetzt
-    DHtable(i,isnan(DHtable(i,:))) = 0;
-    % Gelenkabstand aus a- und d-Parameter berechnen
-    DHtable(i,3) = sqrt(DHtable(i,1)^2 + DHtable(i,2)^2);
-  end
 else
   DHtable = [];
 end
 %% Prüfe minimalen Gelenkabstand
+DHtable2 = [DHtable, NaN(size(DHtable,1),1)]; % Dritte Spalte: Gelenkabstand
+if Set.optimization.min_joint_distance > 0 || ~isinf(Set.optimization.max_chain_length)
+  % Berechne den Abstand zum vorherigen Gelenk. Keine Beachtung von U/S
+  % Gelenken notwendig, da diese sowieso keine Optimierungsparameter haben
+  for i = 1:size(DHtable2,1)
+    if all(isnan(DHtable2(i,:))), continue; end
+    % Setze NaN-Felder auf Null. Der DH-Parameter ist nicht gesetzt
+    DHtable2(i,isnan(DHtable2(i,:))) = 0;
+    % Gelenkabstand aus a- und d-Parameter berechnen
+    DHtable2(i,3) = sqrt(DHtable2(i,1)^2 + DHtable2(i,2)^2);
+  end
+end
 if Set.optimization.min_joint_distance > 0
-  RelNormViol = DHtable(:,3) / Set.optimization.min_joint_distance;
+  RelNormViol = DHtable2(:,3) / Set.optimization.min_joint_distance;
   if any(RelNormViol < 1)
     [minRelNormViol, IminRelNormViol] = min(RelNormViol);
     fval_rel = 1-min(minRelNormViol);
     assert(fval_rel<=1, 'Relative Gelenkabstandsunterschreitung muss <1 sein');
     fval = 1e13 * (5 + fval_rel); % normiere auf 5e13 bis 6e13
     constrvioltext = sprintf('Gelenkabstand ist zu klein (Gelenk %d Abstand %1.1fmm, also %1.0f%% von %1.1fmm)', ...
-      IminRelNormViol, 1e3*DHtable(IminRelNormViol,3), minRelNormViol*100, 1e3*Set.optimization.min_joint_distance);
+      IminRelNormViol, 1e3*DHtable2(IminRelNormViol,3), minRelNormViol*100, 1e3*Set.optimization.min_joint_distance);
     return
   end
 end
@@ -292,5 +298,21 @@ if ~isinf(Set.optimization.max_platform_base_ratio) && Structure.Type == 2 && ..
     constrvioltext = sprintf(['Verhältnis von Plattform- zu Gestelldurchmesser zu groß. ' ...
       '%1.1fmm/%1.1fmm > %1.1f%%'], 1e3*r_plf_eff, 1e3*r_base_eff, 1e2*Set.optimization.max_platform_base_ratio);
     return
+  end
+end
+
+%% Prüfe Verhältnis von a- und d-Parametern
+if Structure.mirrorconfig_d == -1
+  I_adset = find(~isnan(DHtable(:,1)) & ~isnan(DHtable(:,2)));
+  if ~isempty(I_adset)
+    relexc = -abs(DHtable(I_adset,2)./DHtable(I_adset,1)) + Set.optimization.mirror_legs_min_a_d_ratio;
+    if any(relexc > 0)
+      [maxrelexc, I_worst] = max(relexc);
+      fval = 1e13 * (9 + 1 * 2/pi*atan(maxrelexc)); % normiere auf 9e13 bis 1e14
+      constrvioltext = sprintf(['Verhältnis von a- zu d-Parameter %d ist zu groß. ' ...
+        '%1.1fmm/%1.1fmm > %1.1f%%'], I_adset(I_worst), 1e3*abs(DHtable(I_adset(I_worst),1)), ...
+        1e3*abs(DHtable(I_adset(I_worst),2)), 1e2*Set.optimization.mirror_legs_min_a_d_ratio);
+      return
+    end
   end
 end
