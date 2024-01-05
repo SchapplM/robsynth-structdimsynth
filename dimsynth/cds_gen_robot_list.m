@@ -632,7 +632,7 @@ for kkk = 1:size(EE_FG_allowed,1)
     mirrorconfig_d_values = 1; % Standardwert (ohne Spiegelparameter)
     [tokens, match] = regexp(csvline, 'd(\d)+', 'tokens', 'match'); % Einfache Suche nach "d" ist zu unspezifisch
     I_param = ~cellfun(@isempty, match);
-    if any(Coupling(1) == [4 5 6]) && any(I_param)  && ... % paarweise Anordnung
+    if any(Coupling(1) == [5 6 7 8]) && any(I_param)  && ... % paarweise Anordnung (siehe align_base_coupling)
        ~any(strcmp(Set.optimization.objective, 'valid_act'))
       num_d_found = 0;
       II_param = find(I_param);
