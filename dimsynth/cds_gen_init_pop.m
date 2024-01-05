@@ -256,6 +256,12 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
     % Offsets bei anderen Gelenktypen eventuell die Kollisionen nicht passen
     score_i = score_i - 2;
   end
+  % Falls die Spiegelung der Beinketten sich unterscheidet führt das sehr
+  % wahrscheinlich bei sonst gleichen Parametern zu Selbstkollisionen
+  if ~isfield(Structure_i, 'mirrorconfig_d') && Structure.mirrorconfig_d == -1 || ...
+      isfield(Structure_i, 'mirrorconfig_d') && Structure_i.mirrorconfig_d ~= Structure.mirrorconfig_d
+    score_i = score_i - 10;
+  end
   
   % Auslesen der Parameter (bezogen auf die Datei)
   if ~isempty(d.RobotOptRes.p_val_pareto)
