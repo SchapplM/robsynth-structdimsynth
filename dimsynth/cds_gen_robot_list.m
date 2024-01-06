@@ -630,16 +630,25 @@ for kkk = 1:size(EE_FG_allowed,1)
     % Bestimme mögliche Kombinationen für die Vorzeichen der d-Parameter
     % bei paarweiser Anordnung der Gelenke (ein binärer Schalter)
     mirrorconfig_d_values = 1; % Standardwert (ohne Spiegelparameter)
-    [tokens, match] = regexp(csvline, 'd(\d)+', 'tokens', 'match'); % Einfache Suche nach "d" ist zu unspezifisch
-    I_param = ~cellfun(@isempty, match);
-    if any(Coupling(1) == [5 6 7 8]) && any(I_param)  && ... % paarweise Anordnung (siehe align_base_coupling)
+    [tokens_d, match_d] = regexp(csvline, 'd(\d)+', 'tokens', 'match'); % Einfache Suche nach "d" ist zu unspezifisch
+    I_param_d = ~cellfun(@isempty, match_d);
+    if any(Coupling(1) == [5 6 7 8]) && any(I_param_d)  && ... % paarweise Anordnung (siehe align_base_coupling)
        ~any(strcmp(Set.optimization.objective, 'valid_act'))
       num_d_found = 0;
-      II_param = find(I_param);
-      for kk = II_param
-        if str2double(tokens{kk}{1}) > 1
-          num_d_found = num_d_found + 1;
+      II_param_d = find(I_param_d);
+      for kk = II_param_d
+        jointidx_kk = str2double(tokens_d{kk}{1});
+        % Versuche konsistent zu cds_dimsynth_robot die benutzten
+        % d-Parameter zu erkennen. Schwierigkeit hier ist, dass die
+        % Roboterklasse noch nicht initialisiert ist (Rechenzeit)
+        if jointidx_kk == 1
+          continue % d1-Parameter ignorieren
         end
+        if Set.structures.orthogonal_links && ... % d-Parameter werden in cds_dimsynth_robot zu Null gesetzt ...
+            any(strcmp(csvline, sprintf('a%d', jointidx_kk))) % ... wenn es den a-Parameter gibt
+          continue % Ignorieren. Spiegelung über d-Parameter nicht möglich
+        end
+        num_d_found = num_d_found + 1;
       end
       if num_d_found > 1
         mirrorconfig_d_values = [1, -1];
