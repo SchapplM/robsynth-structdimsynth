@@ -203,11 +203,11 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
   % Dann muss die nächste Datei nicht geladen werden
   if s.only_from_pareto_front 
     if ~isempty(RobotOptRes.fval_pareto) % mehrkriteriell
-      I_inlim = RobotOptRes.fval_pareto > s.fval_check_lim(1) & ...
-                RobotOptRes.fval_pareto < s.fval_check_lim(2);
+      I_inlim = RobotOptRes.fval_pareto >= s.fval_check_lim(1) & ... % untere Grenze kann auch 0 sein (bestmöglich)
+                RobotOptRes.fval_pareto <= s.fval_check_lim(2);
     else % einkriteriell
-      I_inlim = RobotOptRes.fval > s.fval_check_lim(1) & ...
-                RobotOptRes.fval < s.fval_check_lim(2);
+      I_inlim = RobotOptRes.fval >= s.fval_check_lim(1) & ...
+                RobotOptRes.fval <= s.fval_check_lim(2);
     end
     if ~any(all(I_inlim,2))
       continue
