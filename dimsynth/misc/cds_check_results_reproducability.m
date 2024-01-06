@@ -298,9 +298,9 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
     % Schließe Partikel aus, die keiner gespiegelten Konfiguration
     % entsprechen (Hauptsächlich zum Testen)
     if s.only_mirrored_legs && Structure.mirrorconfig_d == -1
-      if ~any(Structure.Coupling(1) == 5:8)
-        warning('Nicht paarweise Anordnung mit gespiegelten Parametern. Logik-Fehler.');
-        continue % Darf nicht sein (am 4.1.24 zunächst falsch implementiert)
+      if Structure.Coupling(1) ~= 6
+        warning('Nicht paarweise tangentiale Anordnung mit gespiegelten Parametern. Logik-Fehler.');
+        continue % Darf nicht sein (am 4.1.24 und 5.1.24 zunächst falsch implementiert)
       end
       I_dparam = Structure.vartypes == 1 & contains(Structure.varnames(:), ': d');
       if all(p_jj(I_dparam) == 0)
