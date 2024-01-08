@@ -13,17 +13,21 @@
 % Q_Pop
 %   Gelenk-Konfigurationen für die Parameter aus InitPop zu gespeicherten
 %   Ergebnissen führen (NaN, falls keine Daten vorliegen).
+% i_gen_opt
+%   Generation, mit der die Optimierung anfängt. Bei Wiederaufname einer
+%   vorherigen Optimierung wird dies über die Nummer hier vermerkt.
 % 
 % Siehe auch: cds_gen_init_pop_index
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function [InitPop, Q_Pop] = cds_gen_init_pop(Set, Structure, Traj)
+function [InitPop, Q_Pop, i_gen_opt] = cds_gen_init_pop(Set, Structure, Traj)
 nIndTotal = Set.optimization.NumIndividuals;
 varlim = Structure.varlim;
 varnames = Structure.varnames;
 nvars = length(varnames);
+i_gen_opt = 0;
 %% Lade Ergebnisse bisheriger Optimierungen aus dem Ergebnis-Ordner
 t1 = tic();
 counter_optresults = 0;
@@ -122,6 +126,7 @@ for i = 1:length(tmpdirsrob)
     % Benutze nur die bereits vorhandenen Zwischenergebnisse, verwerfe die
     % anderen Ergebnis-Dateien.
     initpop_matlist = {filename_dummy};
+    i_gen_opt = igen;
   end
 end
 
@@ -674,8 +679,12 @@ if ~isempty(InitPopLoadTmp)
 end
 %% Wähle aus den geladenen Parametern eine Anfangspopulation mit hoher Diversität
 % Anzahl der zu ladenden Parameter (begrenzt durch vorhandene)
-nIndLoad = floor(Set.optimization.InitPopRatioOldResults*nIndTotal);
-nIndLoad = min(nIndLoad, size(InitPopLoadTmp,1));
+if i_gen_opt == 0
+  nIndLoad = floor(Set.optimization.InitPopRatioOldResults*nIndTotal);
+  nIndLoad = min(nIndLoad, size(InitPopLoadTmp,1));
+else % Wiederaufnahme nach Absturz
+  nIndLoad = size(InitPopLoadTmp,1); % Lade gesamten alten Datenstand
+end
 if size(InitPopLoadTmp,1) > 0
   % Normiere die geladenen Parameter auf die Parametergrenzen. Dadurch
   % Bestimmung der Diversität der Population besser möglich.
