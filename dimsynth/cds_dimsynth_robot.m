@@ -2119,7 +2119,7 @@ if ~Set.general.only_finish_aborted
   % Generiere Anfangspopulation aus Funktion mit Annahmen bezüglich Winkel.
   % Lädt zusätzlich bisherige Ergebnisse, um schneller i.O.-Werte zu bekommen.
   try
-    [InitPop, QPop] = cds_gen_init_pop(Set, Structure, Traj);
+    [InitPop, QPop, i_gen_opt] = cds_gen_init_pop(Set, Structure, Traj);
   catch err
     dbgfile = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
       'tmp', ['cds_dimsynth_robot_call_cds_gen_init_pop_error_', R.mdlname, '.mat']);
@@ -2134,11 +2134,14 @@ if ~Set.general.only_finish_aborted
     I_dict = all(~isnan(QPop),2);
     Structure.dict_param_q = struct('p', InitPop(I_dict,:), 'q', QPop(I_dict,:));
   end
+else
+  i_gen_opt = 0; % Platzhalter-Wert
 end
 %% Tmp-Ordner leeren
 resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
   'tmp', sprintf('%d_%s', Structure.Number, Structure.Name));
-if ~Set.general.only_finish_aborted
+if ~Set.general.only_finish_aborted && ...
+    i_gen_opt == 0 % Bei Wiederaufnahme nach Neustart tmp-Ordner nicht löschen
   if exist(resdir, 'file')
     % Leere Verzeichnis
     rmdir(resdir, 's')
@@ -2169,6 +2172,11 @@ if false % Debug: Fitness-Funktion testweise ausführen
     zeros(length(Structure.desopt_ptypes),1), 'reset');
   % Zurücksetzen der gespeicherten Werte der Fitness-Funktion
   cds_fitness();
+end
+if i_gen_opt > 0 % Vorherige Generationen wieder aus gespeicherten Daten überschreiben
+  dbgfile = fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+    sprintf('cds_dimsynth_robot_overwrite_particle_details_%s_%s.mat', Set.optimization.optname, Structure.Name));
+  save(dbgfile); % TODO: Daten an dieser Stelle benutzen um Code zu implementieren
 end
 %% PSO-Aufruf starten
 cds_log(3, sprintf('[dimsynth] Starte Optimierung mit %d Parametern: %s', ...
