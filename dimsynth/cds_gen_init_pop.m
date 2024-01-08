@@ -76,7 +76,14 @@ for i = 1:length(tmpdirsrob)
     '*_Gen*_AllInd.mat')); % aus cds_save_all_results_mopso
   [ttt, ~] = regexp(tmpdirsrob(i).name, ['(\d+)_', RobName], 'tokens', 'match');
   irob = str2double(ttt{1}{1});
+  genfiles_numbers = NaN(length(genfiles), 1);
+  % Nach Nummer aufsteigend sortieren
   for j = 1:length(genfiles)
+    [ttt, ~] = regexp(genfiles(j).name, '_Gen(\d+)_', 'tokens', 'match');
+    genfiles_numbers(j) = str2double(ttt{1}{1});
+  end
+  [~,genfiles_order] = sort(genfiles_numbers, 'descend');
+  for j = genfiles_order(:)' % Dateien durchgehen. Neue überschreibt alte.
     try % Auf Cluster Dateisystem-Fehler möglich
       tmp = load(fullfile(genfiles(j).folder, genfiles(j).name));
     catch err
@@ -87,6 +94,7 @@ for i = 1:length(tmpdirsrob)
     % später wieder geladen werden kann.
     [ttt, ~] = regexp(genfiles(j).name, '_Gen(\d+)_', 'tokens', 'match');
     igen = str2double(ttt{1}{1});
+    if igen == 0, continue; end % Anfangspopulation enthält keine brauchbaren Informationen
     RobotOptRes = struct('Structure', Structure); % Annahme: Gleiche Einstellungen der Optimierung
     if size(tmp.PSO_Detail_Data.fval,2) > 1 % siehe cds_save_particle_details
       I_dom = pareto_dominance(tmp.PSO_Detail_Data.fval(:,:,1+igen)); % Sonst später Warnungen, da keine valide Pareto-Front
@@ -109,8 +117,11 @@ for i = 1:length(tmpdirsrob)
       'Rob%d_%s_Endergebnis_Gen%d.mat', irob, RobName, igen));
     save(filename_dummy,'RobotOptRes');
     cds_log(3, sprintf(['[gen_init_pop] Ergebnis-Datei %s aus vorhandenem ', ...
-      'Zwischenstand %s erstellt.'], filename_dummy, genfiles(j).name));
-    initpop_matlist = [initpop_matlist; filename_dummy]; %#ok<AGROW> 
+      'Zwischenstand %s erstellt. Benutze nur diese als Anfangspopulation'], ...
+      filename_dummy, genfiles(j).name));
+    % Benutze nur die bereits vorhandenen Zwischenergebnisse, verwerfe die
+    % anderen Ergebnis-Dateien.
+    initpop_matlist = {filename_dummy};
   end
 end
 
