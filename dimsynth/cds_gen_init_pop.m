@@ -86,7 +86,7 @@ for i = 1:length(tmpdirsrob)
     [ttt, ~] = regexp(genfiles(j).name, '_Gen(\d+)_', 'tokens', 'match');
     genfiles_numbers(j) = str2double(ttt{1}{1});
   end
-  [~,genfiles_order] = sort(genfiles_numbers, 'descend');
+  [~,genfiles_order] = sort(genfiles_numbers, 'ascend');
   for j = genfiles_order(:)' % Dateien durchgehen. Neue überschreibt alte.
     try % Auf Cluster Dateisystem-Fehler möglich
       tmp = load(fullfile(genfiles(j).folder, genfiles(j).name));
