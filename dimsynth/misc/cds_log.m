@@ -71,7 +71,7 @@ if nargin > 2 && any(strcmp(option, {'init', 'amend'}))
     logdir = fileparts(logfilepath);
     movefile(logfilepath, fullfile(logdir, backupfilename));
     % Log-Datei komprimieren (verbleibt sonst unkomprimiert im Ordner)
-    gzip(backupfilename); delete(backupfilename);
+    gzip(fullfile(logdir, backupfilename)); delete(fullfile(logdir, backupfilename));
   end
 end
 % Falls Fitness-Funktion nachträglich aufgerufen wird, ist das Loggen nicht
