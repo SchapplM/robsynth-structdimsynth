@@ -245,7 +245,7 @@ for N_JointDoF = N_JointDoF_allowed
         'RobName', RName, ... % Falls ein konkreter Roboter mit Parametern gewählt ist
         'act_type', acttype_i, 'deactivated', false, ...
         ... % Platzhalter, Angleichung an PKM (Erkennung altes Dateiformat)
-        'angles_values', [], 'prismatic_types', [], 'mirrorconfig_d', []); %#ok<AGROW> 
+        'angles_values', [], 'prismatic_types', [], 'mirrorconfig_d', 1); %#ok<AGROW> 
     else % Mehrere Schubachsen nacheinander
       % Basierend auf technisch sinnvoller Umsetzbarkeit erfolgt die
       % Bildung möglicher Kombinationen von Linearachse und Schubzylinder
