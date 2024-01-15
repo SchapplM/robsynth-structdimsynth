@@ -2174,6 +2174,7 @@ if false % Debug: Fitness-Funktion testweise ausführen
   cds_fitness();
 end
 if i_gen_opt > 0 % Vorherige Generationen wieder aus gespeicherten Daten überschreiben
+  d = load_checkpoint_file(Set, Structure, resdir);
   dbgfile = fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
     sprintf('cds_dimsynth_robot_overwrite_particle_details_%s_%s.mat', Set.optimization.optname, Structure.Name));
   save(dbgfile); % TODO: Daten an dieser Stelle benutzen um Code zu implementieren
