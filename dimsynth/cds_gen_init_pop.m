@@ -121,10 +121,12 @@ for i = 1:length(tmpdirsrob)
       'Rob%d_%s_Endergebnis_Gen%d.mat', irob, RobName, igen));
     save(filename_dummy,'RobotOptRes');
     cds_log(3, sprintf(['[gen_init_pop] Ergebnis-Datei %s aus vorhandenem ', ...
-      'Zwischenstand %s erstellt. Benutze nur diese als Anfangspopulation'], ...
+      'Zwischenstand %s erstellt.'], ...
       filename_dummy, genfiles(j).name));
+  end
+  if igen > 0
     % Benutze nur die bereits vorhandenen Zwischenergebnisse, verwerfe die
-    % anderen Ergebnis-Dateien.
+    % anderen Ergebnis-Dateien. Dann geht es schneller.
     initpop_matlist = {filename_dummy};
     i_gen_opt = igen;
   end
