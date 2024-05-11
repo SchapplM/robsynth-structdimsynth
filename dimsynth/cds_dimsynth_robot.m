@@ -94,6 +94,9 @@ if any(~isnan(Set.optimization.basepos_limits(:)))
   % genug werden kann.
   Lref = max(Lref, max(maxdist_xyz));
 end
+if Lref == 0
+  Lref = 1; % Dummy-Aufruf mit nur einer einzigen Pose
+end
 Structure.Lref = Lref;
 %% Roboter-Klasse initialisieren
 if ~isempty(Structure.RobName) && ~Set.optimization.fix_joint_limits
