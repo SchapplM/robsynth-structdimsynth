@@ -54,8 +54,14 @@ collbodies_iaspc2 = struct(...
   'params', [ collbodies_iaspc.params; ...
     NaN(n_cb_robot, 10) ]);
 % Virtuelle Kollisionsprüfung mit den Punkten und Interaktionsraum
-collchecks_iaspc2 = [];
+collchecks_iaspc2 = uint8([]);
 n_cb_iaspc = size(Set.task.interactionspace.type,1);
+if n_cb_iaspc == 0
+  fval = 0;
+  f_clamp = -pi; % Bestmöglicher Wert
+  fval_debugtext = 'Kein Interaktionsbereich definiert. Also auch keine Klemmwinkel berechenbar.';
+  return
+end
 for i = 1:n_cb_iaspc
   % Prüfe, ob in diesem Interaktionsarbeitsraum die Gelenkklemmung
   % betrachtet wird
