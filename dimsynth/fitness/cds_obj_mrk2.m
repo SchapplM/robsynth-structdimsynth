@@ -49,6 +49,7 @@ end
 %% Initialisierung
 % Platzhalter:
 debug_info = '';
+fval = 0;
 f_mrk = 0;
 f_norm = 140; % Referenzkraft 140N nach MRK-Richtlinie. Wird durch Interaktions-Arbeitsraum überschrieben
 debug_plot = false;
@@ -71,8 +72,12 @@ collbodies_iaspc2 = struct(...
   'params', [ Set.task.interactionspace.params; ...
     NaN(n_cb_robot, 10) ]);
 % Virtuelle Kollisionsprüfung mit den Punkten und Interaktionsraum
-collchecks_iaspc2 = [];
+collchecks_iaspc2 = uint8([]);
 n_cb_iaspc = size(Set.task.interactionspace.type,1);
+if n_cb_iaspc == 0
+  fval_debugtext = 'Kein Interaktionsbereich definiert.';
+  return
+end
 for i = 1:n_cb_iaspc
   % Prüfe, ob in diesem Interaktionsarbeitsraum die Gelenkklemmung
   % betrachtet wird
