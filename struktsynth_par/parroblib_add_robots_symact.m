@@ -22,7 +22,7 @@ settings_default = struct( ...
   'resstatus_downgrade_possible', true, ... % Bei erneuter Durchführung können auch PKM entfernt werden
   'lfdNr_min', 1, ... % Auslassen der ersten "x" kinematischer Strukturen (zum Debuggen)
   ... % Prüfung ausgewählter Beinketten (zum Debuggen):
-  'whitelist_SerialKin', {''}, ... % z.B. 'S6RRPRRR14V2', 'S6RRPRRR14V3' 'S6RRRRRR10V3' 'S6PRRRRR6V2'
+  'whitelist_SerialKin', {{}}, ... % z.B. 'S6RRPRRR14V2', 'S6RRPRRR14V3' 'S6RRRRRR10V3' 'S6PRRRRR6V2'
   ...% Alternative 1: Nur Beinketten mit Kugelgelenk-Ende
   'onlyspherical', false, ...
   ...% Alternative 2: Allgemeine Beinketten
@@ -128,6 +128,7 @@ assert(~isempty(parroblibpath), 'Parallel-Roboter-Datenbank ist nicht im Pfad in
 if settings.comp_cluster
   assert(~isempty(which('jobStart.m')), 'Cluster-Repo ist nicht im Pfad initialisiert');
 end
+assert(isa(settings.whitelist_SerialKin, 'cell'), 'Eingabe whitelist_SerialKin muss cell-Array sein');
 % Abhängigkeiten der Cluster-Jobs in Struktur sammeln
 startsettings = struct('afterok', settings.clusterjobdepend, 'afternotok', [], 'afterany', []);
 % zwei Tage lang in 5min-Abständen versuchen (falls Cluster voll und
