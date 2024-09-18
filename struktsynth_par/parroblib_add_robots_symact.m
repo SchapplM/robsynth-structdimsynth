@@ -128,6 +128,7 @@ assert(~isempty(parroblibpath), 'Parallel-Roboter-Datenbank ist nicht im Pfad in
 if settings.comp_cluster
   assert(~isempty(which('jobStart.m')), 'Cluster-Repo ist nicht im Pfad initialisiert');
 end
+assert(isa(settings.whitelist_SerialKin, 'cell'), 'Eingabe whitelist_SerialKin muss cell-Array sein');
 % Abhängigkeiten der Cluster-Jobs in Struktur sammeln
 startsettings = struct('afterok', settings.clusterjobdepend, 'afternotok', [], 'afterany', []);
 % zwei Tage lang in 5min-Abständen versuchen (falls Cluster voll und
