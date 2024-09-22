@@ -104,10 +104,16 @@ for i = 1:length(Structures)
   % werden.
   f = mean(tmp1.RobotOptRes.fval); % Falls mehrkriteriell abfangen mit `mean`
   if     f <= 1e3,     fval_text = 'i.O.'; % ab hier aus cds_fitness.m
-  elseif f <= 1e4, fval_text = 'NB-Verl. Zielf.';
-  elseif f <= 1e5, fval_text = 'NB-Verl. Zielf. EO';
-  elseif f <= 1e6, fval_text = 'Festigkeit Segmente';
-  elseif f <= 5e6, fval_text = 'Kinematik-NB (Pos.-Fehler)';
+  elseif f <= 1e4, fval_text = 'NB-Verl. Zielf. (Antriebskraft)';
+  elseif f <= 2e4, fval_text = 'NB-Verl. Zielf. EO (Masse)';
+  elseif f <= 3e4, fval_text = 'NB-Verl. Zielf. EO (Antriebskraft)';
+  elseif f <= 4e4, fval_text = 'NB-Verl. Zielf. EO (Steifigkeit)';
+  elseif f <= 1e5, fval_text = 'NB-Verl. Zielf. EO (TODO)';
+  elseif f <= 4e5, fval_text = 'EO: Festigkeit Segmente';
+  elseif f <= 8e5, fval_text = 'EO: Selbstkollision';
+  elseif f <= 1e6, fval_text = 'EO: Fehler (unplausible Werte)';
+  elseif f <= 2e6, fval_text = 'Undefiniert';
+  elseif f <= 6e6, fval_text = 'Kinematik-NB (Pos.-Fehler)';
   elseif f <= 1e7, fval_text = 'Kinematik-NB (Kond.)';
   elseif f <= 1e4*1.1e3, fval_text = 'Kinematik-NB (PosErr.,traj-constr)'; % ab hier aus cds_constraints_traj.m
   elseif f <= 1e4*1.2e3, fval_text = 'Kinematik-NB (Kond.,traj-constr)';
@@ -132,11 +138,13 @@ for i = 1:length(Structures)
   elseif f <= 1e4*1e5, fval_text = 'Traj.-IK Fehler';
   elseif f <= 1e4*2e5, fval_text = 'AR-Hindernis Eckpkt.'; % ab hier aus cds_constraints.m
   elseif f <= 1e4*3e5, fval_text = 'Bauraum-verl. Eckpkt.';
-  elseif f <= 1e4*4e5, fval_text = 'Selbstkoll. Eckpkt.';
+  elseif f <= 1e4*3.9e5, fval_text = 'Selbstkoll. Eckpkt.';
+  elseif f <= 1e4*4e5, fval_text = 'Einbaulage nicht symmetrisch Eckpkt.';
   elseif f <= 1e4*4.25e5, fval_text = 'Schubzylinder Länge Eckpkt. (symm)';
   elseif f <= 1e4*4.5e5, fval_text = 'Schubzylinder Länge Eckpkt.';
   elseif f <= 1e4*4.9e5, fval_text = 'Beinkettenlänge Eckpkt.';
   elseif f <= 1e4*5e5, fval_text = 'Gestelldurchmesser Eckpkt.';
+  elseif f <= 1e4*5.4e5, fval_text = 'Einbaulage nicht symmetrisch Eckpkt.';
   elseif f <= 1e4*5.5e5, fval_text = 'Plattform-Rotation-Grenze Eckpkt.';
   elseif f <= 1e4*6e5, fval_text = 'Gel.-Pos.-Grenze Eckpkt.';
   elseif f <= 1e4*7e5, fval_text = 'Gel.-Pos.-Spannweite Eckpkt.';

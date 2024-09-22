@@ -4,11 +4,16 @@
 %   Set (Globale Einstellungen). Siehe cds_settings_defaults.m
 %   Traj (Eigenschaften der Trajektorie). Siehe cds_gen_traj.m
 %   Structures (Liste der zu optimierenden Strukturen, s. cds_gen_robot_list.m)
+% 
+% Ausgabe:
+% jobID_out
+%   Nummer des letzten Teil-Jobs auf dem Rechencluster. Kann für
+%   Abhängigkeiten beim Start mehrerer Synthese-Durchläufe benutzt werden.
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function cds_start(Set, Traj, Structures)
+function jobID_out = cds_start(Set, Traj, Structures)
 
 % Warnungen unterdrücken, die bei der Maßsynthese typischerweise auftreten
 warning('off', 'MATLAB:singularMatrix');
@@ -24,6 +29,7 @@ warning('off', 'MATLAB:Figure:SetPosition');
 if nargin < 3
   Structures = [];
 end
+jobID_out = [];
 %% Log Vorbereiten
 resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
 if Set.general.isoncluster && isfolder(resdir_main) && ...
@@ -150,9 +156,9 @@ if sum(only_opts) > 1
 end
 % Prüfe Plausibilität von Abbruchbedingungen und Wahl mehrkriterieller Ziele
 if length(Set.optimization.obj_limit_physval) == 1 && length(Set.optimization.objective) > 1 && ...
-    Set.optimization.obj_limit_physval == 0 % nur, falls Null nicht bereits überschrieben wurde
+    isnan(Set.optimization.obj_limit_physval) % nur, falls NaN nicht bereits überschrieben wurde
   % Korrigiere auf Dimension der Fitness-Funktion. Skalare Grenze von
-  % Null ist Standard (kein Fehler)
+  % NaN ist Standard (kein Fehler)
   Set.optimization.obj_limit_physval = repmat(Set.optimization.obj_limit_physval, ...
     length(Set.optimization.objective), 1);
 end
@@ -213,6 +219,10 @@ if size(Set.task.installspace.params,1) ~= length(Set.task.installspace.type)
 end
 if length(Set.task.installspace.links) ~= length(Set.task.installspace.type)
   error('Set.task.installspace: Länge von Feldern "links" und "type" stimmt nicht überein');
+end
+if isa(Set.task.installspace.links, 'uint8')
+  warning('Set.task.installspace.links: Typ wurde auf uint16 geändert.');
+  Set.task.installspace.links = uint16(Set.task.installspace.links);
 end
 if ~isa(Set.task.installspace.links, 'cell')
   error('Set.task.installspace: Feld "links" muss cell Array sein');
@@ -333,6 +343,12 @@ if isempty(Set.general.save_animation_file_extensions) && ~isempty(Set.general.a
   warning('Eingabefeld save_animation_file_extensions ist leer. Keine Animation');
   Set.general.animation_styles = {};
 end
+if any(strcmp(Set.general.animation_styles, ''))
+  error('Einstellung animation_styles enthält leeren Eintrag. Ungültig. Muss leeres Cell sein.');
+end
+if any(strcmp(Set.general.save_animation_file_extensions, ''))
+  error('Einstellung save_animation_file_extensions enthält leeren Eintrag. Ungültig. Muss leeres Cell sein.');
+end
 if ~isempty(Set.general.save_animation_file_extensions) && isempty(Set.general.animation_styles)
   warning('Eingabefeld animation_styles ist leer. Keine Animation');
   Set.general.save_animation_file_extensions = {};
@@ -392,6 +408,10 @@ else % Kein Trajektorienprofil gegeben. Prüfe Datenformat
 end
 assert(all(size(Traj.X)==size(Traj.XD)), 'Dimension von X und XD nicht gleich');
 assert(all(size(Traj.X)==size(Traj.XDD)), 'Dimension von X und XDD nicht gleich');
+if ~isfield(Traj, 'IE')
+  warning('Eingabe Traj enthält keinen Index-Vektor IE. Annahme: Keine Übereinstimmung XE und X');
+  Traj.IE = zeros(size(Traj.XE,1),1);
+end
 if Set.task.profile ~= 2
   assert(length(Traj.IE)==size(Traj.XE,1), 'IE und XE muss gleiche Dimension haben in Traj.-Var.');
 end
@@ -730,7 +750,7 @@ if Set.general.computing_cluster
       'Die Ergebnisse müssen nach Beendigung der Rechnung manuell heruntergeladen ', ...
       'werden.'], length(I1_kk:I2_kk)));
     if kk < length(I1_Struct) % Damit nicht alle exakt zeitgleich starten; exakt gleichzeitiger, ...
-      pause(30); % ... paralleler Start des parpools sowieso nicht möglich
+      pause(5); % ... paralleler Start des parpools sowieso nicht möglich
     end
   end
   if length(I1_Struct) > 1 && ~Set.general.only_finish_aborted
@@ -761,6 +781,10 @@ if Set.general.computing_cluster
       'Produktiv-Jobs: [%s], Finish-Jobs: [%s], Merge-Job: %d'], ...
       length(I1_Struct), length(Structures), disp_array(jobIDs(1,:), '%d'), ...
       disp_array(jobIDs(2,:), '%d'), jobID_merge));
+    jobID_out = jobID_merge; % Wenn dieser Job fertig ist, ist die Synthese fertig
+  else
+    % Nur ein paralleler Job. Nehme Job-ID des Finish-Jobs für Rückgabe 
+    jobID_out = jobIDs(end);
   end
 
   return;

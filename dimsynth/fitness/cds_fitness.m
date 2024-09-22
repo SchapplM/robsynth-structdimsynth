@@ -593,14 +593,11 @@ for iIKC = I_IKC
       % Berechne Dynamik-Funktionen als Regressorform für die Entwurfsopt.
       data_dyn = cds_obj_dependencies(R, Traj_0, Set, Structure, Q, QD, QDD, Jinv_ges);
       t0 = tic();
-      [fval_desopt, desopt_pval, vartypes_desopt] = cds_dimsynth_desopt( ...
+      [fval_desopt, desopt_pval, vartypes_desopt, constrvioltext_IKC{iIKC}] = cds_dimsynth_desopt( ...
         R, Traj_0, Q, QD, QDD, JP, Jinv_ges, data_dyn, Set, Structure);
       cds_log(2,sprintf(['[fitness] G=%d;I=%d (Konfig %d/%d). Entwurfs', ...
         'optimierung in %1.2fs durchgeführt. fval_desopt=%1.3e. pval=[%s]'], ...
         i_gen, i_ind, iIKC, size(Q0,1), toc(t0), fval_desopt, disp_array(desopt_pval(:)', '%1.2g')));
-      if fval_desopt > 1e5
-        warning('Ein Funktionswert > 1e5 ist nicht für Entwurfsoptimierung vorgesehen');
-      end
       if any(strcmp(Set.optimization.desopt_vars, 'linkstrength'))
         p_linkstrength = desopt_pval(vartypes_desopt==2);
         % Speichere die Parameter der Segmentstärke (jedes Segment gleich)
@@ -623,11 +620,19 @@ for iIKC = I_IKC
       end
       if fval_desopt > 1000 % Nebenbedingungen in Entwurfsoptimierung verletzt.
         % Neue Werte (geändert gegenüber cds_dimsynth_desopt_fitness.)
-        % 1e4...1e5: Nebenbedingung von Zielfunktion überschritten
-        % 1e5...1e6: Überschreitung Belastungsgrenze der Segmente
-        fval_IKC(iIKC,:) = 10*fval_desopt; % Wert ist im Bereich 1e3...1e5. Bringe in Bereich 1e4 bis 1e6
+        if fval_desopt < 1e4 % neu: 1e4...1e5: Nebenbedingung von Zielfunktion überschritten
+          fval_IKC(iIKC,:) = 10*fval_desopt; % von Bereich 1e3...1e4
+        elseif fval_desopt < 1e5 % neu: 1e5...4e5: Überschreitung Belastungsgrenze der Segmente
+          fval_IKC(iIKC,:) = 1e5*(1+4*(fval_desopt-1e4)/(1e5-1e4)); % von Bereich 1e4...1e5
+        elseif fval_desopt < 1e8 % neu: 4e5...8e5: Selbstkollision aufgrund zu großer Segmentdurchmesser
+          fval_IKC(iIKC,:) = 1e5*(4+4*(fval_desopt-1e7)/(1e8-1e7)); % von Bereich 1e7...1e8
+        elseif fval_desopt < 1e9 % neu: 8e5...1e6: Unplausible Eingabe
+          fval_IKC(iIKC,:) = 1e5*(8+2*(fval_desopt-1e8)/(1e9-1e8)); % von Bereich 1e8...1e9
+        else % neu: 9.9e5: Fehler (zu unplausible Eingabe)
+          fval_IKC(iIKC,:) = 9.9e5;
+          warning('Funktionswert %1.1e ist nicht für Entwurfsoptimierung vorgesehen', fval_desopt);
+        end
         cds_fitness_debug_plot_robot(R, zeros(R.NJ,1), Traj_0, Traj_W, Set, Structure, p, fval_IKC(iIKC,1), debug_info);
-        constrvioltext_IKC{iIKC} = 'Verletzung der Nebenbedingungen in Entwurfsoptimierung';
         continue
       end
     end
@@ -704,12 +709,12 @@ for iIKC = I_IKC
   if Set.optimization.constraint_obj(6) > 0 && isempty(Set.optimization.desopt_vars)
     % Wenn desopt_vars gesetzt ist, wurde die Nebenbedingung bereits oben
     % geprüft und hier ist keine Berechnung notwendig.
-    % Für den anderen Fall wird hier der gleiche Wertebereich genutzt (1e5..1e6)
+    % Für den anderen Fall wird hier der gleiche Wertebereich genutzt (3e5..4e5)
     [fval_matstress, fval_debugtext_matstress, debug_info_materialstress, ...
       physval_materialstress] = cds_obj_materialstress(R, Set, data_dyn2, Jinv_ges, Q, Traj_0);
     if physval_materialstress > Set.optimization.constraint_obj(6)
       constrvioltext_IKC{iIKC} = fval_debugtext_matstress;
-      fval_IKC(iIKC,:) = 100*fval_matstress; % Bringe von Bereich 1e2 bis 1e3 in Bereich 1e5 ... 1e6
+      fval_IKC(iIKC,:) = 1e5*(3+1*(fval_matstress-1e2)/(1e3-1e2)); % Bringe von Bereich 1e2 bis 1e3 in Bereich 3e5 ... 4e5
       continue
     end
   end
@@ -719,7 +724,7 @@ for iIKC = I_IKC
     constraint_obj_val_IKC(5,iIKC) = fval_phys_st;
     if fval_phys_st > Set.optimization.constraint_obj(5)
       % Nutze den gleichen Wertebereich wie Entwurfsoptimierung oben.
-      fval_IKC(iIKC,:) = fval_st*100; % Bringe in Bereich 1e4 ... 1e5
+      fval_IKC(iIKC,:) = 1e4*(3+1*(fval_st/1000)); % Bringe in Bereich 3e4 ... 4e4
       constrvioltext_IKC{iIKC} = sprintf('Die Nachgiebigkeit ist zu groß: %1.1e > %1.1e', ...
         fval_phys_st, Set.optimization.constraint_obj(5));
       cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.2fs. fval=%1.3e. %s', toc(t1), fval_IKC(iIKC,1), constrvioltext_stiffness));
@@ -915,7 +920,7 @@ for iIKC = I_IKC
     % Wenn eine IK-Konfiguration erfolgreich berechnet wird, sofort
     % abbrechen, wenn dies das Ziel der Optimierung ist.
     if all(Set.optimization.obj_limit == 1e3) && ... % keine konkrete Vorgabe, hauptsache i.O.
-        all(Set.optimization.obj_limit_physval==0) % keine Vorgabe
+        all(~isnan(Set.optimization.obj_limit_physval)) % keine Vorgabe
       fval_IKC(isnan(fval_IKC)) = inf; % Sonst unten Fehler bei Bestimmung der besten Konfiguration wegen NaN
       break;
     end

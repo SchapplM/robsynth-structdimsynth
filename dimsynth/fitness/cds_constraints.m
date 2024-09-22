@@ -21,12 +21,14 @@
 %   1e5...2e5: Arbeitsraum-Hindernis-Kollision in Einzelpunkten
 %   2e5...3e5: Bauraumverletzung in Einzelpunkten
 %   3e5...3.5e5: Selbstkollision in Einzelpunkten (Prüfung direkt nach IK)
-%   3.5e5...4e5: Selbstkollision in Einzelpunkten (Prüfung nach IK aller Punkte)
+%   3.5e5...3.9e5: Selbstkollision in Einzelpunkten (Prüfung nach IK aller Punkte)
+%   3.9e5...4e5: Nicht-Symmetrische Einbaulage (Prüfung direkt nach IK)
 %   4e5...4.25e5: Schubzylinder geht ... (symmetrisch für PKM)
 %   4.25e5...4.5e5: Schubzylinder geht zu weit nach hinten weg (nach IK erkannt)
 %   4.5e5...4.9e5: Gestell ist wegen Schubgelenken zu groß (nach IK erkannt)
 %   4.9e5...5e5: Beinkette ist zu lang (wegen Schubgelenken)
-%   5e5...5.5e5: Plattform-Rotation entspricht nicht den gegebenen Grenzen
+%   5e5...5.4e5: Plattform-Rotation entspricht nicht den gegebenen Grenzen
+%   5.4e5...5.5e5: Nicht-Symmetrische Einbaulage
 %   5.5e5...6e5: Gelenkwinkelgrenzen (Absolut) in Einzelpunkten
 %   6e5...7e5: Gelenkwinkelgrenzen (Spannweite) in Einzelpunkten
 %   7e5...7.5e5  Positionsfehler in Eckpunkten zu groß (trotz lösbarer IK)
@@ -318,7 +320,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       % alle Kombinationen der einzelnen Beinketten durchgehen
       nj = zeros(1,R.NLEG); % Anzahl der Kombinationen für jede Beinkette
       indvec = cell(1,R.NLEG); % Vektor mit Indizes zum Bilden der PKM-Kombinationen
-      dist_pt1 = NaN(size(Q_jic,3), R.NLEG);
+      dist_pt1 = NaN(0, R.NLEG); % Anzahl der gefundenen Konfigurationen zu Konfig. 1
       Idesc = dist_pt1;
       Il = 3; % Indizes für drei Koordinaten der PKM-Basis
       for j = 1:R.NLEG
@@ -352,9 +354,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
           % Umklapplagen)
           Ijrev = Ij(R.Leg(j).MDH.sigma==0);
           dist_qi_q1 = angleDiff(Q_configperm1(1, Ijrev),Q_configperm1(nj(j), Ijrev));
-          dist_pt1(i,j) = sum(abs(dist_qi_q1));
+          dist_pt1(nj(j),j) = sum(abs(dist_qi_q1));
         end % i
-        dist_pt1(isnan(dist_pt1)) = -inf; % deaktivieren der NaN-Einträge für Sortierung
         % Indizes gemäß Abstand zum ersten sortieren. Hilft bei Aufgaben-
         % redundanz, wenn unendlich viele Konfigurationen möglich sind.
         [~,Idesc(1:nj(j),j)] = sort(dist_pt1(1:nj(j),j), 'desc');
@@ -675,7 +676,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         % Punkt optimiert werden. Für die hierauf folgende Trajektorie
         % haben die anderen Punkte sowieso keine Bedeutung.
         break;
-      elseif fval_jic_old(jic) > 5e5 && fval_jic_old(jic) < 5.5e5
+      elseif fval_jic_old(jic) > 5e5 && fval_jic_old(jic) < 5.4e5
         % Ausschlussgrund war eine zu große Plattform-Rotation.
         % Aktiviere weiteres Kriterium für Einhaltung der Grenzen
         s4.wn(R.idx_ikpos_wn.xlim_par) = 1;
@@ -720,7 +721,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         % q0_arik(q0_arik<qlim(:,1)) = qlim(q0_arik<qlim(:,1))+0.05*qlim_range(q0_arik<qlim(:,1));
         % % Dann keine Überschreitung der neuen Grenzen mehr zulassen
         % s4.scale_lim = 0.7; % Scheint die Erfolgsquote stark zu verschlechtern.
-      elseif fval_jic_old(jic) > 3e5 && fval_jic_old(jic) < 4e5
+      elseif fval_jic_old(jic) > 3e5 && fval_jic_old(jic) < 3.9e5
         % Der vorherige Ausschlussgrund war eine Kollision.
         % Kollisionsvermeidung als Optimierung
         % Prüfe vorher, ob dieser Punkt ausschlaggebend für die Kollision
@@ -1158,6 +1159,27 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     % Prüfe Kriterien für den neuen Punkt einzeln, auch wenn diese erst
     % unten für alle Punkte gemeinsam geprüft würden
     if ~Set.optimization.single_point_constraint_check, continue; end
+    % Prüfe ob erste Konfiguration symmetrisch ist
+    if Set.optimization.symmetric_assembly_mode && R.Type == 2 && i == 1
+      q_legs = reshape(QE(i,:),R.Leg(1).NJ,R.NLEG);
+      qminmax_leg = minmax2(q_legs); % TODO: Behandlung der Winkelnormalisierung
+      qmean_leg = mean(qminmax_leg, 2);
+      % Annahme: Überschreitung von 60° im rot. Antriebsgelenk entspricht
+      % anderer Einbaulage der Beinketten
+      if all(R.MDH.sigma(R.I_qa) == 0) % nur Drehantriebe
+        I_sel = find(R.I_qa,1,'first');
+      else % Schubantrieb
+        I_sel = find(~R.I_qa,1,'first');
+      end
+      % Min-/Max-Werte sind gleich weit von der Mitte weg. Bestimme Abstand
+      qexc_mean = qminmax_leg(I_sel,2) - qmean_leg(I_sel);
+      if qexc_mean > 60*pi/180 % Wert muss positiv sein
+        fval_asym = normalize_angle(qexc_mean-60*pi/180)/pi; % Normierung auf 0...1
+        fval_jic(jic) = 1e5 * (3.9+0.1*fval_asym); % Normierung auf 3.9e5 bis 4e5
+        constrvioltext_jic{jic} = sprintf('Nicht-symmetrischer Einbau bei AR-Eckpunkt %d/%d.', i, size(Traj_0.XE,1));
+        break;
+      end
+    end
     if Set.optimization.constraint_collisions
       % Kollisionskörper aktualisieren (sonst z.B. Führungsschienen falsch)
       % Die Länge der Führungsschienen ist hier nicht vollständig bekannt.
@@ -1174,7 +1196,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         % werden, desto kleiner der Strafterm. Kontinuierliche Wertung der
         % Kollisionstiefe mit `fval_coll` (kaskadierte Wertebereiche).
         fval_coll_sp = 1 - (i-fval_coll)/size(Traj_0.XE,1);
-        fval_jic(jic) = 1e5 * (3.5+0.5*fval_coll_sp); % Normierung auf 3.5e5 bis 4e5
+        fval_jic(jic) = 1e5 * (3.5+0.4*fval_coll_sp); % Normierung auf 3.5e5 bis 3.9e5
         constrvioltext_jic{jic} = sprintf('Selbstkollision bei AR-Eckpunkt %d/%d.', i, size(Traj_0.XE,1));
         break;
       end
@@ -1369,6 +1391,42 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       continue;
     end
   end
+  %% Prüfe ob die Einbaulagen symmetrisch sind (für jeden Punkt einzeln)
+  % Die Prüfung, ob die Gelenkwinkel im Vergleich der Punkte zu weit aus-
+  % einanderliegen, wurde schon mit der Gelenkgrenzprüfung erledigt.
+  % Die Gelenkgrenzprüfung beachtet nicht die Symmetrie der PKM.
+  % Assymetrische Einbaulagen sind dort möglich. Hier (optional) geprüft.
+  if Set.optimization.symmetric_assembly_mode && R.Type == 2
+    qexc_mean_QE = NaN(size(QE,1),1);
+    for kk = 1:size(QE,1)
+      q_legs = reshape(QE(kk,:),R.Leg(1).NJ,R.NLEG);
+      qminmax_leg = minmax2(q_legs); % TODO: Behandlung der Winkelnormalisierung
+      qmean_leg = mean(qminmax_leg, 2);
+      % Annahme: Überschreitung von 60° im rot. Antriebsgelenk entspricht
+      % anderer Einbaulage der Beinketten
+      if all(R.MDH.sigma(R.I_qa) == 0) % nur Drehantriebe
+        I_sel = find(R.I_qa,1,'first');
+      else % Schubantrieb
+        I_sel = find(~R.I_qa,1,'first');
+      end
+      % Min-/Max-Werte sind gleich weit von der Mitte weg. Bestimme Abstand
+      qexc_mean_QE(kk) = qminmax_leg(I_sel,2) - qmean_leg(I_sel);
+    end
+    [qexc_mean_QE_max, I_qexc_max] = max(qexc_mean_QE);
+    if qexc_mean_QE_max > 60*pi/180 % Wert muss positiv sein
+      fval_asym = normalize_angle(qexc_mean_QE_max-60*pi/180)/pi; % Normierung auf 0...1
+      fval_jic(jic) = 1e5 * (5.4+0.1*fval_asym); % Normierung auf 5.4e5 bis 5.5e5
+      constrvioltext_jic{jic} = sprintf(['Unsymmetrische Einbaulage in %d/%d ' ...
+        'AR-Eckwerten. Größte Überschreitung %1.1f° bei Punkt %d'], ...
+        sum(qexc_mean_QE > 60*pi/180), size(QE,1), qexc_mean_QE_max*180/pi, I_qexc_max);
+      continue;
+      % Debug: Zeichnen des Roboters in der Konfiguration
+      R.update_qlim(minmax2(QE')); %#ok<UNRCH> 
+      Set.general.plot_robot_in_fitness = 1e6;
+      cds_fitness_debug_plot_robot(R, QE(I_qexc_max,:)', struct('XE', Traj_0.XE(I_qexc_max,:)), ...
+        Traj_0, Set, Structure, [], 1e5, {});
+    end
+  end
   %% Prüfe Verletzung der Grenzen der Plattform-Rotation
   if all(~isinf(Set.optimization.ee_rotation_limit))
     XE = R.fkineEE2_traj(QE);
@@ -1379,7 +1437,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     if any(X6_limviolA(:) > 0.5)
       [lvmax, Imax] = max(X6_limviolA,[],1);
       fval_xlimva_E_norm = 2/pi*atan((lvmax-0.5)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
-      fval_jic(jic) = 1e5*(5+0.5*fval_xlimva_E_norm); % Normierung auf 5e5 bis 5.5e5
+      fval_jic(jic) = 1e5*(5+0.4*fval_xlimva_E_norm); % Normierung auf 5e5 bis 5.4e5
       constrvioltext_jic{jic} = sprintf(['Plattformgrenzverletzung in AR-Eckwerten. ', ...
         'Größte relative Überschreitung: %1.1f%% (Eckpunkt %d/%d). Winkel %1.1f° ', ...
         'außerhalb [%1.1f°, %1.1f°]'], 100*(lvmax-0.5), Imax, size(XE,1), ...

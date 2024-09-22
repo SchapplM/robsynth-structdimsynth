@@ -52,6 +52,7 @@ general = struct( ...
   'animation_styles', {{'stick'}}, ... % Visualisierungsarten im Video: stick,3D,collision; bei mehr als einem: Syntax {{'1.','2.'}}
   'animation_installationspace', false, ... % Zeichne die Grenzen des Arbeitsraums in Animation mit ein
   'animation_workspaceobstacles', false, ... % Zeichne (Kollisions-)Störobjekte in die Animation mit ein
+  'animation_fval_threshold', 1e9, ... % Nur bei die Animation zeichnen, falls Trajektorie da ist. Schwellwert siehe cds_fitness.m
   'maxduration_animation', 10, ... % Die Animation soll max. 10s dauern (als Videodatei)
   'save_evolution_video', false, ... % Video mit Evolution der Roboter
   'evolution_video_frametime', 0.2, ... % Anzeigedauer eines Einzelbildes im Evolutionsvideo.
@@ -227,6 +228,7 @@ optimization = struct( ...
   'collision_bodies_size', 40e-3, ... % Durchmesser der Kollisionskörper (meistens Kapseln)
   'collision_bodies_safety_distance', 10e-3, ... % Zusätzlicher Sicherheitsabstand um die Segmente (entspricht zusätzlichem Radius, für constraint_collisions_desopt)
   'single_point_constraint_check', false, ... % Prüfe einige Nebenbedingungen für jeden Arbeitsraum-Eckpunkt. Schnellere Prüfungen, aber voraussichtlich schlechtere Konvergenz
+  'symmetric_assembly_mode', false, ... % Erzwinge mit true einen symmetrischen Einbau aller Beinketten
   'collshape_base', {{'default'}}, ... % Form der Kollisionskörper für die PKM-Basis: default, star, ring, joint. Siehe cds_update_collbodies.m; mehrere möglich.
   'collshape_platform', {{'default'}}, ... % Form der Kollisionskörper für die PKM-Plattform default, star, ring, sphere. Siehe cds_update_collbodies.m; mehrere möglich.
   ... % Anzahl der Versuche für die Positions-IK erhöhen (für Reproduktion 
@@ -238,7 +240,7 @@ optimization = struct( ...
   'pos_ik_abort_on_success', false, ... % Bei true wird nach einer gefundenen IK-Konfiguration abgebrochen (in cds_constraints)
   'traj_ik_abort_on_success', false, ... % ... (in cds_constraints_traj)
   'obj_limit', 0, ... % Grenze des Fitness-Wertes zum Beenden der Simulation
-  'obj_limit_physval', 0, ... % Grenze für den physikalischen Wert zum Beenden
+  'obj_limit_physval', NaN, ... % Grenze für den physikalischen Wert zum Beenden
   'NumIndividuals', 50, ... % Anzahl der Partikel im PSO
   'MaxIter', 10, ... % Anzahl der Iterationen im PSO (zusätzlich zur initialen)
   'max_time', inf, ... % Zeit für die Optimierung eines Roboters, in Sekunden

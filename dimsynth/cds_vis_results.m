@@ -362,8 +362,23 @@ parfor (i = 1:length_Structures_parfor, parfor_numworkers)
 
   fprintf('Visualisierung für Rob %d (%s) beendet. Dauer: %1.1fs\n', Number, Name, toc(t_start_i));
 end
-%% Erzeuge Pareto-Diagramme für alle Roboter (2D)
-if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriterien gleichzeitig nicht sinnvoll
+%% Erzeuge Pareto-Diagramme für alle Roboter (2D oder 3D)
+if length(Set.optimization.objective) > 1 % Mehrkriterielle Optimierung
+  % Für mehr als drei Kriterien gleichzeitig nicht sinnvoll
+  if length(Set.optimization.objective) > 3
+    % Gehe alle Kombinationen von drei Zielkriterien durch
+    objcomb3D = allcomb(1:length(Set.optimization.objective), 1:length(Set.optimization.objective), 1:length(Set.optimization.objective));
+    % Entferne Duplikate (Schema: Aufsteigende ZF-Nummer mit xyz-Achse)
+    objcomb3D(objcomb3D(:,1)==objcomb3D(:,2),:) = [];
+    objcomb3D(objcomb3D(:,1)==objcomb3D(:,3),:) = [];
+    objcomb3D(objcomb3D(:,2)==objcomb3D(:,3),:) = [];
+    objcomb3D(objcomb3D(:,1)>objcomb3D(:,2),:) = [];
+    objcomb3D(objcomb3D(:,1)>objcomb3D(:,3),:) = [];
+    objcomb3D(objcomb3D(:,2)>objcomb3D(:,3),:) = [];
+  else
+    objcomb3D = 1:length(Set.optimization.objective);
+  end
+  for pfcomb = 1:size(objcomb3D,1)
   for pffig = 1:2 % Zwei Bilder: Physikalische Werte und normierte Werte
   if pffig == 1 && ~any(strcmp(Set.general.eval_figures, 'pareto_all_phys')) || ...
      pffig == 2 && ~any(strcmp(Set.general.eval_figures, 'pareto_all_fval'))
@@ -371,6 +386,13 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   end
   if pffig == 1, name_suffix_phys = 'phys';
   else,          name_suffix_phys = 'fval'; end
+  name_suffix_obj = '';
+  for kk = 1:size(objcomb3D,2)
+    if kk > 1
+      name_suffix_obj = [name_suffix_obj, '_vs_']; %#ok<AGROW> 
+    end
+    name_suffix_obj = [name_suffix_obj, Set.optimization.objective{objcomb3D(pfcomb, kk)}]; %#ok<AGROW> 
+  end
   % Prüfe die Art der Aktuierung der Roboter. Wenn gemischt Dreh- und
   % Schubantriebe vorkommen, erzeuge zwei zusätzliche Bilder. Sonst
   % ist der Vergleich in einem Diagramm nicht zielführend
@@ -413,6 +435,7 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   end
   if     pfvar == 2, name_suffix = [name_suffix, '_groups']; %#ok<AGROW>
   end
+  name_suffix = [name_suffix, '_', name_suffix_obj]; %#ok<AGROW> 
   if ~any(I_acttype(:,pfact)), continue; end
   if sum(I_acttype(:,pfact)) == 1 && pfvar == 2 % Sonderfall einzelner Roboter
     continue; % Nichts zu gruppieren
@@ -421,7 +444,11 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     continue;
   end
   % Achsbeschriftungen für Diagramm für diese Roboterauswahl aktualisieren
-  [obj_units, objscale] = cds_objective_plotdetails(Set, Structures(I_acttype(:,pfact)'));
+  [obj_units, objscale, objtext] = cds_objective_plotdetails(Set, Structures(I_acttype(:,pfact)'));
+  % Indizes der betrachteten Zielkriterien
+  IO1 = objcomb3D(pfcomb, 1);
+  IO2 = objcomb3D(pfcomb, 2);
+  IO3 = objcomb3D(pfcomb, 3);
 
   % Daten für Pareto-Front sammeln
   pf_data = NaN(0, length(Set.optimization.objective));
@@ -444,6 +471,23 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     if any(RobotOptRes.fval > 1e3)
       continue
     end
+    % Pareto-Front anhängen
+    if pffig == 1 % Bild mit physikalischen Werten (bereits mit Plot-Skalierung)
+      pf_data_add = repmat(objscale(:)', size(...
+        tmp1.RobotOptRes.physval_pareto,1),1).*tmp1.RobotOptRes.physval_pareto;
+    else % Bild mit normierten Werten
+      pf_data_add = tmp1.RobotOptRes.fval_pareto;
+    end
+    if all(isnan(pf_data_add(:)))
+      warning('Daten für Pareto-Diagramm sind NaN für Roboter %d/%d (%d/%s).', ...
+        i, length_Structures, Number, Name);
+      continue;
+    end
+    pf_data = [pf_data; pf_data_add]; %#ok<AGROW>
+    pf_robnum = [pf_robnum; i*ones(size(tmp1.RobotOptRes.physval_pareto,1),1)]; %#ok<AGROW>
+    % Erst hier den Namen des Roboters einspeichern (nach allen continues)
+    % Sonst könnte ein ungültiger Roboter in die Liste kommen und die
+    % Nummerierung in der Legende durcheinanderbringen. Das verwirrt dann.
     if Structures{i}.Type == 0 % Seriell: Keine Unterscheidung
       RobName_base{i} = Structures{i}.Name;
     else % PKM-Name ohne G-P-Nummer
@@ -452,14 +496,6 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
       % kommen und es sollte die Unterstrich-Notation in die Legende.
       RobName_base{i} = sprintf('%s,Act=%d', PName_Legs, Actuation{1});
     end
-    % Pareto-Front anhängen
-    if pffig == 1 % Bild mit physikalischen Werten (bereits mit Plot-Skalierung)
-      pf_data = [pf_data; repmat(objscale(:)', size(...
-        tmp1.RobotOptRes.physval_pareto,1),1).*tmp1.RobotOptRes.physval_pareto]; %#ok<AGROW>
-    else % Bild mit normierten Werten
-      pf_data = [pf_data; tmp1.RobotOptRes.fval_pareto]; %#ok<AGROW>
-    end
-    pf_robnum = [pf_robnum; i*ones(size(tmp1.RobotOptRes.physval_pareto,1),1)]; %#ok<AGROW>
   end % for i = II_acttype_act
   robgroups = zeros(length(RobName_base), 1); % Zuordnung der Roboter-Nummern zu Gruppen-Nummern
   if pfvar == 2 % Bild mit Gruppierung der Varianten
@@ -541,9 +577,9 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
     end
     % Pareto-Front für diesen Roboter einzeichnen
     if length(Set.optimization.objective) == 2
-      hdl=plot(pf_data(pf_robnum==i,1), pf_data(pf_robnum==i,2), marker);
+      hdl=plot(pf_data(pf_robnum==i,IO1), pf_data(pf_robnum==i,IO2), marker);
     else % length(Set.optimization.objective) == 3
-      hdl=plot3(pf_data(pf_robnum==i,1), pf_data(pf_robnum==i,2), pf_data(pf_robnum==i,3), marker);
+      hdl=plot3(pf_data(pf_robnum==i,IO1), pf_data(pf_robnum==i,IO2), pf_data(pf_robnum==i,IO3), marker);
     end
     set(hdl, 'DisplayName', sprintf('Rob%d_%s', Number, Name)); % zur Zuordnung später
     % Der Legendeneintrag wird im Fall von gruppierten Ergebnissen mehrmals
@@ -569,44 +605,47 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
        if sum(robgroups(1:i)==robgroups(i)) == 1
         % Nur ein Roboter dieser Gruppe. Dann direkt den vollen Namen
         % hinschreiben (aber Nummerierung der Gruppe beibehalten)
-        legstr{countmarker} = sprintf('%d/%d (%s%s)', countmarker, max(robgroups), ...
+        legstr{countmarker} = sprintf('%d/%d (%s%s)', robgroups(i), max(robgroups), ...
           Structures{i}.Name, addtxt); %#ok<AGROW>
       else % Mehrere Roboter. Anderer Text mit Bezug auf Gruppe
         addtxt2 = sprintf(' (%d Rob.)', sum(robgroups(1:i)==robgroups(i)));
-        legstr{countmarker} = sprintf('%d/%d (%s%s)%s', countmarker, max(robgroups), ...
+        legstr{countmarker} = sprintf('%d/%d (%s%s)%s', robgroups(i), max(robgroups), ...
           RobName_base{i}, addtxt, addtxt2); %#ok<AGROW>
       end
     end
   end % for i (Roboter)
+  if ~isempty(objtext{IO1}), addtxtx=[' (', objtext{IO1}, ')']; else, addtxtx=''; end
+  if ~isempty(objtext{IO2}), addtxty=[' (', objtext{IO2}, ')']; else, addtxty=''; end
   if pffig == 1
-    xlabel(sprintf('%s in %s', Set.optimization.objective{1}, obj_units{1}));
-    ylabel(sprintf('%s in %s', Set.optimization.objective{2}, obj_units{2}));
+    xlabel(sprintf('%s%s in %s', Set.optimization.objective{IO1}, addtxtx, obj_units{IO1}));
+    ylabel(sprintf('%s%s in %s', Set.optimization.objective{IO2}, addtxty, obj_units{IO2}));
   else
-    xlabel(sprintf('%s (normiert)', Set.optimization.objective{1}));
-    ylabel(sprintf('%s (normiert)', Set.optimization.objective{2}));
+    xlabel(sprintf('%s%s (normiert)', Set.optimization.objective{IO1}, addtxtx));
+    ylabel(sprintf('%s%s (normiert)', Set.optimization.objective{IO2}, addtxty));
   end
   if length(Set.optimization.objective) == 2
     if pffig == 1
       title(sprintf('%s: %s vs %s (physikalisch)', Set.optimization.optname, ...
-        Set.optimization.objective{1}, Set.optimization.objective{2}), 'interpreter', 'none');
+        Set.optimization.objective{IO1}, Set.optimization.objective{IO2}), 'interpreter', 'none');
     else
       title(sprintf('%s: %s vs %s (normiert)', Set.optimization.optname, ...
-        Set.optimization.objective{1}, Set.optimization.objective{2}), 'interpreter', 'none');
+        Set.optimization.objective{IO1}, Set.optimization.objective{IO2}), 'interpreter', 'none');
     end
   else
+    if ~isempty(objtext{IO3}), addtxtz=[' (', objtext{IO3}, ')']; else, addtxtz=''; end
     if pffig == 1
-      zlabel(sprintf('%s in %s', Set.optimization.objective{3}, obj_units{3}));
+      zlabel(sprintf('%s%s in %s', Set.optimization.objective{IO3}, addtxtz, obj_units{IO3}));
     else
-      zlabel(sprintf('%s (normiert)', Set.optimization.objective{3}));
+      zlabel(sprintf('%s%s (normiert)', Set.optimization.objective{IO3}, addtxtz));
     end
     if pffig == 1
       title(sprintf('%s: %s vs %s vs %s (physikalisch)', ...
-        Set.optimization.optname, Set.optimization.objective{1}, ...
-        Set.optimization.objective{2}, Set.optimization.objective{3}), 'interpreter', 'none');
+        Set.optimization.optname, Set.optimization.objective{IO1}, ...
+        Set.optimization.objective{IO2}, Set.optimization.objective{IO3}), 'interpreter', 'none');
     else
       title(sprintf('%s: %s vs %s vs %s (normiert)', ...
-        Set.optimization.optname, Set.optimization.objective{1}, ...
-        Set.optimization.objective{2}, Set.optimization.objective{3}), 'interpreter', 'none');
+        Set.optimization.optname, Set.optimization.objective{IO1}, ...
+        Set.optimization.objective{IO2}, Set.optimization.objective{IO3}), 'interpreter', 'none');
     end
   end
   axhdl = get(f, 'children');
@@ -671,8 +710,9 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
             'Position', [10, 30, 120, 24]);
   % ButtonDownFcn wird erst beim erneuten Laden der Datei eingetragen
   % (sonst wird die gespeicherte Datei zu groß).
-  CreateFcn=@(src, dummy)cds_paretoplot_createfcn(src, dummy, Set.optimization.optname);
-  set(f, 'CreateFcn', CreateFcn);
+  CreateFcn_old = get(f, 'CreateFcn'); % wird durch figure_invisible.m erstellt.
+  CreateFcn_new=@(src, dummy)cds_paretoplot_createfcn(src, dummy, Set.optimization.optname, CreateFcn_old);
+  set(f, 'CreateFcn', CreateFcn_new);
   saveas(f, fullfile(resmaindir, sprintf('Pareto_Gesamt_%s.fig',name_suffix)));
   % Für das bereits offene Fenster die ButtonDownFcns hier eintragen.
   cds_paretoplot_createfcn(f, [], Set.optimization.optname);
@@ -680,4 +720,5 @@ if any(length(Set.optimization.objective) == [2 3]) % Für mehr als drei Kriteri
   end % for pfact
   end % for pfvar
   end % for pffig
+  end % for pfcomb
 end

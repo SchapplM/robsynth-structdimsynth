@@ -419,7 +419,10 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
     pval_i(:,I_baserotz) = round(pval_i(:,I_baserotz)/(pi/2))*pi/2;
   end
 
-  % Prüfe erlaubte Werte für Parameter
+  % Prüfe erlaubte Werte für Parameter.
+  % Benutze dafür die Variable Structure_i statt Structure, da auch PKM mit anderen
+  % Gestellanordnungen geladen werden und die Gültigkeit der geladenen
+  % Daten geprüft wird.
   if Structure_i.Type == 2 && any(Structure_i.Coupling(1) == [4 8]) && ...% Konische Gestellgelenke
      Set.optimization.min_inclination_conic_base_joint > 0 && ...% Einstellung gesetzt
      (~isfield(Set_i.optimization, 'min_inclination_conic_base_joint')||...% geladene Einstellung nicht so streng
@@ -433,20 +436,23 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
      Set.optimization.min_joint_distance > 0 && (~isfield(Set_i.optimization, 'min_joint_distance') ||...
      Set_i.optimization.min_joint_distance<Set.optimization.min_joint_distance) ...
      || ... % Gestell-Durchmesser ist gefordert (für Paarweise Anordnung anders)
-     Structure.Type == 2 && any(Structure.Coupling(1) == [5 6 7 8]) && ...
+     Structure_i.Type == 2 && any(Structure_i.Coupling(1) == [5 6 7 8]) && ...
      all(~isnan(Set.optimization.base_size_limits)) && ... % Gestell-Grenzen gegeben
-     any(Structure.vartypes == 8) && ... % Morphologie wird optimiert
+     any(Structure_i.vartypes == 8) && ... % Morphologie wird optimiert
      Set.optimization.base_size_limits(1)~=Set.optimization.base_size_limits(2) ...% Grenzen nicht gleich
      || ... % Plattform-Durchmesser ist gefordert (für Paarweise Anordnung anders)
-     Structure.Type == 2 && any(Structure.Coupling(2) == [4 5 6]) && ... % PKM, Plattform paarweise
+     Structure_i.Type == 2 && any(Structure_i.Coupling(2) == [4 5 6]) && ... % PKM, Plattform paarweise
      all(~isnan(Set.optimization.platform_size_limits)) && ... % Plattform-Grenzen gegeben
-     any(Structure.vartypes == 9) && ... % Morphologie wird optimiert
+     any(Structure_i.vartypes == 9) && ... % Morphologie wird optimiert
      Set.optimization.platform_size_limits(1)~=Set.optimization.platform_size_limits(2) ... % Grenzen nicht gleich
      || Set.optimization.tilt_base  % Neigungswinkel für Gestell werden optimiert
+    % Aktualisiere die geladenen Einstellungen, falls sie auf einer alten
+    % Version basieren. Sonst Fehler in update_robot_parameters
+    Set_i = cds_settings_update(Set_i); % Erst hier wegen Rechenzeit
     for jjj = 1:size(pval_i,1)
-      p_phys_jjj=cds_update_robot_parameters([], Set, Structure, pval_i(jjj,:)');
+      p_phys_jjj=cds_update_robot_parameters([], Set_i, Structure_i, pval_i_file(jjj,:)');
       % Der Winkel wird direkt physikalisch eingesetzt. Alle anderen Parameter sind egal.
-      fval_jjj = cds_constraints_parameters([], Set, Structure, pval_i(jjj,:)', p_phys_jjj);
+      fval_jjj = cds_constraints_parameters([], Set, Structure_i, pval_i_file(jjj,:)', p_phys_jjj);
       if fval_jjj > 0
         % Belege die Fitness-Werte dieses Partikels neu (hat dann sehr
         % schlechte Chancen, ist aber nicht komplett deaktiviert)
@@ -563,10 +569,19 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
     I_bpz_ulviol = pval_i(:,I_bpz)>ul_repmat(:,I_bpz);
     pval_i(I_bpz_ulviol,I_bpz) = ul_repmat(I_bpz_ulviol,I_bpz);
   end
-  % Eigentliche Prüfung der Parametergrenzen. Nehme an, dass ein auf NaN
-  % gesetzter Parameter in Ordnung ist. Es werden dann unten statt
-  % gespeicherter Werte Zufallswerte eingesetzt.
-  I_param_iO = all(ll_repmat <= pval_i & ul_repmat >= pval_i | isnan(pval_i) ,2);
+  % Eigentliche Prüfung der Parametergrenzen. 
+  % Nehme Parameter von der Prüfung aus, die nicht direkt geprüft werden
+  I_ignore = false(size(pval_i));
+  I_pfsize = Structure.vartypes == 7; % Optimierung der Plattform-Größe
+  if Structure.Type == 2 && any(I_pfsize) && ...
+      ... % Geladene Daten von Paarweiser Anordnung, Aktuell nicht-paarweise
+      ... % Wurde daher schon oben geprüft, ob Plattformgröße passt
+      any(Structure_i.Coupling(2) == [4 5 6]) && ~any(Structure.Coupling(2) == [4 5 6])
+    I_ignore(:,I_pfsize) = true;
+  end
+  % Nehme an, dass ein auf NaN gesetzter Parameter in Ordnung ist. 
+  % Es werden dann unten statt gespeicherter Werte Zufallswerte eingesetzt.
+  I_param_iO = all(ll_repmat <= pval_i & ul_repmat >= pval_i | isnan(pval_i) |I_ignore ,2);
   cds_log(2, sprintf(['[gen_init_pop] Auswertung %d/%d (%s) geladen. ', ...
     'Bewertung: %d. Bei %d/%d Parametergrenzen passend.'], i, sum(I_RobMatch), ...
     initpop_matlist{i}, score_i, sum(I_param_iO), size(pval_i,1)));
@@ -574,11 +589,14 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
     for jjj = find(~I_param_iO & ~any(isnan(pval_i),2))'
       I_pniO = varlim(:,1)'-1e-10 > pval_i(jjj,:) | ...  % Grenzen gegen numerische ... 
                varlim(:,2)'+1e-10 < pval_i(jjj,:); % ... Ungenauigkeit aufweiten
-      for kkk = find(I_pniO)
+      for kkk = find(I_pniO & ~I_ignore(jjj,:))
+        delta_ul = pval_i(jjj,kkk)-varlim(kkk,2)';
+        delta_ll = pval_i(jjj,kkk)-varlim(kkk,1)';
+        mindelta = min(abs([delta_ul;delta_ll]));
         cds_log(3, sprintf(['[gen_init_pop] Partikel %d/%d: Parameter ', ...
-          '%d (%s) nicht passend. %1.3f < %1.3f < %1.3f'], ...
+          '%d (%s) nicht passend. %1.3f < %1.3f < %1.3f. Delta: %1.3e'], ...
           jjj, size(pval_i,1), kkk, varnames{kkk}, ...
-          varlim(kkk,1), pval_i(jjj,kkk), varlim(kkk,2)));
+          varlim(kkk,1), pval_i(jjj,kkk), varlim(kkk,2), mindelta));
       end
     end
   end
