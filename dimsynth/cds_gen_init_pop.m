@@ -13,17 +13,21 @@
 % Q_Pop
 %   Gelenk-Konfigurationen für die Parameter aus InitPop zu gespeicherten
 %   Ergebnissen führen (NaN, falls keine Daten vorliegen).
+% i_gen_opt
+%   Generation, mit der die Optimierung anfängt. Bei Wiederaufname einer
+%   vorherigen Optimierung wird dies über die Nummer hier vermerkt.
 % 
 % Siehe auch: cds_gen_init_pop_index
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-01
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function [InitPop, Q_Pop] = cds_gen_init_pop(Set, Structure, Traj)
+function [InitPop, Q_Pop, i_gen_opt] = cds_gen_init_pop(Set, Structure, Traj)
 nIndTotal = Set.optimization.NumIndividuals;
 varlim = Structure.varlim;
 varnames = Structure.varnames;
 nvars = length(varnames);
+i_gen_opt = 0;
 %% Lade Ergebnisse bisheriger Optimierungen aus dem Ergebnis-Ordner
 t1 = tic();
 counter_optresults = 0;
@@ -76,7 +80,15 @@ for i = 1:length(tmpdirsrob)
     '*_Gen*_AllInd.mat')); % aus cds_save_all_results_mopso
   [ttt, ~] = regexp(tmpdirsrob(i).name, ['(\d+)_', RobName], 'tokens', 'match');
   irob = str2double(ttt{1}{1});
+  genfiles_numbers = NaN(length(genfiles), 1);
+  % Nach Nummer aufsteigend sortieren
   for j = 1:length(genfiles)
+    [ttt, ~] = regexp(genfiles(j).name, '_Gen(\d+)_', 'tokens', 'match');
+    genfiles_numbers(j) = str2double(ttt{1}{1});
+  end
+  [~,genfiles_order] = sort(genfiles_numbers, 'ascend');
+  igen = 0;
+  for j = genfiles_order(:)' % Dateien durchgehen. Neue überschreibt alte.
     try % Auf Cluster Dateisystem-Fehler möglich
       tmp = load(fullfile(genfiles(j).folder, genfiles(j).name));
     catch err
@@ -87,6 +99,7 @@ for i = 1:length(tmpdirsrob)
     % später wieder geladen werden kann.
     [ttt, ~] = regexp(genfiles(j).name, '_Gen(\d+)_', 'tokens', 'match');
     igen = str2double(ttt{1}{1});
+    if igen == 0, continue; end % Anfangspopulation enthält keine brauchbaren Informationen
     RobotOptRes = struct('Structure', Structure); % Annahme: Gleiche Einstellungen der Optimierung
     if size(tmp.PSO_Detail_Data.fval,2) > 1 % siehe cds_save_particle_details
       I_dom = pareto_dominance(tmp.PSO_Detail_Data.fval(:,:,1+igen)); % Sonst später Warnungen, da keine valide Pareto-Front
@@ -109,8 +122,14 @@ for i = 1:length(tmpdirsrob)
       'Rob%d_%s_Endergebnis_Gen%d.mat', irob, RobName, igen));
     save(filename_dummy,'RobotOptRes');
     cds_log(3, sprintf(['[gen_init_pop] Ergebnis-Datei %s aus vorhandenem ', ...
-      'Zwischenstand %s erstellt.'], filename_dummy, genfiles(j).name));
-    initpop_matlist = [initpop_matlist; filename_dummy]; %#ok<AGROW> 
+      'Zwischenstand %s erstellt.'], ...
+      filename_dummy, genfiles(j).name));
+  end
+  if igen > 0
+    % Benutze nur die bereits vorhandenen Zwischenergebnisse, verwerfe die
+    % anderen Ergebnis-Dateien. Dann geht es schneller.
+    initpop_matlist = {filename_dummy};
+    i_gen_opt = igen;
   end
 end
 
@@ -215,6 +234,9 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
   % Aktualisiere mittlerweile geänderte Einstellungen.
   Structure_i.varnames(strcmp(Structure_i.varnames,'platform_morph')) = ...
     {'platform_morph_pairdist'}; % Optimierungsvariable wurde umbenannt.
+  if ~isfield(Structure_i, 'xref_W') % Kompatibilität für altes Format
+    Structure_i.xref_W = settings_i.Traj.X(1,:)'; % siehe cds_dimsynth_robot.m
+  end
   % Prüfe, ob es sich um den identischen Roboter handelt (PKM-Koppelgelenkanord-
   % nungen können anders sein)
   score_i = score_i - 20*double(~strcmp(Structure_i.Name, Structure.Name));
@@ -582,8 +604,8 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
   % Nehme an, dass ein auf NaN gesetzter Parameter in Ordnung ist. 
   % Es werden dann unten statt gespeicherter Werte Zufallswerte eingesetzt.
   I_param_iO = all(ll_repmat <= pval_i & ul_repmat >= pval_i | isnan(pval_i) |I_ignore ,2);
-  cds_log(2, sprintf(['[gen_init_pop] Auswertung %d/%d (%s) geladen. ', ...
-    'Bewertung: %d. Bei %d/%d Parametergrenzen passend.'], i, sum(I_RobMatch), ...
+  cds_log(2, sprintf(['[gen_init_pop] Auswertung %d (%s) geladen. ', ...
+    'Bewertung: %d. Bei %d/%d Parametergrenzen passend.'], i, ...
     initpop_matlist{i}, score_i, sum(I_param_iO), size(pval_i,1)));
   if any(~I_param_iO)
     for jjj = find(~I_param_iO & ~any(isnan(pval_i),2))'
@@ -651,8 +673,12 @@ if ~isempty(InitPopLoadTmp)
 end
 %% Wähle aus den geladenen Parametern eine Anfangspopulation mit hoher Diversität
 % Anzahl der zu ladenden Parameter (begrenzt durch vorhandene)
-nIndLoad = floor(Set.optimization.InitPopRatioOldResults*nIndTotal);
-nIndLoad = min(nIndLoad, size(InitPopLoadTmp,1));
+if i_gen_opt == 0
+  nIndLoad = floor(Set.optimization.InitPopRatioOldResults*nIndTotal);
+  nIndLoad = min(nIndLoad, size(InitPopLoadTmp,1));
+else % Wiederaufnahme nach Absturz
+  nIndLoad = size(InitPopLoadTmp,1); % Lade gesamten alten Datenstand
+end
 if size(InitPopLoadTmp,1) > 0
   % Normiere die geladenen Parameter auf die Parametergrenzen. Dadurch
   % Bestimmung der Diversität der Population besser möglich.
@@ -670,7 +696,6 @@ if size(InitPopLoadTmp,1) > 0
   Q_PopLoadTmp = Q_PopTmp(I,:);
   OptNamesLoadTmp = OptNamesTmp(I);
   RobNamesLoadTmp = RobNamesTmp(I);
-  ScoreLoad = ScoreLoad(I,:);
   nIndLoad = min(nIndLoad, size(InitPopLoadTmpNorm,1));
   % Indizies der bereits ausgewählten Partikel (in InitPopLoadTmpNorm)
   I_selected = false(size(ScoreLoad,1),1);

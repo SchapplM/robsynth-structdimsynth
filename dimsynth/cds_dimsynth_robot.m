@@ -93,6 +93,9 @@ if any(~isnan(Set.optimization.basepos_limits(:)))
   % genug werden kann.
   Lref = max(Lref, max(maxdist_xyz));
 end
+if Lref == 0
+  Lref = 1; % Dummy-Aufruf mit nur einer einzigen Pose
+end
 Structure.Lref = Lref;
 %% Roboter-Klasse initialisieren
 if ~isempty(Structure.RobName) && ~Set.optimization.fix_joint_limits
@@ -2111,7 +2114,8 @@ if nargin == 4 && init_only
   % erzeugt werden, ohne dass diese gespeichert werden muss.
   return
 end
-
+resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
+  'tmp', sprintf('%d_%s', Structure.Number, Structure.Name));
 %% Anfangs-Population generieren
 % TODO: Existierende Roboter einfügen
 NumIndividuals = Set.optimization.NumIndividuals;
@@ -2119,7 +2123,7 @@ if ~Set.general.only_finish_aborted
   % Generiere Anfangspopulation aus Funktion mit Annahmen bezüglich Winkel.
   % Lädt zusätzlich bisherige Ergebnisse, um schneller i.O.-Werte zu bekommen.
   try
-    [InitPop, QPop] = cds_gen_init_pop(Set, Structure, Traj);
+    [InitPop, QPop, i_gen_opt] = cds_gen_init_pop(Set, Structure, Traj);
   catch err
     dbgfile = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
       'tmp', ['cds_dimsynth_robot_call_cds_gen_init_pop_error_', R.mdlname, '.mat']);
@@ -2128,17 +2132,35 @@ if ~Set.general.only_finish_aborted
     save(dbgfile);
     return
   end
+  if i_gen_opt > 0 % Wiederaufnahme nach Abbruch mit Checkpoint
+    d = load_checkpoint_file(Set, Structure, resdir);
+    % Aktualisiere die Anfangspopulation: als optimal geladene Ergebnisse
+    % aus gen_init_pop (erkennbar an nicht-NaN bei Q) und sonstige geladene
+    % Zwischenergebnisse aus Zwischenstand (egal wie gut)
+    InitPop1 = InitPop; QPop1 = QPop;
+    I_keep = all(~isnan(QPop), 2);
+    [InitPop, I2] = unique([InitPop1(I_keep,:); ...
+      d.PSO_Detail_Data.pval(:,:,i_gen_opt+1)], 'rows');
+    QPop = [QPop1(I_keep,:); d.PSO_Detail_Data.q0_ik( ...
+      I2(I2>sum(I_keep))-sum(I_keep),:,i_gen_opt+1)]; % passende Gelenkwinkel
+    InitPop = InitPop(1:size(InitPop1,1),:); % Begrenzen auf gewünschte Anzahl ...
+    QPop = QPop(1:size(InitPop1,1),:); % ... falls mehr geladen worden sind
+    cds_log(3, sprintf(['[dimsynth] Anfangswerte ' ...
+      'aus geladenen Daten. Nächste Generation: %d'], i_gen_opt+2));
+  end
+
   % Speichere die Gelenkwinkel der Anfangspopulation, um sie später wieder
   % abzurufen (betrifft die aus alten Ergebnissen geladenen).
   if ~isempty(QPop)
     I_dict = all(~isnan(QPop),2);
     Structure.dict_param_q = struct('p', InitPop(I_dict,:), 'q', QPop(I_dict,:));
   end
+else
+  i_gen_opt = 0; % Platzhalter-Wert
 end
 %% Tmp-Ordner leeren
-resdir = fullfile(Set.optimization.resdir, Set.optimization.optname, ...
-  'tmp', sprintf('%d_%s', Structure.Number, Structure.Name));
-if ~Set.general.only_finish_aborted
+if ~Set.general.only_finish_aborted && ...
+    i_gen_opt == 0 % Bei Wiederaufnahme nach Neustart tmp-Ordner nicht löschen
   if exist(resdir, 'file')
     % Leere Verzeichnis
     rmdir(resdir, 's')
@@ -2169,6 +2191,17 @@ if false % Debug: Fitness-Funktion testweise ausführen
     zeros(length(Structure.desopt_ptypes),1), 'reset');
   % Zurücksetzen der gespeicherten Werte der Fitness-Funktion
   cds_fitness();
+end
+if i_gen_opt > 0 % Vorherige Generationen wieder aus gespeicherten Daten überschreiben
+  % Setze komplette geladene Generation auf nicht-NaN. Sonst evtl. Probleme
+  % beim Erkennen der Generation. Soll in Optimierung mit Ind. Nr. 1 anfangen
+  fval_last = d.PSO_Detail_Data.fval(:,:,i_gen_opt+1);
+  fval_last(isnan(fval_last(:))) = inf; % Fülle auf mit inf-Werten
+  d.PSO_Detail_Data.fval(:,:,i_gen_opt+1) = fval_last;
+  cds_save_particle_details(Set, R, 0, [], [], ...
+    [], [], [], 'overwrite', d.PSO_Detail_Data);
+  cds_log(3, sprintf(['[dimsynth] Vor-Initialisierung der Partikel-Historie ' ...
+    'aus geladenen Daten. Nächste Generation: %d'], i_gen_opt+2));
 end
 %% PSO-Aufruf starten
 cds_log(3, sprintf('[dimsynth] Starte Optimierung mit %d Parametern: %s', ...

@@ -56,11 +56,15 @@ end
 % in cds_dimsynth_robot geprüft. Dort kann aber noch nicht die PKM mit
 % geschlossenen kinematischen Ketten geprüft werden (IK noch nicht gelöst).
 colldist_range = diff(minmax2(colldist')');
+colldist_range(all(isnan(colldist))) = 0; % deaktivierte Prüfungen
 I_norange = abs(colldist_range) < 1e-10;
 if all(I_norange)
-  % Alle Kollisionsprüfungen haben immer den gleichen Abstand. Nehme den.
-  min2colldist = colldist(1);
-  IIcmin = 1; IItmin = 1; % Dummy-Werte
+  % Alle Kollisionsprüfungen haben immer den gleichen Abstand. Nehme den
+  % kleinsten dieser Abstände als kritischsten Wert
+  I_notnan = find(all(~isnan(colldist)));
+  [min2colldist,IIcmintmp] = min( colldist(1,I_notnan) );
+  IIcmin = I_notnan(IIcmintmp); IItmin = 1; % Dummy-Werte
+  fval_debugtext = 'Alle Kollisionsabstände gleich. ';
 else
   % Bestimme minimale Kollisionsabstände für alle Zeitschritte.
   % Berücksichtige nur Kollisionen, die sich auch ändern.
@@ -80,7 +84,7 @@ else % Kollision
   f_colldist_norm = 2/pi*atan(f_colldist2*10); % 0.2m Eindringung entspricht 0.7; 0.1m entspricht 0.5; 1mm entspricht 0.0064
   fval = 1e2*(1+9*f_colldist_norm); % normiere auf 1e2 bis 1e3
 end
-fval_debugtext = sprintf('Kollisionsabstand %1.1fmm.', 1e3*min2colldist);
+fval_debugtext = [fval_debugtext, sprintf('Kollisionsabstand %1.1fmm.', 1e3*min2colldist)];
 if min2colldist < 0
   fval_debugtext = [fval_debugtext, ' (Kollision)'];
 end

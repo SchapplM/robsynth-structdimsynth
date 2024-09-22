@@ -361,8 +361,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         [~,Idesc(1:nj(j),j)] = sort(dist_pt1(1:nj(j),j), 'desc');
         % Nehme zwei Konfigurationen für die Beinkette. Konsistent mit der
         % Initialisierung von n_ikcomb. Mehr als zwei noch nicht
-        % implementiert.
-        indvec{j} = [1, Idesc(1,j)];
+        % implementiert. Falls nur eine existiert, nehme nur diese.
+        indvec{j} = unique([1, Idesc(1,j)]);
         if any(isnan(Idesc(1,j)))
           save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
             'tmp', 'cds_constraints_q0comb_error.mat'));
@@ -374,6 +374,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         % Nehme absichtlich einen anderen Wert, wenn Konfigurationen
         % doppelt sind. Sonst werden diese erneut berechnet ohne Mehrwert.
         Q_configperm_idx(all(diff(Q_configperm_idx')==0),1) = Idesc(2,1);
+        % Falls kein anderer Wert zur Verfügung steht, wurde eine Null
+        % eingetragen. Diese Zeilen werden wieder entfernt.
+        Q_configperm_idx = Q_configperm_idx(all(Q_configperm_idx~=0,2),:);
       end
       Q_configperm3 = NaN(size(Q_configperm_idx,1), size(Q_configperm1,2));
       for ii = 1:size(Q_configperm3,1)
