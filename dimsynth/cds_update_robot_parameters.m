@@ -96,7 +96,22 @@ if Structure.Type == 0 || Structure.Type == 2
   end
   if ~isempty(R)
     if Structure.Type == 0, R_neu.update_mdh(pkin_voll);  % Seriell
-    else,                   R_neu.update_mdh_legs(pkin_voll); end % Parallel
+    else
+      if Structure.mirrorconfig_d == 1
+        R_neu.update_mdh_legs(pkin_voll);
+      else
+        % Beinketten sind in den Gestellgelenk-Paaren gespiegelt
+        for kk = 1:R_neu.NLEG
+          if mod(kk,2) == 1 % normales Eintragen der Parameter
+            R_neu.Leg(kk).update_mdh(pkin_voll);
+          else % d-Parameter negativ zählen
+            pkin_mirr = pkin_voll;
+            pkin_mirr(R_neu.Leg(kk).pkin_types == 6) = -pkin_voll(R_neu.Leg(kk).pkin_types == 6);
+            R_neu.Leg(kk).update_mdh(pkin_mirr);
+          end
+        end
+      end
+    end % Parallel
   end
 else
   error('Noch nicht implementiert');

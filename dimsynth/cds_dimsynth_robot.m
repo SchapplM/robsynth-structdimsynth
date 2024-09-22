@@ -62,6 +62,7 @@ end
 cds_save_particle_details();
 % Anpassung der eingegebenen Struktur-Variable an Aktualisierungen
 if ~isfield(Structure, 'RobName'), Structure.RobName = ''; end
+if ~isfield(Structure, 'mirrorconfig_d'), Structure.mirrorconfig_d = 1; end
 ds = cds_definitions();
 %% Referenzlänge ermitteln
 % Mittelpunkt der Aufgabe

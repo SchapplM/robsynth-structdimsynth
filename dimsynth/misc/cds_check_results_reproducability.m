@@ -33,7 +33,8 @@ s = struct( ...
   'eval_plots', {{}}, ... % Liste von Plots, die für jedes Partikel erstellt werden. Siehe Eingabe figname in cds_vis_results_figures.
   'results_dir', '', ... % Alternatives Verzeichnis zum Laden der Ergebnisse
   'isoncluster', false, ... % Falls auf Cluster, muss der parpool-Zugriff geschützt werden
-  'ignore_desopt_result', false, ... % Verwerfe gespeicherte Ergebnisse der Entwurfsoptimierung
+  'ignore_desopt_result', false, ... % Verwerfe gespeicherte Ergebnisse der Entwurfsoptimierung.
+  'only_mirrored_legs', false, ... % Zum Debuggen des Modus für gespiegelte Beinketten. Nur diese anzeigen.
   'parcomp_maxworkers', 1, ... % Maximale Anzahl an Parallelinstanzen. Standardmäßig ohne Parfor
   'Set_mod', struct(), ... % Einstellungs-Struktur aus cds_settings_defaults zum Feld-weise Überschreiben der geladenen Einstellungen.
   'only_merge_tables', false, ... % Aufruf nur zum Zusammenführen bestehender Tabellen für einzelne Roboter
@@ -294,6 +295,26 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
     else
       q0 = RobotOptRes.q0_pareto(jj,:)';
     end
+    % Schließe Partikel aus, die keiner gespiegelten Konfiguration
+    % entsprechen (Hauptsächlich zum Testen)
+    if s.only_mirrored_legs && Structure.mirrorconfig_d == -1
+      if Structure.Coupling(1) ~= 6
+        warning('Nicht paarweise tangentiale Anordnung mit gespiegelten Parametern. Logik-Fehler.');
+        continue % Darf nicht sein (am 4.1.24 und 5.1.24 zunächst falsch implementiert)
+      end
+      I_dparam = Structure.vartypes == 1 & contains(Structure.varnames(:), ': d');
+      if all(p_jj(I_dparam) == 0)
+        fprintf(['Ignoriere Rob. %d Partikel Nr. %d/%d (Gen. %d, Ind. %d). ' ...
+          'd-Parameter alle Null.\n'], RobNr, jj, length(I), k_gen, k_ind);
+        continue
+      end
+      if all(abs(p_jj(I_dparam)) < 50e-3) % Bei kleinen Werten kaum sichtbar im Bild
+        fprintf(['Ignoriere Rob. %d Partikel Nr. %d/%d (Gen. %d, Ind. %d). ' ...
+          'd-Parameter zu klein.\n'], RobNr, jj, length(I), k_gen, k_ind);
+        continue
+      end
+    end
+
     fprintf('Reproduktion Rob. %d Partikel Nr. %d/%d (Gen. %d, Ind. %d):\n', ...
       RobNr, jj, length(I), k_gen, k_ind);
     f3_jj = NaN(length(f_jj), 1); % Initialisierung zum Eintragen in Tabelle

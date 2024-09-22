@@ -122,6 +122,7 @@ structures = struct( ...
   'prismatic_cylinder_no_lever', true, ... % Bei Hubzylindern (in PKM) darf kein zusätzlicher Heben wirken. Direkte Verbindung der Gelenke
   'orthogonal_links', false, ... % Bei true werden keine schräg abgehenden Segmente erlaubt (d-Parameter der DH-Notation)
   'orthogonal_joints', false, ... % Bei true werden keine schräg angebrachten Gelenke benutzt (alpha-Parameter der DH-Notation)
+  'use_mirror_legs', 'yes', ... % Bei paarweiser Gelenkanordnung gespiegelte Konfigurationen wählen (only, no, yes)
   'nopassiveprismatic', true, ... % Schubgelenke dürfen nicht passiv sein
   'activenotlastjoint', true, ... % Verhindert ein aktives Plattform-Koppelgelenk
   'max_index_active', 6, ... % Setzt den maximalen Index aktuierter Gelenke fest (nachrrangig gegen vorherige Option); für PKM
@@ -259,6 +260,7 @@ optimization = struct( ...
   'max_inclination_conic_base_joint', pi, ... % Maximaler Winkel des Gestellgelenks gegen die Horizontale
   'min_inclination_conic_platform_joint', 5*pi/180, ... % Das gleiche für Plattformgelenke (nur bei konischer Anordnung)
   'min_joint_distance', 0, ... % Minimaler Abstand zwischen zwei Gelenken
+  'mirror_legs_min_a_d_ratio', 0.05, ... % Bei Spiegelung der Ketten muss der d-Parameter mind. so viel relativ zum a-Parameter lang sein
   'nolinkmass', false, ... % Setze die Masse der Robotersegmente auf Null.
   'noplatformmass', false, ... % Setze die Masse der PKM-Plattform auf Null.
   'ElectricCoupling', true, ... % Kopplung der Achsen für Energieberechnung. TODO

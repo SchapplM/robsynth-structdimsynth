@@ -245,7 +245,7 @@ for N_JointDoF = N_JointDoF_allowed
         'RobName', RName, ... % Falls ein konkreter Roboter mit Parametern gewählt ist
         'act_type', acttype_i, 'deactivated', false, ...
         ... % Platzhalter, Angleichung an PKM (Erkennung altes Dateiformat)
-        'angles_values', [], 'prismatic_types', []); %#ok<AGROW> 
+        'angles_values', [], 'prismatic_types', [], 'mirrorconfig_d', 1); %#ok<AGROW> 
     else % Mehrere Schubachsen nacheinander
       % Basierend auf technisch sinnvoller Umsetzbarkeit erfolgt die
       % Bildung möglicher Kombinationen von Linearachse und Schubzylinder
@@ -275,7 +275,8 @@ for N_JointDoF = N_JointDoF_allowed
         Structures{ii} = struct('Name', SName, 'Type', 0, 'Number', ii, ...
           'RobName', RName, ... % Falls ein konkreter Roboter mit Parametern gewählt ist
           'act_type', acttype_i, 'deactivated', false, ...
-          'angles_values', [], 'prismatic_types', prismtypeall(k,:)); %#ok<AGROW> 
+          'angles_values', [], 'prismatic_types', prismtypeall(k,:), ...
+          'mirrorconfig_d', []); %#ok<AGROW> 
       end % for k
     end
   end
@@ -624,8 +625,43 @@ for kkk = 1:size(EE_FG_allowed,1)
         continue
       end
     end
-    % Stelle mögliche Werte für den Strukturparameter theta1 zusammen.
+    % Lade detailliertere Daten der Beinkette
     csvline = serroblib_bits2csvline(SerRob_DB_all.BitArrays_Ndof(ilc,:)); % DH-Parameter der Beinkette aus csv-Datei
+    % Bestimme mögliche Kombinationen für die Vorzeichen der d-Parameter
+    % bei paarweiser Anordnung der Gelenke (ein binärer Schalter)
+    mirrorconfig_d_values = 1; % Standardwert (ohne Spiegelparameter)
+    [tokens_d, match_d] = regexp(csvline, 'd(\d)+', 'tokens', 'match'); % Einfache Suche nach "d" ist zu unspezifisch
+    I_param_d = ~cellfun(@isempty, match_d);
+    if Coupling(1) == 6 && any(I_param_d)  && ... % paarweise Anordnung (siehe align_base_coupling)
+       ~any(strcmp(Set.optimization.objective, 'valid_act'))
+      num_d_found = 0;
+      II_param_d = find(I_param_d);
+      for kk = II_param_d
+        jointidx_kk = str2double(tokens_d{kk}{1});
+        % Versuche konsistent zu cds_dimsynth_robot die benutzten
+        % d-Parameter zu erkennen. Schwierigkeit hier ist, dass die
+        % Roboterklasse noch nicht initialisiert ist (Rechenzeit)
+        if jointidx_kk == 1
+          continue % d1-Parameter ignorieren
+        end
+        if Set.structures.orthogonal_links && ... % d-Parameter werden in cds_dimsynth_robot zu Null gesetzt ...
+            any(strcmp(csvline, sprintf('a%d', jointidx_kk))) % ... wenn es den a-Parameter gibt
+          continue % Ignorieren. Spiegelung über d-Parameter nicht möglich
+        end
+        num_d_found = num_d_found + 1;
+      end
+      if num_d_found > 1
+        mirrorconfig_d_values = [1, -1];
+      end
+    end
+    if strcmp(Set.structures.use_mirror_legs, 'only')
+      % Entferne die normale Konfiguration (zum Testen der Einstellung)
+      mirrorconfig_d_values(mirrorconfig_d_values==1) = []; %#ok<AGROW> 
+    elseif strcmp(Set.structures.use_mirror_legs, 'no')
+      % Entferne gespiegelte Konfiguration wieder
+      mirrorconfig_d_values(mirrorconfig_d_values==-1) = []; %#ok<AGROW> 
+    end
+    % Stelle mögliche Werte für den Strukturparameter theta1 zusammen.
     % Die Indizes beziehen sich auf die MDH-Parameter in der CSV-Datei.
     % Sie sind daher schon passend sortiert (erst Gelenkreihenfolge, dann
     % alpha/theta)
@@ -687,7 +723,7 @@ for kkk = 1:size(EE_FG_allowed,1)
         acttype_i = 'mixed';
       end
     end
-      
+    for mctmp = mirrorconfig_d_values
     for avtmp = angles_values(:)' % Gehe alle möglichen Werte für theta durch und trage als eigene PKM ein.
       av = avtmp{1};
       ii = ii + 1;
@@ -697,12 +733,19 @@ for kkk = 1:size(EE_FG_allowed,1)
       else
         theta_logstr = '';
       end
-      if verblevel >= 2, fprintf('%d: %s; %s\n', ii, PNames_Akt{j}, theta_logstr); end
+      if mctmp == -1
+        mirror_logstr = sprintf('; Beinketten-Spiegelung');
+      else
+        mirror_logstr = '';
+      end
+      if verblevel >= 2, fprintf('%d: %s; %s%s\n', ii, PNames_Akt{j}, theta_logstr, mirror_logstr); end
       Structures{ii} = struct('Name', PNames_Akt{j}, 'Type', 2, 'Number', ii, ...
         'Coupling', Coupling, 'angles_values', av, 'DoF', EE_FG_allowed(kkk,:), ...
         'act_type', acttype_i, 'deactivated', false, ...
-        'prismatic_types', [], 'RobName', RName); %#ok<AGROW>
-    end
+        'prismatic_types', [], 'RobName', RName, ...
+        'mirrorconfig_d', mctmp); %#ok<AGROW>
+    end % avtmp
+    end % mctmp
   end
 end
 %% Einträge auf der Liste verdoppeln
