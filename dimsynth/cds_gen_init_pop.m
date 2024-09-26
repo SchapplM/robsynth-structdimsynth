@@ -169,9 +169,10 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
       'werden. Fehler: %s'], initpop_matlist{i}, err.message));
     continue
   end
+  optimstart_date = datestr(d.RobotOptRes.timestamps_start_end(1), 'yyyy-mm-dd HH:MM');
   if ~isfield(d.RobotOptRes, 'p_val_pareto') % (Altes Dateiformat. Dieser Code kann irgendwann weg)
     cds_log(2, sprintf(['[gen_init_pop] Datei übersprungen, da Feld ', ...
-      'p_val_pareto fehlt: %s '], initpop_matlist{i}));
+      'p_val_pareto fehlt: %s (%s) '], initpop_matlist{i}, optimstart_date));
     continue
   end
   % Platzhalter für Detail-Datei
@@ -216,7 +217,16 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
   
   % Strukturinformationen laden
   Structure_i = d.RobotOptRes.Structure;
-  if ~isfield(Structure_i, 'angles_values'), continue; end % altes Format
+  if ~isfield(Structure_i, 'angles_values') % bei altem Format
+    cds_log(2, sprintf(['[gen_init_pop] Datei übersprungen, da Feld ', ...
+      'angles_values: %s (%s) '], initpop_matlist{i}, optimstart_date));
+    continue
+  end
+  if Structure_i.Coupling(1) == 4 && ~any(Structure_i.vartypes == 8)
+    cds_log(2, sprintf(['[gen_init_pop] Datei übersprungen, da Optimierungsvariable ', ...
+      'base_morph_coneelev fehlt: %s (%s) '], initpop_matlist{i}, optimstart_date));
+    continue % Steigungsparameter bei Kegel-Basis fehlt. Evtl. bei alten Ergebnissen noch nicht drin.
+  end
   if ~(isempty(Structure.angles_values) && isempty(Structure_i.angles_values)) && ...
       ~strcmp(Structure.angles_values, Structure_i.angles_values)
     % Freie Parameter haben anderen festen Wert (z.B. Struktursynthese).
