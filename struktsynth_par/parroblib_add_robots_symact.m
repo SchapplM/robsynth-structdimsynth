@@ -1066,9 +1066,11 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       % Kerne und 12h Reserve für allgemeine Aufgaben, z.B. Warten. Eher zu 
       % große Einschätzung der Rechenzeit.
       fprintf('Starte die Berechnung der Struktursynthese auf dem Rechencluster: %s\n', computation_name);
+      ppn = min(length(Whitelist_PKM),12);
       jobid = jobStart(struct('name', computation_name, ...
         ... % Nur so viele Kerne beantragen, wie auch benötigt werden ("ppn")
-        'ppn', min(length(Whitelist_PKM),12), ... % 12 Kerne ermöglicht Lauf auf fast allen Cluster-Nodes
+        'ppn', ppn, ... % 12 Kerne ermöglicht Lauf auf fast allen Cluster-Nodes
+        'mem', ceil(16+5*ppn), ... % siehe cds_start.m
         'matFileName', [computation_name, '.m'], ...
         'locUploadFolder', jobdir, ...
         'time', 12+length(Whitelist_PKM)*0.5/min(length(Whitelist_PKM),12)), ... % Zeit in h. Schätze 30min pro PKM im Durchschnitt
