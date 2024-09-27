@@ -81,7 +81,7 @@ elseif R.Type == 2  % Parallel (symmetrisch)
     end
   end
   if     any(Structure.Coupling(2) == [1:3 7]), i_plfthickness = 2; %#ok<ALIGN>
-  elseif any(Structure.Coupling(2) == [4:6 8 9]), i_plfthickness = 3;
+  elseif any(Structure.Coupling(2) == [4:6 8 9 10]), i_plfthickness = 3;
   else,  error('Plattform-Koppelgelenk-Methode %d nicht implementiert', Structure.Coupling(2)); end
   R.DesPar.platform_par(i_plfthickness) = 10e-3; % Dünne Platte als Plattform
 end
@@ -387,7 +387,7 @@ for i = 1:length(m_ges_Link)
     % Plattform-Segment bei PKM
     % Annahme: Kreisscheibe. Plattform-Parameter siehe align_platform_coupling
     % (ist nur eine Näherung bei paarweiser Anordnung)
-    if any(R.DesPar.platform_method == [1:6 7 8 9])
+    if any(R.DesPar.platform_method == [1:6 7 8 9 10])
       R_P = R.DesPar.platform_par(1); % Parameter 1 ist Radius der Plattform
       e_P = R.DesPar.platform_par(i_plfthickness); % Dicke der Plattform
 

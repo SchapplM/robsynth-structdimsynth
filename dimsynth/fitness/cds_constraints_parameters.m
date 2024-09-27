@@ -90,8 +90,8 @@ if Structure.Type == 2 && any(Structure.Coupling(1) == [4 8]) && ...
 end
 
 %% Prüfe Neigungswinkel konischer Plattformgelenke
-if Structure.Type == 2 && any(Structure.Coupling(2) == 9) && ...
-    Set.optimization.min_inclination_conic_platform_joint > 0
+if Structure.Type == 2 && any(Structure.Coupling(2) == [9 10]) && ...
+    Set.optimization.min_inclination_inclined_platform_joint > 0
   gamma_p = p_phys(Structure.vartypes == 9);
   % Bestrafe Abweichungen von der senkrechten (0 bzw. 180°) oder
   % waagerechten (90° oder 270°)
@@ -99,21 +99,21 @@ if Structure.Type == 2 && any(Structure.Coupling(2) == 9) && ...
   delta_gamma2 = angleDiff(gamma_p, pi/2);
   delta_gamma3 = angleDiff(gamma_p, pi);
   delta_gamma4 = angleDiff(gamma_p, 3*pi/2);
-  if     abs(delta_gamma1) < Set.optimization.min_inclination_conic_platform_joint
+  if     abs(delta_gamma1) < Set.optimization.min_inclination_inclined_platform_joint
     delta_gamma = abs(delta_gamma1);
-  elseif abs(delta_gamma2) < Set.optimization.min_inclination_conic_platform_joint
+  elseif abs(delta_gamma2) < Set.optimization.min_inclination_inclined_platform_joint
     delta_gamma = abs(delta_gamma2);
-  elseif abs(delta_gamma3) < Set.optimization.min_inclination_conic_platform_joint
+  elseif abs(delta_gamma3) < Set.optimization.min_inclination_inclined_platform_joint
     delta_gamma = abs(delta_gamma3);
-  elseif abs(delta_gamma4) < Set.optimization.min_inclination_conic_platform_joint
+  elseif abs(delta_gamma4) < Set.optimization.min_inclination_inclined_platform_joint
     delta_gamma = abs(delta_gamma4);
   else
     delta_gamma = NaN;
   end
   % Normierten Strafterm bilden
   if ~isnan(delta_gamma)
-    fval_rel = (Set.optimization.min_inclination_conic_platform_joint-delta_gamma)/...
-                Set.optimization.min_inclination_conic_platform_joint;
+    fval_rel = (Set.optimization.min_inclination_inclined_platform_joint-delta_gamma)/...
+                Set.optimization.min_inclination_inclined_platform_joint;
     assert(fval_rel <=1 & fval_rel >=0, 'Relative Abweichung der Gelenkneigung muss <1 sein');
     fval = 1e13 * (2 + fval_rel); % normiere auf 2e13 bis 3e13
     constrvioltext = sprintf('Neigung des Plattformgelenks ist mit %1.1f° nicht groß genug', ...

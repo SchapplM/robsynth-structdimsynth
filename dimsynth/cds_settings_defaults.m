@@ -258,7 +258,7 @@ optimization = struct( ...
   'joint_stiffness_max', 100, ... % ... ist dies der maximale Wert (in Nm/rad). 100Nm/rad) sind 1.7Nm/Grad
   'min_inclination_conic_base_joint', 5*pi/180, ... % Die Neigung konischer Gestellgelenke soll nicht waagerecht oder senkrecht sein können
   'max_inclination_conic_base_joint', pi, ... % Maximaler Winkel des Gestellgelenks gegen die Horizontale
-  'min_inclination_conic_platform_joint', 5*pi/180, ... % Das gleiche für Plattformgelenke (nur bei konischer Anordnung)
+  'min_inclination_inclined_platform_joint', 5*pi/180, ... % Das gleiche für Plattformgelenke (nur bei geneigter Anordnung)
   'min_joint_distance', 0, ... % Minimaler Abstand zwischen zwei Gelenken
   'mirror_legs_min_a_d_ratio', 0.05, ... % Bei Spiegelung der Ketten muss der d-Parameter mind. so viel relativ zum a-Parameter lang sein
   'nolinkmass', false, ... % Setze die Masse der Robotersegmente auf Null.

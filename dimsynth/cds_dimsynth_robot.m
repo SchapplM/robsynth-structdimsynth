@@ -898,10 +898,10 @@ if Structure.Type == 2 && Set.optimization.platform_morphology && isempty(Struct
     vartypes = [vartypes; 9];
     varlim = [varlim; [-pi,pi]]; % Offset für Gelenkrichtung auf Plattform
     varnames = {varnames{:}, 'platform_morph_axoffset'}; %#ok<CCAT>
-  elseif R.DesPar.platform_method == 9
+  elseif any(R.DesPar.platform_method == [9 10])
     nvars = nvars + 1;
     vartypes = [vartypes; 9];
-    varlim = [varlim; [-pi/2,pi/2]]; % Neigungswinkel der Gelenkachsen in die Mitte
+    varlim = [varlim; [-pi/2,pi/2]]; % Neigungswinkel der Gelenkachsen in die Mitte (9) bzw. nach unten (10)
     varnames = {varnames{:}, 'platform_morph_axtiltangle'}; %#ok<CCAT>
   else
     error('Parameter "platform_morphology" für Plattform-Methode %d nicht implementiert', R.DesPar.platform_method);

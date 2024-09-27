@@ -191,7 +191,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
   Coupling_all = unique(Coupling_all,'row');
   for kk = 1:size(Coupling_all,1) % Schleife über Koppelpunkt-Möglichkeiten
     Coupling = Coupling_all(kk,:);
-    if Coupling(1) > 10 || Coupling(2) > 9
+    if Coupling(1) > 10 || Coupling(2) > 10
       error('Fall nicht implementiert');
     end
     %% Serielle Beinketten auswählen

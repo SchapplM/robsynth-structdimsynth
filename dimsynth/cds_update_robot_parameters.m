@@ -357,11 +357,11 @@ end
 
 %% Plattform-Morphologie-Parameter (z.B. Gelenkpaarabstand)
 % Methoden und Parameter, siehe align_platform_coupling
-if Structure.Type == 2 && any(Structure.Coupling(2) == [4 5 6 8 9])
+if Structure.Type == 2 && any(Structure.Coupling(2) == [4 5 6 8 9 10])
   if Set.optimization.platform_morphology && any(Structure.vartypes == 9) 
-    if any(Structure.Coupling(2) == [8 9])
+    if any(Structure.Coupling(2) == [8 9 10])
       % Offset-Parameter (Winkel) platform_morph_axoffset für P8. Oder
-      % Winkel der konischen Anordnung (P9). Direkte Übernahme.
+      % Winkel der konischen Anordnung (P9/P10). Direkte Übernahme.
       p_plfpar(2) = p(Structure.vartypes == 9);
     else % Paar-Abstand-Parameter platform_morph_pairdist. Skalierung mit Plattform-Größe
       if all(~isnan(Set.optimization.platform_size_limits)) && ...
