@@ -274,7 +274,7 @@ end
 %% Prüfe Länge der Beinketten
 if ~isinf(Set.optimization.max_chain_length)
   % Berechne die Länge der Beinketten (ohne Betrachtung von Schubgelenken)
-  Lchain = sum(DHtable(~isnan(DHtable(:,3)),3));
+  Lchain = sum(DHtable2(~isnan(DHtable2(:,3)),3));
   if ~isempty(R)
     if R.Type == 0, Lchain2 = R.reach(zeros(R.NJ,2));
     else,           Lchain2 = R.Leg(1).reach(zeros(R.Leg(1).NJ,2)); end
