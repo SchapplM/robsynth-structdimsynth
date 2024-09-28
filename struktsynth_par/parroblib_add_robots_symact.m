@@ -50,7 +50,7 @@ settings_default = struct( ...
   'use_mex', 1, ... % Die nutzung kompilierter Funktionen kann deaktiviert werden. Dann sehr langsam. Aber Start geht schneller, da keine Kompiliertung zu Beginn.
   'max_actuation_idx', 4, ... % Aktuierung bis zum vierten Gelenk-FG zulassen
   'base_couplings', 1:10, ... % siehe ParRob/align_base_coupling
-  'plf_couplings', 1:9 ... % siehe ParRob/align_platform_coupling
+  'plf_couplings', 1:10 ... % siehe ParRob/align_platform_coupling
   );
 
 %% Benutzereingabe verwalten
