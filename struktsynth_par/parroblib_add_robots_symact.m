@@ -225,14 +225,17 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       EE_FG_Mask = [1 1 1 1 1 1];
     end
     
-    l = struct('Names_Ndof', [],'AdditionalInfo',[], 'BitArrays_EEdof0', []);
+    l = struct('Names_Ndof', [],'AdditionalInfo',[], ... % siehe serroblib_gen_bitarrays.m
+      'BitArrays_EEdof0', [], 'BitArrays_Ndof', zeros(0,max(LegDoF_allowed)));
     I_FG = [];
     for i = LegDoF_allowed
       mdllistfile_Ndof = fullfile(serroblibpath, sprintf('mdl_%ddof', i), sprintf('S%d_list.mat',i));
-      l_tmp = load(mdllistfile_Ndof, 'Names_Ndof', 'AdditionalInfo', 'BitArrays_EEdof0');
+      l_tmp = load(mdllistfile_Ndof, 'Names_Ndof', 'AdditionalInfo', 'BitArrays_EEdof0', 'BitArrays_Ndof');
       l.Names_Ndof = [l.Names_Ndof,l_tmp.Names_Ndof];
       l.AdditionalInfo = [l.AdditionalInfo;     l_tmp.AdditionalInfo];
       l.BitArrays_EEdof0 = [l.BitArrays_EEdof0; l_tmp.BitArrays_EEdof0];
+      l.BitArrays_Ndof = [l.BitArrays_Ndof; [l_tmp.BitArrays_Ndof, ...
+        zeros(size(l_tmp.BitArrays_Ndof,1), max(LegDoF_allowed)-i)]];
       [~,I_FG_tmp] = serroblib_filter_robots(i, EE_FG, EE_FG_Mask);
       I_FG = [I_FG;I_FG_tmp]; %#ok<AGROW>
     end
@@ -1227,6 +1230,22 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       end
 
       %% Daten für freien Winkelparameter bestimmen
+      % Prüfe, ob die freien Winkelparameter passen
+      numangles = cellfun(@length, angles_jjj);
+      if numangles(1) > 0 && any(numangles ~= numangles(1))
+        warning('Die Anzahl der freien Winkelparameter ändert sich. Datenfehler.');
+        continue
+      end
+      ii = find(strcmp(l.Names_Ndof, LEG_Names{1}));
+      assert(isscalar(ii), 'Beinkette nicht einmal in Datenbank gefunden');
+      % Setze die freien Parameter im Bit-Array entsprechend der gefundenen Werte
+      csvline_ii_J = serroblib_bits2csvline(l.BitArrays_Ndof(ii,:));
+      I_param = contains(csvline_ii_J, 'theta') | contains(csvline_ii_J, 'alpha');
+      if any(numangles ~= sum(I_param))
+        warning('Anzahl der freien Parameter ist falsch. %d erwartet (%s), ist: %d', ...
+          sum(I_param), disp_array(csvline_ii_J(I_param), '%s'), numangles(1));
+        continue
+      end
       [angles_jjj_u, I] = unique(angles_jjj);
       if length(angles_jjj_u) ~= length(angles_jjj)
         warning(['Min. ein Fall für %s wurde mehrfach überprüft. %d Ergebnisse,', ...
@@ -1354,6 +1373,63 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           end
         end % for kkP
       end % if P7
+      %% Prüfe auf Beinketten-Isomorphismen
+      % DH-Parameter der Lösung mit vorhandenen Beinketten vergleichen.
+      % Wenn ein freier Parameter (alpha) auf einen Wert (pi/2 oder 0)
+      % festgelegt werden muss, kann das bereits einer bestehenden
+      % Beinkette entsprechen.
+      chain_isomorph_found = false;
+      legchainisostr = '';
+      if isscalar(angles_jjj_vr) % Nur für einen Fall für den/die freien Parameter machen
+        ii = find(strcmp(l.Names_Ndof, LEG_Names{1}));
+        assert(isscalar(ii), 'Beinkette nicht einmal in Datenbank gefunden');
+        % Setze die freien Parameter im Bit-Array entsprechend der gefundenen Werte
+        csvline_ii_J = serroblib_bits2csvline(l.BitArrays_Ndof(ii,:));
+        csvline_ii_J_orig = csvline_ii_J;
+        num_param = 0; % Anzahl der schon gedundenen Parameter
+        ii_paramfix_csv = false(1, length(csvline_ii_J));
+        for iii = 1:str2double(LEG_Names{1}(2))
+          I_theta_iii = strcmp(csvline_ii_J, sprintf('theta%d', iii));
+          if any(I_theta_iii)
+            num_param = num_param + 1;
+            if strcmp(angles_jjj_vr{1}(num_param), 'o')
+              csvline_ii_J{I_theta_iii} = 'pi/2';
+              ii_paramfix_csv(I_theta_iii) = true;
+            elseif strcmp(angles_jjj_vr{1}(num_param), 'p')
+              csvline_ii_J{I_theta_iii} = '0';
+              ii_paramfix_csv(I_theta_iii) = true;
+            end
+          end
+          I_alpha_iii = strcmp(csvline_ii_J, sprintf('alpha%d', iii));
+          if any(I_alpha_iii)
+            num_param = num_param + 1;
+            if strcmp(angles_jjj_vr{1}(num_param), 'o')
+              csvline_ii_J{I_alpha_iii} = 'pi/2';
+              ii_paramfix_csv(I_alpha_iii) = true;
+            elseif strcmp(angles_jjj_vr{1}(num_param), 'p')
+              csvline_ii_J{I_alpha_iii} = '0';
+              ii_paramfix_csv(I_alpha_iii) = true;
+            end
+          end
+        end
+        assert(length(angles_jjj_vr{1}) == num_param, 'Nicht alle freien Parameter zugeordnet');
+        if any(ii_paramfix_csv) % Es wurden allgemeine Parameter spezifisch gesetzt (bspw. alpha=pi/2)
+          csvline_ii_EE = serroblib_bits2csvline_EE(l.BitArrays_EEdof0(ii,:));
+          csvline_ii = [csvline_ii_J, '0', '0', '0', csvline_ii_EE, ...
+            '0', '', '0', '0', '0', '0', '0', '0', '0']; % Dummy-Spalten, damit Dimension passt
+          BAJ_ii = serroblib_csvline2bits(csvline_ii);
+          ii_iso = all(l.BitArrays_Ndof == repmat(BAJ_ii, size(l.BitArrays_Ndof,1), 1), 2);
+          iii_iso = find(ii_iso);
+          if any(iii_iso)
+            assert(iii_iso ~= ii, ['Logik-Fehler: Beinkette kann nicht identisch ' ...
+              'zu sich selbst sein, nachdem Parameter geändert wurden']);
+            legchainisostr = sprintf('Beinkette %s ist in Anordnung G%dP%d Isomorphismus zu %s. Änderung: %s -> %s', ...
+              LEG_Names{1}, Coupling(1), Coupling(2), disp_array(l.Names_Ndof(iii_iso), '%s'), ...
+              disp_array(csvline_ii_J_orig(ii_paramfix_csv), '%s'), disp_array(csvline_ii_J(ii_paramfix_csv), '%s'));
+            chain_isomorph_found = true;
+          end
+        end
+      end
       %% Ergebnis der Maßsynthese auswerten
       remove = false;
       try
@@ -1374,7 +1450,13 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       end
       rescode = NaN; %#ok<NASGU> 
       rank_success = 0;
-      if plf_isomorph_found > 0
+      if chain_isomorph_found
+        fprintf('%d/%d: %s. Überspringe Isomorphismus %s.\n', jjj, ...
+          length(Structures_Names), legchainisostr, Name);
+        remove = true;
+        num_isomorph = num_isomorph + 1;
+        rescode = 8; % Code für Isomorphismus (nicht nur Kugelgelenk-Iso.)
+      elseif plf_isomorph_found > 0
         fprintf(['%d/%d: Plattform-Koppelgelenkausrichtung von %s aus ', ...
           'Methode P7 ist identisch zu Ausrichtung aus P%d. Überspringe ', ...
           'Isomorphismus.\n'], jjj, length(Structures_Names), Name, plf_isomorph_found);
