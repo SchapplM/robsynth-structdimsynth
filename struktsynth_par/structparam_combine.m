@@ -54,13 +54,23 @@ aes = sum(angles_expr);
 % Vereinfachung des Ausdrucks. Durch das Ausklammern wird die
 % Vereinfachungslogik vorbereitet
 aes = simplify(aes);
+% Definiere symbolische Variablen für a/o/p/b
+a_all = sym(zeros(length(params_names), 1));
+b_all = a_all; o_all = a_all; p_all = a_all;
+for ii = 1:length(params_names) % alle Parameter durchgehen
+  % Ersetzungsausdrücke definieren (entsprechend den tmp-Var. oben.
+  a_all(ii)=sym(['a',params_names{ii}]);
+  b_all(ii)=sym(['b',params_names{ii}]);
+  o_all(ii)=sym(['o',params_names{ii}]);
+  p_all(ii)=sym(['p',params_names{ii}]);
+end
 % Vereinfachungsregeln anwenden
 for ii = 1:length(params_names) % alle Parameter durchgehen
   % Ersetzungsausdrücke definieren (entsprechend den tmp-Var. oben.
-  a=sym(['a',params_names{ii}]);
-  b=sym(['b',params_names{ii}]);
-  o=sym(['o',params_names{ii}]);
-  p=sym(['p',params_names{ii}]);
+  a=a_all(ii);
+  b=b_all(ii);
+  o=o_all(ii);
+  p=p_all(ii);
   % b kombiniert p und o
   lhs = p+o;
   rhs = b;
@@ -98,8 +108,14 @@ if isa(aesc, 'cell')
 end
 % Entferne addierte +1 wieder
 aesc = aesc(~(logical(aesc==1)));
-
-% Erzeuge den Ausgabe-String
+%% Manuelle Ersetzung im Fall von mehrfachen freien Parametern
+% Wenn eine zulässige Lösung beliebige Werte enthält, dann braucht es die
+% spezielle Lösung nicht mehr (bspw. aa ist eine Lösung, dann ist oo egal).
+aprod = prod(a_all);
+if any(isAlways(aesc == aprod, Unknown=false)) % Aufruf ohne Warnung bei Nichtprüfbarkeit
+  aesc = aprod;
+end
+%% Erzeuge den Ausgabe-String
 angles_valid_red = cell(1,length(aesc));
 for i = 1:length(aesc)
   angles_valid_red{i} = '';

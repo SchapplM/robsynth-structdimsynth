@@ -69,8 +69,13 @@ end
 if ~isfield(Set.optimization,'min_inclination_conic_base_joint')
   Set.optimization.min_inclination_conic_base_joint = 0;
 end
-if ~isfield(Set.optimization,'min_inclination_conic_platform_joint')
-  Set.optimization.min_inclination_conic_platform_joint = 0;
+if ~isfield(Set.optimization,'min_inclination_inclined_platform_joint')
+  if isfield(Set.optimization, 'min_inclination_conic_platform_joint') % alte Version vor September 2024
+    Set.optimization.min_inclination_inclined_platform_joint = ...
+      Set.optimization.min_inclination_conic_platform_joint;
+  else
+    Set.optimization.min_inclination_inclined_platform_joint = 0;
+  end
 end
 %% Automatische Übersetzung anderer Einstellungen
 % Gehe alle Felder der Einstellungen durch und ergänze fehlende
