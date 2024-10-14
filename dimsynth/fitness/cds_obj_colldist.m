@@ -117,13 +117,14 @@ end
 % Set_tmp.general.plot_details_in_fitness = inf;
 % [fval, coll, colldepth_abs] = cds_constr_collisions_self(R, Traj_0.X, ...
 %   Set_tmp, Structure, JP, Q, [1 2]);
-%% Debug-Plot
+%% Aktivierung des Debug-Plots
 if Set.general.plot_details_in_fitness < 0 && 1e4*fval > abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
    Set.general.plot_details_in_fitness > 0 && 1e4*fval < abs(Set.general.plot_details_in_fitness) % Gütefunktion ist besser als Schwellwert: Zeichne
   % Zeichnen/Debuggen (s.u.)
 else
   return
 end
+%% Debug-Plot
 fhdl = change_current_figure(722); clf; hold all;
 view(3); axis auto; hold on; grid on;
 xlabel('x in m'); ylabel('y in m'); zlabel('z in m');
