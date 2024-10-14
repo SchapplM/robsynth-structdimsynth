@@ -94,6 +94,30 @@ if Structure.Type == 0 || Structure.Type == 2
       p_phys(Ipkin(j)) = pkin_voll(i);
     end
   end
+  % Sonderfälle betrachten, bei denen die Parameter eine Abhängigkeit haben
+  if any(contains(Structure.Name, {'P3RRRRR13G4P1', 'P3RRRRR14G4P1', 'P4RRRRR13G4P1', 'P4RRRRR14G4P1'}))
+    % Parameter alpha ist von Steigung der Basis abhängig.
+    p_baseelev = p(Structure.vartypes == 8); % Basis-Steigung (Winkel)
+    pkin_voll(R_pkin.pkin_types==3) = p_baseelev; % Ausgleich des Gestell-Winkels durch den alpha-Parameter
+    I_alpha = contains(Structure.varnames, 'alpha'); % alpha4 bzw. alpha3 (es gibt jeweils nur ein alpha)
+    if any(I_alpha), p_phys(I_alpha) = pkin_voll(R_pkin.pkin_types==3); end
+  end
+  if any(contains(Structure.Name, {'P3RRRRR13G1P10', 'P3RRRRR14G1P10', 'P3PRRRR11G1P10', 'P4RRRRR13G1P10', 'P4RRRRR14G1P10', 'P4PRRRR11G1P10'}))
+    p_plfelev = p(Structure.vartypes == 9); % Plattform-Steigung (Winkel)
+    pkin_voll(R_pkin.pkin_types==3) = pi/2+p_plfelev; % Ausgleich des Plattform-Winkels durch den alpha-Parameter
+    I_alpha = contains(Structure.varnames, 'alpha'); % alpha4 bzw. alpha3 (es gibt jeweils nur ein alpha)
+    if any(I_alpha), p_phys(I_alpha) = pkin_voll(R_pkin.pkin_types==3); end
+  end
+  if any(contains(Structure.Name, {'P3RRRRR15G1P1', 'P3PRRRR12G1P1','P4RRRRR15G1P1', 'P4PRRRR12G1P1'}))
+    p_alpha = pkin_voll(R_pkin.pkin_types==3); % es gibt zwei alphas
+    I_alpha = find(contains(Structure.varnames, 'alpha'));
+    if length(I_alpha) == 2 % nur den Fall betrachten, dass es zwei allgemeine Winkel alpha optimiert werden
+      p_alpha(2) = -p_alpha(1); % zweiter Winkel gleicht den ersten wieder aus
+      I_alpha_pkin = find(R_pkin.pkin_types==3);
+      pkin_voll(I_alpha_pkin(2)) = -p_alpha(1);
+      p_phys(I_alpha(2)) = pkin_voll(I_alpha_pkin(2));
+    end
+  end
   if ~isempty(R)
     if Structure.Type == 0, R_neu.update_mdh(pkin_voll);  % Seriell
     else
