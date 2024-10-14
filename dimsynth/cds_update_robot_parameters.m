@@ -97,9 +97,9 @@ if Structure.Type == 0 || Structure.Type == 2
   if ~isempty(R)
     if Structure.Type == 0, R_neu.update_mdh(pkin_voll);  % Seriell
     else
-      if Structure.mirrorconfig_d == 1
+      if Structure.mirrorconfig_d == 1 % Standardfall, keine Spiegelung
         R_neu.update_mdh_legs(pkin_voll);
-      else
+      else % anderer möglicher Wert: -1 (siehe cds_gen_robot_list)
         % Beinketten sind in den Gestellgelenk-Paaren gespiegelt
         for kk = 1:R_neu.NLEG
           if mod(kk,2) == 1 % normales Eintragen der Parameter
