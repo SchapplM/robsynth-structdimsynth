@@ -448,7 +448,9 @@ if length(Set.optimization.objective) > 1 % Mehrkriterielle Optimierung
   % Indizes der betrachteten Zielkriterien
   IO1 = objcomb3D(pfcomb, 1);
   IO2 = objcomb3D(pfcomb, 2);
-  IO3 = objcomb3D(pfcomb, 3);
+  if length(objcomb3D) == 3
+    IO3 = objcomb3D(pfcomb, 3);
+  end
 
   % Daten für Pareto-Front sammeln
   pf_data = NaN(0, length(Set.optimization.objective));
