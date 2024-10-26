@@ -58,6 +58,12 @@ if Set.general.matfile_verbosity > 2
 end
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_fitness_1.mat'),  '-regexp', '^(?!abort_fitnesscalc$).');
 
+if any(R.Type == [0 2])
+  sigma_act = R.MDH.sigma; % sigma-Parameter (1=Schub, 0=Dreh) für alle Gelenke
+else % Seriell-hybrid
+  sigma_act = R.MDH.sigma(R.MDH.mu == 1); % nur für Minimalkoordinaten (aktive Gelenke)
+end
+
 t1=tic();
 Q_out = []; QD_out = []; QDD_out = []; TAU_out = []; JP_out = []; Jinv_out = [];
 X6Traj_out = [];
@@ -74,8 +80,8 @@ if nargin == 6 && ~isempty(desopt_pval) && ~all(isnan(desopt_pval))% Die Eingabe
     % gelenk-Offsets aus dem gegebenen Ergebnis direkt in die Klasse ein.
     if Structure.desopt_prismaticoffset
       p_prismaticoffset = desopt_pval(Structure.desopt_ptypes==1);
-      if Structure.Type == 0
-        R.DesPar.joint_offset(R.MDH.sigma==1) = p_prismaticoffset;
+      if any(Structure.Type == [0 1])
+        R.DesPar.joint_offset(sigma_act==1) = p_prismaticoffset;
       else
         for i = 1:R.NLEG
           R.Leg(i).DesPar.joint_offset(R.Leg(i).MDH.sigma==1) = p_prismaticoffset;
@@ -194,7 +200,7 @@ cds_log(2,sprintf(['[fitness] G=%d;I=%d. Nebenbedingungen für Einzelpunkte ', .
 if all(~isnan(Structure.q0_traj)) && Set.task.profile ~= 0 % nur, falls es auch eine Trajektorie gibt
   % Prüfe, ob diese vorgegebene Werte auch von alleine gefunden wurden.
   Q0_err = Q0-repmat(Structure.q0_traj',size(Q0,1),1);
-  Q0_err(:,R.MDH.sigma==0) = angleDiff(Q0(:,R.MDH.sigma==0), repmat(Structure.q0_traj(R.MDH.sigma==0)',size(Q0,1),1));
+  Q0_err(:,sigma_act==0) = angleDiff(Q0(:,sigma_act==0), repmat(Structure.q0_traj(sigma_act==0)',size(Q0,1),1));
   I_match = all(abs(Q0_err)<1e-6,2);
   if ~any(I_match)
     if any(isnan(Q0_err(:)))
@@ -207,7 +213,7 @@ if all(~isnan(Structure.q0_traj)) && Set.task.profile ~= 0 % nur, falls es auch 
     % Prüfe, ob der vorgegebene Wert die IK löst. Wenn nicht, treten
     % nachfolgend Fehler in der IK auf (z.B. Dynamische Programmierung)
     % Ist relevant für den Fall der Aufgabenredundanz (geregelt in Klasse)
-    if R.Type == 0
+    if any(R.Type == [0 1])
       Phi_test = R.constr2(Structure.q0_traj, R.x2tr(Traj_0_E.XE(1,:)'), true);
       Phi_test = Phi_test(R.I_constr_red);
     else
@@ -252,8 +258,8 @@ end
 
 % Entwurfsparameter speichern (falls hiernach direkt Abbruch)
 if Structure.desopt_prismaticoffset % siehe cds_desopt_prismaticoffset.m
-  if Structure.Type == 0
-    desopt_pval(Structure.desopt_ptypes==1) = R.DesPar.joint_offset(R.MDH.sigma==1);
+  if any(Structure.Type == [0 1])
+    desopt_pval(Structure.desopt_ptypes==1) = R.DesPar.joint_offset(sigma_act==1);
   else
     desopt_pval(Structure.desopt_ptypes==1) = R.Leg(1).DesPar.joint_offset(R.Leg(1).MDH.sigma==1);
   end
@@ -327,10 +333,10 @@ if Set.optimization.traj_ik_abort_on_success && size(Q0,1) > 1 && ...
     size(Q0,1) == size(Stats_constraints.minmaxcondJ,2) % sonst Reihenfolge mit q0_traj bereits gesetzt.
   % Reihenfolge anhand eines Leistungsmerkmals
   I_IKC = [];
-  if any(R.MDH.sigma == 1)
+  if any(sigma_act == 1)
     % Benutze Spannweite der Schubgelenkkoordinaten als erstes Kriterium
     % Bei PKM wird die Symmetrie bei Schubgelenken berücksichtigt.
-    qrange_from_q0 = NaN(size(Q0,1),R.NJ);
+    qrange_from_q0 = NaN(size(Q0,1),size(Q0,2));
     for i = 1:size(Q0,1)
       qrange_from_q0(i,:) = diff(update_joint_limits(R, Set, Q0(i,:), 1, 0, 1)');
     end
@@ -380,18 +386,18 @@ physval_IKC = fval_IKC;
 constrvioltext_IKC = cell(size(Q0,1), 1);
 constraint_obj_val_IKC = NaN(length(Set.optimization.constraint_obj),size(Q0,1));
 fval_debugtext_IKC = constrvioltext_IKC;
-Q_IKC = NaN(size(Traj_0.X,1), R.NJ, size(Q0,1));
+Q_IKC = NaN(size(Traj_0.X,1), size(Q0,2), size(Q0,1));
 QD_IKC = Q_IKC; QDD_IKC = Q_IKC;
-if R.Type == 0
-  JP_IKC = NaN(size(Traj_0.X,1), 3*(1+R.NJ+1), size(Q0,1));
+if any(R.Type == [0 1])
+  JP_IKC = NaN(size(Traj_0.X,1), 3*(1+R.NL), size(Q0,1));
 else
   JP_IKC = NaN(size(Traj_0.X,1), 3*(1+R.NJ+R.NLEG+1+1), size(Q0,1));
 end
-Jinv_IKC = NaN(size(Traj_0.X,1), sum(R.I_EE)*R.NJ, size(Q0,1));
+Jinv_IKC = NaN(size(Traj_0.X,1), sum(R.I_EE)*size(Q0,2), size(Q0,1));
 X6Traj_IKC = NaN(size(Traj_0.X,1), 3, size(Q0,1));
 desopt_pval_IKC = repmat(desopt_pval(:)', size(Q0,1), 1); % NaN-initialisiert oder aus Eingabe-Argument.
-if R.Type == 0, n_actjoint = R.NJ;
-else,           n_actjoint = sum(R.I_qa); end
+if any(R.Type == [0 1]), n_actjoint = R.NQJ;
+else,                    n_actjoint = sum(R.I_qa); end
 TAU_IKC = NaN(size(Traj_0.X,1), n_actjoint, size(Q0,1));
 
 for iIKC = I_IKC
@@ -448,7 +454,7 @@ for iIKC = I_IKC
     fval_IKC(iIKC,:) = 1e4*fval_trajconstr;
     % Speichere Offset als Ergebnis der Entwurfsoptimierung in cds_constraints_traj.
     if Structure.desopt_prismaticoffset
-      if Structure.Type == 0, p_prismaticoffset = R.DesPar.joint_offset(R.MDH.sigma==1);
+      if Structure.Type == 0, p_prismaticoffset = R.DesPar.joint_offset(sigma_act==1);
       else, p_prismaticoffset = R.Leg(1).DesPar.joint_offset(R.Leg(1).MDH.sigma==1);
       end
       desopt_pval_IKC(iIKC,Structure.desopt_ptypes==1) = p_prismaticoffset;
@@ -462,7 +468,7 @@ for iIKC = I_IKC
     fval_trajconstr = 0; % Alle Nebenbedingungen bereits in cds_constraints oben geprüft
     % Es liegt keine Trajektorie vor. Es reicht also, das Ergebnis der IK von
     % der Eckpunkt-Berechnung zu benutzen um die Jacobi-Matrix zu berechnen
-    if R.Type == 0 % Seriell
+    if any(R.Type == [0 1]) % Seriell
       Jinv_ges = NaN; % Platzhalter
     else % Parallel
       Jinv_ges = NaN(size(Q,1), sum(R.I_EE)*size(Q,2));
@@ -506,12 +512,12 @@ for iIKC = I_IKC
   % einige Prüfungen oben davon beeinflusst werden).
   % Falls Gelenksteifigkeiten vorgesehen sind springt das Federmoment.
   % Normalisiere nur den ersten Wert, falls dieser bereits jenseits pi ist.
-  qoff_norm = Q(1,R.MDH.sigma==0)-wrapToPi(Q(1,R.MDH.sigma==0));
+  qoff_norm = Q(1,sigma_act==0)-wrapToPi(Q(1,sigma_act==0));
   if any(qoff_norm)
-    Q(:,R.MDH.sigma==0) = Q(:,R.MDH.sigma==0) - repmat(qoff_norm,size(Q,1),1);
+    Q(:,sigma_act==0) = Q(:,sigma_act==0) - repmat(qoff_norm,size(Q,1),1);
   end
-  if R.Type == 0
-    R.qref(R.MDH.sigma==0) = wrapToPi(R.qref(R.MDH.sigma==0));
+  if any(R.Type == [0 1])
+    R.qref(sigma_act==0) = wrapToPi(R.qref(sigma_act==0));
   else
     for k = 1:R.NLEG
       R.Leg(k).qref(R.Leg(k).MDH.sigma==0) = wrapToPi(R.Leg(k).qref(R.Leg(k).MDH.sigma==0));
@@ -522,7 +528,7 @@ for iIKC = I_IKC
     continue; % Nächste Anfangs-Konfiguration
   end
   % Prüfe Validität der Jacobi (nur für PKM)
-  if any(isinf(Jinv_ges(:))) || Structure.Type~=0 && any(isnan(Jinv_ges(:)))
+  if any(isinf(Jinv_ges(:))) || Structure.Type==2 && any(isnan(Jinv_ges(:)))
     save(fullfile(repopath, 'tmp', 'cds_fitness_J_infnan.mat'));
     error('Jacobi hat Inf oder NaN. Darf hier eigentlich nicht sein!');
   end
@@ -632,7 +638,7 @@ for iIKC = I_IKC
           fval_IKC(iIKC,:) = 9.9e5;
           warning('Funktionswert %1.1e ist nicht für Entwurfsoptimierung vorgesehen', fval_desopt);
         end
-        cds_fitness_debug_plot_robot(R, zeros(R.NJ,1), Traj_0, Traj_W, Set, Structure, p, fval_IKC(iIKC,1), debug_info);
+        cds_fitness_debug_plot_robot(R, zeros(size(Q0,2),1), Traj_0, Traj_W, Set, Structure, p, fval_IKC(iIKC,1), debug_info);
         continue
       end
     end
@@ -647,7 +653,7 @@ for iIKC = I_IKC
   %% Berechnungen für Zielfunktionen
   % Nullstellung der Gelenk-Steifigkeit einsetzen (Sonderfall für
   % Starrkörpergelenke und Gelenk-Federn)
-  if R.Type ~= 0 && (Set.optimization.joint_stiffness_active_revolute ~= 0 || ...
+  if R.Type == 2 && (Set.optimization.joint_stiffness_active_revolute ~= 0 || ...
       Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
       Set.optimization.joint_stiffness_passive_universal ~= 0) && ...
       ~any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref'))
@@ -1010,10 +1016,10 @@ else
   % Wenn es Schubgelenke gibt, nehme die Möglichkeit mit der geringsten
   % Auslenkung. Das ist am ehesten plausibel. Meistens betrifft es das
   % gestellfeste Gelenk.
-  if I_best_opt==0 && any(R.MDH.sigma==1)
+  if I_best_opt==0 && any(sigma_act==1)
     qP_value_opt = NaN(length(iIKCopt), 1);
     for j = 1:length(iIKCopt)
-      qP_value_opt(j) = max(max(abs(Q_IKC(:,R.MDH.sigma==1,iIKCopt(j)))));
+      qP_value_opt(j) = max(max(abs(Q_IKC(:,sigma_act==1,iIKCopt(j)))));
     end
     [~,I_best_opt] = min(qP_value_opt); % Wähle die "beste" der "optimalen" Lösungen
   end
@@ -1024,8 +1030,8 @@ else
   if false % Debug: Prüfe, warum die eine Lösung besser als die andere ist
     % Passe Schubgelenk-Offset für den Plot an
     if Structure.desopt_prismaticoffset %#ok<UNRCH>
-      if Structure.Type == 0
-          R.DesPar.joint_offset(R.MDH.sigma==1) = desopt_pval_IKC(iIKCbest,Structure.desopt_ptypes==1);
+      if any(Structure.Type == [0 1])
+          R.DesPar.joint_offset(sigma_act==1) = desopt_pval_IKC(iIKCbest,Structure.desopt_ptypes==1);
         else
           for i = 1:R.NLEG
             R.Leg(i).DesPar.joint_offset(R.Leg(i).MDH.sigma==1) = desopt_pval_IKC(iIKCbest,Structure.desopt_ptypes==1);
@@ -1050,9 +1056,9 @@ else
     end
     linkxaxes
     figure(334);clf;
-    for i = 1:R.NJ
+    for i = 1:size(Q0,2)
       for k = 1:length(I_IKC_iO)
-        subplot(ceil(sqrt(R.NJ)), ceil(R.NJ/ceil(sqrt(R.NJ))), i); hold on;
+        subplot(ceil(sqrt(size(Q0,2))), ceil(size(Q0,2)/ceil(sqrt(size(Q0,2)))), i); hold on;
         plot(Traj_0.t, Q_IKC(:,i,I_IKC_iO(k)));
       end
       ylabel(sprintf('q %d', i)); grid on;
@@ -1151,8 +1157,8 @@ end
 % synthese selbst nicht unbedingt notwendig.
 if Structure.desopt_prismaticoffset
   p_prismaticoffset = desopt_pval(Structure.desopt_ptypes==1);
-  if Structure.Type == 0
-    R.DesPar.joint_offset(R.MDH.sigma==1) = p_prismaticoffset;
+  if any(Structure.Type == [0 1])
+    R.DesPar.joint_offset(sigma_act==1) = p_prismaticoffset;
   else
     for k = 1:R.NLEG
       R.Leg(k).DesPar.joint_offset(R.Leg(k).MDH.sigma==1) = p_prismaticoffset;
@@ -1199,21 +1205,23 @@ if Set.optimization.fix_joint_limits
 end
 I_valid = all(~isnan(Q),2);
 if ~any(I_valid), return; end % keine Daten übergeben. Aktualisiere nichts.
+if any(R.Type == [0 2]), sigma_act = R.MDH.sigma;
+else,                    sigma_act = R.MDH.sigma(R.MDH.mu == 1);  end
 qlim = R.update_qlim(); % Nur Auslesen, nicht in Klasse schreiben
 % Verschiebe die Winkelgrenzen
 qlim_range = qlim(:,2) - qlim(:,1);
 qlim_neu = qlim; % Für Dreh- und Schubgelenke separat. Berücksichtige 2pi-Periodizität
 % Naiver Mittelwert: Für Schubgelenke korrekt
-qlim_neu(R.MDH.sigma==1,:) = repmat(mean(Q(I_valid,R.MDH.sigma==1),1)',1,2)+...
-  [-qlim_range(R.MDH.sigma==1), qlim_range(R.MDH.sigma==1)]/2;
+qlim_neu(sigma_act==1,:) = repmat(mean(Q(I_valid,sigma_act==1),1)',1,2)+...
+  [-qlim_range(sigma_act==1), qlim_range(sigma_act==1)]/2;
 % Mittelwert der Winkel, zunächst normalisiert um pi
-qErot_mean = meanangle(Q(I_valid,R.MDH.sigma==0),1)';
+qErot_mean = meanangle(Q(I_valid,sigma_act==0),1)';
 % Zentrieren um ersten Schritt. Sonst kann q0 außerhalb liegen, obwohl
 % es eigentlich der korrekte Bereich ist.
-qErot_meannorm = normalizeAngle(qErot_mean, Q(1,R.MDH.sigma==0)');
+qErot_meannorm = normalizeAngle(qErot_mean, Q(1,sigma_act==0)');
 % Einträge für Drehgelenke überschreiben
-qlim_neu(R.MDH.sigma==0,:) = repmat(qErot_meannorm,1,2)+...
-  [-qlim_range(R.MDH.sigma==0), qlim_range(R.MDH.sigma==0)]/2;
+qlim_neu(sigma_act==0,:) = repmat(qErot_meannorm,1,2)+...
+  [-qlim_range(sigma_act==0), qlim_range(sigma_act==0)]/2;
 % Verschiebe die Grenzen nochmals, falls die ersten Winkel nicht drin sind
 Q_delta_ll = qlim_neu(:,1) - Q(1,:)';
 if any(Q_delta_ll > 0) % untere Grenze wird verletzt
@@ -1227,9 +1235,9 @@ if any(Q_delta_ul < 0) % untere Grenze wird verletzt
 end
 % Schubgelenke auf die minimal nötige Grenze reduzieren (für Animationen)
 if limit_pris_to_Q
-  if R.Type == 0 % Seriell
+  if any(R.Type == [0 1]) % Seriell
     % Schubgelenk-Grenzen so setzen, dass Bewegung gerade so möglich ist
-    I = R.MDH.sigma==1;
+    I = sigma_act==1;
     qlim_neu(I,:) = minmax2(Q(I_valid,I)') + tol*repmat([-1, 1], sum(I), 1);
   else % PKM
     % Grenzen bei symmetrischer Wahl

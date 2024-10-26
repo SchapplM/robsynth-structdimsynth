@@ -61,7 +61,16 @@
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
 function [fval,QE_all,Q0,constrvioltext,Stats_constraints] = cds_constraints(R, Traj_0, Set, Structure)
-Q0 = NaN(1,R.NJ);
+if any(R.Type == [0 2])
+  Q0 = NaN(1,R.NJ);
+else % Bei seriell-hybrid nur die Minimalkoordinaten betrachten
+  Q0 = NaN(1,R.NQJ);
+end
+if any(R.Type == [0 2])
+  sigma_act = R.MDH.sigma; % sigma-Parameter (1=Schub, 0=Dreh) für alle Gelenke
+else % Seriell-hybrid
+  sigma_act = R.MDH.sigma(R.MDH.mu == 1); % nur für Minimalkoordinaten (aktive Gelenke)
+end
 QE_all = Q0;
 Stats_constraints = struct('bestcolldist', [], 'bestinstspcdist', []);
 %% Geometrie auf Plausibilität prüfen (1)
@@ -71,17 +80,17 @@ Stats_constraints = struct('bestcolldist', [], 'bestinstspcdist', []);
 % benutzt und der Maximalwert neu anhand der IK-Ergebnisse gesetzt.
 % Siehe cds_dimsynth_robot. Sollte damit konsistent sein.
 qlim = R.update_qlim(); % Wurde in cds_dimsynth_robot gesetzt.
-if ~isnan(Set.optimization.max_range_prismatic) && any(R.MDH.sigma==1)
+if ~isnan(Set.optimization.max_range_prismatic) && any(sigma_act==1)
   qlim_tmp = qlim;
-  qlim_tmp(R.MDH.sigma==1) = 5*Structure.Lref;
+  qlim_tmp(sigma_act==1) = 5*Structure.Lref;
   R.update_qlim(qlim_tmp);
 end
-if R.Type == 0, Lchain = R.reach(); % Berechne maximale Länge der Kinematik ...
-else,           Lchain = R.Leg(1).reach(); end % ... bzw. der Beinkette bei PKM
-if ~isnan(Set.optimization.max_range_prismatic) && any(R.MDH.sigma==1)
+if any(R.Type == [0 1]), Lchain = R.reach(); % Berechne maximale Länge der Kinematik ...
+else,                    Lchain = R.Leg(1).reach(); end % ... bzw. der Beinkette bei PKM
+if ~isnan(Set.optimization.max_range_prismatic) && any(sigma_act==1)
   R.update_qlim(qlim); % Rückgängig machen (Grenzen werden aber sowieso später angepasst)
 end
-if R.Type == 0 % Seriell
+if any(R.Type == [0 1]) % Seriell
   % Prüfe, ob alle Eckpunkte der Trajektorie im Arbeitsraum des Roboters liegen
   dist_max = Lchain;
   dist_exc_tot = NaN(size(Traj_0.XE,1),1);
@@ -122,7 +131,7 @@ else % PKM
 end
 
 %% Geometrie auf Plausibilität prüfen (2)
-if R.Type == 0 % Seriell
+if any(R.Type == [0 1]) % Seriell
   % Entfällt. Nur eine Prüfung für serielle Roboter
 else % PKM
   % Berechne die Position der Koppelpunkte für die vorgesehenen Eckpunkte der
@@ -178,7 +187,7 @@ else % Nur Eckpunkte
 end
 condJ = NaN(size(Traj_0.XE,1), 1); % Gesamt-Jacobi (Antriebe-EE)
 qref = R.update_qref();
-if R.Type == 0 % Seriell
+if any(R.Type == [0 1]) % Seriell
   Phi_E = NaN(size(Traj_0.XE,1), sum(Set.task.DoF));
   condJik = NaN(size(Traj_0.XE,1), 1); % IK-Jacobi
   QE = NaN(size(Traj_0.XE,1), R.NQJ);
@@ -203,7 +212,7 @@ else
 end
 % Bestimme die Index-Bereiche für die Zählvariable jic
 I_jic1 = 1:max(30+Set.optimization.pos_ik_tryhard_num, 1);
-if any(R.MDH.sigma==1) && length(I_jic1) > 2 % Bei Schubgelenken explizit Wertebereiche vorgeben
+if any(sigma_act==1) && length(I_jic1) > 2 % Bei Schubgelenken explizit Wertebereiche vorgeben
   % zwischen ein Drittel und zwei Drittel der regulären Versuche
   I_jic2_Pleft = I_jic1(I_jic1 < length(I_jic1)*2/3 & I_jic1 >= length(I_jic1)*1/3);
   % Letztes Drittel der regulären Versuche
@@ -240,7 +249,7 @@ minmaxcondJik_jic = NaN(2,n_jic);
 % IK-Statistik (für Aufgabenredundanz). Absolute Verbesserung von
 % Zielkriterien gegenüber der nicht-redundanten Kinematik
 arikstats_jic = NaN(size(Traj_0.XE,1),n_jic);
-Q_jic = NaN(size(Traj_0.XE,1), R.NJ, n_jic);
+Q_jic = NaN(size(Traj_0.XE,1), length(Q0), n_jic);
 fval_jic_old = fval_jic;
 constrvioltext_jic_old = constrvioltext_jic;
 Q_jic_old = Q_jic;
@@ -252,7 +261,7 @@ qlim_norm(isinf(qlim_norm)) = sign(qlim_norm(isinf(qlim_norm)))*pi;
 % Nehme für Drehgelenke nicht die Grenzen aus qlim für Anfangswert, da
 % diese für die Position eine Spannweite angeben und keine absoluten
 % Winkel. Wähle komplett zufällige Winkel als Referenz für den Start
-qlim_norm(R.MDH.sigma==0,:) = repmat([-pi, +pi], sum(R.MDH.sigma==0),1);
+qlim_norm(sigma_act==0,:) = repmat([-pi, +pi], sum(sigma_act==0),1);
 qlim_range = qlim(:,2)-qlim(:,1);
 qlim_range_norm = qlim_range;
 qlim_range_norm(isinf(qlim_range)) = 2*pi;
@@ -280,7 +289,7 @@ end
 % Bestimme zufällige Anfangswerte für Gelenkkonfigurationen.
 % Benutze Gleichverteilung und kein Latin Hypercube (dauert zu lange).
 Q0_lhs = repmat(qlim_norm(:,1), 1, n_jic) + ...
-  rand(R.NJ, n_jic) .* repmat(qlim_norm(:,2)-qlim_norm(:,1), 1, n_jic);
+  rand(length(Q0), n_jic) .* repmat(qlim_norm(:,2)-qlim_norm(:,1), 1, n_jic);
 for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   Phi_E(:) = NaN; QE(:) = NaN; % erneut initialisieren wegen jic-Schleife.
   condJ(:) = NaN;  Jinv_E(:) = NaN;
@@ -302,12 +311,12 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     % Fällen)
   elseif any(jic == I_jic2_Pleft)
     % Setze die Anfangswerte (für Schubgelenke) ganz weit nach "links"
-    q0(R.MDH.sigma==1) = q0(R.MDH.sigma==1) - 0.5*rand(1)*...
-      (qlim_norm(R.MDH.sigma==1,2)-qlim_norm(R.MDH.sigma==1,1));
+    q0(sigma_act==1) = q0(sigma_act==1) - 0.5*rand(1)*...
+      (qlim_norm(sigma_act==1,2)-qlim_norm(sigma_act==1,1));
   elseif any(jic == I_jic3_Pright)
     % Anfangswerte weit nach rechts
-    q0(R.MDH.sigma==1) = q0(R.MDH.sigma==1) + 0.5*rand(1)*...
-      (qlim_norm(R.MDH.sigma==1,2)-qlim_norm(R.MDH.sigma==1,1));
+    q0(sigma_act==1) = q0(sigma_act==1) + 0.5*rand(1)*...
+      (qlim_norm(sigma_act==1,2)-qlim_norm(sigma_act==1,1));
   elseif any(jic == I_jic4_ikcomb) % Versuche mit Kombinationen der bisherigen gefundenen Konfigurationen (für PKM)
     % Prüfe, ob für die zweite oder folgende Beinkette Werte ungleich NaN
     % vorliegen. Falls nicht, konnte die eine Beinkette nie erfolgreich
@@ -421,7 +430,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   end % Fälle für Bestimmung von q0
   % Normalisiere den Anfangswert (außerhalb [-pi,pi) nicht sinnvoll).
   % (Betrifft nur Fall, falls Winkelgrenzen groß gewählt sind)
-  q0(R.MDH.sigma==0) = normalize_angle(q0(R.MDH.sigma==0));
+  q0(sigma_act==0) = normalize_angle(q0(sigma_act==0));
   % Übertrage in Variable für Menge mehrerer möglicher Anfangswerte.
   % hiermit theoretisch auch mehrere Anfangswerte auf einmal vorgebbar.
   % Wird benutzt, damit die Ergebnisse vorheriger Punkte ausprobiert
@@ -512,7 +521,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     % (bereits hier und nicht erst in Aufgabenredundanz-Schritt)
     s_ser = s; % Jetzt unterschiedliche Einstellungen hier und in PKM-Funktion
     if Structure.task_red && all(~isinf(Set.optimization.ee_rotation_limit))
-      if R.Type == 0
+      if any(R.Type == [0 1])
         s_ser.wn = zeros(R.idx_ik_length.wnpos,1);
         s_ser.wn(R.idx_ikpos_wn.xlim_hyp) = 1;
         R.xlim = [NaN(5,2); ... % Relative Grenze
@@ -526,7 +535,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     end
     if i_ar == 1 % IK ohne Optimierung von Nebenbedingungen
       Stats = struct('coll', false); %#ok<NASGU> % Platzhalter-Variable
-      if R.Type == 0 % Seriell
+      if any(R.Type == [0 1]) % Seriell
         [q, Phi, Tc_stack, Stats] = R.invkin2(R.x2tr(Traj_0.XE(i,:)'), Q0_ik, s_ser);
         nPhi_t = sum(R.I_EE_Task(1:3));
         ik_res_ik2 = all(abs(Phi(1:nPhi_t))<s.Phit_tol) && ...
@@ -706,9 +715,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         % kurz wie möglich gewählt (wegen Einfluss auf Masse/Dynamik)
         if ~Set.optimization.fix_joint_limits
           qlim_neu = qlim;
-          qlim_neu(R.MDH.sigma==0,:) = repmat(mean(QE(1:i,R.MDH.sigma==0),1)',1,2)+...
-            [-qlim_range(R.MDH.sigma==0), qlim_range(R.MDH.sigma==0)]/2;
-          % qlim_neu(R.MDH.sigma==1,:) = qlim(R.MDH.sigma==1,:); % Schubgelenke zurücksetzen
+          qlim_neu(sigma_act==0,:) = repmat(mean(QE(1:i,sigma_act==0),1)',1,2)+...
+            [-qlim_range(sigma_act==0), qlim_range(sigma_act==0)]/2;
+          % qlim_neu(sigma_act==1,:) = qlim(sigma_act==1,:); % Schubgelenke zurücksetzen
           if all(isnan(qlim_neu(:)))
             cds_log(-1, '[constraints] qlim soll mit NaN überschrieben werden')
             save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
@@ -824,7 +833,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         R.xlim = [NaN(5,2); pi/6 * [-1 1]];
       end
       % IK für Nullraumbewegung durchführen
-      if R.Type == 0
+      if any(R.Type == [0 1])
         [q, Phi, Tc_stack, Stats] = R.invkin2(R.x2tr(Traj_0.XE(i,:)'), q0_arik, s4);
       else
         [q, Phi, Tc_stack, Stats, Jinv_i] = R.invkin4(Traj_0.XE(i,:)', q0_arik, s4);
@@ -906,8 +915,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
             disp_array(s4.wn','%1.1g'), max(Stats.condJ(1:1+Stats.iter,1)), Stats.coll, debug_str));
         end
         if Set.general.debug_taskred_fig % Zum Debuggen
-        if R.Type == 0, I_constr_red = [1 2 3 5 6];
-        else,           I_constr_red = R.I_constr_red; end
+        if any(R.Type == [0 1]), I_constr_red = [1 2 3 5 6];
+        else,                    I_constr_red = R.I_constr_red; end
         FigARDbg = change_current_figure(2345);clf;
         Iter = 1:1+Stats.iter;
         set(FigARDbg,'Name','AR_PTPDbg', 'NumberTitle', 'off');
@@ -1037,14 +1046,14 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     % Normalisiere den Winkel. Bei manchen Robotern springt das IK-Ergebnis
     % sehr stark. Dadurch wird die Gelenkspannweite sonst immer verletzt.
     if i == 1 % Normalisierung von -pi bis pi (Mitte 0)
-      q(R.MDH.sigma==0) = normalizeAngle(q(R.MDH.sigma==0), 0);
+      q(sigma_act==0) = normalizeAngle(q(sigma_act==0), 0);
     else
       % Normalisierung nicht um den Wert Null herum, sondern um die Winkel
       % der ersten Konfiguration. Das führt zu einer minimalen Spannweite
       % bezüglich aller Gelenkkonfigurationen der Eckpunkte und wird auch
       % als Mittelwert für die später festgelegten Gelenkgrenzen benutzt.
-      q(R.MDH.sigma==0) = normalizeAngle(q(R.MDH.sigma==0), ...
-        QE(1, R.MDH.sigma==0)'); % Bezugswinkel erste Punkt
+      q(sigma_act==0) = normalizeAngle(q(sigma_act==0), ...
+        QE(1, sigma_act==0)'); % Bezugswinkel erste Punkt
     end
     % Beim Fall objective_ik=constant wechselt die Dimension. Daher hier
     % pauschal abschneiden ohne weitere Prüflogik
@@ -1094,11 +1103,11 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       % festzustellen, welche eindeutig sind (Dimensionsunabhängig)
       % Teste die Differenz getrennt für Dreh- und Schubgelenke
       test_vs_all_prev = NaN(length(q), jic-1);
-      Q_prev = reshape(squeeze(Q_jic(i,:,1:jic-1)),R.NJ,jic-1);
-      test_vs_all_prev(R.MDH.sigma==1,:) = repmat(q(R.MDH.sigma==1),1,jic-1) - ...
-        Q_prev(R.MDH.sigma==1,:); % Schubgelenk
-      test_vs_all_prev(R.MDH.sigma==0,:) = wrapToPi( ... % Drehgelenk
-        repmat(q(R.MDH.sigma==0),1,jic-1) - Q_prev(R.MDH.sigma==0,:) );
+      Q_prev = reshape(squeeze(Q_jic(i,:,1:jic-1)),length(Q0),jic-1);
+      test_vs_all_prev(sigma_act==1,:) = repmat(q(sigma_act==1),1,jic-1) - ...
+        Q_prev(sigma_act==1,:); % Schubgelenk
+      test_vs_all_prev(sigma_act==0,:) = wrapToPi( ... % Drehgelenk
+        repmat(q(sigma_act==0),1,jic-1) - Q_prev(sigma_act==0,:) );
       test_vs_all_prev_norm = test_vs_all_prev ./ repmat(qlim_range_norm,1,size(test_vs_all_prev,2));
       % Prüfe ob eine Spalte gleich ist wie die aktuellen Gelenkwinkel.
       % Kriterium: 3% bezogen auf erlaubte Spannweite
@@ -1137,7 +1146,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       % Prüfe ob sich die Koordinaten von Schubgelenken verändert haben
       % (Bei PKM wie 3-UPU kann das Schubgelenk mathematisch umklappen,
       % alle andere Kriterien sind aber gleich)
-      I_prisdifferent = all(abs(test_vs_all_prev(R.MDH.sigma==1,:)) < 1e-10, 1)';
+      I_prisdifferent = all(abs(test_vs_all_prev(sigma_act==1,:)) < 1e-10, 1)';
       % Erkenne eine andere Gelenkposition nur an, wenn die Plattformdrehung 
       % ungefähr gleich bleibt. Sonst teilweise große EE-Änderung bei
       % kleiner Gelenkpositionsänderung. Zusätzlich Schubgelenk-Ausnahme 
@@ -1323,9 +1332,9 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     end
   end
   %% Bestimme die Spannweite der Gelenkkoordinaten (getrennt Dreh/Schub)
-  q_range_E = NaN(1, R.NJ);
-  q_range_E(R.MDH.sigma==1) = diff(minmax2(QE(:,R.MDH.sigma==1)')');
-  q_range_E(R.MDH.sigma==0) = angle_range( QE(:,R.MDH.sigma==0));
+  q_range_E = NaN(1, length(Q0));
+  q_range_E(sigma_act==1) = diff(minmax2(QE(:,sigma_act==1)')');
+  q_range_E(sigma_act==0) = angle_range( QE(:,sigma_act==0));
   % Bestimme ob die maximale Spannweite der Koordinaten überschritten wurde
   qlimviol_E = qlim_range' - q_range_E;
   I_qlimviol_E = (qlimviol_E < 0);
@@ -1339,7 +1348,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     fval_qlimv_E_norm = 2/pi*atan((-fval_qlimv_E)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
     fval_jic(jic) = 1e5*(6+1*fval_qlimv_E_norm); % Normierung auf 6e5 bis 7e5
     % Überschreitung der Gelenkgrenzen (bzw. -bereiche). Weitere Rechnungen machen keinen Sinn.
-    if R.Type ~= 0
+    if R.Type == 2 % PKM
       legnum = find(IIw>=R.I1J_LEG, 1, 'last');
       legjointnum = IIw-(R.I1J_LEG(legnum)-1);
       jointstr = sprintf('; Bein %d, Beingelenk %d', legnum, legjointnum);
@@ -1459,16 +1468,16 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   end
   %% Prüfe Länge der Beinketten für geänderte Positionsgrenze von Schubgelenk
   % Muss nur gemacht werden, wenn es nicht-gestellfeste Schubgelenke gibt
-  I_nonfirstprismatic = R.MDH.sigma==1;
+  I_nonfirstprismatic = sigma_act==1;
   I_nonfirstprismatic(Structure.I_firstprismatic) = 0;
   if ~isinf(Set.optimization.max_chain_length) && ...
       any(I_nonfirstprismatic)
     q_minmax = NaN(R.NJ, 2);
-    q_minmax(R.MDH.sigma==1,:) = minmax2(QE(:,R.MDH.sigma==1)');
+    q_minmax(sigma_act==1,:) = minmax2(QE(:,sigma_act==1)');
     % Keine Betrachtung von Basisnahen Schubgelenken. Hier zählt nur die
     % Kette danach (vgl. PrauseChaCor2015, Gl. 7 und Text darüber)
     q_minmax(Structure.I_firstprismatic,:) = 0;
-    if R.Type == 0 || ...  % Seriell
+    if any(R.Type == [0 1]) || ...  % Seriell
         ~Set.optimization.joint_limits_symmetric_prismatic 
       q_minmax_sym = q_minmax;
     elseif R.Type == 2  % Symmetrische PKM
@@ -1478,8 +1487,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         q_minmax_sym = minmax2([q_minmax_sym, q_minmax(R.I1J_LEG(i):R.I2J_LEG(i),:)]);
       end
     end
-    if R.Type == 0, Lchain = R.reach(q_minmax_sym);
-    else,           Lchain = R.Leg(1).reach(q_minmax_sym(1:R.Leg(1).NJ,2)); end
+    if any(R.Type == [0 1]), Lchain = R.reach(q_minmax_sym);
+    else,                    Lchain = R.Leg(1).reach(q_minmax_sym(1:R.Leg(1).NJ,2)); end
     if Lchain > Set.optimization.max_chain_length
       RelNormViol = Lchain / Set.optimization.max_chain_length;
       fval_jic(jic) = 1e5 * (4.9 + 0.1 * 2/pi*atan(RelNormViol-1));  % Normierung auf 4.9e5 bis 5e5
@@ -1570,7 +1579,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     % prüfung genutzt werden.
     [~, fval_instspc_tmp] = cds_desopt_prismaticoffset(R, ...
       Traj_0.XE, Set, Structure, JPE, QE);
-    if R.Type == 0, new_offset=R.DesPar.joint_offset(R.MDH.sigma==1);
+    if any(R.Type == [0 1]), new_offset=R.DesPar.joint_offset(sigma_act==1);
     else, new_offset=R.Leg(1).DesPar.joint_offset(R.Leg(1).MDH.sigma==1); end
     cds_log(4, sprintf(['[constraints] Konfig %d/%d: Schubgelenk-Offset ', ...
       'wurde optimiert. Ergebnis: %1.1fmm'], jic, n_jic, 1e3*new_offset));
@@ -1766,14 +1775,14 @@ if ~any(I_iO) % keine gültige Lösung für Eckpunkte
     QE_all(I_zeros,:) = repmat(Q0,sum(I_zeros),1);
   end
 else % Gebe alle gültigen Lösungen aus
-  Q0 = reshape(squeeze(Q_jic(1,:,I_iO)),R.NJ,length(I_iO))';
+  Q0 = reshape(squeeze(Q_jic(1,:,I_iO)),length(Q0),length(I_iO))';
   Q0_unique = unique(round(Q0,2), 'rows');
   if size(Q0_unique,1) ~= size(Q0,1)
     cds_log(-1, sprintf('[constraints] Doppelte Konfigurationen als Ergebnis. Darf nicht sein'));
   end
   % Berücksichtige, ob die Schubgelenke unterschiedliche Werte haben (s.o.)
   % (Grenzfall bei 3-UPU oder evtl. 6-UPU)
-  if R.Type == 2 && any(R.MDH.sigma==1) % Abstand des Schubgelenks von Basis
+  if R.Type == 2 && any(sigma_act==1) % Abstand des Schubgelenks von Basis
     d_prismatic = NaN(length(I_iO),1);
     for kk = 1:length(I_iO)
       qminmax_legs = reshape(minmax2(Q_jic(:,:,I_iO(kk))'),R.Leg(1).NJ,2*R.NLEG);
@@ -1816,7 +1825,7 @@ else % Gebe alle gültigen Lösungen aus
       subplot(floor(ceil(sqrt(length(I_iO)))), ceil(sqrt(length(I_iO))), k);
       view([0,90]); axis auto; hold on; grid on;
       plotmode = 1; % Strichzeichnung
-      if R.Type == 0 % Seriell
+      if any(R.Type == [0 1]) % Seriell % Seriell
         s_plot = struct( 'ks', [], 'straight', 1, 'mode', plotmode);
         R.plot( Q0(k,:)', s_plot);
       else % PKM

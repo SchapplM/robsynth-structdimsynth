@@ -102,6 +102,7 @@ end
 
 structures = struct( ...
   'use_serial', true, ... % Wähle serielle Roboter
+  'use_serialhybrid', false, ... % Wähle seriell-hybride Roboter
   'use_parallel', true, ... % Wähle parallele Roboter
   'use_parallel_rankdef', false, ... Nehme auch parallele Roboter, die mit Rangverlust in der Datenbank stehen
   'onlylegchain_from_synthesis', true, ... % Nehme keine seriellen Ketten als Beinkette, die nur manuell in die SerRobLib eingetragen wurden

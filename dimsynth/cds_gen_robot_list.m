@@ -281,41 +281,89 @@ for N_JointDoF = N_JointDoF_allowed
     end
   end
 end
+%% Bestimme die erlaubten EE-FG
+if Set.structures.min_task_redundancy == 0
+  EE_FG_allowed = logical(Set.task.DoF);
+elseif Set.structures.min_task_redundancy > 1
+  error('Fall nicht implementiert');
+else
+  EE_FG_allowed = logical([]);
+end
+if Set.structures.max_task_redundancy > 0
+  if all(Set.task.DoF == [1 1 1 1 1 0])
+    % Bei 3T2R-Aufgabe sind 3T3R-PKM aufgabenredundant mit Grad 1
+    EE_FG_allowed = [EE_FG_allowed; logical([1 1 1 1 1 1])];
+  elseif all(Set.task.DoF == [1 1 0 0 0 0]) && Set.task.pointing_task
+    % Bei 2T0*R-Aufgabe sind 2T1R-PKM aufgabenredundant mit Grad 1
+    EE_FG_allowed = [EE_FG_allowed; logical([1 1 0 0 0 1])];
+  elseif all(Set.task.DoF == [1 1 1 0 0 0]) && Set.task.pointing_task
+    % Bei 3T0*R-Aufgabe sind 3T1R-PKM aufgabenredundant mit Grad 1
+    EE_FG_allowed = [EE_FG_allowed; logical([1 1 1 0 0 1])];
+  else
+    if verblevel >= 2
+      fprintf(['Aufgabenredundanz gefordert aber Aufgaben-FG %dT%dR nicht ', ...
+        'dafür vorgesehen\n'], sum(Set.task.DoF(1:3)), sum(Set.task.DoF(4:6)));
+    end
+  end
+end
+%% Seriell-hybride Roboter laden
+if structset.use_serialhybrid
+  HRDB = hybroblib_systems_list();
+  for kkk = 1:size(EE_FG_allowed,1)
+    I_DofMatch = all(HRDB.EEFG0 == repmat(EE_FG_allowed(kkk,:), size(HRDB,1),1), 2);
+    for j = find(I_DofMatch(:)')
+      HName = HRDB.Name{j};
+      RName = '';
+      IsInWhiteList = any(strcmp(structset.whitelist, HName));
+      Idx_Rob = contains(structset.whitelist, [HName,'_']);
+      IsRobInWhiteList = any(Idx_Rob);
+      if ~isempty(structset.whitelist) && IsRobInWhiteList
+        % Der gesuchte Begriff ist ein Roboter in der Datenbank (mit
+        % Parametern, nicht nur ein Modell)
+        % Trenne den Namen auf
+        if sum(Idx_Rob) > 1
+          error('Mehr als ein Robotermodell eingegeben. Noch nicht implementiert');
+        end
+        [tokens_rob, ~] = regexp(structset.whitelist{Idx_Rob},[HName,'_(.*)'],'tokens','match');
+        if isempty(tokens_rob)
+          warning('Unerwartete Eingabe in Positiv-Liste');
+        end
+        % Erwarte den Roboternamen als "Modellname", Unterstrich, Endung
+        % Siehe SerRobLib
+        suffix = tokens_rob{1}{1};
+        RName = suffix; % Zur Übergabe an hybroblib_create_robot_class
+        % Damit die folgenden Abfragen funktionieren
+        IsInWhiteList = IsRobInWhiteList;
+      elseif ~isempty(structset.whitelist) && ~IsInWhiteList
+        % Es gibt eine Liste von Robotern, dieser ist nicht dabei.
+        continue
+      end
+      % Bestimme den Typ der Antriebe
+      if strcmp(HRDB.ActType, 'P')
+        acttype_i = 'prismatic';
+      elseif strcmp(HRDB.ActType, 'R')
+        acttype_i = 'revolute';
+      else
+       acttype_i = 'mixed';
+      end
+      ii = ii + 1;
+      if verblevel >= 2, fprintf('%d: %s\n', ii, HName); end
+      Structures{ii} = struct('Name', HName, 'Type', 1, 'Number', ii, ...
+        'RobName', RName, ... % Falls ein konkreter Roboter mit Parametern gewählt ist
+        'act_type', acttype_i, 'deactivated', false, ...
+        ... % Platzhalter, Angleichung an PKM (Erkennung altes Dateiformat)
+        'angles_values', [], 'prismatic_types', [], 'mirrorconfig_d', 1); %#ok<AGROW> 
+    end
+  end
+end
 
 %% Parallele Roboter laden
 if structset.use_parallel
-  % Voll-Parallel: So viele Beinketten wie EE-FG, jede Beinkette einfach aktuiert
-  if structset.use_parallel_rankdef
-    max_rankdeficit = 6;
-  else
-    max_rankdeficit = 0;
-  end
-  if Set.structures.min_task_redundancy == 0
-    EE_FG_allowed = logical(Set.task.DoF);
-  elseif Set.structures.min_task_redundancy > 1
-    error('Fall nicht implementiert');
-  else
-    EE_FG_allowed = logical([]);
-  end
-  if Set.structures.max_task_redundancy > 0
-    if all(Set.task.DoF == [1 1 1 1 1 0])
-      % Bei 3T2R-Aufgabe sind 3T3R-PKM aufgabenredundant mit Grad 1
-      EE_FG_allowed = [EE_FG_allowed; logical([1 1 1 1 1 1])];
-    elseif all(Set.task.DoF == [1 1 0 0 0 0]) && Set.task.pointing_task
-      % Bei 2T0*R-Aufgabe sind 2T1R-PKM aufgabenredundant mit Grad 1
-      EE_FG_allowed = [EE_FG_allowed; logical([1 1 0 0 0 1])];
-    elseif all(Set.task.DoF == [1 1 1 0 0 0]) && Set.task.pointing_task
-      % Bei 3T0*R-Aufgabe sind 3T1R-PKM aufgabenredundant mit Grad 1
-      EE_FG_allowed = [EE_FG_allowed; logical([1 1 1 0 0 1])];
-    else
-      if verblevel >= 2
-        fprintf(['Aufgabenredundanz gefordert aber Aufgaben-FG %dT%dR nicht ', ...
-          'dafür vorgesehen\n'], sum(Set.task.DoF(1:3)), sum(Set.task.DoF(4:6)));
-      end
-    end
-  end
+% Voll-Parallel: So viele Beinketten wie EE-FG, jede Beinkette einfach aktuiert
+if structset.use_parallel_rankdef
+  max_rankdeficit = 6;
 else
-  EE_FG_allowed = logical([]);
+  max_rankdeficit = 0;
 end
 for kkk = 1:size(EE_FG_allowed,1)
   EEstr = sprintf('%dT%dR', sum(EE_FG_allowed(kkk,1:3)), sum(EE_FG_allowed(kkk,4:6)));
@@ -747,6 +795,7 @@ for kkk = 1:size(EE_FG_allowed,1)
     end % avtmp
     end % mctmp
   end
+end
 end
 %% Einträge auf der Liste verdoppeln
 % Wenn nur ein Roboter optimiert wird, können durch parallele Berechnung 

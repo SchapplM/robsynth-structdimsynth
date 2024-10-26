@@ -35,6 +35,8 @@ end
 if R.Type == 0
   NLegJ = R.NJ;
   NLEG = 1;
+elseif R.Type == 1
+  error('Für Seriell-hybrid noch nicht definiert')
 else
   NLegJ = size(Q,2) / R.NLEG;
   NLEG = R.NLEG;

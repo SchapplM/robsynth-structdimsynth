@@ -27,7 +27,7 @@
 function [fval, fval_debugtext, debug_info, qD_a_max] = cds_obj_actvelo(R, QD)
 debug_info = {};
 
-if R.Type == 0
+if any(R.Type == [0 1])
   qD_a_max_per_actuator = max(abs(QD));
 else
   qD_a_max_per_actuator = max(abs(QD(:,R.I_qa)));

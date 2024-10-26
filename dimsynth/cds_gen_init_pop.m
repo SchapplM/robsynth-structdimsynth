@@ -146,7 +146,7 @@ else % Normale Maßsynthese. Begrenze Suchbegriff, damit nicht gierig zu viel ge
   if Structure.Type == 2 % PKM: Wähle auch Ergebnisse mit anderen Koppelgelenk-Anordnungen
     [~, ~, ~, ~, ~, ~, ~, ~, PName_Legs] = parroblib_load_robot(RobName, 0);
     RobFilter  = ['_', PName_Legs];
-  else % Serielle Kinematik: Nur exakte Treffer nehmen
+  else % Serielle/seriellhybride Kinematik: Nur exakte Treffer nehmen
     RobFilter  = ['_', RobName, '_'];
   end
 end

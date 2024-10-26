@@ -43,8 +43,9 @@
 
 function [fval, fval_debugtext, debug_info, fval_phys] = cds_obj_stiffness(R, Set, Q)
 debug_info = {};
-if R.Type == 0 && any(R.DesPar.seg_par(:) == 0) || ...
-   R.Type ~= 0 && any(R.Leg(1).DesPar.seg_par(:) == 0)
+
+if any(R.Type == [0 1]) && any(R.DesPar.seg_par(:) == 0) || ...
+   R.Type == 2          && any(R.Leg(1).DesPar.seg_par(:) == 0)
   % Prüfe, ob Segmentparameter gültig gesetzt sind (muss durch
   % Programmlogik sichergestellt sein)
   repopath = fileparts(which('structgeomsynth_path_init.m'));

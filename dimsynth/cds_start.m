@@ -278,7 +278,8 @@ for i = 1:length(Set.structures.whitelist)
   expression_S = 'S[\d][RP]+[\d]+[V]?[\d]*';
   match_P = regexp(Name_i,expression_P,'match');
   match_S = regexp(Name_i,expression_S,'match');
-  if isempty(match_P) && isempty(match_S)
+  if isempty(match_P) && isempty(match_S) && ~Set.structures.use_serialhybrid
+    % für seriell-hybride gibt es (noch) kein Namensformat.
     error('Roboter %s auf Positiv-Liste entspricht nicht dem Namensformat', Name_i);
   end
 end

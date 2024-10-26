@@ -60,7 +60,7 @@ if fval > 1e9 % keine vernünftigen Parametergrenzen ableitbar
 else
   plotmode = 4; % Entwurfsparameter
 end
-if R.Type == 0 % Seriell
+if any(R.Type == [0 1]) % Seriell
   s_plot = struct( 'ks', 1:R.NJ+2, 'straight', 1, 'mode', plotmode);
   R.plot( q, s_plot);
 else % PKM

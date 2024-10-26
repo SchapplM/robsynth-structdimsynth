@@ -107,7 +107,7 @@ if Set.task.pointing_task && ~isempty(RobotOptDetails.Traj_Q) && traj_available
 end
 % Entferne Sprünge der Euler-Winkel von +/- 180° (sind in Eingabe schon so)
 X(:,4:6) = denormalize_angle_traj(X(:,4:6)); 
-if RobData.Type ~= 0
+if RobData.Type == 2
   R.update_EE_FG(R.I_EE, R.I_EE);
 end
 
@@ -227,7 +227,7 @@ for kk = 1:length(Set.general.animation_styles)
     I_anim = knnsearch( Traj_0.t , t_Vid ); % Berechne Indizes in Traj.-Zeitstempeln
     Traj_X = X;
   end
-  if RobData.Type == 0 % Seriell
+  if any(RobData.Type == [0 1]) % Seriell
     s_plot = struct( 'straight', 1);
   else % Parallel
     s_plot = struct( 'ks_legs', [], 'straight', 1);
@@ -238,7 +238,7 @@ for kk = 1:length(Set.general.animation_styles)
   elseif strcmp(anim_mode, 'CAD')
     s_plot.mode = 2;
     % Prüfe, ob auch ein CAD-Modell hinterlegt ist
-    if RobData.Type == 0 && isempty(R.CADstruct.link) % Seriell
+    if any(RobData.Type == [0 1]) && isempty(R.CADstruct.link) % Seriell
       warning('Serieller Roboter ohne CAD-Modell. Nur 3D-Plot möglich');
       s_plot.mode = 4;
     elseif RobData.Type == 2
@@ -253,7 +253,7 @@ for kk = 1:length(Set.general.animation_styles)
     error('Modus %s für Animation nicht definiert', anim_mode);
   end
   % Skaliere die Gelenk-Größe entsprechend der Roboter-Größe.
-  if R.Type == 0 % Seriell
+  if any(R.Type == [0 1]) % Seriell
     LrefRob = R.reach();
   else
     LrefRob = R.Leg(1).reach();
@@ -291,7 +291,7 @@ if strcmp(figname, 'jointtraj') && traj_available
   else
     x_row = 3; nrows = 3;
   end
-  if RobData.Type == 0
+  if any(RobData.Type == [0 1])
     subplot(2,3,sprc2no(2,3,1,1));
     plot(Traj_0.t, RobotOptDetails.Traj_Q);
     grid on; ylabel('q in rad oder m');
@@ -698,7 +698,7 @@ if strcmp(figname, 'dynamics') && traj_available
   Q = RobotOptDetails.Traj_Q;
   QD = RobotOptDetails.Traj_QD;
   QDD = RobotOptDetails.Traj_QDD;
-  if RobData.Type == 0
+  if any(RobData.Type == [0 1])
     Dyn_C = NaN(size(Q,1),R.NJ); Dyn_Tau_Static = Dyn_C;
     Dyn_G = Dyn_C; Dyn_A = Dyn_C; Dyn_Tau = Dyn_C; Dyn_S = Dyn_C;
     Dyn_Ext = Dyn_C;
@@ -790,7 +790,7 @@ if strcmp(figname, 'dynamics') && traj_available
     'NumberTitle', 'off', 'color','w');
   sgtitle(sprintf('Rob.%d, P.%d: fval=%s', RNr, PNr, fval_str));
   ntau = size(Dyn_Tau, 2);
-  if RobData.Type == 0
+  if any(RobData.Type == [0 1])
     plotunits = R.tauunit_sci;
   else
     units = reshape([R.Leg(:).tauunit_sci],R.NJ,1);
@@ -827,7 +827,7 @@ if strcmp(figname, 'dynamics') && traj_available
 end
 
 %% Dynamik-Bild (Plattform-Kräfte, für PKM)
-if strcmp(figname, 'dynamics') && traj_available && RobData.Type ~= 0
+if strcmp(figname, 'dynamics') && traj_available && RobData.Type == 2
   if settings.figure_invisible, fhdl = figure_invisible();
   else,                         fhdl = figure(); end
   clf; hold all;
@@ -879,7 +879,7 @@ if strcmp(figname, 'dynparvisu')
   for jj = 1:4
     subplot(2,2,jj);  hold on;grid on;
     view(3); axis auto;
-    if RobData.Type == 0 % Seriell
+    if any(RobData.Type == [0 1]) % Seriell
       s_plot = struct( 'straight', 0, 'mode', plotmode(jj));
       R.plot(RobotOptDetails.Traj_Q(1,:)', s_plot);
     else
@@ -987,6 +987,6 @@ if strcmp(figname, 'springrestpos')
 end
 
 % EE-FG von PKM wieder zurücksetzen auf Aufgaben-FG
-if RobData.Type ~= 0
+if RobData.Type == 2
   R.update_EE_FG(R.I_EE, Set.task.DoF);
 end

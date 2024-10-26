@@ -56,7 +56,7 @@ density = 2.7E3; %[kg/m^3] Aluminium
 
 %% Entwurfsparameter ändern
 % Entweder aus Optimierungsvariable oder konstante Standard-Werte
-if R.Type == 0
+if any(R.Type == [0 1])
   if use_default_link_param
     % Keine Entwurfsoptimierung, nehme die Standardwerte für
     % Segmentparameter (dicke Struktur für seriell)
@@ -89,7 +89,7 @@ end
 %% Dynamikparameter belegen
 % Parameter des Struktursegmentes
 % Roboterklasse für Parametermodell heraussuchen
-if R.Type == 0 % Seriell
+if any(R.Type == [0 1]) % Seriell
   R_pkin = R;
 else  % Parallel (symmetrisch)
   R_pkin = R.Leg(1);
@@ -122,7 +122,7 @@ else % Bezogen auf Schwerpunkt
   I_E = inertiavector2matrix(Set.task.payload.Ic');
 end
 % Trägheitstensor in Plattform-KS rotieren
-if R.Type == 0 % Seriell (Benennung P=N für Konsistenz mit PKM)
+if any(R.Type == [0 1]) % Seriell (Benennung P=N für Konsistenz mit PKM)
   r_P_P_S = R.T_N_E(1:3,4) + R.T_N_E(1:3,1:3) * r_E_E_S;
   I_P = R.T_N_E(1:3,1:3)' * I_E * R.T_N_E(1:3,1:3);
 else
@@ -140,7 +140,7 @@ end
 % Länge von Schubgelenken herausfinden
 q_minmax = NaN(R.NJ, 2);
 q_minmax(R.MDH.sigma==1,:) = minmax2(Q(:,R.MDH.sigma==1)');
-if Structure.Type == 0 % Seriell
+if any(Structure.Type == [0 1]) % Seriell
   q_range = diff(q_minmax')';
 else  % Parallel (symmetrisch)
   % Siehe cds_update_collbodies; nehme eine identische Führungsschiene
@@ -252,9 +252,10 @@ for i = 1:length(m_ges_Link)
     end
     % Probe: [A]/(10) (nur für Drehgelenke; wegen Maximallänge bei Schubgelenk)
     r_i_i_ip1_test = R_i_Si*[norm(r_i_i_D);0;0];
-    Tges=R_pkin.jtraf(zeros(R_pkin.NJ,1));
+    Tges=R_pkin.jtraf(zeros(R_pkin.NQJ,1));
     r_i_i_ip1 = Tges(1:3,4,i);
-    if R_pkin.MDH.sigma(i) == 0 && any(abs(r_i_i_ip1_test-r_i_i_ip1) > 1e-10)
+    if R_pkin.MDH.sigma(i) == 0 && any(abs(r_i_i_ip1_test-r_i_i_ip1) > 1e-10) && ...
+        R_pkin.MDH.b(i) == 0 % ToDo: Für b-Parameter noch ungetestet
       save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_design_error.mat'));
       error('Segment-Darstellung stimmt nicht');
     end
@@ -341,7 +342,7 @@ for i = 1:length(m_ges_Link)
     end
   else
     % Letzter Körper: Flansch->EE bei Seriell; Plattform->EE bei Parallel
-    if Structure.Type == 0 % Serieller Roboter
+    if any(Structure.Type == [0 1]) % Serieller Roboter
       r_i_i_D = R_pkin.T_N_E(1:3,4);
       T_P_E = R_pkin.T_N_E; % Für gleiche Benennung seriell/parallel
     else
@@ -415,7 +416,7 @@ m_ges   =   m_ges_Link +   m_ges_PStator +   m_ges_PAbtrieb;
 mrS_ges = mrS_ges_Link + mrS_ges_PStator + mrS_ges_PAbtrieb;
 If_ges  =  If_ges_Link +  If_ges_PStator +  If_ges_PAbtrieb;
 % Parameter zu Null setzen (außer die aus Set.task.payload).
-if R.Type == 0
+if any(R.Type == [0 1])
   if Set.optimization.nolinkmass
     m_ges(:) = 0; mrS_ges(:) = 0; If_ges(:) = 0;
   end
@@ -444,7 +445,7 @@ end
 if Set.general.matfile_verbosity > 2 + (~use_default_link_param)
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_design_saveparam.mat'));
 end
-if R.Type == 0 
+if any(R.Type == [0 1])
   % Seriell: Parameter direkt eintragen
   R.update_dynpar2(m_ges, mrS_ges, If_ges)
 else
@@ -476,13 +477,13 @@ if desopt_debug
       case 5, ID_ges_i = [m_ges,         mrS_ges,         If_ges];         t='Gesamt';
       case 6, t='Ersatzgeometrie'; s=struct('mode', 4);
     end
-    if R.Type == 0 % Seriell
+    if any(R.Type == [0 1]) % Seriell
       R.update_dynpar2(ID_ges_i(:,1), ID_ges_i(:,2:4), ID_ges_i(:,5:10));
     else % PKM
       ID_ges_i_pkm = [ID_ges_i(2:end-1,:); zeros(1,10); ID_ges_i(end,:)];
       R.update_dynpar2(ID_ges_i_pkm(:,1), ID_ges_i_pkm(:,2:4), ID_ges_i_pkm(:,5:10));
     end
-    if R.Type == 0 % Seriell
+    if any(R.Type == [0 1]) % Seriell
       R.plot(Q(1,:)', s);
     else % PKM
       % Pose der Plattform berechnen (steht in dieser Funktion nicht zur

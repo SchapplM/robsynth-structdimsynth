@@ -37,7 +37,7 @@ debug_info = {''};
 
 % Berechne Konditionszahl über Trajektorie
 Cges = NaN(size(Q,1), 1);
-if R.Type == 0
+if any(R.Type == [0 1])
   % Berechne Konditionszahl für alle Punkte der Bahn
   for i = 1:size(Q,1)
     % Nehme die analytische Jacobi-Matrix (für 3T2R wichtig, da dort die
@@ -72,7 +72,7 @@ if Set.general.plot_details_in_fitness < 0 && 1e4*fval > abs(Set.general.plot_de
 else
   return
 end
-if R.Type == 0 % Seriell
+if any(R.Type == [0 1]) % Seriell
   change_current_figure(201); clf;
   sgtitle('Auswertung Jacobi-Matrizen')
   subplot(2,2,1);

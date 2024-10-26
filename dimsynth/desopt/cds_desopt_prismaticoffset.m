@@ -32,7 +32,7 @@
 function [fval_coll, fval_instspc] = cds_desopt_prismaticoffset(R, X, Set, Structure, JP, Q)
 %% Initialisierung
 % Prüfe, ob die Optimierung überhaupt notwendig ist.
-if Structure.Type == 0 % Serieller Roboter
+if any(Structure.Type == [0 1]) % Serieller Roboter
   nvars = sum(R.MDH.sigma==1);
 else % symmetrische PKM
   nvars = sum(R.Leg(1).MDH.sigma==1);
@@ -87,8 +87,13 @@ else % alles i.O.
   fval_instspc = 0;
 end
 %% Eintragen in Roboter-Klasse
-if Structure.Type == 0
-  R.DesPar.joint_offset(R.MDH.sigma==1) = jo_opt_fminsearch;
+if any(R.Type == [0 2])
+  sigma_act = R.MDH.sigma;
+else
+  sigma_act = R.MDH.sigma(R.MDH.mu == 1);
+end
+if any(Structure.Type == [0 1])
+  R.DesPar.joint_offset(sigma_act==1) = jo_opt_fminsearch;
 else
   for kk = 1:R.NLEG
     R.Leg(kk).DesPar.joint_offset(R.Leg(kk).MDH.sigma==1) = jo_opt_fminsearch;
@@ -115,7 +120,7 @@ end
 function [c, ceq, c1, c2] = nonlcon(x, R, X, Set, Structure, JP, Q)
   % Nebenbedingung in Optimierung: Einhaltung der Bauraumbeschränkung.
   % Parameter in Roboterklasse einstellen
-  if Structure.Type == 0
+  if any(Structure.Type == [0 1])
     R.DesPar.joint_offset(R.MDH.sigma==1) = x;
   else
     for kk = 1:R.NLEG
