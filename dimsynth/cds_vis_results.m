@@ -416,6 +416,10 @@ if length(Set.optimization.objective) > 1 % Mehrkriterielle Optimierung
     I_acttype(:,1:2) = 0; % Spezifisches Diagramm Dreh-/Schub weglassen
     I_acttype(:,4) = true; % allgemeines Diagramm ist bereits richtig
   end
+  if all(I_acttype(:,3)) % Alle Roboter sind mit gemischter Aktuierung
+    I_acttype(:,3) = 0;
+    I_acttype(:,4) = true; % allgemeines Diagramm (ohne Namenszusatz mixact)
+  end
   % n.i.O.-Strukturen direkt hier aussortieren
   for k = 1:length(Structures)
     II = ResTab.LfdNr==Structures{k}.Number;
@@ -536,6 +540,9 @@ if length(Set.optimization.objective) > 1 % Mehrkriterielle Optimierung
         pf_groupnum(pf_robnum==kk) = 0;
         robgroups(kk) = 0;
       end
+    end
+    if length(robgroups) == max(robgroups)
+      continue % Die Gruppierung hat nichts gebracht. Genauso viele wie vorher. Kein neues Bild erstellen.
     end
   end
   % Bild zeichnen
