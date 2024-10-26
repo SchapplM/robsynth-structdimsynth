@@ -34,9 +34,9 @@ function [fval, fval_debugtext, debug_info, E_Netz_res] = cds_obj_energy(R, Set,
 debug_info = {};
 
 % Mechanische Leistung berechnen (in allen angetriebenen Gelenken)
-if R.Type == 0
-  P_ges = NaN(size(QD,1), R.NJ);
-  for j = 1:R.NJ
+if any(R.Type == [0 1])
+  P_ges = NaN(size(QD,1), R.NQJ);
+  for j = 1:R.NQJ
     P_ges(:,j) = TAU(:,j) .* QD(:,j);
   end
 else
@@ -85,7 +85,7 @@ if Set.general.plot_details_in_fitness < 0 && fval >= abs(Set.general.plot_detai
   plot(Traj_0.t(end), E_Netz_res, 'o');
   ylabel('Leistung/Energie Gesamt'); legend({'P(Zwischenkreis)', 'P(Netz)', 'E(Netz)'}); grid on;
   subplot(2,2,3); hold on
-  if R.Type == 0
+  if any(R.Type == [0 1])
     plot(Traj_0.t, QD);
   else % PKM: Unterscheidung Aktiv/Passiv
     hdl1=plot(Traj_0.t, QD(:,R.I_qa));

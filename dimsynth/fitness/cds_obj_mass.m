@@ -24,7 +24,7 @@ function [fval, fval_debugtext, debug_info, fphys] = cds_obj_mass(R)
 debug_info = {};
 
 % Gesamtmasse berechnen
-if R.Type == 0
+if any(R.Type == [0 1])
   m_sum = sum(R.DynPar.mges(2:end));
   debug_info = {debug_info{:}; sprintf('masses: total %1.2fkg, Segments [%s] kg', ...
     m_sum, disp_array(R.DynPar.mges(2:end)', '%1.2f'))};

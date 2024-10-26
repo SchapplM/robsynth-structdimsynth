@@ -117,6 +117,11 @@ TrajLegendText = {};
 [currgen,currind,~,resdir] = cds_get_new_figure_filenumber(Set, Structure, '');
 name_prefix_ardbg = sprintf('Gen%02d_Ind%02d_Konfig%d', currgen, ...
   currind, Structure.config_index);
+if any(R.Type == [0 2])
+  sigma_act = R.MDH.sigma; % sigma-Parameter (1=Schub, 0=Dreh) für alle Gelenke
+else % Seriell-hybrid
+  sigma_act = R.MDH.sigma(R.MDH.mu == 1); % nur für Minimalkoordinaten (aktive Gelenke)
+end
 % Schleife über mehrere mögliche Nebenbedingungen der inversen Kinematik
 fval_ar = NaN(1,2);
 if Structure.task_red 
@@ -552,8 +557,10 @@ if i_ar == 3
     if ~strcmp(get(3009, 'windowstyle'), 'docked')
       set(3009,'units','normalized','outerposition',[0 0 1 1]);
     end
-    for i = 1:R.NJ
-      if R.Type ~= 0
+    if any(R.Type == [0 2]), II_J = 1:R.NJ;
+    else,                    II_J = 1:R.NQJ; end
+    for i = II_J
+      if R.Type == 2
         legnum = find(i>=R.I1J_LEG, 1, 'last');
         legjointnum = i-(R.I1J_LEG(legnum)-1);
       end
@@ -563,10 +570,10 @@ if i_ar == 3
       plot(Traj_0.t, Q(:,i), '-');
       plot(Traj_0.t([1,end]), repmat(Structure.qlim(i,:),2,1), 'r-');
       ylim(minmax2([Q(:,i);Q(:,i);Q_alt(:,i);Q_alt(:,i)]'));
-      if R.Type == 0
-        title(sprintf('q %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+      if any(R.Type == [0 1])
+        title(sprintf('q %d (%s)', i, RP(sigma_act(i)+1)));
       else
-        title(sprintf('q %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+        title(sprintf('q %d (%s), L%d,J%d', i, RP(sigma_act(i)+1), legnum, legjointnum));
       end
     end
     linkxaxes
@@ -577,8 +584,8 @@ if i_ar == 3
     if ~strcmp(get(3010, 'windowstyle'), 'docked')
       set(3010,'units','normalized','outerposition',[0 0 1 1]);
     end
-    for i = 1:R.NJ
-      if R.Type ~= 0
+    for i = II_J
+      if R.Type == 2
         legnum = find(i>=R.I1J_LEG, 1, 'last');
         legjointnum = i-(R.I1J_LEG(legnum)-1);
       end
@@ -593,10 +600,10 @@ if i_ar == 3
       if ~all(isnan(QD(:)))
         ylim(minmax2([QD(:,i);QD(:,i);QD_alt(:,i);QD_alt(:,i)]'));
       end
-      if R.Type == 0
-        title(sprintf('qD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+      if any(R.Type == [0 1])
+        title(sprintf('qD %d (%s)', i, RP(sigma_act(i)+1)));
       else
-        title(sprintf('qD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+        title(sprintf('qD %d (%s), L%d,J%d', i, RP(sigma_act(i)+1), legnum, legjointnum));
       end
     end
     linkxaxes
@@ -607,8 +614,10 @@ if i_ar == 3
     if ~strcmp(get(3011, 'windowstyle'), 'docked')
       set(3011,'units','normalized','outerposition',[0 0 1 1]);
     end
-    for i = 1:R.NJ
-      if R.Type ~= 0
+    if any(R.Type == [0 2]), II_J = 1:R.NJ;
+    else,                    II_J = 1:R.NQJ; end
+    for i = II_J
+      if R.Type == 2
         legnum = find(i>=R.I1J_LEG, 1, 'last');
         legjointnum = i-(R.I1J_LEG(legnum)-1);
       end
@@ -623,10 +632,10 @@ if i_ar == 3
       if ~all(isnan(QDD(:)))
         ylim(minmax2([QDD(:,i);QDD(:,i);QDD_alt(:,i);QDD_alt(:,i)]'));
       end
-      if R.Type == 0
-        title(sprintf('qDD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+      if any(R.Type == [0 1])
+        title(sprintf('qDD %d (%s)', i, RP(sigma_act(i)+1)));
       else
-        title(sprintf('qDD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+        title(sprintf('qDD %d (%s), L%d,J%d', i, RP(sigma_act(i)+1), legnum, legjointnum));
       end
     end
     linkxaxes
@@ -1063,7 +1072,7 @@ if i_m == 1 || i_m == 3 % Gradientenprojektion
     % Auf Ergebnis der dynamischen Programmierung aufbauen.
     s_trajik = s_ikdp; % aufbauend auf Ergebnis der DynProg
   end
-  if R.Type == 0 % Seriell
+  if any(R.Type == [0 1]) % Seriell / seriell-hybrid
     [Q_gp, QD_gp, QDD_gp, PHI_gp, JP_gp, Stats_gp] = ...
       R.invkin2_traj( Traj_0.X, Traj_0.XD, Traj_0.XDD, Traj_0.t, q, s_trajik);
     Jinv_ges_gp = NaN; % Platzhalter für gleichartige Funktionsaufrufe. Speicherung nicht sinnvoll für seriell.
@@ -1445,7 +1454,7 @@ end
 % korrekt sein. Diese muss aber konstant bleiben und darf sich nicht
 % ändern. Durch die Prüfung der ZB-Zeitableitung wird geprüft, ob QD und XD
 % konsistent sind.
-if any(strcmp(Set.optimization.objective, 'valid_act')) && R.Type ~= 0 % nur sinnvoll bei PKM-Struktursynthese
+if any(strcmp(Set.optimization.objective, 'valid_act')) && R.Type == 2 % nur sinnvoll bei PKM-Struktursynthese
   % Geschwindigkeits-Zwangsbedingungen der Koppelpunkte.
   PHI4D_ges = R.constr4D2_traj(Q, QD, Traj_0.X, Traj_0.XD);
   % Zum Debuggen: Weitere Zwangsbedingungen
@@ -1466,7 +1475,7 @@ if any(strcmp(Set.optimization.objective, 'valid_act')) && R.Type ~= 0 % nur sin
     continue
   end
 end
-if R.Type ~= 0 && Set.general.debug_calc
+if R.Type == 2 && Set.general.debug_calc
   % Debuggen der Geschwindigkeits-Konsistenz: Vergleiche EE-Trajektorie von
   % verschiedenen Beinketten aus berechnet.
   for j = 2:R.NLEG
@@ -1502,7 +1511,7 @@ if R.Type ~= 0 && Set.general.debug_calc
 end
 %% Prüfe ob ein Gelenk inaktiv ist
 if Set.structures.no_inactive_joints && ...
-    (R.Type==0 && Structure.constraints > 0 || R.Type==2) && ... % bei PKM gibt es noch keinen Marker für Aufgaben-Zwangsbedingungen
+    (any(R.Type == [0 1]) && Structure.constraints > 0 || R.Type==2) && ... % bei PKM gibt es noch keinen Marker für Aufgaben-Zwangsbedingungen
       any(all( abs(Q-repmat(Q(1,:),size(Q,1),1))<1e-8 ))
   fval_all(i_m, i_ar)  = 1e4;
   constrvioltext_m{i_m}='Ein Gelenk ist inaktiv';
@@ -1532,9 +1541,11 @@ if any(I_qlimviol_T)
   if Set.general.plot_details_in_fitness < 0 && 1e4*fval_all(i_m, i_ar) >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
      Set.general.plot_details_in_fitness > 0 && 1e4*fval_all(i_m, i_ar) <= abs(Set.general.plot_details_in_fitness)
     RP = ['R', 'P'];
+    if any(R.Type == [0 2]), II_J = 1:R.NJ;
+    else,                    II_J = 1:R.NQJ; end
     change_current_figure(1000); clf;
-    for i = 1:R.NJ
-      if R.Type ~= 0
+    for i = 1:II_J
+      if R.Type == 2
         legnum = find(i>=R.I1J_LEG, 1, 'last');
         legjointnum = i-(R.I1J_LEG(legnum)-1);
       end
@@ -1544,9 +1555,9 @@ if any(I_qlimviol_T)
       plot(Traj_0.t([1,end]), [1;1]*min(Q(:,i)), 'r-');
       plot(Traj_0.t([1,end]), [1;1]*(min(Q(:,i))+q_range_max(i)), 'r-');
       if R.Type == 0
-        title(sprintf('q %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+        title(sprintf('q %d (%s)', i, RP(sigma_act(i)+1)));
       else
-        title(sprintf('q %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+        title(sprintf('q %d (%s), L%d,J%d', i, RP(sigma_act(i)+1), legnum, legjointnum));
       end
     end
     sgtitle('Überschreitung der Gelenkwinkelspannweite');
@@ -1564,11 +1575,11 @@ if R.Type == 2
   % Aktuell sind an dieser Stelle die Grenzen für Schubgelenke nicht
   % gesetzt.
   if Set.optimization.joint_limits_symmetric_prismatic
-    I_symlim(R.MDH.sigma==1) = true;
+    I_symlim(sigma_act==1) = true;
   end
   % Auch für Drehgelenke (bzw. Kardan/Kugel)
   if Set.optimization.joint_limits_symmetric_revolute
-    I_symlim(R.MDH.sigma==0) = true;
+    I_symlim(sigma_act==0) = true;
   end
   % Dadurch wird eine Optimierung der Gelenkfeder-Ruhelagen ermöglicht. Sonst 
   % kann man nicht für alle Beinketten die gleichen Parameter wählen.
@@ -1577,7 +1588,7 @@ if R.Type == 2
   if (Set.optimization.joint_stiffness_active_revolute ~= 0 || ...
       Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
       Set.optimization.joint_stiffness_passive_universal ~= 0)
-    I_symlim(R.MDH.sigma==0&R.I_qa==0) = true;
+    I_symlim(sigma_act==0&R.I_qa==0) = true;
   end
 end
 if any(I_symlim)
@@ -1702,9 +1713,11 @@ if any(~isinf(Structure.qDlim(:)))
     if Set.general.plot_details_in_fitness < 0 && 1e4*fval_all(i_m, i_ar)  >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
        Set.general.plot_details_in_fitness > 0 && 1e4*fval_all(i_m, i_ar)  <= abs(Set.general.plot_details_in_fitness)
       RP = ['R', 'P'];
+      if any(R.Type == [0 2]), II_J = 1:R.NJ;
+      else,                    II_J = 1:R.NQJ; end
       change_current_figure(1004);clf;
-      for i = 1:R.NJ
-        if R.Type ~= 0
+      for i = 1:II_J
+        if R.Type == 2
           legnum = find(i>=R.I1J_LEG, 1, 'last');
           legjointnum = i-(R.I1J_LEG(legnum)-1);
         end
@@ -1713,10 +1726,10 @@ if any(~isinf(Structure.qDlim(:)))
         plot(Traj_0.t, QD(:,i), '-');
         plot(Traj_0.t([1,end]), repmat(Structure.qDlim(i,:),2,1), 'r-');
         ylim(minmax2([QD(:,i);QD(:,i)]'));
-        if R.Type == 0
-          title(sprintf('qD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+        if any(R.Type == [0 1])
+          title(sprintf('qD %d (%s)', i, RP(sigma_act(i)+1)));
         else
-          title(sprintf('qD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+          title(sprintf('qD %d (%s), L%d,J%d', i, RP(sigma_act(i)+1), legnum, legjointnum));
         end
       end
       linkxaxes
@@ -1742,9 +1755,11 @@ if any(~isinf(Structure.qDDlim(:)))
     if Set.general.plot_details_in_fitness < 0 && 1e4*fval_all(i_m, i_ar)  >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
        Set.general.plot_details_in_fitness > 0 && 1e4*fval_all(i_m, i_ar)  <= abs(Set.general.plot_details_in_fitness)
       RP = ['R', 'P'];
+      if any(R.Type == [0 2]), II_J = 1:R.NJ;
+      else,                    II_J = 1:R.NQJ; end
       change_current_figure(1005);clf;
-      for i = 1:R.NJ
-        if R.Type ~= 0
+      for i = II_J
+        if R.Type == 2
           legnum = find(i>=R.I1J_LEG, 1, 'last');
           legjointnum = i-(R.I1J_LEG(legnum)-1);
         end
@@ -1753,10 +1768,10 @@ if any(~isinf(Structure.qDDlim(:)))
         plot(Traj_0.t, QDD(:,i), '-');
         plot(Traj_0.t([1,end]), repmat(Structure.qDDlim(i,:),2,1), 'r-');
         ylim(minmax2([QDD(:,i);QDD(:,i)]'));
-        if R.Type == 0
-          title(sprintf('qDD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+        if any(R.Type == [0 1])
+          title(sprintf('qDD %d (%s)', i, RP(sigma_act(i)+1)));
         else
-          title(sprintf('qDD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+          title(sprintf('qDD %d (%s), L%d,J%d', i, RP(sigma_act(i)+1), legnum, legjointnum));
         end
       end
       linkxaxes
@@ -1768,14 +1783,14 @@ end
 
 %% Prüfe, ob die Konfiguration umklappt während der Trajektorie
 % Notwendige Bedingung: Größerer Betragswechsel bei Winkeln
-q_maxstep_revjoint = max(abs(diff(Q(:,R.MDH.sigma==0))));
+q_maxstep_revjoint = max(abs(diff(Q(:,sigma_act==0))));
 % Hinreichende Bedingung: Korrelation der Position und integr. Geschw.
 % Geschwindigkeit neu mit Differenzenquotient berechnen
 QD_num = zeros(size(Q));
-QD_num(2:end,R.MDH.sigma==1) = diff(Q(:,R.MDH.sigma==1))./...
-  repmat(diff(Traj_0.t), 1, sum(R.MDH.sigma==1)); % Differenzenquotient
-QD_num(2:end,R.MDH.sigma==0) = (mod(diff(Q(:,R.MDH.sigma==0))+pi, 2*pi)-pi)./...
-  repmat(diff(Traj_0.t), 1, sum(R.MDH.sigma==0)); % Siehe angdiff.m
+QD_num(2:end,sigma_act==1) = diff(Q(:,sigma_act==1))./...
+  repmat(diff(Traj_0.t), 1, sum(sigma_act==1)); % Differenzenquotient
+QD_num(2:end,sigma_act==0) = (mod(diff(Q(:,sigma_act==0))+pi, 2*pi)-pi)./...
+  repmat(diff(Traj_0.t), 1, sum(sigma_act==0)); % Siehe angdiff.m
 % Position neu berechnen (Integration)
 if Set.task.profile == 1 % ...  mit Trapezregel
   Q_num = repmat(Q(1,:),size(Q,1),1)+cumtrapz(Traj_0.t, QD);
@@ -1831,8 +1846,10 @@ if ~Structure.task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
           cumsum(QDD.*repmat([diff(Traj_0.t); diff(Traj_0.t(end-1:end))],1,size(QDD,2)) );
     end
     RP = ['R', 'P'];
+    if any(R.Type == [0 2]), II_J = 1:R.NJ;
+    else,                    II_J = 1:R.NQJ; end
     change_current_figure(1001);clf;
-    for i = 1:R.NJ
+    for i = II_J
       if R.Type == 2
       legnum = find(i>=R.I1J_LEG, 1, 'last');
       legjointnum = i-(R.I1J_LEG(legnum)-1);
@@ -1844,18 +1861,20 @@ if ~Structure.task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
       hdl3=plot(Traj_0.t, QD_num2(:,i), ':');
       plot(Traj_0.t([1,end]), repmat(Structure.qDlim(i,:),2,1), 'r-');
       ylim(minmax2([QD_num(:,i);QD_num(:,i)]'));
-      if R.Type == 0
-        ylabel(sprintf('qD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+      if any(R.Type == [0 1])
+        ylabel(sprintf('qD %d (%s)', i, RP(sigma_act(i)+1)));
       else
-        ylabel(sprintf('qD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+        ylabel(sprintf('qD %d (%s), L%d,J%d', i, RP(sigma_act(i)+1), legnum, legjointnum));
       end
       title(sprintf('corr(qD/qDD)=%1.2f', corrQD(i)));
       if i == length(q), legend([hdl1;hdl2;hdl3], {'qD','diff(q)', 'int(qDD)'}); end
     end
     linkxaxes
     sgtitle('Vergleich Gelenkgeschw.');
+    if any(R.Type == [0 2]), II_J = 1:R.NJ;
+    else,                    II_J = 1:R.NQJ; end
     change_current_figure(1002);clf;
-    for i = 1:R.NJ
+    for i = II_J
       if R.Type == 2
       legnum = find(i>=R.I1J_LEG, 1, 'last');
       legjointnum = i-(R.I1J_LEG(legnum)-1);
@@ -1864,10 +1883,10 @@ if ~Structure.task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
       hold on; grid on;
       hdl1=plot(Traj_0.t, Q(:,i), '-');
       hdl2=plot(Traj_0.t, Q_num(:,i), '--');
-      if R.Type == 0
-        ylabel(sprintf('q %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+      if any(R.Type == [0 1])
+        ylabel(sprintf('q %d (%s)', i, RP(sigma_act(i)+1)));
       else
-        ylabel(sprintf('q %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+        ylabel(sprintf('q %d (%s), L%d,J%d', i, RP(sigma_act(i)+1), legnum, legjointnum));
       end
       title(sprintf('corr(q/qD)=%1.2f', corrQ(i)));
       if i == length(q), legend([hdl1;hdl2], {'q','int(qD)'}); end
@@ -1878,7 +1897,9 @@ if ~Structure.task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
     QDD_num = zeros(size(Q)); % Differenzenquotient
     QDD_num(1:end-1,:) = diff(QD(:,:))./ repmat(diff(Traj_0.t), 1, R.NJ);
     corrQDD = diag(corr(QDD_num, QDD));
-    for i = 1:R.NJ
+    if any(R.Type == [0 2]), II_J = 1:R.NJ;
+    else,                    II_J = 1:R.NQJ; end
+    for i = II_J
       if R.Type == 2
       legnum = find(i>=R.I1J_LEG, 1, 'last');
       legjointnum = i-(R.I1J_LEG(legnum)-1);
@@ -1887,10 +1908,10 @@ if ~Structure.task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
       hold on; grid on;
       hdl1=plot(Traj_0.t, QDD(:,i), '-');
       hdl2=plot(Traj_0.t, QDD_num(:,i), '--');
-      if R.Type == 0
-        ylabel(sprintf('qDD %d (%s)', i, RP(R.MDH.sigma(i)+1)));
+      if any(R.Type == [0 1])
+        ylabel(sprintf('qDD %d (%s)', i, RP(sigma_act(i)+1)));
       else
-        ylabel(sprintf('qDD %d (%s), L%d,J%d', i, RP(R.MDH.sigma(i)+1), legnum, legjointnum));
+        ylabel(sprintf('qDD %d (%s), L%d,J%d', i, RP(sigma_act(i)+1), legnum, legjointnum));
       end
       title(sprintf('corrQDD(qD/qDD)=%1.2f', corrQDD(i)));
       if i == length(q), legend([hdl1;hdl2], {'qDD','diff(qD)'}); end
@@ -1915,7 +1936,7 @@ end
 if Structure.desopt_prismaticoffset
   [~, fval_instspc_tmp] = cds_desopt_prismaticoffset(R, ...
     Traj_0.X, Set, Structure, JP, Q);
-  if R.Type == 0, new_offset=R.DesPar.joint_offset(R.MDH.sigma==1);
+  if any(R.Type == [0 1]), new_offset=R.DesPar.joint_offset(sigma_act==1);
   else, new_offset=R.Leg(1).DesPar.joint_offset(R.Leg(1).MDH.sigma==1); end
   cds_log(4, sprintf(['[constraints_traj] Konfig %d/%d: Schubgelenk-Offset wurde ', ...
     'optimiert. Ergebnis: %1.1fmm'], Structure.config_index, Structure.config_number, 1e3*new_offset));

@@ -93,7 +93,7 @@ end
 %% Berechnungen durchführen
 if Structure.calc_cut
   % Berechne die Schnittkräfte in allen Segmenten
-  if R.Type == 0 % Seriell
+  if any(R.Type == [0 1]) % Seriell
     [Wges_ID, Wges_ID_reg] = R.internforce_traj(Q, QD, QDD);
   else % PKM
     if Structure.calc_dyn_reg || Set.general.debug_calc
@@ -112,7 +112,7 @@ if Structure.calc_cut
 end
 
 if Structure.calc_dyn_act
-  if R.Type == 0 % Serieller Roboter
+  if any(R.Type == [0 1]) % Serieller Roboter
     if ~Structure.calc_cut
       if Structure.calc_dyn_reg || Set.general.debug_calc
         TAU_ID_reg = R.invdynregmat_traj(Q, QD, QDD);
@@ -150,7 +150,7 @@ if Structure.calc_dyn_act
     end
   end
 end
-if Structure.calc_spring_act && R.Type ~= 0
+if Structure.calc_spring_act && R.Type == 2
   % Antriebskräfte berechnen (Momente im Basis-KS, nicht x-Koord.)
   if ~Structure.calc_cut
     % Regressorform nur berechnen, falls später benötigt
@@ -167,7 +167,7 @@ if Structure.calc_spring_act && R.Type ~= 0
   end
 end
 
-if R.Type ~= 0 && (Structure.calc_cut && ~Structure.calc_dyn_reg || Set.general.debug_calc)
+if R.Type == 2 && (Structure.calc_cut && ~Structure.calc_dyn_reg || Set.general.debug_calc)
   if Set.general.debug_calc
     % Für die Test-Rechnungen wird die Schnittkraft benötigt. Für diese
     % muss aber das Antriebsmoment berechnet sein.
@@ -177,7 +177,7 @@ if R.Type ~= 0 && (Structure.calc_cut && ~Structure.calc_dyn_reg || Set.general.
   Wges_ID = R.internforce_traj(Q, QD, QDD, TAU_ID);
 end
 
-if R.Type ~= 0 && Structure.calc_cut && ~Structure.calc_spring_reg && ...
+if R.Type == 2 && Structure.calc_cut && ~Structure.calc_spring_reg && ...
     (Set.optimization.joint_stiffness_active_revolute ~= 0 || ...
      Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
      Set.optimization.joint_stiffness_passive_universal ~= 0)
@@ -188,8 +188,8 @@ end
 % EE-Koordinaten an und wirken daher entgegen der Richtung der Antriebe:
 % M*xDD + C + G = F_m + F_ext
 if isfield(Traj_0, 'Fext') && any(Traj_0.Fext(:))
-  if R.Type == 0, I_qa = R.MDH.mu == 1;
-  else,           I_qa = R.I_qa;
+  if any(R.Type == [0 1]), I_qa = R.MDH.mu == 1;
+  else,                    I_qa = R.I_qa;
   end
   data_dyn.TAU_ext = zeros(length(Traj_0.t), sum(I_qa));
   for i = 1:length(Traj_0.t)
@@ -254,7 +254,7 @@ if isfield(Traj_0, 'Fext') && any(Traj_0.Fext(:))
     data_dyn.TAU_ext(i,:) = tau_aext;
   end % for i
   if Structure.calc_cut
-    if R.Type == 0
+    if any(R.Type == [0 1])
       data_dyn.W_ext = zeros(length(Traj_0.t), size(Wges_ID,2));
       for i = 1:length(Traj_0.t)
         W_ext_i = R.internforce_ext(Q(i,:)', Traj_0.Fext(i,:)', R.I_EElink, zeros(3,1));

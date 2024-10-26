@@ -48,11 +48,16 @@ end
 % der Optimierung überschrieben wird (z.B. zwecks Plotten)
 if isempty(R)
   % Fall nicht relevant
-elseif Structure.Type == 0
+elseif any(Structure.Type == [0 1])
   R_neu.qlim = Structure.qlim;
   % Schubgelenkgrenzen mit Skalierungsfaktor setzen. Ansonsten passt die
   % Proportion zwischen Segmentlängen und Schubgelenkslängen nicht
-  R_neu.qlim(R_neu.MDH.sigma==1,:) = scale * Structure.qlim(R_neu.MDH.sigma==1,:);
+  if any(Structure.Type == 0)
+    sigma_act = R_neu.MDH.sigma;
+  else
+    sigma_act = R_neu.MDH.sigma(R_neu.MDH.mu == 1);
+  end
+  R_neu.qlim(sigma_act==1,:) = scale * Structure.qlim(sigma_act==1,:);
 else
   for i = 1:R_neu.NLEG
     R_neu.Leg(i).qlim = Structure.qlim(R_neu.I1J_LEG(i):R_neu.I2J_LEG(i),:);
@@ -137,6 +142,8 @@ if Structure.Type == 0 || Structure.Type == 2
       end
     end % Parallel
   end
+elseif Structure.Type == 1
+  warning('Seriell-hybride Roboter noch nicht implementiert');
 else
   error('Noch nicht implementiert');
 end

@@ -48,14 +48,14 @@ safety_factor = Set.optimization.safety_link_yieldstrength;
 % Dehngrenze von Aluminium-Legierung. Quellen:
 % https://de.wikipedia.org/wiki/Streckgrenze
 % https://de.wikipedia.org/wiki/Aluminium-Kupfer-Legierung
-if R.Type == 0
+if any(R.Type == [0 1])
   R_e=R.DesPar.material(4);
 else
   R_e=R.Leg(1).DesPar.material(4);
 end
 
 %% Berechnung der Materialspannung
-if R.Type == 0 % Seriell
+if any(R.Type == [0 1]) % Seriell
   NLEG = 1; NL = R.NL;
   % 2D-Matrix mit Zeit als Zeilen
   nt = size(data_dyn.Wges,1);
@@ -69,7 +69,7 @@ sigma_ges_alle = NaN(NLEG, NL, nt);
 I_sigma_exc = 0;
 for i = 1:NLEG
   % Schnittkräfte dieser Beinkette
-  if R.Type == 0
+  if any(R.Type == [0 1])
     Rob = R;
     Wges = data_dyn.Wges;
   else
@@ -132,7 +132,7 @@ if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_detail
   % Zeichne Materialspannungen (maßgeblich für Auslegung)
   change_current_figure(1999);clf;
   set(1999, 'Name', 'Materialspannung', 'NumberTitle', 'off');
-  if R.Type == 0 % Seriell
+  if any(R.Type == [0 1]) % Seriell
     sphdl = NaN(3, 3);
     i = 1;
     for j = 1:NL
@@ -165,7 +165,7 @@ if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_detail
     change_current_figure(2000+fm);clf;
     if fm == 0, set(2000+fm, 'Name', 'Schnittkräfte', 'NumberTitle', 'off');
     else, set(2000+fm, 'Name', 'Schnittmoment', 'NumberTitle', 'off'); end
-    if R.Type == 0 % Seriell
+    if any(R.Type == [0 1]) % Seriell
       sphdl=NaN(3, 3);
       for j = 1:R.NL
         if fm == 0, fmnorm_ges_jk = sqrt(sum(data_dyn.Wges(:,3*(j-1)+(1:3)).^2,2)); % s.o.
@@ -244,7 +244,7 @@ if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_detail
   set(1997, 'Name', 'Spannungsgrenze_Roboter', 'NumberTitle', 'off');
   view(3); axis auto; hold on; grid on;
   xlabel('x in m');ylabel('y in m');zlabel('z in m');
-  if R.Type == 0 % Seriell
+  if any(R.Type == [0 1]) % Seriell
     s_plot = struct( 'ks', [1, R.NL+1], 'straight', 1, 'mode', 4);
     R.plot( Q(I_sigma_exc,:)', s_plot);
   else % PKM

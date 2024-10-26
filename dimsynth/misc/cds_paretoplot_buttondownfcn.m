@@ -149,7 +149,7 @@ end
 % Initialisiere Abhängigkeiten von cds_fitness und cds_dimsynth_robot
 if Structure.Type == 0 % Seriell
   serroblib_update_template_functions({Structure.Name});
-else % Parallel
+elseif Structure.Type == 2 % Parallel
   [~,Leg_Names] = parroblib_load_robot(Structure.Name, 0);
   serroblib_update_template_functions(unique(Leg_Names));
   parroblib_update_template_functions({Structure.Name});
@@ -181,13 +181,7 @@ if fitness_recalc_necessary
       q0 = NaN(R.NJ,1);
     end
     if any(~isnan(q0))
-      if R.Type == 0
-        R.qref = q0;
-      else
-        for iLeg = 1:R.NLEG
-          R.Leg(iLeg).qref = q0(R.I1J_LEG(iLeg):R.I2J_LEG(iLeg));
-        end
-      end
+      R.update_qref(q0);
     end
     % Erzwinge Prüfung der gespeicherten Konfiguration. Ist teilweise
     % redundant zu Speicherung in qref. Führt Traj.-IK aus, auch wenn Pos.-
@@ -277,8 +271,8 @@ elseif strcmp(SelStr(Selection), 'Pareto DesOpt')
   cds_vis_results_figures('pareto_desopt', Set, Traj, RobData, ResTab, ...
     RobotOptRes, RobotOptDetails, PSO_Detail_Data);
 elseif strcmp(SelStr(Selection), 'Redundanzkarte')
-  task_red = R.Type == 0 && sum(R.I_EE_Task) < R.NJ || ... % Seriell: Redundant wenn mehr Gelenke als Aufgaben-FG
-             R.Type == 2 && sum(R.I_EE_Task) < sum(R.I_EE); % Parallel: Redundant wenn mehr Plattform-FG als Aufgaben-FG
+  task_red = any(R.Type == [0 1]) && sum(R.I_EE_Task) < R.NQJ || ... % Seriell: Redundant wenn mehr Gelenke als Aufgaben-FG
+             R.Type == 2          && sum(R.I_EE_Task) < sum(R.I_EE); % Parallel: Redundant wenn mehr Plattform-FG als Aufgaben-FG
   if ~task_red
     error('Redundanzkarte für %s nicht sinnvoll (keine Redundanz)', RobName);
   end

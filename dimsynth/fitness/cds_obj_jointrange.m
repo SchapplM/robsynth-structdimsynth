@@ -35,19 +35,24 @@ debug_info = {};
 fval_debugtext = '';
 fval = NaN;
 f_jrange = NaN;
+if any(R.Type == [0 2])
+  sigma_act = R.MDH.sigma;
+else % Seriell-hybrid
+  sigma_act = R.MDH.sigma(R.MDH.mu == 1);
+end
 % Spannweite berechnen
-q_range = NaN(R.NJ,1);
-q_range(R.MDH.sigma==1) = diff(minmax2(Q(:,R.MDH.sigma==1)')');
-q_range(R.MDH.sigma==0) = angle_range( Q(:,R.MDH.sigma==0));
+q_range = NaN(size(Q,2),1);
+q_range(sigma_act==1) = diff(minmax2(Q(:,sigma_act==1)')');
+q_range(sigma_act==0) = angle_range( Q(:,sigma_act==0));
 % Indizes zur Auswahl der Gelenke
 if Structure.Type == 2 % Paralleler Roboter
   I_active = R.I_qa;
 else
   I_active = R.MDH.mu==1;
 end
-I_prismatic = R.MDH.sigma==1;
+I_prismatic = sigma_act==1;
 
-I_sel = true(R.NJ,1); % Nehme alle Gelenke
+I_sel = true(size(Q,2),1); % Nehme alle Gelenke
 if Set.optimization.obj_jointrange.only_revolute
   I_sel(I_prismatic) = false; % Schubgelenke deaktivieren
 end

@@ -35,14 +35,14 @@ debug_info = {};
 
 % Berechne die maximale Leistung jedes Antriebs.
 TAU_max = max(abs(TAU));
-if R.Type == 0
+if any(R.Type == [0 1])
   QD_max = max(abs(QD));
 else
   QD_max = max(abs(QD(:,R.I_qa)));
 end
 P_max = TAU_max .* QD_max;
 
-if R.Type == 0
+if any(R.Type == [0 1])
   % Seriell: Basisnahe Antriebe haben eher größere Leistung. Kriterium daher
   % als die Summe dieser maximalen Leistungen.
   P_max_krit = sum(P_max);
@@ -59,7 +59,7 @@ else
 end
 f_pwr_norm = 2/pi*atan((P_max_krit)/100); % Normierung auf 0 bis 1; 620 ist 0.9
 fval = 1e3*f_pwr_norm; % Normiert auf 0 bis 1e3
-if R.Type == 0
+if any(R.Type == [0 1])
   fval_debugtext = sprintf('Sum. max. Antr. Leistung %1.1f W. (%s)', P_max_krit, ...
     disp_array(P_max, '%1.1f'));
 else

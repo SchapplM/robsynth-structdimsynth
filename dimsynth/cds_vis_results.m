@@ -69,7 +69,7 @@ end
 % TODO: Diesen Abschnitt entfernen, falls nicht mehr notwendig. (ab ca. 2024)
 for k = 1:length(Structures)
   if isfield(Structures{k}, 'act_type'), continue; end
-  if Structures{k}.Type == 0
+  if any(Structures{k}.Type == [0 1])
     Structures{k}.act_type = 'mixed';
     break; % für serielle Roboter nicht erfassen
   end
@@ -149,6 +149,8 @@ parfor (i = 1:length_Structures_parfor, parfor_numworkers)
   PSO_Detail_Data = tmp2.PSO_Detail_Data;
   if Structure.Type == 0
     serroblib_addtopath({Name});
+  elseif Structure.Type == 1
+    % ToDo: Noch nicht implementiert.
   else
     parroblib_addtopath({Name});
   end
@@ -494,7 +496,7 @@ if length(Set.optimization.objective) > 1 % Mehrkriterielle Optimierung
     % Erst hier den Namen des Roboters einspeichern (nach allen continues)
     % Sonst könnte ein ungültiger Roboter in die Liste kommen und die
     % Nummerierung in der Legende durcheinanderbringen. Das verwirrt dann.
-    if Structures{i}.Type == 0 % Seriell: Keine Unterscheidung
+    if any(Structures{i}.Type == [0 1]) % Seriell: Keine Unterscheidung
       RobName_base{i} = Structures{i}.Name;
     else % PKM-Name ohne G-P-Nummer
       [~,~,Actuation,~,~,~,~,~,PName_Legs] = parroblib_load_robot(Structures{i}.Name, 2);
@@ -697,7 +699,7 @@ if length(Set.optimization.objective) > 1 % Mehrkriterielle Optimierung
     if S.Type == 0
       NJ = str2double(S.Name(2));
       task_red = sum(Set.task.DoF) < NJ; % Seriell: Redundant wenn mehr Gelenke als Aufgaben-FG
-    else
+    else % parallel und seriell-hybrid
       task_red = sum(Set.task.DoF) < sum(S.DoF); % Parallel: Redundant wenn mehr Plattform-FG als Aufgaben-FG
     end
     if task_red, break; end

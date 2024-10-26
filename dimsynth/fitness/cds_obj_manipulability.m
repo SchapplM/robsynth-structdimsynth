@@ -36,7 +36,7 @@ debug_info = {};
 
 % Berechne Konditionszahl über Trajektorie
 muges = NaN(length(Traj_0.t), 1);
-if R.Type == 0 % Seriell
+if any(R.Type == [0 1]) % Seriell
   % Berechne Manipulierbarkeit für alle Punkte der Bahn
   for i = 1:length(Traj_0.t)
     J_3T3R = R.jacobia(Q(i,:)'); % analytisch wegen 3T2R; für alle anderen geht auch jacobig

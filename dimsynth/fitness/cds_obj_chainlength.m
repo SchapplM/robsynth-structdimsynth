@@ -27,7 +27,7 @@ debug_info = {};
 % Benutze die vorab in der Fitness-Funktion eingestellten Grenzen qlim.
 % Mögliche Alternative: Aus Gelenkkoordinaten Q der Schubgelenke den
 % Bewegungsbereich und damit die nötige Länge selbst ableiten.
-if R.Type == 0
+if any(R.Type == [0 1])
   lref = R.reach();
 else
   % Symmetrische PKM

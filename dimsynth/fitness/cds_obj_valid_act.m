@@ -29,7 +29,7 @@
 function [fval, fval_debugtext, debug_info] = cds_obj_valid_act(R, Set, Jinvges)
 debug_info = {};
 
-if R.Type == 0
+if R.Type ~= 2
   error('Diese Funktion ergibt nur für parallele Roboter Sinn.');
 end
 
