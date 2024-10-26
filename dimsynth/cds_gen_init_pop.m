@@ -222,7 +222,7 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
       'angles_values: %s (%s) '], initpop_matlist{i}, optimstart_date));
     continue
   end
-  if Structure_i.Coupling(1) == 4 && ~any(Structure_i.vartypes == 8)
+  if Structure_i.Type == 2 && Structure_i.Coupling(1) == 4 && ~any(Structure_i.vartypes == 8)
     cds_log(2, sprintf(['[gen_init_pop] Datei übersprungen, da Optimierungsvariable ', ...
       'base_morph_coneelev fehlt: %s (%s) '], initpop_matlist{i}, optimstart_date));
     continue % Steigungsparameter bei Kegel-Basis fehlt. Evtl. bei alten Ergebnissen noch nicht drin.
