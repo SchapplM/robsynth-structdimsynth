@@ -75,10 +75,8 @@ if strcmp(option, 'output')
   end
   return
 end
-if R.Type == 0, q0 = R.qref;
-else,           q0 = cat(1,R.Leg.qref); end
-if R.Type == 0, qlim = R.qlim;
-else,           qlim = cat(1,R.Leg(:).qlim); end
+q0 = R.update_qref();
+qlim = R.update_qlim();
 % Persistente Variable initialisieren. Eine zusätzliche Generation für Initial-
 % population, eine für Berechnungen nach Ende der eigentlichen Optimierung.
 size_data = [Set.optimization.MaxIter+2, Set.optimization.NumIndividuals];
