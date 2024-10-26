@@ -228,9 +228,9 @@ for N_JointDoF = N_JointDoF_allowed
       end
     end
     % Bestimme den Typ der Antriebe
-    if all(strcmp(SName(3:3+N_JointDoF-1), 'P'))
+    if all(SName(3:3+N_JointDoF-1) == 'P')
       acttype_i = 'prismatic';
-    elseif all(strcmp(SName(3:3+N_JointDoF-1), 'R'))
+    elseif all(SName(3:3+N_JointDoF-1) == 'R')
       acttype_i = 'revolute';
     else
      acttype_i = 'mixed';
