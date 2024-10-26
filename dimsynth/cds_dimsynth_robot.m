@@ -2133,8 +2133,11 @@ if ~Set.general.only_finish_aborted
     save(dbgfile);
     return
   end
+  d = [];
   if i_gen_opt > 0 % Wiederaufnahme nach Abbruch mit Checkpoint
     d = load_checkpoint_file(Set, Structure, resdir);
+  end
+  if ~isempty(d) && ~isempty(d.PSO_Detail_Data) % Nur beim erfolgreichen Laden aus Checkpoint weitermachen
     % Aktualisiere die Anfangspopulation: als optimal geladene Ergebnisse
     % aus gen_init_pop (erkennbar an nicht-NaN bei Q) und sonstige geladene
     % Zwischenergebnisse aus Zwischenstand (egal wie gut)
@@ -2148,6 +2151,8 @@ if ~Set.general.only_finish_aborted
     QPop = QPop(1:size(InitPop1,1),:); % ... falls mehr geladen worden sind
     cds_log(3, sprintf(['[dimsynth] Anfangswerte ' ...
       'aus geladenen Daten. Nächste Generation: %d'], i_gen_opt+2));
+  else
+    i_gen_opt = 0; % Bei Lade-Fehler wieder zurücksetzen
   end
 
   % Speichere die Gelenkwinkel der Anfangspopulation, um sie später wieder
@@ -3075,6 +3080,11 @@ elseif ~isempty(filelist_tmpres2) % Fall 2: Bereits von cds_gen_init_pop nachver
     if i_gen == 1
       PSO_Detail_Data = cds_save_particle_details(Set, [], 0, 0, NaN, NaN, NaN, NaN, 'output');
       d = struct('PSO_Detail_Data', PSO_Detail_Data);
+      if isempty(PSO_Detail_Data)
+        cds_log(-1, sprintf(['[dimsynth] Fehler Rekonstruieren der ' ...
+          'Dimension von PSO_Detail_Data beim Laden von Wiederaufnahme-Datei.']));
+        continue
+      end
     end
     if strcmp(Set.optimization.algorithm, 'mopso')
       % Überschreibe Pareto-Front immer wieder, damit es automatisch die
@@ -3107,7 +3117,7 @@ elseif ~isempty(filelist_tmpres2) % Fall 2: Bereits von cds_gen_init_pop nachver
   end % for ii
 end
 
-if isempty(d)
+if isempty(d) || isempty(d.PSO_Detail_Data)
   cds_log(-1, sprintf(['[dimsynth] Keine der %d Wiederaufnahme-Dateien ', ...
     'erfolgreich geladen.'], length(I_dateasc)));
 else

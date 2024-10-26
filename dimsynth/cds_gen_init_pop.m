@@ -88,6 +88,7 @@ for i = 1:length(tmpdirsrob)
   end
   [~,genfiles_order] = sort(genfiles_numbers, 'ascend');
   igen = 0;
+  filename_dummy = '';
   for j = genfiles_order(:)' % Dateien durchgehen. Neue überschreibt alte.
     try % Auf Cluster Dateisystem-Fehler möglich
       tmp = load(fullfile(genfiles(j).folder, genfiles(j).name));
@@ -101,7 +102,7 @@ for i = 1:length(tmpdirsrob)
     igen = str2double(ttt{1}{1});
     if igen == 0, continue; end % Anfangspopulation enthält keine brauchbaren Informationen
     RobotOptRes = struct('Structure', Structure); % Annahme: Gleiche Einstellungen der Optimierung
-    if size(tmp.PSO_Detail_Data.fval,2) > 1 % siehe cds_save_particle_details
+    if size(tmp.PSO_Detail_Data.fval,2) > 1 % mehrkriterielle Optimierung; siehe cds_save_particle_details
       I_dom = pareto_dominance(tmp.PSO_Detail_Data.fval(:,:,1+igen)); % Sonst später Warnungen, da keine valide Pareto-Front
       % Entferne auch NaN-Einträge (erzeugen beim späteren Laden Probleme)
       % (treten auf, wenn es kein Status am Ende einer Generation ist,
@@ -114,8 +115,12 @@ for i = 1:length(tmpdirsrob)
       RobotOptRes.q0 = RobotOptRes.q0_pareto(1,:)';
       RobotOptRes.fval = RobotOptRes.fval_pareto(1,:)';
       RobotOptRes.timestamps_start_end = repmat(genfiles(j).datenum,1,2); % setze beides auf den Zeitstempel der Datei
-    else
+    else % Einkriteriell
       % TODO: Fall noch nicht definiert.
+      % RobotOptRes.fval = tmp.PSO_Detail_Data.fval(:,:,1+igen);
+      % RobotOptRes.p_val = tmp.PSO_Detail_Data.pval(:,:,1+igen);
+      % RobotOptRes.desopt_pval = tmp.PSO_Detail_Data.desopt_pval(:,:,1+igen);
+      % RobotOptRes.q0 = tmp.PSO_Detail_Data.q0_ik(:,:,1+igen);
       continue
     end
     filename_dummy = fullfile(resdir_main, sprintf( ...
@@ -125,7 +130,7 @@ for i = 1:length(tmpdirsrob)
       'Zwischenstand %s erstellt.'], ...
       filename_dummy, genfiles(j).name));
   end
-  if igen > 0
+  if igen > 0 && ~isempty(filename_dummy) % Falls Ergebnisse geladen werden konnten.
     % Benutze nur die bereits vorhandenen Zwischenergebnisse, verwerfe die
     % anderen Ergebnis-Dateien. Dann geht es schneller.
     initpop_matlist = {filename_dummy};
