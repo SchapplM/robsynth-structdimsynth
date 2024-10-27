@@ -1816,7 +1816,7 @@ if ~Structure.task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
       Structure.config_number, i_ar, i_m));
     QD = QD_num;
     QDD = zeros(size(Q)); % Differenzenquotient neu berechnen (neues QD)
-    QDD(1:end-1,:) = diff(QD(:,:))./ repmat(diff(Traj_0.t), 1, R.NJ);
+    QDD(1:end-1,:) = diff(QD(:,:))./ repmat(diff(Traj_0.t), 1, size(Q,2));
   end
   if Set.general.plot_details_in_fitness < 0 && 1e4*fval_all(i_m, i_ar)  >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
      Set.general.plot_details_in_fitness > 0 && 1e4*fval_all(i_m, i_ar)  <= abs(Set.general.plot_details_in_fitness)
