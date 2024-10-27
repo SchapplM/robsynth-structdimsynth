@@ -374,7 +374,7 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
   % Rechne Parameter aus Datei in aktuelle Parameter um.
   pval_i = NaN(size(pval_i_file,1), nvars);
   for jjj = 1:length(I_p_file)
-    if I_p_file(jjj) ~= 0
+    if I_p_file(jjj) > 0
       pval_i(:,jjj) = pval_i_file(:,I_p_file(jjj));
     end
   end
@@ -391,6 +391,24 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
   if any(I_pkinzero)
     pval_i_const(I_pkinzero) = 0;
   end
+
+  if Structure.Type == 1 && strcmp(Structure.Name, Structure_i.Name) && ...
+      strcmp(Structure.RobName, '') && ~strcmp(Structure_i.RobName, '')
+    % In der geladenen Datei ist das Modell eines seriell-hybriden Roboters
+    % Hole die Parameter aus der Datenbank und rechne sie um.
+    HRDB = hybroblib_systems_list();
+    MdlExt = HRDB.ModelExt{strcmp(HRDB.Name, Structure_i.Name)};
+    [~,PS] = hybroblib_create_robot_class(Structure_i.Name, MdlExt, Structure_i.RobName, true);
+    if sum(I_pkin) == length(PS.pkin)
+      pval_i_const(I_pkin) = PS.pkin;
+      % Setze Skalierung auf 1, damit die Längenparameter so bleiben
+      % ToDo: Umrechenmöglichkeit, damit Betragsgroße Parameter
+      % runterskaliert werden
+      pval_i_const(Structure.vartypes==0) = 1;
+      pval_i(Structure.vartypes==0) = 1; % Überschreibe auch für die Datei. Eigentlich hiermit neu skalieren, sofern Parameter-Arten bekannt wären.
+    end
+  end
+
   % Wenn in der Datei kein rotate_base benutzt wird, und hier schon,
   % ist es egal. Dann kann der Parameter direkt Null gesetzt werden.
   I_baserotz = find(strcmp(Structure.varnames, 'baserotation z'));
@@ -566,9 +584,10 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
       % Parameter aus unvollständigen Daten neu aufzubauen.
       cds_log(1, sprintf(['[gen_init_pop] Optimierungsparameter in Ergebnis-', ...
         'Ordner %s unterschiedlich (%d vs %d). Keine Anfangswerte ableitbar. ', ...
-        'Unterschied: {%s}. Bestimmbar: {%s}'], fileparts(initpop_matlist{i}), ...
+        'Nicht bestimmbar: {%s}. Bestimmbar: {%s}. '], fileparts(initpop_matlist{i}), ...
         length(Structure.vartypes), length(Structure_i.vartypes), ...
-        disp_array(setxor(varnames_i, varnames_this)), ...
+        ...% disp_array(setxor(varnames_i, varnames_this)), ...
+        disp_array(Structure.varnames( isnan(pval_i_const)), '%s'), ...
         disp_array(Structure.varnames(~isnan(pval_i_const)), '%s')));
       continue
     end
