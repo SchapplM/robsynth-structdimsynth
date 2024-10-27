@@ -1164,6 +1164,54 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         % fprintf('Kollisionsprüfung (%d): Beinkette %d Seg. %d vs Seg. %d. Zeile [%d,%d]\n', ...
         %   size(selfcollchecks_bodies,1), k, i, j, selfcollchecks_bodies(end,1), selfcollchecks_bodies(end,2));
       end
+      % Zusätzlich bei Seriell-hybriden Ketten auch andere Teile der Baum-
+      % struktur auf Kollision prüfen
+      if R.Type == 1
+        for kkk = [1 2 i+1:R.NJ] % Gehe alle Körper/KS mit höherem Index durch
+          % Prüfe, ob der Körper schon in der Kette enthalten ist (für
+          % Basis-Körper 1 und 2 möglich)
+          if any(j_hascollbody == kkk), continue; end
+          % Bestimme kinematische Kette von diesem Segment zur Basis
+          chain_kkk = kkk;
+          iii = kkk;
+          while iii ~= 0
+            iii = R_cc.MDH.v(iii); % einen Körper weiter zur Basis gehen
+            chain_kkk = [collbodies.link(collbodies.link(:,1)==iii,1)', chain_kkk]; %#ok<AGROW>
+          end
+          % Ausschluss der sowieso folgenden Segmente (spätere i-Iteration)
+          if any(chain_kkk==i), continue; end
+          % Abstand zwischen den neu zu prüfenden Segmenten und i halten
+          if any(chain_kkk == R_cc.MDH.v(i)) || ... % i darf nicht davor aus gleicher Kette abzweigen
+             R_cc.MDH.v(i)>0 && any(chain_kkk == R_cc.MDH.v(R_cc.MDH.v(i))) % auch nicht noch einen davor. TODO: Bei gut aufgebauten Kinematikmodellen könnte das hier weg.
+            continue;
+          end
+          % Prüfe, ob es sich um zu schließende Schleifen handelt
+          % Im Modell stehen die virtuellen Gelenke hinten (hohe Indizes)
+          % und sind bezogen auf die davor stehenden Koppelgelenke.
+          I_vj = R.MDH.sigma == 2;
+          num_vj = sum(I_vj);
+          I_cj = false(length(I_vj),1);
+          I_cj(end-2*num_vj+1:end-num_vj) = true;
+          if I_vj(kkk) && i == kkk - num_vj ||...
+             I_vj(i)   && i == kkk + num_vj || ...
+             I_cj(kkk) && i == kkk + num_vj ||...
+             I_cj(i)   && i == kkk - num_vj 
+            % Eins ist das Koppelgelenk und das andere das dazugehörige
+            % virtuelle Gelenk. Immer verbunden, also keine
+            % Kollisionsprüfung
+            continue
+          end
+          % Prüfe, ob Körper mehrfach vorkommen (dann garantiert falsch
+          % positive Kollisionsprüfung).
+          if length(unique(reshape(collbodies.link(NLoffset+[i, kkk],:), 1, 4)))<4
+            continue
+          end
+          selfcollchecks_bodies = [selfcollchecks_bodies; ...
+            uint8(NLoffset+[i, kkk])]; %#ok<AGROW>
+          % fprintf('Kollisionsprüfung (%d): Beinkette %d Seg. %d vs Seg. %d. Zeile [%d,%d]\n', ...
+          %   size(selfcollchecks_bodies,1), k, i, kkk, selfcollchecks_bodies(end,1), selfcollchecks_bodies(end,2));
+        end
+      end
     end % i-loop (NJ)
   end % k-loop (NLEG)
   % Vorgänger-Indizes für Segmente für die Kollisionsprüfung abspeichern.
@@ -1699,8 +1747,12 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
           i, R.collchecks(i,1), R.collchecks(i,2), ...
           names_collbodies{R.collchecks(i,1)}, names_collbodies{R.collchecks(i,2)})]; %#ok<AGROW> 
       end
-      cds_log(-1, logstr);
-      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot_collcheck_error.mat'));
+      if R.Type == 1 % Bei seriell-hybriden gibt es noch keine Lösung
+        cds_log(2, logstr); % (Information zu übereinanderliegenden KS fehlt)
+        I_ccnc = I_ccnc | I_alwayscoll; % Ignoriere diese Prüfungen
+      else
+        cds_log(-1, logstr);
+        save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot_collcheck_error.mat'));
       % Debug: Unterschiedliche Fälle untersuchen
 %       Set.general.plot_details_in_fitness = inf;
 %       Traj_0 = cds_transform_traj(R, Traj);
@@ -1710,7 +1762,8 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
 %         saveas(867, fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
 %           'tmp', sprintf('cds_dimsynth_robot_collision_case_%d.fig', k)));
 %       end
-      error('Logik-Fehler bei Initialisierung der Kollisionsprüfungen.')
+        error('Logik-Fehler bei Initialisierung der Kollisionsprüfungen.')
+      end
     end
     Structure.I_collcheck_nochange = I_ccnc;
     % Untersuche, welche Kollisionskörper gar nicht geprüft werden. Muss nicht
