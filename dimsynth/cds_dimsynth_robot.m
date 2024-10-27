@@ -107,6 +107,10 @@ if ~Set.optimization.fix_joint_limits && any(strcmp(Set.optimization.objective, 
   cds_log(-1, ['Optimierung mit Ziel Gelenkwinkelgrenzen bei nicht-festen ', ...
     'Grenzen nicht sinnvoll']);
 end
+if Set.optimization.fix_joint_limits && isempty(Structure.RobName)
+  cds_log(-1, 'Gelenkwinkelgrenzen fixiert aber kein konkreter Roboter gewählt. Nicht sinnvoll.');
+  return
+end
 if Structure.Type == 0 % Seriell
   R = serroblib_create_robot_class(Structure.Name, Structure.RobName);
   NLEG = 1;
@@ -983,7 +987,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     % Erneute Initialisierung (sonst eventuell doppelte Eintragungen)
     collbodies = struct('link', uint16([]), 'type', uint8(zeros(0,2)), ...
       'params', zeros(0,10)); % Liste für Beinkette
-    if Structure.Type == 0  % Seriell 
+    if any(Structure.Type == [0 1])  % Seriell 
       NLoffset = 0;
       R_cc = R;
     else % PKM-Beinkette
@@ -1047,11 +1051,12 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       end
       collbodies.params = [collbodies.params; cbi_par, NaN(1,3)];
       % Führungsschiene/Führungszylinder ist vorherigem Segment zugeordnet
-      collbodies.link = [collbodies.link; [uint16(i-1), uint16(i-1)]];
+      collbodies.link = [collbodies.link; [uint16(i-1), uint16(R_cc.MDH.v(i))]];
     end
     
     % Erzeuge Ersatzkörper für die kinematische Kette (aus Gelenk-Trafo)
     for i = 1:R_cc.NJ
+      % if R_cc.Type == 1 && i > R_cc.NL, continue; end % nicht für virtuelle Gelenke? -> ist doch notwendig
       if ~isempty(Structure.RobName) && norm([R_cc.MDH.a(i);R_cc.MDH.d(i)]) < 20e-3
         % Sonderfall: Roboter mit festen Parametern wird optimiert und
         % Abstand zwischen Segmenten ist kleiner als Kollisionskörper.
@@ -1061,7 +1066,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       if R_cc.MDH.a(i) ~= 0 || R_cc.MDH.d(i) ~= 0 || R_cc.MDH.sigma(i) == 1
         % Es gibt eine Verschiebung in der Koordinatentransformation i
         % Definiere einen Ersatzkörper dafür
-        collbodies.link =   [collbodies.link; [uint16(i),uint16(i-1)]];
+        collbodies.link =   [collbodies.link; [uint16(i),uint16(R_cc.MDH.v(i))]];
         collbodies.type =   [collbodies.type; uint8(6)]; % Kapsel, direkte Verbindung
         % Wähle Kapseln mit z.B. Radius 20mm. R.DesPar.seg_par ist noch nicht belegt
         % (passiert erst in Entwurfsoptimierung).
@@ -1070,8 +1075,9 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     end
     % Trage eine EE-Transformation ein: Kapsel von letzten Roboter-Segment
     % zu TCP. Direkte Verbindung. Dünner als Segment-Verbindungen
-    if Structure.Type == 0 && Set.optimization.ee_translation
-      collbodies.link =   [collbodies.link; [uint16(R_cc.NJ+1),uint16(R_cc.NJ)]];
+    if any(Structure.Type == [0 1]) && Set.optimization.ee_translation
+      collbodies.link =   [collbodies.link; [uint16(R_cc.NJ+1),uint16(R_cc.I_EElink)]];
+      if Structure.Type == 0 && collbodies.link(end,2) ~= R_cc.NJ, errror('Fehler bei Implementierung von SerHyb'); end
       collbodies.type =   [collbodies.type; uint8(6)]; % Kapsel, direkte Verbindung
       collbodies.params = [collbodies.params; Set.optimization.collision_bodies_size/4, NaN(1,9)]; % Radius 10mm
     end
@@ -1085,7 +1091,29 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       % Der Vorgänger bezieht sich auf den Kollisionskörper, nicht auf
       % die Nummer des Starrkörpers. Ansonsten würden zwei durch Kugel-
       % oder Kardan-Gelenk verbundene Körper in Kollision stehen.
-      j_hascollbody = collbodies.link(collbodies.link(:,1)<i,1)';
+      % Debug: Probiere, ob bei seriell-hybriden Robotern weniger ausreichen
+      % if R.Type == 1 && i > R_cc.NL && i ~= R_cc.NJ+1
+      %   % Bei seriell-hybriden Robotern bekommen die virtuellen Gelenk
+      %   % keine Kollisionskörper
+      %   continue
+      % end
+      if i < R_cc.NJ+1
+        kkk = i; % Fange beim Segment i an und gehe rückwärts
+        j_hascollbody = [];
+      else
+        kkk = R_cc.I_EElink; % Fange beim Segment an, das dem EE zugeordnet ist
+        j_hascollbody = kkk; % Endeffektor-Segment mitzählen (hier explizit TCP geprüft))
+      end
+      while kkk ~= 0
+        kkk = R_cc.MDH.v(kkk); % einen Körper weiter zur Basis gehen
+        j_hascollbody =  [collbodies.link(collbodies.link(:,1)==kkk,1)', j_hascollbody]; %#ok<AGROW>
+      end
+      if R.Type == 0 % Debug: Vergleich mit alter Implementierung vor Erweiterung auf seriell-hybrid im Oktober 2024 (Code kann nach Prüfung wieder raus)
+        j_hascollbody2 = collbodies.link(collbodies.link(:,1)<i,1)';
+        if ~all(j_hascollbody == j_hascollbody2)
+          error('Bestimmung der vorherigen Kollisioskörper fehlgeschlagen')
+        end
+      end
       % Sonderfall Portal-System: Abstand zwischen Kollisionskörpern noch
       % um eins vergrößern. TODO: Ist so noch nicht allgemeingültig.
       % Dadurch wird die Kollisionsprüfung effektiv deaktiviert.
@@ -1122,7 +1150,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   % Unterscheidet sich von normaler MDH-Notation dadurch, dass alle
   % Beinketten-Basis-KS enthalten sind und die Basis ihr eigener Vorgänger
   % ist (vereinfacht spätere Implementierung)
-  if Structure.Type == 0  % Seriell 
+  if any(Structure.Type == [0 1])  % Seriell oder seriell-hybrid
     v = uint8([0;R.MDH.v]); % zusätzlicher Dummy-Eintrag für Basis
   else % PKM
     % Jede Beinkette hat zusätzliches Basis-KS
@@ -1320,11 +1348,16 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   end
   % Debug: Namen der Körper für die Kollisionsprüfung anzeigen
   % (unterscheidet sich von den Kollisionskörpern, den Körpern zugeordnet)
-  if Structure.Type == 0
-    names_bodies = cell(R.NL+1,1);
+  if any(Structure.Type == [0 1])
+    % Ordne allen KS einen Kollisionskörper zu, egal ob es ein realer
+    % Körper des Roboters ist (Massebehafteter Starrkörper) oder nicht.
+    names_bodies = cell(R.NJ+2,1);
     names_bodies{1} = 'Base';
     for k = 2:R.NL
       names_bodies{k} = sprintf('Link %d', k-1);
+    end
+    for k = R.NL+1:R.NJ+1 % Bei seriell-hybriden Ketten keine Starrkörper
+      names_bodies{k} = sprintf('Link %d (virt.)', k-1);
     end
   else % PKM
     names_bodies = cell(R.I2L_LEG(end)-R.NLEG+1+1+1,1);
@@ -1384,8 +1417,8 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   end
   % Prüfe die zusammengestellten Kollisionskörper. Die höchste Nummer
   % (Null-indiziert) ist durch die Roboterstruktur vorgegeben.
-  if Structure.Type == 0
-    Nmax = R.NL-1+1;
+  if any(Structure.Type == [0 1])
+    Nmax = R.NJ+1;
   else
     Nmax = R.I2L_LEG(end)-(R.NLEG-1)+1;
   end
@@ -1570,7 +1603,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     % Mit bereits oben gesetzten Zufallswerten für Kinematikparameter und
     % Gelenkwinkel werden Kollisionsabstände bestimmt.
     % Nutze den vollständigen Winkelbereich. Sonst falsch-positiv.
-    Q_test = -pi+2*pi*rand(100,R.NJ); JP_test = [];
+    Q_test = -pi+2*pi*rand(100,length(Structure.q0_traj)); JP_test = [];
     for jj = 1:size(Q_test,1)
       % Variieren der Kinematikparameter, damit nicht die oben zufällig
       % gewählten Parameter immer zu einer Kollision führen (bswp. durch
@@ -1733,7 +1766,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   % Kollisionsprüfungen mit gestellfesten Führungsschienen.
   % Siehe cds_desopt_prismaticoffset.m
   % Stelle Körper-Nummern dazu fest (s.o.)
-  if R.Type == 0 % Seriell
+  if any(R.Type == [0 1]) % Seriell
     Ib_baserail = 0;
   else % Parallel
     Ib_baserail = NaN(1,R.NLEG);
@@ -1850,7 +1883,7 @@ if ~isempty(Set.task.installspace.type)
     R_cc.collbodies_instspc = collbodies_instspc_k;
   end
   % Trage Bauraum-Objekte in die Klassen ein (Gesamt-PKM bzw. SerRob)
-  if Structure.Type == 0  % Seriell 
+  if any(Structure.Type == [0 1])  % Seriell 
     R.collbodies_instspc.type = [collbodies_instspc_fix.type; collbodies_instspc_k.type];
     R.collbodies_instspc.link = [collbodies_instspc_fix.link; collbodies_instspc_k.link];
     R.collbodies_instspc.params = [collbodies_instspc_fix.params; collbodies_instspc_k.params];

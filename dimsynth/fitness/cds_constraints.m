@@ -192,7 +192,7 @@ if any(R.Type == [0 1]) % Seriell
   condJik = NaN(size(Traj_0.XE,1), 1); % IK-Jacobi
   QE = NaN(size(Traj_0.XE,1), R.NQJ);
   % Variable zum Speichern der Gelenkpositionen (für Kollisionserkennung)
-  JPE = NaN(size(Traj_0.XE,1), (R.NL+1)*3);
+  JPE = NaN(size(Traj_0.XE,1), (R.NJ+2)*3);
   Jinv_E = []; % Platzhalter, nicht benötigt
 else % PKM
   nPhi = R.I2constr_red(end);
