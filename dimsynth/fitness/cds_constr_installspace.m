@@ -145,7 +145,7 @@ xlabel('x in m');ylabel('y in m');zlabel('z in m');
 % Trajektorie zeichnen
 X_W = (repmat(R.T_W_0(1:3,4), 1, size(X,1)) + R.T_W_0(1:3,1:3)*X(:,1:3)')';
 plot3(X_W(:,1), X_W(:,2), X_W(:,3), 'ko');
-if R.Type == 0 % Seriell
+if any(R.Type == [0 1]) % Seriell
   s_plot = struct( 'ks', 1:R.NJ+2, 'straight', 1, 'mode', 1);
   R.plot( Q(j,:)', s_plot);
 else % PKM
