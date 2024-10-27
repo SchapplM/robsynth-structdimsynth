@@ -118,6 +118,7 @@ elseif Structure.Type == 1 % Seriell-hybrid
   HRDB = hybroblib_systems_list();
   MdlExt = HRDB.ModelExt{strcmp(HRDB.Name, Structure.Name)};
   R = hybroblib_create_robot_class(Structure.Name, MdlExt, Structure.RobName);
+  if isempty(Structure.RobName), R.I_EElink = HRDB.EELink(strcmp(HRDB.Name, Structure.Name)); end
   NLEG = 1;
   cds_log(-1, sprintf(['[dimsynth] Implementierung für seriell-hybride ', ...
     'Roboter ist noch unvollständig.']));
@@ -446,8 +447,8 @@ if ~isempty(Structure.RobName)
   else  % Parallel
     Ipkinrel = false(size(R.Leg(1).pkin));
   end
-elseif Structure.Type == 0 || Structure.Type == 2
-  if Structure.Type == 0 % Seriell
+elseif any(Structure.Type == [0 1]) || Structure.Type == 2
+  if any(Structure.Type == [0 1]) % Seriell
     R_pkin = R;
   else  % Parallel
     R_pkin = R.Leg(1);
@@ -583,7 +584,7 @@ elseif Structure.Type == 0 || Structure.Type == 2
       end
     end
   end
-  if Structure.Type == 0
+  if any(Structure.Type == [0 1])
     R.update_mdh(pkin_init);
   else
     R.update_mdh_legs(pkin_init);
@@ -597,7 +598,11 @@ elseif Structure.Type == 0 || Structure.Type == 2
     if R_pkin.pkin_types(i) == 1
       % Winkel-Parameter beta. Darf eigentlich gar nicht auftreten bei
       % seriellen Robotern. Ginge aber auch mit 0 bis pi/2.
-      error('Die Optimierung des Parameters beta ist nicht vorgesehen');
+      if R_pkin.Type == 0
+        error('Die Optimierung des Parameters beta ist nicht vorgesehen');
+      else % bei Baumstrukturen bei seriell-hybriden notwendig.
+        plim(i,:) = [0, pi];
+      end
     elseif R_pkin.pkin_types(i) == 3
       % Winkel-Parameter alpha. Nur Begrenzung auf [0,pi/2]. Ansonsten sind
       % negative DH-Längen und negative Winkel redundant. Es wird nur die
@@ -621,8 +626,23 @@ elseif Structure.Type == 0 || Structure.Type == 2
     elseif R_pkin.pkin_types(i) == 2 || R_pkin.pkin_types(i) == 4 || R_pkin.pkin_types(i) == 6
       % Maximale Länge der einzelnen Segmente
       plim(i,:) = [-1, 1]; % in Optimierung bezogen auf Lref
+    elseif R_pkin.pkin_types(i) == 7 && R_pkin.MDH.sigma(R_pkin.pkin_jointnumber(i))==0
+      % Offsetparameter für Drehgelenk (dürfte eigentlich gar nicht vorkommen)
+      plim(i,:) = [-pi, pi];
+    elseif R_pkin.pkin_types(i) == 7 && R_pkin.MDH.sigma(R_pkin.pkin_jointnumber(i))==1
+      % Offsetparameter für Drehgelenk (dürfte eigentlich gar nicht vorkommen)
+      plim(i,:) = [-1, 1]; % in Optimierung bezogen auf Lref
+    elseif R_pkin.pkin_types(i) == 9
+      % Sonstiger Winkelparameter (für manche seriell-hybride Roboter)
+      plim(i,:) = [-pi, pi];
+    elseif R_pkin.pkin_types(i) == 10
+      % Sonstiger Längenparameter (für manche seriell-hybride Roboter)
+      plim(i,:) = [-1, 1]; % in Optimierung bezogen auf Lref
     else
       error('Parametertyp nicht definiert');
+    end
+    if R_pkin.Type==1 && any(R_pkin.pkin_types(i) == [2 4 6 10])
+      plim(i,:) = 10*plim(i,:); % Setze Grenzen sehr hoch, damit aus Datenbank geladene Parameter mit großen Beträgen nicht scheitern.
     end
     if Ipkinrel(i)
       varnames = {varnames{:}, sprintf('pkin %d: %s', i, R_pkin.pkin_names{i})}; %#ok<CCAT>
