@@ -1047,7 +1047,14 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         T_grozyl_end = T_qmax;
         cbi_par = [T_grozyl_start(1:3,4)', T_grozyl_end(1:3,4)', Set.optimization.collision_bodies_size/2];
       else
-        error('Fall %d für Schubgelenk nicht vorgesehen', R_cc.DesPar.joint_type(i));
+        if R.Type == 0 % Für serielle Roboter ist dieser Fall unerwartet und sollte nochmal angeschaut werden
+          error('Fall %d für Schubgelenk nicht vorgesehen', R_cc.DesPar.joint_type(i));
+        else % Für seriell-hybride Roboter einfach überspringen und keinen Körper definieren
+          cds_log(-1, sprintf(['[dimsynth] Die Kollisionsprüfung für den ', ...
+            'statischen Teil des P-Gelenks (Typ %d) an Stelle %d ist nicht definiert. ', ...
+            'Wird vorerst ignoriert.'], R_cc.DesPar.joint_type(i), i));
+          continue
+        end
       end
       if i == 1 % erstes Gelenk der Kette ist Schubgelenk. Führungsschiene basisfest.
         % Kapsel, zwei Punkte (im weltfesten Basis-KS der Kette)
@@ -1166,7 +1173,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       end
       % Zusätzlich bei Seriell-hybriden Ketten auch andere Teile der Baum-
       % struktur auf Kollision prüfen
-      if R.Type == 1
+      if R.Type == 1 && i <= R.NJ % nicht für zusätzlichen EE-Körper machen (wird schon anders geprüft? Führt zu noch ungelösten Fehlern beim Kamerakran-Modell)
         for kkk = [1 2 i+1:R.NJ] % Gehe alle Körper/KS mit höherem Index durch
           % Prüfe, ob der Körper schon in der Kette enthalten ist (für
           % Basis-Körper 1 und 2 möglich)
@@ -1202,8 +1209,9 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
             continue
           end
           % Prüfe, ob Körper mehrfach vorkommen (dann garantiert falsch
-          % positive Kollisionsprüfung).
-          if length(unique(reshape(collbodies.link(NLoffset+[i, kkk],:), 1, 4)))<4
+          % positive Kollisionsprüfung). TODO: Noch nicht ganz ausgereift.
+          I = collbodies.link(:,1) == NLoffset+i | collbodies.link(:,1) == NLoffset+kkk;
+          if sum(I) == 2 && length(unique(reshape(collbodies.link(I,:), 1, 4)))<4
             continue
           end
           selfcollchecks_bodies = [selfcollchecks_bodies; ...
