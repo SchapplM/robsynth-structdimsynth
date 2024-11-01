@@ -295,12 +295,12 @@ for i = 1:NLEG
     end
   end
   if any(Structure.Type == [0 2])
-    I = 1:R_init.NJ;
+    I = (1:R_init.NJ)';
   else
-    I = R_init.MDH.mu == 1;
+    I = find(R_init.MDH.mu == 1);
   end
-  R_init.DesPar.joint_type(I'==1&sigma_act==1) = 4; % Linearführung erste Achse
-  R_init.DesPar.joint_type(I'~=1&sigma_act==1) = 5; % Schubzylinder weitere Achse
+  R_init.DesPar.joint_type(I==1&sigma_act==1) = 4; % Linearführung erste Achse
+  R_init.DesPar.joint_type(I~=1&sigma_act==1) = 5; % Schubzylinder weitere Achse
   % Setze bei Portalsystemen die Schubgelenke so wie aus cds_gen_robot_list
   if all(R_init.MDH.sigma(1:2)==1) % Betrifft nur serielle
     for k = 1:length(Structure.prismatic_types)
