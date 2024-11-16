@@ -51,6 +51,7 @@ general = struct( ...
   'save_animation_file_extensions', {{'mp4'}}, ... % Format, in denen die Animationen gespeichert werden
   'animation_styles', {{'stick'}}, ... % Visualisierungsarten im Video: stick,3D,collision; bei mehr als einem: Syntax {{'1.','2.'}}
   'animation_installationspace', false, ... % Zeichne die Grenzen des Arbeitsraums in Animation mit ein
+  'animation_clean', false, ... % Übersichtlichere Animation ohne Beschriftungen (KS, Titel), Achsen oder Gitterlinien
   'animation_workspaceobstacles', false, ... % Zeichne (Kollisions-)Störobjekte in die Animation mit ein
   'animation_fval_threshold', 1e9, ... % Nur bei die Animation zeichnen, falls Trajektorie da ist. Schwellwert siehe cds_fitness.m
   'maxduration_animation', 10, ... % Die Animation soll max. 10s dauern (als Videodatei)

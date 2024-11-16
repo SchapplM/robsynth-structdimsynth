@@ -152,13 +152,22 @@ for kk = 1:length(Set.general.animation_styles)
   if settings.figure_invisible, fhdl = figure_invisible();
   else,                         fhdl = figure(); end
   clf; hold all;
-  set(fhdl, 'Name', sprintf('Rob%d_P%d_anim_%s', RNr, PNr, anim_mode), 'NumberTitle', 'off', 'color','w');
-  title(sprintf('Rob.%d, P.%d %s%s: fval=%s (%s)', RNr, PNr, Name, ...
-    RobShortName_str, fval_str, fval_text));
-  view(3);
-  axis auto
-  hold on;grid on;
-  xlabel('x in m');ylabel('y in m');zlabel('z in m');
+  set(fhdl, 'Name', sprintf('Rob%d_P%d_anim_%s', RNr, PNr, anim_mode), ...
+    'NumberTitle', 'off', 'color','w');
+  axhdl = get(fhdl, 'children');
+  if ~Set.general.animation_clean
+    title(sprintf('Rob.%d, P.%d %s%s: fval=%s (%s)', RNr, PNr, Name, ...
+      RobShortName_str, fval_str, fval_text));
+  end
+  view(3); axis auto; hold on;
+  if ~Set.general.animation_clean
+    grid on; xlabel('x in m'); ylabel('y in m'); zlabel('z in m');
+  else % Alle Achsen und Beschriftungen entfernen
+    set(get(axhdl, 'XAxis'), 'visible', 'off');
+    set(get(axhdl, 'YAxis'), 'visible', 'off');
+    set(get(axhdl, 'ZAxis'), 'visible', 'off');
+    set(axhdl, 'Box', 'off');
+  end
   plot3(Traj.X(:,1), Traj.X(:,2),Traj.X(:,3), 'k-');
   % Falls ein 2T1R-/2T0R-Roboter gezeichnet wird, werden die z-Grenzen
   % automatisch auf -1/+1 gesetzt. Dann ist der Roboter im Video sehr klein
@@ -229,9 +238,16 @@ for kk = 1:length(Set.general.animation_styles)
   end
   if RobData.Type == 0 % Seriell
     s_plot = struct( 'straight', 1);
+    if Set.general.animation_clean % keine KS zeichnen
+      s_plot.ks = [];
+    end
   else % Parallel
     s_plot = struct( 'ks_legs', [], 'straight', 1);
     if kk == 2, s_plot.mode = 4; end
+    if Set.general.animation_clean % keine KS zeichnen
+      s_plot.ks_platform = [];
+      s_plot.ks_base = false;
+    end
   end
   if strcmp(anim_mode, 'stick')
     s_plot.mode = 1;
