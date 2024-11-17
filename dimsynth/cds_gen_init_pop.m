@@ -406,6 +406,15 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
   if ~isempty(I_baseroty) && any(I_baseroty == missing_file_in_local)
     pval_i_const(I_baseroty) = 0;
   end
+  % Gleiches gilt für die EE-Neigung
+  I_baserot1 = find(strcmp(Structure.varnames, 'ee rot 1'));
+  if ~isempty(I_baserot1) && any(I_baserot1 == missing_file_in_local)
+    pval_i_const(I_baserot1) = 0;
+  end
+  I_baserot2 = find(strcmp(Structure.varnames, 'ee rot 2'));
+  if ~isempty(I_baserot2) && any(I_baserot2 == missing_file_in_local)
+    pval_i_const(I_baserot2) = 0;
+  end
   % Gleiches für Plattform-Morphologie (G8-Methode). Standardmäßig Null.
   I_platform_morph_axoffset = find(strcmp(Structure.varnames, 'platform_morph_axoffset'));
   if ~isempty(I_platform_morph_axoffset) && any(I_platform_morph_axoffset == missing_file_in_local)
