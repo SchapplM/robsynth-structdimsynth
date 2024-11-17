@@ -59,7 +59,7 @@ end
 if all(DoF == [1 1 1 0 0 0])
   d1=0.3;
   h1=0.3;
-  if no == 1 % Würfel
+  if any(no == [1 2]) % Würfel
     k=k+1; XE(k,:) = XE(k-1,:) + [ d1,0,0, 0,0,0];
     k=k+1; XE(k,:) = XE(k-1,:) + [0,-d1,0  0,0,0];
     k=k+1; XE(k,:) = XE(k-1,:) + [-d1,0,0, 0,0,0];
@@ -74,9 +74,20 @@ if all(DoF == [1 1 1 0 0 0])
     k=k+1; XE(k,:) = XE(k-1,:) + [-d1,0,0, 0,0,0];
     k=k+1; XE(k,:) = XE(k-1,:) + [0,d1,0,  0,0,0];
     k=k+1; XE(k,:) = XE(k-1,:) + [0,0, h1, 0,0,0];
-    % Fahrt in die Mitte (nur Eckpunkte reicht nicht für Struktursynthese.
-    % Dann können Umklapp-Lagen bereits die Punkte erfüllen).
-    k=k+1; XE(k,:) = XE(k-1,:) + [d1/2,-d1/2, -h1/2, 0,0,0];
+    if no == 1
+      % Fahrt in die Mitte (nur Eckpunkte reicht nicht für Struktursynthese.
+      % Dann können Umklapp-Lagen bereits die Punkte erfüllen).
+      k=k+1; XE(k,:) = XE(k-1,:) + [d1/2,-d1/2, -h1/2, 0,0,0];
+    elseif no == 2
+      % Würfel so vollenden, dass Start und Ziel identisch sind
+      % (für Dauerschleife der Animation)
+      k=k+1; XE(k,:) = XE(k-1,:) + [d1,0,0, 0,0,0];
+      k=k+1; XE(k,:) = XE(k-1,:) + [0,0,-h1, 0,0,0];
+      k=k+1; XE(k,:) = XE(k-1,:) + [0,-d1,0, 0,0,0];
+      k=k+1; XE(k,:) = XE(k-1,:) + [0,0,h1, 0,0,0];
+      k=k+1; XE(k,:) = XE(k-1,:) + [0,d1,0, 0,0,0];
+      k=k+1; XE(k,:) = XE(k-1,:) + [-d1,0,0, 0,0,0];
+    end
   elseif no == 4 % jeden FG einmal vor, zurück und in die Mitte bewegen
     k=k+1; XE(k,:) = XE(k-1,:) + [ 1*d1,0,0, 0,0,0];
     k=k+1; XE(k,:) = XE(k-1,:) + [-2*d1,0,0, 0,0,0];
@@ -96,7 +107,7 @@ end
 if all(DoF == [1 1 1 0 0 1])
   d1=0.3;
   h1=0.3;
-  if no == 1 % Beginn Würfel mit zusätzlicher EE-Drehung
+  if any(no == [1 2]) % Beginn Würfel mit zusätzlicher EE-Drehung
     k=k+1; XE(k,:) = XE(k-1,:) + [ d1,0,0, 0,0,0];
     k=k+1; XE(k,:) = XE(k-1,:) + [0,-d1,0  0,0, pi/4];
     k=k+1; XE(k,:) = XE(k-1,:) + [-d1,0,0, 0,0,0];
@@ -111,8 +122,18 @@ if all(DoF == [1 1 1 0 0 1])
     k=k+1; XE(k,:) = XE(k-1,:) + [-d1,0,0, 0,0,pi/2];
     k=k+1; XE(k,:) = XE(k-1,:) + [0,d1,0,  0,0,0];
     k=k+1; XE(k,:) = XE(k-1,:) + [0,0, h1, 0,0,-pi/6];
-    % Fahrt in die Mitte.
-    k=k+1; XE(k,:) = XE(k-1,:) + [d1/2,-d1/2, -h1/2, 0,0,0];
+    if no == 1
+      % Fahrt in die Mitte.
+      k=k+1; XE(k,:) = XE(k-1,:) + [d1/2,-d1/2, -h1/2, 0,0,0];
+    else
+      % Würfel vollenden, Start und Ziel identisch
+      k=k+1; XE(k,:) = XE(k-1,:) + [d1,0,0, 0,0,pi/6];
+      k=k+1; XE(k,:) = XE(k-1,:) + [0,0,-h1, 0,0,-pi/3];
+      k=k+1; XE(k,:) = XE(k-1,:) + [0,-d1,0, 0,0,0];
+      k=k+1; XE(k,:) = XE(k-1,:) + [0,0,h1, 0,0,pi/3];
+      k=k+1; XE(k,:) = XE(k-1,:) + [0,d1,0, 0,0,0];
+      k=k+1; XE(k,:) = XE(k-1,:) + [-d1,0,0, 0,0,-pi/6];
+    end
   elseif no == 4 % jeden FG einmal vor, zurück und in die Mitte bewegen
     phimax = 15*pi/180;
     k=k+1; XE(k,:) = XE(k-1,:) + [ 1*d1,0,0, 0,0,0];
