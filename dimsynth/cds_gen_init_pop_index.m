@@ -94,7 +94,8 @@ initpop_matlist = {};
 % Alle möglichen Ergebnis-Ordner durchgehen
 for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
   resdir = Set.optimization.result_dirs_for_init_pop{kk};
-  % Unterordner sind die Ergebnis-Ordner einzelner Optimierungen
+  % Unterordner sind die Ergebnis-Ordner einzelner Optimierungen oder
+  % enthalten diese (Beide Verzeichnistiefen möglich)
   % Lade die Liste der Verzeichnisse mit Linux-Find-Befehl. Scheinbar ist
   % der Dateisystemzugriff auf dem Cluster über Matlab sehr langsam
   status = 1;
@@ -103,7 +104,7 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
     t_ll = t2; % Zeitpunkt der letzten Log-Ausgabe diesbezüglich
     for j = 1:length(RobNames)
       RobName = RobNames{j};
-      findcmd = sprintf(['find -L "%s" -maxdepth 2 ', ...
+      findcmd = sprintf(['find -L "%s" -maxdepth 3 ', ...
         '-name "Rob*_%s*_Endergebnis.mat"'], resdir, RobName);
       [status, matlist_j] = system(findcmd);
       % Erzeuge Liste der Mat-Dateien aus der Vorauswahl
@@ -126,6 +127,24 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
     t2 = tic(); % Beginn dieser Prüfung auf Datei-Existenz
     t_ll = t2; % Zeitpunkt der letzten Log-Ausgabe diesbezüglich
     optdirs = dir(fullfile(resdir, '*'));
+    % Füge Unter-Verzeichnisse hinzu (Rekursionstiefe 1)
+    for i = 1:length(optdirs)
+      if ~optdirs(i).isdir || optdirs(i).name(1) == '.'
+        continue % Kein passendes Verzeichnis
+      end
+      if exist(fullfile(optdirs(i).folder, optdirs(i).name, ...
+          [optdirs(i).name, '_settings.mat']), 'file')
+        % Ordner ist selbst schon ein Ergebnisordner. Keine Rekursion.
+        continue;
+      end
+      optdirs2 = dir(fullfile(resdir, optdirs(i).name, '*'));
+      for j = 1:length(optdirs2)
+        if ~optdirs2(j).isdir || optdirs2(j).name(1) == '.'
+          continue % Kein passendes Verzeichnis
+        end
+        optdirs = [optdirs; optdirs2(j)]; %#ok<AGROW>
+      end
+    end
     for i = 1:length(optdirs) % Unterordner durchgehen.
       if ~optdirs(i).isdir || optdirs(i).name(1) == '.'
         continue % Kein passendes Verzeichnis
@@ -149,7 +168,7 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
             fullfile(optdirs(i).folder, dirname_i, resfiles(jj).name )]; %#ok<AGROW> 
         end
       end
-    end
+    end % for i ... optdirs
   end % if status
 end
 % Speichere Dateiliste ab
