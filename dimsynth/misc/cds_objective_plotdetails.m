@@ -41,6 +41,9 @@ for jj = 1:length(Set.optimization.objective)
     obj_units{jj} = 'unitless'; % Rangverlust ist nur eine Zahl. Plot nicht vorgesehen.
   elseif strcmp(Set.optimization.objective{jj}, 'mass')
     obj_units{jj} = 'kg';
+  elseif strcmp(Set.optimization.objective{jj}, 'linkdiam')
+    objscale(jj) = 1e3;
+    obj_units{jj} = 'mm';
   elseif strcmp(Set.optimization.objective{jj}, 'condition')
     obj_units{jj} = 'units of cond(J)';
     objtext{jj} = 'worst value in trajectory';

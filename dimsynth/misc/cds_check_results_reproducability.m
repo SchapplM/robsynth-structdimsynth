@@ -26,6 +26,7 @@ function cds_check_results_reproducability(OptName, RobName, s_in)
 
 %% Eingabe prüfen
 s = struct( ...
+  'LfdNr', [], ... % Zusätzlich Vorgabe der Roboter-Nummer, falls bekannt
   'update_template_functions', false, ... % Aktualisieren die Matlab-Funktionen
   'figure_invisible', true, ... % Unsichtbar erzeugen zum Speichern ohne Fokus-Klau
   'fval_check_lim', [0, inf], ... % untere und obere Grenzen für die Prüfung der Funktionswerte
@@ -181,6 +182,10 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
   % Finde die Roboter-Nummern zu diesem Namen. Es können mehrere parallele
   % Durchläufe mit dem gleichen Roboter gemacht worden sein. Dann nehme alle.
   RobNr_all = find(strcmp(RobName,Structures_Names));
+  % Falls die Nummer vorgegeben ist, sollte sie passen
+  if ~isempty(s.LfdNr)
+    RobNr_all = intersect(RobNr_all, s.LfdNr);
+  end
   for RobNr = RobNr_all(:)'
   csvfilename = ''; % Initialisierung für Parfor-Warnung
   Structure = Structures{RobNr};
