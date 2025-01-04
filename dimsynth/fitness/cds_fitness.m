@@ -425,6 +425,14 @@ for iIKC = I_IKC
   Structure.config_index = iIKC; % Index dieser Konfiguration (für Debuggen)
   Structure.config_number = size(Q0,1); % Anzahl der Konfigurationen insgesamt
   if Set.task.profile ~= 0 % Nur Berechnen, falls es eine Trajektorie gibt
+    % Wenn in der Trajektorien-IK die Antriebskraft optimiert werden soll, dann
+    % müssen die Entwurfsparameter schon vorher so gewählt werden, wie sie
+    % am Ende sind. Sonst kommt evtl. kein Optimum raus
+    % Eigentlich müssten es mehrere Iterationen sein, die konvergieren
+    % Hier nur vereinfachter Ansatz.
+    if strcmp(Set.optimization.objective_ik, 'maxactforce')
+      cds_dimsynth_design(R, QE_iIKC(:,:,iIKC), Set, Structure);
+    end
     t0 = tic();
     try
       [fval_trajconstr,Q,QD,QDD,Jinv_ges,JP,constrvioltext_IKC{iIKC}, Traj_0_corr] = ...
