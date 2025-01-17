@@ -27,7 +27,7 @@ vn = {'LfdNr', 'Name', 'Typ', ...
   'AntrGeschw_fval', 'AntrGeschw_phys', 'KinLaenge_fval', 'KinLaenge_phys', ...
   'Bauraum_fval', 'Bauraum_phys', 'Footprint_fval', 'Footprint_phys', ...
   'CollDist_fval', 'CollDist_phys', 'Nachgiebigk_fval', 'Nachgiebigk_phys', ...
-  'Steifigk_phys', 'num_succ', 'num_fail', 'comptime_sum'};
+  'Steifigk_phys', 'num_pareto', 'num_succ', 'num_fail', 'comptime_sum'};
 ResTab  = cell2table(cell(0,length(vn)), 'VariableNames', vn);
 % Zeile mit erklärenden Kommentaren zu Überschriften anhängen
 Descr_Row = {'', '', '', '', '', '', '', 'Zielfunktion der Optimierung', '', ...
@@ -39,7 +39,7 @@ Descr_Row = {'', '', '', '', '', '', '', 'Zielfunktion der Optimierung', '', ...
   'in Grad', '(normiert)', 'in rad/s bzw. m/s', '(normiert)', 'in mm', ...
   '(normiert)', 'in m³','(normiert)', 'in m²','(normiert)', 'in mm',... % Bauraum, Fußabdruck, CollDist
   'transl., normiert',  'in mm/N',  'in N/mm', ...
-  '', '', 'Rechenzeit der Fitness-Auswertungen'};
+  '', '', '', 'Rechenzeit der Fitness-Auswertungen'};
 ResTab = [ResTab; Descr_Row];
 % Skalierungsfaktoren der Leistungsmerkmale in der Tabelle konsistent zu
 % cds_objective_plotdetails und Reihenfolge aus cds_dimsynth_robot
@@ -76,6 +76,7 @@ for i = 1:length(Structures)
   end
   try
     tmp1 = load(resfile1, 'RobotOptRes');
+    RobotOptRes = tmp1.RobotOptRes;
   catch e
     warning('Fehler beim Laden der Ergebnis-Datei für Roboter %d/%d (%s): %s', ...
       i, length(Structures), Name, e.message);
@@ -95,14 +96,14 @@ for i = 1:length(Structures)
   if isempty(tmp2) % Platzhalter für Inhalte der fehlenden Datei
     tmp2 = struct('PSO_Detail_Data', struct('fval_mean', NaN, 'comptime', NaN));
   end
-  
+  PSO_Detail_Data = tmp2.PSO_Detail_Data;
   % Text zu Optimierungsergebnis (insbes. Ausschlussgrund). Siehe
   % cds_constraints, cds_constraints_traj, cds_fitness, cds_vis_results
   % Strafterme aus den NB-Funktionen werden in cds_fitness erhöht.
   % Die Zuordnung erfolgt mit "<=", da die Strafterme aus dem Bereich
   % (0,1] kommen ("1" ist also möglich) und in den Zielbereich skaliert
   % werden.
-  f = mean(tmp1.RobotOptRes.fval); % Falls mehrkriteriell abfangen mit `mean`
+  f = mean(RobotOptRes.fval); % Falls mehrkriteriell abfangen mit `mean`
   if     f <= 1e3,     fval_text = 'i.O.'; % ab hier aus cds_fitness.m
   elseif f <= 1e4, fval_text = 'NB-Verl. Zielf. (Antriebskraft)';
   elseif f <= 2e4, fval_text = 'NB-Verl. Zielf. EO (Masse)';
@@ -161,36 +162,36 @@ for i = 1:length(Structures)
   end
   
   % Allgemeine Daten des Optimierungsergebnisses:
-  if any(isnan(tmp1.RobotOptRes.timestamps_start_end(1)))
+  if any(isnan(RobotOptRes.timestamps_start_end(1)))
     datecols = {'', ''};
   else % Funktion kann in neuen Matlab-Versionen kein NaN mehr abfangen
     datecols = {
-      datestr(tmp1.RobotOptRes.timestamps_start_end(1),'dd.mm.yyyy HH:MM:SS'), ...
-      datestr(tmp1.RobotOptRes.timestamps_start_end(2),'dd.mm.yyyy HH:MM:SS')
+      datestr(RobotOptRes.timestamps_start_end(1),'dd.mm.yyyy HH:MM:SS'), ...
+      datestr(RobotOptRes.timestamps_start_end(2),'dd.mm.yyyy HH:MM:SS')
       };
   end
   Row_i = {Number, Name, Structure.Type, Beschreibung, datecols{1}, datecols{2},...
-    tmp1.RobotOptRes.timestamps_start_end(3), f, fval_text};
+    RobotOptRes.timestamps_start_end(3), f, fval_text};
   % Hole andere Zielfunktionen aus den Ergebnissen. TODO: Code kann
   % vereinfacht werden, wenn keine alten Daten mehr damit verarbeitet
   % werden müssen.
-  if length(physval_unitmult) == length(tmp1.RobotOptRes.fval_obj_all)
-    for ii = 1:length(tmp1.RobotOptRes.fval_obj_all)
-      Row_i = [Row_i, {tmp1.RobotOptRes.fval_obj_all(ii), physval_unitmult(ii)*...
-        tmp1.RobotOptRes.physval_obj_all(ii)}]; %#ok<AGROW>
+  if length(physval_unitmult) == length(RobotOptRes.fval_obj_all)
+    for ii = 1:length(RobotOptRes.fval_obj_all)
+      Row_i = [Row_i, {RobotOptRes.fval_obj_all(ii), physval_unitmult(ii)*...
+        RobotOptRes.physval_obj_all(ii)}]; %#ok<AGROW>
     end
   else
     warning('Dimension von fval_obj_all aus Ergebnis ist nicht konsistent mit Toolbox-Version.');
-    if isfield(tmp1.RobotOptRes, 'obj_names_all')
+    if isfield(RobotOptRes, 'obj_names_all')
       % Trage die Zielkriterien ein, die vorhanden sind. Der Rest wird NaN
       for ii = 1:length(physval_unitmult)
-        I_inres = strcmp(defstruct.obj_names_all{ii}, tmp1.RobotOptRes.obj_names_all);
+        I_inres = strcmp(defstruct.obj_names_all{ii}, RobotOptRes.obj_names_all);
         if ~any(I_inres) % Zielkriterium war nicht in Optimierung drin. Vermutlich alte Version dort.
           warning('Zielkriterium %s nicht in Ergebnisse gefunden.', defstruct.obj_names_all{ii});
           Row_i = [Row_i, {NaN, NaN}]; %#ok<AGROW>
         else
-          Row_i = [Row_i, {tmp1.RobotOptRes.fval_obj_all(I_inres), physval_unitmult(I_inres)*...
-            tmp1.RobotOptRes.physval_obj_all(I_inres)}]; %#ok<AGROW>
+          Row_i = [Row_i, {RobotOptRes.fval_obj_all(I_inres), physval_unitmult(ii)*...
+            RobotOptRes.physval_obj_all(I_inres)}]; %#ok<AGROW>
         end
       end
     else
@@ -202,13 +203,14 @@ for i = 1:length(Structures)
   end
   % Zusätzliche Nennung der Steifigkeit (Nachgiebigkeit nicht so
   % aussagekräftig). Steifigkeit ist letzter Eintrag.
-  Row_i = [Row_i, {1/tmp1.RobotOptRes.physval_obj_all(end)}]; %#ok<AGROW>
+  Row_i = [Row_i, {1/RobotOptRes.physval_obj_all(end)}]; %#ok<AGROW>
   % Weitere Daten
-  num_succ = sum(tmp2.PSO_Detail_Data.fval_mean(:) <= 1e3);
-  num_fail = sum(tmp2.PSO_Detail_Data.fval_mean(:) > 1e3 & ... % Nebenbedingungen verletzt
-    ~isinf(tmp2.PSO_Detail_Data.fval_mean(:))); % "inf" ist Marker für vorzeitigen Abbruch.
-  comptime_sum = sum(tmp2.PSO_Detail_Data.comptime(~isnan(tmp2.PSO_Detail_Data.comptime(:))));
-  Row_i = [Row_i, {num_succ, num_fail, comptime_sum}]; %#ok<AGROW>
+  num_pareto = size(RobotOptRes.fval_pareto,1);
+  num_succ = nnz(PSO_Detail_Data.fval_mean(:) <= 1e3);
+  num_fail = nnz(PSO_Detail_Data.fval_mean(:) > 1e3 & ... % Nebenbedingungen verletzt
+    ~isinf(PSO_Detail_Data.fval_mean(:))); % "inf" ist Marker für vorzeitigen Abbruch.
+  comptime_sum = sum(PSO_Detail_Data.comptime(~isnan(PSO_Detail_Data.comptime(:))));
+  Row_i = [Row_i, {num_pareto, num_succ, num_fail, comptime_sum}]; %#ok<AGROW>
   % Datenzeile anhängen
   ResTab = [ResTab; Row_i]; %#ok<AGROW>
 end
