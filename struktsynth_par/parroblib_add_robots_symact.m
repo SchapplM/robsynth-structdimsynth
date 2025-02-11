@@ -30,6 +30,7 @@ settings_default = struct( ...
   ... % Optionen zur Wahl nach anderen Kriterien
   'selectgeneral', true, ... % Auch allgemeine Modelle wählen
   'selectvariants', true, ... % Auch alle Varianten wählen
+  'fullyparallel', true, ... % Wähle voll-parallele Roboter (entweder/oder)
   'ignore_check_leg_dof', false, ... % Plausibilitätsregeln aus parrob_structsynth_check_leg_dof können ignoriert werden
   'allow_passive_prismatic', false, ... % Technisch sinnvoll. Zum Testen auf true setzen (z.B. für 2T0R und 2T1R PKM)
   'fixed_number_prismatic', NaN, ... % Vorgabe, wie viele Schubgelenke die Beinkette haben muss (NaN = egal)
@@ -195,20 +196,29 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       error('Fall nicht implementiert');
     end
     %% Serielle Beinketten auswählen
-    N_Legs = sum(EE_FG); % Voll-Parallel: So viele Beine wie EE-FG
+    N_EEDoF = sum(EE_FG);
+    if settings.fullyparallel
+      N_Legs = N_EEDoF; % Voll-Parallel: So viele Beine wie EE-FG
+    else
+      if all(EE_FG == [1 1 1 1 1 1])
+        N_Legs = 3;
+      else
+        error('Fall mit vollparallel nur für 3T3R definiert und dort mit 3 Beinketten belegt');
+      end
+    end
     if all(EE_FG == [1 1 1 0 0 0]) || all(EE_FG == [1 1 1 0 0 1])
       % PKM mit reduziertem FG dürfen keine 6FG-Beinketten haben
       % Die Beinketten müssen mindestens so viele FG wie die PKM haben
       % Alles weitere wird weiter unten gefiltert (kinematische Eigenschaften)
-      LegDoF_allowed = 5:-1:N_Legs;
+      LegDoF_allowed = 5:-1:N_EEDoF;
       if all(EE_FG == [1 1 1 0 0 0]) && Coupling(2) == 7
         % Methode P7 funktioniert nur mit Beinketten mit vier Gelenken
         LegDoF_allowed = 4;
       end
     elseif all(EE_FG == [1 1 0 0 0 1]) || all(EE_FG == [1 1 1 1 1 1]) || all(EE_FG == [1 1 1 1 1 0])
-      LegDoF_allowed = N_Legs; % Fall 2T1R und 3T3R
+      LegDoF_allowed = N_EEDoF; % Fall 2T1R und 3T3R
     elseif all(EE_FG == [1 1 0 0 0 0])
-      LegDoF_allowed = N_Legs; % Fall 2T0R (Platzhalter, um 2PP-PKM zu erzeugen
+      LegDoF_allowed = N_EEDoF; % Fall 2T0R (Platzhalter, um 2PP-PKM zu erzeugen
     else
       error('Fall nicht implementiert');
     end
@@ -267,7 +277,13 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       end
     end
     % Indizes der möglichen aktuierten Gelenke (wird später noch gefiltert)
-    Actuation_possib = 1:settings.max_actuation_idx;
+    if settings.fullyparallel
+      Actuation_possib = num2cell((1:settings.max_actuation_idx)');
+    else % nehme an, dass zwei Antriebe pro Beinkette vorliegen
+      act_array = allcomb(1:settings.max_actuation_idx,1:settings.max_actuation_idx);
+      act_array = act_array(act_array(:,1)<act_array(:,2),:); % keine Duplikate zulassen
+      Actuation_possib = num2cell(act_array, 2);
+    end
     II = find(I); % Umwandlung von Binär-Indizes in Nummern
     ii = 0; % Laufende Nummer für aktuierte PKM
     ii_kin = 0; % Laufende Nummer für Kinematik-Struktur der PKM
@@ -367,7 +383,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       if sum(SName=='P')>1 && ~settings.allow_passive_prismatic
         % Hat mehr als ein Schubgelenk. Kommt nicht für PKM in Frage.
         % (es muss dann zwangsläufig ein Schubgelenk passiv sein)
-        parroblib_update_csv(SName, Coupling, logical(EE_FG), 1, 0);
+        parroblib_update_csv(SName, N_Legs, Coupling, logical(EE_FG), 1, 0);
         continue
       end
       
@@ -375,7 +391,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         % Nur die Gestell-Konfigurationen 1 (Kreisförmig) und 5 (Paar-
         % weise) sind unterscheidbar. Siehe align_base_coupling.
         if all(Coupling(1) ~= [1 5])
-          parroblib_update_csv(SName, Coupling, logical(EE_FG), 8, 0);
+          parroblib_update_csv(SName, N_Legs, Coupling, logical(EE_FG), 8, 0);
           fprintf(['Beinkette %s (%s) mit Gestell-Koppelgelenk Nr. %d wird ', ...
             'aufgrund der Kugelgelenk-Isomorphismen verworfen.\n'], ...
             SName, SName_TechJoint, Coupling(1));
@@ -387,7 +403,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         % weise) sind unterscheidbar. Alle anderen lassen sich bei Kugel-
         % gelenken darauf zurückführen. Siehe align_platform_coupling.
         if all(Coupling(2) ~= [1 4])
-          parroblib_update_csv(SName, Coupling, logical(EE_FG), 8, 0);
+          parroblib_update_csv(SName, N_Legs, Coupling, logical(EE_FG), 8, 0);
           fprintf(['Beinkette %s (%s) mit Plattform-Koppelgelenk Nr. %d wird ', ...
             'aufgrund der Kugelgelenk-Isomorphismen verworfen.\n'], ...
             SName, SName_TechJoint, Coupling(2));
@@ -431,23 +447,25 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         if ~leg_success
           fprintf('Beinkette %s mit Koppelpunkt-Nr. %d-%d wird aufgrund geometrischer Überlegungen verworfen.\n', ...
             SName, Coupling(1), Coupling(2));
-          parroblib_update_csv(SName, Coupling, logical(EE_FG), 2, 0);
+          parroblib_update_csv(SName, N_Legs, Coupling, logical(EE_FG), 2, 0);
           continue
         end
       end
-      for jj = Actuation_possib % Schleife über mögliche Aktuierungen
+      for jj = 1:size(Actuation_possib,1) % Schleife über mögliche Aktuierungen
         ii = ii + 1;
+        act_jj = Actuation_possib{jj};
         if ii < settings.lfdNr_min, continue; end % Starte erst später
         % Prüfe schon hier auf passive Schubgelenke (weniger Rechenaufwand)
         IdxP = (SName(3:3+N_LegDoF-1)=='P'); % Nummer des Schubgelenks finden
-        if ~settings.allow_passive_prismatic && any(IdxP) && find(IdxP)~=jj
+        if ~settings.allow_passive_prismatic && any(IdxP) && ...
+            ~isempty(intersect(find(IdxP), act_jj))
           continue % Es gibt ein Schubgelenk und es ist nicht das aktuierte Gelenk
         end
         % Prüfe, ob ein Teil eines technischen Gelenks (Kardan, Kugel
         % aktuiert werden würde).
         % Das letzte positionsbeeinflussende Gelenk ist das letzte 
         % aktuierte Gelenk. Danach kommt nur noch das Koppelgelenk (Kardan/Kugel)
-        if jj > l.AdditionalInfo(iFK,1) % siehe serroblib_gen_bitarrays.
+        if max(act_jj) > l.AdditionalInfo(iFK,1) % siehe serroblib_gen_bitarrays.
           continue
         end
         % Prüfe auch technische Gelenke am Anfang der Beinkette. Z.B. keine
@@ -467,14 +485,21 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
               Joints_Actuation_Possible = [Joints_Actuation_Possible, [0 0]]; %#ok<AGROW>
           end
         end
-        if ~Joints_Actuation_Possible(jj)
-          fprintf('Aktuierung von Gelenk %d in %s (%s) nicht möglich\n', jj, SName, SName_TechJoint);
+        abort_jointactimpossible = false;
+        for jj2 = act_jj
+          if ~Joints_Actuation_Possible(jj2)
+            fprintf('Aktuierung [%s] nicht möglich: Gelenk %d in %s (%s)\n', disp_array(act_jj, '%d'), jj2, SName, SName_TechJoint);
+            abort_jointactimpossible = true;
+            break
+          end
+        end
+        if abort_jointactimpossible
           continue
         end
-        fprintf('Untersuchte PKM %d (Gestell %d, Plattform %d): %s mit symmetrischer Aktuierung Gelenk %d\n', ...
-          ii, Coupling(1), Coupling(2), PName, jj);
+        fprintf('Untersuchte PKM %d (Gestell %d, Plattform %d): %s mit symmetrischer Aktuierung Gelenk [%s]\n', ...
+          ii, Coupling(1), Coupling(2), PName, disp_array(act_jj, '%d'));
         Actuation = cell(1,N_Legs);
-        Actuation(:) = {jj};
+        Actuation(:) = {act_jj};
         LEG_Names = {SName};
         %% Roboter pauschal zur Datenbank hinzufügen
         % Mit dem dann eindeutigen Robotermodell sind weitere Berechnungen
@@ -503,7 +528,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
             fprintf('Der Roboter %s würde zur Datenbank hinzugefügt werden\n', PName);
             Name = '<Neuer Name>';
             % Setze Status 6 ("noch nicht geprüft").
-            parroblib_update_csv(SName, Coupling, logical(EE_FG), 6, 0);
+            parroblib_update_csv(SName, N_Legs, Coupling, logical(EE_FG), 6, 0);
           end
         else
           error('Dieser Fall darf nicht eintreten. Nicht-logische Eingabe');
@@ -1551,7 +1576,8 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       row = {EE_FG_Name, Coupling(1), Coupling(2), Name, rescode, rank_success, remove};
       ResTab = [ResTab; row]; %#ok<AGROW> 
       if update_db_allowed
-        parroblib_update_csv(LEG_Names_array{1}, Coupling, logical(EE_FG), rescode, rank_success);
+        parroblib_update_csv(LEG_Names_array{1}, N_Legs, Coupling, ...
+          logical(EE_FG), rescode, rank_success);
         if remove && ~settings.isoncluster % Auf Cluster würde das Löschen parallele Instanzen stören.
           fprintf('Entferne PKM %s wieder aus der Datenbank (Name wird wieder frei)\n', Name);
           remsuccess = parroblib_remove_robot(Name);
