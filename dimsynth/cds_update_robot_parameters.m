@@ -48,11 +48,16 @@ end
 % der Optimierung überschrieben wird (z.B. zwecks Plotten)
 if isempty(R)
   % Fall nicht relevant
-elseif Structure.Type == 0
+elseif any(Structure.Type == [0 1])
   R_neu.qlim = Structure.qlim;
   % Schubgelenkgrenzen mit Skalierungsfaktor setzen. Ansonsten passt die
   % Proportion zwischen Segmentlängen und Schubgelenkslängen nicht
-  R_neu.qlim(R_neu.MDH.sigma==1,:) = scale * Structure.qlim(R_neu.MDH.sigma==1,:);
+  if any(Structure.Type == 0)
+    sigma_act = R_neu.MDH.sigma;
+  else
+    sigma_act = R_neu.MDH.sigma(R_neu.MDH.mu == 1);
+  end
+  R_neu.qlim(sigma_act==1,:) = scale * Structure.qlim(sigma_act==1,:);
 else
   for i = 1:R_neu.NLEG
     R_neu.Leg(i).qlim = Structure.qlim(R_neu.I1J_LEG(i):R_neu.I2J_LEG(i),:);
@@ -63,9 +68,9 @@ else
 end
 
 %% Strukturparameter der Kinematik
-if Structure.Type == 0 || Structure.Type == 2
+if any(Structure.Type == [0 1]) || Structure.Type == 2
   % Relevante Parameter sind die, die auch in Opt.Var. sind.
-  if Structure.Type == 0 % Seriell
+  if any(Structure.Type == [0 1]) % Seriell
     R_pkin = R_neu;
   else  % Parallel
     R_pkin = R_neu.Leg(1);
@@ -84,7 +89,7 @@ if Structure.Type == 0 || Structure.Type == 2
       % Längenparameter skaliert mit Roboter-Skalierungsfaktor
       pkin_voll(i) = pkin_optvar(j)*scale;
       p_phys(Ipkin(j)) = pkin_optvar(j)*scale;
-    else % [1 3 5] MDH-Parameter beta, alpha, theta
+    elseif any(R_pkin.pkin_types(i) == [1 3 5]) % MDH-Parameter beta, alpha, theta
       if isfield(Set.structures, 'orthogonal_joints') && Set.structures.orthogonal_joints % TODO: "isfield" entfernen
         % Runde die Parameter auf glatte 90°
         pkin_voll(i) = round(pkin_optvar(j)/(pi/2))*pi/2;
@@ -92,8 +97,16 @@ if Structure.Type == 0 || Structure.Type == 2
         pkin_voll(i) = pkin_optvar(j);
       end
       p_phys(Ipkin(j)) = pkin_voll(i);
+    elseif R_pkin.pkin_types(i) == 7 && R_pkin.MDH.sigma(R_pkin.pkin_jointnumber(i))==0
+      pkin_voll(i) = pkin_optvar(j); % Drehgelenk-Offset
+    elseif R_pkin.pkin_types(i) == 7 && R_pkin.MDH.sigma(R_pkin.pkin_jointnumber(i))==1
+      pkin_voll(i) = pkin_optvar(j)*scale; % Schubgelenk-Offset
+    elseif any(R_pkin.pkin_types(i) == 9) % Winkelparameter (hybride Kinematik)
+      pkin_voll(i) = pkin_optvar(j);
+    elseif any(R_pkin.pkin_types(i) == 10) % Längenparameter (hybride Kinematik)
+      pkin_voll(i) = pkin_optvar(j)*scale;
     end
-  end
+  end % for i
   % Sonderfälle betrachten, bei denen die Parameter eine Abhängigkeit haben
   if any(contains(Structure.Name, {'P3RRRRR13G4P1', 'P3RRRRR14G4P1', 'P4RRRRR13G4P1', 'P4RRRRR14G4P1'}))
     % Parameter alpha ist von Steigung der Basis abhängig.
@@ -119,7 +132,7 @@ if Structure.Type == 0 || Structure.Type == 2
     end
   end
   if ~isempty(R)
-    if Structure.Type == 0, R_neu.update_mdh(pkin_voll);  % Seriell
+    if any(Structure.Type == [0 1]), R_neu.update_mdh(pkin_voll);  % Seriell
     else
       if Structure.mirrorconfig_d == 1 % Standardfall, keine Spiegelung
         R_neu.update_mdh_legs(pkin_voll);

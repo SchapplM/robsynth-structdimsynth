@@ -139,7 +139,7 @@ for iDoF = 1:3
         assert(all(wrapToPi(abs(xE(4:6)-xE_fromq(4:6))) < 1e-4), ...
           'Gelenkwinkel passen nicht zu gewähltem x (rotatorisch)');
         % Positionsfehler mit Maßsynthese-Zielfunktion berechnen
-        if R.Type == 0 % Seriell
+        if any(R.Type == [0 1]) % Seriell
           Jinvges = [];
         else % PKM
           [~,Jinvges] = R.jacobi_qa_x(Q_all(jj,:,ii)', xE);

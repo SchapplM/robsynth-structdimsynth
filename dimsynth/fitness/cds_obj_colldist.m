@@ -130,7 +130,7 @@ view(3); axis auto; hold on; grid on;
 xlabel('x in m'); ylabel('y in m'); zlabel('z in m');
 
 plotmode = 5; % Kollisionskörper
-if R.Type == 0 % Seriell
+if any(R.Type == [0 1]) % Seriell
   s_plot = struct( 'ks', [], 'straight', 1, 'mode', plotmode, 'nojoints', 1);
   R.plot( Q(IItmin,:)', s_plot);
 else % PKM

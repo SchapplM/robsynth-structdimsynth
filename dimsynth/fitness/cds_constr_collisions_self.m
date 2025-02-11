@@ -100,7 +100,7 @@ plotscale = 1; % Skalierung der Kollisionskörper im Plot (für Sichtbarkeit)
 fhdl = change_current_figure(867); clf; hold all
 view(3); axis auto; grid on;
 xlabel('x in m');ylabel('y in m');zlabel('z in m');
-if R.Type == 0 % Seriell
+if any(R.Type == [0 1]) % Seriell
   s_plot = struct( 'ks', 1:R.NJ+2, 'straight', 1, 'mode', 1);
   R.plot( Q(j,:)', s_plot);
 else % PKM

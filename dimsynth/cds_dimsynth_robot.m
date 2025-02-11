@@ -107,9 +107,21 @@ if ~Set.optimization.fix_joint_limits && any(strcmp(Set.optimization.objective, 
   cds_log(-1, ['Optimierung mit Ziel Gelenkwinkelgrenzen bei nicht-festen ', ...
     'Grenzen nicht sinnvoll']);
 end
+if Set.optimization.fix_joint_limits && isempty(Structure.RobName)
+  cds_log(-1, 'Gelenkwinkelgrenzen fixiert aber kein konkreter Roboter gewählt. Nicht sinnvoll.');
+  return
+end
 if Structure.Type == 0 % Seriell
   R = serroblib_create_robot_class(Structure.Name, Structure.RobName);
   NLEG = 1;
+elseif Structure.Type == 1 % Seriell-hybrid
+  HRDB = hybroblib_systems_list();
+  MdlExt = HRDB.ModelExt{strcmp(HRDB.Name, Structure.Name)};
+  R = hybroblib_create_robot_class(Structure.Name, MdlExt, Structure.RobName);
+  if isempty(Structure.RobName), R.I_EElink = HRDB.EELink(strcmp(HRDB.Name, Structure.Name)); end
+  NLEG = 1;
+  cds_log(-1, sprintf(['[dimsynth] Implementierung für seriell-hybride ', ...
+    'Roboter ist noch unvollständig.']));
 elseif Structure.Type == 2 % Parallel
   % Parameter für Basis-Kopplung einstellen
   p_base = 1.5*Lref;
@@ -157,14 +169,14 @@ end
 % Es liegt z.B. keine Aufgabenredundanz vor, wenn ein 3T3R-Roboter eine
 % 3T0R-Aufgabe hat.
 num_constr = 0;
-if R.Type == 0 
-  if all(Set.task.DoF==[1 1 1 0 0 1]) && R.NJ == 5
+if any(R.Type == [0 1]) % seriell oder seriell-hybrid
+  if all(Set.task.DoF==[1 1 1 0 0 1]) && R.NQJ == 5
     num_constr = 1;
-  elseif all(Set.task.DoF==[1 1 1 0 0 1]) && R.NJ == 6
+  elseif all(Set.task.DoF==[1 1 1 0 0 1]) && R.NQJ == 6
     num_constr = 2;
-  elseif all(Set.task.DoF==[1 1 1 0 0 0]) && R.NJ == 5
+  elseif all(Set.task.DoF==[1 1 1 0 0 0]) && R.NQJ == 5
     num_constr = 2;
-  elseif all(Set.task.DoF==[1 1 1 0 0 0]) && R.NJ == 6
+  elseif all(Set.task.DoF==[1 1 1 0 0 0]) && R.NQJ == 6
     num_constr = 3;
   end
 end
@@ -176,13 +188,18 @@ if num_constr > 0
 end
 % Speichere die Eigenschaft der Aufgabenredundanz
 Structure.task_red = ...
-  R.Type == 0 && (sum(Set.task.DoF)+num_constr) < R.NJ || ... % Seriell: Redundant wenn mehr Gelenke als Aufgaben-FG
+  R.Type == 0 && (sum(Set.task.DoF)+num_constr) < R.NQJ || ... % Seriell: Redundant wenn mehr Gelenke als Aufgaben-FG
+  R.Type == 1 && (sum(Set.task.DoF)+num_constr) < R.NQJ || ... % Seriell-hybrid: genauso (Annahme: Keine Antriebsredundanz)
   R.Type == 2 && (sum(Set.task.DoF)+num_constr) < sum(R.I_EE); % Parallel: Redundant wenn mehr Plattform-FG als Aufgaben-FG
 
 % Platzhalter für Vorgabe der Traj-IK-Anfangswerte
-Structure.q0_traj = NaN(R.NJ, 1);
+if any(R.Type == [0 2])
+  Structure.q0_traj = NaN(R.NJ, 1);
+else
+  Structure.q0_traj = NaN(R.NQJ, 1);
+end
 for i = 1:NLEG
-  if Structure.Type == 0
+  if any(Structure.Type == [0 1])
     R_init = R;
   else
     R_init = R.Leg(i);
@@ -190,26 +207,31 @@ for i = 1:NLEG
   if isempty(Structure.RobName) % nur machen, wenn Kinematikparameter frei wählbar
     R_init.gen_testsettings(false, true); % Setze Kinematik-Parameter auf Zufallswerte
   end
+  if any(R.Type == [0 2])
+    sigma_act = R_init.MDH.sigma; % sigma-Parameter (1=Schub, 0=Dreh) für alle Gelenke
+  else % Seriell-hybrid
+    sigma_act = R_init.MDH.sigma(R_init.MDH.mu == 1); % nur für Minimalkoordinaten (aktive Gelenke)
+  end
   if ~Set.optimization.fix_joint_limits
   % Gelenkgrenzen setzen: Schubgelenke (Verfahrlänge nicht mehr als "fünf
   % mal schräg durch Arbeitsraum" (char. Länge))
   % Muss so hoch gesetzt sein, damit UPS-Kette (ohne sonstige
   % Kinematikparameter auch funktioniert)
-  R_init.qlim(R_init.MDH.sigma==1,:) = repmat([-5*Lref, 5*Lref],sum(R_init.MDH.sigma==1),1);
+  R_init.qlim(sigma_act==1,:) = repmat([-5*Lref, 5*Lref],sum(sigma_act==1),1);
   if ~isnan(Set.optimization.max_range_prismatic)
     % Schätzwert für Begrenzung der Schubgelenke wird durch Benutzervorgabe
     % überschrieben. Z.B. Mit unendlich, um komplett frei zu lassen.
     % Größe des Roboters wird dann durch andere Kennzahlen begrenzt.
     % Hier wird nur der Bereich eingetragen und der maximale Absolutwert anderweitig geprüft
-    R_init.qlim(R_init.MDH.sigma==1,:) = repmat([-0.5, 0.5]*...
-      Set.optimization.max_range_prismatic,sum(R_init.MDH.sigma==1),1);
+    R_init.qlim(sigma_act==1,:) = repmat([-0.5, 0.5]*...
+      Set.optimization.max_range_prismatic,sum(sigma_act==1),1);
   end
   % Gelenkgrenzen setzen: Drehgelenke
-  if Structure.Type == 0 % Serieller Roboter
+  if any(Structure.Type == [0 1]) % Serielle/seriell-hybride Roboter
     % Grenzen für Drehgelenke: Alle sind aktiv
-    R_init.qlim(R.MDH.sigma==0,:) = repmat([-0.5, 0.5]*... % Drehgelenk
-      Set.optimization.max_range_active_revolute, sum(R.MDH.sigma==0),1);
-  else % Paralleler Roboter
+    R_init.qlim(sigma_act==0,:) = repmat([-0.5, 0.5]*... % Drehgelenk
+      Set.optimization.max_range_active_revolute, sum(sigma_act==0),1);
+  elseif Structure.Type == 2 % Paralleler Roboter
     % Grenzen für passive Drehgelenke (aktive erstmal mit setzen)
     R_init.qlim(R_init.MDH.sigma==0,:) = repmat([-0.5, 0.5]*... % Drehgelenk
       Set.optimization.max_range_passive_revolute, sum(R_init.MDH.sigma==0),1);
@@ -230,10 +252,12 @@ for i = 1:NLEG
     % Grenzen für aktives Drehgelenk setzen
     I_actrevol = R_init.MDH.mu == 2 & R_init.MDH.sigma==0;
     R_init.qlim(I_actrevol,:) = repmat([-0.5, 0.5]*Set.optimization.max_range_active_revolute, sum(I_actrevol),1);
+  else
+    error('Typ nicht definiert');
   end
   end
   % Eintragen in Strukturvariable
-  if Structure.Type == 0 % Serieller Roboter
+  if any(Structure.Type == [0 1]) % Serieller oder seriell-hybrider Roboter
     Structure.qlim = R_init.qlim;
   else % Paralleler Roboter
     if i == NLEG % Grenzen aller Gelenke aller Beinketten eintragen
@@ -241,9 +265,9 @@ for i = 1:NLEG
     end
   end
   % Grenzen für Gelenkgeschwindigkeiten setzen
-  R_init.qDlim = repmat([-1,1]*Set.optimization.max_velocity_active_revolute, R_init.NJ, 1);
-  R_init.qDlim(R_init.MDH.sigma==1,:) = repmat([-1,1]*... % Schubgelenk
-    Set.optimization.max_velocity_active_prismatic, sum(R_init.MDH.sigma==1), 1);
+  R_init.qDlim = repmat([-1,1]*Set.optimization.max_velocity_active_revolute, length(sigma_act), 1);
+  R_init.qDlim(sigma_act==1,:) = repmat([-1,1]*... % Schubgelenk
+    Set.optimization.max_velocity_active_prismatic, sum(sigma_act==1), 1);
   if Structure.Type == 2 % Paralleler Roboter
     I_passrevolute =  R_init.MDH.mu == 1 & R_init.MDH.sigma==0;
     I_passuniversal = R_init.MDH.mu == 1 & R_init.DesPar.joint_type==2;
@@ -256,12 +280,12 @@ for i = 1:NLEG
       Set.optimization.max_velocity_passive_spherical,sum(I_passspherical),1);
   end
   % Grenze für Gelenkbeschleunigung setzen (keine Betrachtung Kardan/Kugel)
-  R_init.qDDlim = repmat([-1,1]*Set.optimization.max_acceleration_revolute, R_init.NJ, 1);
-  R_init.qDDlim(R_init.MDH.sigma==1,:) = repmat([-1,1]*... % Schubgelenk
-    Set.optimization.max_acceleration_prismatic, sum(R_init.MDH.sigma==1), 1);
+  R_init.qDDlim = repmat([-1,1]*Set.optimization.max_acceleration_revolute, length(sigma_act), 1);
+  R_init.qDDlim(sigma_act==1,:) = repmat([-1,1]*... % Schubgelenk
+    Set.optimization.max_acceleration_prismatic, sum(sigma_act==1), 1);
   % Eintragen der Grenzen in die Strukturvariable. Maßgeblich für die
   % Prüfung der Grenzen in der Maßsynthese
-  if Structure.Type == 0 % Serieller Roboter
+  if any(Structure.Type == [0 1]) % Serieller Roboter
     Structure.qDlim = R_init.qDlim;
     Structure.qDDlim = R_init.qDDlim;
   else % Paralleler Roboter
@@ -270,11 +294,15 @@ for i = 1:NLEG
       Structure.qDDlim = cat(1, R.Leg.qDDlim);
     end
   end
-
-  R_init.DesPar.joint_type((1:R_init.NJ)'==1&R_init.MDH.sigma==1) = 4; % Linearführung erste Achse
-  R_init.DesPar.joint_type((1:R_init.NJ)'~=1&R_init.MDH.sigma==1) = 5; % Schubzylinder weitere Achse
+  if any(Structure.Type == [0 2])
+    I = (1:R_init.NJ)';
+  else
+    I = find(R_init.MDH.mu == 1);
+  end
+  R_init.DesPar.joint_type(I==1&sigma_act==1) = 4; % Linearführung erste Achse
+  R_init.DesPar.joint_type(I~=1&sigma_act==1) = 5; % Schubzylinder weitere Achse
   % Setze bei Portalsystemen die Schubgelenke so wie aus cds_gen_robot_list
-  if all(R_init.MDH.sigma(1:2)==1)
+  if all(R_init.MDH.sigma(1:2)==1) % Betrifft nur serielle
     for k = 1:length(Structure.prismatic_types)
       switch Structure.prismatic_types(k)
         case 'L' % Linearführung
@@ -293,7 +321,7 @@ end
 % die inverse (Trajektorien-)Kinematik benutzt. Aufgrund von numerischen
 % Ungenauigkeiten können die Grenzen dort teilweise überschritten werden
 for i = 1:NLEG
-  if Structure.Type == 0
+  if any(Structure.Type == [0 1])
     R_init = R;
   else
     R_init = R.Leg(i);
@@ -311,10 +339,10 @@ end
 % benutzt werden. Siehe cds_obj_positionerror und cds_settings_defaults.
 % Nehme Beispielwerte aus Datenblättern (Heidenhein). Die genauen Werte
 % sind nicht so wichtig für den relativen Vergleich verschiedener Roboter
-if R.Type == 0 % Seriell
+if any(R.Type == [0 1]) % Seriell
   delta_qa = NaN(R.NQJ,1);
-  delta_qa(R.MDH.sigma==0) = Set.optimization.obj_positionerror.revolute;
-  delta_qa(R.MDH.sigma==1) = Set.optimization.obj_positionerror.prismatic;
+  delta_qa(sigma_act==0) = Set.optimization.obj_positionerror.revolute;
+  delta_qa(sigma_act==1) = Set.optimization.obj_positionerror.prismatic;
 else
   delta_qa = NaN(sum(R.I_qa),1);
   delta_qa(R.MDH.sigma(R.I_qa)==0) = Set.optimization.obj_positionerror.revolute;
@@ -329,13 +357,13 @@ Structure.xref_W = Traj.X(1,:)';
 % Merke die ursprünglich aus der Datenbank geladene EE-Rotation. Die in der
 % Optimierung ergänzte Rotation ist zusätzlich dazu. (Bei 2T1R-Robotern
 % wird teilweise die EE-Rotation notwendig, damit das letzte KS planar ist)
-if Structure.Type == 0
+if any(Structure.Type == [0 1])
   Structure.R_N_E = R.T_N_E(1:3,1:3);
 else
   Structure.R_N_E = R.T_P_E(1:3,1:3);
 end
 % Richte den Roboter entsprechend der Montagekonfiguration aus
-if Structure.Type == 0 % Seriell
+if any(Structure.Type == [0 1]) % Seriell
   mounting = Set.structures.mounting_serial;
 else % PKM
   mounting = Set.structures.mounting_parallel;
@@ -374,15 +402,15 @@ else
   Structure.R_W_0_isset = false;
 end
 
-% Falls planerer Roboter: Definiere Verschiebung, damit der Roboter von
+% Falls planarer Roboter: Definiere Verschiebung, damit der Roboter von
 % oben angreift. Sieht besser aus, macht die Optimierung aber schwieriger.
 % if all(Set.task.DoF(1:3) == [1 1 0])
 %   R.update_base([0;0;0.5*Lref]);
 %   R.update_EE([0;0;-0.5*Lref]);
 % end
 
-% Gelenk-Steifigkeit einsetzen (Sonderfall für Starrkörpergelenke)
-if R.Type ~= 0 && (Set.optimization.joint_stiffness_active_revolute > 0 || ...
+% Gelenk-Steifigkeit einsetzen (Sonderfall für Starrkörpergelenke bei PKM)
+if R.Type == 2 && (Set.optimization.joint_stiffness_active_revolute > 0 || ...
                    Set.optimization.joint_stiffness_passive_revolute > 0 || ...
                    Set.optimization.joint_stiffness_passive_universal > 0)
   for k = 1:R.NLEG
@@ -414,13 +442,13 @@ varnames = {'scale'};
 if ~isempty(Structure.RobName)
   % Nichts machen. Es ist ein Roboter, kein allgemeines Modell zur
   % Optimierung vorgegeben. Die DH-Parameter sind also fix.
-  if Structure.Type == 0 % Seriell
+  if any(Structure.Type == [0 1]) % Seriell
     Ipkinrel = false(size(R.pkin));
   else  % Parallel
     Ipkinrel = false(size(R.Leg(1).pkin));
   end
-elseif Structure.Type == 0 || Structure.Type == 2
-  if Structure.Type == 0 % Seriell
+elseif any(Structure.Type == [0 1]) || Structure.Type == 2
+  if any(Structure.Type == [0 1]) % Seriell
     R_pkin = R;
   else  % Parallel
     R_pkin = R.Leg(1);
@@ -556,7 +584,7 @@ elseif Structure.Type == 0 || Structure.Type == 2
       end
     end
   end
-  if Structure.Type == 0
+  if any(Structure.Type == [0 1])
     R.update_mdh(pkin_init);
   else
     R.update_mdh_legs(pkin_init);
@@ -570,7 +598,11 @@ elseif Structure.Type == 0 || Structure.Type == 2
     if R_pkin.pkin_types(i) == 1
       % Winkel-Parameter beta. Darf eigentlich gar nicht auftreten bei
       % seriellen Robotern. Ginge aber auch mit 0 bis pi/2.
-      error('Die Optimierung des Parameters beta ist nicht vorgesehen');
+      if R_pkin.Type == 0
+        error('Die Optimierung des Parameters beta ist nicht vorgesehen');
+      else % bei Baumstrukturen bei seriell-hybriden notwendig.
+        plim(i,:) = [0, pi];
+      end
     elseif R_pkin.pkin_types(i) == 3
       % Winkel-Parameter alpha. Nur Begrenzung auf [0,pi/2]. Ansonsten sind
       % negative DH-Längen und negative Winkel redundant. Es wird nur die
@@ -594,8 +626,23 @@ elseif Structure.Type == 0 || Structure.Type == 2
     elseif R_pkin.pkin_types(i) == 2 || R_pkin.pkin_types(i) == 4 || R_pkin.pkin_types(i) == 6
       % Maximale Länge der einzelnen Segmente
       plim(i,:) = [-1, 1]; % in Optimierung bezogen auf Lref
+    elseif R_pkin.pkin_types(i) == 7 && R_pkin.MDH.sigma(R_pkin.pkin_jointnumber(i))==0
+      % Offsetparameter für Drehgelenk (dürfte eigentlich gar nicht vorkommen)
+      plim(i,:) = [-pi, pi];
+    elseif R_pkin.pkin_types(i) == 7 && R_pkin.MDH.sigma(R_pkin.pkin_jointnumber(i))==1
+      % Offsetparameter für Drehgelenk (dürfte eigentlich gar nicht vorkommen)
+      plim(i,:) = [-1, 1]; % in Optimierung bezogen auf Lref
+    elseif R_pkin.pkin_types(i) == 9
+      % Sonstiger Winkelparameter (für manche seriell-hybride Roboter)
+      plim(i,:) = [-pi, pi];
+    elseif R_pkin.pkin_types(i) == 10
+      % Sonstiger Längenparameter (für manche seriell-hybride Roboter)
+      plim(i,:) = [-1, 1]; % in Optimierung bezogen auf Lref
     else
       error('Parametertyp nicht definiert');
+    end
+    if R_pkin.Type==1 && any(R_pkin.pkin_types(i) == [2 4 6 10])
+      plim(i,:) = 10*plim(i,:); % Setze Grenzen sehr hoch, damit aus Datenbank geladene Parameter mit großen Beträgen nicht scheitern.
     end
     if Ipkinrel(i)
       varnames = {varnames{:}, sprintf('pkin %d: %s', i, R_pkin.pkin_names{i})}; %#ok<CCAT>
@@ -624,7 +671,7 @@ if Set.optimization.movebase
   end
   nvars = nvars + sum(I_DoF_basepos); % Verschiebung um translatorische FG der Aufgabe
   vartypes = [vartypes; 2*ones(sum(I_DoF_basepos),1)];
-  if Structure.Type == 0 % Seriell
+  if any(Structure.Type == [0 1]) % Seriell
     % TODO: Stelle den seriellen Roboter vor die Aufgabe
     varlim = [varlim; repmat([-1, 1], sum(I_DoF_basepos(1:2)), 1)];
     % TODO: Durchdachte Behandlung des Montageortes. Prinzipiell kann ein
@@ -671,7 +718,7 @@ if Set.optimization.movebase
   r_W_0(I_DoF_setfix) = Set.optimization.basepos_limits(I_DoF_setfix);
 else
   % Setze Standard-Werte für Basis-Position fest
-  if Structure.Type == 0 % Seriell
+  if any(Structure.Type == [0 1]) % Seriell
     % Stelle den seriellen Roboter vor die Aufgabe
     r_W_0 = Structure.xT_mean + [-0.4*Lref;-0.4*Lref;0];
     if Set.task.DoF(3) == 1 % nicht für 2T1R
@@ -709,7 +756,7 @@ if all(~isnan(Set.optimization.ee_translation_fixed))
   % EE-Verschiebung wird in Einstellung vorgegeben. Nicht optimieren
   R.update_EE(Set.optimization.ee_translation_fixed(:));
 elseif Set.optimization.ee_translation && ...
-    (Structure.Type == 0 || Structure.Type == 2 && ~Set.optimization.ee_translation_only_serial)
+    (any(Structure.Type == [0 1]) || Structure.Type == 2 && ~Set.optimization.ee_translation_only_serial)
   % (bei PKM keine EE-Verschiebung durchführen. Dort soll das EE-KS bei
   % gesetzter Option immer in der Mitte sein)
   % Prüfe, ob die EE-Translation teilweise vorgegeben ist
@@ -726,7 +773,7 @@ elseif Set.optimization.ee_translation && ...
   % Bei planaren seriellen Robotern muss eine Rotation durchgeführt werden,
   % falls es eine Transformation N-E gibt. Sonst wird die falsche Richtung
   % des N-KS benutzt statt wie gewünscht des E-KS.
-  if Structure.R_N_E_isset && R.Type == 0
+  if Structure.R_N_E_isset && any(R.Type == [0 1])
     task_transl_DoF_rotE = R.T_N_E(1:3,1:3)' * double(ee_transl_dof');
   else
     task_transl_DoF_rotE = double(ee_transl_dof');
@@ -921,7 +968,7 @@ assert(all(varlim(:,1)~=varlim(:,2)), 'Obere und untere Parametergrenze identisc
 %% Weitere Struktureigenschaften abspeichern
 % Bestimme die Indizes der ersten Schubgelenke. Das kann benutzt werden, um
 % Gelenkgrenzen für das erste Schubgelenk anders zu bewerten.
-if R.Type == 0 % Seriell
+if any(R.Type == [0 1]) % Seriell
   I_firstprismatic = false(R.NJ,1);
   if R.MDH.sigma(1) == 1, I_firstprismatic(1) = true; end
 else % PKM
@@ -937,7 +984,7 @@ Structure.desopt_prismaticoffset = false;
 % Kann benutzt werden, um die Länge der Zylinder zu begrenzen.
 I_cylinder = false(R.NJ,1); % Indizes der Zylinder-Gelenke (Schubgelenk)
 I_adzero = false(R.NJ,1); % Index für a/d Null. Dann Zylinder durch vorheriges Gelenk
-if R.Type == 0 % Seriell
+if any(R.Type == [0 1]) % Seriell
   I_adzero = (R.MDH.a==0 & R.MDH.d==0);
   I_cylinder = (R.DesPar.joint_type==5);
 else % Parallel
@@ -960,7 +1007,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     % Erneute Initialisierung (sonst eventuell doppelte Eintragungen)
     collbodies = struct('link', uint16([]), 'type', uint8(zeros(0,2)), ...
       'params', zeros(0,10)); % Liste für Beinkette
-    if Structure.Type == 0  % Seriell 
+    if any(Structure.Type == [0 1])  % Seriell 
       NLoffset = 0;
       R_cc = R;
     else % PKM-Beinkette
@@ -1000,7 +1047,14 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         T_grozyl_end = T_qmax;
         cbi_par = [T_grozyl_start(1:3,4)', T_grozyl_end(1:3,4)', Set.optimization.collision_bodies_size/2];
       else
-        error('Fall %d für Schubgelenk nicht vorgesehen', R_cc.DesPar.joint_type(i));
+        if R.Type == 0 % Für serielle Roboter ist dieser Fall unerwartet und sollte nochmal angeschaut werden
+          error('Fall %d für Schubgelenk nicht vorgesehen', R_cc.DesPar.joint_type(i));
+        else % Für seriell-hybride Roboter einfach überspringen und keinen Körper definieren
+          cds_log(-1, sprintf(['[dimsynth] Die Kollisionsprüfung für den ', ...
+            'statischen Teil des P-Gelenks (Typ %d) an Stelle %d ist nicht definiert. ', ...
+            'Wird vorerst ignoriert.'], R_cc.DesPar.joint_type(i), i));
+          continue
+        end
       end
       if i == 1 % erstes Gelenk der Kette ist Schubgelenk. Führungsschiene basisfest.
         % Kapsel, zwei Punkte (im weltfesten Basis-KS der Kette)
@@ -1024,11 +1078,12 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       end
       collbodies.params = [collbodies.params; cbi_par, NaN(1,3)];
       % Führungsschiene/Führungszylinder ist vorherigem Segment zugeordnet
-      collbodies.link = [collbodies.link; [uint16(i-1), uint16(i-1)]];
+      collbodies.link = [collbodies.link; [uint16(i-1), uint16(R_cc.MDH.v(i))]];
     end
     
     % Erzeuge Ersatzkörper für die kinematische Kette (aus Gelenk-Trafo)
     for i = 1:R_cc.NJ
+      % if R_cc.Type == 1 && i > R_cc.NL, continue; end % nicht für virtuelle Gelenke? -> ist doch notwendig
       if ~isempty(Structure.RobName) && norm([R_cc.MDH.a(i);R_cc.MDH.d(i)]) < 20e-3
         % Sonderfall: Roboter mit festen Parametern wird optimiert und
         % Abstand zwischen Segmenten ist kleiner als Kollisionskörper.
@@ -1038,7 +1093,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       if R_cc.MDH.a(i) ~= 0 || R_cc.MDH.d(i) ~= 0 || R_cc.MDH.sigma(i) == 1
         % Es gibt eine Verschiebung in der Koordinatentransformation i
         % Definiere einen Ersatzkörper dafür
-        collbodies.link =   [collbodies.link; [uint16(i),uint16(i-1)]];
+        collbodies.link =   [collbodies.link; [uint16(i),uint16(R_cc.MDH.v(i))]];
         collbodies.type =   [collbodies.type; uint8(6)]; % Kapsel, direkte Verbindung
         % Wähle Kapseln mit z.B. Radius 20mm. R.DesPar.seg_par ist noch nicht belegt
         % (passiert erst in Entwurfsoptimierung).
@@ -1047,8 +1102,9 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     end
     % Trage eine EE-Transformation ein: Kapsel von letzten Roboter-Segment
     % zu TCP. Direkte Verbindung. Dünner als Segment-Verbindungen
-    if Structure.Type == 0 && Set.optimization.ee_translation
-      collbodies.link =   [collbodies.link; [uint16(R_cc.NJ+1),uint16(R_cc.NJ)]];
+    if any(Structure.Type == [0 1]) && Set.optimization.ee_translation
+      collbodies.link =   [collbodies.link; [uint16(R_cc.NJ+1),uint16(R_cc.I_EElink)]];
+      if Structure.Type == 0 && collbodies.link(end,2) ~= R_cc.NJ, errror('Fehler bei Implementierung von SerHyb'); end
       collbodies.type =   [collbodies.type; uint8(6)]; % Kapsel, direkte Verbindung
       collbodies.params = [collbodies.params; Set.optimization.collision_bodies_size/4, NaN(1,9)]; % Radius 10mm
     end
@@ -1062,7 +1118,29 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
       % Der Vorgänger bezieht sich auf den Kollisionskörper, nicht auf
       % die Nummer des Starrkörpers. Ansonsten würden zwei durch Kugel-
       % oder Kardan-Gelenk verbundene Körper in Kollision stehen.
-      j_hascollbody = collbodies.link(collbodies.link(:,1)<i,1)';
+      % Debug: Probiere, ob bei seriell-hybriden Robotern weniger ausreichen
+      % if R.Type == 1 && i > R_cc.NL && i ~= R_cc.NJ+1
+      %   % Bei seriell-hybriden Robotern bekommen die virtuellen Gelenk
+      %   % keine Kollisionskörper
+      %   continue
+      % end
+      if i < R_cc.NJ+1
+        kkk = i; % Fange beim Segment i an und gehe rückwärts
+        j_hascollbody = [];
+      else
+        kkk = R_cc.I_EElink; % Fange beim Segment an, das dem EE zugeordnet ist
+        j_hascollbody = kkk; % Endeffektor-Segment mitzählen (hier explizit TCP geprüft))
+      end
+      while kkk ~= 0
+        kkk = R_cc.MDH.v(kkk); % einen Körper weiter zur Basis gehen
+        j_hascollbody =  [collbodies.link(collbodies.link(:,1)==kkk,1)', j_hascollbody]; %#ok<AGROW>
+      end
+      if R.Type == 0 % Debug: Vergleich mit alter Implementierung vor Erweiterung auf seriell-hybrid im Oktober 2024 (Code kann nach Prüfung wieder raus)
+        j_hascollbody2 = collbodies.link(collbodies.link(:,1)<i,1)';
+        if ~all(j_hascollbody == j_hascollbody2)
+          error('Bestimmung der vorherigen Kollisioskörper fehlgeschlagen')
+        end
+      end
       % Sonderfall Portal-System: Abstand zwischen Kollisionskörpern noch
       % um eins vergrößern. TODO: Ist so noch nicht allgemeingültig.
       % Dadurch wird die Kollisionsprüfung effektiv deaktiviert.
@@ -1093,13 +1171,62 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
         % fprintf('Kollisionsprüfung (%d): Beinkette %d Seg. %d vs Seg. %d. Zeile [%d,%d]\n', ...
         %   size(selfcollchecks_bodies,1), k, i, j, selfcollchecks_bodies(end,1), selfcollchecks_bodies(end,2));
       end
+      % Zusätzlich bei Seriell-hybriden Ketten auch andere Teile der Baum-
+      % struktur auf Kollision prüfen
+      if R.Type == 1 && i <= R.NJ % nicht für zusätzlichen EE-Körper machen (wird schon anders geprüft? Führt zu noch ungelösten Fehlern beim Kamerakran-Modell)
+        for kkk = [1 2 i+1:R.NJ] % Gehe alle Körper/KS mit höherem Index durch
+          % Prüfe, ob der Körper schon in der Kette enthalten ist (für
+          % Basis-Körper 1 und 2 möglich)
+          if any(j_hascollbody == kkk), continue; end
+          % Bestimme kinematische Kette von diesem Segment zur Basis
+          chain_kkk = kkk;
+          iii = kkk;
+          while iii ~= 0
+            iii = R_cc.MDH.v(iii); % einen Körper weiter zur Basis gehen
+            chain_kkk = [collbodies.link(collbodies.link(:,1)==iii,1)', chain_kkk]; %#ok<AGROW>
+          end
+          % Ausschluss der sowieso folgenden Segmente (spätere i-Iteration)
+          if any(chain_kkk==i), continue; end
+          % Abstand zwischen den neu zu prüfenden Segmenten und i halten
+          if any(chain_kkk == R_cc.MDH.v(i)) || ... % i darf nicht davor aus gleicher Kette abzweigen
+             R_cc.MDH.v(i)>0 && any(chain_kkk == R_cc.MDH.v(R_cc.MDH.v(i))) % auch nicht noch einen davor. TODO: Bei gut aufgebauten Kinematikmodellen könnte das hier weg.
+            continue;
+          end
+          % Prüfe, ob es sich um zu schließende Schleifen handelt
+          % Im Modell stehen die virtuellen Gelenke hinten (hohe Indizes)
+          % und sind bezogen auf die davor stehenden Koppelgelenke.
+          I_vj = R.MDH.sigma == 2;
+          num_vj = sum(I_vj);
+          I_cj = false(length(I_vj),1);
+          I_cj(end-2*num_vj+1:end-num_vj) = true;
+          if I_vj(kkk) && i == kkk - num_vj ||...
+             I_vj(i)   && i == kkk + num_vj || ...
+             I_cj(kkk) && i == kkk + num_vj ||...
+             I_cj(i)   && i == kkk - num_vj 
+            % Eins ist das Koppelgelenk und das andere das dazugehörige
+            % virtuelle Gelenk. Immer verbunden, also keine
+            % Kollisionsprüfung
+            continue
+          end
+          % Prüfe, ob Körper mehrfach vorkommen (dann garantiert falsch
+          % positive Kollisionsprüfung). TODO: Noch nicht ganz ausgereift.
+          I = collbodies.link(:,1) == NLoffset+i | collbodies.link(:,1) == NLoffset+kkk;
+          if sum(I) == 2 && length(unique(reshape(collbodies.link(I,:), 1, 4)))<4
+            continue
+          end
+          selfcollchecks_bodies = [selfcollchecks_bodies; ...
+            uint8(NLoffset+[i, kkk])]; %#ok<AGROW>
+          % fprintf('Kollisionsprüfung (%d): Beinkette %d Seg. %d vs Seg. %d. Zeile [%d,%d]\n', ...
+          %   size(selfcollchecks_bodies,1), k, i, kkk, selfcollchecks_bodies(end,1), selfcollchecks_bodies(end,2));
+        end
+      end
     end % i-loop (NJ)
   end % k-loop (NLEG)
   % Vorgänger-Indizes für Segmente für die Kollisionsprüfung abspeichern.
   % Unterscheidet sich von normaler MDH-Notation dadurch, dass alle
   % Beinketten-Basis-KS enthalten sind und die Basis ihr eigener Vorgänger
   % ist (vereinfacht spätere Implementierung)
-  if Structure.Type == 0  % Seriell 
+  if any(Structure.Type == [0 1])  % Seriell oder seriell-hybrid
     v = uint8([0;R.MDH.v]); % zusätzlicher Dummy-Eintrag für Basis
   else % PKM
     % Jede Beinkette hat zusätzliches Basis-KS
@@ -1297,11 +1424,16 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   end
   % Debug: Namen der Körper für die Kollisionsprüfung anzeigen
   % (unterscheidet sich von den Kollisionskörpern, den Körpern zugeordnet)
-  if Structure.Type == 0
-    names_bodies = cell(R.NL+1,1);
+  if any(Structure.Type == [0 1])
+    % Ordne allen KS einen Kollisionskörper zu, egal ob es ein realer
+    % Körper des Roboters ist (Massebehafteter Starrkörper) oder nicht.
+    names_bodies = cell(R.NJ+2,1);
     names_bodies{1} = 'Base';
     for k = 2:R.NL
       names_bodies{k} = sprintf('Link %d', k-1);
+    end
+    for k = R.NL+1:R.NJ+1 % Bei seriell-hybriden Ketten keine Starrkörper
+      names_bodies{k} = sprintf('Link %d (virt.)', k-1);
     end
   else % PKM
     names_bodies = cell(R.I2L_LEG(end)-R.NLEG+1+1+1,1);
@@ -1361,8 +1493,8 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   end
   % Prüfe die zusammengestellten Kollisionskörper. Die höchste Nummer
   % (Null-indiziert) ist durch die Roboterstruktur vorgegeben.
-  if Structure.Type == 0
-    Nmax = R.NL-1+1;
+  if any(Structure.Type == [0 1])
+    Nmax = R.NJ+1;
   else
     Nmax = R.I2L_LEG(end)-(R.NLEG-1)+1;
   end
@@ -1547,7 +1679,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
     % Mit bereits oben gesetzten Zufallswerten für Kinematikparameter und
     % Gelenkwinkel werden Kollisionsabstände bestimmt.
     % Nutze den vollständigen Winkelbereich. Sonst falsch-positiv.
-    Q_test = -pi+2*pi*rand(100,R.NJ); JP_test = [];
+    Q_test = -pi+2*pi*rand(100,length(Structure.q0_traj)); JP_test = [];
     for jj = 1:size(Q_test,1)
       % Variieren der Kinematikparameter, damit nicht die oben zufällig
       % gewählten Parameter immer zu einer Kollision führen (bswp. durch
@@ -1623,8 +1755,12 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
           i, R.collchecks(i,1), R.collchecks(i,2), ...
           names_collbodies{R.collchecks(i,1)}, names_collbodies{R.collchecks(i,2)})]; %#ok<AGROW> 
       end
-      cds_log(-1, logstr);
-      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot_collcheck_error.mat'));
+      if R.Type == 1 % Bei seriell-hybriden gibt es noch keine Lösung
+        cds_log(2, logstr); % (Information zu übereinanderliegenden KS fehlt)
+        I_ccnc = I_ccnc | I_alwayscoll; % Ignoriere diese Prüfungen
+      else
+        cds_log(-1, logstr);
+        save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_robot_collcheck_error.mat'));
       % Debug: Unterschiedliche Fälle untersuchen
 %       Set.general.plot_details_in_fitness = inf;
 %       Traj_0 = cds_transform_traj(R, Traj);
@@ -1634,7 +1770,8 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
 %         saveas(867, fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
 %           'tmp', sprintf('cds_dimsynth_robot_collision_case_%d.fig', k)));
 %       end
-      error('Logik-Fehler bei Initialisierung der Kollisionsprüfungen.')
+        error('Logik-Fehler bei Initialisierung der Kollisionsprüfungen.')
+      end
     end
     Structure.I_collcheck_nochange = I_ccnc;
     % Untersuche, welche Kollisionskörper gar nicht geprüft werden. Muss nicht
@@ -1710,7 +1847,7 @@ if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) |
   % Kollisionsprüfungen mit gestellfesten Führungsschienen.
   % Siehe cds_desopt_prismaticoffset.m
   % Stelle Körper-Nummern dazu fest (s.o.)
-  if R.Type == 0 % Seriell
+  if any(R.Type == [0 1]) % Seriell
     Ib_baserail = 0;
   else % Parallel
     Ib_baserail = NaN(1,R.NLEG);
@@ -1777,7 +1914,7 @@ if ~isempty(Set.task.installspace.type)
     collbodies_instspc_k = struct('link',[], 'type',[], 'params',[]);
     % Offset für PKM-Beinketten wird in Funktion ParRob/update_collbodies
     % durchgeführt. Hier nur Definition relativ zu PKM-Beinkette / SerRob
-    if Structure.Type == 0  % Seriell 
+    if any(Structure.Type == [0 1])  % Seriell 
       R_cc = R;
     else % PKM-Beinkette
       R_cc = R.Leg(k);
@@ -1827,7 +1964,7 @@ if ~isempty(Set.task.installspace.type)
     R_cc.collbodies_instspc = collbodies_instspc_k;
   end
   % Trage Bauraum-Objekte in die Klassen ein (Gesamt-PKM bzw. SerRob)
-  if Structure.Type == 0  % Seriell 
+  if any(Structure.Type == [0 1])  % Seriell 
     R.collbodies_instspc.type = [collbodies_instspc_fix.type; collbodies_instspc_k.type];
     R.collbodies_instspc.link = [collbodies_instspc_fix.link; collbodies_instspc_k.link];
     R.collbodies_instspc.params = [collbodies_instspc_fix.params; collbodies_instspc_k.params];
@@ -1930,8 +2067,8 @@ desopt_ptypes = [];
 desopt_pnames = {};
 if Structure.desopt_prismaticoffset
   % Gelenk-Offsets. Siehe cds_desopt_prismaticoffset.m
-  if Structure.Type == 0 % Serieller Roboter
-    desopt_nvars_po = sum(R.MDH.sigma==1);
+  if any(Structure.Type == [0 1]) % Serieller Roboter
+    desopt_nvars_po = sum(sigma_act==1);
   else % symmetrische PKM
     desopt_nvars_po = sum(R.Leg(1).MDH.sigma==1);
   end
@@ -1960,7 +2097,7 @@ if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref'))
       'aber es ist keine Steifigkeit definiert']);
   end
   % Siehe cds_dimsynth_desopt
-  if Structure.Type == 0 % Serieller Roboter
+  if any(Structure.Type == [0 1]) % Serieller Roboter
     error('Gelenkfedern für serielle Roboter noch nicht implementiert');
   else % symmetrische PKM
     I_actrevolute_opt =  R.Leg(1).MDH.mu ~= 1 & R.Leg(1).DesPar.joint_type==0 & ...
@@ -1983,7 +2120,7 @@ if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness_qref'))
 end
 if any(strcmp(Set.optimization.desopt_vars, 'joint_stiffness'))
   % Siehe cds_dimsynth_desopt
-  if Structure.Type == 0 % Serieller Roboter
+  if any(Structure.Type == [0 1]) % Serieller Roboter
     error('Gelenkfedern für serielle Roboter noch nicht implementiert');
   else % symmetrische PKM
     I_actrevolute_opt = R.Leg(1).MDH.mu ~= 1 & R.Leg(1).DesPar.joint_type==0 & ...
@@ -2017,7 +2154,7 @@ desopt_pdefault(desopt_ptypes==3) = 0; % Feder-Ruhelage dann egal
 desopt_pdefault(desopt_ptypes==1) = 0; % Kein Schubgelenk-Offset
 % Trage die Segment-Parameter aus der Roboterklasse ein. Wird in cds_dimsynth_design gesetzt 
 if any(desopt_ptypes==2)
-  if R.Type == 0 % Seriell
+  if any(R.Type == [0 1]) % Seriell
     desopt_pdefault(desopt_ptypes==2) = R.DesPar.seg_par(1,:);
   else % PKM
     desopt_pdefault(desopt_ptypes==2) = R.Leg(1).DesPar.seg_par(1,:);
@@ -2071,6 +2208,12 @@ if Set.optimization.constraint_obj(6) > 0 || ... % Schnittkraft als Nebenbedingu
     any(strcmp(Set.optimization.objective, {'materialstress'})) % ... oder Zielfunktion
   calc_cut = true;
 end
+if R.Type == 1 && calc_cut
+  cds_log(-1, sprintf(['[dimsynth] Schnittkräfte sollen berechnet werden. ' ...
+    'Für seriell-hybride Roboter noch nicht implementiert. Ergebnisse werden ' ...
+    'voraussichtlich falsch sein.']));
+  calc_cut = false;
+end
 if Structure.Type == 2 && calc_cut
   calc_dyn_act = true;
   if Set.optimization.joint_stiffness_active_revolute ~= 0 || ...
@@ -2095,13 +2238,13 @@ if Structure.Type == 2 % Parallel
   end
 end
 for i = 1:NLEG % Das Gleiche für die seriellen Beinketten ...
-  if Structure.Type == 0
+  if any(Structure.Type == [0 1])
     R_init = R; % ... oder den seriellen Roboter
   else
     R_init = R.Leg(i);
   end
   % Dynamikparameter setzen
-  if calc_cut
+  if calc_cut || R.Type == 1 % für seriell-hybrid meist keine MPV-Darstellung
     R_init.DynPar.mode = 3;
   else
     R_init.DynPar.mode = 4;
@@ -2542,8 +2685,8 @@ qlim_pso(:,2) = PSO_Detail_Data.q_max(dd_optind,:,dd_optgen)';
 % Prüfen, ob diese mit der Klassenvariable (aus dem letzten Fitness-Aufruf)
 % übereinstimmen. Muss nicht sein, da Zufallskomponente bei IK-Anfangswerten
 if max_retry > 0 % nur sinnvoll, falls Fitness nach Optimierungs-Ende neu berechnet
-  if Structure.Type == 0, q0_ik2 = R.qref;
-  else,                   q0_ik2 = cat(1,R.Leg.qref); end
+  if any(Structure.Type == [0 1]), q0_ik2 = R.qref;
+  else,                            q0_ik2 = cat(1,R.Leg.qref); end
   test_q0 = q0_ik - q0_ik2;
   test_q0(abs(abs(test_q0)-2*pi)<1e-6) = 0; % entferne 2pi-Fehler
   if any(abs(test_q0)>1e-6) && all(fval<1e10) % nur bei erfolgreicher Berechnung der IK ist der gespeicherte Wert sinnvoll
@@ -2554,7 +2697,7 @@ if max_retry > 0 % nur sinnvoll, falls Fitness nach Optimierungs-Ende neu berech
 end
 % Schreibe die während der Optimierung gespeicherten Anfangswerte in der Klasse
 % Annahme: Damit ist immer eine Reproduktion des Endergebnisses (Optimum) möglich
-if Structure.Type == 0 % Seriell
+if any(Structure.Type == [0 1]) % Seriell
   R.qref = q0_ik;
 else % Parallel
   for i = 1:R.NLEG, R.Leg(i).qref = q0_ik(R.I1J_LEG(i):R.I2J_LEG(i)); end
@@ -2568,10 +2711,10 @@ qlim_neu = qlim_pso; % aus PSO gespeicherte Grenzen (dort aus Gelenk-Traj.)
 if ~Set.optimization.fix_joint_limits
   qlim_mitte = mean(qlim_pso,2); % Mittelwert als Ausgangspunkt für neue Grenzen
   q_range = diff(Structure.qlim')'; % ursprüngliche max. Spannweite aus Einstellungen
-  qlim_neu(R.MDH.sigma==0,:) = repmat(qlim_mitte(R.MDH.sigma==0),1,2) + ...
-    [-q_range(R.MDH.sigma==0)/2, q_range(R.MDH.sigma==0)/2];
-  if R.Type == 0 % Seriell
-    R.qlim(R.MDH.sigma==0,:) = qlim_neu(R.MDH.sigma==0,:);
+  qlim_neu(sigma_act==0,:) = repmat(qlim_mitte(sigma_act==0),1,2) + ...
+    [-q_range(sigma_act==0)/2, q_range(sigma_act==0)/2];
+  if any(R.Type == [0 1]) % Seriell
+    R.qlim(sigma_act==0,:) = qlim_neu(sigma_act==0,:);
   else % PKM
     for i = 1:R.NLEG
       qlim_neu_i = qlim_neu(R.I1J_LEG(i):R.I2J_LEG(i),:);
@@ -2607,7 +2750,7 @@ end
 % Berechne die Jacobi-Matrix für PKM neu. Keine Neuberechnung der inversen
 % Kinematik (wird bereits in erneutem Aufruf der Fitness-Funktion gemacht)
 Jinv_ges = []; % Platzhalter
-if R.Type ~= 0 && ~result_invalid && ~isempty(QD) % nur machen, wenn Traj.-IK erfolgreich
+if R.Type == 2 && ~result_invalid && ~isempty(QD) % nur machen, wenn Traj.-IK erfolgreich
   Jinv_ges = NaN(size(Q,1), sum(R.I_EE)*R.NJ);
   test_xD_fromJ_max = 0; % Fehler dabei prüfen
   i_maxerr = 0;
@@ -2649,6 +2792,7 @@ end
 Structure_tmp = Structure; % Eingabe um Berechnung der Antriebskräfte zu erzwingen
 Structure_tmp.calc_dyn_act = true;
 Structure_tmp.calc_cut = true; % ... und der Schnittkräfte
+if R.Type == 1, Structure_tmp.calc_cut = false; end % nicht implementiert.
 Structure_tmp.calc_dyn_reg = false;
 if Set.optimization.joint_stiffness_active_revolute ~= 0 || ...
     Set.optimization.joint_stiffness_passive_revolute ~= 0 || ...
@@ -2656,7 +2800,7 @@ if Set.optimization.joint_stiffness_active_revolute ~= 0 || ...
   Structure_tmp.calc_spring_act = true;
   Structure_tmp.calc_spring_reg = false;
 end
-if R.Type ~= 0 % für PKM
+if R.Type == 2 % für PKM
   % Berechne Dynamik in diesem Abschnitt mit Inertialparametern. Sonst
   % keine Berechnung der Schnittkräfte möglich (mit Minimalparametern)
 	R.DynPar.mode = 3; 
@@ -2690,9 +2834,11 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act')) && ~
   [fval_obj_all(strcmp(ds.obj_names_all, 'actforce')), ~, ~, ...
     physval_obj_all(strcmp(ds.obj_names_all, 'actforce'))] = ...
     cds_obj_actforce(data_dyn.TAU);
-  [fval_obj_all(strcmp(ds.obj_names_all, 'materialstress')), ~, ~, ...
-    physval_obj_all(strcmp(ds.obj_names_all, 'materialstress'))] = ...
-    cds_obj_materialstress(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
+  if R.Type ~= 1 % noch nicht implementiert
+    [fval_obj_all(strcmp(ds.obj_names_all, 'materialstress')), ~, ~, ...
+      physval_obj_all(strcmp(ds.obj_names_all, 'materialstress'))] = ...
+      cds_obj_materialstress(R, Set, data_dyn, Jinv_ges, Q, Traj_0);
+  end
   [fval_obj_all(strcmp(ds.obj_names_all, 'condition')),~, ~, ...
     physval_obj_all(strcmp(ds.obj_names_all, 'condition'))] = ...
     cds_obj_condition(R, Set, Structure, Jinv_ges, Traj_0, Q, QD);
@@ -2726,10 +2872,12 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act')) && ~
   [fval_obj_all(strcmp(ds.obj_names_all, 'colldist')),~, ~, ...
     physval_obj_all(strcmp(ds.obj_names_all, 'colldist'))] = ...
     cds_obj_colldist(R, Set, Structure, Traj_0, Q, JP);
-  [fval_obj_all(strcmp(ds.obj_names_all, 'stiffness')),~, ~, ...
-    physval_obj_all(strcmp(ds.obj_names_all, 'stiffness'))] = ...
-    cds_obj_stiffness(R, Set, Q);
-  if any(isnan(fval_obj_all)) || any(isnan(physval_obj_all))
+  if R.Type ~= 1 % noch nicht implementiert
+    [fval_obj_all(strcmp(ds.obj_names_all, 'stiffness')),~, ~, ...
+      physval_obj_all(strcmp(ds.obj_names_all, 'stiffness'))] = ...
+      cds_obj_stiffness(R, Set, Q);
+  end
+  if R.Type ~= 1 && (any(isnan(fval_obj_all)) || any(isnan(physval_obj_all)))
     % Dimension ist falsch, wenn eine Zielfunktion nicht skalar ist (z.B. leer)
     cds_log(-1, sprintf('[dimsynth] Nicht alle Zielfunktionen berechnet'));
     try % Auf Cluster teilweise Probleme beim Dateisystemzugriff

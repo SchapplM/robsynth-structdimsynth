@@ -22,7 +22,7 @@ cds_testcase_3T3R; close all;
 cds_testcase_PKM_G1G4; close all;
 cds_test_basesize_platformsize_limit_pairjoints; close all;
 
-%% Divcds_testcase_PKM_G1G4; close all;erse weitere Tests
+%% Diverse weitere Tests
 % Einige andere einzelne Funktionen werden getestet
 cds_example_2T1R_RRR_multiobj; close all;
 cds_example_collisioncheck; close all;
@@ -33,6 +33,7 @@ cds_example_taskred_desopt; close all;
 test_cds_obj_dependencies; close all;
 cds_example_external_force; close all;
 cds_test_positionerror_ikobjective; close all;
+cds_example_3T1R_serialhybrid; close all;
 %% Ende
 clc
 close all

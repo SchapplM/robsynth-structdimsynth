@@ -35,7 +35,7 @@ debug_info = {};
 
 % Berechne Positionsfehler über Trajektorie
 deltapges = NaN(size(Q,1), 1);
-if R.Type == 0 % Seriell
+if any(R.Type == [0 1]) % Seriell
   delta_qa = R.update_q_poserr();
   % Berechne Manipulierbarkeit für alle Punkte der Bahn
   for i = 1:size(Q,1)

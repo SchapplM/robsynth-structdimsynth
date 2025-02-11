@@ -42,8 +42,8 @@ f_instspc = NaN;
 fval = 1e3;
 %% Gelenkpositionen berechnen
 if nargin < 6 || isempty(JP_in) || Set.general.debug_calc
-  if R.Type == 0
-    JP = NaN(size(Q,1), 3*(1+R.NJ+1));
+  if any(R.Type == [0 1])
+    JP = NaN(size(Q,1), 3*(1+R.NL));
   else
     JP = NaN(size(Q,1), 3*(1+R.NJ+R.NLEG+1+1));
   end
@@ -112,7 +112,7 @@ xlabel('x in m'); ylabel('y in m'); zlabel('z in m');
 % Gelenkpunkte zeichnen
 plot3(xyz(:,1), xyz(:,2), xyz(:,3), 'kx');
 plotmode = 1; % Strichzeichnung
-if R.Type == 0 % Seriell
+if any(R.Type == [0 1]) % Seriell
   s_plot = struct( 'ks', 1:R.NJ+2, 'straight', 1, 'mode', plotmode);
   R.plot( Q(1,:)', s_plot);
 else % PKM

@@ -26,7 +26,7 @@ end
 d3 = load(setfile, 'Set', 'Structures');
 %% Roboter initialisieren
 % Gleiche Vorgehensweise wie in cds_start.m
-for type = [0 2]
+for type = [0 1 2]
   RobNames = {};
   for i = 1:length(d3.Structures)
     Structure = d3.Structures{i};
@@ -39,6 +39,13 @@ for type = [0 2]
   if type == 0 % Serieller Roboter
     fprintf('Erstelle Vorlagen-Funktionen für serielle Roboter\n');
     serroblib_create_template_functions(RobNames, false, false);
+  elseif type == 1 % Seriell-hybride Roboter
+    fprintf('Erstelle Vorlagen-Funktionen für seriell-hybride Roboter\n');
+    for j = 1:length(RobNames)
+      HRDB = hybroblib_systems_list();
+      MdlExt = HRDB.ModelExt{strcmp(HRDB.Name, Structure.Name)};
+      hybroblib_create_template_functions({RobNames{j}, MdlExt}, false, false);
+    end
   else % PKM
     LegName_all = [];
     for i = 1:length(RobNames)

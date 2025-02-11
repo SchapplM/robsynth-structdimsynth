@@ -39,7 +39,7 @@ if Set.general.matfile_verbosity > 2
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_update_collbodies_0.mat'));
   % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_update_collbodies_0.mat'));
 end
-if R.Type == 0 % Seriell
+if any(R.Type == [0 1]) % Seriell/seriell-hybrid
   NLEG = 1;
 elseif R.Type == 2 % Parallel
   NLEG = R.NLEG;
@@ -56,17 +56,27 @@ else
   collbodies_instspc = struct('link', [], 'type', [], 'params', []); % Platzhalter. Wird nicht nachher verarbeitet.
   update_installspcbodies = false;
 end
+if any(R.Type == [0 2])
+  sigma_act = R.MDH.sigma; % sigma-Parameter (1=Schub, 0=Dreh) für alle Gelenke
+else % Seriell-hybrid
+  sigma_act = R.MDH.sigma(R.MDH.mu == 1); % nur für Minimalkoordinaten (aktive Gelenke)
+end
 %% Kollisionskörper aktualisieren
 if update_collbodies
   % Grenzen der Schubgelenk-Koordinaten bestimmen die Position der
   % Führungsschiene bzw. des Führungszylinders
   q_minmax = NaN(R.NJ, 2);
-  q_minmax(R.MDH.sigma==1,:) = minmax2(Q(:,R.MDH.sigma==1)');
+  if any(R.Type == [0 2])
+    q_minmax(R.MDH.sigma==1,:) = minmax2(Q(:,R.MDH.sigma==1)');
+  else
+    % Keine Informationen zu passiven Gelenken
+    q_minmax(sigma_act==1,:) = minmax2(Q(:,sigma_act==1)');
+  end
   % Wähle die symmetrischen Gelenkgrenzen aus: Bei symmetrischem Roboter
   % sind die Führungsschienen von Schubgelenken der Beinketten gleich.
   % Wenn eine Schubache eine große Auslenkung hat, müssen bei allen Schub-
   % achsen die Schienen lang gewählt werden.
-  if R.Type == 0  % Seriell 
+  if any(R.Type == [0 1])  % Seriell 
     q_minmax_sym = q_minmax;
   elseif R.Type == 2  % Symmetrische PKM
     q_minmax_sym = q_minmax(R.I1J_LEG(1):R.I2J_LEG(1),:);
@@ -78,7 +88,7 @@ if update_collbodies
     error('Fall %d für Robotertyp explizit noch nicht vorgesehen');
   end
   for k = 1:NLEG % Siehe cds_dimsynth_robot.m
-    if R.Type == 0  % Seriell 
+    if any(R.Type == [0 1])  % Seriell 
       R_cc = R;
     else % PKM-Beinkette
       R_cc = R.Leg(k);
@@ -134,7 +144,7 @@ if false
   xlabel('x in m');ylabel('y in m');zlabel('z in m');
   q_plot = Q(1,:)';
   q_plot(isinf(q_plot)) = 0;
-  if R.Type == 0 % Seriell
+  if any(R.Type == [0 1]) % Seriell
     s_plot = struct( 'ks', 1:R.NJ+2, 'straight', 1, 'mode', 5);
     R.plot( q_plot, s_plot);
   else % PKM
@@ -179,7 +189,7 @@ if update_installspcbodies && n_cb_instspc > 0
   end
 
   % Aktualisiere die Bauraum-Objekte in der Roboter-Klasse
-  if Structure.Type ~= 0 % PKM
+  if Structure.Type == 2 % PKM
     % Aufteilung der Objekte in allgemein und Beinketten zugeordnet.
     % Hier nur Aktualisierung des allgemeinen Teils (zu PKM-Basis gehörig)
     collbodies_instspc_fix = struct( ...
@@ -203,7 +213,7 @@ collbodies_robot = struct('link', [], 'type', [], 'params', []);
 % der Definition der Kollisionsobjekte von Beinketten passieren, da die
 % Variablen sonst nicht konsistent zur Roboter-Klasse sind. Reihenfolge
 % dort ist festelegt durch Funktion ParRob/update_collbodies
-if Structure.Type ~= 0 % PKM
+if Structure.Type == 2 % PKM
   cbbpidx1 = size(collbodies_robot.link,1)+1;
   % Indizes der jeweiligen vorherigen benachbarten Beinkette
   I1 = (1:NLEG)'; I2 = [NLEG, 1:NLEG-1]';
@@ -333,7 +343,7 @@ end
 isidx = n_cb_instspc+1; % Nächster Index für collbodies_instspc
 
 for k = 1:NLEG
-  if R.Type == 0  % Seriell 
+  if any(R.Type == [0 1])  % Seriell 
     R_cc = R;
   else % PKM-Beinkette
     R_cc = R.Leg(k);

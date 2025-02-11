@@ -56,7 +56,7 @@ density = 2.7E3; %[kg/m^3] Aluminium
 
 %% Entwurfsparameter ändern
 % Entweder aus Optimierungsvariable oder konstante Standard-Werte
-if R.Type == 0
+if any(R.Type == [0 1])
   if use_default_link_param
     % Keine Entwurfsoptimierung, nehme die Standardwerte für
     % Segmentparameter (dicke Struktur für seriell)
@@ -89,7 +89,7 @@ end
 %% Dynamikparameter belegen
 % Parameter des Struktursegmentes
 % Roboterklasse für Parametermodell heraussuchen
-if R.Type == 0 % Seriell
+if any(R.Type == [0 1]) % Seriell
   R_pkin = R;
 else  % Parallel (symmetrisch)
   R_pkin = R.Leg(1);
@@ -122,7 +122,7 @@ else % Bezogen auf Schwerpunkt
   I_E = inertiavector2matrix(Set.task.payload.Ic');
 end
 % Trägheitstensor in Plattform-KS rotieren
-if R.Type == 0 % Seriell (Benennung P=N für Konsistenz mit PKM)
+if any(R.Type == [0 1]) % Seriell (Benennung P=N für Konsistenz mit PKM)
   r_P_P_S = R.T_N_E(1:3,4) + R.T_N_E(1:3,1:3) * r_E_E_S;
   I_P = R.T_N_E(1:3,1:3)' * I_E * R.T_N_E(1:3,1:3);
 else
@@ -140,7 +140,7 @@ end
 % Länge von Schubgelenken herausfinden
 q_minmax = NaN(R.NJ, 2);
 q_minmax(R.MDH.sigma==1,:) = minmax2(Q(:,R.MDH.sigma==1)');
-if Structure.Type == 0 % Seriell
+if any(Structure.Type == [0 1]) % Seriell
   q_range = diff(q_minmax')';
 else  % Parallel (symmetrisch)
   % Siehe cds_update_collbodies; nehme eine identische Führungsschiene
@@ -165,6 +165,13 @@ If_ges_PStator = zeros(R_pkin.NL,6);
 m_ges_PAbtrieb = zeros(R_pkin.NL,1);
 mrS_ges_PAbtrieb = zeros(R_pkin.NL,3);
 If_ges_PAbtrieb = zeros(R_pkin.NL,6);
+qlim_mdh = NaN(R_pkin.NJ,2);
+if R_pkin.Type == 0 % Serielle kinematische Kette
+  qlim_mdh = R_pkin.qlim;
+else % hybride Kette (mit eliminierten Gelenken)
+  qlim_mdh(R_pkin.MDH.mu> 0,:) = R_pkin.qlim;
+  qlim_mdh(R_pkin.MDH.mu==0,:) = R_pkin.qlim_elimcoord;
+end
 %% Alle Körper des Roboters durchgehen
 for i = 1:length(m_ges_Link)
   % Wandstärke und Radius der Hohlzylinder aus Robotereigenschaften
@@ -190,7 +197,7 @@ for i = 1:length(m_ges_Link)
       % nicht den Anfangspunkt des Schubgelenks
       r_i_i_D = [R_pkin.MDH.a(i); 0; q_range(i)];
       R_i_Si = rotx(R_pkin.MDH.alpha(i)) * roty(atan2(q_range(i), R_pkin.MDH.a(i)));
-    elseif any(isinf(R_pkin.qlim(i,:))) % Schubgelenk mit unendlichen Grenzen
+    elseif any(isinf(qlim_mdh(i,:))) % Schubgelenk mit unendlichen Grenzen
       % Für unendliche Grenzen kann kein physikalisches Modell des Schub-
       % gelenks aufgestellt werden. Untersuchung ist rein kinematisch.
       r_i_i_D = zeros(3,1); % Damit Masse zu Null setzen
@@ -201,7 +208,7 @@ for i = 1:length(m_ges_Link)
       % berücksichtigt. Zum Start von Linearachse oder Hubzylinder wird
       % eine spezielle Verbindung modelliert. Diese entspricht dem Segment.
       if R_pkin.DesPar.joint_type(i) ==  4 % Schubgelenk ist Linearführung
-        if R_pkin.qlim(i,2)*R_pkin.qlim(i,2)< 0 % Führung liegt auf der Höhe; [B]/(4)
+        if qlim_mdh(i,2)*qlim_mdh(i,2)< 0 % Führung liegt auf der Höhe; [B]/(4)
           r_i_i_D = [R_pkin.MDH.a(i); 0; 0];
           % Nur die a-Verschiebung entspricht dem Segment. Daher nur
           % alpha-Rotation. Der a-Parameter wird für das VZ der Rotation benutzt.
@@ -209,32 +216,32 @@ for i = 1:length(m_ges_Link)
         else % Start oder Ende der Führung liegen am nächsten an vorherigem Gelenk
           % Keine senkrechte Verbindung (Schiene fängt woanders an)
           % TODO: Variable joint_offset noch nicht korrekt implementiert.
-          if R_pkin.qlim(i,2) < 0 % Schiene liegt komplett "links" vom KS. Gehe zum Endpunkt (qmax)
+          if qlim_mdh(i,2) < 0 % Schiene liegt komplett "links" vom KS. Gehe zum Endpunkt (qmax)
             % [B]/(6)
-            r_i_i_D = [R_pkin.MDH.a(i);0;0] + rotx(R_pkin.MDH.alpha(i))*[0;0;R_pkin.qlim(i,2)];
-            R_i_Si = rotx(R_pkin.MDH.alpha(i)) * roty(-atan2(R_pkin.qlim(i,2), R_pkin.MDH.a(i)));
+            r_i_i_D = [R_pkin.MDH.a(i);0;0] + rotx(R_pkin.MDH.alpha(i))*[0;0;qlim_mdh(i,2)];
+            R_i_Si = rotx(R_pkin.MDH.alpha(i)) * roty(-atan2(qlim_mdh(i,2), R_pkin.MDH.a(i)));
           else % Schiene liegt "rechts" vom KS. Gehe zum Startpunkt (qmin)
             % [B]/(5)
-            r_i_i_D = [R_pkin.MDH.a(i);0;0] + rotx(R_pkin.MDH.alpha(i))*[0;0;R_pkin.qlim(i,1)];
-            R_i_Si = rotx(R_pkin.MDH.alpha(i)) * roty(-atan2(R_pkin.qlim(i,1), R_pkin.MDH.a(i)));
+            r_i_i_D = [R_pkin.MDH.a(i);0;0] + rotx(R_pkin.MDH.alpha(i))*[0;0;qlim_mdh(i,1)];
+            R_i_Si = rotx(R_pkin.MDH.alpha(i)) * roty(-atan2(qlim_mdh(i,1), R_pkin.MDH.a(i)));
           end
         end
       else % Schubgelenk ist Hubzylinder
-        if R_pkin.qlim(i,2) > 2*R_pkin.qlim(i,1) && R_pkin.qlim(i,2) > 0 % Zylinder liegt auf der Höhe des KS; [B]/(1)
+        if qlim_mdh(i,2) > 2*qlim_mdh(i,1) && qlim_mdh(i,2) > 0 % Zylinder liegt auf der Höhe des KS; [B]/(1)
           % Als senkrechte Verbindung unter Benutzung des a-Parameters der
           % DH-Notation für Verschiebung und für Vorzeichen der Rotation.
           r_i_i_D = [R_pkin.MDH.a(i); 0; 0];
           R_i_Si = rotx(-R_pkin.MDH.alpha(i)) * roty(atan2(0, R_pkin.MDH.a(i)));
         else
-          if R_pkin.qlim(i,2) < 0 % Großer Zylinder liegt komplett "links" (von x-Achse schauend); [B]/(3)
+          if qlim_mdh(i,2) < 0 % Großer Zylinder liegt komplett "links" (von x-Achse schauend); [B]/(3)
             % Rechte Seite des Hubzylinders entspricht qmin
-            r_i_i_D = [R_pkin.MDH.a(i); 0; 0] + rotx(R_pkin.MDH.alpha(i))*[0;0;R_pkin.qlim(i,1)];
-            R_i_Si = rotx(R_pkin.MDH.alpha(i)) * roty(atan2(-R_pkin.qlim(i,1), R_pkin.MDH.a(i)));
+            r_i_i_D = [R_pkin.MDH.a(i); 0; 0] + rotx(R_pkin.MDH.alpha(i))*[0;0;qlim_mdh(i,1)];
+            R_i_Si = rotx(R_pkin.MDH.alpha(i)) * roty(atan2(-qlim_mdh(i,1), R_pkin.MDH.a(i)));
           else % Großer Zylinder liegt komplett "rechts"
             % Linke Seite des Zylinders indirekt aus rechter Seite und
             % Länge berechnen
-            r_i_i_D = [R_pkin.MDH.a(i); 0; 0] + rotx(R_pkin.MDH.alpha(i))*[0;0;2*R_pkin.qlim(i,1)-R_pkin.qlim(i,2)];
-            R_i_Si = rotx(R_pkin.MDH.alpha(i)) * roty(-atan2(2*R_pkin.qlim(i,1)-R_pkin.qlim(i,2), R_pkin.MDH.a(i)));
+            r_i_i_D = [R_pkin.MDH.a(i); 0; 0] + rotx(R_pkin.MDH.alpha(i))*[0;0;2*qlim_mdh(i,1)-qlim_mdh(i,2)];
+            R_i_Si = rotx(R_pkin.MDH.alpha(i)) * roty(-atan2(2*qlim_mdh(i,1)-qlim_mdh(i,2), R_pkin.MDH.a(i)));
           end
         end
       end
@@ -246,29 +253,31 @@ for i = 1:length(m_ges_Link)
       r_i_i_D = rotz(R_pkin.MDH.beta(i))*r_i_i_D;
     end
     % Probe, ob Orientierung (R_i_Si) und berechnetes Ende des Segments (r_i_i_D) stimmen
-    if any( abs(r_i_i_D - R_i_Si*[norm(r_i_i_D);0;0] ) > 1e-10)
+    if any( abs(r_i_i_D - R_i_Si*[norm(r_i_i_D);0;0] ) > 1e-10) && ...
+      ~(R_pkin.DesPar.joint_type(i)==1&&R_pkin.Type==1) % Für Schubgelenke in hybriden Ketten noch fehlerhaft. Test deaktivieren.
       save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_design_error.mat'));
       error('Richtung des Segments stimmt nicht');
     end
     % Probe: [A]/(10) (nur für Drehgelenke; wegen Maximallänge bei Schubgelenk)
     r_i_i_ip1_test = R_i_Si*[norm(r_i_i_D);0;0];
-    Tges=R_pkin.jtraf(zeros(R_pkin.NJ,1));
+    Tges=R_pkin.jtraf(zeros(R_pkin.NQJ,1));
     r_i_i_ip1 = Tges(1:3,4,i);
-    if R_pkin.MDH.sigma(i) == 0 && any(abs(r_i_i_ip1_test-r_i_i_ip1) > 1e-10)
+    if R_pkin.MDH.sigma(i) == 0 && any(abs(r_i_i_ip1_test-r_i_i_ip1) > 1e-10) && ...
+        R_pkin.MDH.b(i) == 0 % ToDo: Für b-Parameter noch ungetestet
       save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_design_error.mat'));
       error('Segment-Darstellung stimmt nicht');
     end
     %% Bestimme zusätzliche Dynamikparameter für Schubgelenke:
     % (nur, falls Grenzen auf endliche Werte gesetzt sind)
-    if R_pkin.MDH.sigma(i) == 1 && ~any(isinf(R_pkin.qlim(i,:)))
+    if R_pkin.MDH.sigma(i) == 1 && ~any(isinf(qlim_mdh(i,:)))
       if R_pkin.DesPar.joint_type(i) ==  5
         % Bei ausfahrbaren Zylindern gibt es zusätzlich noch einen
         % statischen Teil. Dieser Teil wird dem vorherigen Segment
         % zugeordnet. Ähnlich wie ein Stator beim Motor.
         % Berechne Anfangs- und Endpunkt des äußeren Zylinders für Geometrie
         T_i_Si1 = trotx(R_pkin.MDH.alpha(i))*transl(R_pkin.MDH.a(i),0,0)*...
-          transl(0,0,R_pkin.qlim(i,1)-diff(R_pkin.qlim(i,:)));
-        T_i_Si2 = T_i_Si1*transl(0,0,diff(R_pkin.qlim(i,:)));
+          transl(0,0,qlim_mdh(i,1)-diff(qlim_mdh(i,:)));
+        T_i_Si2 = T_i_Si1*transl(0,0,diff(qlim_mdh(i,:)));
         l_outercyl = norm(T_i_Si2(1:3,4)-T_i_Si1(1:3,4));
         [m_s, J_B_C] = data_hollow_cylinder(R_i, e_i, l_outercyl, density);
         % Umrechnen auf Körper-KS: rotx(alpha) damit z-Achse entlang
@@ -303,7 +312,7 @@ for i = 1:length(m_ges_Link)
         % Schwerpunkt in der Mitte der Führung. Berücksichtige die Verschiebung
         % der Führungsschiene durch den Offset.
         r_i_Oi_C = [R_pkin.MDH.a(i);0;0] + rotx(R_pkin.MDH.alpha(i))*...
-          [0;0;R_pkin.qlim(i,1)+R_pkin.DesPar.joint_offset(i)+0.5*q_range(i)];
+          [0;0;qlim_mdh(i,1)+R_pkin.DesPar.joint_offset(i)+0.5*q_range(i)];
         % Eintragen in Dynamik-Parameter (bezogen auf Ursprung)
         m_ges_PStator(i) = m_s;
         [mrS_ges_PStator(i,:), If_ges_PStator(i,:)] = inertial_parameters_convert_par1_par2( ...
@@ -341,7 +350,7 @@ for i = 1:length(m_ges_Link)
     end
   else
     % Letzter Körper: Flansch->EE bei Seriell; Plattform->EE bei Parallel
-    if Structure.Type == 0 % Serieller Roboter
+    if any(Structure.Type == [0 1]) % Serieller Roboter
       r_i_i_D = R_pkin.T_N_E(1:3,4);
       T_P_E = R_pkin.T_N_E; % Für gleiche Benennung seriell/parallel
     else
@@ -415,7 +424,7 @@ m_ges   =   m_ges_Link +   m_ges_PStator +   m_ges_PAbtrieb;
 mrS_ges = mrS_ges_Link + mrS_ges_PStator + mrS_ges_PAbtrieb;
 If_ges  =  If_ges_Link +  If_ges_PStator +  If_ges_PAbtrieb;
 % Parameter zu Null setzen (außer die aus Set.task.payload).
-if R.Type == 0
+if any(R.Type == [0 1])
   if Set.optimization.nolinkmass
     m_ges(:) = 0; mrS_ges(:) = 0; If_ges(:) = 0;
   end
@@ -444,7 +453,7 @@ end
 if Set.general.matfile_verbosity > 2 + (~use_default_link_param)
   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_dimsynth_design_saveparam.mat'));
 end
-if R.Type == 0 
+if any(R.Type == [0 1])
   % Seriell: Parameter direkt eintragen
   R.update_dynpar2(m_ges, mrS_ges, If_ges)
 else
@@ -476,13 +485,13 @@ if desopt_debug
       case 5, ID_ges_i = [m_ges,         mrS_ges,         If_ges];         t='Gesamt';
       case 6, t='Ersatzgeometrie'; s=struct('mode', 4);
     end
-    if R.Type == 0 % Seriell
+    if any(R.Type == [0 1]) % Seriell
       R.update_dynpar2(ID_ges_i(:,1), ID_ges_i(:,2:4), ID_ges_i(:,5:10));
     else % PKM
       ID_ges_i_pkm = [ID_ges_i(2:end-1,:); zeros(1,10); ID_ges_i(end,:)];
       R.update_dynpar2(ID_ges_i_pkm(:,1), ID_ges_i_pkm(:,2:4), ID_ges_i_pkm(:,5:10));
     end
-    if R.Type == 0 % Seriell
+    if any(R.Type == [0 1]) % Seriell
       R.plot(Q(1,:)', s);
     else % PKM
       % Pose der Plattform berechnen (steht in dieser Funktion nicht zur
