@@ -245,7 +245,8 @@ for N_JointDoF = N_JointDoF_allowed
         'RobName', RName, ... % Falls ein konkreter Roboter mit Parametern gewählt ist
         'act_type', acttype_i, 'deactivated', false, ...
         ... % Platzhalter, Angleichung an PKM (Erkennung altes Dateiformat)
-        'angles_values', [], 'prismatic_types', [], 'mirrorconfig_d', 1); %#ok<AGROW> 
+        'angles_values', [], 'prismatic_types', [], 'mirrorconfig_d', 1, ...
+        'fullyparallel', false); %#ok<AGROW> 
     else % Mehrere Schubachsen nacheinander
       % Basierend auf technisch sinnvoller Umsetzbarkeit erfolgt die
       % Bildung möglicher Kombinationen von Linearachse und Schubzylinder
@@ -276,7 +277,7 @@ for N_JointDoF = N_JointDoF_allowed
           'RobName', RName, ... % Falls ein konkreter Roboter mit Parametern gewählt ist
           'act_type', acttype_i, 'deactivated', false, ...
           'angles_values', [], 'prismatic_types', prismtypeall(k,:), ...
-          'mirrorconfig_d', []); %#ok<AGROW> 
+          'mirrorconfig_d', [], 'fullyparallel', false); %#ok<AGROW> 
       end % for k
     end
   end
@@ -352,14 +353,14 @@ if structset.use_serialhybrid
         'RobName', RName, ... % Falls ein konkreter Roboter mit Parametern gewählt ist
         'act_type', acttype_i, 'deactivated', false, ...
         ... % Platzhalter, Angleichung an PKM (Erkennung altes Dateiformat)
-        'angles_values', [], 'prismatic_types', [], 'mirrorconfig_d', 1); %#ok<AGROW> 
+        'angles_values', [], 'prismatic_types', [], 'mirrorconfig_d', 1, ...
+        'fullyparallel', false); %#ok<AGROW> 
     end
   end
 end
 
 %% Parallele Roboter laden
 if structset.use_parallel
-% Voll-Parallel: So viele Beinketten wie EE-FG, jede Beinkette einfach aktuiert
 if structset.use_parallel_rankdef
   max_rankdeficit = 6;
 else
@@ -398,6 +399,11 @@ for kkk = 1:size(EE_FG_allowed,1)
       Actuation{kk} = find(ActLeg_kk(Ij,:));
     end
     StructuralDHParam = ActTab.Values_Angle_Parameters(Ij);
+    % Filtere auf Voll-Parallel oder nicht
+    if ~(Set.structures.use_parallel_fullyparallel    && NLEG == sum(EE_FG_allowed(kkk,:)) || ...
+         Set.structures.use_parallel_notfullyparallel && NLEG ~= sum(EE_FG_allowed(kkk,:)))
+      continue % Struktur erfüllt keine der Positiv-Auswahl-Kriterien
+    end
     % Prüfe Koppelpunkt-Eigenschaften
     if ~any(Coupling(1) == 1:10) || ~any(Coupling(2) == 1:10)
       if verblevel > 3 || IsInWhiteList
@@ -787,15 +793,21 @@ for kkk = 1:size(EE_FG_allowed,1)
         mirror_logstr = '';
       end
       if verblevel >= 2, fprintf('%d: %s; %s%s\n', ii, PNames_Akt{j}, theta_logstr, mirror_logstr); end
+      if all(EE_FG_allowed(kkk,:)==[1 1 1 1 1 1]) && ...
+          PNames_Akt{j}(2) == '3' % aktuell gibt es nur diesen Fall
+        fullyparallel = false;
+      else
+        fullyparallel = true;
+      end
       Structures{ii} = struct('Name', PNames_Akt{j}, 'Type', 2, 'Number', ii, ...
         'Coupling', Coupling, 'angles_values', av, 'DoF', EE_FG_allowed(kkk,:), ...
         'act_type', acttype_i, 'deactivated', false, ...
-        'prismatic_types', [], 'RobName', RName, ...
+        'prismatic_types', [], 'RobName', RName, 'fullyparallel', fullyparallel, ...
         'mirrorconfig_d', mctmp); %#ok<AGROW>
     end % avtmp
     end % mctmp
   end
-end
+end % EE_FG_allowed(kkk,:)
 end
 %% Einträge auf der Liste verdoppeln
 % Wenn nur ein Roboter optimiert wird, können durch parallele Berechnung 

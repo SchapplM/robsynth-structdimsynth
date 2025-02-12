@@ -699,6 +699,9 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.structures.use_parallel_rankdef = 6*settings.check_rankdef_existing;
     Set.structures.parrob_basejointfilter = settings.base_couplings;
     Set.structures.parrob_platformjointfilter = settings.plf_couplings;
+    Set.structures.use_parallel_fullyparallel = true;
+    Set.structures.use_parallel_notfullyparallel = true; % sonst wird die Synthese dafür nicht gemacht
+
     Set.general.save_animation_file_extensions = {'gif'};
     Set.general.parcomp_struct = settings.parcomp_structsynth;
     Set.general.use_mex = settings.use_mex;

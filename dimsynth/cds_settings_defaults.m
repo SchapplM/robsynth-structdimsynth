@@ -106,6 +106,8 @@ structures = struct( ...
   'use_serialhybrid', false, ... % Wähle seriell-hybride Roboter
   'use_parallel', true, ... % Wähle parallele Roboter
   'use_parallel_rankdef', false, ... Nehme auch parallele Roboter, die mit Rangverlust in der Datenbank stehen
+  'use_parallel_fullyparallel', true, ... % Benutze Voll-parallele Roboter (ein Antrieb pro Beinkette, nicht kinematisch/antriebsredundant)
+  'use_parallel_notfullyparallel', false, ... % Benutze Nicht-Voll-parallele Roboter (auch mit mehreren Antrieben pro Beinkette und dafür weniger Beinketten; nicht kinematisch/antriebsredundant)
   'onlylegchain_from_synthesis', true, ... % Nehme keine seriellen Ketten als Beinkette, die nur manuell in die SerRobLib eingetragen wurden
   'use_kinematic_variants', true, ... % Nehme auch serielle Ketten, die eine Variante eines allgemeinen Modells sind
   'only_serialrobot_from_synthesis', true, ... % Nehme nur allgemeine Robotermodelle aus Ramirez-Struktursynthese (keine Varianten)
