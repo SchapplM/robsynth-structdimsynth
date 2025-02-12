@@ -533,7 +533,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         else
           error('Dieser Fall darf nicht eintreten. Nicht-logische Eingabe');
         end
-        Whitelist_PKM = [Whitelist_PKM;{Name}]; %#ok<AGROW>
+        Whitelist_PKM = [Whitelist_PKM,{Name}]; %#ok<AGROW>
         if ~settings.dryrun % Liste nur bei Produktiv-Lauf notwendig
           [~, ~, ~, ~, ~, ~, ~, ~, PName_Leg_tmp] = parroblib_load_robot(Name,0);
           Whitelist_Leg = [Whitelist_Leg, PName_Leg_tmp]; %#ok<AGROW>

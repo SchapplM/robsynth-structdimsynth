@@ -296,6 +296,7 @@ if length(Set.structures.whitelist) ~= length(unique(Set.structures.whitelist))
     length(Set.structures.whitelist)-length(unique(Set.structures.whitelist)));
   Set.structures.whitelist = unique(Set.structures.whitelist);
 end
+if size(Set.structures.whitelist,2)==1, Set.structures.whitelist = Set.structures.whitelist(:)'; end % soll waagerechtes Array sein
 if ~isa(Set.structures.joint_filter, 'cell') % Altes Format kompatibel machen
   Set.structures.joint_filter = {Set.structures.joint_filter};
 end
