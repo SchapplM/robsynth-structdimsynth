@@ -49,6 +49,7 @@ settings_default = struct( ...
   'parcomp_structsynth', 1, ... % parfor-Struktursynthese (schneller, aber mehr Speicher notwendig)
   'parcomp_mexcompile', 1, ... % parfor-Mex-Kompilierung (schneller, aber Dateikonflikt möglich)
   'use_mex', 1, ... % Die nutzung kompilierter Funktionen kann deaktiviert werden. Dann sehr langsam. Aber Start geht schneller, da keine Kompiliertung zu Beginn.
+  'use_tmp_parroblib', false, ...
   'max_actuation_idx', 4, ... % Aktuierung bis zum vierten Gelenk-FG zulassen
   'base_couplings', 1:10, ... % siehe ParRob/align_base_coupling
   'plf_couplings', 1:10 ... % siehe ParRob/align_platform_coupling
@@ -64,6 +65,12 @@ for ftmp = fields(settings)'
   if ~isfield(settings_default, ftmp{1})
     warning('Feld %s in der Eingabestruktur ist nicht vorgesehen', ftmp{1})
   end
+end
+% Prüfe nicht belegte Felder
+if ~isfield(settings, 'use_tmp_parroblib') && ...
+    isfield(settings,'isoncluster') && settings.isoncluster
+  % Standard-Verhalten: Benutze temporären Lib-Ordner auf dem Cluster
+  settings.use_tmp_parroblib = true;
 end
 % Trage alle Felder der Eingabe ein (es dürfen auch Felder fehlen)
 settings_new = settings_default;
@@ -719,11 +726,11 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       dssetfile = fullfile(resmaindir, [Set.optimization.optname, '_settings.mat']);
       if ~exist(dssetfile, 'file')
         % Logik-Fehler. Speichere Status zum Debuggen.
-        fprintf('Beginne Komprimierung der PKM-Datenbank für Debug-Abbild\n');
         tmpdir = fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp');
         mkdirs(tmpdir);
         save(fullfile(tmpdir, 'parroblib_add_robots_symact_debug_norobots.mat'));
-        if settings.isoncluster %  Auf dem Cluster wird im Tmp-Ordner einer Node gerechnet.
+        if settings.use_tmp_parroblib && settings.isoncluster % Auf dem Cluster wird im Tmp-Ordner einer Node gerechnet.
+          fprintf('Beginne Komprimierung der PKM-Datenbank für Debug-Abbild\n');
           % Sichere PKM-Datenbank zum Debuggen und aktuellen Status, sonst ist er weg.
           zip(fullfile(tmpdir, 'parroblib.zip'), parroblibpath);
         end
@@ -1067,7 +1074,15 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       if ~exist(chf, 'file')
         error('Datei %s muss aus Vorlage erzeugt werden', chf);
       end
-      copyfile(chf, targetfile);
+      % Ersetze die Variable use_tmp_parroblib
+      f = fileread(chf);
+      if settings.use_tmp_parroblib
+        f = strrep(f, 'usr_use_tmp_parroblib = false;', ...
+                      'usr_use_tmp_parroblib = true;');
+      end
+      fid = fopen(targetfile,'w');
+      fprintf(fid,'%s',f);
+      fclose(fid);
       % Passe Filter für das Kopieren der Datenbank an. Sonst dauert es
       % ewig, wenn die mex-Dateien für alle PKM kopiert werden.
       fid = fopen(fullfile(jobdir, 'parroblib_tar_include.txt'), 'w');
