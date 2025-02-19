@@ -3199,6 +3199,10 @@ if ~isempty(filelist_tmpres) % Fall 1: "normale" Daten im tmp-Ordner
           d.optimValues.bestfval = d.REP.pos_fit;
         end
       end
+      if strcmp(Set.optimization.algorithm, 'gamultiobj') && ~isfield(d.state, 'Population')
+        warning('Datei %s hat nicht die notwendigen Daten.', file_load.name);
+        continue
+      end
       cds_log(1, sprintf(['[dimsynth] Laden des letzten abgebrochenen Durch', ...
         'laufs aus gespeicherten tmp-Daten erfolgreich aus %s.'], ...
         fullfile(file_load.folder, file_load.name)));
