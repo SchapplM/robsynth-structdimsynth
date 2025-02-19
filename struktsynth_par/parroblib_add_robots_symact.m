@@ -91,23 +91,22 @@ if settings.comp_cluster
   % schon Ergebnisse vorliegen. Die Datenbank muss also eventuell vor der
   % Auswertung wieder zurückgesetzt werden.
   if settings.clustercomp_if_res_olderthan > 0
-    if settings.dryrun && settings.clustercomp_if_res_olderthan == 0
-      error(['Option "dryrun" nicht zusammen mit "comp_cluster" und ', ...
-        '"clustercomp_if_res_olderthan" möglich.']);
-    end
-    if settings.offline == false || settings.dryrun == true
-      warning(['Einstellungen offline (%d->%d) und dryrun (%d->%d) werden ', ...
-        'neu gesetzt'], settings.offline, 1, settings.dryrun, 0);
+    if settings.offline == false
+      warning(['Einstellungen offline (%d->%d) ', ...
+        'neu gesetzt'], settings.offline, 1);
     end
     settings.offline = true; % Es werden offline vorhandene Ergebnisse geprüft.
-    settings.dryrun = false; % Dazu muss die Datenbank gefüllt werden
-  else % Keine Prüfung der Offline-Ergebnisse
-    if settings.offline == true || settings.dryrun == false
-      warning(['Einstellungen offline (%d->%d) und dryrun (%d->%d) werden ', ...
-        'neu gesetzt'], settings.offline, 0, settings.dryrun, 1);
+    if settings.dryrun == true
+      % Diese Einstellung darf nicht überschrieben werden. Sicherheitskritisch
+      error(['Für settings.clustercomp_if_res_olderthan > 0 ' ...
+        'muss dryrun=false sein. Bitte manuell ändern.'])
     end
-    settings.offline = false; % Kein Laden vorheriger Ergebnisse
-    settings.dryrun = true; % Dann kein Füllen der Datenbank notwendig
+  else % Keine Prüfung der Offline-Ergebnisse
+    if settings.offline == true
+      warning(['Einstellung offline (%d->%d) ', ...
+        'neu gesetzt'], settings.offline, 0);
+      settings.offline = false; % Kein Laden vorheriger Ergebnisse
+    end
   end
 end
 % Indizes der geprüften Freiheitsgrade bestimmen
@@ -139,6 +138,7 @@ end
 assert(isa(settings.whitelist_SerialKin, 'cell'), 'Eingabe whitelist_SerialKin muss cell-Array sein');
 % Abhängigkeiten der Cluster-Jobs in Struktur sammeln
 startsettings = struct('afterok', settings.clusterjobdepend, 'afternotok', [], 'afterany', []);
+jobid_finish_previous = [];
 % zwei Tage lang in 5min-Abständen versuchen (falls Cluster voll und
 % die Jobs nach und nach erst gestartet werden dürfen)
 startsettings.waittime_max = 3600*24*2; %  2 Tage
@@ -183,7 +183,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
   end
   if all(EE_FG(1:5)==[1 1 1 0 0]) % 3T0R oder 3T1R: keine paarweise Anordnung
     I1del(Cpl1_grid>4&Cpl1_grid<9) = true; % Entferne G5 bis G8
-    I2del(Cpl2_grid>3&Cpl2_grid<7) = true; % Entferne P5 und P6
+    I2del(Cpl2_grid>3&Cpl2_grid<7) = true; % Entferne P4 bis P6
   end
   if ~all(EE_FG == [1 1 1 0 0 0])
     % Nur für 3T0R ist die Methode 7 bisher implementiert
@@ -193,10 +193,20 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     I1del(Cpl1_grid>4&Cpl1_grid<9) = true; % nur Methode 1 bis 4 oder 9 ist sinnvoll
     I2del(Cpl2_grid>3&Cpl2_grid<8) = true; % nur Methode 1 bis 3 oder 8 ist sinnvoll
   end
+  if all(EE_FG==[1 1 1 1 1 1]) && ~settings.fullyparallel
+    % Paarweise Anordnung ist nur für voll-parallel und 6 Beine implementiert
+    I1del(Cpl1_grid>4&Cpl1_grid<9) = true; % Entferne G5 bis G8
+    I2del(Cpl2_grid>3&Cpl2_grid<7) = true; % Entferne P4 bis P6
+  end
   Cpl1_grid_filt = Cpl1_grid(~I1del&~I2del);
   Cpl2_grid_filt = Cpl2_grid(~I1del&~I2del);
   Coupling_all = [Cpl1_grid_filt(:),Cpl2_grid_filt(:)];
   Coupling_all = unique(Coupling_all,'row');
+  if isempty(Coupling_all)
+    fprintf(['Keine Koppelgelenk-Kombinationen nach Filterung zu untersuchen ' ...
+      '(Eingabe: base_couplings [%s], plf_couplings [%s])\n'], disp_array( ...
+      settings.base_couplings, '%d'), disp_array(settings.plf_couplings, '%d'));
+  end
   for kk = 1:size(Coupling_all,1) % Schleife über Koppelpunkt-Möglichkeiten
     Coupling = Coupling_all(kk,:);
     if Coupling(1) > 10 || Coupling(2) > 10
@@ -387,8 +397,11 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         end
       end
 
-      if sum(SName=='P')>1 && ~settings.allow_passive_prismatic
-        % Hat mehr als ein Schubgelenk. Kommt nicht für PKM in Frage.
+      if ~settings.allow_passive_prismatic && ...
+          (settings.fullyparallel && sum(SName=='P')>1 || ...
+          ~settings.fullyparallel && sum(SName=='P')>2)
+        % Hat mehr als ein Schubgelenk bei voll-parallel oder mehr als zwei
+        % bei nicht voll-parallel. Kommt nicht für PKM in Frage.
         % (es muss dann zwangsläufig ein Schubgelenk passiv sein)
         parroblib_update_csv(SName, N_Legs, Coupling, logical(EE_FG), 1, 0);
         continue
@@ -465,7 +478,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         % Prüfe schon hier auf passive Schubgelenke (weniger Rechenaufwand)
         IdxP = (SName(3:3+N_LegDoF-1)=='P'); % Nummer des Schubgelenks finden
         if ~settings.allow_passive_prismatic && any(IdxP) && ...
-            ~isempty(intersect(find(IdxP), act_jj))
+            length(intersect(find(IdxP), act_jj)) ~= sum(IdxP)
           continue % Es gibt ein Schubgelenk und es ist nicht das aktuierte Gelenk
         end
         % Prüfe, ob ein Teil eines technischen Gelenks (Kardan, Kugel
@@ -708,7 +721,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.structures.parrob_platformjointfilter = settings.plf_couplings;
     Set.structures.use_parallel_fullyparallel = true;
     Set.structures.use_parallel_notfullyparallel = true; % sonst wird die Synthese dafür nicht gemacht
-
+    Set.structures.maxnumprismatic = 1+double(~settings.fullyparallel); % nicht-voll-parallele haben max. 2 Schubgelenke
     Set.general.save_animation_file_extensions = {'gif'};
     Set.general.parcomp_struct = settings.parcomp_structsynth;
     Set.general.use_mex = settings.use_mex;
@@ -1005,6 +1018,9 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       % doppelt kompiliert werden (da die Funktionen unabhängig von der
       % GP-Nummer sind.
       if settings.compile_job_on_cluster
+        % Falls PKM nur als Platzhalter in der Variablen stehen, ist dafür
+        % kein vorheriges Kompilieren möglich.
+        Whitelist_PKM = Whitelist_PKM(~strcmp(Whitelist_PKM,'<Neuer Name>'));
         pkm_list_noGP = Whitelist_PKM;
         for kkk = 1:length(pkm_list_noGP)
           [~, ~, ~, ~, ~, ~, ~, ~, pkm_list_noGP{kkk}, ~] = parroblib_load_robot(Whitelist_PKM{kkk}, 0);
@@ -1107,6 +1123,13 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       fprintf(fid, 'delete(gcp(''nocreate''));\n');
       fprintf(fid, 'parpool_writelock(''free'', 0, true);\n');
       fclose(fid);
+      if ~settings.use_tmp_parroblib % keine temporäre Roboterbibliothek
+        % Wenn in einer Schleife mehrere GP-Kombinationen geprüft werden,
+        % sollte das nicht parallel gemacht werden (Schreibkonflikte).
+        fprintf('Keine tmp-parroblib. Starte Job erst, wenn vorheriger fertig ist.\n');
+        startsettings.afterany = [startsettings.afterany, jobid_finish_previous];
+      end
+
       % Matlab-Skript auf Cluster starten.
       % Schätze die Rechenzeit: 30min pro PKM aufgeteilt auf 12 parallele
       % Kerne und 12h Reserve für allgemeine Aufgaben, z.B. Warten. Eher zu 
@@ -1128,7 +1151,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       Set.general.only_finish_aborted = true;
       Set.general.cluster_dependjobs.afternotok = jobid;
       pause(2); % Für Sekunden-Zeitstempel im Ordernamen auf Cluster
-      cds_start(Set, Traj);
+      jobid_finish_previous = cds_start(Set, Traj);
       continue % Nachfolgendes muss nicht gemacht werden
     end % Cluster-Berechnung
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
