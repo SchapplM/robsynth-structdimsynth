@@ -14,8 +14,8 @@
 % [SchapplerTapOrt2019] Schappler, M. and Tappe, S., Ortmaier, T.:
 % Exploiting Dynamics Parameter Linearity for Design Optimization in
 % Combined Structural and Dimensional Robot Synthesis (2019)
-% [SierraCoe2005] Improving PSO-based multi-objective optimization 
-% using crowding, mutation and ϵ-dominance (2005)
+% [Martinez2019] Matlab implementation of the multi-objective
+% particle-swarm optimization from [Mezura-MontesCoe2011] 
 
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2019-08
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
@@ -2368,11 +2368,10 @@ if Set.optimization.NumIndividuals == 1 && Set.optimization.MaxIter == 0
   options = [];
 elseif length(Set.optimization.objective) > 1 % Mehrkriteriell: GA-MO oder MOPSO
   if strcmp(Set.optimization.algorithm, 'mopso')
-    % Durchführung mit MOPSO; Einstellungen siehe [SierraCoe2005]
-    % Und Beispiele aus Matlab File Exchange
+    % Durchführung mit MOPSO; Einstellungen siehe [Martinez2019] (example.m)
     MOPSO_set1 = struct('Np', NumIndividuals, 'Nr', NumIndividuals, ...
-      'maxgen', Set.optimization.MaxIter, 'W', 0.4, 'C1', 2, 'C2', 2, 'ngrid', 20, ...
-      'maxvel', 5, 'u_mut', 1/nvars); % [SierraCoe2005] S. 4
+      'maxgen', Set.optimization.MaxIter, 'W', 0.4, 'C1', 2, 'C2', 2, ...
+      'ngrid', 20, 'maxvel', 5, 'u_mut', 1/nvars);
     options = struct('fun', fitnessfcn_vec, 'nVar', nvars, ...
       'var_min', varlim(:,1), 'var_max', varlim(:,2));
     mopso_outputfuns = {};
