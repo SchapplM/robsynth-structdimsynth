@@ -1,0 +1,56 @@
+fval_low;relation_high;fval_high;latex_label;text
+0;<=;1000;;i.O.
+1000;<=;10000;;NB-Verl. Zielf. (Antriebskraft)
+10000;<=;20000;;NB-Verl. Zielf. EO (Masse)
+20000;<=;30000;;NB-Verl. Zielf. EO (Antriebskraft)
+30000;<=;40000;;NB-Verl. Zielf. EO (Steifigkeit)
+40000;<=;100000;;NB-Verl. Zielf. EO (TODO)
+100000;<=;400000;itm:constr_desopt;EO: Festigkeit Segmente
+400000;<=;800000;itm:constr_desopt;EO: Selbstkollision
+800000;<=;1000000;itm:constr_desopt;EO: Fehler (unplausible Werte)
+1000000;<=;2000000;;Undefiniert
+2000000;<=;6000000;;Kinematik-NB (Pos.-Fehler)
+6000000;<=;10000000;itm:constr_jac_traj;Kinematik-NB (Kond.)
+10000000;<=;11000000;;Kinematik-NB (PosErr.,traj-constr)
+11000000;<=;12000000;itm:constr_jac_traj;Kinematik-NB (Kond.,traj-constr)
+12000000;<=;20000000;itm:constr_collinstspc_traj;AR-Hindernis Traj.
+20000000;<=;30000000;itm:constr_collinstspc_traj;Bauraum-verl. Traj.
+30000000;<=;40000000;itm:constr_collinstspc_traj;Selbstkoll. Traj.
+40000000;<=;50000000;itm:constr_jump;Konfig. springt.
+50000000;<=;60000000;itm:constr_velo;Beschl.-Geschw. Grenze Traj.
+60000000;<=;70000000;itm:constr_velo;Gel.-Geschw. Grenze Traj.
+70000000;<=;72000000;itm:constr_prismaticcylinder_traj;Schubzylinder Länge (symm) Traj.
+72000000;<=;74000000;itm:constr_prismaticcylinder_traj;Schubzylinder Länge Traj.
+74000000;<=;75000000;;Gel.-Pos.-Grenze Traj. (symm)
+75000000;<=;80000000;itm:constr_jointrange_traj;Gel.-Pos.-Spannw. Traj. (symm)
+80000000;<=;90000000;itm:constr_jointrange_traj;Gel.-Pos.-Spannw. Traj.
+90000000;<;100000000;itm:constr_parasitic;Parasitäre Bew.
+100000000;==;100000000;;Inaktives Gelenk
+100000000;<=;200000000;itm:constr_inconsistent_traj;Traj.-IK Fehler (Beschl. 3T2R)
+200000000;<=;300000000;itm:constr_inconsistent_traj;Traj.-IK Fehler (Geschw. 3T2R)
+300000000;<=;400000000;itm:constr_inconsistent_traj;Traj.-IK Fehler (Pos. 3T2R)
+400000000;<=;500000000;itm:constr_sing_traj;Traj.-IK Fehler (Sing. Beinkette)
+500000000;<=;600000000;itm:constr_sing_traj;Traj.-IK Fehler (Sing. PKM)
+600000000;<=;1000000000;itm:constr_iktraj;Traj.-IK Fehler
+1000000000;<=;2000000000;itm:constr_workspacecoll;AR-Hindernis Eckpkt.
+2000000000;<=;3000000000;itm:constr_installspace;Bauraum-verl. Eckpkt.
+3000000000;<=;3900000000;itm:constr_selfcoll;Selbstkoll. Eckpkt.
+3900000000;<=;4000000000;;Einbaulage nicht symmetrisch Eckpkt.
+4000000000;<=;4250000000;itm:constr_prismaticcylinder;Schubzylinder Länge Eckpkt. (symm)
+4250000000;<=;4500000000;itm:constr_prismaticcylinder;Schubzylinder Länge Eckpkt.
+4500000000;<=;4900000000;;Beinkettenlänge Eckpkt.
+4900000000;<=;5000000000;itm:constr_prismaticbase;Gestelldurchmesser Eckpkt.
+5000000000;<=;5400000000;;Einbaulage nicht symmetrisch Eckpkt.
+5400000000;<=;5500000000;;Plattform-Rotation-Grenze Eckpkt.
+5500000000;<=;6000000000;itm:constr_jointlim;Gel.-Pos.-Grenze Eckpkt.
+6000000000;<=;7000000000;itm:constr_jointrange;Gel.-Pos.-Spannweite Eckpkt.
+7000000000;<=;7500000000;;Positionsfehler-Grenze Eckpkt.
+7500000000;<=;8000000000;itm:constr_ik_jac;Jacobi-Schwellwert Eckpkt.
+8000000000;<=;9000000000;itm:constr_ik_jac;Jacobi-Singularität Eckpkt.
+9000000000;<=;10000000000;itm:constr_ik_jac;Seriell-Singularität Eckpkt.
+10000000000;<;99000000000;itm:constr_ik_succ;Eckpkt.-IK Fehler
+99000000000;==;99000000000;itm:constr_ik_succ;Eckpkt.-IK Fehler (IK-Singularität)
+99000000000;<=;100000000000;;Eckpkt.-IK Undefiniert
+100000000000;<=;1000000000000;itm:constr_geom2;Geom. Plausib.-Fehler 2.
+1000000000000;<=;10000000000000;itm:constr_geom1;Geom. Plausib.-Fehler 1.
+10000000000000;<=;100000000000000;itm:constr_param_inclination;Parameter unplausibel

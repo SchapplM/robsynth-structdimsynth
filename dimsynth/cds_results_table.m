@@ -103,6 +103,8 @@ for i = 1:length(Structures)
   % Die Zuordnung erfolgt mit "<=", da die Strafterme aus dem Bereich
   % (0,1] kommen ("1" ist also möglich) und in den Zielbereich skaliert
   % werden.
+  % TODO: Diese Grenzen sind in der Datei misc/constraints_fval_limits.csv
+  % abgelegt und die Datei sollte hier geladen werden.
   f = mean(RobotOptRes.fval); % Falls mehrkriteriell abfangen mit `mean`
   if     f <= 1e3,     fval_text = 'i.O.'; % ab hier aus cds_fitness.m
   elseif f <= 1e4, fval_text = 'NB-Verl. Zielf. (Antriebskraft)';
