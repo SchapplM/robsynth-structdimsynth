@@ -230,7 +230,9 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       LegDoF_allowed = 5:-1:N_EEDoF;
       if all(EE_FG == [1 1 1 0 0 0]) && Coupling(2) == 7
         % Methode P7 funktioniert nur mit Beinketten mit vier Gelenken
-        LegDoF_allowed = 4;
+        % Nein: Es geht auch mit fünf Gelenken, wenn alle bis auf eins
+        % parallel sind
+        LegDoF_allowed = [4 5];
       end
     elseif all(EE_FG == [1 1 0 0 0 1]) || all(EE_FG == [1 1 1 1 1 1]) || all(EE_FG == [1 1 1 1 1 0])
       LegDoF_allowed = N_EEDoF; % Fall 2T1R und 3T3R
@@ -463,7 +465,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       % Plausibilitäts-Prüfungen basierend auf Beinketten und Kopplung
       % Beinketten-FG auf Plausibilität prüfen
       if ~settings.ignore_check_leg_dof % Kann testweise deaktiviert werden
-        leg_success = parrob_structsynth_check_leg_dof(SName, Coupling, EE_FG, EE_dof_legchain);
+        leg_success = parrob_structsynth_check_leg_dof(SName, Coupling, EE_FG, EE_dof_legchain, l);
         if ~leg_success
           fprintf('Beinkette %s mit Koppelpunkt-Nr. %d-%d wird aufgrund geometrischer Überlegungen verworfen.\n', ...
             SName, Coupling(1), Coupling(2));
@@ -722,6 +724,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.structures.use_parallel_fullyparallel = true;
     Set.structures.use_parallel_notfullyparallel = true; % sonst wird die Synthese dafür nicht gemacht
     Set.structures.maxnumprismatic = 1+double(~settings.fullyparallel); % nicht-voll-parallele haben max. 2 Schubgelenke
+    Set.structures.no_inactive_joints = false; % inaktive Gelenke erlauben. Ist dann eine Eigenschaft der Struktur. Kann vorteilhaft sein, siehe Kryo-PKM-Fallstudie.
     Set.general.save_animation_file_extensions = {'gif'};
     Set.general.parcomp_struct = settings.parcomp_structsynth;
     Set.general.use_mex = settings.use_mex;
@@ -1214,6 +1217,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     for jjj = 1:length(Structures_Names) % Alle eindeutigen Strukturen durchgehen
       %% Ergebnisse für diese PKM laden
       Name = Structures_Names{jjj};
+      fprintf('Verarbeite Struktur %d: %s\n', jjj, Name);
       % Erneut die Filter-Liste prüfen. Cluster-Ergebnisse können mehr oder
       % teilweise andere PKM enthalten, als hier geprüft werden soll.
       if ~any(strcmp(Whitelist_PKM, Name))
