@@ -1630,7 +1630,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           logical(EE_FG), rescode, rank_success);
         if remove && ~settings.isoncluster % Auf Cluster würde das Löschen parallele Instanzen stören.
           fprintf('Entferne PKM %s wieder aus der Datenbank (Name wird wieder frei)\n', Name);
-          remsuccess = parroblib_remove_robot(Name);
+          remsuccess = parroblib_remove_robot(Name, false, logical(EE_FG));
           if ~remsuccess
             error('Löschen der PKM %s nicht erfolgreich', Name);
           end
