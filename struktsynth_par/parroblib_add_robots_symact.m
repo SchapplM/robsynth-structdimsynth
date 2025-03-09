@@ -836,9 +836,17 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
             end
             % Alle Ergebnisse müssen auch in der Einstellungsdatei sein.
             % Sonst ist es ein inkonsistenter Datensatz.
-            if ~isempty(intersect(setxor(Structures_Names_i, ...
-                reslist_pkm_names), Structures_Names_i))
-              warning('Ergebnisse in %s passen nicht zu Einstellungsdatei', reslist(i).name);
+            [~,missing_in_reslist, missing_in_settingsliste] = ...
+              setxor(reslist_pkm_names, Structures_Names_i);
+            if ~isempty(missing_in_settingsliste)
+              warning(['Ergebnisse in %s sind nicht vollständig: ' ...
+                '%d/%d aus Einstellungsdatei fehlen: %s'], reslist(i).name, length(missing_in_settingsliste), ...
+                length(Structures_Names_i), disp_array(Structures_Names_i(missing_in_settingsliste)', '%s'));
+            end
+            if ~isempty(missing_in_reslist)
+              warning(['Ergebnisse in %s passen nicht zu Einstellungsdatei: ' ...
+                '%d/%d stehen dort nicht: %s'], reslist(i).name, ...
+                length(missing_in_reslist), length(reslist_pkm_names));
               continue
             end
             % Folgender Fall darf nicht vorkommen, außer die Einstellungen
@@ -932,7 +940,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
             % mit den tatsächlich durchgeführten (mit Endergebnis.mat). Wenn
             % identisch, dann vollständiger Durchlauf
             complstr = sprintf('Dabei %d/%d Maßsynthesen durchgeführt. ', ...
-              length(Structures), length(tmpset.Structures));
+              sum(~cellfun(@isempty,Structures)), length(tmpset.Structures));
             if length(tmpset.Structures) == length(Structures)
               offline_result_complete = true;
               complstr = [complstr,'Der Durchlauf ist vollständig.']; %#ok<AGROW>
