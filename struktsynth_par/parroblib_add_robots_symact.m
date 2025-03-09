@@ -316,6 +316,10 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     I_wl = false(length(settings.whitelist_SerialKin), 1);
     for i = LegDoF_allowed
       [tokens,~] = regexp(settings.whitelist_SerialKin, 'S(\d)[RP]', 'tokens', 'match');
+      if ~isempty(settings.whitelist_SerialKin)
+        assert(~isempty(tokens), ['Eintrag in Positivliste passt nicht ' ...
+          'zum Format für serielle Ketten.']);
+      end
       for k = 1:length(tokens)
         if tokens{k}{1}{1} == sprintf('%d', i)
           I_wl(k) = true;
@@ -1217,12 +1221,12 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     for jjj = 1:length(Structures_Names) % Alle eindeutigen Strukturen durchgehen
       %% Ergebnisse für diese PKM laden
       Name = Structures_Names{jjj};
-      fprintf('Verarbeite Struktur %d: %s\n', jjj, Name);
       % Erneut die Filter-Liste prüfen. Cluster-Ergebnisse können mehr oder
       % teilweise andere PKM enthalten, als hier geprüft werden soll.
       if ~any(strcmp(Whitelist_PKM, Name))
         continue
       end
+      fprintf('Verarbeite Struktur %d: %s\n', jjj, Name);
       % Prüfe ob Struktur in der Ergebnisliste enthalten ist. Jede Struktur
       % kann mehrfach in der Ergebnisliste enthalten sein, wenn
       % verschiedene Fälle für freie Winkelparameter untersucht werden.
@@ -1306,6 +1310,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         warning('Die Anzahl der freien Winkelparameter ändert sich. Datenfehler.');
         continue
       end
+      [~,LEG_Names] = parroblib_load_robot(Name, 0);
       ii = find(strcmp(l.Names_Ndof, LEG_Names{1}));
       assert(isscalar(ii), 'Beinkette nicht einmal in Datenbank gefunden');
       % Setze die freien Parameter im Bit-Array entsprechend der gefundenen Werte
