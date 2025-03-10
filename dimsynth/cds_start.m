@@ -786,7 +786,7 @@ if Set.general.computing_cluster
     jobID_out = jobID_merge; % Wenn dieser Job fertig ist, ist die Synthese fertig
   else
     % Nur ein paralleler Job. Nehme Job-ID des Finish-Jobs für Rückgabe 
-    jobID_out = jobIDs(end);
+    jobID_out = jobIDs(find(~isnan(jobIDs),1,'last'));
   end
 
   return;
