@@ -749,6 +749,11 @@ for kkk = 1:size(EE_FG_allowed,1)
       end
     else % Normaler Fall der Maßsynthese. Lade Information aus Datenbank
       % Siehe parroblib_load_robot
+      if isa(StructuralDHParam, 'cell') && isscalar(StructuralDHParam) && ...
+          ~isempty(StructuralDHParam{1}) && contains(StructuralDHParam{1}, ',')
+        % Wandle von String nach Cell-Array um
+        StructuralDHParam = strsplit(StructuralDHParam{1},',');
+      end
       if isempty(StructuralDHParam) || isempty(StructuralDHParam{1})
         % Leerer Eintrag. Setze alle Werte auf beliebig
         angles_values = {repmat('a', 1, sum(I_param))};
