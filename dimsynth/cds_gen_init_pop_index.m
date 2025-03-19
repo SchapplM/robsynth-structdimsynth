@@ -54,7 +54,7 @@ end
 RobNames = {};
 for k = 1:length(Structures)
   if Structures{k}.Type == 2 % PKM: Wähle auch Ergebnisse mit anderen Koppelgelenk-Anordnungen
-    [~, ~, ~, ~, ~, ~, ~, ~, PName_Legs] = parroblib_load_robot(Structures{k}.Name, 0);
+    [NLEG, LEG_Names, ~, ~, ~, ~, ~, ~, PName_Legs] = parroblib_load_robot(Structures{k}.Name, 0);
     RobNames = [RobNames, PName_Legs]; %#ok<AGROW>
     if ~Structures{k}.fullyparallel % Nutze auch Ergebnisse der voll-parallelen
       PName_Legs_vp = PName_Legs;
@@ -63,6 +63,23 @@ for k = 1:length(Structures)
     end
   else
     RobNames = [RobNames, Structures{k}.Name]; %#ok<AGROW>
+  end
+  % Bei PKM-Struktursynthese auch Ergebnisse anderer Strukturen laden, die
+  % so ähnlich sind (gleiche Gelenkfolge, aber andere DH-Parameter und
+  % Koppelgelenk-Anordnungen)
+  if Structures{k}.Type == 2 && any(strcmp(Set.optimization.objective, 'valid_act'))
+    LegChainName = LEG_Names{1};
+    NLegDoF = str2double(LegChainName(2));
+    ChainJoints = LegChainName(3:3+NLegDoF-1);
+    [PNames_Kin, ~, ~] = parroblib_filter_robots(Set.task.DoF, 6);
+    PNames_Legs = PNames_Kin;
+    for j = 1:length(PNames_Kin)
+      [~, ~, ~, ~, ~, ~, ~, ~, PNames_Legs_j] = ...
+        parroblib_load_robot(PNames_Kin{j}, 0);
+      PNames_Legs{j} = [PNames_Legs_j, 'G']; % Als Suchbegriff damit 1 und 10 nicht verwechselt werden
+    end
+    I_similar = contains(PNames_Legs, sprintf('P%d%s', NLEG, ChainJoints));
+    RobNames = [RobNames, PNames_Legs(I_similar)]; %#ok<AGROW>
   end
 end
 RobNames = unique(RobNames);
@@ -160,7 +177,7 @@ for kk = 1:length(Set.optimization.result_dirs_for_init_pop)
         RobName = RobNames{j};
         resfiles = dir(fullfile(optdirs(i).folder, dirname_i, sprintf('Rob*_%s*_Endergebnis.mat',RobName)));
         III = find(contains({resfiles(:).name}, RobName));
-        if toc(t_ll) > 20 || i == length(optdirs)
+        if toc(t_ll) > 20 || i == length(optdirs) && j == length(RobNames)
           cds_log(2, sprintf(['[gen_init_pop_index] Ergebnisse für Dir-Dateisuche %d/%d', ...
             ' zusammengefasst. Dauer bis hier: %1.1fs'], i, length(optdirs), toc(t2)));
           t_ll = tic();
