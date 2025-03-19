@@ -57,12 +57,25 @@ if Platform_Coupling == 7 && all(EE_dof0==[1 1 1 0 0 0]) % (NLegjoint ~= 4 ||
   end
   if sum(alpha_is_90) == 2 && diff(find(alpha_is_90)) == 1 && ...
       joint_is_revolute(find(alpha_is_90,1,'first'))
-    % In der Kette gibt es zwei aufeinanderfolgende Gelenke, die 90°
+    % In der Kette gibt es zwei aufeinanderfolgende Drehgelenke, die 90°
     % verdreht sind. Damit müssen alle anderen Gelenke parallel sein, bis
     % auf das erste Gelenk (muss Drehgelenk sein), bei dem alpha=90° ist.
     % Bei 5FG-Beinketten entsteht so der Fall eines unbewegten Drehglenks.
     return
   end
+  % Es kann auch die vorherige Bedingung gelten, wenn dazwischen ein
+  % Schubgelenk ist.
+  I_alphaPis90 = find(alpha_is_90 & ~joint_is_revolute);
+  alpha_is_90_corr = alpha_is_90;
+  % Verschiebe alpha=90 zum Drehgelenk
+  alpha_is_90_corr(I_alphaPis90+1) = true;
+  alpha_is_90_corr(I_alphaPis90) = false;
+  if sum(alpha_is_90_corr) == 2 && diff(find(alpha_is_90_corr)) == 1 && ...
+      joint_is_revolute(find(alpha_is_90_corr,1,'first'))
+    % Siehe oben
+    return
+  end
+
   if sum(alpha_is_90) == 1 && find(alpha_is_90,1,'first')==2
     % Das erste Gelenk ist anders gedreht als alle anderen.
     return
