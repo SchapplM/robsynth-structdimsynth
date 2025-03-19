@@ -680,7 +680,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         EE_FG_Name, Coupling(1), Coupling(2), datestr(now,'yyyymmdd_HHMMSS'), ...
         genstr, varstr, rs(randi([1 length(rs)], 5, 1))); % zufällige String anhängen, falls Sekundengleicher Start einer Optimierung
     end
-    Set.optimization.NumIndividuals = 200;
+    Set.optimization.NumIndividuals = 500;
     Set.optimization.MaxIter = 50;
     Set.optimization.ee_rotation = false;
     Set.optimization.ee_translation = false;
