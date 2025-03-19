@@ -40,6 +40,7 @@ settings_default = struct( ...
   'clustercomp_if_res_olderthan', 2, ... % Falls in den letzten zwei Tagen bereits ein vollständiger Durchlauf gemacht wurde, dann nicht nochmal auf dem Cluster rechnen. Deaktivieren durch Null-Setzen
   'clusterjobdepend', [], ...% Start-Abhängigkeit für alle Cluster-Jobs (z.B. Index-Erstellung der Datenbank
   'isoncluster', false, ... % Marker um festzustellen, dass gerade auf Cluster parallel gerechnet wird
+  'matfile_verbosity', false, ... % Debug-Speicherung von Zwischenständen zum Wiederaufnehmen bei Abbruch.
   'optname', '', ... % Name, den die Optimierung auf dem Cluster haben soll (muss einheitlich sein)
   'dryrun', false, ... % Falls true: Nur Anzeige, was gemacht werden würde
   'offline', false, ... % Falls true: Keine Optimierung durchführen, stattdessen letztes passendes Ergebnis laden
@@ -569,8 +570,10 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       % Eintragung. Daher Doppelte wieder entfernen.
       LegChainList_Coupling = unique([LegChainList_Coupling, SName]);
     end % for iFK (serielle Kette)
-    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
-      sprintf('parroblib_add_robots_symact_%s_0.mat', EE_FG_Name)));
+    if settings.matfile_verbosity
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+        sprintf('parroblib_add_robots_symact_%s_0.mat', EE_FG_Name)));
+    end
     % Aktualisiere die mat-Dateien (werden für die Maßsynthese benötigt)
     if ~settings.dryrun, parroblib_gen_bitarrays(logical(EE_FG)); end
     if ~settings.dryrun
@@ -600,8 +603,10 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     % Duplikate entfernen (falls mehr als eine Aktuierung erzeugt wird)
     Whitelist_Kin = unique(Whitelist_Kin);
     Whitelist_Leg = unique(Whitelist_Leg);
-    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
-      sprintf('parroblib_add_robots_symact_%s_1.mat', EE_FG_Name)));
+    if settings.matfile_verbosity
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+        sprintf('parroblib_add_robots_symact_%s_1.mat', EE_FG_Name)));
+    end
     if ~settings.offline && ~settings.comp_cluster
       kompstr = '';
       if settings.use_mex, kompstr=' und kompiliere anschließend'; end
@@ -639,8 +644,10 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     % Mit dem dann eindeutigen Robotermodell sind weitere Berechnungen
     % möglich
     num_checked_dimsynth = num_checked_dimsynth + 1;
-    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
-      sprintf('parroblib_add_robots_symact_%s_2.mat', EE_FG_Name)));
+    if settings.matfile_verbosity
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+        sprintf('parroblib_add_robots_symact_%s_2.mat', EE_FG_Name)));
+    end
     % Damit wird geprüft, ob das System sinnvoll ist
     Set = cds_settings_defaults(struct('DoF', EE_FG));
     Set.task.Ts = 1e-2;
@@ -962,8 +969,10 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     end
     % Ergebnisse der Struktursynthese (bzw. als solcher durchgeführten
     % Maßsynthese zusammenstellen)
-    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
-      sprintf('parroblib_add_robots_symact_%s_3.mat', EE_FG_Name)));
+    if settings.matfile_verbosity
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+        sprintf('parroblib_add_robots_symact_%s_3.mat', EE_FG_Name)));
+    end
     %% LUIS-Cluster vorbereiten
     if settings.comp_cluster && offline_result_complete && ...
         reslist_age(IIRL(I_reslist)) < settings.clustercomp_if_res_olderthan && ...
@@ -1169,8 +1178,10 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       jobid_finish_previous = cds_start(Set, Traj);
       continue % Nachfolgendes muss nicht gemacht werden
     end % Cluster-Berechnung
-    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
-      sprintf('parroblib_add_robots_symact_%s_4.mat', EE_FG_Name)));
+    if settings.matfile_verbosity
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+        sprintf('parroblib_add_robots_symact_%s_4.mat', EE_FG_Name)));
+    end
     %% Nachverarbeitung der Ergebnis-Liste
 
     if settings.offline && (~exist('IIRL', 'var') || isempty(IIRL))
