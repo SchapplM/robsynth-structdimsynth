@@ -909,7 +909,8 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
                 warning('Datei %s scheint beschädigt zu sein', csvfile);
                 continue
               end
-              Structures{ResData_i.LfdNr(i)} = struct('Name', ResData_i.Name{i}, 'Type', 2);
+              Structures{ResData_i.LfdNr(i)} = struct('Type', 2, ...
+                'Name', ResData_i.Name{i}, 'Number', ResData_i.LfdNr(i));
             end
           else
             roblist = dir(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
@@ -932,9 +933,10 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           if ~exist(csvfile, 'file')
             try
               cds_results_table(Set, Traj, Structures);
-            catch
+            catch err
               warning(['Ergebnis-Tabelle konnte nicht erstellt werden. ', ...
-                'Vermutlich Daten mit alter Version erzeugt.']);
+                'Vermutlich Daten mit alter Version erzeugt. ', err.message]);
+              disp(err.stack);
             end
           end
           % Stelle fest, ob das Ergebnis vollständig ist
