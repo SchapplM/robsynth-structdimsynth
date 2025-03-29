@@ -287,9 +287,9 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
   if Structure.Type == 2
     score_i = score_i - 10*double(Structure_i.fullyparallel~=Structure.fullyparallel);
   end
-  % Weiterer Abzug, wenn die Beinkette eine andere ist (bei Übertragung bei
-  % Struktursynthese)
-  if Structure.Type == 2
+  % Weiterer Abzug, wenn die Beinkette eine andere ist 
+  % (nur relevant bei Struktursynthese)
+  if any(strcmp(Set.optimization.objective,'valid_act')) && Structure.Type == 2
     [~, LEG_Names_i] = parroblib_load_robot(Structure_i.Name, 0);
     score_i = score_i - 50*double(~strcmp(LEG_Names_i{1}, LEG_Names{1}));
   end
