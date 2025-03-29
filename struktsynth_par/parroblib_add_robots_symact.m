@@ -123,7 +123,7 @@ if all(~isnan(settings.EE_FG_Nr))
 end
 EE_FG_Nr = [];
 for i = 1:size(EE_FG_ges,1)
-  if any(all(repmat(EE_FG_ges(i,:),size(settings.EE_FG,1),1)==settings.EE_FG))
+  if any(all(repmat(EE_FG_ges(i,:),size(settings.EE_FG,1),1)==settings.EE_FG, 2))
     EE_FG_Nr = [EE_FG_Nr, i]; %#ok<AGROW>
   end
 end
@@ -194,6 +194,12 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     I1del(Cpl1_grid>4&Cpl1_grid<9) = true; % nur Methode 1 bis 4 oder 9 ist sinnvoll
     I2del(Cpl2_grid>3&Cpl2_grid<8) = true; % nur Methode 1 bis 3 oder 8 ist sinnvoll
   end
+  % Bei 3T2R sind nur wenige Anordnungen relevant: G1/9/10 und P8
+  if all(EE_FG==[1 1 1 1 1 0])
+    I1del(Cpl1_grid>1&Cpl1_grid<9) = true; % G2 bis G8 löschen
+    I2del(Cpl2_grid~=8) = true; % alles außer P8 löschen
+  end
+
   if all(EE_FG==[1 1 1 1 1 1]) && ~settings.fullyparallel
     % Paarweise Anordnung ist nur für voll-parallel und 6 Beine implementiert
     I1del(Cpl1_grid>4&Cpl1_grid<9) = true; % Entferne G5 bis G8
@@ -1193,15 +1199,20 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       % jeder Einstellung des Skripts gemacht)
       csvfile = fullfile(resmaindir, [Set.optimization.optname, ...
           '_results_table.csv']); % Muss hier existieren
-      ResData = readtable(csvfile, 'HeaderLines', 2);
-      ResData_headers = readtable(csvfile, 'ReadVariableNames', true);
-      if isempty(ResData)
-        fprintf('Keine Ergebnisse vorhanden. Entferne PKM wieder bei Abschluss\n')
-        ResData = ResData_headers; % So Übernahme der Überschriften für leere Tabelle.
-        ResData = ResData([],:); % Darf keine Zeilen enthalten, sonst unten Fehler
+      if exist(csvfile, 'file')
+        ResData = readtable(csvfile, 'HeaderLines', 2);
+        ResData_headers = readtable(csvfile, 'ReadVariableNames', true);
+        if isempty(ResData)
+          fprintf('Keine Ergebnisse vorhanden. Entferne PKM wieder bei Abschluss\n')
+          ResData = ResData_headers; % So Übernahme der Überschriften für leere Tabelle.
+          ResData = ResData([],:); % Darf keine Zeilen enthalten, sonst unten Fehler
+        else
+          ResData.Properties.VariableNames = ResData_headers.Properties.VariableNames;
+        end
       else
-        ResData.Properties.VariableNames = ResData_headers.Properties.VariableNames;
+        warning('Datei existiert nicht: %s', csvfile);
       end
+
       settingsfile = fullfile(resmaindir, [Set.optimization.optname, ...
           '_settings.mat']);
       num_results = 0;
