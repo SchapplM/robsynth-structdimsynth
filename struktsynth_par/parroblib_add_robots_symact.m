@@ -178,7 +178,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
   [Cpl1_grid,Cpl2_grid] = ndgrid(settings.base_couplings,settings.plf_couplings);
   % Binär-Matrix zum Entfernen von Koppelpunkt-Kombinationen
   I1del = false(size(Cpl1_grid)); I2del = I1del;
-  if iFG==1 % 2T1R: Nur G1P1 ist sinnvoll.
+  if all(EE_FG == [1 1 0 0 0 1]) % 2T1R: Nur G1P1 ist sinnvoll.
     I1del(Cpl1_grid>1) = true;
     I2del(Cpl2_grid>1) = true;
   end
@@ -501,6 +501,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         if max(act_jj) > l.AdditionalInfo(iFK,1) % siehe serroblib_gen_bitarrays.
           continue
         end
+        if max(act_jj) > N_LegDoF, continue; end % Nicht sinnvoll
         % Prüfe auch technische Gelenke am Anfang der Beinkette. Z.B. keine
         % Aktuierung eines gestellfesten Kardan-Gelenks möglich
         Joints_Actuation_Possible = [];
