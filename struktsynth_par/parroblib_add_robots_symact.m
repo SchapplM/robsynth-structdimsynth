@@ -661,10 +661,16 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.task.Tv = 1e-1;
     Set.task.profile = 1; % Komplette Trajektorie mit Geschwindigkeit und Zeitverlauf
     Set.task.maxangle = 5*pi/180; % Reduzierung der Winkel auf 5 Grad (ist für FG-Untersuchung ausreichend)
+    trajnum = 1;
+    if all(EE_FG==[1 1 0 0 0 1])
+      trajnum = 2; % Nummer 1 hat keine Rotationen. Ist evtl. nicht repräsentativ
+      Set.task.maxangle = 15*pi/180; % ist für alle Systeme leicht erreichbar.
+      Set.optimization.constraint_collisions = true; % ist für alle Systeme leicht erreichbar und vereinfacht visuelle Prüfung
+    end
     if all(EE_FG==[1 1 1 1 1 0])
       Set.task.maxangle = 3*pi/180;
     end
-    Traj = cds_gen_traj(EE_FG, 1, Set.task);
+    Traj = cds_gen_traj(EE_FG, trajnum, Set.task);
     if all(EE_FG==[1 1 1 1 1 0])
       % Verändere die Trajektorie so, dass keine parallele Stellung der
       % Plattform zum Gestell auftritt. Bei den meisten 3T2R-PKM ist das
