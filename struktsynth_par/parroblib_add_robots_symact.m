@@ -869,7 +869,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
                 length(missing_in_settingsliste), length(reslist_pkm_names), disp_array(Structures_Names_i(missing_in_settingsliste)', '%s'));
               % Diese überzähligen Ergebnisse werden sowieso ignoriert,
               % weil sie hier nicht verarbeitet werden.
-              continue
+              % continue
             end
             % Folgender Fall darf nicht vorkommen, außer die Einstellungen
             % werden durch Programm-/Benutzerfehler neu überschrieben.
@@ -941,7 +941,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
             Structures = cell(1,length(I_sortres)); istr = 0;
             for i = I_sortres(:)'
               istr = istr + 1;
-              Structures{istr} = struct('Name', tokens{i}{1}{2}, 'Type', 2); %#ok<SAGROW>
+              Structures{istr} = struct('Name', tokens{i}{1}{2}, 'Type', 2, 'Number', istr); %#ok<SAGROW>
             end
           end
           % Erstelle auch die csv-Tabelle aus den Ergebnissen (falls fehlend)
