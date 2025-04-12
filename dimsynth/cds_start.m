@@ -188,8 +188,14 @@ end
 if ~all(size(Set.optimization.base_size_limits)==[1 2])
   error('base_size_limits muss 1x2 sein min/max Radius');
 end
+if Set.optimization.base_size_limits(1) > Set.optimization.base_size_limits(2)
+  error('base_size_limits muss erst untere, dann obere Grenze enthalten (Radius)');
+end
 if ~all(size(Set.optimization.platform_size_limits)==[1 2])
   error('platform_size_limits muss 1x2 sein min/max Radius');
+end
+if Set.optimization.platform_size_limits(1) > Set.optimization.platform_size_limits(2)
+  error('platform_size_limits muss erst untere, dann obere Grenze enthalten (Radius)');
 end
 if all(~isnan(Set.optimization.base_size_limits)) && ...
     diff(Set.optimization.base_size_limits)==0 && Set.optimization.base_size
