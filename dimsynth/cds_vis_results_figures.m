@@ -108,6 +108,7 @@ end
 % Entferne Sprünge der Euler-Winkel von +/- 180° (sind in Eingabe schon so)
 X(:,4:6) = denormalize_angle_traj(X(:,4:6)); 
 if RobData.Type == 2
+  I_EE_Task_old = R.I_EE_Task;
   R.update_EE_FG(R.I_EE, R.I_EE);
 end
 
@@ -1004,5 +1005,5 @@ end
 
 % EE-FG von PKM wieder zurücksetzen auf Aufgaben-FG
 if RobData.Type == 2
-  R.update_EE_FG(R.I_EE, Set.task.DoF);
+  R.update_EE_FG(R.I_EE, I_EE_Task_old);
 end
