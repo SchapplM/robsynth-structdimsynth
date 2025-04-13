@@ -149,7 +149,7 @@ elseif Structure.Type == 2 % Parallel
     p_platform(2) = 0; % Keine Neigung (identisch zu P3)
   end
   % Bei paralleler Rechnung der Struktursynthese auf Cluster Konflikte vermeiden
-  parroblib_writelock('check', 'csv', logical(Set.task.DoF), 5*60, false);
+  parroblib_writelock('check', 'csv', logical(Structure.DoF), 5*60, false);
   % Klasse initialisierung (liest auch die csv-Dateien aus).
   R = parroblib_create_robot_class(Structure.Name, Structure.RobName, p_base(:), p_platform(:));
   NLEG = R.NLEG;
@@ -160,11 +160,8 @@ end
 % Initialisieren der Funktionsdatei-Verknüpfungen. Keine Synchronisation
 % mit parroblib_writelock notwendig, da bereits zu Beginn geprüft.
 R.fill_fcn_handles(Set.general.use_mex, true);
-% Aufgaben-FG des Roboters setzen
-R.update_EE_FG(R.I_EE, Set.task.DoF);
-if all(Set.task.DoF == [1 1 1 1 1 0])
-  Set.task.pointing_task = true;
-end
+
+
 % Zähle die Anzahl der Aufgaben-Zwangsbedingungen (siehe Tabelle 2.1 in Diss)
 % Es liegt z.B. keine Aufgabenredundanz vor, wenn ein 3T3R-Roboter eine
 % 3T0R-Aufgabe hat.
@@ -179,18 +176,36 @@ if any(R.Type == [0 1]) % seriell oder seriell-hybrid
   elseif all(Set.task.DoF==[1 1 1 0 0 0]) && R.NQJ == 6
     num_constr = 3;
   end
+elseif R.Type == 2 % PKM
+  if all(Set.task.DoF==[1 1 1 0 0 0]) && all(Structure.DoF==[1 1 1 0 0 1]) && ...
+      ~Set.task.pointing_task
+    num_constr = 1;
+  elseif all(Set.task.DoF==[1 1 1 0 0 0]) && all(Structure.DoF==[1 1 1 1 1 0])
+    num_constr = 2;
+  elseif all(Set.task.DoF==[1 1 1 0 0 0]) && all(Structure.DoF==[1 1 1 1 1 1])
+    num_constr = 3;
+  elseif all(Set.task.DoF==[1 1 1 0 0 1]) && all(Structure.DoF==[1 1 1 1 1 1])
+    num_constr = 2;
+  end
 end
 Structure.constraints = num_constr;
+% Aufgaben-FG des Roboters setzen
+if all(Set.task.DoF == [1 1 1 1 1 0]) % 3T2R: Immer Zeige-Aufgabe
+  Set.task.pointing_task = true;
+end
 % Aufgaben-FG müssen aufgrund der Implementierung neu gesetzt werden.
 % Die auf Null fixierten Rotationen entsprechen einer festen Vorgabe
-if num_constr > 0
-  R.update_EE_FG(R.I_EE, Set.task.DoF | [0 0 0 1 1 0]);
+taskDoF_orig = Set.task.DoF;
+if num_constr > 0 % Immer Fixierung der Schwenkwinkel
+  Set.task.DoF = Set.task.DoF | [0 0 0 1 1 0];
 end
+R.update_EE_FG(R.I_EE, Set.task.DoF);
+
 % Speichere die Eigenschaft der Aufgabenredundanz
 Structure.task_red = ...
-  R.Type == 0 && (sum(Set.task.DoF)+num_constr) < R.NQJ || ... % Seriell: Redundant wenn mehr Gelenke als Aufgaben-FG
-  R.Type == 1 && (sum(Set.task.DoF)+num_constr) < R.NQJ || ... % Seriell-hybrid: genauso (Annahme: Keine Antriebsredundanz)
-  R.Type == 2 && (sum(Set.task.DoF)+num_constr) < sum(R.I_EE); % Parallel: Redundant wenn mehr Plattform-FG als Aufgaben-FG
+  R.Type == 0 && (sum(taskDoF_orig)+num_constr) < R.NQJ || ... % Seriell: Redundant wenn mehr Gelenke als Aufgaben-FG
+  R.Type == 1 && (sum(taskDoF_orig)+num_constr) < R.NQJ || ... % Seriell-hybrid: genauso (Annahme: Keine Antriebsredundanz)
+  R.Type == 2 && (sum(taskDoF_orig)+num_constr) < sum(R.I_EE); % Parallel: Redundant wenn mehr Plattform-FG als Aufgaben-FG
 
 % Platzhalter für Vorgabe der Traj-IK-Anfangswerte
 if any(R.Type == [0 2])

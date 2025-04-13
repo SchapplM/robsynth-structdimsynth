@@ -283,23 +283,50 @@ for N_JointDoF = N_JointDoF_allowed
   end
 end
 %% Bestimme die erlaubten EE-FG
+EE_FG_allowed = logical([]);
 if Set.structures.min_task_redundancy == 0
-  EE_FG_allowed = logical(Set.task.DoF);
+  if Set.structures.min_task_constraint == 0
+    EE_FG_allowed = logical(Set.task.DoF);
+  end
+  if all(Set.task.DoF == [1 1 1 0 0 0]) && ~Set.task.pointing_task && ... % 3T1R-PKM können für 3T0R-Aufgaben benutzt werden
+      Set.structures.max_task_constraint >= 1 && Set.structures.min_task_constraint <= 1
+    EE_FG_allowed = [EE_FG_allowed; logical([1 1 1 0 0 1])];
+  end
+  if all(Set.task.DoF == [1 1 1 0 0 0]) && ~Set.task.pointing_task && ... % 3T2R-PKM können für 3T0R-Aufgaben benutzt werden
+      Set.structures.max_task_constraint >= 2 && Set.structures.min_task_constraint <= 2
+    EE_FG_allowed = [EE_FG_allowed; logical([1 1 1 1 1 0])];
+  end
+  if all(Set.task.DoF == [1 1 1 0 0 0]) && ~Set.task.pointing_task && ... % 3T3R-PKM können für 3T0R-Aufgaben benutzt werden
+      Set.structures.max_task_constraint >= 3 && Set.structures.min_task_constraint <= 3
+    EE_FG_allowed = [EE_FG_allowed; logical([1 1 1 1 1 1])];
+  end
 elseif Set.structures.min_task_redundancy > 1
   error('Fall nicht implementiert');
-else
-  EE_FG_allowed = logical([]);
 end
 if Set.structures.max_task_redundancy > 0
   if all(Set.task.DoF == [1 1 1 1 1 0])
     % Bei 3T2R-Aufgabe sind 3T3R-PKM aufgabenredundant mit Grad 1
-    EE_FG_allowed = [EE_FG_allowed; logical([1 1 1 1 1 1])];
+    if Set.structures.min_task_constraint == 0
+      EE_FG_allowed = [EE_FG_allowed; logical([1 1 1 1 1 1])];
+    end
   elseif all(Set.task.DoF == [1 1 0 0 0 0]) && Set.task.pointing_task
     % Bei 2T0*R-Aufgabe sind 2T1R-PKM aufgabenredundant mit Grad 1
-    EE_FG_allowed = [EE_FG_allowed; logical([1 1 0 0 0 1])];
+    if Set.structures.min_task_constraint == 0
+      EE_FG_allowed = [EE_FG_allowed; logical([1 1 0 0 0 1])];
+    end
   elseif all(Set.task.DoF == [1 1 1 0 0 0]) && Set.task.pointing_task
     % Bei 3T0*R-Aufgabe sind 3T1R-PKM aufgabenredundant mit Grad 1
-    EE_FG_allowed = [EE_FG_allowed; logical([1 1 1 0 0 1])];
+    if Set.structures.min_task_constraint == 0
+      EE_FG_allowed = [EE_FG_allowed; logical([1 1 1 0 0 1])];
+    end
+    if Set.structures.max_task_constraint >= 2 && Set.structures.min_task_constraint <= 2
+      % 3T2R-PKM können für 3T0*R-Aufgaben benutzt werden
+      EE_FG_allowed = [EE_FG_allowed; logical([1 1 1 1 1 0])];
+    end
+    if Set.structures.max_task_constraint >= 3 && Set.structures.min_task_constraint <= 3
+      % 3T3R-PKM können für 3T0*R-Aufgaben benutzt werden
+      EE_FG_allowed = [EE_FG_allowed; logical([1 1 1 1 1 1])];
+    end
   else
     if verblevel >= 2
       fprintf(['Aufgabenredundanz gefordert aber Aufgaben-FG %dT%dR nicht ', ...
@@ -307,6 +334,7 @@ if Set.structures.max_task_redundancy > 0
     end
   end
 end
+EE_FG_allowed = unique(EE_FG_allowed, 'rows');
 %% Seriell-hybride Roboter laden
 if structset.use_serialhybrid
   HRDB = hybroblib_systems_list();
