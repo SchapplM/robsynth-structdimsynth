@@ -141,19 +141,25 @@ end
 %% Alle möglichen Ergebnis-Dateien durchgehen
 if any(strcmp(Set.optimization.objective,'valid_act')) && Structure.Type==2
   % PKM-Struktursynthese: Suchbegriff enthält nicht die Aktuierung
-  RobFilter  = ['_', RobName, 'A']; % Aktuierung hinzufügen, damit passend
+  RobFilter  = {['_', RobName, 'A']}; % Aktuierung hinzufügen, damit passend
 else % Normale Maßsynthese. Begrenze Suchbegriff, damit nicht gierig zu viel gefunden wird
   if Structure.Type == 2 % PKM: Wähle auch Ergebnisse mit anderen Koppelgelenk-Anordnungen
     [~, ~, ~, ~, ~, ~, ~, ~, PName_Legs] = parroblib_load_robot(RobName, 0);
-    RobFilter  = ['_', PName_Legs];
+    if Structure.fullyparallel
+      RobFilter  = {['_', PName_Legs]};
+    else % Bei nicht voll-parallelen: Nutze auch Ergebnisse der voll-parallelen
+      PName_Legs_vp = PName_Legs;
+      PName_Legs_vp(2) = '6';
+      RobFilter = {['_', PName_Legs], ['_', PName_Legs_vp]};
+    end
   else % Serielle/seriellhybride Kinematik: Nur exakte Treffer nehmen
-    RobFilter  = ['_', RobName, '_'];
+    RobFilter  = {['_', RobName, '_']};
   end
 end
-cds_log(2, sprintf(['[gen_init_pop] Suche nach Ergebnissen für \"*%s*\" in %d ' ...
-  'Ergebnis-Dateien für Optimierungs-Parameter {%s}'], RobFilter, ...
+cds_log(2, sprintf(['[gen_init_pop] Suche nach Ergebnissen für {%s} in %d ' ...
+  'Ergebnis-Dateien für Optimierungs-Parameter {%s}'], disp_array(RobFilter, '%s'), ...
   length(initpop_matlist), disp_array(Structure.varnames, '%s')));
-I_RobMatch = contains(initpop_matlist, RobFilter);
+I_RobMatch = contains(initpop_matlist, RobFilter); % Cell-Array für Suchbegriffe ergibt ODER
 for i = find(I_RobMatch)'% Unterordner durchgehen.
   dirname_i = fileparts(initpop_matlist{i});
   [~,optname_tmp] = fileparts(dirname_i);
@@ -174,7 +180,11 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
       'werden. Fehler: %s'], initpop_matlist{i}, err.message));
     continue
   end
-  optimstart_date = datestr(d.RobotOptRes.timestamps_start_end(1), 'yyyy-mm-dd HH:MM');
+  try
+    optimstart_date = datestr(d.RobotOptRes.timestamps_start_end(1), 'yyyy-mm-dd HH:MM');
+  catch
+    disp('TODO: why???')
+  end
   if ~isfield(d.RobotOptRes, 'p_val_pareto') % (Altes Dateiformat. Dieser Code kann irgendwann weg)
     cds_log(2, sprintf(['[gen_init_pop] Datei übersprungen, da Feld ', ...
       'p_val_pareto fehlt: %s (%s) '], initpop_matlist{i}, optimstart_date));
@@ -255,9 +265,16 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
   if ~isfield(Structure_i, 'mirrorconfig_d') % Kompatibilität für altes Format
     Structure_i.mirrorconfig_d = 1;
   end
-  % Prüfe, ob es sich um den identischen Roboter handelt (PKM-Koppelgelenkanord-
-  % nungen können anders sein)
+  if ~isfield(Structure_i, 'fullyparallel') % Kompatibilität für altes Format
+    Structure_i.fullyparallel = true;
+  end
+  % Prüfe, ob es sich um den identischen Roboter handelt
+  % (PKM-Koppelgelenkanordnungen können anders sein)
   score_i = score_i - 20*double(~strcmp(Structure_i.Name, Structure.Name));
+  % Weiterer Abzug, wenn es ein Übertrag von voll-parallel zu nicht-vp ist
+  if Structure.Type==2
+    score_i = score_i - 10*double(Structure_i.fullyparallel~=Structure.fullyparallel);
+  end
   % Prüfe, ob die Zielfunktion die gleiche ist
   score_i = score_i + length(intersect(Set_i.optimization.objective,...
     Set.optimization.objective));

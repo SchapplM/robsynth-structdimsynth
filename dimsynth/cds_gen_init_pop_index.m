@@ -56,6 +56,11 @@ for k = 1:length(Structures)
   if Structures{k}.Type == 2 % PKM: Wähle auch Ergebnisse mit anderen Koppelgelenk-Anordnungen
     [~, ~, ~, ~, ~, ~, ~, ~, PName_Legs] = parroblib_load_robot(Structures{k}.Name, 0);
     RobNames = [RobNames, PName_Legs]; %#ok<AGROW>
+    if ~Structures{k}.fullyparallel % Nutze auch Ergebnisse der voll-parallelen
+      PName_Legs_vp = PName_Legs;
+      PName_Legs_vp(2) = '6'; % aktuell nur für 3T3R mit 3 Beinen umgesetzt
+      RobNames = [RobNames, PName_Legs_vp]; %#ok<AGROW>
+    end
   else
     RobNames = [RobNames, Structures{k}.Name]; %#ok<AGROW>
   end

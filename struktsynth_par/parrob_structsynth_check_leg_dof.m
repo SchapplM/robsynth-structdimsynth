@@ -10,6 +10,9 @@
 %   Koppelpunkt-Nummern
 % EE_dof0
 %   EE-FG (1x6 Vektor mit 0 und 1)
+% SerRob_List
+%   Liste serieller Roboter aus Seriell-Roboter-Datenbank
+%   (siehe serroblib_gen_bitarrays.m; entspricht bspw. Datei S5_list.mat)
 % 
 % Ausgabe:
 % leg_success
@@ -20,7 +23,7 @@
 % Moritz Schappler, moritz.schappler@imes.uni-hannover.de, 2020-03
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
-function leg_success = parrob_structsynth_check_leg_dof(SName, Coupling, EE_dof0, EE_dof_legchain)
+function leg_success = parrob_structsynth_check_leg_dof(SName, Coupling, EE_dof0, EE_dof_legchain, SerRob_List)
 
 leg_success = true;
 NLegjoint = str2double(SName(2));
@@ -36,8 +39,40 @@ Platform_Coupling = Coupling(2);
 
 LEG_Dof = EE_dof_legchain; %RS.I_EE;
 
-if Platform_Coupling == 7 && (NLegjoint ~= 4 || ~all(EE_dof0==[1 1 1 0 0 0]))
+if Platform_Coupling == 7 && all(EE_dof0==[1 1 1 0 0 0]) % (NLegjoint ~= 4 || 
   % P7 bisher nur für 3T0R-PKM implementiert mit 4 Gelenken pro Beinkette
+  % Geht aber auch für fünf Gelenke. Davon abhängig machen ob alle Gelenke
+  % bis auf eins parallel sind
+  I = strcmp(SerRob_List.Names_Ndof, SName);
+  csv_Rob = serroblib_bits2csvline(SerRob_List.BitArrays_Ndof(I,:));
+  csv_Rob = csv_Rob(1:1+8*NLegjoint); % Nur Zeilen für Gelenke nehmen (falls mit Nullen rechts aufgefüllt wurde)
+  joint_is_revolute = strcmp(csv_Rob(2:8:1+8*NLegjoint), 'R');
+  alpha_is_0 = strcmp(csv_Rob(5:8:end), '0');
+  alpha_is_90 = strcmp(csv_Rob(5:8:end), 'pi/2');
+  if all(alpha_is_0&joint_is_revolute | ~joint_is_revolute)
+    % Alle Gelenke sind parallel (wie bspw. PRRR). Für diesen Fall war die
+    % Methode (G4P7) ursprünglich gedacht.
+    % Die Parallelität muss nur für Drehgelenke gelten
+    return
+  end
+  if sum(alpha_is_90) == 2 && diff(find(alpha_is_90)) == 1 && ...
+      joint_is_revolute(find(alpha_is_90,1,'first'))
+    % In der Kette gibt es zwei aufeinanderfolgende Gelenke, die 90°
+    % verdreht sind. Damit müssen alle anderen Gelenke parallel sein, bis
+    % auf das erste Gelenk (muss Drehgelenk sein), bei dem alpha=90° ist.
+    % Bei 5FG-Beinketten entsteht so der Fall eines unbewegten Drehglenks.
+    return
+  end
+  if sum(alpha_is_90) == 1 && find(alpha_is_90,1,'first')==2
+    % Das erste Gelenk ist anders gedreht als alle anderen.
+    return
+  end
+  if sum(alpha_is_90) == 1 && find(alpha_is_90,1,'first')==NLegjoint
+    % Das letzte Gelenk ist anders gedreht als alle anderen.
+    return
+  end
+  % Keiner der oben geprüften Fälle. Es ist also mehr als ein Gelenk nicht
+  % Teil der ansonsten parallelen Gelenke.
   leg_success = false;
   return
 end

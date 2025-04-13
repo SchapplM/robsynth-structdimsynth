@@ -1783,17 +1783,21 @@ else % Gebe alle gültigen Lösungen aus
   % Berücksichtige, ob die Schubgelenke unterschiedliche Werte haben (s.o.)
   % (Grenzfall bei 3-UPU oder evtl. 6-UPU)
   if R.Type == 2 && any(sigma_act==1) % Abstand des Schubgelenks von Basis
-    d_prismatic = NaN(length(I_iO),1);
+    d_prismatic = NaN(length(I_iO),sum(R.Leg(1).MDH.sigma==1)); % Symmetrische PKM
     for kk = 1:length(I_iO)
       qminmax_legs = reshape(minmax2(Q_jic(:,:,I_iO(kk))'),R.Leg(1).NJ,2*R.NLEG);
       qminmax_leg = minmax2(qminmax_legs);
       q_range_leg = diff(qminmax_leg');
-      d_prismatic(kk) = q_range_leg(R.Leg(1).MDH.sigma==1);
+      d_prismatic(kk,:) = q_range_leg(R.Leg(1).MDH.sigma==1);
     end
     % Sortiere die Konfigurationen nach absteigender Schubgelenk-Auslenkung
     % Damit werden im nächsten Schritt die doppelten Gelenkpunk-Konfigu-
     % rationen aussortiert, die nicht einheitliche Vorzeichen haben
-    [~,I_sortpris] = sort(d_prismatic, 'ascend');
+    if sum(R.Leg(1).MDH.sigma==1) == 1 % es gibt ein Schubgelenk
+      [~,I_sortpris] = sort(d_prismatic, 'ascend');
+    else % mehr als ein Schubgelenk
+      [~,I_sortpris] = sort(sum(d_prismatic), 'ascend');
+    end
     I_iO = I_iO(I_sortpris);
     Q0 = Q0(I_sortpris,:);
   end

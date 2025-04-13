@@ -30,6 +30,7 @@ settings_default = struct( ...
   ... % Optionen zur Wahl nach anderen Kriterien
   'selectgeneral', true, ... % Auch allgemeine Modelle wählen
   'selectvariants', true, ... % Auch alle Varianten wählen
+  'fullyparallel', true, ... % Wähle voll-parallele Roboter (entweder/oder)
   'ignore_check_leg_dof', false, ... % Plausibilitätsregeln aus parrob_structsynth_check_leg_dof können ignoriert werden
   'allow_passive_prismatic', false, ... % Technisch sinnvoll. Zum Testen auf true setzen (z.B. für 2T0R und 2T1R PKM)
   'fixed_number_prismatic', NaN, ... % Vorgabe, wie viele Schubgelenke die Beinkette haben muss (NaN = egal)
@@ -48,6 +49,7 @@ settings_default = struct( ...
   'parcomp_structsynth', 1, ... % parfor-Struktursynthese (schneller, aber mehr Speicher notwendig)
   'parcomp_mexcompile', 1, ... % parfor-Mex-Kompilierung (schneller, aber Dateikonflikt möglich)
   'use_mex', 1, ... % Die nutzung kompilierter Funktionen kann deaktiviert werden. Dann sehr langsam. Aber Start geht schneller, da keine Kompiliertung zu Beginn.
+  'use_tmp_parroblib', false, ...
   'max_actuation_idx', 4, ... % Aktuierung bis zum vierten Gelenk-FG zulassen
   'base_couplings', 1:10, ... % siehe ParRob/align_base_coupling
   'plf_couplings', 1:10 ... % siehe ParRob/align_platform_coupling
@@ -63,6 +65,12 @@ for ftmp = fields(settings)'
   if ~isfield(settings_default, ftmp{1})
     warning('Feld %s in der Eingabestruktur ist nicht vorgesehen', ftmp{1})
   end
+end
+% Prüfe nicht belegte Felder
+if ~isfield(settings, 'use_tmp_parroblib') && ...
+    isfield(settings,'isoncluster') && settings.isoncluster
+  % Standard-Verhalten: Benutze temporären Lib-Ordner auf dem Cluster
+  settings.use_tmp_parroblib = true;
 end
 % Trage alle Felder der Eingabe ein (es dürfen auch Felder fehlen)
 settings_new = settings_default;
@@ -83,23 +91,22 @@ if settings.comp_cluster
   % schon Ergebnisse vorliegen. Die Datenbank muss also eventuell vor der
   % Auswertung wieder zurückgesetzt werden.
   if settings.clustercomp_if_res_olderthan > 0
-    if settings.dryrun && settings.clustercomp_if_res_olderthan == 0
-      error(['Option "dryrun" nicht zusammen mit "comp_cluster" und ', ...
-        '"clustercomp_if_res_olderthan" möglich.']);
-    end
-    if settings.offline == false || settings.dryrun == true
-      warning(['Einstellungen offline (%d->%d) und dryrun (%d->%d) werden ', ...
-        'neu gesetzt'], settings.offline, 1, settings.dryrun, 0);
+    if settings.offline == false
+      warning(['Einstellungen offline (%d->%d) ', ...
+        'neu gesetzt'], settings.offline, 1);
     end
     settings.offline = true; % Es werden offline vorhandene Ergebnisse geprüft.
-    settings.dryrun = false; % Dazu muss die Datenbank gefüllt werden
-  else % Keine Prüfung der Offline-Ergebnisse
-    if settings.offline == true || settings.dryrun == false
-      warning(['Einstellungen offline (%d->%d) und dryrun (%d->%d) werden ', ...
-        'neu gesetzt'], settings.offline, 0, settings.dryrun, 1);
+    if settings.dryrun == true
+      % Diese Einstellung darf nicht überschrieben werden. Sicherheitskritisch
+      error(['Für settings.clustercomp_if_res_olderthan > 0 ' ...
+        'muss dryrun=false sein. Bitte manuell ändern.'])
     end
-    settings.offline = false; % Kein Laden vorheriger Ergebnisse
-    settings.dryrun = true; % Dann kein Füllen der Datenbank notwendig
+  else % Keine Prüfung der Offline-Ergebnisse
+    if settings.offline == true
+      warning(['Einstellung offline (%d->%d) ', ...
+        'neu gesetzt'], settings.offline, 0);
+      settings.offline = false; % Kein Laden vorheriger Ergebnisse
+    end
   end
 end
 % Indizes der geprüften Freiheitsgrade bestimmen
@@ -131,6 +138,7 @@ end
 assert(isa(settings.whitelist_SerialKin, 'cell'), 'Eingabe whitelist_SerialKin muss cell-Array sein');
 % Abhängigkeiten der Cluster-Jobs in Struktur sammeln
 startsettings = struct('afterok', settings.clusterjobdepend, 'afternotok', [], 'afterany', []);
+jobid_finish_previous = [];
 % zwei Tage lang in 5min-Abständen versuchen (falls Cluster voll und
 % die Jobs nach und nach erst gestartet werden dürfen)
 startsettings.waittime_max = 3600*24*2; %  2 Tage
@@ -175,7 +183,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
   end
   if all(EE_FG(1:5)==[1 1 1 0 0]) % 3T0R oder 3T1R: keine paarweise Anordnung
     I1del(Cpl1_grid>4&Cpl1_grid<9) = true; % Entferne G5 bis G8
-    I2del(Cpl2_grid>3&Cpl2_grid<7) = true; % Entferne P5 und P6
+    I2del(Cpl2_grid>3&Cpl2_grid<7) = true; % Entferne P4 bis P6
   end
   if ~all(EE_FG == [1 1 1 0 0 0])
     % Nur für 3T0R ist die Methode 7 bisher implementiert
@@ -185,30 +193,51 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     I1del(Cpl1_grid>4&Cpl1_grid<9) = true; % nur Methode 1 bis 4 oder 9 ist sinnvoll
     I2del(Cpl2_grid>3&Cpl2_grid<8) = true; % nur Methode 1 bis 3 oder 8 ist sinnvoll
   end
+  if all(EE_FG==[1 1 1 1 1 1]) && ~settings.fullyparallel
+    % Paarweise Anordnung ist nur für voll-parallel und 6 Beine implementiert
+    I1del(Cpl1_grid>4&Cpl1_grid<9) = true; % Entferne G5 bis G8
+    I2del(Cpl2_grid>3&Cpl2_grid<7) = true; % Entferne P4 bis P6
+  end
   Cpl1_grid_filt = Cpl1_grid(~I1del&~I2del);
   Cpl2_grid_filt = Cpl2_grid(~I1del&~I2del);
   Coupling_all = [Cpl1_grid_filt(:),Cpl2_grid_filt(:)];
   Coupling_all = unique(Coupling_all,'row');
+  if isempty(Coupling_all)
+    fprintf(['Keine Koppelgelenk-Kombinationen nach Filterung zu untersuchen ' ...
+      '(Eingabe: base_couplings [%s], plf_couplings [%s])\n'], disp_array( ...
+      settings.base_couplings, '%d'), disp_array(settings.plf_couplings, '%d'));
+  end
   for kk = 1:size(Coupling_all,1) % Schleife über Koppelpunkt-Möglichkeiten
     Coupling = Coupling_all(kk,:);
     if Coupling(1) > 10 || Coupling(2) > 10
       error('Fall nicht implementiert');
     end
     %% Serielle Beinketten auswählen
-    N_Legs = sum(EE_FG); % Voll-Parallel: So viele Beine wie EE-FG
+    N_EEDoF = sum(EE_FG);
+    if settings.fullyparallel
+      N_Legs = N_EEDoF; % Voll-Parallel: So viele Beine wie EE-FG
+    else
+      if all(EE_FG == [1 1 1 1 1 1])
+        N_Legs = 3;
+      else
+        error('Fall mit vollparallel nur für 3T3R definiert und dort mit 3 Beinketten belegt');
+      end
+    end
     if all(EE_FG == [1 1 1 0 0 0]) || all(EE_FG == [1 1 1 0 0 1])
       % PKM mit reduziertem FG dürfen keine 6FG-Beinketten haben
       % Die Beinketten müssen mindestens so viele FG wie die PKM haben
       % Alles weitere wird weiter unten gefiltert (kinematische Eigenschaften)
-      LegDoF_allowed = 5:-1:N_Legs;
+      LegDoF_allowed = 5:-1:N_EEDoF;
       if all(EE_FG == [1 1 1 0 0 0]) && Coupling(2) == 7
         % Methode P7 funktioniert nur mit Beinketten mit vier Gelenken
-        LegDoF_allowed = 4;
+        % Nein: Es geht auch mit fünf Gelenken, wenn alle bis auf eins
+        % parallel sind
+        LegDoF_allowed = [4 5];
       end
     elseif all(EE_FG == [1 1 0 0 0 1]) || all(EE_FG == [1 1 1 1 1 1]) || all(EE_FG == [1 1 1 1 1 0])
-      LegDoF_allowed = N_Legs; % Fall 2T1R und 3T3R
+      LegDoF_allowed = N_EEDoF; % Fall 2T1R und 3T3R
     elseif all(EE_FG == [1 1 0 0 0 0])
-      LegDoF_allowed = N_Legs; % Fall 2T0R (Platzhalter, um 2PP-PKM zu erzeugen
+      LegDoF_allowed = N_EEDoF; % Fall 2T0R (Platzhalter, um 2PP-PKM zu erzeugen
     else
       error('Fall nicht implementiert');
     end
@@ -267,7 +296,13 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       end
     end
     % Indizes der möglichen aktuierten Gelenke (wird später noch gefiltert)
-    Actuation_possib = 1:settings.max_actuation_idx;
+    if settings.fullyparallel
+      Actuation_possib = num2cell((1:settings.max_actuation_idx)');
+    else % nehme an, dass zwei Antriebe pro Beinkette vorliegen
+      act_array = allcomb(1:settings.max_actuation_idx,1:settings.max_actuation_idx);
+      act_array = act_array(act_array(:,1)<act_array(:,2),:); % keine Duplikate zulassen
+      Actuation_possib = num2cell(act_array, 2);
+    end
     II = find(I); % Umwandlung von Binär-Indizes in Nummern
     ii = 0; % Laufende Nummer für aktuierte PKM
     ii_kin = 0; % Laufende Nummer für Kinematik-Struktur der PKM
@@ -281,6 +316,10 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     I_wl = false(length(settings.whitelist_SerialKin), 1);
     for i = LegDoF_allowed
       [tokens,~] = regexp(settings.whitelist_SerialKin, 'S(\d)[RP]', 'tokens', 'match');
+      if ~isempty(settings.whitelist_SerialKin)
+        assert(~isempty(tokens), ['Eintrag in Positivliste passt nicht ' ...
+          'zum Format für serielle Ketten.']);
+      end
       for k = 1:length(tokens)
         if tokens{k}{1}{1} == sprintf('%d', i)
           I_wl(k) = true;
@@ -364,10 +403,13 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         end
       end
 
-      if sum(SName=='P')>1 && ~settings.allow_passive_prismatic
-        % Hat mehr als ein Schubgelenk. Kommt nicht für PKM in Frage.
+      if ~settings.allow_passive_prismatic && ...
+          (settings.fullyparallel && sum(SName=='P')>1 || ...
+          ~settings.fullyparallel && sum(SName=='P')>2)
+        % Hat mehr als ein Schubgelenk bei voll-parallel oder mehr als zwei
+        % bei nicht voll-parallel. Kommt nicht für PKM in Frage.
         % (es muss dann zwangsläufig ein Schubgelenk passiv sein)
-        parroblib_update_csv(SName, Coupling, logical(EE_FG), 1, 0);
+        parroblib_update_csv(SName, N_Legs, Coupling, logical(EE_FG), 1, 0);
         continue
       end
       
@@ -375,7 +417,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         % Nur die Gestell-Konfigurationen 1 (Kreisförmig) und 5 (Paar-
         % weise) sind unterscheidbar. Siehe align_base_coupling.
         if all(Coupling(1) ~= [1 5])
-          parroblib_update_csv(SName, Coupling, logical(EE_FG), 8, 0);
+          parroblib_update_csv(SName, N_Legs, Coupling, logical(EE_FG), 8, 0);
           fprintf(['Beinkette %s (%s) mit Gestell-Koppelgelenk Nr. %d wird ', ...
             'aufgrund der Kugelgelenk-Isomorphismen verworfen.\n'], ...
             SName, SName_TechJoint, Coupling(1));
@@ -387,7 +429,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         % weise) sind unterscheidbar. Alle anderen lassen sich bei Kugel-
         % gelenken darauf zurückführen. Siehe align_platform_coupling.
         if all(Coupling(2) ~= [1 4])
-          parroblib_update_csv(SName, Coupling, logical(EE_FG), 8, 0);
+          parroblib_update_csv(SName, N_Legs, Coupling, logical(EE_FG), 8, 0);
           fprintf(['Beinkette %s (%s) mit Plattform-Koppelgelenk Nr. %d wird ', ...
             'aufgrund der Kugelgelenk-Isomorphismen verworfen.\n'], ...
             SName, SName_TechJoint, Coupling(2));
@@ -427,27 +469,29 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       % Plausibilitäts-Prüfungen basierend auf Beinketten und Kopplung
       % Beinketten-FG auf Plausibilität prüfen
       if ~settings.ignore_check_leg_dof % Kann testweise deaktiviert werden
-        leg_success = parrob_structsynth_check_leg_dof(SName, Coupling, EE_FG, EE_dof_legchain);
+        leg_success = parrob_structsynth_check_leg_dof(SName, Coupling, EE_FG, EE_dof_legchain, l);
         if ~leg_success
           fprintf('Beinkette %s mit Koppelpunkt-Nr. %d-%d wird aufgrund geometrischer Überlegungen verworfen.\n', ...
             SName, Coupling(1), Coupling(2));
-          parroblib_update_csv(SName, Coupling, logical(EE_FG), 2, 0);
+          parroblib_update_csv(SName, N_Legs, Coupling, logical(EE_FG), 2, 0);
           continue
         end
       end
-      for jj = Actuation_possib % Schleife über mögliche Aktuierungen
+      for jj = 1:size(Actuation_possib,1) % Schleife über mögliche Aktuierungen
         ii = ii + 1;
+        act_jj = Actuation_possib{jj};
         if ii < settings.lfdNr_min, continue; end % Starte erst später
         % Prüfe schon hier auf passive Schubgelenke (weniger Rechenaufwand)
         IdxP = (SName(3:3+N_LegDoF-1)=='P'); % Nummer des Schubgelenks finden
-        if ~settings.allow_passive_prismatic && any(IdxP) && find(IdxP)~=jj
+        if ~settings.allow_passive_prismatic && any(IdxP) && ...
+            length(intersect(find(IdxP), act_jj)) ~= sum(IdxP)
           continue % Es gibt ein Schubgelenk und es ist nicht das aktuierte Gelenk
         end
         % Prüfe, ob ein Teil eines technischen Gelenks (Kardan, Kugel
         % aktuiert werden würde).
         % Das letzte positionsbeeinflussende Gelenk ist das letzte 
         % aktuierte Gelenk. Danach kommt nur noch das Koppelgelenk (Kardan/Kugel)
-        if jj > l.AdditionalInfo(iFK,1) % siehe serroblib_gen_bitarrays.
+        if max(act_jj) > l.AdditionalInfo(iFK,1) % siehe serroblib_gen_bitarrays.
           continue
         end
         % Prüfe auch technische Gelenke am Anfang der Beinkette. Z.B. keine
@@ -467,14 +511,21 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
               Joints_Actuation_Possible = [Joints_Actuation_Possible, [0 0]]; %#ok<AGROW>
           end
         end
-        if ~Joints_Actuation_Possible(jj)
-          fprintf('Aktuierung von Gelenk %d in %s (%s) nicht möglich\n', jj, SName, SName_TechJoint);
+        abort_jointactimpossible = false;
+        for jj2 = act_jj
+          if ~Joints_Actuation_Possible(jj2)
+            fprintf('Aktuierung [%s] nicht möglich: Gelenk %d in %s (%s)\n', disp_array(act_jj, '%d'), jj2, SName, SName_TechJoint);
+            abort_jointactimpossible = true;
+            break
+          end
+        end
+        if abort_jointactimpossible
           continue
         end
-        fprintf('Untersuchte PKM %d (Gestell %d, Plattform %d): %s mit symmetrischer Aktuierung Gelenk %d\n', ...
-          ii, Coupling(1), Coupling(2), PName, jj);
+        fprintf('Untersuchte PKM %d (Gestell %d, Plattform %d): %s mit symmetrischer Aktuierung Gelenk [%s]\n', ...
+          ii, Coupling(1), Coupling(2), PName, disp_array(act_jj, '%d'));
         Actuation = cell(1,N_Legs);
-        Actuation(:) = {jj};
+        Actuation(:) = {act_jj};
         LEG_Names = {SName};
         %% Roboter pauschal zur Datenbank hinzufügen
         % Mit dem dann eindeutigen Robotermodell sind weitere Berechnungen
@@ -503,12 +554,12 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
             fprintf('Der Roboter %s würde zur Datenbank hinzugefügt werden\n', PName);
             Name = '<Neuer Name>';
             % Setze Status 6 ("noch nicht geprüft").
-            parroblib_update_csv(SName, Coupling, logical(EE_FG), 6, 0);
+            parroblib_update_csv(SName, N_Legs, Coupling, logical(EE_FG), 6, 0);
           end
         else
           error('Dieser Fall darf nicht eintreten. Nicht-logische Eingabe');
         end
-        Whitelist_PKM = [Whitelist_PKM;{Name}]; %#ok<AGROW>
+        Whitelist_PKM = [Whitelist_PKM,{Name}]; %#ok<AGROW>
         if ~settings.dryrun % Liste nur bei Produktiv-Lauf notwendig
           [~, ~, ~, ~, ~, ~, ~, ~, PName_Leg_tmp] = parroblib_load_robot(Name,0);
           Whitelist_Leg = [Whitelist_Leg, PName_Leg_tmp]; %#ok<AGROW>
@@ -674,6 +725,10 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     Set.structures.use_parallel_rankdef = 6*settings.check_rankdef_existing;
     Set.structures.parrob_basejointfilter = settings.base_couplings;
     Set.structures.parrob_platformjointfilter = settings.plf_couplings;
+    Set.structures.use_parallel_fullyparallel = true;
+    Set.structures.use_parallel_notfullyparallel = true; % sonst wird die Synthese dafür nicht gemacht
+    Set.structures.maxnumprismatic = 1+double(~settings.fullyparallel); % nicht-voll-parallele haben max. 2 Schubgelenke
+    Set.structures.no_inactive_joints = false; % inaktive Gelenke erlauben. Ist dann eine Eigenschaft der Struktur. Kann vorteilhaft sein, siehe Kryo-PKM-Fallstudie.
     Set.general.save_animation_file_extensions = {'gif'};
     Set.general.parcomp_struct = settings.parcomp_structsynth;
     Set.general.use_mex = settings.use_mex;
@@ -691,11 +746,11 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       dssetfile = fullfile(resmaindir, [Set.optimization.optname, '_settings.mat']);
       if ~exist(dssetfile, 'file')
         % Logik-Fehler. Speichere Status zum Debuggen.
-        fprintf('Beginne Komprimierung der PKM-Datenbank für Debug-Abbild\n');
         tmpdir = fullfile(Set.optimization.resdir, Set.optimization.optname, 'tmp');
         mkdirs(tmpdir);
         save(fullfile(tmpdir, 'parroblib_add_robots_symact_debug_norobots.mat'));
-        if settings.isoncluster %  Auf dem Cluster wird im Tmp-Ordner einer Node gerechnet.
+        if settings.use_tmp_parroblib && settings.isoncluster % Auf dem Cluster wird im Tmp-Ordner einer Node gerechnet.
+          fprintf('Beginne Komprimierung der PKM-Datenbank für Debug-Abbild\n');
           % Sichere PKM-Datenbank zum Debuggen und aktuellen Status, sonst ist er weg.
           zip(fullfile(tmpdir, 'parroblib.zip'), parroblibpath);
         end
@@ -781,9 +836,17 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
             end
             % Alle Ergebnisse müssen auch in der Einstellungsdatei sein.
             % Sonst ist es ein inkonsistenter Datensatz.
-            if ~isempty(intersect(setxor(Structures_Names_i, ...
-                reslist_pkm_names), Structures_Names_i))
-              warning('Ergebnisse in %s passen nicht zu Einstellungsdatei', reslist(i).name);
+            [~,missing_in_reslist, missing_in_settingsliste] = ...
+              setxor(reslist_pkm_names, Structures_Names_i);
+            if ~isempty(missing_in_settingsliste)
+              warning(['Ergebnisse in %s sind nicht vollständig: ' ...
+                '%d/%d aus Einstellungsdatei fehlen: %s'], reslist(i).name, length(missing_in_settingsliste), ...
+                length(Structures_Names_i), disp_array(Structures_Names_i(missing_in_settingsliste)', '%s'));
+            end
+            if ~isempty(missing_in_reslist)
+              warning(['Ergebnisse in %s passen nicht zu Einstellungsdatei: ' ...
+                '%d/%d stehen dort nicht: %s'], reslist(i).name, ...
+                length(missing_in_reslist), length(reslist_pkm_names));
               continue
             end
             % Folgender Fall darf nicht vorkommen, außer die Einstellungen
@@ -877,7 +940,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
             % mit den tatsächlich durchgeführten (mit Endergebnis.mat). Wenn
             % identisch, dann vollständiger Durchlauf
             complstr = sprintf('Dabei %d/%d Maßsynthesen durchgeführt. ', ...
-              length(Structures), length(tmpset.Structures));
+              sum(~cellfun(@isempty,Structures)), length(tmpset.Structures));
             if length(tmpset.Structures) == length(Structures)
               offline_result_complete = true;
               complstr = [complstr,'Der Durchlauf ist vollständig.']; %#ok<AGROW>
@@ -970,6 +1033,9 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       % doppelt kompiliert werden (da die Funktionen unabhängig von der
       % GP-Nummer sind.
       if settings.compile_job_on_cluster
+        % Falls PKM nur als Platzhalter in der Variablen stehen, ist dafür
+        % kein vorheriges Kompilieren möglich.
+        Whitelist_PKM = Whitelist_PKM(~strcmp(Whitelist_PKM,'<Neuer Name>'));
         pkm_list_noGP = Whitelist_PKM;
         for kkk = 1:length(pkm_list_noGP)
           [~, ~, ~, ~, ~, ~, ~, ~, pkm_list_noGP{kkk}, ~] = parroblib_load_robot(Whitelist_PKM{kkk}, 0);
@@ -1039,7 +1105,15 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       if ~exist(chf, 'file')
         error('Datei %s muss aus Vorlage erzeugt werden', chf);
       end
-      copyfile(chf, targetfile);
+      % Ersetze die Variable use_tmp_parroblib
+      f = fileread(chf);
+      if settings.use_tmp_parroblib
+        f = strrep(f, 'usr_use_tmp_parroblib = false;', ...
+                      'usr_use_tmp_parroblib = true;');
+      end
+      fid = fopen(targetfile,'w');
+      fprintf(fid,'%s',f);
+      fclose(fid);
       % Passe Filter für das Kopieren der Datenbank an. Sonst dauert es
       % ewig, wenn die mex-Dateien für alle PKM kopiert werden.
       fid = fopen(fullfile(jobdir, 'parroblib_tar_include.txt'), 'w');
@@ -1064,6 +1138,13 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       fprintf(fid, 'delete(gcp(''nocreate''));\n');
       fprintf(fid, 'parpool_writelock(''free'', 0, true);\n');
       fclose(fid);
+      if ~settings.use_tmp_parroblib % keine temporäre Roboterbibliothek
+        % Wenn in einer Schleife mehrere GP-Kombinationen geprüft werden,
+        % sollte das nicht parallel gemacht werden (Schreibkonflikte).
+        fprintf('Keine tmp-parroblib. Starte Job erst, wenn vorheriger fertig ist.\n');
+        startsettings.afterany = [startsettings.afterany, jobid_finish_previous];
+      end
+
       % Matlab-Skript auf Cluster starten.
       % Schätze die Rechenzeit: 30min pro PKM aufgeteilt auf 12 parallele
       % Kerne und 12h Reserve für allgemeine Aufgaben, z.B. Warten. Eher zu 
@@ -1085,7 +1166,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       Set.general.only_finish_aborted = true;
       Set.general.cluster_dependjobs.afternotok = jobid;
       pause(2); % Für Sekunden-Zeitstempel im Ordernamen auf Cluster
-      cds_start(Set, Traj);
+      jobid_finish_previous = cds_start(Set, Traj);
       continue % Nachfolgendes muss nicht gemacht werden
     end % Cluster-Berechnung
     save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
@@ -1153,6 +1234,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       if ~any(strcmp(Whitelist_PKM, Name))
         continue
       end
+      fprintf('Verarbeite Struktur %d: %s\n', jjj, Name);
       % Prüfe ob Struktur in der Ergebnisliste enthalten ist. Jede Struktur
       % kann mehrfach in der Ergebnisliste enthalten sein, wenn
       % verschiedene Fälle für freie Winkelparameter untersucht werden.
@@ -1236,6 +1318,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         warning('Die Anzahl der freien Winkelparameter ändert sich. Datenfehler.');
         continue
       end
+      [~,LEG_Names] = parroblib_load_robot(Name, 0);
       ii = find(strcmp(l.Names_Ndof, LEG_Names{1}));
       assert(isscalar(ii), 'Beinkette nicht einmal in Datenbank gefunden');
       % Setze die freien Parameter im Bit-Array entsprechend der gefundenen Werte
@@ -1551,10 +1634,11 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       row = {EE_FG_Name, Coupling(1), Coupling(2), Name, rescode, rank_success, remove};
       ResTab = [ResTab; row]; %#ok<AGROW> 
       if update_db_allowed
-        parroblib_update_csv(LEG_Names_array{1}, Coupling, logical(EE_FG), rescode, rank_success);
+        parroblib_update_csv(LEG_Names_array{1}, N_Legs, Coupling, ...
+          logical(EE_FG), rescode, rank_success);
         if remove && ~settings.isoncluster % Auf Cluster würde das Löschen parallele Instanzen stören.
           fprintf('Entferne PKM %s wieder aus der Datenbank (Name wird wieder frei)\n', Name);
-          remsuccess = parroblib_remove_robot(Name);
+          remsuccess = parroblib_remove_robot(Name, false, logical(EE_FG));
           if ~remsuccess
             error('Löschen der PKM %s nicht erfolgreich', Name);
           end

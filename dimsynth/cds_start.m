@@ -296,6 +296,7 @@ if length(Set.structures.whitelist) ~= length(unique(Set.structures.whitelist))
     length(Set.structures.whitelist)-length(unique(Set.structures.whitelist)));
   Set.structures.whitelist = unique(Set.structures.whitelist);
 end
+if size(Set.structures.whitelist,2)==1, Set.structures.whitelist = Set.structures.whitelist(:)'; end % soll waagerechtes Array sein
 if ~isa(Set.structures.joint_filter, 'cell') % Altes Format kompatibel machen
   Set.structures.joint_filter = {Set.structures.joint_filter};
 end
@@ -785,7 +786,7 @@ if Set.general.computing_cluster
     jobID_out = jobID_merge; % Wenn dieser Job fertig ist, ist die Synthese fertig
   else
     % Nur ein paralleler Job. Nehme Job-ID des Finish-Jobs für Rückgabe 
-    jobID_out = jobIDs(end);
+    jobID_out = jobIDs(find(~isnan(jobIDs),1,'last'));
   end
 
   return;
