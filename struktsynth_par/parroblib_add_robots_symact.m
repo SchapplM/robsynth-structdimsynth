@@ -40,6 +40,7 @@ settings_default = struct( ...
   'clustercomp_if_res_olderthan', 2, ... % Falls in den letzten zwei Tagen bereits ein vollständiger Durchlauf gemacht wurde, dann nicht nochmal auf dem Cluster rechnen. Deaktivieren durch Null-Setzen
   'clusterjobdepend', [], ...% Start-Abhängigkeit für alle Cluster-Jobs (z.B. Index-Erstellung der Datenbank
   'isoncluster', false, ... % Marker um festzustellen, dass gerade auf Cluster parallel gerechnet wird
+  'matfile_verbosity', false, ... % Debug-Speicherung von Zwischenständen zum Wiederaufnehmen bei Abbruch.
   'optname', '', ... % Name, den die Optimierung auf dem Cluster haben soll (muss einheitlich sein)
   'dryrun', false, ... % Falls true: Nur Anzeige, was gemacht werden würde
   'offline', false, ... % Falls true: Keine Optimierung durchführen, stattdessen letztes passendes Ergebnis laden
@@ -122,7 +123,7 @@ if all(~isnan(settings.EE_FG_Nr))
 end
 EE_FG_Nr = [];
 for i = 1:size(EE_FG_ges,1)
-  if any(all(repmat(EE_FG_ges(i,:),size(settings.EE_FG,1),1)==settings.EE_FG))
+  if any(all(repmat(EE_FG_ges(i,:),size(settings.EE_FG,1),1)==settings.EE_FG, 2))
     EE_FG_Nr = [EE_FG_Nr, i]; %#ok<AGROW>
   end
 end
@@ -193,6 +194,12 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     I1del(Cpl1_grid>4&Cpl1_grid<9) = true; % nur Methode 1 bis 4 oder 9 ist sinnvoll
     I2del(Cpl2_grid>3&Cpl2_grid<8) = true; % nur Methode 1 bis 3 oder 8 ist sinnvoll
   end
+  % Bei 3T2R sind nur wenige Anordnungen relevant: G1/9/10 und P8
+  if all(EE_FG==[1 1 1 1 1 0])
+    I1del(Cpl1_grid>1&Cpl1_grid<9) = true; % G2 bis G8 löschen
+    I2del(Cpl2_grid~=8) = true; % alles außer P8 löschen
+  end
+
   if all(EE_FG==[1 1 1 1 1 1]) && ~settings.fullyparallel
     % Paarweise Anordnung ist nur für voll-parallel und 6 Beine implementiert
     I1del(Cpl1_grid>4&Cpl1_grid<9) = true; % Entferne G5 bis G8
@@ -569,8 +576,10 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       % Eintragung. Daher Doppelte wieder entfernen.
       LegChainList_Coupling = unique([LegChainList_Coupling, SName]);
     end % for iFK (serielle Kette)
-    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
-      sprintf('parroblib_add_robots_symact_%s_0.mat', EE_FG_Name)));
+    if settings.matfile_verbosity
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+        sprintf('parroblib_add_robots_symact_%s_0.mat', EE_FG_Name)));
+    end
     % Aktualisiere die mat-Dateien (werden für die Maßsynthese benötigt)
     if ~settings.dryrun, parroblib_gen_bitarrays(logical(EE_FG)); end
     if ~settings.dryrun
@@ -600,8 +609,10 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     % Duplikate entfernen (falls mehr als eine Aktuierung erzeugt wird)
     Whitelist_Kin = unique(Whitelist_Kin);
     Whitelist_Leg = unique(Whitelist_Leg);
-    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
-      sprintf('parroblib_add_robots_symact_%s_1.mat', EE_FG_Name)));
+    if settings.matfile_verbosity
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+        sprintf('parroblib_add_robots_symact_%s_1.mat', EE_FG_Name)));
+    end
     if ~settings.offline && ~settings.comp_cluster
       kompstr = '';
       if settings.use_mex, kompstr=' und kompiliere anschließend'; end
@@ -639,8 +650,10 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     % Mit dem dann eindeutigen Robotermodell sind weitere Berechnungen
     % möglich
     num_checked_dimsynth = num_checked_dimsynth + 1;
-    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
-      sprintf('parroblib_add_robots_symact_%s_2.mat', EE_FG_Name)));
+    if settings.matfile_verbosity
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+        sprintf('parroblib_add_robots_symact_%s_2.mat', EE_FG_Name)));
+    end
     % Damit wird geprüft, ob das System sinnvoll ist
     Set = cds_settings_defaults(struct('DoF', EE_FG));
     Set.task.Ts = 1e-2;
@@ -673,7 +686,7 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
         EE_FG_Name, Coupling(1), Coupling(2), datestr(now,'yyyymmdd_HHMMSS'), ...
         genstr, varstr, rs(randi([1 length(rs)], 5, 1))); % zufällige String anhängen, falls Sekundengleicher Start einer Optimierung
     end
-    Set.optimization.NumIndividuals = 200;
+    Set.optimization.NumIndividuals = 500;
     Set.optimization.MaxIter = 50;
     Set.optimization.ee_rotation = false;
     Set.optimization.ee_translation = false;
@@ -838,15 +851,17 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
             % Sonst ist es ein inkonsistenter Datensatz.
             [~,missing_in_reslist, missing_in_settingsliste] = ...
               setxor(reslist_pkm_names, Structures_Names_i);
-            if ~isempty(missing_in_settingsliste)
-              warning(['Ergebnisse in %s sind nicht vollständig: ' ...
-                '%d/%d aus Einstellungsdatei fehlen: %s'], reslist(i).name, length(missing_in_settingsliste), ...
-                length(Structures_Names_i), disp_array(Structures_Names_i(missing_in_settingsliste)', '%s'));
-            end
             if ~isempty(missing_in_reslist)
+              warning(['Ergebnisse in %s sind nicht vollständig: ' ...
+                '%d/%d aus Einstellungsdatei fehlen: %s'], reslist(i).name, length(missing_in_reslist), ...
+                length(Structures_Names_i), disp_array(reslist_pkm_names(missing_in_reslist)', '%s'));
+            end
+            if ~isempty(missing_in_settingsliste)
               warning(['Ergebnisse in %s passen nicht zu Einstellungsdatei: ' ...
-                '%d/%d stehen dort nicht: %s'], reslist(i).name, ...
-                length(missing_in_reslist), length(reslist_pkm_names));
+                '%d (bei %d Ergebnissen) stehen dort nicht: %s'], reslist(i).name, ...
+                length(missing_in_settingsliste), length(reslist_pkm_names), disp_array(Structures_Names_i(missing_in_settingsliste)', '%s'));
+              % Diese überzähligen Ergebnisse werden sowieso ignoriert,
+              % weil sie hier nicht verarbeitet werden.
               continue
             end
             % Folgender Fall darf nicht vorkommen, außer die Einstellungen
@@ -902,7 +917,8 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
                 warning('Datei %s scheint beschädigt zu sein', csvfile);
                 continue
               end
-              Structures{ResData_i.LfdNr(i)} = struct('Name', ResData_i.Name{i}, 'Type', 2);
+              Structures{ResData_i.LfdNr(i)} = struct('Type', 2, ...
+                'Name', ResData_i.Name{i}, 'Number', ResData_i.LfdNr(i));
             end
           else
             roblist = dir(fullfile(Set.optimization.resdir, Set.optimization.optname, ...
@@ -925,9 +941,10 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
           if ~exist(csvfile, 'file')
             try
               cds_results_table(Set, Traj, Structures);
-            catch
+            catch err
               warning(['Ergebnis-Tabelle konnte nicht erstellt werden. ', ...
-                'Vermutlich Daten mit alter Version erzeugt.']);
+                'Vermutlich Daten mit alter Version erzeugt. ', err.message]);
+              disp(err.stack);
             end
           end
           % Stelle fest, ob das Ergebnis vollständig ist
@@ -962,8 +979,10 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
     end
     % Ergebnisse der Struktursynthese (bzw. als solcher durchgeführten
     % Maßsynthese zusammenstellen)
-    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
-      sprintf('parroblib_add_robots_symact_%s_3.mat', EE_FG_Name)));
+    if settings.matfile_verbosity
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+        sprintf('parroblib_add_robots_symact_%s_3.mat', EE_FG_Name)));
+    end
     %% LUIS-Cluster vorbereiten
     if settings.comp_cluster && offline_result_complete && ...
         reslist_age(IIRL(I_reslist)) < settings.clustercomp_if_res_olderthan && ...
@@ -1169,8 +1188,10 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       jobid_finish_previous = cds_start(Set, Traj);
       continue % Nachfolgendes muss nicht gemacht werden
     end % Cluster-Berechnung
-    save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
-      sprintf('parroblib_add_robots_symact_%s_4.mat', EE_FG_Name)));
+    if settings.matfile_verbosity
+      save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
+        sprintf('parroblib_add_robots_symact_%s_4.mat', EE_FG_Name)));
+    end
     %% Nachverarbeitung der Ergebnis-Liste
 
     if settings.offline && (~exist('IIRL', 'var') || isempty(IIRL))
@@ -1180,15 +1201,20 @@ for iFG = EE_FG_Nr % Schleife über EE-FG (der PKM)
       % jeder Einstellung des Skripts gemacht)
       csvfile = fullfile(resmaindir, [Set.optimization.optname, ...
           '_results_table.csv']); % Muss hier existieren
-      ResData = readtable(csvfile, 'HeaderLines', 2);
-      ResData_headers = readtable(csvfile, 'ReadVariableNames', true);
-      if isempty(ResData)
-        fprintf('Keine Ergebnisse vorhanden. Entferne PKM wieder bei Abschluss\n')
-        ResData = ResData_headers; % So Übernahme der Überschriften für leere Tabelle.
-        ResData = ResData([],:); % Darf keine Zeilen enthalten, sonst unten Fehler
+      if exist(csvfile, 'file')
+        ResData = readtable(csvfile, 'HeaderLines', 2);
+        ResData_headers = readtable(csvfile, 'ReadVariableNames', true);
+        if isempty(ResData)
+          fprintf('Keine Ergebnisse vorhanden. Entferne PKM wieder bei Abschluss\n')
+          ResData = ResData_headers; % So Übernahme der Überschriften für leere Tabelle.
+          ResData = ResData([],:); % Darf keine Zeilen enthalten, sonst unten Fehler
+        else
+          ResData.Properties.VariableNames = ResData_headers.Properties.VariableNames;
+        end
       else
-        ResData.Properties.VariableNames = ResData_headers.Properties.VariableNames;
+        warning('Datei existiert nicht: %s', csvfile);
       end
+
       settingsfile = fullfile(resmaindir, [Set.optimization.optname, ...
           '_settings.mat']);
       num_results = 0;

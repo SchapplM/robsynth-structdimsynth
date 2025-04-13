@@ -40,7 +40,7 @@ resdir_main = fullfile(Set.optimization.resdir, Set.optimization.optname);
 if any(strcmp(Set.optimization.objective,'valid_act')) && Structure.Type==2
   % Bei Struktursynthese sind die Ergebnisse bei einer anderen Aktuierung
   % auch verwertbar. Nehme nur den Roboternahmen ohne "A"-Suffix
-  [~,~,~,~,~,~,~,RobName] = parroblib_load_robot(Structure.Name, 0);
+  [NLEG, LEG_Names,~,~,~,~,~,RobName] = parroblib_load_robot(Structure.Name, 0);
 else
   RobName = Structure.Name;
 end
@@ -160,6 +160,18 @@ cds_log(2, sprintf(['[gen_init_pop] Suche nach Ergebnissen für {%s} in %d ' ...
   'Ergebnis-Dateien für Optimierungs-Parameter {%s}'], disp_array(RobFilter, '%s'), ...
   length(initpop_matlist), disp_array(Structure.varnames, '%s')));
 I_RobMatch = contains(initpop_matlist, RobFilter); % Cell-Array für Suchbegriffe ergibt ODER
+
+% Suche bei Struktursynthese auch nach weiteren Ergebnissen
+if any(strcmp(Set.optimization.objective,'valid_act')) && Structure.Type==2
+  LegChainName = LEG_Names{1};
+  NLegDoF = str2double(LegChainName(2));
+  ChainJoints = LegChainName(3:3+NLegDoF-1);
+  RobFilter2 = sprintf('P%d%s', NLEG, ChainJoints);
+  [tokens, ~] = regexp(initpop_matlist, [RobFilter2, '[\d+]G'], 'tokens', 'match');
+  I_RobMatch_ext = ~cellfun(@isempty, tokens);
+  I_RobMatch = I_RobMatch | I_RobMatch_ext;
+end
+
 for i = find(I_RobMatch)'% Unterordner durchgehen.
   dirname_i = fileparts(initpop_matlist{i});
   [~,optname_tmp] = fileparts(dirname_i);
@@ -272,8 +284,14 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
   % (PKM-Koppelgelenkanordnungen können anders sein)
   score_i = score_i - 20*double(~strcmp(Structure_i.Name, Structure.Name));
   % Weiterer Abzug, wenn es ein Übertrag von voll-parallel zu nicht-vp ist
-  if Structure.Type==2
+  if Structure.Type == 2
     score_i = score_i - 10*double(Structure_i.fullyparallel~=Structure.fullyparallel);
+  end
+  % Weiterer Abzug, wenn die Beinkette eine andere ist 
+  % (nur relevant bei Struktursynthese)
+  if any(strcmp(Set.optimization.objective,'valid_act')) && Structure.Type == 2
+    [~, LEG_Names_i] = parroblib_load_robot(Structure_i.Name, 0);
+    score_i = score_i - 50*double(~strcmp(LEG_Names_i{1}, LEG_Names{1}));
   end
   % Prüfe, ob die Zielfunktion die gleiche ist
   score_i = score_i + length(intersect(Set_i.optimization.objective,...
