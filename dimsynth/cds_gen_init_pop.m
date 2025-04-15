@@ -711,7 +711,16 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
   end
   % Hinzufügen zu Liste von Parametern
   InitPopLoadTmp = [InitPopLoadTmp; pval_i(I_param_iO,:)]; %#ok<AGROW>
-  Q_PopTmp = [Q_PopTmp; qval_i(I_param_iO,:)]; %#ok<AGROW>
+  if size(qval_i,2) == length(Structure.q0_traj)
+    Q_PopTmp = [Q_PopTmp; qval_i(I_param_iO,:)]; %#ok<AGROW>
+  elseif size(qval_i,2) > length(Structure.q0_traj) % Transfer von Parametern von vollparallel auf nicht-vp
+    % Übernehme die Parameter der ersten Beinketten (unwahrscheinlich, dass
+    % sie gut funktionieren, aber besser als nichts)
+    Q_PopTmp = [Q_PopTmp; qval_i(I_param_iO,1:length(Structure.q0_traj))]; %#ok<AGROW>
+  else % Transfer von Parametern von nicht-vollparallel auf vp
+    qval_i2 = repmat(qval_i, 1, ceil(length(Structure.q0_traj)/size(qval_i,2)));
+    Q_PopTmp = [Q_PopTmp; qval_i2(I_param_iO,1:length(Structure.q0_traj))]; %#ok<AGROW>
+  end
   OptNamesTmp = [OptNamesTmp(:)', repmat({Set_i.optimization.optname}, 1, sum(I_param_iO))]; %#ok<AGROW> 
   RobNamesTmp = [RobNamesTmp(:)', repmat({Structure_i.Name}, 1, sum(I_param_iO))]; %#ok<AGROW> 
   fval_mean_all = mean(fval_i(I_param_iO,:),2);
