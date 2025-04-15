@@ -138,7 +138,7 @@ else % nicht benötigt oder nicht paarweise, also direkt ablesbar
   r_base_eff = p(Structure.vartypes == 6); % Gestell-Radius
 end
 if check_base_r_eff_valid && check_base_r_eff_constr
-  if ~isempty(R) 
+  if ~isempty(R) && ~isnan(r_base_eff)
     r_base_eff2 = norm(R.r_0_A_all(:,1)); % Effektiver Radius (Abstand des Gelenks zur Mitte)
     assert(all(abs(r_base_eff2-r_base_eff)<1e-10), 'Berechnung des effektiven Gestell-Radius stimmt nicht');
   end

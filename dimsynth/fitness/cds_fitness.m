@@ -138,6 +138,10 @@ if p(1) == 0
 end
 
 %% Parameter aktualisieren
+if any(isnan(p))
+  cds_log(-1,sprintf('[fitness] Parameter ist NaN'));
+  return;
+end
 % Keine Verwendung der Ausgabe: Parameter werden direkt in ursprüngliche
 % Funktion geschrieben; R.pkin ist vor/nach dem Aufruf unterschiedlich
 p_phys = cds_update_robot_parameters(R, Set, Structure, p);
