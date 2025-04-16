@@ -354,6 +354,9 @@ for i = 0:maxnum_parts % Ordner 0 kommt nicht aus Optimierung sondern von oben
     else
       error('Modus %s nicht definiert', settings.mode);
     end
+    if strcmp(tokens{1}{2}, 'log')
+      gzip(targetfile); delete(targetfile);
+    end
   end
   fprintf('%s: Teil-Ergebnis %d/%d kopiert.\n', optname, i, length(optdirs));
   numdirs_processed = numdirs_processed + 1;
