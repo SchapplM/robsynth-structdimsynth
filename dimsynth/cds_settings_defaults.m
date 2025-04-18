@@ -173,7 +173,7 @@ optimization = struct( ...
   'movebase', true, ... % Position der Roboter-Basis
   'basepos_limits', NaN(3,2), ... % Grenzen für Basis-Position (Absolut, im Welt-KS)
   'ee_translation', true, ... % Freie Verschiebung des EE
-  'ee_translation_fixed', NaN(1,3), ... % vorgegebene EE-Transformation (bspw. bereits konstruierter Endeffektor). Entspricht r_N_E (SerRob) bzw. r_P_E (ParRob)
+  'ee_translation_limits', NaN(3,2), ... % Grenzen für EE-Transformation (bspw. bereits konstruierter Endeffektor). Entspricht r_N_E (SerRob) bzw. r_P_E (ParRob)
   'ee_translation_only_serial', true, ... % ... nur bei seriellen Robotern
   'ee_rotation', true, ... % Freie Rotation des EE
   'ee_rotation_fixed', NaN(1,3), ... % vorgegebene EE-Transformation (bspw. bereits konstruierter Endeffektor). Entspricht phi_N_E (SerRob) bzw. phi_P_E (ParRob); XYZ-Euler-Winkel

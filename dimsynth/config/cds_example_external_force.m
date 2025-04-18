@@ -57,9 +57,9 @@ for i_FG = 1:size(EEFG_Ges,1) % Alle FG einmal durchgehen
   Set.optimization.ee_rotation = false;
   % Starre EE-Transformation (damit Werte belegt sind)
   if i_FG == 1
-    Set.optimization.ee_translation_fixed = [0.1,0,0]; % planar: in x-Richtung
+    Set.optimization.ee_translation_limits = repmat([0.1,0,0]',1,2); % planar: in x-Richtung
   else
-    Set.optimization.ee_translation_fixed = [0,0,0.2];
+    Set.optimization.ee_translation_limits = repmat([0,0,0.2]',1,2);
   end
   Set.general.eval_figures = {'dynamics'};
   Set.general.animation_styles = {};
@@ -78,7 +78,7 @@ for i_FG = 1:size(EEFG_Ges,1) % Alle FG einmal durchgehen
   % Roboter auswählen
   if i_FG == 1
     Set.structures.whitelist = {'P3RRR1G1P1A1', 'S3RRR1'};
-    Set.optimization.ee_translation_fixed(:) = NaN;
+    Set.optimization.ee_translation_limits(:) = NaN;
   elseif i_FG == 2
     Set.structures.whitelist = {'P3RRRRR10V1G2P2A1'};
   elseif i_FG == 3

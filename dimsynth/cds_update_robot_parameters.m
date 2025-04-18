@@ -196,11 +196,15 @@ end
 %% EE-Verschiebung
 if any(Structure.vartypes == 3) % Set.optimization.ee_translation
   p_eepos = p(Structure.vartypes == 3);
+  I_eep = find(Structure.vartypes == 3);
   % Auswahl der zu optimierenden Komponenten (konsistent mit dimsynth_robot.m)
   ee_transl_dof = Set.task.DoF(1:3);
-  if any(~isnan(Set.optimization.ee_translation_fixed))
-    r_N_E_neu = Set.optimization.ee_translation_fixed(:);
-    ee_transl_dof(~isnan(Set.optimization.ee_translation_fixed)) = 0;
+  I_DoF_eesetfix = Set.optimization.ee_translation_limits(:,1)==...
+                   Set.optimization.ee_translation_limits(:,2); 
+  if any(~isnan(Set.optimization.ee_translation_limits(:,1)))
+    r_N_E_neu = Set.optimization.ee_translation_limits(:,1);
+    ee_transl_dof(~(isnan(Set.optimization.ee_translation_limits(:,1)) | ...
+                    ~I_DoF_eesetfix)) = 0;
   else
     r_N_E_neu = zeros(3,1);
   end
@@ -215,8 +219,26 @@ if any(Structure.vartypes == 3) % Set.optimization.ee_translation
   end
   
   % EE-Versatz skaliert mit Roboter-Skalierungsfaktor
-  r_N_E_neu(abs(task_transl_DoF_rotE(:))>1e-10) = p_eepos .* scale;
-  p_phys(Structure.vartypes == 3) = r_N_E_neu(abs(task_transl_DoF_rotE(:))>1e-10);
+  p_idx = 0;
+  for i_xyz = 1:3 % bezogen auf Basis-KS des Roboters
+    if task_transl_DoF_rotE(i_xyz) == 0 || ...  % FG ist nicht Teil der Aufgabe (z.B. bei 2T1R). Ignorieren.
+        I_DoF_eesetfix(i_xyz) % nur ein Wert vorgegeben
+      continue
+    end
+    p_idx = p_idx + 1;
+    if all(~isnan(Set.optimization.ee_translation_limits(i_xyz,:)))
+      % Grenzen explizit vorgegeben. Nehme den Wert direkt (ohne Skalierung)
+      r_N_E_neu(i_xyz) = p_eepos(p_idx);
+    else
+      % Skaliere den Wert und rechne eine Position relativ zum Mittelpunkt
+      % der Aufgabe aus.
+      r_N_E_neu(i_xyz) = p_eepos(p_idx) .* scale;
+    end
+    p_phys(I_eep(p_idx)) = r_N_E_neu(i_xyz);
+  end
+  % TODO: Check if this is still necessary:
+  % r_N_E_neu_test(abs(task_transl_DoF_rotE(:))>1e-10) = p_eepos .* scale;
+  % p_phys(Structure.vartypes == 3) = r_N_E_neu(abs(task_transl_DoF_rotE(:))>1e-10);
   if ~isempty(R)
     R_neu.update_EE(r_N_E_neu);
   end

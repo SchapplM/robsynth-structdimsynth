@@ -214,8 +214,11 @@ end
 if Set.optimization.tilt_base_only_orthogonal && ~Set.optimization.tilt_base
   error('tilt_base_only_orthogonal ohne tilt_base ergibt keinen Sinn.');
 end
-if ~all(size(Set.optimization.ee_translation_fixed)==[1 3])
-  error('ee_translation_fixed muss 1x3 sein (xyz Koordinate)');
+if ~all(size(Set.optimization.ee_translation_limits)==[3 2])
+  error('ee_translation_limits muss 3x2 sein (xyz Koordinate, min/max)');
+end
+if ~Set.structures.use_serial && Set.optimization.ee_translation_only_serial
+  Set.optimization.ee_translation_only_serial = false; % Deaktiviere die Option
 end
 if ~all(size(Set.optimization.ee_rotation_fixed)==[1 3])
   error('ee_rotation_fixed muss 1x3 sein (xyz Koordinate, Winkel)');

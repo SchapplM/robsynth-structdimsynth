@@ -36,6 +36,20 @@ end
 Set_defaults = cds_settings_defaults(struct('DoF', DoF));
 
 %% Manuelle Übersetzung einiger Einstellungen
+if isfield(Set.optimization,'ee_translation_fixed') && ...
+    any(~isnan(Set.optimization.ee_translation_fixed(:)))
+  for i = 1:3
+    if ~isnan(Set.optimization.ee_translation_fixed(i))
+      Set.optimization.ee_translation_limits(i,:) = ...
+        Set.optimization.ee_translation_fixed(i)* [1,1];
+    end
+    fprintf('Einträge aus ee_translation_fixed in ee_translation_limits übersetzt.\n');
+    Set.optimization = rmfield(Set.optimization, 'ee_translation_fixed');
+  end
+end
+if ~Set.structures.use_serial && Set.optimization.ee_translation_only_serial
+  Set.optimization.ee_translation_only_serial = false; % Deaktiviere die Option (konsistent mit cds_start.m)
+end
 if ~isfield(Set.optimization,'max_range_passive_universal')
   Set.optimization.max_range_passive_universal = ...
     Set.optimization.max_range_passive_revolute;

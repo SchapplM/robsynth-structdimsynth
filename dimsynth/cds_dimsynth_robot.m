@@ -446,14 +446,14 @@ end
 %% Optimierungsparameter festlegen
 nvars = 0; vartypes = []; varlim = [];
 
-% Roboterskalierung
+%% Roboterskalierung
 % Skalierung für Optimierung ist immer positiv und im Verhältnis zur
 % Aufgaben-/Arbeitsraumgröße. Darf nicht Null werden.
 nvars = nvars + 1;
 vartypes = [vartypes; 0];
 varlim = [varlim; [1e-3*Lref, 3*Lref]];
 varnames = {'scale'};
-% Strukturparameter der Kinematik
+%% Strukturparameter der Kinematik
 if ~isempty(Structure.RobName)
   % Nichts machen. Es ist ein Roboter, kein allgemeines Modell zur
   % Optimierung vorgegeben. Die DH-Parameter sind also fix.
@@ -669,7 +669,8 @@ else
 end
 Structure.Ipkinrel = Ipkinrel;
 
-% Basis-Position. Die Komponenten in der Optimierungsvariablen sind nicht
+%% Basis-Position
+% Die Komponenten in der Optimierungsvariablen sind nicht
 % bezogen auf die Skalierung. Die Position des Roboters ist nur in einigen
 % Fällen in Bezug zur Roboterskalierung (z.B. z-Komponente bei hängendem
 % Roboter, Entfernung bei seriellem Roboter)
@@ -766,25 +767,39 @@ if all(Set.task.DoF(1:5) == [1 1 0 0 0]) % egal ob 2T0R, 2T0*R oder 2T1R
   r_W_0(3) = Traj.XE(1,3);
 end
 R.update_base(r_W_0);
-% EE-Verschiebung
-if all(~isnan(Set.optimization.ee_translation_fixed))
+%% EE-Verschiebung
+% Auswahl der Indizes für die zu optimierenden Basis-Koordinaten
+I_DoF_eesetfix = Set.optimization.ee_translation_limits(:,1)==...
+                 Set.optimization.ee_translation_limits(:,2); 
+if all(~isnan(Set.optimization.ee_translation_limits(:))) && all(I_DoF_eesetfix)
   % EE-Verschiebung wird in Einstellung vorgegeben. Nicht optimieren
-  R.update_EE(Set.optimization.ee_translation_fixed(:));
+  R.update_EE(Set.optimization.ee_translation_limits(:,1));
 elseif Set.optimization.ee_translation && ...
     (any(Structure.Type == [0 1]) || Structure.Type == 2 && ~Set.optimization.ee_translation_only_serial)
   % (bei PKM keine EE-Verschiebung durchführen. Dort soll das EE-KS bei
   % gesetzter Option immer in der Mitte sein)
   % Prüfe, ob die EE-Translation teilweise vorgegeben ist
   ee_transl_dof = Set.task.DoF(1:3);
-  if any(~isnan(Set.optimization.ee_translation_fixed))
-    r_N_E = Set.optimization.ee_translation_fixed(:);
+  if any(~isnan(Set.optimization.ee_translation_limits(:,1)))
+    r_N_E = Set.optimization.ee_translation_limits(:,1);
     r_N_E(isnan(r_N_E)) = 0; % wird später überschrieben
     R.update_EE(r_N_E);
-    ee_transl_dof(~isnan(Set.optimization.ee_translation_fixed)) = 0;
+    ee_transl_dof(~(isnan(Set.optimization.ee_translation_limits(:,1)) | ...
+                    ~I_DoF_eesetfix)) = 0;
   end
   nvars = nvars + sum(ee_transl_dof); % Verschiebung des EE um translatorische FG der Aufgabe
   vartypes = [vartypes; 3*ones(sum(ee_transl_dof),1)];
   varlim = [varlim; repmat([-1, 1], sum(ee_transl_dof), 1)]; % bezogen auf Lref
+  % Überschreibe die Grenzen, falls sie explizit als Einstellung gesetzt sind
+  eelim = NaN(3,2); % Grenzen für xyz-Koordinaten
+  % Nur Koordinaten von oben eintragen, die auch optimiert werden
+  eelim(ee_transl_dof,:) = varlim(end-(sum(ee_transl_dof)-1):end,:);
+  % Einstellungen eintragen, sobald Einstellungen gesetzt sind
+  eelim(~isnan(Set.optimization.ee_translation_limits)) = ...
+    Set.optimization.ee_translation_limits(~isnan(Set.optimization.ee_translation_limits));
+  % Grenzen in Variable für PSO-Parametergrenzen eintragen
+  varlim(end-(sum(ee_transl_dof)-1):end,:) = eelim(ee_transl_dof,:);
+
   % Bei planaren seriellen Robotern muss eine Rotation durchgeführt werden,
   % falls es eine Transformation N-E gibt. Sonst wird die falsche Richtung
   % des N-KS benutzt statt wie gewünscht des E-KS.
@@ -798,7 +813,7 @@ elseif Set.optimization.ee_translation && ...
   end
 end
 
-% EE-Rotation
+%% EE-Rotation
 if all(~isnan(Set.optimization.ee_rotation_fixed))
   % EE-Rotation wird in Einstellung vorgegeben. Nicht optimieren. Boden- 
   % oder Deckenmontage über zusätzliche Rotation berücksichtigen (s.o.)
@@ -832,7 +847,7 @@ elseif Set.optimization.ee_rotation
   end
 end
 
-% Gestell-Neigung: Ermöglicht Ausgleich struktureller Singularitäten
+%% Gestell-Neigung: Ermöglicht Ausgleich struktureller Singularitäten
 if Set.optimization.tilt_base
   nvars = nvars + 2;
   vartypes = [vartypes; 5; 5];
@@ -840,7 +855,7 @@ if Set.optimization.tilt_base
   varnames = [varnames(:)', {'baserotation x', 'baserotation y'}];
 end
 
-% Gestell-Rotation: Besonders für PKM relevant. Für Serielle Roboter mit
+%% Gestell-Rotation: Besonders für PKM relevant. Für Serielle Roboter mit
 % erstem Drehgelenk in z-Richtung irrelevant.
 if Set.optimization.rotate_base && ...
     ~(Structure.Type == 0 && R.MDH.sigma(1)==0 && R.MDH.alpha(1)==0 && ...
@@ -852,7 +867,7 @@ if Set.optimization.rotate_base && ...
   varnames = [varnames(:)', {'baserotation z'}];
 end
 
-% Basis-Koppelpunkt Positionsparameter (z.B. Gestell-Radius)
+%% Basis-Koppelpunkt Positionsparameter (z.B. Gestell-Radius)
 if Structure.Type == 2 && Set.optimization.base_size && isempty(Structure.RobName)
   % TODO: Die Anzahl der Positionsparameter könnte sich evtl ändern
   % Eventuell ist eine Abgrenzung verschiedener Basis-Anordnungen sinnvoll
@@ -870,7 +885,7 @@ if Structure.Type == 2 && Set.optimization.base_size && isempty(Structure.RobNam
   varnames = {varnames{:}, 'base radius'}; %#ok<CCAT>
 end
 
-% Plattform-Koppelpunkt Positionsparameter (z.B. Plattform-Radius)
+%% Plattform-Koppelpunkt Positionsparameter (z.B. Plattform-Radius)
 if Structure.Type == 2 && Set.optimization.platform_size && isempty(Structure.RobName)
   nvars = nvars + 1;
   vartypes = [vartypes; 7];
@@ -885,7 +900,7 @@ if Structure.Type == 2 && Set.optimization.platform_size && isempty(Structure.Ro
   varnames = {varnames{:}, 'platform radius'}; %#ok<CCAT>
 end
 
-% Gestell-Morphologie-Parameter (z.B. Gelenkpaarabstand).
+%% Gestell-Morphologie-Parameter (z.B. Gelenkpaarabstand).
 % Siehe align_base_coupling.m
 if Structure.Type == 2 && Set.optimization.base_morphology && isempty(Structure.RobName)
   if any(R.DesPar.base_method == 5:8) % Paarweise Anordnung der Beinketten
@@ -933,7 +948,7 @@ if Structure.Type == 2 && Set.optimization.base_morphology && isempty(Structure.
   end
 end
 
-% Plattform-Morphologie-Parameter (z.B. Gelenkpaarabstand).
+%% Plattform-Morphologie-Parameter (z.B. Gelenkpaarabstand).
 % Siehe align_platform_coupling.m
 if Structure.Type == 2 && Set.optimization.platform_morphology && isempty(Structure.RobName)
   if any(R.DesPar.platform_method == [1:3,7]) % keine Parameter bei Kreis
