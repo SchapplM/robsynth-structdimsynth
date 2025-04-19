@@ -43,9 +43,11 @@ if isfield(Set.optimization,'ee_translation_fixed') && ...
       Set.optimization.ee_translation_limits(i,:) = ...
         Set.optimization.ee_translation_fixed(i)* [1,1];
     end
-    fprintf('Einträge aus ee_translation_fixed in ee_translation_limits übersetzt.\n');
-    Set.optimization = rmfield(Set.optimization, 'ee_translation_fixed');
   end
+  if verbosity
+    fprintf('Einträge aus ee_translation_fixed in ee_translation_limits übersetzt.\n');
+  end
+  Set.optimization = rmfield(Set.optimization, 'ee_translation_fixed');
 end
 if ~Set.structures.use_serial && Set.optimization.ee_translation_only_serial
   Set.optimization.ee_translation_only_serial = false; % Deaktiviere die Option (konsistent mit cds_start.m)
