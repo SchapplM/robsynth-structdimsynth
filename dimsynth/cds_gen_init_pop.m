@@ -330,8 +330,9 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
   end
   % Falls die Spiegelung der Beinketten sich unterscheidet führt das sehr
   % wahrscheinlich bei sonst gleichen Parametern zu Selbstkollisionen
-  if ~isfield(Structure_i, 'mirrorconfig_d') && Structure.mirrorconfig_d == -1 || ...
-      isfield(Structure_i, 'mirrorconfig_d') && Structure_i.mirrorconfig_d ~= Structure.mirrorconfig_d
+  if Structure.Type == 2 && (... % nur bei PKM überhaupt möglich
+    ~isfield(Structure_i, 'mirrorconfig_d') && Structure.mirrorconfig_d == -1 || ...
+     isfield(Structure_i, 'mirrorconfig_d') && Structure_i.mirrorconfig_d ~= Structure.mirrorconfig_d )
     score_i = score_i - 10;
   end
   

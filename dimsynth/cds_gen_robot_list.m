@@ -277,7 +277,7 @@ for N_JointDoF = N_JointDoF_allowed
           'RobName', RName, ... % Falls ein konkreter Roboter mit Parametern gewählt ist
           'act_type', acttype_i, 'deactivated', false, ...
           'angles_values', [], 'prismatic_types', prismtypeall(k,:), ...
-          'mirrorconfig_d', [], 'fullyparallel', false); %#ok<AGROW> 
+          'mirrorconfig_d', 1, 'fullyparallel', false); %#ok<AGROW> 
       end % for k
     end
   end
