@@ -437,6 +437,9 @@ if ~isempty(IE_firstzero)
 end
 IE_lastentry = find(Traj.IE~=0, 1, 'last');
 assert(all(diff(Traj.IE(1:IE_lastentry)) > 0), 'Werte in IE müssen monoton steigend sein');
+if Set.general.taskred_dynprog % Prüfung der Eingabe konsistent mit dynprog_taskred_ik.m
+  assert(Traj.IE(end) == size(Traj.X,1), 'Letzter Eintrag in IE muss Länge der Trajektorie sein');
+end
 if all(Set.task.DoF(1:5) == [1 1 0 0 0]) % planare Aufgabe: 2T0R, 2T0*R oder 2T1R
   if ~strcmp(Set.structures.mounting_parallel, 'wall')
     assert(all(abs(Traj.X(1,3)- Traj.X(:,3))  < 1e-10) && ...

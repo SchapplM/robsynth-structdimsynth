@@ -171,7 +171,8 @@ end
 if ~isfield(Traj_W, 'nullspace_maxvel_interp')
   Traj_W.nullspace_maxvel_interp = zeros(2,0); % Abwärtskompatibilität
 end
-Traj_0_E = cds_transform_traj(R, struct('XE', Traj_W.XE));
+% Reduziere die Menge der Punkte, falls Punkte hier doppelt vorkommen
+Traj_0_E = cds_transform_traj(R, struct('XE', unique(Traj_W.XE, 'rows', 'stable')));
 
 %% Nebenbedingungen prüfen (für Eckpunkte)
 t0 = tic();
