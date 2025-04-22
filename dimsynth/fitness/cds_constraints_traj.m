@@ -973,7 +973,7 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
     Traj_0_test.XD(:,6) = TrajDetailDP.XD6;
     Traj_0_test.XDD(:,6) = TrajDetailDP.XDD6;
     data_dyn_test = cds_obj_dependencies(R, Traj_0_test, Set, Structure, Q_dp, QD_dp, QDD_dp, Jinv_ges_dp);
-    [~, ~, ~, tau_a_max_cds] = cds_obj_actforce(data_dyn_test.TAU);
+    [~, ~, ~, tau_a_max_cds] = cds_obj_actforce(data_dyn_test.TAU, R, Set, Structure);
     if any(abs(tau_a_max_cds(:)-DPstats.F_opt_stage(end))>1e-6)
       save(fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
         'tmp', 'cds_constraints_traj_dp_actforce_obj_inconsistency.mat'));

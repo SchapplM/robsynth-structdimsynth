@@ -753,7 +753,8 @@ for iIKC = I_IKC
 
   %% Antriebskraft als Nebenbedingung prüfen
   if Set.optimization.constraint_obj(3) > 0 % NB für Antriebskraft gesetzt
-    [fval_actforce,fval_debugtext_actforce, debug_info_actforce, tau_a_max] = cds_obj_actforce(TAU);
+    [fval_actforce,fval_debugtext_actforce, debug_info_actforce, tau_a_max] = ...
+      cds_obj_actforce(TAU, R, Set, Structure);
     constraint_obj_val_IKC(3,iIKC) = tau_a_max;
     if tau_a_max > Set.optimization.constraint_obj(3)
       fval_IKC(iIKC,:) = 1e3*(1+9*fval_actforce/1e3); % normiert auf 1e3 bis 1e4
@@ -861,7 +862,8 @@ for iIKC = I_IKC
   end
   if any(strcmp(Set.optimization.objective, 'actforce'))
     if Set.optimization.constraint_obj(3) == 0
-      [fval_actforce,fval_debugtext_actforce, debug_info, tau_a_max] = cds_obj_actforce(TAU);
+      [fval_actforce,fval_debugtext_actforce, debug_info, tau_a_max] = ...
+        cds_obj_actforce(TAU, R, Set, Structure);
       constraint_obj_val_IKC(3,iIKC) = tau_a_max;
     else % Bereits oben berechnet.
       debug_info = debug_info_actforce;

@@ -155,6 +155,11 @@ optimization = struct( ...
   ... Nehme nicht das Maximum der Einzel-Leistungen, sondern die Leistung 
   ... aus max. Drehmoment und Drehzahl. Betrifft PKM:
     struct( 'symmetric_speed_torque_limits', true), ...
+  'obj_actforce', struct (... % Zusatzeinstellungen für die Zielfunktion "actforce"
+    'weighting_linear_actuation_base', 1, ... % Gewichtung gestellfester Schubantriebe
+    'weighting_linear_actuation_chain', 1, ... % Gew. Schubantr. in der Beinkette
+    'weighting_revolute_actuation_base', 1, ... % Gew. Drehantrieb gestellfest
+    'weighting_revolute_actuation_chain', 1), ... % Gew. Drehantr. nicht gestellfest
   ... Konfigurierbarkeit für Genauigkeit der Antriebe
   'obj_positionerror', struct(... % Zusatzeinstellungen für die Zielfunktion "jointrange"
       'revolute', 7 * 1/3600 * pi/180, ... % Genauigkeit: 7 Winkelsekunden; Umrechnung in Grad und Radiant; https://www.heidenhain.de/de_DE/produkte/winkelmessgeraete/winkelmessmodule/baureihe-mrp-2000/

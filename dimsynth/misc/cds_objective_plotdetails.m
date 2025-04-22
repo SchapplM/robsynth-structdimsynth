@@ -62,6 +62,19 @@ for jj = 1:length(Set.optimization.objective)
       obj_units{jj} = 'N or Nm';
     end
     objtext{jj} = 'maximal necessary for trajectory';
+    % Prüfe, ob die Werte gewichtetet sind
+    set_actforce = Set.optimization.obj_actforce;
+    weighting_pris = ( ...
+        set_actforce.weighting_linear_actuation_base ~= 1 || ...
+        set_actforce.weighting_linear_actuation_chain ~= 1);
+    weighting_rev = ( ...
+        set_actforce.weighting_revolute_actuation_base ~= 1 || ...
+        set_actforce.weighting_revolute_actuation_chain ~= 1);
+    if strcmp(acttype, 'prismatic') && weighting_pris || ...
+       strcmp(acttype, 'revolute') && weighting_rev || ...
+       strcmp(acttype, 'mixed') && (weighting_pris || weighting_rev)
+      objtext{jj} = [objtext{jj}, ' (weighted)'];
+    end
   elseif strcmp(Set.optimization.objective{jj}, 'materialstress')
     obj_units{jj} = '%';
     objscale(jj) = 100;

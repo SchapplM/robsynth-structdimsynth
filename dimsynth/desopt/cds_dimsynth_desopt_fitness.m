@@ -272,7 +272,8 @@ if fval == 0 && Set.optimization.constraint_obj(1) % NB für Masse gesetzt
   end
 end
 if fval == 0  && Set.optimization.constraint_obj(3) % NB für Antriebskraft gesetzt
-  [fval_actforce, fval_debugtext_actforce, ~, fphys_actforce] = cds_obj_actforce(data_dyn.TAU);
+  [fval_actforce, fval_debugtext_actforce, ~, fphys_actforce] = ...
+    cds_obj_actforce(data_dyn.TAU, R, Set, Structure);
   physval_desopt = fphys_actforce / Set.optimization.constraint_obj(3);
   viol_rel_actforce = physval_desopt - 1;
   if viol_rel_actforce > 0 % Relative Überschreitung der Grenze für die Antriebskraft
@@ -359,7 +360,8 @@ if any(strcmp(Set.optimization.objective, 'actforce')) && ...
   if Set.optimization.constraint_obj(3) % Vermeide doppelten Aufruf der Funktion
     % fval_actforce und fval_debugtext_actforce von der NB-Berechnung oben
   else
-    [fval_actforce, fval_debugtext_actforce, ~, fphys_actforce] = cds_obj_actforce(data_dyn.TAU);
+    [fval_actforce, fval_debugtext_actforce, ~, fphys_actforce] = ...
+      cds_obj_actforce(data_dyn.TAU, R, Set, Structure);
   end
   fval_main(strcmp(Set.optimization.objective, 'actforce')) = fval_actforce;
   physval_main(strcmp(Set.optimization.objective, 'actforce')) = fphys_actforce;
