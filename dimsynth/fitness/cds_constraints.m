@@ -1408,18 +1408,20 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   % einanderliegen, wurde schon mit der Gelenkgrenzprüfung erledigt.
   % Die Gelenkgrenzprüfung beachtet nicht die Symmetrie der PKM.
   % Assymetrische Einbaulagen sind dort möglich. Hier (optional) geprüft.
-  if Set.optimization.symmetric_assembly_mode && R.Type == 2
-    qexc_mean_QE = NaN(size(QE,1),1);
-    for kk = 1:size(QE,1)
+  if Set.optimization.symmetric_assembly_mode && R.Type == 2 && length(I_TrajCheck)>1
+    qexc_mean_QE = NaN(length(I_TrajCheck),1);
+    for kk = I_TrajCheck
       q_legs = reshape(QE(kk,:),R.Leg(1).NJ,R.NLEG);
       qminmax_leg = minmax2(q_legs); % TODO: Behandlung der Winkelnormalisierung
       qmean_leg = mean(qminmax_leg, 2);
       % Annahme: Überschreitung von 60° im rot. Antriebsgelenk entspricht
       % anderer Einbaulage der Beinketten
       if all(R.MDH.sigma(R.I_qa) == 0) % nur Drehantriebe
-        I_sel = find(R.I_qa,1,'first');
-      else % Schubantrieb
-        I_sel = find(~R.I_qa,1,'first');
+        I_sel = find(R.I_qa,1,'first'); % Nehme den Drehantrieb als Bezug
+      elseif all(R.MDH.sigma(R.I_qa) == 1) % Nur Schubantriebe
+        I_sel = find(~R.I_qa,1,'first'); % Nehme erstes Drehgelenk als Referenz (noch nicht für jeden Fall allgemeingültig)
+      else % Gemischte Antriebe (bei nicht-vollparallelen wie 3-RPUU)
+        I_sel = find(R.MDH.sigma==0 & R.I_qa,1,'first'); % Nehme den Drehantrieb
       end
       % Min-/Max-Werte sind gleich weit von der Mitte weg. Bestimme Abstand
       qexc_mean_QE(kk) = qminmax_leg(I_sel,2) - qmean_leg(I_sel);
