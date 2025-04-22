@@ -802,9 +802,9 @@ for kkk = 1:size(EE_FG_allowed,1)
     for k = 1 % Annahme: Symmetrische PKM (so wie oben)
       NlegJ = str2double(LEG_Names{k}(2));
       Chain = LEG_Names{k}(3:3+NlegJ-1);
-      if all(strcmp(Chain(Actuation{k}), 'P'))
+      if all(Chain(Actuation{k}) == 'P')
         acttype_i = 'prismatic';
-      elseif all(strcmp(Chain(Actuation{k}), 'R'))
+      elseif all(Chain(Actuation{k}) == 'R')
        acttype_i = 'revolute';
       else
         acttype_i = 'mixed';
