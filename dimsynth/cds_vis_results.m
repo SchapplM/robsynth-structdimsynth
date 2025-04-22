@@ -502,7 +502,8 @@ if length(Set.optimization.objective) > 1 % Mehrkriterielle Optimierung
       [~,~,Actuation,~,~,~,~,~,PName_Legs] = parroblib_load_robot(Structures{i}.Name, 2);
       % TODO: Der Name mit Aktuierung sollte direkt aus der Datenbank
       % kommen und es sollte die Unterstrich-Notation in die Legende.
-      RobName_base{i} = sprintf('%s,Act=%d', PName_Legs, Actuation{1});
+      RobName_base{i} = sprintf('%s,Act=[%s]', PName_Legs, strrep( ...
+        disp_array(Actuation{1}(:)', '%d'), ' ', ''));
     end
   end % for i = II_acttype_act
   robgroups = zeros(length(RobName_base), 1); % Zuordnung der Roboter-Nummern zu Gruppen-Nummern
