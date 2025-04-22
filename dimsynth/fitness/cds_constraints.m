@@ -1444,7 +1444,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
   %% Prüfe Verletzung der Grenzen der Plattform-Rotation
   if all(~isinf(Set.optimization.ee_rotation_limit))
     XE = R.fkineEE2_traj(QE);
-    XE6_norm = (XE(:,6)-Set.optimization.ee_rotation_limit(1))./...
+    XE6_norm = (XE(I_TrajCheck,6)-Set.optimization.ee_rotation_limit(1))./...
                 diff(Set.optimization.ee_rotation_limit);
     % Normalisiere auf -0.5...+0.5. Dadurch Erkennung der Verletzung einfacher
     X6_limviolA = abs(XE6_norm-0.5); % 0 entspricht jetzt der Mitte.
