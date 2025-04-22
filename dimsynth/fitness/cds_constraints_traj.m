@@ -932,7 +932,7 @@ if Structure.task_red && Set.general.taskred_dynprog && ...
         Traj_0.XDD, Traj_0.t, q, s_dp);
     catch err
       save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
-        sprintf('cds_constraints_traj_dynprog_fail.mat')));
+        sprintf('cds_constraints_traj_dynprog_fail_%s_%s.mat', Set.optimization.optname, Structure.Name)));
       error('Fehler in dynamischer Programmierung: %s\n%s', err.message, getReport(err, 'extended'));
     end
     if Set.general.debug_dynprog_files
