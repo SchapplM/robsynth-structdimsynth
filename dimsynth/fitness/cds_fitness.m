@@ -146,6 +146,14 @@ end
 % Funktion geschrieben; R.pkin ist vor/nach dem Aufruf unterschiedlich
 p_phys = cds_update_robot_parameters(R, Set, Structure, p);
 
+% Bestimme die Länge der kinematischen Kette zur Anpassung der Plots
+if any(R.Type == [0 1]), Lchain = R.reach();
+else,                    Lchain = R.Leg(1).reach(); end
+Lchar = max(Lchain, Structure.Lref); % Charakteristische Länge zum Plotten
+d_joint = Lchar/25; % Durchmesser der Gelenke (relativ zur Aufgabe und zum Roboter dimensionieren)
+h_joint = 4/10*d_joint;
+Structure.plot_jointsize = [d_joint, h_joint];
+
 %% Plausibilitätsprüfung der Parameter
 try
   [fval_constrparam, constrvioltext] = cds_constraints_parameters(R, Set, Structure, p, p_phys);

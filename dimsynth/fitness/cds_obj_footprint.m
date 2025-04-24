@@ -114,13 +114,14 @@ view([0 90]); axis auto; hold on; grid on;
 xlabel('x in m'); ylabel('y in m'); zlabel('z in m');
 % Gelenkpunkte zeichnen
 plot3(xyz(:,1), xyz(:,2), xyz(:,3), 'kx');
-plotmode = 1; % Strichzeichnung
+s_plot = struct('straight', 1, 'mode', 1); % Strichzeichnung
+s_plot.jointsize = Structure.plot_jointsize;
 if any(R.Type == [0 1]) % Seriell
-  s_plot = struct( 'ks', 1:R.NJ+2, 'straight', 1, 'mode', plotmode);
+  s_plot.ks = 1:R.NJ+2;
   R.plot( Q(1,:)', s_plot);
 else % PKM
-  s_plot = struct( 'ks_legs', [R.I1L_LEG; R.I2L_LEG], 'ks_platform', 1:6, ...
-    'straight', 1, 'mode', plotmode);
+  s_plot.ks_legs = [R.I1L_LEG; R.I2L_LEG];
+  s_plot.ks_platform = 1:6;
   R.plot( Q(1,:)', Traj_0.X(1,:)', s_plot);
 end
 shp.plot('FaceAlpha', 0.3, 'EdgeAlpha', 0);

@@ -144,11 +144,14 @@ if false
   xlabel('x in m');ylabel('y in m');zlabel('z in m');
   q_plot = Q(1,:)';
   q_plot(isinf(q_plot)) = 0;
+  s_plot = struct('straight', 1, 'mode', 5);
+  s_plot.jointsize = Structure.plot_jointsize;
   if any(R.Type == [0 1]) % Seriell
-    s_plot = struct( 'ks', 1:R.NJ+2, 'straight', 1, 'mode', 5);
+    s_plot.ks = 1:R.NJ+2;
     R.plot( q_plot, s_plot);
   else % PKM
-    s_plot = struct( 'ks_legs', [], 'ks_platform', [], 'straight', 1, 'mode', 5);
+    s_plot.ks_legs =  [];
+    s_plot.ks_platform = [];
     R.plot( q_plot, NaN(6,1), s_plot); % TODO: EE-Trafo fehlt noch
   end
 end
@@ -428,11 +431,14 @@ if false
   change_current_figure(2303); clf; hold all
   view(3); axis auto; grid on;
   xlabel('x in m');ylabel('y in m');zlabel('z in m');
+  s_plot = struct('straight', 1, 'mode', 5);
+  s_plot.jointsize = Structure.plot_jointsize;
   if R.Type == 0 % Seriell
-    s_plot = struct( 'ks', 1:R.NJ+2, 'straight', 1, 'mode', 5);
+    s_plot.ks = 1:R.NJ+2;
     R.plot( Q(1,:)', s_plot);
   else % PKM
-    s_plot = struct( 'ks_legs', [], 'ks_platform', [], 'straight', 1, 'mode', 5);
+    s_plot.ks_legs = [];
+    s_plot.ks_platform = [];
     R.plot( Q(1,:)', NaN(6,1), s_plot);
   end
 end

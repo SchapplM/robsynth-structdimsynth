@@ -1830,13 +1830,14 @@ else % Gebe alle gültigen Lösungen aus
     for k = 1:length(I_iO)
       subplot(floor(ceil(sqrt(length(I_iO)))), ceil(sqrt(length(I_iO))), k);
       view([0,90]); axis auto; hold on; grid on;
-      plotmode = 1; % Strichzeichnung
+      s_plot = struct('straight', 1, 'mode', 1); % Strichzeichnung
+      s_plot.jointsize = Structure.plot_jointsize;
       if any(R.Type == [0 1]) % Seriell % Seriell
-        s_plot = struct( 'ks', [], 'straight', 1, 'mode', plotmode);
+        s_plot.ks = [];
         R.plot( Q0(k,:)', s_plot);
       else % PKM
-        s_plot = struct( 'ks_legs', [], 'ks_platform', [], ...
-          'straight', 1, 'mode', plotmode);
+        s_plot.ks_legs = [];
+        s_plot.ks_platform = [];
         R.plot( Q0(k,:)', Traj_0.XE(1,:)', s_plot);
       end
       title(sprintf('Konfiguration %d (phiz=%1.1f°)', k, 180/pi*X0(k,6)));

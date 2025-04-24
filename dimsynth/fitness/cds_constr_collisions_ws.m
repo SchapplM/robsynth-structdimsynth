@@ -178,11 +178,13 @@ xlabel('x in m');ylabel('y in m');zlabel('z in m');
 % Trajektorie zeichnen
 X_W = (repmat(R.T_W_0(1:3,4), 1, size(X,1)) + R.T_W_0(1:3,1:3)*X(:,1:3)')';
 plot3(X_W(:,1), X_W(:,2), X_W(:,3), 'ko');
+s_plot = struct('straight', 1, 'mode', 1);
+s_plot.jointsize = Structure.plot_jointsize;
 if any(R.Type == [0 1]) % Seriell
-  s_plot = struct( 'ks', 1:R.NJ+2, 'straight', 1, 'mode', 1);
+  s_plot.ks = 1:R.NJ+2;
   R.plot( Q(j,:)', s_plot);
 else % PKM
-  s_plot = struct( 'ks_legs', [], 'straight', 1, 'mode', 1);
+  s_plot.ks_legs = [];
   R.plot( Q(j,:)', X(j,:)', s_plot);
 end
 num_coll_plot = 0; % zum Debuggen, s.u.

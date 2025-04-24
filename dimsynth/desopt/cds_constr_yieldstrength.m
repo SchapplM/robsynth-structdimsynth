@@ -244,11 +244,13 @@ if Set.general.plot_details_in_desopt < 0 && fval >= abs(Set.general.plot_detail
   set(1997, 'Name', 'Spannungsgrenze_Roboter', 'NumberTitle', 'off');
   view(3); axis auto; hold on; grid on;
   xlabel('x in m');ylabel('y in m');zlabel('z in m');
+  s_plot = struct('straight', 1, 'mode', 4);
+  s_plot.jointsize = Structure.plot_jointsize;
   if any(R.Type == [0 1]) % Seriell
-    s_plot = struct( 'ks', [1, R.NL+1], 'straight', 1, 'mode', 4);
+    s_plot.ks = [1, R.NL+1];
     R.plot( Q(I_sigma_exc,:)', s_plot);
   else % PKM
-    s_plot = struct( 'ks_legs', R.I1L_LEG, 'straight', 1, 'mode', 4);
+    s_plot.ks_legs = R.I1L_LEG;
     R.plot( Q(I_sigma_exc,:)', Traj_0.X(I_sigma_exc,:)', s_plot);
   end
   % Finde den Ort der Überlastung heraus

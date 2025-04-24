@@ -100,11 +100,13 @@ plotscale = 1; % Skalierung der Kollisionskörper im Plot (für Sichtbarkeit)
 fhdl = change_current_figure(867); clf; hold all
 view(3); axis auto; grid on;
 xlabel('x in m');ylabel('y in m');zlabel('z in m');
+s_plot = struct('straight', 1, 'mode', 1);
+s_plot.jointsize = Structure.plot_jointsize;
 if any(R.Type == [0 1]) % Seriell
-  s_plot = struct( 'ks', 1:R.NJ+2, 'straight', 1, 'mode', 1);
+  s_plot.ks = 1:R.NJ+2;
   R.plot( Q(j,:)', s_plot);
 else % PKM
-  s_plot = struct( 'ks_legs', [], 'straight', 1, 'mode', 1);
+  s_plot.ks_legs = [];
   R.plot( Q(j,:)', X(j,:)', s_plot);
 end
 num_coll_plot = 0; % zum Debuggen, s.u.

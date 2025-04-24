@@ -60,12 +60,14 @@ if fval > 1e9 % keine vernünftigen Parametergrenzen ableitbar
 else
   plotmode = 4; % Entwurfsparameter
 end
+s_plot = struct('straight', 1, 'mode', plotmode);
+s_plot.jointsize = Structure.plot_jointsize;
 if any(R.Type == [0 1]) % Seriell
-  s_plot = struct( 'ks', 1:R.NJ+2, 'straight', 1, 'mode', plotmode);
+  s_plot.ks = 1:R.NJ+2;
   R.plot( q, s_plot);
 else % PKM
-  s_plot = struct( 'ks_legs', [R.I1L_LEG; R.I2L_LEG], 'ks_platform', 1:6, ...
-    'straight', 1, 'mode', plotmode);
+  s_plot.ks_legs = [R.I1L_LEG; R.I2L_LEG];
+  s_plot.ks_platform = 1:6;
   R.plot( q, Traj_0.XE(1,:)', s_plot);
 end
 if ~isempty(p)

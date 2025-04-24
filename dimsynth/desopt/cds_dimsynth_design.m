@@ -100,10 +100,11 @@ if desopt_debug
   change_current_figure(3000);clf;
   subplot(1,2,1); hold on; view(3); axis auto; grid on; view([0,90])
   s = struct('mode', 1, 'ks', 1:R.NJ, 'straight', false);
+  s.jointsize = Structure.plot_jointsize;
   R_pkin.plot(Q(1,1:R_pkin.NJ)', s); xlabel('x in m');ylabel('y in m');zlabel('z in m');
   title('winklig (a/d erkennbar)');
   subplot(1,2,2); hold on; view(3); axis auto; grid on; view([0,90])
-  s = struct('mode', 1, 'ks', 1:R.NJ, 'straight', true);
+  s.straight = true;
   R_pkin.plot(Q(1,1:R_pkin.NJ)', s); xlabel('x in m');ylabel('y in m');zlabel('z in m');
   title('direkt (Modell)');
 end

@@ -1027,6 +1027,7 @@ else % Parallel
 end
 Structure.I_straightcylinder = I_cylinder & I_adzero;
 %% Initialisierung der Kollisionsprüfung
+Structure.plot_jointsize = [0.15, 0.04];% Standardwerte aus SerRob/plot. Wird später überschrieben.
 if Set.optimization.constraint_collisions || ~isempty(Set.task.obstacles.type) || ...
     ~isempty(Set.task.installspace.type) || ...
     ~isnan(Set.optimization.base_size_limits(2)) && any(Structure.I_firstprismatic)
