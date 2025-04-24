@@ -102,65 +102,39 @@ for i = 1:length(Structures)
   % Strafterme aus den NB-Funktionen werden in cds_fitness erhöht.
   % Die Zuordnung erfolgt mit "<=", da die Strafterme aus dem Bereich
   % (0,1] kommen ("1" ist also möglich) und in den Zielbereich skaliert
-  % werden.
-  % TODO: Diese Grenzen sind in der Datei misc/constraints_fval_limits.csv
-  % abgelegt und die Datei sollte hier geladen werden.
+  % werden. Diese Grenzen stehen in misc/constraints_fval_limits.csv
+  % ab 1e3 siehe cds_fitness.m
+  % ab 1e7 siehe cds_constraints_traj.m
+  % ab 1e9 siehe cds_constraints.m
+  constrfvalfile = fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+    'dimsynth', 'misc', 'constraints_fval_limits.csv');
+  ConstrLimTab = readtable(constrfvalfile, 'Delimiter', ';');
   f = mean(RobotOptRes.fval); % Falls mehrkriteriell abfangen mit `mean`
-  if     f <= 1e3,     fval_text = 'i.O.'; % ab hier aus cds_fitness.m
-  elseif f <= 1e4, fval_text = 'NB-Verl. Zielf. (Antriebskraft)';
-  elseif f <= 2e4, fval_text = 'NB-Verl. Zielf. EO (Masse)';
-  elseif f <= 3e4, fval_text = 'NB-Verl. Zielf. EO (Antriebskraft)';
-  elseif f <= 4e4, fval_text = 'NB-Verl. Zielf. EO (Steifigkeit)';
-  elseif f <= 1e5, fval_text = 'NB-Verl. Zielf. EO (TODO)';
-  elseif f <= 4e5, fval_text = 'EO: Festigkeit Segmente';
-  elseif f <= 8e5, fval_text = 'EO: Selbstkollision';
-  elseif f <= 1e6, fval_text = 'EO: Fehler (unplausible Werte)';
-  elseif f <= 2e6, fval_text = 'Undefiniert';
-  elseif f <= 6e6, fval_text = 'Kinematik-NB (Pos.-Fehler)';
-  elseif f <= 1e7, fval_text = 'Kinematik-NB (Kond.)';
-  elseif f <= 1e4*1.1e3, fval_text = 'Kinematik-NB (PosErr.,traj-constr)'; % ab hier aus cds_constraints_traj.m
-  elseif f <= 1e4*1.2e3, fval_text = 'Kinematik-NB (Kond.,traj-constr)';
-  elseif f <= 1e4*2e3, fval_text = 'AR-Hindernis Traj.';
-  elseif f <= 1e4*3e3, fval_text = 'Bauraum-verl. Traj.';
-  elseif f <= 1e4*4e3, fval_text = 'Selbstkoll. Traj.';
-  elseif f <= 1e4*5e3, fval_text = 'Konfig. springt.';
-  elseif f <= 1e4*6e3, fval_text = 'Beschl.-Geschw. Grenze Traj.';
-  elseif f <= 1e4*7e3, fval_text = 'Gel.-Geschw. Grenze Traj.';
-  elseif f <= 1e4*7.2e3, fval_text = 'Schubzylinder Länge (symm) Traj.';
-  elseif f <= 1e4*7.4e3, fval_text = 'Schubzylinder Länge Traj.';
-  elseif f <= 1e4*7.5e3, fval_text = 'Gel.-Pos.-Grenze Traj. (symm)';
-  elseif f <= 1e4*8e3, fval_text = 'Gel.-Pos.-Spannw. Traj. (symm)';
-  elseif f <= 1e4*9e3, fval_text = 'Gel.-Pos.-Spannw. Traj.';
-  elseif f < 1e4*1e4, fval_text = 'Parasitäre Bew.';
-  elseif f == 1e4*1e4, fval_text = 'Inaktives Gelenk';
-  elseif f <= 1e4*2e4, fval_text = 'Traj.-IK Fehler (Beschl. 3T2R)';
-  elseif f <= 1e4*3e4, fval_text = 'Traj.-IK Fehler (Geschw. 3T2R)';
-  elseif f <= 1e4*4e4, fval_text = 'Traj.-IK Fehler (Pos. 3T2R)';
-  elseif f <= 1e4*5e4, fval_text = 'Traj.-IK Fehler (Sing. Beinkette)';
-  elseif f <= 1e4*6e4, fval_text = 'Traj.-IK Fehler (Sing. PKM)';
-  elseif f <= 1e4*1e5, fval_text = 'Traj.-IK Fehler';
-  elseif f <= 1e4*2e5, fval_text = 'AR-Hindernis Eckpkt.'; % ab hier aus cds_constraints.m
-  elseif f <= 1e4*3e5, fval_text = 'Bauraum-verl. Eckpkt.';
-  elseif f <= 1e4*3.9e5, fval_text = 'Selbstkoll. Eckpkt.';
-  elseif f <= 1e4*4e5, fval_text = 'Einbaulage nicht symmetrisch Eckpkt.';
-  elseif f <= 1e4*4.25e5, fval_text = 'Schubzylinder Länge Eckpkt. (symm)';
-  elseif f <= 1e4*4.5e5, fval_text = 'Schubzylinder Länge Eckpkt.';
-  elseif f <= 1e4*4.9e5, fval_text = 'Beinkettenlänge Eckpkt.';
-  elseif f <= 1e4*5e5, fval_text = 'Gestelldurchmesser Eckpkt.';
-  elseif f <= 1e4*5.4e5, fval_text = 'Einbaulage nicht symmetrisch Eckpkt.';
-  elseif f <= 1e4*5.5e5, fval_text = 'Plattform-Rotation-Grenze Eckpkt.';
-  elseif f <= 1e4*6e5, fval_text = 'Gel.-Pos.-Grenze Eckpkt.';
-  elseif f <= 1e4*7e5, fval_text = 'Gel.-Pos.-Spannweite Eckpkt.';
-  elseif f <= 1e4*7.5e5, fval_text = 'Positionsfehler-Grenze Eckpkt.';
-  elseif f <= 1e4*8e5, fval_text = 'Jacobi-Schwellwert Eckpkt.';
-  elseif f <= 1e4*9e5, fval_text = 'Jacobi-Singularität Eckpkt.';
-  elseif f <= 1e4*1e6, fval_text = 'Seriell-Singularität Eckpkt.';
-  elseif f == 1e4*9.9e6, fval_text = 'Eckpkt.-IK Fehler (IK-Singularität)';
-  elseif f <= 1e4*1e7, fval_text = 'Eckpkt.-IK Fehler'; % Sonderfall, geht eigentlich nur bis 9.8527e10
-  elseif f <= 1e4*1e8, fval_text = 'Geom. Plausib.-Fehler 2.';
-  elseif f <= 1e4*1e9, fval_text = 'Geom. Plausib.-Fehler 1.';
-  elseif f <= 1e14,    fval_text = 'Parameter unplausibel';
-  else,                fval_text = 'Nicht definierter Fall';  
+  for j = 1:size(ConstrLimTab,1)
+    found = false;
+    if j > 1 && ConstrLimTab.fval_low(j) < ConstrLimTab.fval_high(j-1)
+      warning('Klassen in constraints_fval_limits.csv sind nicht aufsteigend');
+    end
+    if strcmp(ConstrLimTab.relation_high(j), '<=')
+      if f <= ConstrLimTab.fval_high(j)
+        found = true;
+      end
+    elseif strcmp(ConstrLimTab.relation_high(j), '<')
+      if f < ConstrLimTab.fval_high(j)
+        found = true;
+      end
+    elseif strcmp(ConstrLimTab.relation_high(j), '==')
+      if f == ConstrLimTab.fval_high(j)
+        found = true;
+      end
+    end
+    if found
+      fval_text = ConstrLimTab.text{j};
+      break;
+    end
+  end
+  if ~found
+    fval_text = 'Nicht definierter Fall';  
   end
   
   % Allgemeine Daten des Optimierungsergebnisses:
