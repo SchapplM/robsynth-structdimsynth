@@ -27,7 +27,9 @@
 %   4.25e5...4.5e5: Schubzylinder geht zu weit nach hinten weg (nach IK erkannt)
 %   4.5e5...4.9e5: Gestell ist wegen Schubgelenken zu groß (nach IK erkannt)
 %   4.9e5...5e5: Beinkette ist zu lang (wegen Schubgelenken)
-%   5e5...5.4e5: Plattform-Rotation entspricht nicht den gegebenen Grenzen
+%   5e5...5.3e5: Plattform-Rotation entspricht nicht den gegebenen Grenzen
+%   5.3e5...5.35e5: Beinketten-Gelenke liegen jenseits der Plattform
+%   3.35e5...5.4e5: Beinketten-Gelenke liegen jenseits der Plattform (Prüfung direkt nach IK)
 %   5.4e5...5.5e5: Nicht-Symmetrische Einbaulage
 %   5.5e5...6e5: Gelenkwinkelgrenzen (Absolut) in Einzelpunkten
 %   6e5...7e5: Gelenkwinkelgrenzen (Spannweite) in Einzelpunkten
@@ -688,7 +690,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         % Punkt optimiert werden. Für die hierauf folgende Trajektorie
         % haben die anderen Punkte sowieso keine Bedeutung.
         break;
-      elseif fval_jic_old(jic) > 5e5 && fval_jic_old(jic) < 5.4e5
+      elseif fval_jic_old(jic) > 5e5 && fval_jic_old(jic) < 5.3e5
         % Ausschlussgrund war eine zu große Plattform-Rotation.
         % Aktiviere weiteres Kriterium für Einhaltung der Grenzen
         s4.wn(R.idx_ikpos_wn.xlim_par) = 1;
@@ -1193,6 +1195,20 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         break;
       end
     end
+    % Prüfe, ob die Plattform zu nah an den Beinketten-Gelenken ist
+    if Structure.Type == 2 && ~isnan(Set.optimization.platform_beyond_robot_structure_min_abs)
+      [fval_plfpos, JPz_joints_beyond_plf_max] = cds_constraints_platform_position_rel(R, Set, Structure, JPE(i,:), QE(i,:), Traj_0.XE(i,:),  [5.3e5,5.35e5]);
+      if fval_plfpos > 0
+        fval_plfpos_norm = (fval_plfpos-5.3e5)/(5.35e5-5.3e5); % zurück auf 0 bis 1 (Aufruf mit 5.3e5 wegen Schwellwerten der Debug-Plots)
+        fval_plfpos2 = 1 - (i-fval_plfpos_norm)/size(Traj_0.XE,1); % 0 bis 1
+        fval_jic(jic) = 1e5 * (5.35+0.05*fval_plfpos2); % Normierung auf 5.35e5 bis 5.4e5
+        constrvioltext_jic{jic} = sprintf(['Beinketten-Gelenke sind jenseits', ...
+          ' der Plattform bei AR-Eckpunkt %d/%d. Schlimmstenfalls %1.1f mm. Erlaubt max %1.1fmm.'], i, size(Traj_0.XE,1), ...
+          1e3*JPz_joints_beyond_plf_max, -1e3*Set.optimization.platform_beyond_robot_structure_min_abs);
+        calctimes_jic(i_ar,jic) = toc(t1);
+        break;
+      end
+    end
     if Set.optimization.constraint_collisions
       % Kollisionskörper aktualisieren (sonst z.B. Führungsschienen falsch)
       % Die Länge der Führungsschienen ist hier nicht vollständig bekannt.
@@ -1442,6 +1458,18 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         Traj_0, Set, Structure, [], 1e5, {});
     end
   end
+  %% Prüfe, ob die Plattform zu nah an den Beinketten-Gelenken ist
+  if Structure.Type == 2 && ~isnan(Set.optimization.platform_beyond_robot_structure_min_abs)
+    [fval_plfpos, JPz_joints_beyond_plf_max] = cds_constraints_platform_position_rel(R, Set, Structure, JPE, QE, Traj_0.XE, [5.3e5,5.35e5]);
+    if fval_plfpos > 0
+      fval_jic(jic) = fval_plfpos; % Normierung auf 5.3e5 bis 5.35e5 -> bereits in Funktion
+      constrvioltext_jic{jic} = sprintf(['Beinketten-Gelenke sind jenseits', ...
+        ' der Plattform. Schlimmstenfalls %1.1f mm. Erlaubt max %1.1fmm.'], ...
+        1e3*JPz_joints_beyond_plf_max, -1e3*Set.optimization.platform_beyond_robot_structure_min_abs);
+      calctimes_jic(i_ar,jic) = toc(t1);
+      continue;
+    end
+  end
   %% Prüfe Verletzung der Grenzen der Plattform-Rotation
   if all(~isinf(Set.optimization.ee_rotation_limit))
     XE = R.fkineEE2_traj(QE);
@@ -1452,7 +1480,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     if any(X6_limviolA(:) > 0.5)
       [lvmax, Imax] = max(X6_limviolA,[],1);
       fval_xlimva_E_norm = 2/pi*atan((lvmax-0.5)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
-      fval_jic(jic) = 1e5*(5+0.4*fval_xlimva_E_norm); % Normierung auf 5e5 bis 5.4e5
+      fval_jic(jic) = 1e5*(5+0.3*fval_xlimva_E_norm); % Normierung auf 5e5 bis 5.3e5
       constrvioltext_jic{jic} = sprintf(['Plattformgrenzverletzung in AR-Eckwerten. ', ...
         'Größte relative Überschreitung: %1.1f%% (Eckpunkt %d/%d). Winkel %1.1f° ', ...
         'außerhalb [%1.1f°, %1.1f°]'], 100*(lvmax-0.5), Imax, size(XE,1), ...

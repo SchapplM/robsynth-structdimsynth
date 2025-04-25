@@ -28,7 +28,8 @@
 %   1.1e3...1.2e3: Abbruch aufgrund Überschreitung Konditionszahl-Grenze
 %   1.2e3...2e3: Arbeitsraum-Hindernis-Kollision in Trajektorie
 %   2e3...3e3: Bauraumverletzung in Trajektorie
-%   3e3...4e3: Selbstkollision in Trajektorie
+%   3e3...3.5e3: Selbstkollision in Trajektorie
+%   3.5e3...4e3: Beinketten-Gelenke liegen jenseits der Plattform
 %   4e3...5e3: Konfiguration springt
 %   5e3...6e3: Beschleunigungsgrenzen
 %   6e3...7e3: Geschwindigkeitsgrenzen
@@ -475,7 +476,7 @@ if i_ar == 2 && any(fval_ar <= 1e3)
     end
   end
 end
-if i_ar == 2 && (any(fval_ar > 3e3 & fval_ar < 4e3) || ... % Ausgabewert für Kollision
+if i_ar == 2 && (any(fval_ar > 3e3 & fval_ar < 3.5e3) || ... % Ausgabewert für Kollision
     ... % Wenn Kollisionen grundsätzlich geprüft werden sollen, immer als NB setzen,
     ... % wenn vorher auch die Bauraumprüfung fehlgeschlagen ist. Beide im Zielkonflikt
     Set.optimization.constraint_collisions && any(fval_ar > 2e3 & fval_ar < 3e3) )
@@ -1925,6 +1926,17 @@ if ~Structure.task_red && (any(corrQD < 0.95) || any(corrQ < 0.98))
     continue
   end
 end % Konfigurationssprung erkannt
+%% Prüfe, ob die Plattform zu nah an den Beinketten-Gelenken ist
+if Structure.Type == 2 && ~isnan(Set.optimization.platform_beyond_robot_structure_min_abs)
+  [fval_plfpos, JPz_joints_beyond_plf_max] = cds_constraints_platform_position_rel(R, Set, Structure, JP, Q, Traj_0.X, [3.5e3,4e3]);
+  if fval_plfpos > 0
+    fval_all(i_m, i_ar)  = fval_plfpos; % Normierung auf 3.5e3 bis 4e3 -> bereits in Funktion
+    constrvioltext_m{i_m} = sprintf(['Beinketten-Gelenke sind jenseits', ...
+      ' der Plattform. Schlimmstenfalls %1.1f mm. Erlaubt max %1.1fmm.'], ...
+      1e3*JPz_joints_beyond_plf_max, -1e3*Set.optimization.platform_beyond_robot_structure_min_abs);
+    continue
+  end
+end
 %% Aktualisiere Roboter für Kollisionsprüfung (geänderte Grenzen aus Traj.-IK)
 if Set.optimization.constraint_collisions || ...
     ~isempty(Set.task.installspace.type) || ~isempty(Set.task.obstacles.type)
@@ -1956,10 +1968,10 @@ if Set.optimization.constraint_collisions
 %   Structure.selfcollchecks_collbodies=Structure.selfcollchecks_collbodies(...
 %     ~Structure.I_collcheck_nochange, :);
   [fval_coll_traj, coll_traj, colldepth_abs] = cds_constr_collisions_self(R, Traj_0.X, ...
-    Set, Structure, JP, Q, [3e3; 4e3]);
+    Set, Structure, JP, Q, [3e3; 3.5e3]);
   mincolldist_all(i_ar) = min(colldepth_abs(:));
   if fval_coll_traj > 0
-    fval_all(i_m, i_ar)  = fval_coll_traj; % Normierung auf 3e3 bis 4e3 -> bereits in Funktion
+    fval_all(i_m, i_ar)  = fval_coll_traj; % Normierung auf 3e3 bis 3.5e3 -> bereits in Funktion
     constrvioltext_m{i_m} = sprintf('Kollision in %d/%d Traj.-Punkten.', ...
       sum(any(coll_traj,2)), size(coll_traj,1));
     if Stats.errorcode == 3 % Damit früher Abbruch im Log erkennbar ist
@@ -1975,7 +1987,7 @@ if Set.optimization.constraint_collisions
     % Mögliche Ursache: Kollisionskörper in Traj.-IK sind größer als hier.
     cds_log(-1, sprintf(['[constraints_traj] Konfig %d/%d: Kollision in ', ...
       'Traj.-IK erkannt, aber nicht danach.'], Structure.config_index, Structure.config_number));
-    fval_all(i_m, i_ar) = 4e3; % schlechtestmöglicher Wert für Kollision (da nicht richtig erkannt)
+    fval_all(i_m, i_ar) = 3.5e3; % schlechtestmöglicher Wert für Kollision (da nicht richtig erkannt)
     constrvioltext_m{i_m} = 'Kollision in Traj.-IK erkannt (sonst nicht)';
     % TODO: Dieser Fall müsste noch besser von der Objekt-Kollision
     % abgegrenzt werden.
