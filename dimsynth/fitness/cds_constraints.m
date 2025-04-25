@@ -739,7 +739,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         % Prüfe vorher, ob dieser Punkt ausschlaggebend für die Kollision
         % war. Wenn nicht, kann er übersprungen werden und die bestehende
         % Lösung wird genutzt.
-        if i~=1 && ~any(coll_self(i,:)) % Die Kollision bezog sich nicht auf diesen Eckpunkt
+        if i~=1 && (size(coll_self,1)>=i && ~any(coll_self(i,:))) % Die Kollision bezog sich nicht auf diesen Eckpunkt
+          % wenn `coll_self`nur eine Zeile hat, kann man nicht sagen, welcher Punkt es war
           continue
         end
         s4.wn(:) = 0;
