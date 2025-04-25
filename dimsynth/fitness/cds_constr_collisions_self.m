@@ -16,7 +16,7 @@
 %   Gelenkpositionen(für PKM auch passive Gelenke)
 % scale [2x1]
 %   Skalierung der Ausgabe fval in bestimmten Wertebereich:
-%   Untere und obere Grenze. Dazwischen linear
+%   Untere und obere Grenze. Dazwischen mit arctan interpoliert
 % 
 % Ausgabe:
 % fval
