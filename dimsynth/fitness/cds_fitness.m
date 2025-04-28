@@ -221,7 +221,7 @@ if all(~isnan(Structure.q0_traj)) && Set.task.profile ~= 0 % nur, falls es auch 
         'die IK aber. Dürfte eigentlich nicht sein. Lösung nicht reproduzierbar.']);
     else
       cds_log(-1,sprintf(['[fitness] Vorgegebene Werte aus q0_traj wurden nicht ', ...
-        'in den %d IK-Konfigurationen gefunden. Max. Diff. %1.1e'], size(Q0,1), min(max(abs(Q0_err),[],2))));
+        'in den %d IK-Konfigurationen gefunden. Max. Diff. %1.5e'], size(Q0,1), min(max(abs(Q0_err),[],2))));
     end
     % Prüfe, ob der vorgegebene Wert die IK löst. Wenn nicht, treten
     % nachfolgend Fehler in der IK auf (z.B. Dynamische Programmierung)
@@ -263,7 +263,8 @@ if all(~isnan(Structure.q0_traj)) && Set.task.profile ~= 0 % nur, falls es auch 
     % Konsistente Reihenfolge
     if fval_constr > 1e3
       cds_log(-1,sprintf(['[fitness] Vorgegebene Werte aus q0_traj erzeugen ', ...
-        'unzulässige Lösung in Positions-IK. Benutze trotzdem.']));
+        'unzulässige Lösung in Positions-IK. Benutze trotzdem. Fehler mit ' ...
+        'fval_constr=%1.5e war %s'], fval_constr, constrvioltext));
       fval_constr = 1e3;
     end
   end
