@@ -563,6 +563,7 @@ elseif Set.general.regenerate_summary_only && (Set.general.isoncluster || ...
   Set.general.regenerate_summary_only = true;
   Set.general.nosummary = Set_tmp.general.nosummary; % für nur Tabelle ohne Bilder
   Set.optimization.resdir = Set_tmp.optimization.resdir; % anders auf Cluster
+  Set.structures.whitelist = unique(Set.structures.whitelist); % sonst später Fehler
   Structures = d.Structures;
   cds_log(1, sprintf('Einstellungsdatei %s für Bild-Generierung geladen.', settingsfile));
 elseif ~Set.general.computing_cluster % nicht bei Hochladen des Jobs
