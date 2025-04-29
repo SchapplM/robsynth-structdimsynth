@@ -29,7 +29,7 @@
 %   4.9e5...5e5: Beinkette ist zu lang (wegen Schubgelenken)
 %   5e5...5.3e5: Plattform-Rotation entspricht nicht den gegebenen Grenzen
 %   5.3e5...5.35e5: Beinketten-Gelenke liegen jenseits der Plattform
-%   3.35e5...5.4e5: Beinketten-Gelenke liegen jenseits der Plattform (Prüfung direkt nach IK)
+%   5.35e5...5.4e5: Beinketten-Gelenke liegen jenseits der Plattform (Prüfung direkt nach IK)
 %   5.4e5...5.5e5: Nicht-Symmetrische Einbaulage
 %   5.5e5...6e5: Gelenkwinkelgrenzen (Absolut) in Einzelpunkten
 %   6e5...7e5: Gelenkwinkelgrenzen (Spannweite) in Einzelpunkten
@@ -450,8 +450,15 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     Q_jic_old(:,:,jic) = Q_jic(:,:,jic);
     constrvioltext_jic_old{jic} = constrvioltext_jic{jic};
   end
-  if i_ar == 2 && ... % Optimierung von Nebenbedingungen nur, ...
-      fval_jic(jic) > 1e6 % ... falls normale IK erfolgreich war.
+  if i_ar == 2 && ...
+      fval_jic(jic) > 5.35e5 && fval_jic(jic) < 5.4e5
+    % Ausschlussgrund waren Gelenkpositionen jenseits der Plattform.
+    % In dem Fall kann die Drehung der Plattform auch nicht helfen.
+    % Andere Redundanztypen sind nicht implementiert.
+    break;
+  end
+  if i_ar == 2 && ... 
+      fval_jic(jic) > 1e6
     break; % sonst ist die zweite Iteration nicht notwendig.
   end
   if i_ar == 2 && fval_jic(jic) == 1e3 && jic == 1 && ... % Erfolgreich für erste Konfiguration (die vorgegebene)
@@ -1203,8 +1210,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         fval_plfpos2 = 1 - (i-fval_plfpos_norm)/size(Traj_0.XE,1); % 0 bis 1
         fval_jic(jic) = 1e5 * (5.35+0.05*fval_plfpos2); % Normierung auf 5.35e5 bis 5.4e5
         constrvioltext_jic{jic} = sprintf(['Beinketten-Gelenke sind jenseits', ...
-          ' der Plattform bei AR-Eckpunkt %d/%d. Schlimmstenfalls %1.1f mm. Erlaubt max %1.1fmm.'], i, size(Traj_0.XE,1), ...
-          1e3*JPz_joints_beyond_plf_max, -1e3*Set.optimization.platform_beyond_robot_structure_min_abs);
+          ' der Plattform bei AR-Eckpunkt %d/%d. Verletzung %1.1f mm.'], ...
+          i, size(Traj_0.XE,1), 1e3*JPz_joints_beyond_plf_max);
         calctimes_jic(i_ar,jic) = toc(t1);
         break;
       end
@@ -1464,8 +1471,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     if fval_plfpos > 0
       fval_jic(jic) = fval_plfpos; % Normierung auf 5.3e5 bis 5.35e5 -> bereits in Funktion
       constrvioltext_jic{jic} = sprintf(['Beinketten-Gelenke sind jenseits', ...
-        ' der Plattform. Schlimmstenfalls %1.1f mm. Erlaubt max %1.1fmm.'], ...
-        1e3*JPz_joints_beyond_plf_max, -1e3*Set.optimization.platform_beyond_robot_structure_min_abs);
+        ' der Plattform. Verletzung %1.1f mm.'], 1e3*JPz_joints_beyond_plf_max);
       calctimes_jic(i_ar,jic) = toc(t1);
       continue;
     end

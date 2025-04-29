@@ -1932,8 +1932,7 @@ if Structure.Type == 2 && ~isnan(Set.optimization.platform_beyond_robot_structur
   if fval_plfpos > 0
     fval_all(i_m, i_ar)  = fval_plfpos; % Normierung auf 3.5e3 bis 4e3 -> bereits in Funktion
     constrvioltext_m{i_m} = sprintf(['Beinketten-Gelenke sind jenseits', ...
-      ' der Plattform. Schlimmstenfalls %1.1f mm. Erlaubt max %1.1fmm.'], ...
-      1e3*JPz_joints_beyond_plf_max, -1e3*Set.optimization.platform_beyond_robot_structure_min_abs);
+      ' der Plattform. Verletzung %1.1f mm.'], 1e3*JPz_joints_beyond_plf_max);
     continue
   end
 end
