@@ -52,8 +52,14 @@ else
     error('Nicht implementiert');
   end
   II_joints = NaN(R.NJ,1);
-  II_joints(R.I_qa) = 1:sum(R.I_qa);
-  weighting = NaN(1,sum(R.I_qa));
+  if Structure.Type == 2
+    II_joints = NaN(R.NJ,1);
+    II_joints(R.I_qa) = 1:sum(R.I_qa);
+    weighting = NaN(1,sum(R.I_qa));
+  else % Seriell oder seriell-hybrid
+    II_joints(R.MDH.mu == 1) = 1:sum(R.MDH.mu);
+    weighting = NaN(1,sum(R.MDH.mu == 1));
+  end
   set_actforce = Set.optimization.obj_actforce;
   weighting(II_joints(I_linact_base)) = set_actforce.weighting_linear_actuation_base;
   weighting(II_joints(I_linact_chain)) = set_actforce.weighting_linear_actuation_chain;
