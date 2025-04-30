@@ -136,7 +136,8 @@ structures = struct( ...
   'mounting_serial', {'floor'}, ... % Montageort für serielle Roboter: floor, ceiling, wall
   'mounting_parallel', {mounting_parallel_default}, ... % ... für PKM (wird entsprechend zur Aufgabe ausgerichtet; Schubgelenke haben Vorzugsrichtung)
   'repeatlist', {{}}, ... % Liste für mehrfache Durchführung eines Roboters. Einträge: {'Name', Anzahl}. Sinnvoll, wenn parallele Berechnung möglich.
-  'whitelist', {''}); % Liste, die die Systeme beschränkt
+  'whitelist', {''}, ... % Liste, die die Systeme beschränkt
+  'whitelist_overrules_filters', true); % Liste auf der Positiv-Liste müssen optimiert werden (bei true). Sonst (bei false) ist die Liste ein weiterer Filter.
 
 %% Optimierungs-Einstellungen
 % Einstellungen mit Auswirkung auf die Optimierung: Auswahl der
