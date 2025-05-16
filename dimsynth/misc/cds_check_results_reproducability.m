@@ -361,7 +361,7 @@ parfor (i = 1:length(RobNames), parfor_numworkers)
       [f3_jj, ~, Q, QD, QDD, TAU] = cds_fitness(R,Set_tmp,Traj,Structure_jj,p_jj,p_desopt_jj);
       if isempty(Q)
         warning('Logik-Fehler. Zurückgegebenes Q ist leer')
-      elseif any(abs(Q(1,:)'-q0)>1e-6)
+      elseif ~isempty(q0) && any(abs(Q(1,:)'-q0)>1e-6)
         warning('Es wurde nicht der gespeicherte Anfangswert gewählt, sondern ein anderer.');
       end
       test_f3_abs = f_jj - f3_jj;
