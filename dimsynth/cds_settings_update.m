@@ -36,6 +36,14 @@ end
 Set_defaults = cds_settings_defaults(struct('DoF', DoF));
 
 %% Manuelle Übersetzung einiger Einstellungen
+if isfield(Set.optimization,'ee_translation_fixed') && Set.optimization.ee_translation
+  % Altes Format, vor 9409aa1 ("[cds] Neue Option Set.optimization.ee_translation_limits anstatt ee_translation_fixed", 2025-04-18)
+  % Bei älteren Fallstudien (bis Anfang 2025) war ee_translation=true, was
+  % aber nicht wirksam war, wegen ee_translation_only_serial
+  if Set.optimization.ee_translation_only_serial && ~Set.structures.use_serial
+    Set.optimization.ee_translation = false;
+  end
+end
 if isfield(Set.optimization,'ee_translation_fixed') && ...
     any(~isnan(Set.optimization.ee_translation_fixed(:)))
   for i = 1:3
