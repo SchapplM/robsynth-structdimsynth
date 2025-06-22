@@ -160,6 +160,7 @@ I = false(4,1);
 for i = 1:4
   I(i) = ~isa(leghdl(i), 'matlab.graphics.GraphicsPlaceholder');
 end
-legtxt = {'nicht relevant', 'i.O.: weit genug hinter Plattform', ...
-  'n.i.O.: zu weit hinter der Plattform', sprintf('größte Verletzung: %1.1fmm', 1e3*JPz_exceed_dist)};
+legtxt = {'nicht relevant', 'n.i.O.: zu weit hinter der Plattform', ...
+  'i.O.: weit genug hinter Plattform', ...
+  sprintf('größte Verletzung: %1.1fmm', 1e3*JPz_exceed_dist)};
 legend(leghdl(I), legtxt(I));
