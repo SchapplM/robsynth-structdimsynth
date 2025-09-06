@@ -39,6 +39,13 @@
 % (C) Institut für Mechatronische Systeme, Leibniz Universität Hannover
 
 function [fval, fval_debugtext, debug_info, f_colldist] = cds_obj_colldist(R, Set, Structure, Traj_0, Q, JP)
+% Debug-Code:
+if Set.general.matfile_verbosity > 2 % Debug
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_obj_colldist.mat'));
+end
+% clear
+% clc
+% load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_obj_colldist.mat'));
 
 debug_info = '';
 fval_debugtext = '';
@@ -49,9 +56,52 @@ if isempty(R.collchecks)
   return
 end
 %% Kollisionsabstände berechnen
+% Ignoriere die Kollisionsabstände für Gelenkpunkte, die außerhalb des
+% Interaktionsraums liegen
+% Interaktions-Arbeitsraum in das KS 0 rotieren
+collbodies_iaspc = cds_update_interactionspace(R, Set);
 % Benutze Kollisionsprüfungen aus der Roboterklasse
 [~, colldist, ~, p_coll] = check_collisionset_simplegeom_mex(R.collbodies, R.collchecks, ...
   JP, struct('collsearch', false));
+
+% Prüfe anhand der Punkte, ob der Kollisionsabstand im kritischen
+% Interaktionsraum liegt: Mittleren Punkt zwischen den beiden Punkten auf
+% den beteiligten Körpern bestimmen
+p_coll_mean = (p_coll(:,1:3,:) + p_coll(:,4:6,:)) / 2;
+% Setze Prüfung mit den Kollisionspunkten auf. Zu jeder Abstandsprüfung aus
+% R.collchecks entsteht ein Punkt, der geprüft wird
+n_cb_robot = length(R.collchecks);
+collbodies_iaspc2 = struct(...
+  'link', uint16([ collbodies_iaspc.link; ...
+    repmat((1:n_cb_robot)', 1,2) ]), ...
+  'type', [ collbodies_iaspc.type; ...
+    repmat(uint8(9), n_cb_robot, 1) ], ...
+  'params', [ Set.task.interactionspace.params; ...
+    NaN(n_cb_robot, 10) ]);
+% Virtuelle Kollisionsprüfung mit den Punkten und Interaktionsraum
+collchecks_iaspc2 = [];
+n_cb_iaspc = size(Set.task.interactionspace.type,1);
+for i = 1:n_cb_iaspc
+  % Prüfe, ob in diesem Interaktionsarbeitsraum die Strukturklemmung
+  % betrachtet wird
+  if ~Set.task.interactionspace.check_clamp_dist, continue; end
+  collchecks_iaspc2 = [collchecks_iaspc2; ...
+    [n_cb_iaspc+(1:n_cb_robot)', repmat(uint8(i), n_cb_robot, 1)]]; %#ok<AGROW> 
+end
+CP = [zeros(size(p_coll_mean,3),3), NaN(size(p_coll_mean,3), 3*size(p_coll_mean,1))];
+for ll = 1:3
+  tmp1 = reshape(p_coll_mean(:,ll,:), size(p_coll_mean,1), size(p_coll_mean,3))';
+  CP(:,3+ll:3:end) = tmp1;
+end
+% Zuweisung prüfen (Debuggen Matrixformat)
+%   assert(all(p_coll(1,1:3,1) == CP(1,3+(1:3))));
+%   assert(all(p_coll(2,1:3,1) == CP(1,3+(4:6))));
+%   assert(all(p_coll(1,1:3,2) == CP(2,3+(1:3))));
+% Eigentliche Prüfung auf Überschneidung
+CollSet = struct('collsearch', false);
+[coll_iaspc, ~] = check_collisionset_simplegeom_mex(collbodies_iaspc2, ...
+  collchecks_iaspc2, CP, CollSet);
+
 % Ignoriere bestimmte Kollisionsabstände, die eher konstruktive Ursachen
 % haben und für MRK-Klemmabstände nicht kritisch sind.
 for i = 1:size(colldist,1) % Zeitschritte
@@ -59,29 +109,43 @@ for i = 1:size(colldist,1) % Zeitschritte
   % Definiere einen Toleranzbereich in dem keine Kollisionsabstände
   % gewertet werden. Annahme: An Plattform konstruktiv vermeidbar.
   % Lege eine Kugel um jedes Plattform-Koppelgelenk
-  r_c_collignore_all = NaN(3,R.NLEG);
+  r_c_collignore_all = NaN(3,R.NLEG+2);
   i_jp = 1; % Für PKM-Basis
   for k = 1:R.NLEG % Indizes: siehe fkine_coll
     i_jp = i_jp + 1; % Überspringe Beinketten-Basis-KS
     i_jp = i_jp + R.Leg(k).NJ; % Letztes Gelenk-KS
     r_c_collignore_all(:,k) = jp_i(:,i_jp);
   end
+  % Ergänze einen Punkt für die Mitte der Plattform (und EE)
+  r_c_collignore_all(:,end-1:end) = jp_i(:,end-1:end);
+
   i_jp = i_jp + 2; % Plattform- und EE-KS der PKM
   assert(i_jp == size(jp_i,2), 'Indizierung von jp_i ist falsch');
   for j = 1:size(colldist,2) % Kollisionsprüfungen
     % Am nächsten zueinander liegende Punkte der beiden Kollisionskörper
     r_0_C1 = p_coll(j,1:3,i)';
     r_0_C2 = p_coll(j,4:6,i)';
+    % Prüfe, ob die Punkte im Interaktionsbereich liegen.
+    % Wenn ja (coll_iaspc=true), dann setze Kollision auf false.
+    coll_k1 = ~coll_iaspc(i,j);
     % Prüfe, ob die Punkte in einem Toleranzbereich der Plattform liegen
-    for k = 1:R.NLEG
-      coll_k = norm(r_c_collignore_all(:,k) - (r_0_C1+r_0_C2)/2) < 50e-3;
-      if coll_k
-        colldist(i,j) = NaN; % Deaktiviere den Kollisionsabstand
-        break;
+    % Wenn ja, dann Kollision nicht berücksichtigen
+    if ~coll_k1
+      for k = 1:R.NLEG+2
+        coll_k2 = norm(r_c_collignore_all(:,k) - (r_0_C1+r_0_C2)/2) < 50e-3;
+        if coll_k2
+          break;
+        end
       end
+    else
+      coll_k2 = false;
+    end
+    colldist_ijval = colldist(i,j);
+    if coll_k1 || coll_k2
+      colldist(i,j) = NaN; % Deaktiviere den Kollisionsabstand
     end
     % Debug-Bild
-    if coll_k && false
+    if isnan(colldist(i,j)) && false
       fhdl = change_current_figure(869); clf; hold all %#ok<NASGU> 
       view(3); axis auto; grid on;
       xlabel('x in m');ylabel('y in m');zlabel('z in m');
@@ -102,10 +166,27 @@ for i = 1:size(colldist,1) % Zeitschritte
       plot3([rh_W_C1(1);rh_W_C2(1)], [rh_W_C1(2);rh_W_C2(2)], ...
         [rh_W_C1(3);rh_W_C2(3)], 'c-', 'LineWidth', 5);
       text(r_W_M(1), r_W_M(2), r_W_M(3), sprintf('%1.1fmm', ...
-        colldist(i,j)*1e3), 'BackgroundColor', 'y');
+        colldist_ijval*1e3), 'BackgroundColor', 'y');
       % Zeichne den Toleranzbereich ein
       pts_W_sphere = R.T_W_0 * [r_c_collignore_all(:,k);1];
       drawSphere([pts_W_sphere(1:3)',50e-3],'FaceColor', 'g', 'FaceAlpha', 0.3);
+      % Zeichne Interaktionsbereich
+      for kk = 1:length(collbodies_iaspc.type)
+        if collbodies_iaspc.type(kk) == 10
+          params_W = Set.task.interactionspace.params(kk,:); % ist schon im Welt-KS
+          q_W = eye(3,4)*[params_W(1:3)';1];
+          u1_W = params_W(4:6)';
+          u2_W = params_W(7:9)';
+          % letzte Kante per Definition senkrecht auf anderen beiden.
+          u3_W = cross(u1_W,u2_W); u3_W = u3_W/norm(u3_W)*params_W(10);
+          % Umrechnen in Format der plot-Funktion
+          cubpar_c = q_W(:)+(u1_W(:)+u2_W(:)+u3_W(:))/2; % Mittelpunkt des Quaders
+          cubpar_l = [norm(u1_W); norm(u2_W); norm(u3_W)]; % Dimension des Quaders
+          cubpar_a = 180/pi*tr2rpy([u1_W(:)/norm(u1_W), u2_W(:)/norm(u2_W), u3_W(:)/norm(u3_W)],'zyx')'; % Orientierung des Quaders
+          drawCuboid([cubpar_c', cubpar_l', cubpar_a'], ...
+            'FaceColor', 'm', 'FaceAlpha', 0.1);
+        end
+      end
       drawnow();
     end
   end % for j
@@ -221,6 +302,23 @@ for i = 1:size(p_coll_min,1)
   end
   hdl = plot3([p1(1);p2(1)], [p1(2);p2(2)], [p1(3);p2(3)], s, 'linewidth', lw);
   if casenum > 0, leghdl(casenum) = hdl; end
+end
+% Zeichne Interaktionsbereich
+for kk = 1:length(collbodies_iaspc.type)
+  if collbodies_iaspc.type(kk) == 10
+    params_W = Set.task.interactionspace.params(kk,:); % ist schon im Welt-KS
+    q_W = eye(3,4)*[params_W(1:3)';1];
+    u1_W = params_W(4:6)';
+    u2_W = params_W(7:9)';
+    % letzte Kante per Definition senkrecht auf anderen beiden.
+    u3_W = cross(u1_W,u2_W); u3_W = u3_W/norm(u3_W)*params_W(10);
+    % Umrechnen in Format der plot-Funktion
+    cubpar_c = q_W(:)+(u1_W(:)+u2_W(:)+u3_W(:))/2; % Mittelpunkt des Quaders
+    cubpar_l = [norm(u1_W); norm(u2_W); norm(u3_W)]; % Dimension des Quaders
+    cubpar_a = 180/pi*tr2rpy([u1_W(:)/norm(u1_W), u2_W(:)/norm(u2_W), u3_W(:)/norm(u3_W)],'zyx')'; % Orientierung des Quaders
+    h=drawCuboid([cubpar_c', cubpar_l', cubpar_a'], ...
+      'FaceColor', 'm', 'FaceAlpha', 0.1);
+  end
 end
 title(sprintf(['Kollisionsabstände schlechtester Fall. ', ...
   'Dist=%1.1fmm, I=%d/%d'], 1e3*min2colldist, IItmin, size(Q,1)));

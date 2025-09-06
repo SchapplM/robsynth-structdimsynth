@@ -34,13 +34,39 @@
 
 function [fval, fval_debugtext, debug_info, f_clamp] = cds_obj_mrk1(R, Set, Structure, Traj_0, Q, JP)
 % Debug-Code:
-% if Set.general.matfile_verbosity > 2 % Debug
-%   save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_obj_mrk1.mat'));
-% end
+if Set.general.matfile_verbosity > 2 % Debug
+  save(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_obj_mrk1.mat'));
+end
 % clear
 % clc
 % load(fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', 'cds_obj_mrk1.mat'));
 debug_info = '';
+
+%% Bestimme Zugehörigkeit zu den Interaktionsvolumen
+% Interaktions-Arbeitsraum in das KS 0 rotieren
+collbodies_iaspc = cds_update_interactionspace(R, Set);
+n_cb_robot = size(JP,2)/3;
+collbodies_iaspc2 = struct(...
+  'link', uint16([ collbodies_iaspc.link; ...
+    repmat((1:n_cb_robot)'-1, 1,2) ]), ... % Der erste Eintrag in JP ist auch bzgl. Link 0
+  'type', [ collbodies_iaspc.type; ...
+    repmat(uint8(9), n_cb_robot, 1) ], ...
+  'params', [ Set.task.interactionspace.params; ...
+    NaN(n_cb_robot, 10) ]);
+% Virtuelle Kollisionsprüfung mit den Punkten und Interaktionsraum
+collchecks_iaspc2 = [];
+n_cb_iaspc = size(Set.task.interactionspace.type,1);
+for i = 1:n_cb_iaspc
+  % Prüfe, ob in diesem Interaktionsarbeitsraum die Gelenkklemmung
+  % betrachtet wird
+  if ~Set.task.interactionspace.check_clamp_angle, continue; end
+  collchecks_iaspc2 = [collchecks_iaspc2; ...
+    [n_cb_iaspc+(1:n_cb_robot)', repmat(uint8(i), n_cb_robot, 1)]]; %#ok<AGROW> 
+end
+% Eigentliche Prüfung auf Überschneidung
+CollSet = struct('collsearch', false);
+[coll_iaspc, ~] = check_collisionset_simplegeom_mex(collbodies_iaspc2, ...
+  collchecks_iaspc2, JP, CollSet);
 
 %% Winkel in passiven Gelenken bestimmen
 Q_clamp_all = NaN(size(Q));
@@ -69,6 +95,8 @@ for k = 1:size(Q,1) % Alle Zeitschritte durchgehen
     while j < R.Leg(i).NJ % Keine For-Schleife, damit Indizes übersprungen werden können
       j = j + 1;
       i_pt = 2 + j + R.I1L_LEG(i) - i; % Bestimme Gelenkpunkt-Index direkt (Alternative: i_pt hochzählen)
+      % Prüfe, ob Gelenkpunkt im Interaktionsarbeitsraum ist
+      if ~coll_iaspc(k, i_pt), continue; end
       % Abgleich des neu mit direkter Kinematik berechneten KS mit den
       % eingegebenen Gelenkpunkten (Konsistenzprüfung), im Basis-KS
       test_jp = R.Leg(i).T_W_0 * Tc_Leg_i(:,:,j+1) * [0;0;0;1] - [jp_k(:,i_pt); 1];
@@ -195,7 +223,7 @@ end
 if all(isnan(min2clampangle)) % Falls kein Gelenk von der MRK-Kennzahl erfasst wird
   fval = 0;
   f_clamp = 0;
-  fval_debugtext = '';
+  fval_debugtext = 'Kein Klemmwinkel im Interaktionsbereich';
   return
 end
 
