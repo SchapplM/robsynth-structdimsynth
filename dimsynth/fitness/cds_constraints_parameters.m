@@ -127,15 +127,19 @@ check_base_r_eff_valid = Structure.Type == 2 && ...
     any(Structure.vartypes == 8); % Morphologie wird optimiert
 check_base_r_eff_constr = all(~isnan(Set.optimization.base_size_limits)) && ... % Gestell-Grenzen gegeben
     Set.optimization.base_size_limits(1)~=Set.optimization.base_size_limits(2); % Grenzen nicht gleich
-if check_base_r_eff_valid && (check_base_r_eff_constr || ~isinf(Set.optimization.max_platform_base_ratio))
-  r_base = p(Structure.vartypes == 6); % Gestell-Radius
+p_base = p(Structure.vartypes == 6);
+if Set.optimization.base_size_limits(1)==Set.optimization.base_size_limits(2) % Grenzen gleich
+  r_base_eff = Set.optimization.base_size_limits(1);
+elseif isempty(p_base) % Keine Parameter für Basis enthalten (evtl. wegen Inkonsistenz von Parameter und Einstellung aus cds_gen_init_pop.m)
+  check_base_r_eff_valid = false;
+  check_base_r_eff_constr = false;
+elseif check_base_r_eff_valid && (check_base_r_eff_constr || ~isinf(Set.optimization.max_platform_base_ratio))
+  r_base = p_base; % Gestell-Radius
   p_base_morph = p_phys(Structure.vartypes == 8); % Gestell-Morphologie-Parameter
   d_base_pair = p_base_morph(1); % Paar-Abstand
   r_base_eff = sqrt((d_base_pair/2)^2 + r_base^2); % effektiver Radius (zum Gelenkpunkt)
-elseif Set.optimization.base_size_limits(1)==Set.optimization.base_size_limits(2) % Grenzen gleich
-  r_base_eff = Set.optimization.base_size_limits(1);
 else % nicht benötigt oder nicht paarweise, also direkt ablesbar
-  r_base_eff = p(Structure.vartypes == 6); % Gestell-Radius
+  r_base_eff = p_base; % Gestell-Radius
 end
 if check_base_r_eff_valid && check_base_r_eff_constr
   if ~isempty(R) && ~isnan(r_base_eff)
@@ -170,15 +174,19 @@ check_plf_r_eff_valid = Structure.Type == 2 && ...
   any(Structure.vartypes == 9); % Morphologie wird optimiert
 check_plf_r_eff_constr = all(~isnan(Set.optimization.platform_size_limits)) && ... % Plattform-Grenzen gegeben
     Set.optimization.platform_size_limits(1)~=Set.optimization.platform_size_limits(2); % Grenzen nicht gleich
-if check_plf_r_eff_valid && (check_plf_r_eff_constr || ~isinf(Set.optimization.max_platform_base_ratio))
-  r_plf = p(Structure.vartypes == 7); % Plattform-Radius
+p_plf = p(Structure.vartypes == 7);
+if Set.optimization.platform_size_limits(1)==Set.optimization.platform_size_limits(2) % Grenzen gleich
+  r_plf_eff = Set.optimization.platform_size_limits(1);
+elseif isempty(p_plf) % Keine Parameter für Basis enthalten (evtl. wegen Inkonsistenz von Parameter und Einstellung aus cds_gen_init_pop.m)
+  check_plf_r_eff_valid = false;
+  check_plf_r_eff_constr = false;
+elseif check_plf_r_eff_valid && (check_plf_r_eff_constr || ~isinf(Set.optimization.max_platform_base_ratio))
+  r_plf = p_plf; % Plattform-Radius
   p_plf_morph = p_phys(Structure.vartypes == 9); % Plattform-Morphologie-Parameter
   d_plf_pair = p_plf_morph(1); % Paar-Abstand
   r_plf_eff = sqrt((d_plf_pair/2)^2 + r_plf^2); % effektiver Radius (zum Gelenkpunkt)
-elseif Set.optimization.platform_size_limits(1)==Set.optimization.platform_size_limits(2) % Grenzen gleich
-  r_plf_eff = Set.optimization.platform_size_limits(1);
 else % nicht benötigt oder nicht paarweise, also direkt ablesbar
-  r_plf_eff = p(Structure.vartypes == 7); % Plattform-Radius
+  r_plf_eff = p_plf; % Plattform-Radius
 end
 if check_plf_r_eff_valid && check_plf_r_eff_constr  
   if ~isempty(R)
