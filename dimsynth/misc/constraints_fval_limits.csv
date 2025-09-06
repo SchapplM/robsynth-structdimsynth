@@ -11,7 +11,8 @@ fval_low;relation_high;fval_high;latex_label;text
 1000000;<=;2000000;;Undefiniert
 2000000;<=;3000000;;MRK-NB (Erkennung Kraft)
 3000000;<=;4000000;;MRK-NB (Klemmwinkel)
-4000000;<=;6000000;;Kinematik-NB (Pos.-Fehler)
+4000000;<=;5000000;;MRK-NB (Klemmabstand)
+5000000;<=;6000000;;Kinematik-NB (Pos.-Fehler)
 6000000;<=;10000000;itm:constr_jac_traj;Kinematik-NB (Kond.)
 10000000;<=;11000000;;Kinematik-NB (PosErr.,traj-constr)
 11000000;<=;12000000;itm:constr_jac_traj;Kinematik-NB (Kond.,traj-constr)
