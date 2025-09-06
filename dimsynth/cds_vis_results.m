@@ -465,7 +465,7 @@ if length(Set.optimization.objective) > 1 % Mehrkriterielle Optimierung
   % Indizes der betrachteten Zielkriterien
   IO1 = objcomb3D(pfcomb, 1);
   IO2 = objcomb3D(pfcomb, 2);
-  if length(objcomb3D) == 3
+  if size(objcomb3D,2) == 3
     IO3 = objcomb3D(pfcomb, 3);
   end
 
