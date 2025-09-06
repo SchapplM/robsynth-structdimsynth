@@ -27,7 +27,9 @@
 %   4.25e5...4.5e5: Schubzylinder geht zu weit nach hinten weg (nach IK erkannt)
 %   4.5e5...4.9e5: Gestell ist wegen Schubgelenken zu groß (nach IK erkannt)
 %   4.9e5...5e5: Beinkette ist zu lang (wegen Schubgelenken)
-%   5e5...5.4e5: Plattform-Rotation entspricht nicht den gegebenen Grenzen
+%   5e5...5.3e5: Plattform-Rotation entspricht nicht den gegebenen Grenzen
+%   5.3e5...5.35e5: Beinketten-Gelenke liegen jenseits der Plattform
+%   5.35e5...5.4e5: Beinketten-Gelenke liegen jenseits der Plattform (Prüfung direkt nach IK)
 %   5.4e5...5.5e5: Nicht-Symmetrische Einbaulage
 %   5.5e5...6e5: Gelenkwinkelgrenzen (Absolut) in Einzelpunkten
 %   6e5...7e5: Gelenkwinkelgrenzen (Spannweite) in Einzelpunkten
@@ -448,8 +450,15 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     Q_jic_old(:,:,jic) = Q_jic(:,:,jic);
     constrvioltext_jic_old{jic} = constrvioltext_jic{jic};
   end
-  if i_ar == 2 && ... % Optimierung von Nebenbedingungen nur, ...
-      fval_jic(jic) > 1e6 % ... falls normale IK erfolgreich war.
+  if i_ar == 2 && ...
+      fval_jic(jic) > 5.35e5 && fval_jic(jic) < 5.4e5
+    % Ausschlussgrund waren Gelenkpositionen jenseits der Plattform.
+    % In dem Fall kann die Drehung der Plattform auch nicht helfen.
+    % Andere Redundanztypen sind nicht implementiert.
+    break;
+  end
+  if i_ar == 2 && ... 
+      fval_jic(jic) > 1e6
     break; % sonst ist die zweite Iteration nicht notwendig.
   end
   if i_ar == 2 && fval_jic(jic) == 1e3 && jic == 1 && ... % Erfolgreich für erste Konfiguration (die vorgegebene)
@@ -688,7 +697,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         % Punkt optimiert werden. Für die hierauf folgende Trajektorie
         % haben die anderen Punkte sowieso keine Bedeutung.
         break;
-      elseif fval_jic_old(jic) > 5e5 && fval_jic_old(jic) < 5.4e5
+      elseif fval_jic_old(jic) > 5.0e5 && fval_jic_old(jic) < 5.3e5
         % Ausschlussgrund war eine zu große Plattform-Rotation.
         % Aktiviere weiteres Kriterium für Einhaltung der Grenzen
         s4.wn(R.idx_ikpos_wn.xlim_par) = 1;
@@ -1193,6 +1202,20 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
         break;
       end
     end
+    % Prüfe, ob die Plattform zu nah an den Beinketten-Gelenken ist
+    if Structure.Type == 2 && ~isnan(Set.optimization.platform_beyond_robot_structure_min_abs)
+      [fval_plfpos, JPz_joints_beyond_plf_max] = cds_constraints_platform_position_rel(R, Set, Structure, JPE(i,:), QE(i,:), Traj_0.XE(i,:),  [5.3e5,5.35e5]);
+      if fval_plfpos > 0
+        fval_plfpos_norm = (fval_plfpos-5.3e5)/(5.35e5-5.3e5); % zurück auf 0 bis 1 (Aufruf mit 5.3e5 wegen Schwellwerten der Debug-Plots)
+        fval_plfpos2 = 1 - (i-fval_plfpos_norm)/size(Traj_0.XE,1); % 0 bis 1
+        fval_jic(jic) = 1e5 * (5.35+0.05*fval_plfpos2); % Normierung auf 5.35e5 bis 5.4e5
+        constrvioltext_jic{jic} = sprintf(['Beinketten-Gelenke sind jenseits', ...
+          ' der Plattform bei AR-Eckpunkt %d/%d. Verletzung %1.1f mm.'], ...
+          i, size(Traj_0.XE,1), 1e3*JPz_joints_beyond_plf_max);
+        calctimes_jic(i_ar,jic) = toc(t1);
+        break;
+      end
+    end
     if Set.optimization.constraint_collisions
       % Kollisionskörper aktualisieren (sonst z.B. Führungsschienen falsch)
       % Die Länge der Führungsschienen ist hier nicht vollständig bekannt.
@@ -1356,7 +1379,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     else
       jointstr = '';
     end
-    constrvioltext_jic{jic} = sprintf(['Gelenkgrenzverletzung in AR-Eckwerten. ', ...
+    constrvioltext_jic{jic} = sprintf(['Gelenkgrenzverletzung in Eckpunkten. ', ...
       'Schlechteste Spannweite: %1.2f/%1.2f (Gelenk %d%s)'], q_range_E(IIw), ...
       qlim(IIw,2)-qlim(IIw,1), IIw, jointstr);
     if Set.general.plot_details_in_fitness < 0 && 1e4*fval_jic(jic) >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
@@ -1370,7 +1393,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       xlabel('Koordinate Nummer'); ylabel('Koordinate Wert');
       grid on;
       legend([hdl_iO(1);hdl_niO(1);hdl1;hdl2], {'iO-Gelenke', 'niO-Gelenke', 'qmax''', 'qmin''=0'});
-      sgtitle(sprintf('Auswertung Grenzverletzung AR-Eckwerte. fval=%1.2e', fval_jic(jic)));
+      sgtitle(sprintf('Auswertung Grenzverletzung AR-Eckpunkte. fval=%1.2e', fval_jic(jic)));
     end
     calctimes_jic(i_ar,jic) = toc(t1);
     continue;
@@ -1398,7 +1421,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       [delta_lv_maxrel,Imax2] = max(lvmax-0.5);
       fval_qlimva_E_norm = 2/pi*atan((delta_lv_maxrel)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
       fval_jic(jic) = 1e5*(5.5+0.5*fval_qlimva_E_norm); % Normierung auf 5.5e5 bis 6e5
-      constrvioltext_jic{jic} = sprintf(['Gelenkgrenzverletzung in AR-Eckwerten. ', ...
+      constrvioltext_jic{jic} = sprintf(['Gelenkgrenzverletzung in AR-Eckpunkten. ', ...
         'Größte relative Überschreitung: %1.1f%% (Gelenk %d, Eckpunkt %d/%d)'], ...
         100*delta_lv_maxrel, Imax2, Imax(Imax2), size(QE,1));
       continue;
@@ -1432,7 +1455,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       fval_asym = normalize_angle(qexc_mean_QE_max-60*pi/180)/pi; % Normierung auf 0...1
       fval_jic(jic) = 1e5 * (5.4+0.1*fval_asym); % Normierung auf 5.4e5 bis 5.5e5
       constrvioltext_jic{jic} = sprintf(['Unsymmetrische Einbaulage in %d/%d ' ...
-        'AR-Eckwerten. Größte Überschreitung %1.1f° bei Punkt %d'], ...
+        'AR-Eckpunkten. Größte Überschreitung %1.1f° bei Punkt %d'], ...
         sum(qexc_mean_QE > 60*pi/180), size(QE,1), qexc_mean_QE_max*180/pi, I_qexc_max);
       continue;
       % Debug: Zeichnen des Roboters in der Konfiguration
@@ -1440,6 +1463,17 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       Set.general.plot_robot_in_fitness = 1e6;
       cds_fitness_debug_plot_robot(R, QE(I_qexc_max,:)', struct('XE', Traj_0.XE(I_qexc_max,:)), ...
         Traj_0, Set, Structure, [], 1e5, {});
+    end
+  end
+  %% Prüfe, ob die Plattform zu nah an den Beinketten-Gelenken ist
+  if Structure.Type == 2 && ~isnan(Set.optimization.platform_beyond_robot_structure_min_abs)
+    [fval_plfpos, JPz_joints_beyond_plf_max] = cds_constraints_platform_position_rel(R, Set, Structure, JPE, QE, Traj_0.XE, [5.3e5,5.35e5]);
+    if fval_plfpos > 0
+      fval_jic(jic) = fval_plfpos; % Normierung auf 5.3e5 bis 5.35e5 -> bereits in Funktion
+      constrvioltext_jic{jic} = sprintf(['Beinketten-Gelenke sind jenseits', ...
+        ' der Plattform. Verletzung %1.1f mm.'], 1e3*JPz_joints_beyond_plf_max);
+      calctimes_jic(i_ar,jic) = toc(t1);
+      continue;
     end
   end
   %% Prüfe Verletzung der Grenzen der Plattform-Rotation
@@ -1452,8 +1486,8 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     if any(X6_limviolA(:) > 0.5)
       [lvmax, Imax] = max(X6_limviolA,[],1);
       fval_xlimva_E_norm = 2/pi*atan((lvmax-0.5)/0.3); % Normierung auf 0 bis 1; 2 ist 0.9
-      fval_jic(jic) = 1e5*(5+0.4*fval_xlimva_E_norm); % Normierung auf 5e5 bis 5.4e5
-      constrvioltext_jic{jic} = sprintf(['Plattformgrenzverletzung in AR-Eckwerten. ', ...
+      fval_jic(jic) = 1e5*(5+0.3*fval_xlimva_E_norm); % Normierung auf 5e5 bis 5.3e5
+      constrvioltext_jic{jic} = sprintf(['Plattformgrenzverletzung in AR-Eckpunkten. ', ...
         'Größte relative Überschreitung: %1.1f%% (Eckpunkt %d/%d). Winkel %1.1f° ', ...
         'außerhalb [%1.1f°, %1.1f°]'], 100*(lvmax-0.5), Imax, size(XE,1), ...
         180/pi*XE(Imax,6), 180/pi*Set.optimization.ee_rotation_limit(1), ...
@@ -1600,7 +1634,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
       Structure, JPE, QE, [3e5;3.5e5]);
     if fval_coll > 0
       fval_jic(jic) = fval_coll; % Normierung auf 3e5 bis 3.5e5 bereits in Funktion
-      constrvioltext_jic{jic} = sprintf('Selbstkollision in %d/%d AR-Eckwerten.', ...
+      constrvioltext_jic{jic} = sprintf('Selbstkollision in %d/%d AR-Eckpunkten.', ...
         sum(any(coll_self,2)), size(coll_self,1));
       if fval_jic_old(jic) > 3e5 && fval_jic_old(jic) < 4e5 && fval_coll > fval_jic_old(jic)+1e-4
         cds_log(3, sprintf(['[constraints] Konfig %d/%d: Die Schwere der Kollisionen hat ', ...
@@ -1629,7 +1663,7 @@ for jic = 1:n_jic % Schleife über IK-Konfigurationen (30 Versuche)
     [fval_obstcoll, coll_obst, f_constr_obstcoll] = cds_constr_collisions_ws(R, Traj_0.XE, Set, Structure, JPE, QE, [1e5;2e5]);
     if fval_obstcoll > 0
       fval_jic(jic) = fval_obstcoll; % Normierung auf 1e5 bis 2e5 -> bereits in Funktion
-      constrvioltext_jic{jic} = sprintf(['Arbeitsraum-Kollision in %d/%d AR-Eckwerten. ', ...
+      constrvioltext_jic{jic} = sprintf(['Arbeitsraum-Kollision in %d/%d AR-Eckpunkten. ', ...
         'Schlimmstenfalls %1.1f mm in Kollision.'], sum(any(coll_obst,2)), ...
         size(coll_obst,1), 1e3*f_constr_obstcoll);
       calctimes_jic(i_ar,jic) = toc(t1);
@@ -1738,7 +1772,7 @@ end
 % Text vervollständigen aus beiden Variablen
 
 for i = find(~cellfun(@isempty,constrvioltext2_jic))'
-  constrvioltext_jic{i} = sprintf('%s %s', constrvioltext_jic{i}, constrvioltext2_jic{i});
+  constrvioltext_jic{i} = sprintf('%s; AufgRed.-Info: %s', constrvioltext_jic{i}, constrvioltext2_jic{i});
 end
 %% IK-Konfigurationen für Eckpunkte auswerten. Nehme besten.
 [fval, jic_best] = min(fval_jic);

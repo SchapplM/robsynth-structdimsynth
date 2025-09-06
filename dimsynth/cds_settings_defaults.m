@@ -136,7 +136,8 @@ structures = struct( ...
   'mounting_serial', {'floor'}, ... % Montageort für serielle Roboter: floor, ceiling, wall
   'mounting_parallel', {mounting_parallel_default}, ... % ... für PKM (wird entsprechend zur Aufgabe ausgerichtet; Schubgelenke haben Vorzugsrichtung)
   'repeatlist', {{}}, ... % Liste für mehrfache Durchführung eines Roboters. Einträge: {'Name', Anzahl}. Sinnvoll, wenn parallele Berechnung möglich.
-  'whitelist', {''}); % Liste, die die Systeme beschränkt
+  'whitelist', {''}, ... % Liste, die die Systeme beschränkt
+  'whitelist_overrules_filters', true); % Liste auf der Positiv-Liste müssen optimiert werden (bei true). Sonst (bei false) ist die Liste ein weiterer Filter.
 
 %% Optimierungs-Einstellungen
 % Einstellungen mit Auswirkung auf die Optimierung: Auswahl der
@@ -189,6 +190,7 @@ optimization = struct( ...
   'platform_size', true, ... % Größe der Plattform
   'platform_size_limits', [NaN, NaN], ... % Grenzen für Plattform-Größe (Radius; Absolut; bei paarweiser Anordnung wird effektiver Radius gezählt)
   'max_platform_base_ratio', inf, ... % Plattform sollte nicht so viel mal größer als die Basis sein
+  'platform_beyond_robot_structure_min_abs', NaN, ... % Mit diesem Wert kann die Plattform einen Mindestabstand zu den Beinketten haben (von der Basis aus gezählt)
   'base_morphology', true, ... % Aussehen des Gestells (z.B. Schrägheit, Gelenkpaarabstand)
   'platform_morphology', true, ... % Aussehen der Plattform (z.B. Gelenkpaarabstand)
   'tilt_base', false, ... % Kippen der Roboter-Basis (über Rotation um x- und y-Achse). Ermöglicht Ausweichen struktureller Singularitäten

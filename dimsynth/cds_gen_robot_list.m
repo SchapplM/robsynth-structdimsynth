@@ -220,10 +220,10 @@ for N_JointDoF = N_JointDoF_allowed
       SkipRobot = true;
     end
     if SkipRobot % Einer der Ausschlussgründe oben wurde getroffen.
-      if IsInWhiteList % Positiv-Liste wird trotzdem genommen.
+      if IsInWhiteList && Set.structures.whitelist_overrules_filters % Positiv-Liste wird trotzdem genommen.
         if verblevel > 3, fprintf(' Füge trotzdem hinzu, da auf Positiv-Liste.\n'); end
       else
-        if verblevel > 3, fprintf(' Ignoriere.\n'); end
+        if verblevel > 3 || IsInWhiteList, fprintf(' Ignoriere.\n'); end
         continue
       end
     end
@@ -700,10 +700,10 @@ for kkk = 1:size(EE_FG_allowed,1)
       SkipRobot = true;
     end
     if SkipRobot % Einer der Ausschlussgründe oben wurde getroffen.
-      if IsInWhiteList % Positiv-Liste wird trotzdem genommen.
+      if IsInWhiteList && Set.structures.whitelist_overrules_filters % Positiv-Liste wird trotzdem genommen. % Positiv-Liste wird trotzdem genommen.
         fprintf(' Füge trotzdem hinzu, da auf Positiv-Liste.\n');
       else
-        if verblevel > 3, fprintf(' Ignoriere.\n'); end
+        if verblevel > 3 || IsInWhiteList, fprintf(' Ignoriere.\n'); end
         continue
       end
     end
