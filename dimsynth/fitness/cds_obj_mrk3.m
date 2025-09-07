@@ -1,5 +1,5 @@
 % Zielfunktion ("objective function") für Optimierung in der Maßsynthese
-% für MRK-Kennzahl (basierend auf Segmentabständen).
+% für MRK-Kennzahl Klemmabstand (basierend auf Segmentabständen).
 % Ansatz: Je weiter die Kollisionskörper des Roboters voneinander entfernt
 % sind, desto besser zur Vermeidung von Klemmungen.
 % Benutzt alle Aufenthaltsorte der Gelenke des Roboters in der Trajektorie
@@ -22,7 +22,7 @@
 % Ausgabe:
 % fval [1x1]
 %   Zielfunktionswert, der im PSO-Algorithmus minimiert wird. Benutze den
-%   Kehrwert des Kollisionsabstandes
+%   Kehrwert des Klemmabstandes
 % fval_debugtext [char]
 %   Zeile mit Hinweistext, der bei PSO nach Fitness-Berechnung ausgegeben wird
 % debug_info [cell]
@@ -273,7 +273,7 @@ if min2colldist > 0 % keine Kollision
   f_colldist2 = 1/min2colldist;
   f_colldist_norm = 2/pi*atan(f_colldist2/10); % Normierung auf 0 bis 1; 1m ist 0.06; 0.1m ist 0.5
   fval = 1e2*f_colldist_norm; % Normiert auf 0 bis 1e2. über 1e2 ist reserviert für Kollision
-  fval_debugtext = sprintf('Kollisionsabstand %1.1fmm.', 1e3*min2colldist);
+  fval_debugtext = sprintf('Klemmabstand %1.1fmm.', 1e3*min2colldist);
 elseif isnan(min2colldist)
   % Keine Objekt-Abstände im Interaktionsraum
   fval = 0; % Bestmöglicher Wert
@@ -285,7 +285,7 @@ elseif isnan(min2colldist)
     robrange(k) = diff(minmax2(allentries(:)'));
   end
   f_colldist = -norm(robrange);
-  fval_debugtext = sprintf('Keine Kollisionsabstände im Interaktionsraum');
+  fval_debugtext = sprintf('Keine Klemmabstände im Interaktionsraum');
 else % Kollision
   f_colldist2 = -min2colldist; % je größer der Betrag desto tiefer in Kollision
   f_colldist_norm = 2/pi*atan(f_colldist2*10); % 0.2m Eindringung entspricht 0.7; 0.1m entspricht 0.5; 1mm entspricht 0.0064
@@ -389,7 +389,7 @@ for kk = 1:length(collbodies_iaspc.type)
       'FaceColor', 'm', 'FaceAlpha', 0.1);
   end
 end
-title(sprintf(['Kollisionsabstände schlechtester Fall. ', ...
+title(sprintf(['Klemmabstände schlechtester Fall. ', ...
   'Dist=%1.1fmm, I=%d/%d'], 1e3*min2colldist, IItmin, size(Q,1)));
 legend(leghdl(~isnan(leghdl)), legtxt(~isnan(leghdl)));
 drawnow();

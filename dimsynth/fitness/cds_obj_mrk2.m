@@ -1,5 +1,5 @@
 % Zielfunktion ("objective function") für Optimierung in der Maßsynthese
-% für MRK-Kennzahl (Platzhalter).
+% für MRK-Kennzahl (basierend auf Sensitivität gegenüber externen Kräften).
 % 
 % Eingabe:
 % R
