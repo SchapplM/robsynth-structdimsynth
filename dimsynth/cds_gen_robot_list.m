@@ -510,16 +510,26 @@ for kkk = 1:size(EE_FG_allowed,1)
         LastJointActive = true;
       end
       % Prüfe, ob das aktive Gelenk zu nah an der Plattform ist
-      if any(Actuation{k} > Set.structures.max_index_active)
+      % (unterschiedlich, je nachdem ob voll-parallel oder nicht)
+      if NLEG == sum(EE_FG_allowed(kkk,:)) % voll-parallel
+        max_index_active_j = Set.structures.max_index_active;
+        max_index_active_prismatic_j = Set.structures.max_index_active_prismatic;
+        max_index_active_revolute_j = Set.structures.max_index_active_revolute;
+      else % nicht voll-parallel
+        max_index_active_j = Set.structures.max_index_active_notfullyparallel;
+        max_index_active_prismatic_j = Set.structures.max_index_active_prismatic_notfullyparallel;
+        max_index_active_revolute_j = Set.structures.max_index_active_revolute_notfullyparallel;
+      end
+      if any(Actuation{k} > max_index_active_j)
         DistalJointActive = true;
       end
       for l = 1:NLegDoF % Gehe alle Beingelenke durch
         if strcmp(LegChainName(2+l), 'P') && any(Actuation{k} == l) && ...
-            l > Set.structures.max_index_active_prismatic
+            l > max_index_active_prismatic_j
           DistalPrisJointActive = true; break;
         end
         if strcmp(LegChainName(2+l), 'R') && any(Actuation{k} == l) && ...
-            l > Set.structures.max_index_active_revolute
+            l > max_index_active_revolute_j
           DistalRevJointActive = true; break;
         end
       end
@@ -645,21 +655,21 @@ for kkk = 1:size(EE_FG_allowed,1)
     if ~SkipRobot && DistalJointActive
       if verblevel > 3 || IsInWhiteList
         fprintf('%s hat aktives Gelenk nach Position %d.', PNames_Akt{j}, ...
-          Set.structures.max_index_active);
+          max_index_active_j);
       end
       SkipRobot = true;
     end
     if ~SkipRobot && DistalPrisJointActive
       if verblevel > 3 || IsInWhiteList
         fprintf('%s hat aktives Schubgelenk nach Position %d.', PNames_Akt{j}, ...
-          Set.structures.max_index_active_prismatic);
+          max_index_active_prismatic_j);
       end
       SkipRobot = true;
     end
     if ~SkipRobot && DistalRevJointActive
       if verblevel > 3 || IsInWhiteList
         fprintf('%s hat aktives Drehgelenk nach Position %d.', PNames_Akt{j}, ...
-          Set.structures.max_index_active_revolute);
+          max_index_active_revolute_j);
       end
       SkipRobot = true;
     end

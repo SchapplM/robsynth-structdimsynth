@@ -130,8 +130,11 @@ structures = struct( ...
   'nopassiveprismatic', true, ... % Schubgelenke dürfen nicht passiv sein
   'activenotlastjoint', true, ... % Verhindert ein aktives Plattform-Koppelgelenk
   'max_index_active', 6, ... % Setzt den maximalen Index aktuierter Gelenke fest (nachrrangig gegen vorherige Option); für PKM
+  'max_index_active_notfullyparallel', 6, ... % gleiche Option für nicht voll-parallele (haben prinzipbedingt mehr distale Aktuierung)
   'max_index_active_revolute', 6, ... % wie vorherige, nur bezogen auf Drehgelenke; für PKM
+  'max_index_active_revolute_notfullyparallel', 6, ... % wie vorherige, nur bezogen auf nicht voll-parallele
   'max_index_active_prismatic', 6, ... % wie vorherige, nur bezogen auf Schuzbgelenke; für PKM
+  'max_index_active_prismatic_notfullyparallel', 6, ... % wie vorherige, nur bezogen auf nicht voll-parallele
   'no_inactive_joints', true, ... % Kinematiken mit inaktiven Gelenken werden verworfen
   'mounting_serial', {'floor'}, ... % Montageort für serielle Roboter: floor, ceiling, wall
   'mounting_parallel', {mounting_parallel_default}, ... % ... für PKM (wird entsprechend zur Aufgabe ausgerichtet; Schubgelenke haben Vorzugsrichtung)
