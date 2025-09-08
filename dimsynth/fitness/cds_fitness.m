@@ -595,7 +595,7 @@ for iIKC = I_IKC
   if Set.optimization.constraint_obj(10) ~= 0 % NB für MRK-3 (Klemmabstand) gesetzt
     [fval_mrk3, fval_debugtext_mrk3, ~, physval_mrk3] = cds_obj_mrk3(R, Set, Structure, Traj_0, Q, JP);
     if physval_mrk3 > Set.optimization.constraint_obj(10)
-      fval_IKC(iIKC,:) = 1e6*(4+1*fval_mrk2/1e3); % normiert auf 4e6 bis 5e6
+      fval_IKC(iIKC,:) = 1e6*(4+1*fval_mrk3/1e3); % normiert auf 4e6 bis 5e6
       constrvioltext_IKC{iIKC} = sprintf(['Klemmabstand (für MRK) ist zu klein: ', ...
         '%1.1f < %1.1f'], -physval_mrk3, -Set.optimization.constraint_obj(10));
       continue
