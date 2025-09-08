@@ -192,10 +192,11 @@ for i = find(I_RobMatch)'% Unterordner durchgehen.
       'werden. Fehler: %s'], initpop_matlist{i}, err.message));
     continue
   end
-  try
-    optimstart_date = datestr(d.RobotOptRes.timestamps_start_end(1), 'yyyy-mm-dd HH:MM');
-  catch
-    disp('TODO: why???')
+  if isnan(d.RobotOptRes.timestamps_start_end(1)) % Die Start-Zeit fehlt...
+    fd = dir(initpop_matlist{i}); % ...  Vermutlich wegen nicht sauberem Abschluss...
+    optimstart_date = ['file date ', fd(1).date]; % ... der Ergebnisse (sollte aber eigentlich nicht sein)
+  else
+    optimstart_date = datestr(d.RobotOptRes.timestamps_start_end(1), 'yyyy-mm-dd HH:MM'); %#ok<DATST>
   end
   if ~isfield(d.RobotOptRes, 'p_val_pareto') % (Altes Dateiformat. Dieser Code kann irgendwann weg)
     cds_log(2, sprintf(['[gen_init_pop] Datei übersprungen, da Feld ', ...
