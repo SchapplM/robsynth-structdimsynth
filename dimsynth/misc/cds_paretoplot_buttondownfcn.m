@@ -41,8 +41,8 @@ fighdl = get(axhdl, 'Parent');
 uihdl = findobj(fighdl, 'Type', 'UIControl');
 Selection = get(uihdl, 'Value');
 SelStr = get(uihdl,'String');
-fprintf('[%s] Starte Vorbereitung und Plot für %s/%s (Rob. %d) "%s"\n', ...
-  datestr(now(),'yyyy-mm-dd HH:MM:SS'), OptName, RobName, RobNr, SelStr{Selection});
+fprintf('[%s] Starte Vorbereitung und Plot für %s/%s (Rob. %d; Punkt %d) "%s"\n', ...
+  datestr(now(),'yyyy-mm-dd HH:MM:SS'), OptName, RobName, RobNr, find(I_point, 1, 'first'), SelStr{Selection});
 %% Lade die Daten
 % Benutze den Ordner als Speicherort der Daten, in dem auch das Bild liegt.
 resdir_opt = fileparts(get(fighdl, 'FileName'));
@@ -128,7 +128,7 @@ Set = cds_settings_update(Set, 1);
 % Debug-Plots teilweise deaktivieren, da hier nicht gewünscht.
 Set.general.debug_taskred_perfmap = false;
 %% Bestimme die Nummer des Pareto-Partikels
-% Nummer istschon in I_point richtig sein, da xData und yData identisch
+% Nummer ist schon in I_point richtig, da xData und yData identisch
 % mit den Werten aus fval_pareto (bzw. physval) sind.
 % Wenn mehrere Punkte übereinander liegen, wird der erste genommen. Ist
 % egal, da sie ja ein identisches Ergebnis haben.
