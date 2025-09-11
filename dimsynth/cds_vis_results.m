@@ -35,7 +35,8 @@
 % * Dynamik-Komponenten in Plattform-KS
 % Bilder für alle Roboter:
 % * Pareto-Front mit physikalischen Werten und normierten Werten der Zielf.
-%   ('pareto_all_phys', 'pareto_all_fval')
+%   Bilder der einzelnen Strukturen: ('pareto_all_phys', 'pareto_all_fval')
+%   Bilder mit Gruppierung der Strukturen: ('pareto_all_phys_groups', 'pareto_all_fval_groups')
 % 
 % Speichert die Bilder für jeden Roboter in einem eigenen Unterordner
 
@@ -382,8 +383,8 @@ if length(Set.optimization.objective) > 1 % Mehrkriterielle Optimierung
   end
   for pfcomb = 1:size(objcomb3D,1)
   for pffig = 1:2 % Zwei Bilder: Physikalische Werte und normierte Werte
-  if pffig == 1 && ~any(strcmp(Set.general.eval_figures, 'pareto_all_phys')) || ...
-     pffig == 2 && ~any(strcmp(Set.general.eval_figures, 'pareto_all_fval'))
+  if pffig == 1 && ~any(contains(Set.general.eval_figures, 'pareto_all_phys')) || ...
+     pffig == 2 && ~any(contains(Set.general.eval_figures, 'pareto_all_fval'))
     continue
   end
   if pffig == 1, name_suffix_phys = 'phys';
@@ -448,6 +449,14 @@ if length(Set.optimization.objective) > 1 % Mehrkriterielle Optimierung
   end
   if sum(I_acttype(:,pfact)) > 80 && pfvar == 1 % Zu viele Roboter. Kein Einzel-Bild (sowieso zu unübersichtlich)
     continue;
+  end
+  if pfvar == 1 && ~any(strcmp(Set.general.eval_figures, 'pareto_all_phys')) ...
+                && ~any(strcmp(Set.general.eval_figures, 'pareto_all_fval'))
+    continue % Kein Einzelbild verlangt
+  end
+  if pfvar == 2 && ~any(strcmp(Set.general.eval_figures, 'pareto_all_phys_groups')) ...
+                && ~any(strcmp(Set.general.eval_figures, 'pareto_all_fval_groups'))
+    continue % Kein Gruppenbild verlangt
   end
   % Achsbeschriftungen für Diagramm für diese Roboterauswahl aktualisieren
   [obj_units, objscale, objtext] = cds_objective_plotdetails(Set, Structures(I_acttype(:,pfact)'));

@@ -63,7 +63,7 @@ general = struct( ...
   'overwrite_existing_results', true, ... % Führe die Maßsynthese erneut durch, auch wenn schon Daten vorhanden sind. Für alleinige Berechnung unfertiger Roboter auf false setzen
   'nosummary', false, ... % Kompletter Verzicht auf die graphische Endauswertung
   'eval_figures', {{'histogram', 'fitness_various', 'jointtraj', ... % Liste der zu erstellenden Bilder. ...
-    'robvisuanim', 'pareto_all_phys', 'pareto_all_fval', 'pareto'}}, ... % ... Auswahl, siehe cds_vis_results.m
+    'robvisuanim', 'pareto_all_phys_groups', 'pareto_all_phys', 'pareto'}}, ... % ... Auswahl, siehe cds_vis_results.m
   'only_save_summary_figures', true, ... % Bilderzeugung dient hauptsächlich der Speicherung. Schließe alle Bilder nach Speicherung
   'noprogressfigure', true, ... % Verzicht auf Fortschritts-Bild des PSO (meistens nicht hilfreich)
   'debug_calc', false, ... % Doppelte Berechnung zur Prüfung von Funktionen
