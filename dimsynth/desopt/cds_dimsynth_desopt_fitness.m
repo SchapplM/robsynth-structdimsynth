@@ -287,7 +287,7 @@ if fval == 0  && Set.optimization.constraint_obj(2) % NB für Energie gesetzt
   error('Grenzen für Zielfunktionen Energie noch nicht implementiert');
 end
 if fval == 0  && Set.optimization.constraint_obj(5) % NB für Steifigkeit gesetzt
-  [fval_st, fval_debugtext_st, ~, fphys_st] = cds_obj_stiffness(R, Set, Q);
+  [fval_st, fval_debugtext_st, ~, fphys_st] = cds_obj_stiffness(R, Set, Q, Traj_0);
   physval_desopt = Set.optimization.constraint_obj(5) / fphys_st;
   viol_rel_st = physval_desopt - 1;
   if viol_rel_st > 0 % Relative Überschreitung der Nachgiebigkeit
@@ -376,7 +376,7 @@ if any(strcmp(Set.optimization.objective, 'stiffness')) && ...
     % fval_st und fval_debugtext_st von der NB-Berechnung oben
     fval_debugtext = fval_debugtext_st;
   else
-    [fval_st,fval_debugtext_st,~,fphys_st] = cds_obj_stiffness(R, Set, Q);
+    [fval_st,fval_debugtext_st,~,fphys_st] = cds_obj_stiffness(R, Set, Q, Traj_0);
   end
   fval_main(strcmp(Set.optimization.objective, 'stiffness')) = fval_st;
   physval_main(strcmp(Set.optimization.objective, 'stiffness')) = fphys_st;

@@ -1,5 +1,5 @@
 % Zielfunktion ("objective function") für Optimierung in der Maßsynthese
-% basierend auf der Steifigkeit des Roboters.
+% basierend auf der (Endeffektor-)Steifigkeit des Roboters.
 % Die Steifigkeit wird in einen normierten Zielfunktionswert übersetzt
 % Damit kleine Zielfunktionen besser sind, wird effektiv die Nachgiebigkeit
 % benutzt.
@@ -11,6 +11,8 @@
 %   Einstellungen des Optimierungsalgorithmus (aus cds_settings_defaults.m)
 % Q
 %   Gelenkpositionen des Roboters (für PKM auch passive Gelenke)
+% Traj_0
+%   Roboter-Trajektorie (EE) bezogen auf Basis-KS des Roboters
 %
 % Ausgabe:
 % fval [1x1]
@@ -41,7 +43,7 @@
 % Betreuer: Moritz Schappler, moritz.schappler@imes.uni-hannover.de
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function [fval, fval_debugtext, debug_info, fval_phys] = cds_obj_stiffness(R, Set, Q)
+function [fval, fval_debugtext, debug_info, fval_phys] = cds_obj_stiffness(R, Set, Q, Traj_0)
 debug_info = {};
 
 if any(R.Type == [0 1]) && any(R.DesPar.seg_par(:) == 0) || ...
@@ -58,10 +60,19 @@ Keigges = NaN(size(Q,1), 3);
 i_warn = 0;
 for i = 1:size(Q,1)
   % Kartesische Steifigkeitsmatrix (6x6)
-  K_ges = R.stiffness(Q(i,:)');
-  % Auswahl der translatorischen Submatrix (3x3), Normierung auf N/mm
-  % (damit Zahlenwerte eher im Bereich 1 liegen)
-  K_trans_norm = 1e-3*K_ges(1:3,1:3);
+  K_gesP = R.stiffness(Q(i,:)'); % bezogen auf Plattform bzw. Flansch
+  % Transformiere Steifigkeitsmatrix auf Endeffektor
+  T_0_E = R.x2t(Traj_0.X(i,:)'); % Benutze dafür EE-KS und rechne auf Plattform-KS zurück
+  if R.Type == 2
+    r_E_P_E = R.T_P_E(1:3,1:3)'*R.T_P_E(1:3,4);
+  else % heißt bei seriellen Robotern "N". Vereinheitliche mit PKM zu "P".
+    r_E_P_E = R.T_N_E(1:3,1:3)'*R.T_N_E(1:3,4);
+  end
+  r_0_P_E = T_0_E(1:3,1:3)*r_E_P_E;
+  A_E_P = adjoint_jacobian(r_0_P_E);
+  K_ges = A_E_P' * K_gesP * A_E_P;
+  % Auswahl der translatorischen Submatrix (3x3)
+  K_trans_norm = K_ges(1:3,1:3);
   if any(isnan(K_trans_norm(:))) || any(isinf(K_trans_norm(:)))
     if i_warn == 0 % Nur einmal Debug-Speicherung der Warnung.
       repopath = fileparts(which('structgeomsynth_path_init.m'));

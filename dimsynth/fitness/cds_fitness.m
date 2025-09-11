@@ -748,7 +748,7 @@ for iIKC = I_IKC
   end
   %% Nebenbedingungen der Entwurfsvariablen berechnen: Steifigkeit
   if Set.optimization.constraint_obj(5)
-    [fval_st, ~, ~, fval_phys_st] = cds_obj_stiffness(R, Set, Q);
+    [fval_st, ~, ~, fval_phys_st] = cds_obj_stiffness(R, Set, Q, Traj_0);
     constraint_obj_val_IKC(5,iIKC) = fval_phys_st;
     if fval_phys_st > Set.optimization.constraint_obj(5) % Werte werden negativ angegeben
       % Nutze den gleichen Wertebereich wie Entwurfsoptimierung oben.
@@ -907,7 +907,7 @@ for iIKC = I_IKC
     fval_debugtext = [fval_debugtext, ' ', fval_debugtext_jl]; %#ok<AGROW>
   end
   if any(strcmp(Set.optimization.objective, 'stiffness'))
-    [fval_st,fval_debugtext_st, debug_info, physval_st] = cds_obj_stiffness(R, Set, Q);
+    [fval_st,fval_debugtext_st, debug_info, physval_st] = cds_obj_stiffness(R, Set, Q, Traj_0);
     fval_IKC(iIKC,strcmp(Set.optimization.objective, 'stiffness')) = fval_st;
     physval_IKC(iIKC,strcmp(Set.optimization.objective, 'stiffness')) = physval_st;
     fval_debugtext = [fval_debugtext, ' ', fval_debugtext_st]; %#ok<AGROW>
