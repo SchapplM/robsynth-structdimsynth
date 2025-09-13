@@ -102,7 +102,9 @@ length_Structures = length(Structures);
 % Prüfe, ob überhaupt roboterspezifische Plots erzeugt werden sollen
 length_Structures_parfor = length_Structures;
 if isempty(Set.general.animation_styles) && isempty(setdiff( ...
-    Set.general.eval_figures, {'pareto_all_fval','pareto_all_phys'}))
+    ... % Vergleich mit Liste von Bildern, die nicht in Einzelroboterschleife entstehen:
+    Set.general.eval_figures, {'pareto_all_fval','pareto_all_phys', ...
+    'pareto_all_fval_groups','pareto_all_phys_groups'}))
   length_Structures_parfor = 0;
 end
 %% Parallele Durchführung der Plots vorbereiten
