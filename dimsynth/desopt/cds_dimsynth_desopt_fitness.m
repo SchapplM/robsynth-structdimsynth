@@ -336,7 +336,7 @@ if any(strcmp(Set.optimization.objective, 'energy')) && ...
     (fval==0 || Set.general.debug_desopt)
   if Set.optimization.constraint_obj(2) % Vermeide doppelten Aufruf der Funktion
     % fval_energy und fval_debugtext_energy von der NB-Berechnung oben
-    error('Nocht nicht implementiert'); % s.o.
+    error('Noch nicht implementiert'); % s.o.
   else
     [fval_energy,fval_debugtext_energy,~,physval_en] = cds_obj_energy(R, Set, Structure, Traj_0, data_dyn.TAU, QD);
   end
