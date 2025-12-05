@@ -293,8 +293,8 @@ if fval == 0  && Set.optimization.constraint_obj(5) % NB für Steifigkeit gesetz
   if viol_rel_st > 0 % Relative Überschreitung der Nachgiebigkeit
     f_stvio_norm = 2/pi*atan((viol_rel_st)); % 1->0.5; 10->0.94
     fval = 1e3*(2+1*f_stvio_norm); % 3e3 ... 4e3
-    constrvioltext = sprintf('Nachgiebigkeit ist zu groß (%1.1f > %1.1f)', ...
-      fphys_st, Set.optimization.constraint_obj(5));
+    constrvioltext = sprintf('Steifigkeit ist zu gering (%1.2f < %1.2f)N/mm', ...
+      -1e-3*fphys_st, -1e-3*Set.optimization.constraint_obj(5));
   end
 end
 if fval > 1000 % Nebenbedingungen verletzt.
