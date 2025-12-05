@@ -431,6 +431,11 @@ test_XEfromIE = Traj.X(Traj.IE(Traj.IE~=0),:) - Traj.XE(Traj.IE~=0,:);
 if Set.task.profile ~= 2
   assert(all(abs(test_XEfromIE(:))<1e-10), 'Eckpunkte der Trajektorie X müssen in XE mit IE indiziert werden können');
 end
+XE_unique = unique(Traj.XE, 'rows', 'stable');
+% Für profile=0 dürfen keine doppelten Eckpunkte vorliegen. Die Reihenfolge
+% ist prinzipiell egal (auch wenn die IK-Anfangswerte beeinflusst werden)
+assert(size(XE_unique,1) == size(Traj.XE,1) && Set.task.profile == 0, ...
+  'Traj.XE sollte keine doppelten Werte haben. Sonst unnötige Berechnung');
 IE_firstzero = find(Traj.IE==0, 1, 'first');
 if ~isempty(IE_firstzero)
   assert(all(Traj.IE(IE_firstzero:end)==0), 'die letzten Werte in XE dürfen nicht mehr der Trajektorie zugeordnet sein');

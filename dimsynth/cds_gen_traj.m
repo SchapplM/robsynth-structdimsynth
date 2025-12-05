@@ -276,6 +276,7 @@ if trajset.profile == 1
   [X_ges,XD_ges,XDD_ges,T_ges,IE] = traj_trapez2_multipoint(XE, ...
     trajset.vmax, trajset.vmax/trajset.amax, trajset.Tv, trajset.Ts, 0); % muss noch bearbeiten
 elseif trajset.profile == 0 % Nur Eckpunkte
+  XE = unique(XE, 'rows', 'stable'); % Sonst Logik-Fehler in Fitness-Funktion
   X_ges = XE;
   XD_ges = XE*0;
   XDD_ges = XE*0;
