@@ -218,6 +218,13 @@ elseif all(vartypes == 2) % Nur Segmentstärke wird optimiert
     p_val_opt = InitPop(1,:)';
     detailstring = 'Schwächste Segmentdimensionierung erfüllt bereits die Nebenbedingungen';
   end
+  if Set.optimization.constraint_obj(3) && fval_minpar > 2e3 && fval_minpar < 3e3
+    % Die schwächste Dimensionierung führt zu einer zu großen Antriebskraft
+    avoid_optimization = true;
+    fval_opt = fval_minpar;
+    p_val_opt = InitPop(1,:)';
+    detailstring = 'Antriebskraft auch bei schwächster Segmentdimensionierung zu groß';
+  end
   % Erneuter Aufruf der Fitness-Funktion mit maximaler Dimensionierung 
   % ohne Kollisionsprüfung
   Set_tmp = Set;
@@ -242,6 +249,14 @@ elseif all(vartypes == 2) % Nur Segmentstärke wird optimiert
     p_val_opt = InitPop(2,:)';
     detailstring = 'Materialspannung auch bei stärkster Segmentdimensionierung überschritten';
   end
+  if Set.optimization.constraint_obj(5) && fval_maxpar > 3e3 && fval_maxpar < 4e3
+    % Die stärkste Dimensionierung führt zu einer zu geringen Steifigkeit
+    avoid_optimization = true;
+    fval_opt = fval_maxpar;
+    p_val_opt = InitPop(2,:)';
+    detailstring = 'Steifigkeit auch bei stärkster Segmentdimensionierung zu gering';
+  end
+
   if Set.optimization.constraint_obj(6) == 0 && ... % TODO: Logik überarbeiten (andere Zielfunktionen berücksichtigen)
     (all(strcmp(Set.optimization.objective, 'stiffness')) || Set.optimization.constraint_obj(5) == 0)
     % Optimierung der Steifigkeit ohne Prüfung der Materialstärke. Die
