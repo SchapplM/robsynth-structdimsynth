@@ -79,8 +79,9 @@ for jj = 1:length(Set.optimization.objective)
     obj_units{jj} = '%';
     objscale(jj) = 100;
   elseif strcmp(Set.optimization.objective{jj}, 'stiffness')
-    obj_units{jj} = 'm/N';
-    objtext{jj} = 'worst value in trajectory';
+    obj_units{jj} = 'N/mm';
+    objscale(jj) = 1e-3;
+    objtext{jj} = 'smallest stiffness value in trajectory';
   elseif strcmp(Set.optimization.objective{jj}, 'jointrange')
     if Set.optimization.obj_jointrange.only_revolute || ...
         Set.optimization.obj_jointrange.only_passive

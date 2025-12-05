@@ -1,5 +1,5 @@
 % Zielfunktion ("objective function") für Optimierung in der Maßsynthese
-% basierend auf der Steifigkeit des Roboters.
+% basierend auf der (Endeffektor-)Steifigkeit des Roboters.
 % Die Steifigkeit wird in einen normierten Zielfunktionswert übersetzt
 % Damit kleine Zielfunktionen besser sind, wird effektiv die Nachgiebigkeit
 % benutzt.
@@ -11,6 +11,8 @@
 %   Einstellungen des Optimierungsalgorithmus (aus cds_settings_defaults.m)
 % Q
 %   Gelenkpositionen des Roboters (für PKM auch passive Gelenke)
+% Traj_0
+%   Roboter-Trajektorie (EE) bezogen auf Basis-KS des Roboters
 %
 % Ausgabe:
 % fval [1x1]
@@ -41,7 +43,7 @@
 % Betreuer: Moritz Schappler, moritz.schappler@imes.uni-hannover.de
 % (C) Institut für Mechatronische Systeme, Universität Hannover
 
-function [fval, fval_debugtext, debug_info, fval_phys] = cds_obj_stiffness(R, Set, Q)
+function [fval, fval_debugtext, debug_info, fval_phys] = cds_obj_stiffness(R, Set, Q, Traj_0)
 debug_info = {};
 
 if any(R.Type == [0 1]) && any(R.DesPar.seg_par(:) == 0) || ...
@@ -58,10 +60,19 @@ Keigges = NaN(size(Q,1), 3);
 i_warn = 0;
 for i = 1:size(Q,1)
   % Kartesische Steifigkeitsmatrix (6x6)
-  K_ges = R.stiffness(Q(i,:)');
-  % Auswahl der translatorischen Submatrix (3x3), Normierung auf N/mm
-  % (damit Zahlenwerte eher im Bereich 1 liegen)
-  K_trans_norm = 1e-3*K_ges(1:3,1:3);
+  K_gesP = R.stiffness(Q(i,:)'); % bezogen auf Plattform bzw. Flansch
+  % Transformiere Steifigkeitsmatrix auf Endeffektor
+  T_0_E = R.x2t(Traj_0.X(i,:)'); % Benutze dafür EE-KS und rechne auf Plattform-KS zurück
+  if R.Type == 2
+    r_E_P_E = R.T_P_E(1:3,1:3)'*R.T_P_E(1:3,4);
+  else % heißt bei seriellen Robotern "N". Vereinheitliche mit PKM zu "P".
+    r_E_P_E = R.T_N_E(1:3,1:3)'*R.T_N_E(1:3,4);
+  end
+  r_0_P_E = T_0_E(1:3,1:3)*r_E_P_E;
+  A_E_P = adjoint_jacobian(r_0_P_E);
+  K_ges = A_E_P' * K_gesP * A_E_P;
+  % Auswahl der translatorischen Submatrix (3x3)
+  K_trans_norm = K_ges(1:3,1:3);
   if any(isnan(K_trans_norm(:))) || any(isinf(K_trans_norm(:)))
     if i_warn == 0 % Nur einmal Debug-Speicherung der Warnung.
       repopath = fileparts(which('structgeomsynth_path_init.m'));
@@ -71,7 +82,7 @@ for i = 1:size(Q,1)
     end
     continue
   end
-  Keigges(i,1:3) = sort(eig(K_trans_norm)); % Eigenwert der transl. St. in N/mm
+  Keigges(i,1:3) = sort(eig(K_trans_norm)); % Eigenwert der transl. St. in N/m
   if any(Keigges(i,1:3)<0)
     repopath = fileparts(which('structgeomsynth_path_init.m'));
     save(fullfile(repopath, 'tmp', 'cds_obj_stiffness_ew_error.mat'));
@@ -98,7 +109,7 @@ if num_invalid > 0
   return
 end
 [f_sti_min, I_sti_min] = min(Keigges(:,1));
-f_com = 1/f_sti_min; % Größte Nachgiebigkeit in mm/N
+f_com = 1/f_sti_min; % Größte Nachgiebigkeit in m/N
 
 % Alternative Berechnung für Ellipsoid:
 % Schlechtester Wert des Volumens vom Ellipsoid ist Kennzahl
@@ -106,26 +117,29 @@ f_com = 1/f_sti_min; % Größte Nachgiebigkeit in mm/N
 
 % fprintf('Niedrigste Steifigkeit: %1.3f N/mm bzw. höchste Nachgiebigkeit: %1.3f mm/N\n', 1/f_com, f_com);
 % Normierung (bezogen auf Nachgiebigkeit bzw. Steifigkeit): 
-% 1e-3 mm/N bzw. 1000 N/mm -> 0.06; (sehr steif; gut)
-% 1e-2 mm/N bzw. 100 N/mm  -> 0.50; (moderate Steifigkeit für einen Roboter)
-% 0.1 mm/N bzw. 10 N/mm    -> 0.94 (eher niedrige Steifigkeit; schlecht)
-% 1 mm/N bzw. 1N/mm        -> 0.99
-f_com_norm = 2/pi*atan(f_com/1e-2); 
+% 1e-3 mm/N bzw. 1000 N/mm =1e6 -> 0.06; (sehr steif; gut)
+% 1e-2 mm/N bzw.  100 N/mm =1e5 -> 0.50; (moderate Steifigkeit für einen Roboter)
+%  0.1 mm/N bzw.   10 N/mm =1e4 -> 0.94 (eher niedrige Steifigkeit; schlecht)
+%    1 mm/N bzw.    1 N/mm =1e3 -> 0.99
+f_com_norm = 2/pi*atan(1e3*f_com/1e-2); 
 fval = 1e2*f_com_norm; % Normiert auf 0 bis 1e2
-fval_debugtext = sprintf('Nachgiebigkeit %1.3f mm/N; Steifigkeit %1.3f N/mm.', f_com, 1/f_com);
-fval_phys = 1e-3 * f_com; % Umrechnung in äquivalenten physikalischen Wert (mm/N -> m/N)
-debug_info = {sprintf('min. Steifigkeit: %1.3f N/mm', 1/f_com)};
+if f_sti_min > 1e3
+  fval_debugtext = sprintf('Steifigkeit %1.3f N/mm.', 1e-3*f_sti_min);
+else
+  fval_debugtext = sprintf('Steifigkeit %1.3f N/m.', f_sti_min);
+end
+fval_phys = -f_sti_min; % Benutze physikalischen Wert (der Steifigkeit) negativ, wegen Minimierungsproblem
 
 %% Debug-Zeichnung erstellen
 if Set.general.plot_details_in_fitness < 0 && fval >= abs(Set.general.plot_details_in_fitness) || ... % Gütefunktion ist schlechter als Schwellwert: Zeichne
    Set.general.plot_details_in_fitness > 0 && fval <= abs(Set.general.plot_details_in_fitness)
   change_current_figure(205); clf; hold all;
-  hdleig=plot(Keigges);
-  hdl=plot([0; size(Q,1)], 1/Set.optimization.constraint_obj(5)*[1;1], 'r--');
-  hdlworst=plot(I_sti_min, f_sti_min, 'ko');
+  hdleig=plot(1e-3*Keigges);
+  hdl=plot([0; size(Q,1)], -1e-3*Set.optimization.constraint_obj(5)*[1;1], 'r--');
+  hdlworst=plot(I_sti_min, 1e-3*f_sti_min, 'ko');
   xlabel('Datenpunkte');
   ylabel('Steifigkeit in N/mm (niedriger=schlechter)');
   grid on;
-  sgtitle('Analyse der Nachgiebigkeit');
-  legend([hdleig;hdl;hdlworst], {'Nmin', 'Nmid', 'Nmax', 'Untergrenze', 'schlechtester'});
+  sgtitle('Analyse der Steifigkeit');
+  legend([hdleig;hdl;hdlworst], {'Kmin', 'Kmid', 'Kmax', 'Untergrenze', 'schlechtester'});
 end

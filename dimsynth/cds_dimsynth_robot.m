@@ -2905,7 +2905,7 @@ if ~result_invalid && ~any(strcmp(Set.optimization.objective, 'valid_act')) && ~
   if R.Type ~= 1 % noch nicht implementiert
     [fval_obj_all(strcmp(ds.obj_names_all, 'stiffness')),~, ~, ...
       physval_obj_all(strcmp(ds.obj_names_all, 'stiffness'))] = ...
-      cds_obj_stiffness(R, Set, Q);
+      cds_obj_stiffness(R, Set, Q, Traj_0);
   end
   if R.Type ~= 1 && (any(isnan(fval_obj_all)) || any(isnan(physval_obj_all)))
     % Dimension ist falsch, wenn eine Zielfunktion nicht skalar ist (z.B. leer)
