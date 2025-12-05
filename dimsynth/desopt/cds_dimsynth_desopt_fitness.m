@@ -106,18 +106,18 @@ if Set.optimization.constraint_collisions_desopt
       Set.optimization.collision_bodies_safety_distance * 2, 0]; [inf, inf]];
   end
   if any(vartypes==2) && fval == 0
-    if p_ls(2) < data_last_collchecks(1,1)
-      % Durchmesser ist kleiner als größte i.O.-Kollisionsprüfung.
+    if p_ls(2) <= data_last_collchecks(1,1)
+      % Durchmesser ist kleiner als größte i.O.-Kollisionsprüfung (oder gleich).
       % Es kann keine Kollision geben
-    elseif p_ls(2) > data_last_collchecks(2,1)
-      % Durchmesser ist größer als beste n.i.O.-Kollisionsprüfung
+    elseif p_ls(2) >= data_last_collchecks(2,1)
+      % Durchmesser ist größer als beste n.i.O.-Kollisionsprüfung (oder gleich)
       % Es muss eine Kollision geben. Lade alte Daten.
       fval = data_last_collchecks(2,2) * ... % vergrößere Strafterm proportional
         (1+2/pi*atan(p_ls(2)/data_last_collchecks(2,1)-1)); % damit nicht alle den gleichen Fitness-Wert haben.
       if fval > 0
         constrvioltext = sprintf(['Bei Segment-Durchmesser %1.1fmm gab es ', ...
-          'bereits eine Kollision. Aktueller Wert %1.1fmm ist größer'], ...
-          1e3*data_last_collchecks(2), 1e3*p_ls(2));
+          'bereits eine Kollision. Aktueller Wert %1.1fmm ist größer/gleich'], ...
+          1e3*data_last_collchecks(2,1), 1e3*p_ls(2));
       end
     else
       % Durchmesser ist in einem unbekannten Bereich. Neu berechnen.
