@@ -267,7 +267,7 @@ if fval == 0  && Set.optimization.constraint_obj(5) % NB für Steifigkeit gesetz
   viol_rel_st = physval_desopt - 1;
   if viol_rel_st > 0 % Relative Überschreitung der Nachgiebigkeit
     f_stvio_norm = 2/pi*atan((viol_rel_st)); % 1->0.5; 10->0.94
-    fval = 1e3*(2+1*f_stvio_norm); % 3e3 ... 4e3
+    fval = 1e3*(3+1*f_stvio_norm); % 3e3 ... 4e3
     constrvioltext = sprintf('Steifigkeit ist zu gering (%1.2f < %1.2f)N/mm', ...
       -1e-3*fphys_st, -1e-3*Set.optimization.constraint_obj(5));
   end
@@ -279,7 +279,7 @@ if fval == 0  && Set.optimization.constraint_obj(3) % NB für Antriebskraft gese
   viol_rel_actforce = physval_desopt - 1;
   if viol_rel_actforce > 0 % Relative Überschreitung der Grenze für die Antriebskraft
     f_actforcevio_norm = 2/pi*atan((viol_rel_actforce)); % 1->0.5; 10->0.94
-    fval = 1e3*(1+1*f_actforcevio_norm); % 2e3 ... 3e3
+    fval = 1e3*(2+1*f_actforcevio_norm); % 2e3 ... 3e3
     constrvioltext = sprintf('Antriebskraft ist zu groß (%1.1f > %1.1f)', ...
       fphys_actforce, Set.optimization.constraint_obj(3));
   end
