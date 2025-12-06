@@ -139,6 +139,11 @@ end
 
 %% Parameter aktualisieren
 if any(isnan(p))
+  dbgfile=fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+    'tmp', sprintf('cds_fitness_parameters_NaN_%s_%s.mat', ...
+    Set.optimization.optname, R.mdlname));
+  save(dbgfile);
+  cds_log(-1,sprintf('[fitness] Parameter ist NaN. Zustand gespeichert: %s', dbgfile));
   return;
 end
 % Keine Verwendung der Ausgabe: Parameter werden direkt in ursprüngliche
