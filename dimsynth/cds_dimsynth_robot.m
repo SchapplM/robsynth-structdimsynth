@@ -64,6 +64,15 @@ cds_save_particle_details();
 if ~isfield(Structure, 'RobName'), Structure.RobName = ''; end
 if ~isfield(Structure, 'mirrorconfig_d'), Structure.mirrorconfig_d = 1; end
 ds = cds_definitions();
+% Die Reihenfolge der Zielfunktionen insgesamt und die der Zielfunktionen
+% als Grenze sind unterschiedlich. Finde Indizes der einen in den anderen.
+obj_names_all = ds.obj_names_all;
+objconstr_names_all = ds.objconstr_names_all;
+I_constr = zeros(length(objconstr_names_all),1);
+for i = 1:length(objconstr_names_all)
+  I_constr(i) = find(strcmp(objconstr_names_all{i}, obj_names_all));
+end
+[~,I_obj] = intersect(obj_names_all, Set.optimization.objective);
 %% Referenzlänge ermitteln
 % Mittelpunkt der Aufgabe
 Structure.xT_mean = mean(minmax2(Traj.X(:,1:3)'), 2);
@@ -2588,6 +2597,7 @@ end
 % Optimierung gespeicherten Werten (persistente Variablen)
 if length(Set.optimization.objective) > 1 % Mehrkriteriell
   physval_pareto = NaN(size(fval_pareto));
+  physval_pareto_all = NaN(size(fval_pareto,1), length(obj_names_all));
   for i = 1:size(fval_pareto,1) % Pareto-Front durchgehen
     [k_gen, k_ind] = cds_load_particle_details(PSO_Detail_Data, fval_pareto(i,:)');
     if k_gen == -1
@@ -2599,6 +2609,8 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell
       save(dbgfile);
     else
       physval_pareto(i,:) = PSO_Detail_Data.physval(k_ind,:,k_gen);
+      physval_pareto_all(i,I_constr) = PSO_Detail_Data.constraint_obj_val(k_ind,:,k_gen);
+      physval_pareto_all(i,I_obj) = PSO_Detail_Data.physval(k_ind,:,k_gen);
     end
   end
   % Falls Nebenbedingungen gesetzt sind: Wähle von Pareto-Front dazu
@@ -2617,6 +2629,7 @@ if length(Set.optimization.objective) > 1 % Mehrkriteriell
   end
 else % Einkriteriell
   physval_pareto = [];
+  physval_pareto_all = [];
 end
 if any(isnan(p_val))
   dbgfile = fullfile(fileparts(which('structgeomsynth_path_init.m')), 'tmp', ...
@@ -2997,14 +3010,6 @@ end
 % Prüfe auf Plausibilität, ob die Optimierungsziele erreicht wurden. Neben-
 % bedingungen nur prüfen, falls überhaupt gültige Lösung erreicht wurde.
 I_fobj_set = Set.optimization.constraint_obj ~= 0;
-% Die Reihenfolge der Zielfunktionen insgesamt und die der Zielfunktionen
-% als Grenze sind unterschiedlich. Finde Indizes der einen in den anderen.
-objconstr_names_all = ds.objconstr_names_all;
-obj_names_all = ds.obj_names_all;
-I_constr = zeros(length(objconstr_names_all),1);
-for i = 1:length(objconstr_names_all)
-  I_constr(i) = find(strcmp(objconstr_names_all{i}, obj_names_all));
-end
 % Indizes der verletzten Nebenbedingungen. Wert Null heißt inaktiv.
 I_viol = physval_obj_all(I_constr) > Set.optimization.constraint_obj & I_fobj_set;
 if any(fval<1e3) && any(I_viol)
@@ -3108,6 +3113,7 @@ RobotOptRes = struct( ...
   'desopt_pval', desopt_pval, ... % Entwurfsparameter zum Ergebnis
   'fval_pareto', fval_pareto, ... % Alle Fitness-Werte der Pareto-Front
   'physval_pareto', physval_pareto, ... % physikalische Werte dazu
+  'physval_pareto_all', physval_pareto_all, ... % physikalische Werte für alle verfügbaren Kriterien aus `obj_names_all` (nicht nur nach denen optimiert wurde)
   'p_val_pareto', p_val_pareto, ... % Alle Parametervektoren der P.-Front
   'desopt_pval_pareto', desopt_pval_pareto, ... % Alle Entwurfsparameter zu den Pareto-Punkten
   'q0_pareto', q0_pareto, ... % Alle IK-Anfangswerte aller Pareto-Partikel
