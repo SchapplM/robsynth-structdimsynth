@@ -98,7 +98,9 @@ if currgen > 5 && save_success % nur löschen, falls neues Speichern erfolgreich
   % Lösche die Dateien ein paar Nummern vorher rollierend. Behalte also
   % immer mehrere Zwischenergebnisse, falls eine Datei inkonsistent ist.
   filename_previous = sprintf('MOPSO_Gen%02d_AllInd.mat', currgen-5);
-  delete(fullfile(resdir, filename_previous));
+  if exist(filename_previous, 'file')
+    delete(fullfile(resdir, filename_previous));
+  end
 end
 if save_success
   cds_log(1,sprintf('[output] Zwischenergebnisse gespeichert: %s', ...

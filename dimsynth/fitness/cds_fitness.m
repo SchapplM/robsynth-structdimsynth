@@ -1308,7 +1308,7 @@ persistent t_lastcheck; % Zeitpunkt der letzten Prüfung
 if isempty(t_lastsave), t_lastsave = 0; end % Initialisierung
 if isempty(t_lastcheck), t_lastcheck = 0; end % Initialisierung
 if ~Set.general.isoncluster, return; end % nur auf Cluster machen
-if now() < t_lastcheck + 2/(24*60) 
+if now() < t_lastcheck + 2/(24*60) %#ok<*TNOW1>
   % Letzte Prüfung ist erst zwei Minuten her.
   return
 end
