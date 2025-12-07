@@ -57,9 +57,12 @@ persistent abort_fitnesscalc % Schalter für Abbruch der Optimierung
 % Merke den Durchmesser der letzten Prüfung und zugehörigen Kollisions- 
 % Funktionswert für i.O. (erste Zeile) und n.i.O. (zweite Zeile)
 persistent data_last_collchecks
+% Merke die Startzeit zur Einhaltung der Rechenzeit
+persistent starttime
 if nargin == 0
   abort_fitnesscalc = [];
   data_last_collchecks = [];
+  starttime = [];
   return;
 end
 % Debug:
@@ -75,7 +78,19 @@ fval_debugtext = '';
 % Speicherung der Fitness-Werte bezogen auf die überlagerte Maßsynthese
 fval_main = NaN(length(Set.optimization.objective),1);
 physval_main = NaN(length(Set.optimization.objective),1);
-% Abbruch prüfen
+% Abbruch prüfen (falls Bedingung gesetzt ist)
+if ~isinf(Set.optimization.desopt_MaxTime/(24*3600))
+  if isempty(starttime)
+    starttime = now(); % in Tagen
+  elseif now() > starttime + Set.optimization.desopt_MaxTime/(24*3600)
+    if ~abort_fitnesscalc
+      cds_log(4,sprintf(['[desopt/fitness] Abbruch aufgrund von Zeit', ...
+        'überschreitung (%1.1fmin)'], Set.optimization.desopt_MaxTime/60));
+    end
+    abort_fitnesscalc = true;
+  end
+end
+
 abort_fitnesscalc_retval = false;
 if isempty(abort_fitnesscalc)
   abort_fitnesscalc = false;

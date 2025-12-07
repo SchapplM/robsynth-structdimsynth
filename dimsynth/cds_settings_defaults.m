@@ -260,6 +260,7 @@ optimization = struct( ...
   'abort_pareto_front_size', inf, ... % Mit dem Wert kann die Optimierung vorzeitig bei ausreichend gefüllter Pareto-Front abgebrochen werden
   'desopt_NumIndividuals', NaN, ... % Anzahl der PSO-Partikel bei der Entwurfsoptimierung. NaN ist Standard-Wert (abhängig von Anzahl der Variablen)
   'desopt_MaxIter', NaN, ... % Anzahl der PSO-Generationen bei der Entwurfsoptimierung.
+  'desopt_MaxTime', Inf, ... % Maximale Rechenzeit bei Entwurfsoptimierung
   'desopt_use_obj_limit', true, ... % Nutze Option obj_limit auch in cds_dimsynth_desopt_fitness.m. Zum Debuggen deaktivieren.
   'static_force_only', false, ... % Betrachte nur statische Kraft, keine Dynamik (egal ob Geschwindigkeit/Beschleunigung gegeben)
   'joint_stiffness_passive_revolute', 0, ... % Zur Annahme von Drehfedern in den Gelenken. Ist Sonderfall für Festkörpergelenke. NaN, falls Steifigkeit optimiert wird.
