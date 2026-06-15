@@ -139,7 +139,11 @@ end
 
 %% Parameter aktualisieren
 if any(isnan(p))
-  cds_log(-1,sprintf('[fitness] Parameter ist NaN'));
+  dbgfile=fullfile(fileparts(which('structgeomsynth_path_init.m')), ...
+    'tmp', sprintf('cds_fitness_parameters_NaN_%s_%s.mat', ...
+    Set.optimization.optname, R.mdlname));
+  save(dbgfile);
+  cds_log(-1,sprintf('[fitness] Parameter ist NaN. Zustand gespeichert: %s', dbgfile));
   return;
 end
 % Keine Verwendung der Ausgabe: Parameter werden direkt in ursprüngliche
@@ -755,7 +759,7 @@ for iIKC = I_IKC
       fval_IKC(iIKC,:) = 1e4*(3+1*(fval_st/1000)); % Bringe in Bereich 3e4 ... 4e4
       constrvioltext_IKC{iIKC} = sprintf('Die Steifigkeit ist zu klein: %1.1e < %1.1e', ...
         -fval_phys_st, -Set.optimization.constraint_obj(5));
-      cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.2fs. fval=%1.3e. %s', toc(t1), fval_IKC(iIKC,1), constrvioltext_stiffness));
+      cds_log(2,sprintf('[fitness] Fitness-Evaluation in %1.2fs. fval=%1.3e. %s', toc(t1), fval_IKC(iIKC,1), constrvioltext_IKC{iIKC}));
       continue
     end
   end
@@ -1304,7 +1308,7 @@ persistent t_lastcheck; % Zeitpunkt der letzten Prüfung
 if isempty(t_lastsave), t_lastsave = 0; end % Initialisierung
 if isempty(t_lastcheck), t_lastcheck = 0; end % Initialisierung
 if ~Set.general.isoncluster, return; end % nur auf Cluster machen
-if now() < t_lastcheck + 2/(24*60) 
+if now() < t_lastcheck + 2/(24*60) %#ok<*TNOW1>
   % Letzte Prüfung ist erst zwei Minuten her.
   return
 end

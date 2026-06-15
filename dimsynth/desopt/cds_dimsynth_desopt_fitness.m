@@ -57,9 +57,12 @@ persistent abort_fitnesscalc % Schalter für Abbruch der Optimierung
 % Merke den Durchmesser der letzten Prüfung und zugehörigen Kollisions- 
 % Funktionswert für i.O. (erste Zeile) und n.i.O. (zweite Zeile)
 persistent data_last_collchecks
+% Merke die Startzeit zur Einhaltung der Rechenzeit
+persistent starttime
 if nargin == 0
   abort_fitnesscalc = [];
   data_last_collchecks = [];
+  starttime = [];
   return;
 end
 % Debug:
@@ -75,7 +78,19 @@ fval_debugtext = '';
 % Speicherung der Fitness-Werte bezogen auf die überlagerte Maßsynthese
 fval_main = NaN(length(Set.optimization.objective),1);
 physval_main = NaN(length(Set.optimization.objective),1);
-% Abbruch prüfen
+% Abbruch prüfen (falls Bedingung gesetzt ist)
+if ~isinf(Set.optimization.desopt_MaxTime/(24*3600))
+  if isempty(starttime)
+    starttime = now(); % in Tagen
+  elseif now() > starttime + Set.optimization.desopt_MaxTime/(24*3600)
+    if ~abort_fitnesscalc
+      cds_log(4,sprintf(['[desopt/fitness] Abbruch aufgrund von Zeit', ...
+        'überschreitung (%1.1fmin)'], Set.optimization.desopt_MaxTime/60));
+    end
+    abort_fitnesscalc = true;
+  end
+end
+
 abort_fitnesscalc_retval = false;
 if isempty(abort_fitnesscalc)
   abort_fitnesscalc = false;
@@ -106,18 +121,18 @@ if Set.optimization.constraint_collisions_desopt
       Set.optimization.collision_bodies_safety_distance * 2, 0]; [inf, inf]];
   end
   if any(vartypes==2) && fval == 0
-    if p_ls(2) < data_last_collchecks(1,1)
-      % Durchmesser ist kleiner als größte i.O.-Kollisionsprüfung.
+    if p_ls(2) <= data_last_collchecks(1,1)
+      % Durchmesser ist kleiner als größte i.O.-Kollisionsprüfung (oder gleich).
       % Es kann keine Kollision geben
-    elseif p_ls(2) > data_last_collchecks(2,1)
-      % Durchmesser ist größer als beste n.i.O.-Kollisionsprüfung
+    elseif p_ls(2) >= data_last_collchecks(2,1)
+      % Durchmesser ist größer als beste n.i.O.-Kollisionsprüfung (oder gleich)
       % Es muss eine Kollision geben. Lade alte Daten.
       fval = data_last_collchecks(2,2) * ... % vergrößere Strafterm proportional
         (1+2/pi*atan(p_ls(2)/data_last_collchecks(2,1)-1)); % damit nicht alle den gleichen Fitness-Wert haben.
       if fval > 0
         constrvioltext = sprintf(['Bei Segment-Durchmesser %1.1fmm gab es ', ...
-          'bereits eine Kollision. Aktueller Wert %1.1fmm ist größer'], ...
-          1e3*data_last_collchecks(2), 1e3*p_ls(2));
+          'bereits eine Kollision. Aktueller Wert %1.1fmm ist größer/gleich'], ...
+          1e3*data_last_collchecks(2,1), 1e3*p_ls(2));
       end
     else
       % Durchmesser ist in einem unbekannten Bereich. Neu berechnen.
@@ -336,7 +351,7 @@ if any(strcmp(Set.optimization.objective, 'energy')) && ...
     (fval==0 || Set.general.debug_desopt)
   if Set.optimization.constraint_obj(2) % Vermeide doppelten Aufruf der Funktion
     % fval_energy und fval_debugtext_energy von der NB-Berechnung oben
-    error('Nocht nicht implementiert'); % s.o.
+    error('Noch nicht implementiert'); % s.o.
   else
     [fval_energy,fval_debugtext_energy,~,physval_en] = cds_obj_energy(R, Set, Structure, Traj_0, data_dyn.TAU, QD);
   end
