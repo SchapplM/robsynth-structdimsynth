@@ -260,6 +260,30 @@ if fval == 0 && Set.optimization.constraint_obj(6)
   constrvioltext = constrvioltext_ms;
   physval_desopt = physval_materialstress;
 end
+% Teste Nebenbedingungen in Reihenfolge absteigenden Wertes für Strafterm
+if fval == 0  && Set.optimization.constraint_obj(5) % NB für Steifigkeit gesetzt
+  [fval_st, fval_debugtext_st, ~, fphys_st] = cds_obj_stiffness(R, Set, Q, Traj_0);
+  physval_desopt = Set.optimization.constraint_obj(5) / fphys_st;
+  viol_rel_st = physval_desopt - 1;
+  if viol_rel_st > 0 % Relative Überschreitung der Nachgiebigkeit
+    f_stvio_norm = 2/pi*atan((viol_rel_st)); % 1->0.5; 10->0.94
+    fval = 1e3*(3+1*f_stvio_norm); % 3e3 ... 4e3
+    constrvioltext = sprintf('Steifigkeit ist zu gering (%1.2f < %1.2f)N/mm', ...
+      -1e-3*fphys_st, -1e-3*Set.optimization.constraint_obj(5));
+  end
+end
+if fval == 0  && Set.optimization.constraint_obj(3) % NB für Antriebskraft gesetzt
+  [fval_actforce, fval_debugtext_actforce, ~, fphys_actforce] = ...
+    cds_obj_actforce(data_dyn.TAU, R, Set, Structure);
+  physval_desopt = fphys_actforce / Set.optimization.constraint_obj(3);
+  viol_rel_actforce = physval_desopt - 1;
+  if viol_rel_actforce > 0 % Relative Überschreitung der Grenze für die Antriebskraft
+    f_actforcevio_norm = 2/pi*atan((viol_rel_actforce)); % 1->0.5; 10->0.94
+    fval = 1e3*(2+1*f_actforcevio_norm); % 2e3 ... 3e3
+    constrvioltext = sprintf('Antriebskraft ist zu groß (%1.1f > %1.1f)', ...
+      fphys_actforce, Set.optimization.constraint_obj(3));
+  end
+end
 if fval == 0 && Set.optimization.constraint_obj(1) % NB für Masse gesetzt
   [fval_mass, fval_debugtext_mass, ~, fphys_m] = cds_obj_mass(R);
   physval_desopt = fphys_m / Set.optimization.constraint_obj(1);
@@ -271,32 +295,10 @@ if fval == 0 && Set.optimization.constraint_obj(1) % NB für Masse gesetzt
       fphys_m, Set.optimization.constraint_obj(1));
   end
 end
-if fval == 0  && Set.optimization.constraint_obj(3) % NB für Antriebskraft gesetzt
-  [fval_actforce, fval_debugtext_actforce, ~, fphys_actforce] = ...
-    cds_obj_actforce(data_dyn.TAU, R, Set, Structure);
-  physval_desopt = fphys_actforce / Set.optimization.constraint_obj(3);
-  viol_rel_actforce = physval_desopt - 1;
-  if viol_rel_actforce > 0 % Relative Überschreitung der Grenze für die Antriebskraft
-    f_actforcevio_norm = 2/pi*atan((viol_rel_actforce)); % 1->0.5; 10->0.94
-    fval = 1e3*(1+1*f_actforcevio_norm); % 2e3 ... 3e3
-    constrvioltext = sprintf('Antriebskraft ist zu groß (%1.1f > %1.1f)', ...
-      fphys_actforce, Set.optimization.constraint_obj(3));
-  end
-end
 if fval == 0  && Set.optimization.constraint_obj(2) % NB für Energie gesetzt
   error('Grenzen für Zielfunktionen Energie noch nicht implementiert');
 end
-if fval == 0  && Set.optimization.constraint_obj(5) % NB für Steifigkeit gesetzt
-  [fval_st, fval_debugtext_st, ~, fphys_st] = cds_obj_stiffness(R, Set, Q, Traj_0);
-  physval_desopt = Set.optimization.constraint_obj(5) / fphys_st;
-  viol_rel_st = physval_desopt - 1;
-  if viol_rel_st > 0 % Relative Überschreitung der Nachgiebigkeit
-    f_stvio_norm = 2/pi*atan((viol_rel_st)); % 1->0.5; 10->0.94
-    fval = 1e3*(2+1*f_stvio_norm); % 3e3 ... 4e3
-    constrvioltext = sprintf('Nachgiebigkeit ist zu groß (%1.1f > %1.1f)', ...
-      fphys_st, Set.optimization.constraint_obj(5));
-  end
-end
+
 if fval > 1000 % Nebenbedingungen verletzt.
   [~, i_gen, i_ind] = cds_desopt_save_particle_details(toc(t1), fval, p_desopt, physval_desopt);
   cds_log(4,sprintf(['[desopt/fitness] G=%d;I=%d. DesOpt-Fitness-Evaluation ', ...
