@@ -354,6 +354,10 @@ if isempty(Set.general.save_animation_file_extensions) && ~isempty(Set.general.a
   warning('Eingabefeld save_animation_file_extensions ist leer. Keine Animation');
   Set.general.animation_styles = {};
 end
+if ~isa(Set.general.animation_styles, 'cell')
+  warning('Eingabefeld animation_styles muss cell sein');
+  Set.general.animation_styles = {Set.general.animation_styles};
+end
 if any(strcmp(Set.general.animation_styles, ''))
   error('Einstellung animation_styles enthält leeren Eintrag. Ungültig. Muss leeres Cell sein.');
 end
